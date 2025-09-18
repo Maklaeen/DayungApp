@@ -366,15 +366,9 @@ class _MemberDashboardState extends State<MemberDashboard> {
       GestureDetector(
         onTap: () {
           Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (context) => ProfilePage(
-                fullName: _fullName,
-                mobileNumber: _mobileNumber,
-                address: _userAddress,
-              ),
-            ),
-          );
+  context,
+  MaterialPageRoute(builder: (_) => const ProfilePage()),
+);
         },
         child: const CircleAvatar(
           radius: 28,

@@ -2,6 +2,7 @@ import 'package:capstone_app/Members/dashboard.dart';
 import 'package:capstone_app/pages/contributionhistory.dart';
 import 'package:flutter/material.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class ClaimsPage extends StatefulWidget {
   const ClaimsPage({super.key});
@@ -12,6 +13,19 @@ class ClaimsPage extends StatefulWidget {
 
 class _ClaimsPageState extends State<ClaimsPage> {
   int _tabIndex = 0;
+  String? selectedDayungUnit;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadDayungUnit();
+  }
+
+  Future<void> _loadDayungUnit() async {
+    final prefs = await SharedPreferences.getInstance();
+    final unit = prefs.getString('selectedDayungUnit');
+    setState(() => selectedDayungUnit = unit ?? 'Dayung');
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -22,6 +36,7 @@ class _ClaimsPageState extends State<ClaimsPage> {
           SafeArea(
             child: Column(
               children: [
+                // Header
                 Container(
                   padding: const EdgeInsets.symmetric(
                     horizontal: 16,
@@ -35,9 +50,9 @@ class _ClaimsPageState extends State<ClaimsPage> {
                   ),
                   child: Row(
                     children: [
-                      const Text(
-                        'Dayung',
-                        style: TextStyle(
+                      Text(
+                        selectedDayungUnit ?? 'Dayung',
+                        style: const TextStyle(
                           fontSize: 36,
                           fontWeight: FontWeight.bold,
                           fontFamily: 'Montserrat',
@@ -90,7 +105,10 @@ class _ClaimsPageState extends State<ClaimsPage> {
                     ],
                   ),
                 ),
+
                 const Divider(height: 1, thickness: 1),
+
+                // Submit New Claim Button
                 Padding(
                   padding: const EdgeInsets.symmetric(
                     vertical: 16,
@@ -116,104 +134,63 @@ class _ClaimsPageState extends State<ClaimsPage> {
                         padding: const EdgeInsets.symmetric(vertical: 16),
                         elevation: 0,
                       ),
-                      onPressed: () {},
+                      onPressed: () {
+                        // TODO: Implement claim submission
+                      },
                     ),
                   ),
                 ),
+
+                // Tabs
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 24),
                   child: Row(
                     children: [
-                      GestureDetector(
-                        onTap: () => setState(() => _tabIndex = 0),
-                        child: Column(
-                          children: [
-                            Text(
-                              'Ongoing',
-                              style: TextStyle(
-                                fontSize: 22,
-                                fontWeight: FontWeight.bold,
-                                color: _tabIndex == 0
-                                    ? Colors.black
-                                    : Colors.black38,
-                                fontFamily: 'Montserrat',
-                              ),
-                            ),
-                            if (_tabIndex == 0)
-                              Container(
-                                margin: const EdgeInsets.only(top: 4),
-                                height: 2,
-                                width: 60,
-                                color: Colors.blue,
-                              ),
-                          ],
-                        ),
-                      ),
+                      _tabButton('Ongoing', 0),
                       const SizedBox(width: 24),
-                      GestureDetector(
-                        onTap: () => setState(() => _tabIndex = 1),
-                        child: Column(
-                          children: [
-                            Text(
-                              'History',
-                              style: TextStyle(
-                                fontSize: 22,
-                                fontWeight: FontWeight.bold,
-                                color: _tabIndex == 1
-                                    ? Colors.black
-                                    : Colors.black38,
-                                fontFamily: 'Montserrat',
-                              ),
-                            ),
-                            if (_tabIndex == 1)
-                              Container(
-                                margin: const EdgeInsets.only(top: 4),
-                                height: 2,
-                                width: 60,
-                                color: Colors.blue,
-                              ),
-                          ],
-                        ),
-                      ),
+                      _tabButton('History', 1),
                     ],
                   ),
                 ),
                 const SizedBox(height: 16),
+
+                // Claim Cards
                 Expanded(
                   child: ListView(
                     padding: const EdgeInsets.symmetric(horizontal: 16),
-                    children: [
-                      if (_tabIndex == 0) ...[
-                        _claimCard(
-                          'Jul 10',
-                          'Contribution Claim',
-                          'Pending',
-                          Colors.orange[100]!,
-                          Colors.brown,
-                        ),
-                        _claimCard(
-                          'Jul 9',
-                          'Contribution Claim',
-                          'Approved',
-                          Colors.green[100]!,
-                          Colors.green[900]!,
-                        ),
-                      ] else ...[
-                        // Example history items
-                        _claimCard(
-                          'Jul 1',
-                          'Contribution Claim',
-                          'Approved',
-                          Colors.green[100]!,
-                          Colors.green[900]!,
-                        ),
-                      ],
-                    ],
+                    children: _tabIndex == 0
+                        ? [
+                            _claimCard(
+                              'Jul 10',
+                              'Contribution Claim',
+                              'Pending',
+                              Colors.orange[100]!,
+                              Colors.brown,
+                            ),
+                            _claimCard(
+                              'Jul 9',
+                              'Contribution Claim',
+                              'Approved',
+                              Colors.green[100]!,
+                              Colors.green[900]!,
+                            ),
+                          ]
+                        : [
+                            _claimCard(
+                              'Jul 1',
+                              'Contribution Claim',
+                              'Approved',
+                              Colors.green[100]!,
+                              Colors.green[900]!,
+                            ),
+                          ],
                   ),
                 ),
               ],
             ),
           ),
+
+          // Bottom Navigation
           Positioned(
             left: 0,
             right: 0,
@@ -245,7 +222,7 @@ class _ClaimsPageState extends State<ClaimsPage> {
                         Navigator.pushReplacement(
                           context,
                           MaterialPageRoute(
-                            builder: (context) => const MemberDashboard(),
+                            builder: (_) => const MemberDashboard(),
                           ),
                         );
                       },
@@ -258,7 +235,7 @@ class _ClaimsPageState extends State<ClaimsPage> {
                         Navigator.pushReplacement(
                           context,
                           MaterialPageRoute(
-                            builder: (context) => ContributionHistory(),
+                            builder: (_) => const ContributionHistory(),
                           ),
                         );
                       },
@@ -279,6 +256,35 @@ class _ClaimsPageState extends State<ClaimsPage> {
     );
   }
 
+  // Tab Button Widget
+  Widget _tabButton(String label, int index) {
+    final isSelected = _tabIndex == index;
+    return GestureDetector(
+      onTap: () => setState(() => _tabIndex = index),
+      child: Column(
+        children: [
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 22,
+              fontWeight: FontWeight.bold,
+              color: isSelected ? Colors.black : Colors.black38,
+              fontFamily: 'Montserrat',
+            ),
+          ),
+          if (isSelected)
+            Container(
+              margin: const EdgeInsets.only(top: 4),
+              height: 2,
+              width: 60,
+              color: Colors.blue,
+            ),
+        ],
+      ),
+    );
+  }
+
+  // Claim Card Widget
   Widget _claimCard(
     String date,
     String title,
@@ -345,6 +351,7 @@ class _ClaimsPageState extends State<ClaimsPage> {
     );
   }
 
+  // Bottom NavBar Item
   Widget _navBarItem({
     required IconData icon,
     required String label,

@@ -1,13 +1,10 @@
 import 'package:capstone_app/Members/dashboard.dart';
 import 'package:capstone_app/pages/claims.dart';
-import 'package:capstone_app/settings/user_provider.dart';
-import 'package:flutter/material.dart';
-import 'package:font_awesome_flutter/font_awesome_flutter.dart';
-import 'package:provider/provider.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'package:capstone_app/pages/notification.dart';
 import 'package:capstone_app/profile/profile.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:flutter/material.dart';
+import 'package:font_awesome_flutter/font_awesome_flutter.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class ContributionHistory extends StatefulWidget {
   const ContributionHistory({super.key});
@@ -19,13 +16,6 @@ class ContributionHistory extends StatefulWidget {
 class _ContributionHistoryState extends State<ContributionHistory> {
   final bool _showNavBar = true;
   String? selectedDayungUnit;
-  // ignore: unused_field
-  User? _user;
-  String _fullName = '';
-  // ignore: unused_field
-  bool _loading = true;
-  String _mobileNumber = 'Not Available';
-  String _userAddress = 'Not Provided';
 
   @override
   void initState() {
@@ -41,11 +31,6 @@ class _ContributionHistoryState extends State<ContributionHistory> {
 
   @override
   Widget build(BuildContext context) {
-    final userProvider = Provider.of<UserProvider>(context);
-    final fullName = userProvider.fullName;
-    final mobileNumber = userProvider.mobileNumber;
-    final address = userProvider.userAddress;
-
     final contributions = [
       {'date': 'February 17, 2025', 'amount': '₱ 200'},
       {'date': 'March 20, 2024', 'amount': '₱ 200'},
@@ -59,6 +44,7 @@ class _ContributionHistoryState extends State<ContributionHistory> {
           SafeArea(
             child: Column(
               children: [
+                // Header
                 Padding(
                   padding: const EdgeInsets.symmetric(
                     horizontal: 16,
@@ -66,7 +52,6 @@ class _ContributionHistoryState extends State<ContributionHistory> {
                   ),
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    crossAxisAlignment: CrossAxisAlignment.center,
                     children: [
                       Text(
                         selectedDayungUnit ?? 'Dayung',
@@ -83,8 +68,7 @@ class _ContributionHistoryState extends State<ContributionHistory> {
                               Navigator.push(
                                 context,
                                 MaterialPageRoute(
-                                  builder: (context) =>
-                                      const NotificationPage(),
+                                  builder: (_) => const NotificationPage(),
                                 ),
                               );
                             },
@@ -128,11 +112,7 @@ class _ContributionHistoryState extends State<ContributionHistory> {
                               Navigator.push(
                                 context,
                                 MaterialPageRoute(
-                                  builder: (context) => ProfilePage(
-                                    fullName: _fullName,
-                                    mobileNumber: _mobileNumber,
-                                    address: _userAddress,
-                                  ),
+                                  builder: (_) => const ProfilePage(),
                                 ),
                               );
                             },
@@ -151,17 +131,17 @@ class _ContributionHistoryState extends State<ContributionHistory> {
                     ],
                   ),
                 ),
+
                 const Divider(height: 1, thickness: 1),
-                Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 16,
-                  ),
+
+                // Title
+                const Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 16, vertical: 16),
                   child: Align(
                     alignment: Alignment.centerLeft,
                     child: Text(
                       'Contribution History',
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 24,
                         fontWeight: FontWeight.bold,
                         fontFamily: 'Montserrat',
@@ -170,6 +150,7 @@ class _ContributionHistoryState extends State<ContributionHistory> {
                   ),
                 ),
 
+                // Contribution List
                 Expanded(
                   child: ListView.builder(
                     padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -225,6 +206,8 @@ class _ContributionHistoryState extends State<ContributionHistory> {
               ],
             ),
           ),
+
+          // Bottom Navigation Bar
           Positioned(
             left: 0,
             right: 0,
@@ -264,7 +247,7 @@ class _ContributionHistoryState extends State<ContributionHistory> {
                             Navigator.pushReplacement(
                               context,
                               MaterialPageRoute(
-                                builder: (context) => const MemberDashboard(),
+                                builder: (_) => const MemberDashboard(),
                               ),
                             );
                           },
@@ -283,7 +266,7 @@ class _ContributionHistoryState extends State<ContributionHistory> {
                             Navigator.pushReplacement(
                               context,
                               MaterialPageRoute(
-                                builder: (context) => const ClaimsPage(),
+                                builder: (_) => const ClaimsPage(),
                               ),
                             );
                           },

@@ -2,23 +2,69 @@ import 'package:capstone_app/Auth/login.dart';
 import 'package:capstone_app/Beneficiary/beneficiary.dart';
 import 'package:capstone_app/settings/settings.dart';
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+// import 'package:shared_preferences/shared_preferences.dart';
 
-class ProfilePage extends StatelessWidget {
-  final String fullName;
-  final String mobileNumber;
-  final String address;
+class ProfilePage extends StatefulWidget {
+  const ProfilePage({super.key});
 
-  const ProfilePage({
-    super.key,
-    required this.fullName,
-    required this.mobileNumber,
-    required this.address,
-  });
+  @override
+  State<ProfilePage> createState() => _ProfilePageState();
+}
 
-  String removeTitle(String fullName) {
+class _ProfilePageState extends State<ProfilePage> {
+  String fullName = '';
+  String mobileNumber = '';
+  String address = '';
+  String sex = '';
+  bool isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchUserProfile();
+  }
+
+  Future<void> _fetchUserProfile() async {
+    final currentUser = Supabase.instance.client.auth.currentUser;
+
+    if (currentUser == null) {
+      setState(() {
+        isLoading = false;
+      });
+      return;
+    }
+
+    final userId = currentUser.id;
+
+    final response = await Supabase.instance.client
+        .from('users')
+        .select('full_name, mobile_number, address, sex')
+        .eq('id', userId)
+        .maybeSingle();
+
+    if (response == null) {
+      setState(() {
+        fullName = 'Unknown';
+        mobileNumber = 'Not Available';
+        address = 'Not Provided';
+        sex = '';
+        isLoading = false;
+      });
+    } else {
+      setState(() {
+        fullName = response['full_name'] as String? ?? '';
+        mobileNumber = response['mobile_number'] as String? ?? '';
+        address = response['address'] as String? ?? '';
+        sex = response['sex'] as String? ?? '';
+        isLoading = false;
+      });
+    }
+  }
+
+  String removeTitle(String name) {
     final titleRegex = RegExp(r'^(Mr\.|Mrs\.)\s');
-    return fullName.replaceAll(titleRegex, '');
+    return name.replaceAll(titleRegex, '');
   }
 
   @override
@@ -43,6 +89,10 @@ class ProfilePage extends StatelessWidget {
       fontFamily: 'Montserrat',
     );
 
+    if (isLoading) {
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    }
+
     return Scaffold(
       backgroundColor: const Color(0xFFFEFFFF),
       body: SafeArea(
@@ -53,12 +103,7 @@ class ProfilePage extends StatelessWidget {
                 children: [
                   Container(
                     height: 260,
-                    decoration: const BoxDecoration(
-                      color: Color(0xFF82BC79),
-                      borderRadius: BorderRadius.only(
-                        bottomRight: Radius.circular(0),
-                      ),
-                    ),
+                    decoration: const BoxDecoration(color: Color(0xFF82BC79)),
                   ),
                   Positioned(
                     top: 16,
@@ -112,7 +157,7 @@ class ProfilePage extends StatelessWidget {
                         Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            Text('${removeTitle(fullName)}', style: headerFont),
+                            Text(removeTitle(fullName), style: headerFont),
                             const SizedBox(width: 8),
                             IconButton(
                               icon: const Icon(
@@ -120,7 +165,9 @@ class ProfilePage extends StatelessWidget {
                                 size: 24,
                                 color: Colors.white,
                               ),
-                              onPressed: () {},
+                              onPressed: () {
+                                // Implement edit functionality if needed
+                              },
                             ),
                           ],
                         ),
@@ -156,9 +203,9 @@ class ProfilePage extends StatelessWidget {
                             size: 28,
                           ),
                         ),
-                        title: Text('Full Name', style: labelStyle),
+                        title: const Text('Full Name', style: labelStyle),
                         subtitle: Text(
-                          '${removeTitle(fullName)}',
+                          removeTitle(fullName),
                           style: valueStyle,
                         ),
                       ),
@@ -184,7 +231,7 @@ class ProfilePage extends StatelessWidget {
                             size: 28,
                           ),
                         ),
-                        title: Text('Address', style: labelStyle),
+                        title: const Text('Address', style: labelStyle),
                         subtitle: Text(address, style: valueStyle),
                       ),
                     ),
@@ -209,7 +256,7 @@ class ProfilePage extends StatelessWidget {
                             size: 28,
                           ),
                         ),
-                        title: Text('Mobile Number', style: labelStyle),
+                        title: const Text('Mobile Number', style: labelStyle),
                         subtitle: Text(mobileNumber, style: valueStyle),
                       ),
                     ),
@@ -233,12 +280,14 @@ class ProfilePage extends StatelessWidget {
                             borderRadius: BorderRadius.circular(10),
                           ),
                         ),
-                        onPressed: () => Navigator.pushReplacement(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => const BeneficiaryPage(),
-                          ),
-                        ),
+                        onPressed: () {
+                          Navigator.pushReplacement(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => const BeneficiaryPage(),
+                            ),
+                          );
+                        },
                         child: const Text(
                           'Beneficiaries',
                           style: TextStyle(
@@ -265,14 +314,13 @@ class ProfilePage extends StatelessWidget {
                           ),
                         ),
                         onPressed: () async {
-                          final prefs = await SharedPreferences.getInstance();
-                          await prefs.remove('selectedDayungUnit');
+                          // Logout logic
+                          await Supabase.instance.client.auth.signOut();
                           Navigator.of(context).pushAndRemoveUntil(
-                            MaterialPageRoute(builder: (_) => Login()),
+                            MaterialPageRoute(builder: (_) => const Login()),
                             (route) => false,
                           );
                         },
-
                         child: const Text(
                           'Logout',
                           style: TextStyle(

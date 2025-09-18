@@ -265,14 +265,19 @@ class _RegisterState extends State<Register> {
         return;
       }
 
+      final int monthIndex = _months.indexOf(selectedMonth!) + 1;
+      final dob = DateTime(
+        int.parse(selectedYear!),
+        monthIndex,
+        int.parse(selectedDay!),
+      ).toIso8601String().split('T').first; // → "YYYY-MM-DD"
+
       final insertRes = await Supabase.instance.client
           .from('users')
           .insert({
             'id': user.id,
             'full_name': fullNameController.text.trim(),
-            'birth_month': selectedMonth,
-            'birth_day': selectedDay,
-            'birth_year': selectedYear,
+            'dob': dob,
             'sex': selectedSex,
             'mobile_number': mobileController.text.trim(),
             'address': addressController.text.trim(),
@@ -290,8 +295,7 @@ class _RegisterState extends State<Register> {
 
       Navigator.of(context).pushReplacement(
         MaterialPageRoute(
-          builder: (_) =>
-              QuestionnaireScreen(userId: user.id, role: role),
+          builder: (_) => QuestionnaireScreen(userId: user.id, role: role),
         ),
       );
     } catch (e) {

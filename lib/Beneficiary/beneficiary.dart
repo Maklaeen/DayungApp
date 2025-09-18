@@ -1,15 +1,52 @@
 import 'package:capstone_app/Beneficiary/addbeneficiary.dart';
-import 'package:capstone_app/profile/profile.dart';
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
-class BeneficiaryPage extends StatelessWidget {
+class BeneficiaryPage extends StatefulWidget {
   const BeneficiaryPage({super.key});
 
-  final List<Map<String, String>> beneficiaries = const [
-    {'name': 'Mark Dela Cruz', 'relationship': 'Son'},
-    {'name': 'Angel Dela Cruz', 'relationship': 'Daughter'},
-    {'name': 'Dave Dela Cruz', 'relationship': 'Son'},
-  ];
+  @override
+  State<BeneficiaryPage> createState() => _BeneficiaryPageState();
+}
+
+class _BeneficiaryPageState extends State<BeneficiaryPage> {
+  List<dynamic> beneficiaries = [];
+  bool isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    fetchBeneficiaries();
+  }
+
+  Future<void> fetchBeneficiaries() async {
+    setState(() => isLoading = true);
+
+    final user = Supabase.instance.client.auth.currentUser;
+    final response = await Supabase.instance.client
+        .from('beneficiaries')
+        .select()
+        .eq('user_id', user!.id);
+
+    if (response is List) {
+      setState(() {
+        beneficiaries = response;
+        isLoading = false;
+      });
+    } else {
+      // handle error
+      setState(() => isLoading = false);
+      print('Failed to fetch beneficiaries');
+    }
+  }
+
+  Future<void> _navigateToAddBeneficiary(BuildContext context) async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => const AddBeneficiaryPage()),
+    );
+    fetchBeneficiaries(); // refresh the list after returning
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -18,11 +55,16 @@ class BeneficiaryPage extends StatelessWidget {
       body: SafeArea(
         child: Column(
           children: [
+            // HEADER
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
+                  IconButton(
+                    icon: const Icon(Icons.arrow_back, size: 32),
+                    onPressed: () => Navigator.pop(context),
+                  ),
                   const Text(
                     'Dayung',
                     style: TextStyle(
@@ -78,105 +120,86 @@ class BeneficiaryPage extends StatelessWidget {
                 ],
               ),
             ),
+
             const Divider(thickness: 1.5, color: Colors.grey),
-
-            // Padding(
-            //   padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            //   child: Row(
-            //     children: [
-            //       IconButton(
-            //         onPressed: () => Navigator.pushReplacement(
-            //           context,
-            //           MaterialPageRoute(
-            //             builder: (context) => const ProfilePage(),
-            //           ),
-            //         ),
-            //         icon: const Icon(Icons.arrow_back, size: 32),
-            //       ),
-            //       SizedBox(width: 8),
-            //       Text(
-            //         'Beneficiaries',
-            //         style: TextStyle(
-            //           fontSize: 20,
-            //           fontWeight: FontWeight.w600,
-            //           fontFamily: 'Montserrat',
-            //         ),
-            //       ),
-            //     ],
-            //   ),
-            // ),
-
             const SizedBox(height: 16),
 
+            // LIST
             Expanded(
-              child: ListView.builder(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                itemCount: beneficiaries.length,
-                itemBuilder: (context, index) {
-                  final item = beneficiaries[index];
-                  return Container(
-                    margin: const EdgeInsets.only(bottom: 12),
-                    padding: const EdgeInsets.symmetric(
-                      vertical: 12,
-                      horizontal: 16,
-                    ),
-                    decoration: BoxDecoration(
-                      color: Colors.grey.shade100,
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: Colors.grey.shade300),
-                    ),
-                    child: Row(
-                      children: [
-                        const Icon(
-                          Icons.person,
-                          color: Colors.indigo,
-                          size: 30,
+              child: isLoading
+                  ? const Center(child: CircularProgressIndicator())
+                  : beneficiaries.isEmpty
+                  ? const Center(
+                      child: Text(
+                        'No beneficiaries added yet.',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontFamily: 'Montserrat',
                         ),
-                        const SizedBox(width: 16),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
+                      ),
+                    )
+                  : ListView.builder(
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      itemCount: beneficiaries.length,
+                      itemBuilder: (context, index) {
+                        final item = beneficiaries[index];
+                        return Container(
+                          margin: const EdgeInsets.only(bottom: 12),
+                          padding: const EdgeInsets.symmetric(
+                            vertical: 12,
+                            horizontal: 16,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Colors.grey.shade100,
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: Colors.grey.shade300),
+                          ),
+                          child: Row(
                             children: [
-                              Text(
-                                item['name']!,
-                                style: const TextStyle(
-                                  fontSize: 18,
-                                  fontWeight: FontWeight.bold,
-                                  fontFamily: 'Montserrat',
-                                ),
+                              const Icon(
+                                Icons.person,
+                                color: Colors.indigo,
+                                size: 30,
                               ),
-                              const SizedBox(height: 4),
-                              Text(
-                                item['relationship']!,
-                                style: const TextStyle(
-                                  fontSize: 16,
-                                  color: Colors.black54,
-                                  fontFamily: 'Montserrat',
+                              const SizedBox(width: 16),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      item['full_name'] ?? '',
+                                      style: const TextStyle(
+                                        fontSize: 18,
+                                        fontWeight: FontWeight.bold,
+                                        fontFamily: 'Montserrat',
+                                      ),
+                                    ),
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      item['relationship'] ?? '',
+                                      style: const TextStyle(
+                                        fontSize: 16,
+                                        color: Colors.black54,
+                                        fontFamily: 'Montserrat',
+                                      ),
+                                    ),
+                                  ],
                                 ),
                               ),
                             ],
                           ),
-                        ),
-                      ],
+                        );
+                      },
                     ),
-                  );
-                },
-              ),
             ),
 
+            // ADD BUTTON
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
               child: SizedBox(
                 width: double.infinity,
                 child: ElevatedButton.icon(
-                  onPressed: () {
-                    Navigator.pushReplacement(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => const AddBeneficiaryPage(),
-                      ),
-                    );
-                  },
+                  onPressed: () => _navigateToAddBeneficiary(context),
                   style: ElevatedButton.styleFrom(
                     padding: const EdgeInsets.symmetric(vertical: 14),
                     backgroundColor: Colors.green[700],

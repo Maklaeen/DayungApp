@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 class AddBeneficiaryPage extends StatefulWidget {
   const AddBeneficiaryPage({super.key});
@@ -9,11 +10,29 @@ class AddBeneficiaryPage extends StatefulWidget {
 
 class _AddBeneficiaryPageState extends State<AddBeneficiaryPage> {
   final TextEditingController fullNameController = TextEditingController();
-  final TextEditingController dobController = TextEditingController();
   final TextEditingController maritalController = TextEditingController();
   final TextEditingController relationshipController = TextEditingController();
+  final user = Supabase.instance.client.auth.currentUser;
 
   String? birthCertificateFile;
+  String? selectedMonth;
+  String? selectedDay;
+  String? selectedYear;
+
+  final List<String> _months = const [
+    'January',
+    'February',
+    'March',
+    'April',
+    'May',
+    'June',
+    'July',
+    'August',
+    'September',
+    'October',
+    'November',
+    'December',
+  ];
 
   @override
   Widget build(BuildContext context) {
@@ -86,10 +105,47 @@ class _AddBeneficiaryPageState extends State<AddBeneficiaryPage> {
                 label: 'Full Name',
                 child: _customTextField(controller: fullNameController),
               ),
+
               _overlapLabelField(
                 label: 'Date of Birth',
-                child: _customTextField(controller: dobController),
+                child: Row(
+                  children: [
+                    Flexible(
+                      flex: 3,
+                      child: _customDropdown(
+                        hint: 'Month',
+                        items: _months,
+                        value: selectedMonth,
+                        onChanged: (val) => setState(() => selectedMonth = val),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Flexible(
+                      flex: 2,
+                      child: _customDropdown(
+                        hint: 'Day',
+                        items: List.generate(31, (i) => '${i + 1}'),
+                        value: selectedDay,
+                        onChanged: (val) => setState(() => selectedDay = val),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Flexible(
+                      flex: 3,
+                      child: _customDropdown(
+                        hint: 'Year',
+                        items: List.generate(
+                          100,
+                          (i) => '${DateTime.now().year - i}',
+                        ),
+                        value: selectedYear,
+                        onChanged: (val) => setState(() => selectedYear = val),
+                      ),
+                    ),
+                  ],
+                ),
               ),
+
               _overlapLabelField(
                 label: 'Marital Status',
                 child: _customTextField(controller: maritalController),
@@ -108,8 +164,7 @@ class _AddBeneficiaryPageState extends State<AddBeneficiaryPage> {
                 width: double.infinity,
                 height: 48,
                 child: ElevatedButton(
-                  onPressed: () {
-                  },
+                  onPressed: _submitBeneficiary,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFF1565B3),
                     shape: RoundedRectangleBorder(
@@ -134,6 +189,71 @@ class _AddBeneficiaryPageState extends State<AddBeneficiaryPage> {
         ),
       ),
     );
+  }
+
+  Future<void> _submitBeneficiary() async {
+    final fullName = fullNameController.text.trim();
+    final maritalStatus = maritalController.text.trim();
+    final relationship = relationshipController.text.trim();
+    final birthCertificate = birthCertificateFile;
+
+    if (fullName.isEmpty ||
+        selectedMonth == null ||
+        selectedDay == null ||
+        selectedYear == null ||
+        maritalStatus.isEmpty ||
+        relationship.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please complete all fields')),
+      );
+      return;
+    }
+
+    final dob =
+        '$selectedYear-${_months.indexOf(selectedMonth!) + 1}-$selectedDay';
+    if (user == null) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('You must be logged in')));
+      return;
+    }
+
+    final response = await Supabase.instance.client
+        .from('beneficiaries')
+        .insert([
+          {
+            'user_id': user!.id,
+            'full_name': fullName,
+            'dob': dob,
+            'marital_status': maritalStatus,
+            'relationship': relationship,
+            'birth_certificate': birthCertificate,
+          },
+        ])
+        .select()
+        .single();
+
+    if (response == null || response['id'] == null) {
+      print('Error inserting beneficiary');
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Failed to add beneficiary')),
+      );
+    } else {
+      print('Beneficiary added successfully');
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Beneficiary added')));
+      fullNameController.clear();
+      maritalController.clear();
+      relationshipController.clear();
+      setState(() {
+        selectedMonth = null;
+        selectedDay = null;
+        selectedYear = null;
+        birthCertificateFile = null;
+      });
+      Navigator.pop(context); // Return to previous screen
+    }
   }
 
   Widget _overlapLabelField({required String label, required Widget child}) {
@@ -220,6 +340,7 @@ class _AddBeneficiaryPageState extends State<AddBeneficiaryPage> {
           const SizedBox(width: 8),
           IconButton(
             onPressed: () {
+              // TODO: Replace with actual file picker logic
               setState(() {
                 birthCertificateFile = 'certificate.pdf';
               });
@@ -228,6 +349,34 @@ class _AddBeneficiaryPageState extends State<AddBeneficiaryPage> {
           ),
         ],
       ),
+    );
+  }
+
+  Widget _customDropdown({
+    required String hint,
+    required List<String> items,
+    required void Function(String?) onChanged,
+    String? value,
+  }) {
+    return DropdownButtonFormField<String>(
+      decoration: InputDecoration(
+        hintText: hint,
+        filled: true,
+        fillColor: Colors.grey[100],
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(8),
+          borderSide: BorderSide.none,
+        ),
+        contentPadding: const EdgeInsets.symmetric(
+          vertical: 13,
+          horizontal: 13,
+        ),
+      ),
+      value: value,
+      items: items
+          .map((item) => DropdownMenuItem(value: item, child: Text(item)))
+          .toList(),
+      onChanged: onChanged,
     );
   }
 }
