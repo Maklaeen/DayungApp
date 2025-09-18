@@ -1,4 +1,4 @@
-import 'package:capstone_app/dashboards/memberdashboard.dart';
+import 'package:capstone_app/Members/dashboard.dart';
 import 'package:capstone_app/pages/contributionhistory.dart';
 import 'package:flutter/material.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';

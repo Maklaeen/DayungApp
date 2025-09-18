@@ -1,4 +1,4 @@
-import 'package:capstone_app/dashboards/memberdashboard.dart';
+import 'package:capstone_app/Members/dashboard.dart';
 import 'package:flutter/material.dart';
 
 class PaymentMethodPage extends StatelessWidget {

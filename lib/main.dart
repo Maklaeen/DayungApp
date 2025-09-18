@@ -1,4 +1,6 @@
-import 'package:capstone_app/dashboards/memberdashboard.dart';
+import 'package:capstone_app/Members/dashboard.dart';
+import 'package:capstone_app/President/dashboard.dart';
+import 'package:capstone_app/settings/user_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:capstone_app/settings/custom_scroll_behavior.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -6,6 +8,7 @@ import 'screens/splash_screen.dart';
 import 'Auth/login.dart';
 import 'Auth/register.dart';
 import 'Auth/reapply.dart';
+import 'package:provider/provider.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -22,18 +25,22 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      debugShowCheckedModeBanner: false,
-      scrollBehavior: NoGlowScrollBehavior(),
-      title: 'Dayung',
-      initialRoute: '/',
-      routes: {
-        '/': (context) => SplashScreen(),
-        '/login': (context) => Login(),
-        '/register': (context) => Register(),
-        '/reapply': (context) => Reapply(),
-        '/dashboard': (context) => MemberDashboard(),
-      },
+    return ChangeNotifierProvider(
+      create: (context) => UserProvider(),
+      child: MaterialApp(
+        debugShowCheckedModeBanner: false,
+        scrollBehavior: NoGlowScrollBehavior(),
+        title: 'Dayung',
+        initialRoute: '/',
+        routes: {
+          '/': (context) => SplashScreen(),
+          '/login': (context) => Login(),
+          '/register': (context) => Register(),
+          '/reapply': (context) => Reapply(),
+          '/dashboard': (context) => const MemberDashboard(),
+          '/president-dashboard': (context) => const PresidentDashboardPage(),
+        },
+      ),
     );
   }
 }

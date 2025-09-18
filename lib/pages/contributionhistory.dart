@@ -1,10 +1,13 @@
-import 'package:capstone_app/dashboards/memberdashboard.dart';
+import 'package:capstone_app/Members/dashboard.dart';
 import 'package:capstone_app/pages/claims.dart';
+import 'package:capstone_app/settings/user_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
+import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:capstone_app/pages/notification.dart';
 import 'package:capstone_app/profile/profile.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 class ContributionHistory extends StatefulWidget {
   const ContributionHistory({super.key});
@@ -16,7 +19,11 @@ class ContributionHistory extends StatefulWidget {
 class _ContributionHistoryState extends State<ContributionHistory> {
   final bool _showNavBar = true;
   String? selectedDayungUnit;
-  String _fullName = 'Member';
+  // ignore: unused_field
+  User? _user;
+  String _fullName = '';
+  // ignore: unused_field
+  bool _loading = true;
   String _mobileNumber = 'Not Available';
   String _userAddress = 'Not Provided';
 
@@ -34,6 +41,11 @@ class _ContributionHistoryState extends State<ContributionHistory> {
 
   @override
   Widget build(BuildContext context) {
+    final userProvider = Provider.of<UserProvider>(context);
+    final fullName = userProvider.fullName;
+    final mobileNumber = userProvider.mobileNumber;
+    final address = userProvider.userAddress;
+
     final contributions = [
       {'date': 'February 17, 2025', 'amount': '₱ 200'},
       {'date': 'March 20, 2024', 'amount': '₱ 200'},

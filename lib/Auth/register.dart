@@ -17,11 +17,13 @@ class _RegisterState extends State<Register> {
   final mobileController = TextEditingController();
   final addressController = TextEditingController();
   final passwordController = TextEditingController();
+  final confirmPasswordController = TextEditingController();
 
   String? selectedMonth;
   String? selectedDay;
   String? selectedYear;
   String? selectedSex;
+  String? selectedRole;
 
   final List<String> _months = const [
     'January',
@@ -47,6 +49,7 @@ class _RegisterState extends State<Register> {
     mobileController.dispose();
     addressController.dispose();
     passwordController.dispose();
+    confirmPasswordController.dispose();
     emailController.dispose();
     super.dispose();
   }
@@ -247,11 +250,13 @@ class _RegisterState extends State<Register> {
 
     final email = emailController.text.trim();
     final password = passwordController.text.trim();
+    final role = 'member';
 
     try {
       final res = await Supabase.instance.client.auth.signUp(
         email: email,
         password: password,
+        data: {'role': role},
       );
       final user = res.user;
 
@@ -273,6 +278,7 @@ class _RegisterState extends State<Register> {
             'address': addressController.text.trim(),
             'birth_certificate_url': '',
             'marriage_certificate_url': '',
+            'role': role,
           })
           .select()
           .single();
@@ -283,7 +289,10 @@ class _RegisterState extends State<Register> {
       }
 
       Navigator.of(context).pushReplacement(
-        MaterialPageRoute(builder: (_) => QuestionnaireScreen(userId: user.id)),
+        MaterialPageRoute(
+          builder: (_) =>
+              QuestionnaireScreen(userId: user.id, role: role),
+        ),
       );
     } catch (e) {
       // Handle any errors that occur during the sign-up or insertion process
@@ -450,6 +459,24 @@ class _RegisterState extends State<Register> {
                       }
                       if (val.length < 6) {
                         return 'Password must be at least 6 characters';
+                      }
+                      return null;
+                    },
+                  ),
+                ),
+
+                _overlapLabelField(
+                  'Confirm Password',
+                  _customTextField(
+                    hint: '********',
+                    obscure: true,
+                    controller: confirmPasswordController,
+                    validator: (val) {
+                      if (val == null || val.trim().isEmpty) {
+                        return 'Confirm your password';
+                      }
+                      if (val != passwordController.text) {
+                        return 'Passwords do not match';
                       }
                       return null;
                     },

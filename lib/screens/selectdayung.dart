@@ -1,6 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-import 'package:capstone_app/Auth/login.dart';
 
 class SelectDayungPage extends StatelessWidget {
   final List<String> dayungUnits = [
@@ -11,16 +9,6 @@ class SelectDayungPage extends StatelessWidget {
 
   SelectDayungPage({super.key});
 
-  Future<void> _logout(BuildContext context) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.remove('selectedDayungUnit');
-
-    Navigator.of(context).pushAndRemoveUntil(
-      MaterialPageRoute(builder: (_) => Login()),
-      (route) => false,
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -30,17 +18,6 @@ class SelectDayungPage extends StatelessWidget {
           children: [
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              // child: Align(
-              //   alignment: Alignment.centerRight,
-              //   child: TextButton.icon(
-              //     onPressed: () => _logout(context),
-              //     icon: const Icon(Icons.logout, color: Colors.red),
-              //     label: const Text(
-              //       'Logout',
-              //       style: TextStyle(color: Colors.red),
-              //     ),
-              //   ),
-              // ),
             ),
 
             const SizedBox(height: 16),

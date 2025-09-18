@@ -1,6 +1,7 @@
+import 'package:capstone_app/settings/user_provider.dart';
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:capstone_app/dashboards/memberdashboard.dart';
 
 class Login extends StatefulWidget {
   const Login({super.key});
@@ -33,10 +34,23 @@ class _LoginState extends State<Login> {
       setState(() => _isLoading = false);
 
       if (res.user != null) {
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (_) => const MemberDashboard()),
-        );
+        final role = res.user!.userMetadata?['role'];
+
+        final userProvider = Provider.of<UserProvider>(context, listen: false);
+        await userProvider.loadUserData();
+
+        if (role == 'member') {
+          Navigator.pushReplacementNamed(context, '/dashboard');
+        } else if (role == 'president') {
+          Navigator.pushReplacementNamed(context, '/president-dashboard');
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Unknown user role'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(

@@ -1,11 +1,16 @@
-import 'package:capstone_app/dashboards/memberdashboard.dart';
+import 'package:capstone_app/Members/dashboard.dart';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 class QuestionnaireScreen extends StatefulWidget {
   final String userId;
+  final String role;
 
-  const QuestionnaireScreen({super.key, required this.userId});
+  const QuestionnaireScreen({
+    super.key,
+    required this.userId,
+    required this.role,
+  });
 
   @override
   State<QuestionnaireScreen> createState() => _QuestionnaireScreenState();
@@ -81,9 +86,7 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
             backgroundColor: Colors.blue,
           ),
         );
-        await Future.delayed(
-          const Duration(milliseconds: 800),
-        ); 
+        await Future.delayed(const Duration(milliseconds: 800));
         Navigator.of(context).pushReplacement(
           MaterialPageRoute(builder: (_) => const MemberDashboard()),
         );
