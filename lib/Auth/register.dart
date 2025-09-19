@@ -54,6 +54,7 @@ class _RegisterState extends State<Register> {
     super.dispose();
   }
 
+  // ignore: unused_element
   void _showTopSuccessDialog(BuildContext context) {
     showGeneralDialog(
       context: context,

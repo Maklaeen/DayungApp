@@ -1,5 +1,6 @@
 import 'package:capstone_app/Members/dashboard.dart';
 import 'package:capstone_app/President/dashboard.dart';
+import 'package:capstone_app/Secretary/dashboard.dart';
 import 'package:capstone_app/settings/user_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:capstone_app/settings/custom_scroll_behavior.dart';
@@ -39,6 +40,7 @@ class MyApp extends StatelessWidget {
           '/reapply': (context) => Reapply(),
           '/dashboard': (context) => const MemberDashboard(),
           '/president-dashboard': (context) => const PresidentDashboardPage(),
+          '/secretary-dashboard': (context) => SecretaryDashboard(),
         },
       ),
     );

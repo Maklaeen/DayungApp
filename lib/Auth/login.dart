@@ -34,27 +34,47 @@ class _LoginState extends State<Login> {
       setState(() => _isLoading = false);
 
       if (res.user != null) {
-        final role = res.user!.userMetadata?['role'];
+        final userId = res.user!.id;
+
+        // 🔑 fetch role from 'users' table
+        final userData = await Supabase.instance.client
+            .from('users')
+            .select('role')
+            .eq('id', userId)
+            .maybeSingle();
 
         final userProvider = Provider.of<UserProvider>(context, listen: false);
         await userProvider.loadUserData();
 
-        if (role == 'member') {
-          Navigator.pushReplacementNamed(context, '/dashboard');
-        } else if (role == 'president') {
-          Navigator.pushReplacementNamed(context, '/president-dashboard');
+        if (userData != null) {
+          final role = userData['role'];
+
+          if (role == 'member') {
+            Navigator.pushReplacementNamed(context, '/dashboard');
+          } else if (role == 'president') {
+            Navigator.pushReplacementNamed(context, '/president-dashboard');
+          } else if (role == 'secretary') {
+            Navigator.pushReplacementNamed(context, '/secretary-dashboard');
+          } else {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Unknown user role'),
+                backgroundColor: Colors.red,
+              ),
+            );
+          }
         } else {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
-              content: Text('Unknown user role'),
+              content: Text('User not found in users table'),
               backgroundColor: Colors.red,
             ),
           );
         }
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: const Text('Invalid email or password'),
+          const SnackBar(
+            content: Text('Invalid email or password'),
             backgroundColor: Colors.red,
           ),
         );
@@ -109,7 +129,7 @@ class _LoginState extends State<Login> {
               ),
               const SizedBox(height: 40),
 
-              // Email TextField
+              // Email
               TextFormField(
                 controller: emailController,
                 keyboardType: TextInputType.emailAddress,
@@ -140,7 +160,7 @@ class _LoginState extends State<Login> {
               ),
               const SizedBox(height: 16),
 
-              // Password TextField
+              // Password
               TextFormField(
                 controller: passwordController,
                 obscureText: true,

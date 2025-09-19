@@ -23,12 +23,6 @@ class NotificationPage extends StatelessWidget {
                       fontFamily: 'Montserrat',
                     ),
                   ),
-                  const Spacer(),
-                  const CircleAvatar(
-                    radius: 16,
-                    backgroundColor: Colors.grey,
-                    child: Icon(Icons.person, color: Colors.white),
-                  ),
                 ],
               ),
             ),

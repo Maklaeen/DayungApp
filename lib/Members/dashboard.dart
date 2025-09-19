@@ -27,8 +27,6 @@ class _MemberDashboardState extends State<MemberDashboard> {
   String _fullName = '';
   // ignore: unused_field
   bool _loading = true;
-  String _mobileNumber = 'Not Available';
-  String _userAddress = 'Not Provided';
 
   @override
   void initState() {
@@ -68,16 +66,10 @@ class _MemberDashboardState extends State<MemberDashboard> {
           _user = currentUser;
           // Generate full name with title
           _fullName = _getTitle(response['sex']) + ' ' + response['full_name'];
-
-          // Retrieve mobile number and address
-          _mobileNumber = response['mobile_number'] ?? 'Not Available';
-          _userAddress = response['address'] ?? 'Not Provided';
         });
       } else {
         setState(() {
           _fullName = 'Member';
-          _mobileNumber = 'Not Available';
-          _userAddress = 'Not Provided';
         });
       }
       setState(() {
@@ -366,9 +358,9 @@ class _MemberDashboardState extends State<MemberDashboard> {
       GestureDetector(
         onTap: () {
           Navigator.push(
-  context,
-  MaterialPageRoute(builder: (_) => const ProfilePage()),
-);
+            context,
+            MaterialPageRoute(builder: (_) => const ProfilePage()),
+          );
         },
         child: const CircleAvatar(
           radius: 28,

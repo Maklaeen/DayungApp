@@ -1,437 +1,451 @@
+import 'package:capstone_app/Secretary/certificates.dart';
+import 'package:capstone_app/Secretary/claims.dart';
 import 'package:flutter/material.dart';
-
-void main() {
-  runApp(DayungApp());
-}
-
-class DayungApp extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'Dayung',
-      debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        fontFamily: 'Roboto',
-        scaffoldBackgroundColor: Color(0xFFF6F7FB),
-        primaryColor: Color(0xFF1E88E5),
-      ),
-      home: SecretaryDashboard(),
-    );
-  }
-}
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 class SecretaryDashboard extends StatefulWidget {
+  const SecretaryDashboard({super.key});
+
   @override
-  _SecretaryDashboardState createState() => _SecretaryDashboardState();
+  State<SecretaryDashboard> createState() => _SecretaryDashboardState();
 }
 
 class _SecretaryDashboardState extends State<SecretaryDashboard> {
-  int _selectedIndex = 0;
+  String _fullName = '';
+  String _selectedDayungUnit = 'Dayung Unit';
+  int _currentIndex = 0;
 
-  void _onBottomNavTap(int idx) {
-    setState(() => _selectedIndex = idx);
+  // claims counts + loading
+  int _pendingCount = 0;
+  int _approvedCount = 0;
+  int _rejectedCount = 0;
+  bool _loadingCounts = true;
+
+  // recent certificates list
+  List<Map<String, dynamic>> _recentCertificates = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _loadSecretaryInfo();
+    _fetchClaimsCounts();
+    _fetchRecentCertificates();
+  }
+
+  Future<void> _loadSecretaryInfo() async {
+    final prefs = await SharedPreferences.getInstance();
+    setState(() {
+      _fullName = prefs.getString('secretaryFullName') ?? 'Secretary';
+      _selectedDayungUnit =
+          prefs.getString('selectedDayungUnit') ?? 'Dayung Unit';
+    });
+  }
+
+  /// Fetch claims counts
+  Future<void> _fetchClaimsCounts() async {
+    final supabase = Supabase.instance.client;
+    try {
+      final data = await supabase
+          .from('claims')
+          .select('status, date_submitted');
+
+      int pending = 0, approved = 0, rejected = 0;
+
+      if (data is List) {
+        for (final row in data) {
+          final status = (row['status'] ?? '').toString().trim().toLowerCase();
+          if (status == 'pending')
+            pending++;
+          else if (status == 'approved')
+            approved++;
+          else if (status == 'rejected')
+            rejected++;
+        }
+      }
+
+      setState(() {
+        _pendingCount = pending;
+        _approvedCount = approved;
+        _rejectedCount = rejected;
+        _loadingCounts = false;
+      });
+    } catch (e) {
+      debugPrint('Error fetching claims counts: $e');
+      setState(() => _loadingCounts = false);
+    }
+  }
+
+  /// Fetch recent certificates (instead of claims)
+  Future<void> _fetchRecentCertificates() async {
+    final supabase = Supabase.instance.client;
+    try {
+      final recent = await supabase
+          .from('certificates')
+          .select('id, title, date_submitted')
+          .order('date_submitted', ascending: false)
+          .limit(3);
+
+      List<Map<String, dynamic>> certList = [];
+      if (recent is List) {
+        certList = recent.map<Map<String, dynamic>>((e) {
+          return Map<String, dynamic>.from(e as Map);
+        }).toList();
+      }
+
+      setState(() => _recentCertificates = certList);
+    } catch (e) {
+      debugPrint('Error fetching certificates: $e');
+    }
+  }
+
+  String _formatDate(dynamic ds) {
+    if (ds == null) return '';
+    try {
+      final d = DateTime.parse(ds.toString());
+      const months = [
+        'Jan',
+        'Feb',
+        'Mar',
+        'Apr',
+        'May',
+        'Jun',
+        'Jul',
+        'Aug',
+        'Sep',
+        'Oct',
+        'Nov',
+        'Dec',
+      ];
+      return '${months[d.month - 1]} ${d.day}, ${d.year}';
+    } catch (_) {
+      return ds.toString();
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    final Color green1 = Color(0xFF2ECC71);
-    final Color green2 = Color(0xFF27AE60);
-
     return Scaffold(
-      appBar: PreferredSize(
-        preferredSize: Size.fromHeight(72),
-        child: AppBar(
-          automaticallyImplyLeading: false,
-          backgroundColor: Colors.transparent,
-          elevation: 0,
-          flexibleSpace: SafeArea(
-            child: Padding(
-              padding: EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Text(
-                          'Dayung',
-                          style: TextStyle(
-                            fontSize: 18,
-                            color: Colors.black87,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Text(
-                        'Logos',
-                        style: TextStyle(
-                          color: Colors.black54,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
-      ),
+      backgroundColor: const Color(0xFFF5F5F5),
       body: SafeArea(
-        child: Padding(
-          padding: EdgeInsets.symmetric(horizontal: 16),
-          child: ListView(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Expanded(
-                    child: Text(
-                      'Maayung buntag, Secretary!',
-                      style: TextStyle(
-                        fontSize: 22,
-                        fontWeight: FontWeight.w800,
-                        color: Colors.black87,
-                      ),
-                    ),
-                  ),
-                  SizedBox(width: 8),
-                ],
-              ),
-              SizedBox(height: 16),
-
-              Row(
-                children: [
-                  Expanded(
-                    child: _StatCard(
-                      color: Color(0xFFFFF3E0),
-                      title: 'Total Active Members',
-                      value: '259',
-                      actionText: 'View All',
-                      actionOnTap: () {},
-                    ),
-                  ),
-                  SizedBox(width: 12),
-                  Expanded(
-                    child: _StatCard(
-                      color: Color(0xFFE8F5E9),
-                      title: 'Recent Death Notices',
-                      value: 'Inday H. Pedro M.',
-                      actionText: 'View All',
-                      actionOnTap: () {},
-                    ),
-                  ),
-                  SizedBox(width: 12),
-                  Expanded(
-                    child: _StatCard(
-                      color: Color(0xFFE3F2FD),
-                      title: 'Pending Payments',
-                      value: '₱21,900\nFrom 219 members',
-                      actionText: '',
-                      actionOnTap: null,
-                      centerValue: true,
-                    ),
-                  ),
-                ],
-              ),
-              SizedBox(height: 18),
-              Card(
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                elevation: 1,
-                child: Padding(
-                  padding: EdgeInsets.all(14),
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.center,
-                    children: [
-                      Container(
-                        width: 56,
-                        height: 56,
-                        decoration: BoxDecoration(
-                          color: Color(0xFFF1F8E9),
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        child: Icon(
-                          Icons.insert_drive_file_outlined,
-                          color: Color(0xFF558B2F),
-                          size: 30,
-                        ),
-                      ),
-                      SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'Death Certificate Inbox',
-                              style: TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.w700,
-                              ),
-                            ),
-                            SizedBox(height: 6),
-                            Text(
-                              'You have 3 new documents waiting for verification',
-                              style: TextStyle(
-                                fontSize: 13,
-                                color: Colors.black54,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      SizedBox(width: 15),
-                      ElevatedButton(
-                        onPressed: () {},
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Color(0xFF1E88E5),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                          padding: EdgeInsets.symmetric(
-                            horizontal: 14,
-                            vertical: 10,
-                          ),
-                          elevation: 0,
-                        ),
-                        child: Text('View'),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-              SizedBox(height: 18),
-              Row(
-                children: [
-                  Expanded(
-                    child: ElevatedButton.icon(
-                      onPressed: () {},
-                      icon: Icon(Icons.notifications, color: Colors.white),
-                      label: Text('Notify members to update info'),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: green1,
-                        padding: EdgeInsets.symmetric(vertical: 14),
-                        textStyle: TextStyle(fontWeight: FontWeight.w700),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        elevation: 0,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              SizedBox(height: 12),
-              Row(
-                children: [
-                  Expanded(
-                    child: ElevatedButton.icon(
-                      onPressed: () {},
-                      icon: Icon(Icons.group, color: Colors.white),
-                      label: Text('Assign members to assist at vigil'),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: green2,
-                        padding: EdgeInsets.symmetric(vertical: 14),
-                        textStyle: TextStyle(fontWeight: FontWeight.w700),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        elevation: 0,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              SizedBox(height: 12),
-              ElevatedButton.icon(
-                onPressed: () {},
-                icon: Icon(Icons.summarize, color: Colors.white),
-                label: Text('Death Notice'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Color(0xFF1976D2),
-                  padding: EdgeInsets.symmetric(vertical: 14),
-                  textStyle: TextStyle(fontWeight: FontWeight.w800),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  elevation: 0,
-                ),
-              ),
-
-              SizedBox(height: 24),
-              Text(
-                'Recent Death Notices',
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800),
-              ),
-              SizedBox(height: 12),
-              _NoticeListItem(
-                name: 'Inday H. Pedro M.',
-                subtitle: 'Submitted 2 hours ago',
-                iconColor: Color(0xFFEF9A9A),
-                onTap: () {},
-              ),
-              _NoticeListItem(
-                name: 'Juan Dela Cruz',
-                subtitle: 'Submitted yesterday',
-                iconColor: Color(0xFFB39DDB),
-                onTap: () {},
-              ),
-              _NoticeListItem(
-                name: 'Maria Santos',
-                subtitle: 'Submitted 3 days ago',
-                iconColor: Color(0xFF80DEEA),
-                onTap: () {},
-              ),
-              SizedBox(height: 80),
+              _buildHeader(),
+              const SizedBox(height: 18),
+              _buildWelcomeMessage(),
+              const SizedBox(height: 20),
+              _buildSecretaryTools(),
+              const SizedBox(height: 20),
+              _buildRecentDeathNotices(),
+              const SizedBox(height: 12),
+              _buildDeathCertificateInboxButton(),
+              const SizedBox(height: 20),
+              _buildClaimsInbox(),
             ],
           ),
         ),
       ),
+      bottomNavigationBar: _buildBottomNavBar(),
+    );
+  }
 
-      bottomNavigationBar: BottomNavigationBar(
-        currentIndex: _selectedIndex,
-        onTap: _onBottomNavTap,
-        backgroundColor: Colors.white,
-        selectedItemColor: Color(0xFF1976D2),
-        unselectedItemColor: Colors.black54,
-        showUnselectedLabels: true,
-        items: [
-          BottomNavigationBarItem(icon: Icon(Icons.home_filled), label: 'Home'),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.account_balance_wallet),
-            label: 'Contributions',
+  Widget _buildHeader() => Row(
+    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+    children: [
+      Text(
+        _selectedDayungUnit,
+        style: const TextStyle(
+          fontSize: 18,
+          fontWeight: FontWeight.w800,
+          color: Color(0xFF2C3E50),
+        ),
+      ),
+      IconButton(
+        icon: const Icon(
+          Icons.notifications_none,
+          size: 26,
+          color: Colors.black87,
+        ),
+        onPressed: () {},
+      ),
+    ],
+  );
+
+  Widget _buildWelcomeMessage() => Row(
+    children: [
+      CircleAvatar(
+        radius: 25,
+        backgroundColor: Colors.blue.shade200,
+        child: const Icon(Icons.person, size: 30, color: Colors.white),
+      ),
+      const SizedBox(width: 12),
+      Expanded(
+        child: Text(
+          "Maayung buntag, $_fullName!",
+          style: const TextStyle(
+            fontSize: 15,
+            fontWeight: FontWeight.w700,
+            color: Colors.black87,
           ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.assignment),
-            label: 'Claims',
+        ),
+      ),
+    ],
+  );
+
+  Widget _buildSecretaryTools() => Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      const Text(
+        "Secretary Tools",
+        style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700),
+      ),
+      const SizedBox(height: 10),
+      Row(
+        children: [
+          Expanded(
+            child: _toolButton("Notify Members", Icons.campaign, Colors.blue),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: _toolButton("Assign Members", Icons.group_add, Colors.green),
           ),
         ],
       ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () {},
-        icon: Icon(Icons.note_add),
-        label: Text('Death Notice'),
-        backgroundColor: Color(0xFF1E88E5),
-      ),
-      floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
-    );
-  }
-}
-
-class _StatCard extends StatelessWidget {
-  final Color color;
-  final String title;
-  final String value;
-  final String actionText;
-  final VoidCallback? actionOnTap;
-  final bool centerValue;
-
-  const _StatCard({
-    Key? key,
-    required this.color,
-    required this.title,
-    required this.value,
-    required this.actionText,
-    this.actionOnTap,
-    this.centerValue = false,
-  }) : super(key: key);
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        color: color,
-        borderRadius: BorderRadius.circular(12),
-      ),
-      padding: EdgeInsets.symmetric(vertical: 14, horizontal: 12),
-      child: Column(
-        crossAxisAlignment: centerValue
-            ? CrossAxisAlignment.center
-            : CrossAxisAlignment.start,
-        children: [
-          Text(
-            title,
-            style: TextStyle(
-              fontSize: 12,
-              color: Colors.black87,
-              fontWeight: FontWeight.w700,
+      const SizedBox(height: 12),
+      SizedBox(
+        width: double.infinity,
+        child: ElevatedButton.icon(
+          style: ElevatedButton.styleFrom(
+            padding: const EdgeInsets.symmetric(vertical: 14),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
             ),
+            backgroundColor: Colors.blue.shade700,
+            foregroundColor: Colors.white,
           ),
-          SizedBox(height: 15),
-          Text(
-            value,
-            textAlign: centerValue ? TextAlign.center : TextAlign.start,
-            style: TextStyle(
-              fontSize: 15,
-              fontWeight: FontWeight.w800,
-              color: Colors.black87,
-            ),
+          onPressed: () {},
+          icon: const Icon(Icons.assignment, size: 18),
+          label: const Text(
+            "Death Notice",
+            style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700),
           ),
-          SizedBox(height: 10),
-          if (actionText.isNotEmpty)
-            Align(
-              alignment: Alignment.bottomRight,
-              child: GestureDetector(
-                onTap: actionOnTap ?? () {},
-                child: Text(
-                  actionText,
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: Color(0xFF1976D2),
-                    fontWeight: FontWeight.w700,
-                    decoration: TextDecoration.underline,
-                  ),
-                ),
+        ),
+      ),
+    ],
+  );
+
+  Widget _toolButton(String label, IconData icon, Color color) => Container(
+    decoration: BoxDecoration(
+      color: color.withOpacity(0.15),
+      borderRadius: BorderRadius.circular(12),
+    ),
+    child: InkWell(
+      borderRadius: BorderRadius.circular(12),
+      onTap: () {},
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 18, horizontal: 10),
+        child: Column(
+          children: [
+            Icon(icon, size: 30, color: color),
+            const SizedBox(height: 10),
+            Text(
+              label,
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w700,
+                color: color,
               ),
             ),
-        ],
-      ),
-    );
-  }
-}
-
-class _NoticeListItem extends StatelessWidget {
-  final String name;
-  final String subtitle;
-  final Color iconColor;
-  final VoidCallback? onTap;
-
-  const _NoticeListItem({
-    Key? key,
-    required this.name,
-    required this.subtitle,
-    required this.iconColor,
-    this.onTap,
-  }) : super(key: key);
-
-  @override
-  Widget build(BuildContext context) {
-    return Card(
-      margin: EdgeInsets.only(bottom: 10),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      elevation: 0,
-      child: ListTile(
-        onTap: onTap,
-        leading: Container(
-          width: 48,
-          height: 48,
-          decoration: BoxDecoration(
-            color: iconColor.withOpacity(0.18),
-            borderRadius: BorderRadius.circular(10),
-          ),
-          child: Icon(Icons.person_outline, color: iconColor),
+          ],
         ),
-        title: Text(name, style: TextStyle(fontWeight: FontWeight.w800)),
-        subtitle: Text(subtitle),
-        trailing: Icon(Icons.chevron_right),
       ),
-    );
-  }
+    ),
+  );
+
+  /// Certificates instead of claims
+  Widget _buildRecentDeathNotices() => _dashboardCard(
+    title: "Recent Death Notices",
+    child: _recentCertificates.isEmpty
+        ? const Text('No recent certificates')
+        : Column(
+            children: _recentCertificates.map((c) {
+              final title = c['title'] ?? 'Untitled';
+              final date = _formatDate(c['date_submitted']);
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: Row(
+                  children: [
+                    const Icon(
+                      Icons.article_outlined,
+                      size: 20,
+                      color: Colors.black54,
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        title,
+                        style: const TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.black87,
+                        ),
+                      ),
+                    ),
+                    Text(
+                      date,
+                      style: const TextStyle(
+                        fontSize: 11,
+                        color: Colors.black54,
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            }).toList(),
+          ),
+  );
+
+  /// New button under recent notices
+  Widget _buildDeathCertificateInboxButton() => SizedBox(
+    width: double.infinity,
+    child: ElevatedButton.icon(
+      style: ElevatedButton.styleFrom(
+        padding: const EdgeInsets.symmetric(vertical: 14),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        backgroundColor: Colors.red.shade600,
+        foregroundColor: Colors.white,
+      ),
+      onPressed: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => const CertificatesPage()),
+        );
+      },
+      icon: const Icon(Icons.folder_shared, size: 18),
+      label: const Text(
+        "Death Certificate Inbox",
+        style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700),
+      ),
+    ),
+  );
+
+  /// Claims Inbox counts with clickable navigation
+  Widget _buildClaimsInbox() => _dashboardCard(
+    title: "Claims Inbox",
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _inboxItem(
+          "Pending Claims",
+          _loadingCounts ? null : _pendingCount,
+          Colors.orange,
+        ),
+        const SizedBox(height: 8),
+        _inboxItem(
+          "Approved Claims",
+          _loadingCounts ? null : _approvedCount,
+          Colors.green,
+        ),
+        const SizedBox(height: 8),
+        _inboxItem(
+          "Rejected Claims",
+          _loadingCounts ? null : _rejectedCount,
+          Colors.red,
+        ),
+      ],
+    ),
+  );
+
+  Widget _inboxItem(String label, int? count, Color color) => InkWell(
+    onTap: () {
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => const SecretaryClaimsPage()),
+      );
+    },
+    child: Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text(
+          label,
+          style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+        ),
+        if (count == null)
+          const SizedBox(
+            height: 16,
+            width: 16,
+            child: CircularProgressIndicator(strokeWidth: 2),
+          )
+        else
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+            decoration: BoxDecoration(
+              color: color,
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: Text(
+              "$count",
+              style: const TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.w700,
+                fontSize: 12,
+              ),
+            ),
+          ),
+      ],
+    ),
+  );
+
+  Widget _dashboardCard({required String title, required Widget child}) =>
+      Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black12,
+              blurRadius: 6,
+              offset: const Offset(0, 3),
+            ),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              title,
+              style: const TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w700,
+                color: Colors.black87,
+              ),
+            ),
+            const SizedBox(height: 10),
+            child,
+          ],
+        ),
+      );
+
+  Widget _buildBottomNavBar() => BottomNavigationBar(
+    currentIndex: _currentIndex,
+    onTap: (index) => setState(() => _currentIndex = index),
+    selectedItemColor: const Color(0xFF1976D2),
+    unselectedItemColor: Colors.black54,
+    type: BottomNavigationBarType.fixed,
+    items: [
+      _navBarItem(Icons.dashboard, "Dashboard"),
+      _navBarItem(Icons.folder, "Files"),
+      _navBarItem(Icons.chat, "Chat"),
+      _navBarItem(Icons.settings, "Settings"),
+    ],
+  );
+
+  BottomNavigationBarItem _navBarItem(IconData icon, String label) =>
+      BottomNavigationBarItem(icon: Icon(icon, size: 24), label: label);
 }

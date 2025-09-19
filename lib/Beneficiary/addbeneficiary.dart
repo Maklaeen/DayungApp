@@ -90,16 +90,24 @@ class _AddBeneficiaryPageState extends State<AddBeneficiaryPage> {
                   ),
                 ],
               ),
-              const SizedBox(height: 8),
-              const Text(
-                'Add Beneficiary',
-                style: TextStyle(
-                  fontSize: 22,
-                  fontWeight: FontWeight.w600,
-                  fontFamily: 'Montserrat',
-                ),
-              ),
               const Divider(thickness: 1.2),
+              Row(
+                children: [
+                  IconButton(
+                    icon: const Icon(Icons.arrow_back, size: 28),
+                    onPressed: () => Navigator.pop(context),
+                  ),
+                  const SizedBox(width: 4),
+                  const Text(
+                    'Add Beneficiary',
+                    style: TextStyle(
+                      fontSize: 22,
+                      fontWeight: FontWeight.w600,
+                      fontFamily: 'Montserrat',
+                    ),
+                  ),
+                ],
+              ),
 
               _overlapLabelField(
                 label: 'Full Name',
@@ -183,7 +191,34 @@ class _AddBeneficiaryPageState extends State<AddBeneficiaryPage> {
                   ),
                 ),
               ),
-              const SizedBox(height: 30),
+              const SizedBox(height: 16),
+
+              SizedBox(
+                width: double.infinity,
+                height: 48,
+                child: OutlinedButton(
+                  style: OutlinedButton.styleFrom(
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    side: const BorderSide(
+                      color: Color.fromARGB(255, 179, 21, 21),
+                    ),
+                  ),
+                  onPressed: () async {
+                    // ignore: use_build_context_synchronously
+                    Navigator.of(context).pop();
+                  },
+                  child: const Text(
+                    'Cancel',
+                    style: TextStyle(
+                      fontSize: 20,
+                      color: Color.fromARGB(255, 179, 21, 21),
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ),
             ],
           ),
         ),
@@ -233,6 +268,7 @@ class _AddBeneficiaryPageState extends State<AddBeneficiaryPage> {
         .select()
         .single();
 
+    // ignore: unnecessary_null_comparison
     if (response == null || response['id'] == null) {
       print('Error inserting beneficiary');
       ScaffoldMessenger.of(context).showSnackBar(

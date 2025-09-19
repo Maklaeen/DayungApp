@@ -1,8 +1,12 @@
-import 'package:capstone_app/Members/dashboard.dart';
-import 'package:capstone_app/pages/contributionhistory.dart';
 import 'package:flutter/material.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:capstone_app/Members/dashboard.dart';
+import 'package:capstone_app/pages/contributionhistory.dart';
+import 'package:capstone_app/profile/profile.dart';
+import 'package:capstone_app/pages/notification.dart';
+import 'package:capstone_app/pages/submit_claim.dart';
 
 class ClaimsPage extends StatefulWidget {
   const ClaimsPage({super.key});
@@ -15,16 +19,69 @@ class _ClaimsPageState extends State<ClaimsPage> {
   int _tabIndex = 0;
   String? selectedDayungUnit;
 
+  bool isLoading = true;
+  List<Map<String, dynamic>> ongoingClaims = [];
+  List<Map<String, dynamic>> historyClaims = [];
+
   @override
   void initState() {
     super.initState();
     _loadDayungUnit();
+    _fetchClaims();
   }
 
   Future<void> _loadDayungUnit() async {
     final prefs = await SharedPreferences.getInstance();
     final unit = prefs.getString('selectedDayungUnit');
     setState(() => selectedDayungUnit = unit ?? 'Dayung');
+  }
+
+  Future<void> _fetchClaims() async {
+    final currentUser = Supabase.instance.client.auth.currentUser;
+    if (currentUser == null) {
+      setState(() {
+        isLoading = false;
+      });
+      return;
+    }
+
+    final userId = currentUser.id;
+
+    final response = await Supabase.instance.client
+        .from('claims')
+        .select('id, date_submitted, title, status')
+        .eq('user_id', userId)
+        .order('date_submitted', ascending: false);
+
+    // ignore: unnecessary_null_comparison
+    if (response == null) {
+      setState(() {
+        ongoingClaims = [];
+        historyClaims = [];
+        isLoading = false;
+      });
+      return;
+    }
+
+    // Cast to a List of Maps
+    final List<Map<String, dynamic>> claimsList =
+        List<Map<String, dynamic>>.from(response as List);
+
+    final pending = claimsList.where((c) {
+      final s = (c['status'] ?? '').toString().toLowerCase();
+      return s == 'pending';
+    }).toList();
+
+    final history = claimsList.where((c) {
+      final s = (c['status'] ?? '').toString().toLowerCase();
+      return s != 'pending';
+    }).toList();
+
+    setState(() {
+      ongoingClaims = pending;
+      historyClaims = history;
+      isLoading = false;
+    });
   }
 
   @override
@@ -42,13 +99,8 @@ class _ClaimsPageState extends State<ClaimsPage> {
                     horizontal: 16,
                     vertical: 12,
                   ),
-                  decoration: const BoxDecoration(
-                    color: Colors.white,
-                    border: Border(
-                      bottom: BorderSide(color: Colors.black12, width: 1),
-                    ),
-                  ),
                   child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       Text(
                         selectedDayungUnit ?? 'Dayung',
@@ -58,49 +110,72 @@ class _ClaimsPageState extends State<ClaimsPage> {
                           fontFamily: 'Montserrat',
                         ),
                       ),
-                      const Spacer(),
-                      Stack(
-                        alignment: Alignment.topRight,
+                      Row(
                         children: [
-                          Icon(
-                            Icons.notifications_none,
-                            color: Colors.orange[700],
-                            size: 36,
-                          ),
-                          Positioned(
-                            right: 0,
-                            child: Container(
-                              padding: const EdgeInsets.all(2),
-                              decoration: BoxDecoration(
-                                color: Colors.red,
-                                borderRadius: BorderRadius.circular(10),
-                              ),
-                              constraints: const BoxConstraints(
-                                minWidth: 18,
-                                minHeight: 18,
-                              ),
-                              child: const Text(
-                                '1',
-                                style: TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.bold,
+                          GestureDetector(
+                            onTap: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => const NotificationPage(),
                                 ),
-                                textAlign: TextAlign.center,
+                              );
+                            },
+                            child: Stack(
+                              children: [
+                                Icon(
+                                  Icons.notifications_none,
+                                  color: Colors.orange[700],
+                                  size: 36,
+                                ),
+                                Positioned(
+                                  right: 0,
+                                  top: 0,
+                                  child: Container(
+                                    padding: const EdgeInsets.all(2),
+                                    decoration: BoxDecoration(
+                                      color: Colors.red,
+                                      borderRadius: BorderRadius.circular(10),
+                                    ),
+                                    constraints: const BoxConstraints(
+                                      minWidth: 18,
+                                      minHeight: 18,
+                                    ),
+                                    child: const Text(
+                                      '1',
+                                      style: TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                      textAlign: TextAlign.center,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(width: 16),
+                          GestureDetector(
+                            onTap: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => const ProfilePage(),
+                                ),
+                              );
+                            },
+                            child: const CircleAvatar(
+                              radius: 20,
+                              backgroundColor: Colors.blue,
+                              child: Icon(
+                                Icons.account_circle,
+                                size: 36,
+                                color: Colors.white,
                               ),
                             ),
                           ),
                         ],
-                      ),
-                      const SizedBox(width: 16),
-                      const CircleAvatar(
-                        radius: 20,
-                        backgroundColor: Colors.blue,
-                        child: Icon(
-                          Icons.account_circle,
-                          color: Colors.white,
-                          size: 36,
-                        ),
                       ),
                     ],
                   ),
@@ -135,7 +210,12 @@ class _ClaimsPageState extends State<ClaimsPage> {
                         elevation: 0,
                       ),
                       onPressed: () {
-                        // TODO: Implement claim submission
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => const SubmitClaimPage(),
+                          ),
+                        );
                       },
                     ),
                   ),
@@ -154,37 +234,47 @@ class _ClaimsPageState extends State<ClaimsPage> {
                 ),
                 const SizedBox(height: 16),
 
-                // Claim Cards
+                // Claim Cards or Loading Indicator
                 Expanded(
-                  child: ListView(
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    children: _tabIndex == 0
-                        ? [
-                            _claimCard(
-                              'Jul 10',
-                              'Contribution Claim',
-                              'Pending',
-                              Colors.orange[100]!,
-                              Colors.brown,
-                            ),
-                            _claimCard(
-                              'Jul 9',
-                              'Contribution Claim',
-                              'Approved',
-                              Colors.green[100]!,
-                              Colors.green[900]!,
-                            ),
-                          ]
-                        : [
-                            _claimCard(
-                              'Jul 1',
-                              'Contribution Claim',
-                              'Approved',
-                              Colors.green[100]!,
-                              Colors.green[900]!,
-                            ),
-                          ],
-                  ),
+                  child: isLoading
+                      ? const Center(child: CircularProgressIndicator())
+                      : ListView(
+                          padding: const EdgeInsets.symmetric(horizontal: 16),
+                          children: _tabIndex == 0
+                              ? (ongoingClaims.isEmpty
+                                    ? [
+                                        const Center(
+                                          child: Text('No ongoing claims.'),
+                                        ),
+                                      ]
+                                    : ongoingClaims.map((claim) {
+                                        return _claimCard(
+                                          // Format the date_submitted nicely; this is simple
+                                          claim['date_submitted']?.toString() ??
+                                              '',
+                                          claim['title']?.toString() ?? '',
+                                          claim['status']?.toString() ?? '',
+                                          Colors.orange[100]!,
+                                          Colors.brown,
+                                        );
+                                      }).toList())
+                              : (historyClaims.isEmpty
+                                    ? [
+                                        const Center(
+                                          child: Text('No claim history.'),
+                                        ),
+                                      ]
+                                    : historyClaims.map((claim) {
+                                        return _claimCard(
+                                          claim['date_submitted']?.toString() ??
+                                              '',
+                                          claim['title']?.toString() ?? '',
+                                          claim['status']?.toString() ?? '',
+                                          Colors.green[100]!,
+                                          Colors.green[900]!,
+                                        );
+                                      }).toList()),
+                        ),
                 ),
               ],
             ),
@@ -256,7 +346,6 @@ class _ClaimsPageState extends State<ClaimsPage> {
     );
   }
 
-  // Tab Button Widget
   Widget _tabButton(String label, int index) {
     final isSelected = _tabIndex == index;
     return GestureDetector(
@@ -284,7 +373,6 @@ class _ClaimsPageState extends State<ClaimsPage> {
     );
   }
 
-  // Claim Card Widget
   Widget _claimCard(
     String date,
     String title,
@@ -351,7 +439,6 @@ class _ClaimsPageState extends State<ClaimsPage> {
     );
   }
 
-  // Bottom NavBar Item
   Widget _navBarItem({
     required IconData icon,
     required String label,

@@ -316,6 +316,7 @@ class _ProfilePageState extends State<ProfilePage> {
                         onPressed: () async {
                           // Logout logic
                           await Supabase.instance.client.auth.signOut();
+                          // ignore: use_build_context_synchronously
                           Navigator.of(context).pushAndRemoveUntil(
                             MaterialPageRoute(builder: (_) => const Login()),
                             (route) => false,
