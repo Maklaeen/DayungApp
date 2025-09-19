@@ -6,6 +6,7 @@ plugins {
 }
 
 android {
+   
     namespace = "com.example.capstone_app"
     compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion
