@@ -1,9 +1,8 @@
-import 'dart:io';
 import 'package:capstone_app/Auth/login.dart';
 import 'package:capstone_app/Beneficiary/beneficiary.dart';
 import 'package:capstone_app/settings/settings.dart';
 import 'package:flutter/material.dart';
-import 'package:image_picker/image_picker.dart';
+import 'package:file_picker/file_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter/foundation.dart'; // for kIsWeb
 
@@ -102,43 +101,42 @@ class _ProfilePageState extends State<ProfilePage> {
   Future<void> _pickAndUploadImage() async {
     final supabase = Supabase.instance.client;
     try {
-      final picker = ImagePicker();
-      final picked = await picker.pickImage(
-        source: ImageSource.gallery,
-        imageQuality: 80,
+      // Pick file using file_picker (supports web & mobile)
+      final result = await FilePicker.platform.pickFiles(
+        type: FileType.image,
+        allowMultiple: false,
+        withData: true, // important to get bytes on web
       );
-      if (picked == null) return;
+
+      if (result == null) return; // user canceled
 
       final userId = supabase.auth.currentUser!.id;
-      final ext = picked.path.split('.').last;
-      final filePath =
-          'avatars/$userId-${DateTime.now().millisecondsSinceEpoch}.$ext';
+      final fileBytes = result.files.first.bytes;
+      final fileName = result.files.first.name;
 
-      if (kIsWeb) {
-        // Web: upload bytes
-        final bytes = await picked.readAsBytes();
-        await supabase.storage
-            .from('avatars')
-            .uploadBinary(
-              filePath,
-              bytes,
-              fileOptions: const FileOptions(upsert: true),
-            );
-      } else {
-        // Mobile: upload File
-        final file = File(picked.path);
-        await supabase.storage
-            .from('avatars')
-            .upload(
-              filePath,
-              file,
-              fileOptions: const FileOptions(upsert: true),
-            );
+      if (fileBytes == null) {
+        throw Exception('Failed to read file bytes');
       }
 
-      final publicUrl = supabase.storage.from('avatars').getPublicUrl(filePath);
+      // Create a unique file path
+      final ext = fileName.split('.').last;
+      final uniqueFileName =
+          '$userId-${DateTime.now().millisecondsSinceEpoch}.$ext';
+      final filePath = 'avatars/$uniqueFileName';
+      await supabase.storage
+          .from('avatars')
+          .uploadBinary(
+            filePath,
+            fileBytes,
+            fileOptions: const FileOptions(upsert: true),
+          );
 
-      // Update user profile with new avatar URL
+      // FIX: Only use the file name for getPublicUrl
+      final publicUrl = supabase.storage
+          .from('avatars')
+          .getPublicUrl(uniqueFileName);
+
+      // Update the user profile with new profile_url
       final update = await supabase
           .from('users')
           .update({'profile_url': publicUrl})
@@ -147,13 +145,18 @@ class _ProfilePageState extends State<ProfilePage> {
           .maybeSingle();
 
       if (update == null) {
-        throw Exception('No profile row updated');
+        throw Exception('Failed to update profile image URL');
       }
 
-      // Optionally update your local state here with publicUrl
+      // Update local state so UI refreshes with new image
+      setState(() {
+        profileUrl = publicUrl;
+      });
     } catch (e) {
       print('Image upload error: $e');
-      // Show a SnackBar or handle error accordingly
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Error uploading image: $e')));
     }
   }
 

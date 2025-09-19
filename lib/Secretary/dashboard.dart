@@ -1,3 +1,5 @@
+import 'package:capstone_app/Secretary/beneficiaries_tab.dart'
+    show SecretaryBeneficiariesTab;
 import 'package:capstone_app/Secretary/certificates.dart';
 import 'package:capstone_app/Secretary/claims.dart';
 import 'package:flutter/material.dart';
@@ -230,6 +232,34 @@ class _SecretaryDashboardState extends State<SecretaryDashboard> {
           icon: const Icon(Icons.assignment, size: 18),
           label: const Text(
             "Death Notice",
+            style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700),
+          ),
+        ),
+      ),
+      const SizedBox(height: 12),
+      // Add this inside your Secretary tools or as a new button
+      SizedBox(
+        width: double.infinity,
+        child: ElevatedButton.icon(
+          style: ElevatedButton.styleFrom(
+            padding: const EdgeInsets.symmetric(vertical: 14),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+            backgroundColor: Colors.teal.shade700,
+            foregroundColor: Colors.white,
+          ),
+          onPressed: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => const SecretaryBeneficiariesTab(),
+              ),
+            );
+          },
+          icon: const Icon(Icons.people, size: 18),
+          label: const Text(
+            "Beneficiaries",
             style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700),
           ),
         ),

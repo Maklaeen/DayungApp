@@ -1,3 +1,4 @@
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -226,6 +227,48 @@ class _AddBeneficiaryPageState extends State<AddBeneficiaryPage> {
     );
   }
 
+  Future<void> _pickAndUploadFile() async {
+    final result = await FilePicker.platform.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: ['jpg', 'jpeg', 'png', 'pdf'],
+    );
+    if (result != null && result.files.single.bytes != null) {
+      final file = result.files.single;
+      final ext = file.extension ?? 'jpg';
+      final fileName =
+          '${user?.id}-${DateTime.now().millisecondsSinceEpoch}.$ext';
+      final filePath = 'birth_certificates/$fileName';
+
+      try {
+        // Upload to Supabase Storage
+        await Supabase.instance.client.storage
+            .from('birth_certificates')
+            .uploadBinary(
+              filePath,
+              file.bytes!,
+              fileOptions: const FileOptions(upsert: true),
+            );
+
+        // Get public URL
+        final publicUrl = Supabase.instance.client.storage
+            .from('birth_certificates')
+            .getPublicUrl(filePath);
+
+        setState(() {
+          birthCertificateFile = publicUrl;
+        });
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('File uploaded successfully!')),
+        );
+      } catch (e) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('File upload failed: $e')));
+      }
+    }
+  }
+
   Future<void> _submitBeneficiary() async {
     final fullName = fullNameController.text.trim();
     final maritalStatus = maritalController.text.trim();
@@ -262,7 +305,8 @@ class _AddBeneficiaryPageState extends State<AddBeneficiaryPage> {
             'dob': dob,
             'marital_status': maritalStatus,
             'relationship': relationship,
-            'birth_certificate': birthCertificate,
+            'birth_certificate': birthCertificate, // this is the URL
+            'status': 'Pending', // default status
           },
         ])
         .select()
@@ -375,12 +419,7 @@ class _AddBeneficiaryPageState extends State<AddBeneficiaryPage> {
           ),
           const SizedBox(width: 8),
           IconButton(
-            onPressed: () {
-              // TODO: Replace with actual file picker logic
-              setState(() {
-                birthCertificateFile = 'certificate.pdf';
-              });
-            },
+            onPressed: _pickAndUploadFile,
             icon: const Icon(Icons.upload_outlined, color: Colors.black54),
           ),
         ],
