@@ -17,7 +17,10 @@ class _CertificatesPageState extends State<CertificatesPage>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 1, vsync: this); // pwede dagdagan (Pending, Approved…)
+    _tabController = TabController(
+      length: 1,
+      vsync: this,
+    ); // pwede dagdagan (Pending, Approved…)
     _fetchCertificates();
   }
 
@@ -26,12 +29,17 @@ class _CertificatesPageState extends State<CertificatesPage>
     try {
       final response = await supabase
           .from('certificates')
-          .select('id, deceased_name, date_of_death, submitted_at, file_url, user_id')
+          .select(
+            'id, deceased_name, date_of_death, submitted_at, file_url, user_id',
+          )
           .order('submitted_at', ascending: false);
 
+      // ignore: unnecessary_type_check
       if (response is List) {
         setState(() {
-          _certificates = response.map((e) => Map<String, dynamic>.from(e)).toList();
+          _certificates = response
+              .map((e) => Map<String, dynamic>.from(e))
+              .toList();
           _loading = false;
         });
       }
@@ -58,18 +66,14 @@ class _CertificatesPageState extends State<CertificatesPage>
         title: const Text("Certificates"),
         bottom: TabBar(
           controller: _tabController,
-          tabs: const [
-            Tab(text: "All Certificates"),
-          ],
+          tabs: const [Tab(text: "All Certificates")],
         ),
       ),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
           : TabBarView(
               controller: _tabController,
-              children: [
-                _buildCertificatesList(_certificates),
-              ],
+              children: [_buildCertificatesList(_certificates)],
             ),
     );
   }
@@ -97,7 +101,8 @@ class _CertificatesPageState extends State<CertificatesPage>
                 final fileUrl = cert['file_url'];
                 if (fileUrl != null && fileUrl.toString().isNotEmpty) {
                   // open pdf in browser or viewer
-                  Supabase.instance.client.auth.signOut(); // replace later with file launcher
+                  Supabase.instance.client.auth
+                      .signOut(); // replace later with file launcher
                 }
               },
             ),

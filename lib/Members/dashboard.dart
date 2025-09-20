@@ -128,6 +128,9 @@ class _MemberDashboardState extends State<MemberDashboard> {
 
   @override
   Widget build(BuildContext context) {
+    final width = MediaQuery.of(context).size.width;
+    final isWide = width > 700;
+
     return Scaffold(
       backgroundColor: Colors.white,
       body: Stack(
@@ -135,7 +138,10 @@ class _MemberDashboardState extends State<MemberDashboard> {
           SafeArea(
             child: SingleChildScrollView(
               controller: _scrollController,
-              padding: const EdgeInsets.all(16),
+              padding: EdgeInsets.symmetric(
+                horizontal: isWide ? width * 0.15 : 16,
+                vertical: 16,
+              ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -145,11 +151,11 @@ class _MemberDashboardState extends State<MemberDashboard> {
                   const SizedBox(height: 16),
                   _buildWelcomeMessage(),
                   const SizedBox(height: 24),
-                  _buildCards(context),
+                  _buildCards(context, isWide),
                   const SizedBox(height: 24),
-                  _buildNextPaymentCard(),
+                  _buildNextPaymentCard(isWide),
                   const SizedBox(height: 32),
-                  _buildRecentActivity(),
+                  _buildRecentActivity(isWide),
                 ],
               ),
             ),
@@ -166,13 +172,14 @@ class _MemberDashboardState extends State<MemberDashboard> {
                   opacity: _showNavBar ? 1.0 : 0.0,
                   child: Container(
                     height: 70,
-                    margin: const EdgeInsets.symmetric(horizontal: 16),
+                    margin: EdgeInsets.symmetric(
+                      horizontal: isWide ? width * 0.15 : 16,
+                    ),
                     decoration: BoxDecoration(
                       color: Colors.white,
                       borderRadius: BorderRadius.circular(36),
                       boxShadow: [
                         BoxShadow(
-                          // ignore: deprecated_member_use
                           color: Colors.black.withOpacity(0.08),
                           blurRadius: 16,
                           offset: const Offset(0, 4),
@@ -371,66 +378,65 @@ class _MemberDashboardState extends State<MemberDashboard> {
     ],
   );
 
-  Widget _buildCards(BuildContext context) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        return Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Expanded(
-              child: AspectRatio(
-                aspectRatio: 0.7,
-                child: _dashboardCard(
-                  color: const Color(0xFFD8EEFF),
-                  icon: Icons.groups,
-                  iconColor: Colors.blue[700],
-                  title: "Total Active\nMembers",
-                  value: "259",
-                  valuePrefix: "",
-                  subtitle: "",
-                  iconSize: 36,
-                ),
-              ),
-            ),
-            const SizedBox(width: 12),
+  Widget _buildCards(BuildContext context, bool isWide) {
+    final cards = [
+      _dashboardCard(
+        color: const Color(0xFFD8EEFF),
+        icon: Icons.groups,
+        iconColor: Colors.blue[700],
+        title: "Total Active\nMembers",
+        value: "259",
+        valuePrefix: "",
+        subtitle: "",
+        iconSize: 36,
+      ),
+      _dashboardCard(
+        color: const Color(0xFFFFDAF6),
+        icon: FontAwesomeIcons.dove,
+        iconColor: Colors.purple[400],
+        title: "Recent Death Notices",
+        value: "Inday H.\nPedro M.",
+        valuePrefix: "",
+        subtitle: "",
+        iconSize: 36,
+        isDeathNotice: true,
+        context: context,
+      ),
+      _dashboardCard(
+        color: const Color(0xFFFEFBDC),
+        icon: Icons.account_balance_wallet,
+        iconColor: Colors.orange[700],
+        title: "Pending\nPayments",
+        value: "₱ 21,900",
+        valuePrefix: "",
+        iconSize: 36,
+      ),
+    ];
 
-            Expanded(
-              child: AspectRatio(
-                aspectRatio: 0.7,
-                child: _dashboardCard(
-                  color: const Color(0xFFFFDAF6),
-                  icon: FontAwesomeIcons.dove,
-                  iconColor: Colors.purple[400],
-                  title: "Recent Death Notices",
-                  value: "Inday H.\nPedro M.",
-                  valuePrefix: "",
-                  subtitle: "",
-                  iconSize: 36,
-                  isDeathNotice: true,
-                  context: context,
-                ),
-              ),
-            ),
-            const SizedBox(width: 12),
-
-            Expanded(
-              child: AspectRatio(
-                aspectRatio: 0.7,
-                child: _dashboardCard(
-                  color: const Color(0xFFFEFBDC),
-                  icon: Icons.account_balance_wallet,
-                  iconColor: Colors.orange[700],
-                  title: "Pending\nPayments",
-                  value: "₱ 21,900",
-                  valuePrefix: "",
-                  iconSize: 36,
-                ),
-              ),
-            ),
-          ],
-        );
-      },
-    );
+    if (isWide) {
+      return Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children:
+            cards
+                .map(
+                  (card) => Expanded(
+                    child: AspectRatio(aspectRatio: 0.7, child: card),
+                  ),
+                )
+                .toList()
+                .expand((widget) => [widget, const SizedBox(width: 12)])
+                .toList()
+              ..removeLast(),
+      );
+    } else {
+      return Wrap(
+        spacing: 12,
+        runSpacing: 12,
+        children: cards
+            .map((card) => SizedBox(width: double.infinity, child: card))
+            .toList(),
+      );
+    }
   }
 
   Widget _dashboardCard({
@@ -566,10 +572,10 @@ class _MemberDashboardState extends State<MemberDashboard> {
     );
   }
 
-  Widget _buildNextPaymentCard() {
+  Widget _buildNextPaymentCard(bool isWide) {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(24),
+      padding: EdgeInsets.all(isWide ? 32 : 24),
       margin: const EdgeInsets.symmetric(vertical: 8),
       decoration: BoxDecoration(
         color: const Color(0xFFE9FEC8),
@@ -656,7 +662,7 @@ class _MemberDashboardState extends State<MemberDashboard> {
     );
   }
 
-  Widget _buildRecentActivity() {
+  Widget _buildRecentActivity(bool isWide) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -672,7 +678,10 @@ class _MemberDashboardState extends State<MemberDashboard> {
         ),
         const SizedBox(height: 20),
         Container(
-          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+          padding: EdgeInsets.symmetric(
+            horizontal: isWide ? 40 : 20,
+            vertical: isWide ? 24 : 16,
+          ),
           decoration: BoxDecoration(
             color: Colors.white,
             borderRadius: BorderRadius.circular(16),
