@@ -15,8 +15,9 @@ class ClaimsPage extends StatefulWidget {
   State<ClaimsPage> createState() => _ClaimsPageState();
 }
 
-class _ClaimsPageState extends State<ClaimsPage> {
-  int _tabIndex = 0;
+class _ClaimsPageState extends State<ClaimsPage>
+    with SingleTickerProviderStateMixin {
+  late TabController _tabController;
   String? selectedDayungUnit;
 
   bool isLoading = true;
@@ -26,6 +27,10 @@ class _ClaimsPageState extends State<ClaimsPage> {
   @override
   void initState() {
     super.initState();
+    _tabController = TabController(length: 2, vsync: this);
+    _tabController.addListener(() {
+      setState(() {}); // To refresh the tab view if needed
+    });
     _loadDayungUnit();
     _fetchClaims();
   }
@@ -53,7 +58,6 @@ class _ClaimsPageState extends State<ClaimsPage> {
         .eq('user_id', userId)
         .order('date_submitted', ascending: false);
 
-    // ignore: unnecessary_null_comparison
     if (response == null) {
       setState(() {
         ongoingClaims = [];
@@ -63,7 +67,6 @@ class _ClaimsPageState extends State<ClaimsPage> {
       return;
     }
 
-    // Cast to a List of Maps
     final List<Map<String, dynamic>> claimsList =
         List<Map<String, dynamic>>.from(response as List);
 
@@ -82,6 +85,12 @@ class _ClaimsPageState extends State<ClaimsPage> {
       historyClaims = history;
       isLoading = false;
     });
+  }
+
+  @override
+  void dispose() {
+    _tabController.dispose();
+    super.dispose();
   }
 
   @override
@@ -221,59 +230,73 @@ class _ClaimsPageState extends State<ClaimsPage> {
                   ),
                 ),
 
-                // Tabs
+                // TabBar
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 24),
-                  child: Row(
-                    children: [
-                      _tabButton('Ongoing', 0),
-                      const SizedBox(width: 24),
-                      _tabButton('History', 1),
+                  child: TabBar(
+                    controller: _tabController,
+                    indicatorColor: Colors.blue,
+                    labelColor: Colors.black,
+                    unselectedLabelColor: Colors.black38,
+                    labelStyle: const TextStyle(
+                      fontSize: 22,
+                      fontWeight: FontWeight.bold,
+                      fontFamily: 'Montserrat',
+                    ),
+                    tabs: const [
+                      Tab(text: 'Ongoing'),
+                      Tab(text: 'History'),
                     ],
                   ),
                 ),
                 const SizedBox(height: 16),
 
-                // Claim Cards or Loading Indicator
+                // TabBarView for Claims
                 Expanded(
                   child: isLoading
                       ? const Center(child: CircularProgressIndicator())
-                      : ListView(
-                          padding: const EdgeInsets.symmetric(horizontal: 16),
-                          children: _tabIndex == 0
-                              ? (ongoingClaims.isEmpty
-                                    ? [
-                                        const Center(
-                                          child: Text('No ongoing claims.'),
-                                        ),
-                                      ]
-                                    : ongoingClaims.map((claim) {
-                                        return _claimCard(
-                                          // Format the date_submitted nicely; this is simple
-                                          claim['date_submitted']?.toString() ??
-                                              '',
-                                          claim['title']?.toString() ?? '',
-                                          claim['status']?.toString() ?? '',
-                                          Colors.orange[100]!,
-                                          Colors.brown,
-                                        );
-                                      }).toList())
-                              : (historyClaims.isEmpty
-                                    ? [
-                                        const Center(
-                                          child: Text('No claim history.'),
-                                        ),
-                                      ]
-                                    : historyClaims.map((claim) {
-                                        return _claimCard(
-                                          claim['date_submitted']?.toString() ??
-                                              '',
-                                          claim['title']?.toString() ?? '',
-                                          claim['status']?.toString() ?? '',
-                                          Colors.green[100]!,
-                                          Colors.green[900]!,
-                                        );
-                                      }).toList()),
+                      : TabBarView(
+                          controller: _tabController,
+                          children: [
+                            // Ongoing Claims
+                            ongoingClaims.isEmpty
+                                ? const Center(
+                                    child: Text('No ongoing claims.'),
+                                  )
+                                : ListView(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 16,
+                                    ),
+                                    children: ongoingClaims.map((claim) {
+                                      return _claimCard(
+                                        claim['date_submitted']?.toString() ??
+                                            '',
+                                        claim['title']?.toString() ?? '',
+                                        claim['status']?.toString() ?? '',
+                                        Colors.orange[100]!,
+                                        Colors.brown,
+                                      );
+                                    }).toList(),
+                                  ),
+                            // History Claims
+                            historyClaims.isEmpty
+                                ? const Center(child: Text('No claim history.'))
+                                : ListView(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 16,
+                                    ),
+                                    children: historyClaims.map((claim) {
+                                      return _claimCard(
+                                        claim['date_submitted']?.toString() ??
+                                            '',
+                                        claim['title']?.toString() ?? '',
+                                        claim['status']?.toString() ?? '',
+                                        Colors.green[100]!,
+                                        Colors.green[900]!,
+                                      );
+                                    }).toList(),
+                                  ),
+                          ],
                         ),
                 ),
               ],
@@ -341,33 +364,6 @@ class _ClaimsPageState extends State<ClaimsPage> {
               ),
             ),
           ),
-        ],
-      ),
-    );
-  }
-
-  Widget _tabButton(String label, int index) {
-    final isSelected = _tabIndex == index;
-    return GestureDetector(
-      onTap: () => setState(() => _tabIndex = index),
-      child: Column(
-        children: [
-          Text(
-            label,
-            style: TextStyle(
-              fontSize: 22,
-              fontWeight: FontWeight.bold,
-              color: isSelected ? Colors.black : Colors.black38,
-              fontFamily: 'Montserrat',
-            ),
-          ),
-          if (isSelected)
-            Container(
-              margin: const EdgeInsets.only(top: 4),
-              height: 2,
-              width: 60,
-              color: Colors.blue,
-            ),
         ],
       ),
     );

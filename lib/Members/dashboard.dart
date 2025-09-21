@@ -22,11 +22,10 @@ class _MemberDashboardState extends State<MemberDashboard> {
   final ScrollController _scrollController = ScrollController();
   bool _showNavBar = true;
   String? selectedDayungUnit;
-  // ignore: unused_field
   User? _user;
   String _fullName = '';
-  // ignore: unused_field
   bool _loading = true;
+  int _selectedIndex = 0;
 
   @override
   void initState() {
@@ -64,7 +63,6 @@ class _MemberDashboardState extends State<MemberDashboard> {
       if (response != null) {
         setState(() {
           _user = currentUser;
-          // Generate full name with title
           _fullName = _getTitle(response['sex']) + ' ' + response['full_name'];
         });
       } else {
@@ -126,6 +124,12 @@ class _MemberDashboardState extends State<MemberDashboard> {
     super.dispose();
   }
 
+  List<Widget> get _pages => [
+    _buildHomePage(context),
+    const ContributionHistory(),
+    const ClaimsPage(),
+  ];
+
   @override
   Widget build(BuildContext context) {
     final width = MediaQuery.of(context).size.width;
@@ -136,29 +140,7 @@ class _MemberDashboardState extends State<MemberDashboard> {
       body: Stack(
         children: [
           SafeArea(
-            child: SingleChildScrollView(
-              controller: _scrollController,
-              padding: EdgeInsets.symmetric(
-                horizontal: isWide ? width * 0.15 : 16,
-                vertical: 16,
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _buildHeader(),
-                  const SizedBox(height: 8),
-                  const Divider(thickness: 1, color: Colors.grey),
-                  const SizedBox(height: 16),
-                  _buildWelcomeMessage(),
-                  const SizedBox(height: 24),
-                  _buildCards(context, isWide),
-                  const SizedBox(height: 24),
-                  _buildNextPaymentCard(isWide),
-                  const SizedBox(height: 32),
-                  _buildRecentActivity(isWide),
-                ],
-              ),
-            ),
+            child: IndexedStack(index: _selectedIndex, children: _pages),
           ),
           Positioned(
             left: 0,
@@ -196,34 +178,20 @@ class _MemberDashboardState extends State<MemberDashboard> {
                         _navBarItem(
                           icon: Icons.home,
                           label: 'Home',
-                          selected: true,
-                          onTap: () {},
+                          selected: _selectedIndex == 0,
+                          onTap: () => setState(() => _selectedIndex = 0),
                         ),
                         _navBarItem(
                           icon: FontAwesomeIcons.globe,
                           label: 'Contributions',
-                          selected: false,
-                          onTap: () {
-                            Navigator.pushReplacement(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) => ContributionHistory(),
-                              ),
-                            );
-                          },
+                          selected: _selectedIndex == 1,
+                          onTap: () => setState(() => _selectedIndex = 1),
                         ),
                         _navBarItem(
                           icon: Icons.receipt_long,
                           label: 'Claims',
-                          selected: false,
-                          onTap: () {
-                            Navigator.pushReplacement(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) => const ClaimsPage(),
-                              ),
-                            );
-                          },
+                          selected: _selectedIndex == 2,
+                          onTap: () => setState(() => _selectedIndex = 2),
                         ),
                       ],
                     ),
@@ -269,6 +237,34 @@ class _MemberDashboardState extends State<MemberDashboard> {
               fontSize: 16,
             ),
           ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildHomePage(BuildContext context) {
+    final width = MediaQuery.of(context).size.width;
+    final isWide = width > 700;
+    return SingleChildScrollView(
+      controller: _scrollController,
+      padding: EdgeInsets.symmetric(
+        horizontal: isWide ? width * 0.15 : 16,
+        vertical: 16,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _buildHeader(),
+          const SizedBox(height: 8),
+          const Divider(thickness: 1, color: Colors.grey),
+          const SizedBox(height: 16),
+          _buildWelcomeMessage(),
+          const SizedBox(height: 24),
+          _buildCards(context, isWide),
+          const SizedBox(height: 24),
+          _buildNextPaymentCard(isWide),
+          const SizedBox(height: 32),
+          _buildRecentActivity(isWide),
         ],
       ),
     );
@@ -424,8 +420,7 @@ class _MemberDashboardState extends State<MemberDashboard> {
                   ),
                 )
                 .toList()
-                .expand((widget) => [widget, const SizedBox(width: 12)])
-                .toList()
+              ..insertAll(1, [const Expanded(child: SizedBox(width: 12))])
               ..removeLast(),
       );
     } else {

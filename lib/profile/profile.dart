@@ -101,14 +101,13 @@ class _ProfilePageState extends State<ProfilePage> {
   Future<void> _pickAndUploadImage() async {
     final supabase = Supabase.instance.client;
     try {
-      // Pick file using file_picker (supports web & mobile)
       final result = await FilePicker.platform.pickFiles(
         type: FileType.image,
         allowMultiple: false,
-        withData: true, // important to get bytes on web
+        withData: true,
       );
 
-      if (result == null) return; // user canceled
+      if (result == null) return;
 
       final userId = supabase.auth.currentUser!.id;
       final fileBytes = result.files.first.bytes;
@@ -118,11 +117,11 @@ class _ProfilePageState extends State<ProfilePage> {
         throw Exception('Failed to read file bytes');
       }
 
-      // Create a unique file path
       final ext = fileName.split('.').last;
       final uniqueFileName =
           '$userId-${DateTime.now().millisecondsSinceEpoch}.$ext';
-      final filePath = 'avatars/$uniqueFileName';
+
+      final filePath = uniqueFileName;
       await supabase.storage
           .from('avatars')
           .uploadBinary(
@@ -130,13 +129,8 @@ class _ProfilePageState extends State<ProfilePage> {
             fileBytes,
             fileOptions: const FileOptions(upsert: true),
           );
+      final publicUrl = supabase.storage.from('avatars').getPublicUrl(filePath);
 
-      // FIX: Only use the file name for getPublicUrl
-      final publicUrl = supabase.storage
-          .from('avatars')
-          .getPublicUrl(uniqueFileName);
-
-      // Update the user profile with new profile_url
       final update = await supabase
           .from('users')
           .update({'profile_url': publicUrl})
@@ -148,7 +142,6 @@ class _ProfilePageState extends State<ProfilePage> {
         throw Exception('Failed to update profile image URL');
       }
 
-      // Update local state so UI refreshes with new image
       setState(() {
         profileUrl = publicUrl;
       });
@@ -611,5 +604,6 @@ class _ProfilePageState extends State<ProfilePage> {
 }
 
 extension on String {
+  // ignore: unused_element
   get error => null;
 }

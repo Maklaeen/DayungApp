@@ -8,26 +8,35 @@ class SecretaryClaimsPage extends StatefulWidget {
   State<SecretaryClaimsPage> createState() => _SecretaryClaimsPageState();
 }
 
-class _SecretaryClaimsPageState extends State<SecretaryClaimsPage> {
+class _SecretaryClaimsPageState extends State<SecretaryClaimsPage>
+    with SingleTickerProviderStateMixin {
   final supabase = Supabase.instance.client;
 
-  String _selectedTab = "Pending";
+  late TabController _tabController;
   bool _loading = true;
   List<Map<String, dynamic>> _claims = [];
+
+  final List<String> _tabs = ["Pending", "Approved", "Rejected"];
 
   @override
   void initState() {
     super.initState();
+    _tabController = TabController(length: _tabs.length, vsync: this);
+    _tabController.addListener(() {
+      if (_tabController.indexIsChanging) return;
+      _fetchClaims();
+    });
     _fetchClaims();
   }
 
   Future<void> _fetchClaims() async {
     setState(() => _loading = true);
     try {
+      final status = _tabs[_tabController.index];
       final data = await supabase
           .from('claims')
           .select('id, title, description, status, date_submitted')
-          .eq('status', _selectedTab)
+          .eq('status', status)
           .order('date_submitted', ascending: false);
 
       setState(() {
@@ -50,7 +59,7 @@ class _SecretaryClaimsPageState extends State<SecretaryClaimsPage> {
           .from('claims')
           .update({'status': newStatus})
           .eq('id', claimId)
-          .select(); // ← para bumalik yung updated row
+          .select();
 
       debugPrint("Update result: $res");
 
@@ -60,34 +69,8 @@ class _SecretaryClaimsPageState extends State<SecretaryClaimsPage> {
     }
   }
 
-  Widget _tabButton(String label) {
-    final bool isActive = _selectedTab == label;
-    return Expanded(
-      child: GestureDetector(
-        onTap: () {
-          setState(() => _selectedTab = label);
-          _fetchClaims();
-        },
-        child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 12),
-          decoration: BoxDecoration(
-            color: isActive ? Colors.blue.shade700 : Colors.grey.shade200,
-            borderRadius: BorderRadius.circular(8),
-          ),
-          alignment: Alignment.center,
-          child: Text(
-            label,
-            style: TextStyle(
-              fontWeight: FontWeight.w700,
-              color: isActive ? Colors.white : Colors.black87,
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
   Widget _claimItem(Map<String, dynamic> claim) {
+    final status = _tabs[_tabController.index];
     return Card(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       margin: const EdgeInsets.symmetric(vertical: 6),
@@ -121,7 +104,7 @@ class _SecretaryClaimsPageState extends State<SecretaryClaimsPage> {
             Row(
               mainAxisAlignment: MainAxisAlignment.end,
               children: [
-                if (_selectedTab == "Pending") ...[
+                if (status == "Pending") ...[
                   ElevatedButton(
                     onPressed: () => _updateStatus(claim['id'], "Approved"),
                     style: ElevatedButton.styleFrom(
@@ -142,7 +125,7 @@ class _SecretaryClaimsPageState extends State<SecretaryClaimsPage> {
                     child: const Text("Reject"),
                   ),
                 ],
-                if (_selectedTab != "Pending")
+                if (status != "Pending")
                   ElevatedButton(
                     onPressed: () => _updateStatus(claim['id'], "Pending"),
                     style: ElevatedButton.styleFrom(
@@ -161,39 +144,40 @@ class _SecretaryClaimsPageState extends State<SecretaryClaimsPage> {
   }
 
   @override
+  void dispose() {
+    _tabController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         title: const Text("Claims Management"),
         backgroundColor: Colors.blue.shade700,
+        bottom: TabBar(
+          controller: _tabController,
+          indicatorColor: Colors.black,
+          labelColor: Colors.black,
+          unselectedLabelColor: Colors.black54,
+          labelStyle: const TextStyle(
+            fontWeight: FontWeight.bold,
+            fontSize: 18,
+            fontFamily: 'Montserrat',
+          ),
+          tabs: _tabs.map((t) => Tab(text: t)).toList(),
+        ),
       ),
       body: Padding(
         padding: const EdgeInsets.all(12),
-        child: Column(
-          children: [
-            Row(
-              children: [
-                _tabButton("Pending"),
-                const SizedBox(width: 8),
-                _tabButton("Approved"),
-                const SizedBox(width: 8),
-                _tabButton("Rejected"),
-              ],
-            ),
-            const SizedBox(height: 16),
-            Expanded(
-              child: _loading
-                  ? const Center(child: CircularProgressIndicator())
-                  : _claims.isEmpty
-                  ? const Center(child: Text("No claims found"))
-                  : ListView.builder(
-                      itemCount: _claims.length,
-                      itemBuilder: (context, index) =>
-                          _claimItem(_claims[index]),
-                    ),
-            ),
-          ],
-        ),
+        child: _loading
+            ? const Center(child: CircularProgressIndicator())
+            : _claims.isEmpty
+            ? const Center(child: Text("No claims found"))
+            : ListView.builder(
+                itemCount: _claims.length,
+                itemBuilder: (context, index) => _claimItem(_claims[index]),
+              ),
       ),
     );
   }

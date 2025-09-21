@@ -1,17 +1,20 @@
 import 'package:flutter/material.dart';
-import 'package:geolocator/geolocator.dart';
 import 'package:geocoding/geocoding.dart';
 
 class DeathNoticeDetail extends StatefulWidget {
   final String name;
   final String date;
   final String birthDate;
+  final double? latitude;   // <-- Add these
+  final double? longitude;
 
   const DeathNoticeDetail({
     Key? key,
     required this.name,
     required this.date,
     this.birthDate = 'Sept 21, 1958',
+    this.latitude,
+    this.longitude,
   }) : super(key: key);
 
   @override
@@ -19,50 +22,27 @@ class DeathNoticeDetail extends StatefulWidget {
 }
 
 class _DeathNoticeDetailState extends State<DeathNoticeDetail> {
-  Position? _currentPosition;
-  bool _loadingLocation = true;
   String? _locationName;
+  bool _loadingLocation = true;
 
   @override
   void initState() {
     super.initState();
-    _getCurrentLocation();
+    _resolveLocation();
   }
 
-  Future<void> _getCurrentLocation() async {
-    try {
-      if (!await Geolocator.isLocationServiceEnabled()) {
-        setState(() {
-          _loadingLocation = false;
-          _locationName = "Location unavailable";
-        });
-        return;
-      }
-
-      var permission = await Geolocator.checkPermission();
-      if (permission == LocationPermission.denied) {
-        permission = await Geolocator.requestPermission();
-      }
-      if (permission == LocationPermission.denied ||
-          permission == LocationPermission.deniedForever) {
-        setState(() {
-          _loadingLocation = false;
-          _locationName = "Location unavailable";
-        });
-        return;
-      }
-
-      final pos = await Geolocator.getCurrentPosition().timeout(
-        const Duration(seconds: 10),
-      );
+  Future<void> _resolveLocation() async {
+    if (widget.latitude == null || widget.longitude == null) {
       setState(() {
-        _currentPosition = pos;
         _loadingLocation = false;
+        _locationName = "Location unavailable";
       });
-
+      return;
+    }
+    try {
       final placemarks = await placemarkFromCoordinates(
-        pos.latitude,
-        pos.longitude,
+        widget.latitude!,
+        widget.longitude!,
       ).timeout(const Duration(seconds: 10), onTimeout: () => []);
       if (placemarks.isNotEmpty) {
         final p = placemarks.first;
@@ -76,12 +56,18 @@ class _DeathNoticeDetailState extends State<DeathNoticeDetail> {
           _locationName = parts.isNotEmpty
               ? parts.join(', ')
               : "Location unavailable";
+          _loadingLocation = false;
+        });
+      } else {
+        setState(() {
+          _locationName = "Location unavailable";
+          _loadingLocation = false;
         });
       }
     } catch (_) {
       setState(() {
-        _loadingLocation = false;
         _locationName = "Location unavailable";
+        _loadingLocation = false;
       });
     }
   }
@@ -142,7 +128,6 @@ class _DeathNoticeDetailState extends State<DeathNoticeDetail> {
               ),
             ],
           ),
-
           Padding(
             padding: const EdgeInsets.only(right: 16),
             child: CircleAvatar(
@@ -163,6 +148,7 @@ class _DeathNoticeDetailState extends State<DeathNoticeDetail> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              // ... existing UI ...
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 16),
                 child: Row(
@@ -200,8 +186,7 @@ class _DeathNoticeDetailState extends State<DeathNoticeDetail> {
                   ],
                 ),
               ),
-
-              // Name Card
+              // ... name card, dates, etc ...
               Padding(
                 padding: const EdgeInsets.symmetric(
                   horizontal: 16,
@@ -236,7 +221,6 @@ class _DeathNoticeDetailState extends State<DeathNoticeDetail> {
                   ),
                 ),
               ),
-
               Center(
                 child: Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -266,9 +250,7 @@ class _DeathNoticeDetailState extends State<DeathNoticeDetail> {
                   ),
                 ),
               ),
-
               const SizedBox(height: 30),
-
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 16),
                 child: Text(
@@ -289,16 +271,12 @@ class _DeathNoticeDetailState extends State<DeathNoticeDetail> {
                     height: 180,
                     width: double.infinity,
                     color: Colors.grey.shade200,
-                    child: _loadingLocation
-                        ? const Center(
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : (_currentPosition == null)
+                    child: (widget.latitude == null || widget.longitude == null)
                         ? const Center(child: Text("Location unavailable"))
                         : Center(
                             child: Text(
-                              'Lat: ${_currentPosition!.latitude.toStringAsFixed(4)}\n'
-                              'Lng: ${_currentPosition!.longitude.toStringAsFixed(4)}',
+                              'Lat: ${widget.latitude!.toStringAsFixed(4)}\n'
+                              'Lng: ${widget.longitude!.toStringAsFixed(4)}',
                               style: TextStyle(
                                 fontSize: 18 * scale,
                                 fontWeight: FontWeight.bold,
@@ -326,7 +304,6 @@ class _DeathNoticeDetailState extends State<DeathNoticeDetail> {
                 ),
               ],
               const SizedBox(height: 32),
-
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 16),
                 child: Text(
