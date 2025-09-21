@@ -10,6 +10,7 @@ import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:capstone_app/Auth/login.dart';
+import 'package:auto_size_text/auto_size_text.dart';
 
 class MemberDashboard extends StatefulWidget {
   const MemberDashboard({super.key});
@@ -22,8 +23,10 @@ class _MemberDashboardState extends State<MemberDashboard> {
   final ScrollController _scrollController = ScrollController();
   bool _showNavBar = true;
   String? selectedDayungUnit;
+  // ignore: unused_field
   User? _user;
   String _fullName = '';
+  // ignore: unused_field
   bool _loading = true;
   int _selectedIndex = 0;
 
@@ -247,24 +250,41 @@ class _MemberDashboardState extends State<MemberDashboard> {
     final isWide = width > 700;
     return SingleChildScrollView(
       controller: _scrollController,
-      padding: EdgeInsets.symmetric(
-        horizontal: isWide ? width * 0.15 : 16,
-        vertical: 16,
-      ),
+      // Remove horizontal padding here!
+      padding: const EdgeInsets.symmetric(vertical: 16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _buildHeader(),
-          const SizedBox(height: 8),
-          const Divider(thickness: 1, color: Colors.grey),
+          // Header with padding
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 0),
+            child: _buildHeader(),
+          ),
+          // Divider with same horizontal padding
+          const Padding(
+            padding: EdgeInsets.symmetric(horizontal: 16),
+            child: Divider(thickness: 1, height: 24, color: Colors.grey),
+          ),
           const SizedBox(height: 16),
-          _buildWelcomeMessage(),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: _buildWelcomeMessage(),
+          ),
           const SizedBox(height: 24),
-          _buildCards(context, isWide),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: _buildCards(context, isWide),
+          ),
           const SizedBox(height: 24),
-          _buildNextPaymentCard(isWide),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: _buildNextPaymentCard(isWide),
+          ),
           const SizedBox(height: 32),
-          _buildRecentActivity(isWide),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: _buildRecentActivity(isWide),
+          ),
         ],
       ),
     );
@@ -384,17 +404,17 @@ class _MemberDashboardState extends State<MemberDashboard> {
         value: "259",
         valuePrefix: "",
         subtitle: "",
-        iconSize: 36,
+        iconSize: 30,
       ),
       _dashboardCard(
         color: const Color(0xFFFFDAF6),
         icon: FontAwesomeIcons.dove,
         iconColor: Colors.purple[400],
-        title: "Recent Death Notices",
+        title: "Recent Deaths",
         value: "Inday H.\nPedro M.",
         valuePrefix: "",
         subtitle: "",
-        iconSize: 36,
+        iconSize: 30,
         isDeathNotice: true,
         context: context,
       ),
@@ -405,33 +425,37 @@ class _MemberDashboardState extends State<MemberDashboard> {
         title: "Pending\nPayments",
         value: "₱ 21,900",
         valuePrefix: "",
-        iconSize: 36,
+        iconSize: 30,
       ),
     ];
 
-    if (isWide) {
-      return Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children:
-            cards
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        if (constraints.maxWidth < 360) {
+          return Column(
+            children: cards
                 .map(
-                  (card) => Expanded(
-                    child: AspectRatio(aspectRatio: 0.7, child: card),
+                  (card) => Padding(
+                    padding: const EdgeInsets.only(bottom: 12),
+                    child: card,
                   ),
                 )
-                .toList()
-              ..insertAll(1, [const Expanded(child: SizedBox(width: 12))])
-              ..removeLast(),
-      );
-    } else {
-      return Wrap(
-        spacing: 12,
-        runSpacing: 12,
-        children: cards
-            .map((card) => SizedBox(width: double.infinity, child: card))
-            .toList(),
-      );
-    }
+                .toList(),
+          );
+        } else {
+          return Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(child: cards[0]),
+              const SizedBox(width: 12),
+              Expanded(child: cards[1]),
+              const SizedBox(width: 12),
+              Expanded(child: cards[2]),
+            ],
+          );
+        }
+      },
+    );
   }
 
   Widget _dashboardCard({
@@ -447,7 +471,7 @@ class _MemberDashboardState extends State<MemberDashboard> {
     BuildContext? context,
   }) {
     return SizedBox(
-      height: 200,
+      height: 220, // <-- Set a fixed height for all cards
       child: ClipRRect(
         borderRadius: BorderRadius.circular(18),
         child: Container(
@@ -458,11 +482,12 @@ class _MemberDashboardState extends State<MemberDashboard> {
             border: Border.all(color: Colors.grey.shade300, width: 2),
           ),
           child: Column(
-            mainAxisSize: MainAxisSize.min,
+            mainAxisAlignment: MainAxisAlignment.start,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               Icon(icon, size: iconSize, color: iconColor),
               const SizedBox(height: 8),
-              Text(
+              AutoSizeText(
                 title,
                 textAlign: TextAlign.center,
                 style: const TextStyle(
@@ -471,65 +496,69 @@ class _MemberDashboardState extends State<MemberDashboard> {
                   color: Colors.black87,
                   fontFamily: 'Montserrat',
                 ),
+                maxLines: 2,
+                minFontSize: 12,
+                overflow: TextOverflow.ellipsis,
               ),
               const SizedBox(height: 8),
-              Flexible(
+              Expanded(
                 child: isDeathNotice
                     ? Column(
-                        mainAxisSize: MainAxisSize.min,
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        mainAxisSize: MainAxisSize.min, // <-- Add this line
                         children: [
-                          Flexible(
-                            child: SingleChildScrollView(
-                              physics: const BouncingScrollPhysics(),
-                              child: Column(
-                                children: value.split('\n').map((name) {
-                                  return Padding(
-                                    padding: const EdgeInsets.only(bottom: 4),
-                                    child: Row(
-                                      children: [
-                                        const Icon(
-                                          FontAwesomeIcons.dove,
-                                          size: 14,
-                                          color: Colors.black87,
-                                        ),
-                                        const SizedBox(width: 6),
-                                        Flexible(
-                                          child: Text(
-                                            name,
-                                            overflow: TextOverflow.ellipsis,
-                                            style: const TextStyle(
-                                              fontWeight: FontWeight.bold,
-                                              fontSize: 14,
-                                              color: Colors.black,
-                                              fontFamily: 'Montserrat',
-                                            ),
+                          ...value
+                              .split('\n')
+                              .map(
+                                (name) => Padding(
+                                  padding: const EdgeInsets.only(bottom: 4),
+                                  child: Row(
+                                    children: [
+                                      const Icon(
+                                        FontAwesomeIcons.dove,
+                                        size: 14,
+                                        color: Colors.black87,
+                                      ),
+                                      const SizedBox(width: 6),
+                                      Flexible(
+                                        child: Text(
+                                          name,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: const TextStyle(
+                                            fontWeight: FontWeight.bold,
+                                            fontSize: 14,
+                                            color: Colors.black,
+                                            fontFamily: 'Montserrat',
                                           ),
                                         ),
-                                      ],
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              )
+                              .toList(),
+                          Flexible(
+                            // <-- Wrap the button in Flexible
+                            child: TextButton(
+                              onPressed: () {
+                                if (context != null) {
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (_) =>
+                                          const RecentDeathNotices(),
                                     ),
                                   );
-                                }).toList(),
-                              ),
-                            ),
-                          ),
-                          TextButton(
-                            onPressed: () {
-                              if (context != null) {
-                                Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (_) => const RecentDeathNotices(),
-                                  ),
-                                );
-                              }
-                            },
-                            child: const Text(
-                              "View All",
-                              style: TextStyle(
-                                color: Colors.blue,
-                                fontWeight: FontWeight.bold,
-                                fontSize: 14,
-                                fontFamily: 'Montserrat',
+                                }
+                              },
+                              child: const Text(
+                                "View All",
+                                style: TextStyle(
+                                  color: Colors.blue,
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 14,
+                                  fontFamily: 'Montserrat',
+                                ),
                               ),
                             ),
                           ),
@@ -537,25 +566,32 @@ class _MemberDashboardState extends State<MemberDashboard> {
                       )
                     : Column(
                         mainAxisAlignment: MainAxisAlignment.center,
-                        mainAxisSize: MainAxisSize.min,
                         children: [
-                          Text(
+                          AutoSizeText(
                             "$valuePrefix$value",
                             style: const TextStyle(
                               fontWeight: FontWeight.bold,
-                              fontSize: 24,
+                              fontSize: 28,
                               color: Colors.black,
                               fontFamily: 'Montserrat',
                             ),
+                            maxLines: 1,
+                            minFontSize: 12,
+                            overflow: TextOverflow.ellipsis,
                           ),
                           if (subtitle.isNotEmpty)
-                            Text(
+                            AutoSizeText(
                               subtitle,
+                              textAlign: TextAlign.center,
                               style: const TextStyle(
+                                fontWeight: FontWeight.bold,
                                 fontSize: 14,
                                 color: Colors.black87,
                                 fontFamily: 'Montserrat',
                               ),
+                              maxLines: 2,
+                              minFontSize: 10,
+                              overflow: TextOverflow.ellipsis,
                             ),
                         ],
                       ),

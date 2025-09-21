@@ -43,6 +43,7 @@ dependencies:
   geocoding: ^4.0.0
   shared_preferences: ^2.5.3
   file_picker: ^10.3.3
+  auto_size_text: ^3.0.0
 
 dev_dependencies:
   flutter_test:
