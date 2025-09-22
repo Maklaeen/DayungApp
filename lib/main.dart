@@ -1,6 +1,7 @@
 import 'package:capstone_app/Members/dashboard.dart';
 import 'package:capstone_app/President/dashboard.dart';
 import 'package:capstone_app/Secretary/dashboard.dart';
+import 'package:capstone_app/settings/dayung_provider.dart';
 import 'package:capstone_app/settings/user_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:capstone_app/settings/custom_scroll_behavior.dart';
@@ -26,8 +27,13 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ChangeNotifierProvider(
-      create: (context) => UserProvider(),
+    return MultiProvider(
+      providers: [
+        ChangeNotifierProvider(create: (_) => UserProvider()),
+        ChangeNotifierProvider(
+          create: (_) => DayungUnitProvider()..loadDayungUnit(),
+        ),
+      ],
       child: MaterialApp(
         debugShowCheckedModeBanner: false,
         scrollBehavior: NoGlowScrollBehavior(),

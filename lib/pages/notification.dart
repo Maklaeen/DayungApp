@@ -1,10 +1,14 @@
 import 'package:flutter/material.dart';
+import 'package:auto_size_text/auto_size_text.dart';
 
 class NotificationPage extends StatelessWidget {
   const NotificationPage({super.key});
 
   @override
   Widget build(BuildContext context) {
+    final width = MediaQuery.of(context).size.width;
+    final isWide = width > 700;
+
     return Scaffold(
       backgroundColor: const Color(0xFFFEFFFF),
       appBar: AppBar(
@@ -14,14 +18,16 @@ class NotificationPage extends StatelessWidget {
           icon: const Icon(Icons.arrow_back, size: 28, color: Colors.black),
           onPressed: () => Navigator.pop(context),
         ),
-        title: const Text(
+        title: AutoSizeText(
           'Dayung',
           style: TextStyle(
-            fontSize: 28,
+            fontSize: isWide ? 28 : 22,
             fontWeight: FontWeight.bold,
             color: Colors.black,
             fontFamily: 'Montserrat',
           ),
+          maxLines: 1,
+          minFontSize: 16,
         ),
         centerTitle: false,
       ),
@@ -29,15 +35,17 @@ class NotificationPage extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Padding(
-              padding: EdgeInsets.fromLTRB(24, 16, 24, 0),
-              child: Text(
+            Padding(
+              padding: const EdgeInsets.fromLTRB(24, 16, 24, 0),
+              child: AutoSizeText(
                 'Notification',
                 style: TextStyle(
-                  fontSize: 26,
+                  fontSize: isWide ? 26 : 20,
                   fontWeight: FontWeight.bold,
                   fontFamily: 'Montserrat',
                 ),
+                maxLines: 1,
+                minFontSize: 14,
               ),
             ),
             const SizedBox(height: 8),
@@ -54,14 +62,17 @@ class NotificationPage extends StatelessWidget {
                     title: 'Announcement from President',
                     message: 'Meeting on July 16, 2025\nat 3PM',
                     time: '2 oras na ang nilabay',
+                    isWide: isWide,
                   ),
                   _deathNoticeCard(
                     name: 'Sophia Martinez has passed away',
                     date: 'February 17, 2025',
+                    isWide: isWide,
                   ),
                   _deathNoticeCard(
                     name: 'Liam Anderson has passed away',
                     date: 'March 20, 2024',
+                    isWide: isWide,
                   ),
                 ],
               ),
@@ -78,6 +89,7 @@ class NotificationPage extends StatelessWidget {
     required String title,
     required String message,
     required String time,
+    required bool isWide,
   }) {
     return Container(
       margin: const EdgeInsets.only(bottom: 20),
@@ -91,26 +103,28 @@ class NotificationPage extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
+            AutoSizeText(
               title,
-              style: const TextStyle(
-                fontSize: 18,
+              style: TextStyle(
+                fontSize: isWide ? 18 : 15,
                 fontWeight: FontWeight.bold,
                 fontFamily: 'Montserrat',
               ),
+              maxLines: 1,
+              minFontSize: 12,
             ),
             const SizedBox(height: 8),
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Icon(icon, color: iconColor, size: 28),
+                Icon(icon, color: iconColor, size: isWide ? 28 : 22),
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
                     message,
-                    style: const TextStyle(
-                      fontSize: 18,
-                      fontFamily: 'Montserrat',
+                    style: TextStyle(
+                      fontSize: isWide ? 18 : 14,
+                      fontFamily: 'OpenSans',
                     ),
                   ),
                 ),
@@ -119,10 +133,10 @@ class NotificationPage extends StatelessWidget {
             const SizedBox(height: 8),
             Text(
               time,
-              style: const TextStyle(
-                fontSize: 16,
+              style: TextStyle(
+                fontSize: isWide ? 16 : 13,
                 color: Colors.black54,
-                fontFamily: 'Montserrat',
+                fontFamily: 'OpenSans',
               ),
             ),
           ],
@@ -131,7 +145,11 @@ class NotificationPage extends StatelessWidget {
     );
   }
 
-  static Widget _deathNoticeCard({required String name, required String date}) {
+  static Widget _deathNoticeCard({
+    required String name,
+    required String date,
+    required bool isWide,
+  }) {
     return Container(
       margin: const EdgeInsets.only(bottom: 20),
       decoration: BoxDecoration(
@@ -149,13 +167,15 @@ class NotificationPage extends StatelessWidget {
                 const Text('🕊️', style: TextStyle(fontSize: 28)),
                 const SizedBox(width: 8),
                 Expanded(
-                  child: Text(
+                  child: AutoSizeText(
                     name,
-                    style: const TextStyle(
-                      fontSize: 18,
+                    style: TextStyle(
+                      fontSize: isWide ? 18 : 15,
                       fontWeight: FontWeight.bold,
                       fontFamily: 'Montserrat',
                     ),
+                    maxLines: 1,
+                    minFontSize: 12,
                   ),
                 ),
               ],
@@ -163,10 +183,10 @@ class NotificationPage extends StatelessWidget {
             const SizedBox(height: 8),
             Text(
               date,
-              style: const TextStyle(
-                fontSize: 16,
+              style: TextStyle(
+                fontSize: isWide ? 16 : 13,
                 color: Colors.black54,
-                fontFamily: 'Montserrat',
+                fontFamily: 'OpenSans',
               ),
             ),
           ],

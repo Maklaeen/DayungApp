@@ -2,6 +2,7 @@ import 'package:capstone_app/Beneficiary/addbeneficiary.dart';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:auto_size_text/auto_size_text.dart';
 
 class BeneficiaryPage extends StatefulWidget {
   const BeneficiaryPage({super.key});
@@ -29,14 +30,12 @@ class _BeneficiaryPageState extends State<BeneficiaryPage> {
         .select()
         .eq('user_id', user!.id);
 
-    // ignore: unnecessary_type_check
     if (response is List) {
       setState(() {
         beneficiaries = response;
         isLoading = false;
       });
     } else {
-      // handle error
       setState(() => isLoading = false);
       print('Failed to fetch beneficiaries');
     }
@@ -47,14 +46,23 @@ class _BeneficiaryPageState extends State<BeneficiaryPage> {
       context,
       MaterialPageRoute(builder: (context) => const AddBeneficiaryPage()),
     );
-    fetchBeneficiaries(); // refresh the list after returning
+    fetchBeneficiaries();
   }
 
   void _showBeneficiaryDetails(Map item) {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text(item['full_name'] ?? 'Beneficiary Details'),
+        title: AutoSizeText(
+          item['full_name'] ?? 'Beneficiary Details',
+          style: const TextStyle(
+            fontFamily: 'Montserrat',
+            fontWeight: FontWeight.bold,
+            fontSize: 22,
+          ),
+          maxLines: 1,
+          minFontSize: 14,
+        ),
         content: SingleChildScrollView(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -76,7 +84,6 @@ class _BeneficiaryPageState extends State<BeneficiaryPage> {
                     const SizedBox(height: 6),
                     InkWell(
                       onTap: () {
-                        // Open the file in browser
                         launchUrl(Uri.parse(item['birth_certificate']));
                       },
                       child: Text(
@@ -107,8 +114,20 @@ class _BeneficiaryPageState extends State<BeneficiaryPage> {
       padding: const EdgeInsets.only(bottom: 6),
       child: Row(
         children: [
-          Text('$label: ', style: const TextStyle(fontWeight: FontWeight.bold)),
-          Expanded(child: Text(value ?? '', overflow: TextOverflow.ellipsis)),
+          Text(
+            '$label: ',
+            style: const TextStyle(
+              fontWeight: FontWeight.bold,
+              fontFamily: 'Montserrat',
+            ),
+          ),
+          Expanded(
+            child: Text(
+              value ?? '',
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(fontFamily: 'OpenSans'),
+            ),
+          ),
         ],
       ),
     );
@@ -116,6 +135,9 @@ class _BeneficiaryPageState extends State<BeneficiaryPage> {
 
   @override
   Widget build(BuildContext context) {
+    final width = MediaQuery.of(context).size.width;
+    final isWide = width > 700;
+
     return Scaffold(
       backgroundColor: const Color(0xFFFEFFFF),
       body: SafeArea(
@@ -127,66 +149,32 @@ class _BeneficiaryPageState extends State<BeneficiaryPage> {
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  IconButton(
-                    icon: const Icon(Icons.arrow_back, size: 32),
-                    onPressed: () => Navigator.pop(context),
-                  ),
-                  const Text(
-                    'Dayung',
-                    style: TextStyle(
-                      fontSize: 28,
-                      fontWeight: FontWeight.bold,
-                      fontFamily: 'Montserrat',
-                      color: Colors.black,
-                    ),
-                  ),
+                  // Left: Back button and title
                   Row(
                     children: [
-                      Stack(
-                        children: [
-                          const Icon(
-                            Icons.notifications_none,
-                            color: Colors.orange,
-                            size: 32,
-                          ),
-                          Positioned(
-                            right: 0,
-                            top: 0,
-                            child: Container(
-                              padding: const EdgeInsets.all(2),
-                              decoration: const BoxDecoration(
-                                color: Colors.red,
-                                shape: BoxShape.circle,
-                              ),
-                              constraints: const BoxConstraints(
-                                minWidth: 16,
-                                minHeight: 16,
-                              ),
-                              child: const Text(
-                                '1',
-                                style: TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 10,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                                textAlign: TextAlign.center,
-                              ),
-                            ),
-                          ),
-                        ],
+                      IconButton(
+                        icon: const Icon(Icons.arrow_back, size: 28),
+                        onPressed: () => Navigator.pop(context),
                       ),
-                      const SizedBox(width: 16),
-                      const CircleAvatar(
-                        backgroundColor: Colors.blue,
-                        radius: 16,
-                        child: Icon(Icons.account_circle, color: Colors.white),
+                      const SizedBox(width: 4),
+                      AutoSizeText(
+                        'Beneficiaries',
+                        style: TextStyle(
+                          fontSize: isWide ? 28 : 22,
+                          fontWeight: FontWeight.bold,
+                          fontFamily: 'Montserrat',
+                          color: Colors.black,
+                        ),
+                        maxLines: 1,
+                        minFontSize: 16,
                       ),
                     ],
                   ),
+
+                  // Right: Notification and profile
                 ],
               ),
             ),
-
             const Divider(thickness: 1.5, color: Colors.grey),
             const SizedBox(height: 16),
 
@@ -196,12 +184,14 @@ class _BeneficiaryPageState extends State<BeneficiaryPage> {
                   ? const Center(child: CircularProgressIndicator())
                   : beneficiaries.isEmpty
                   ? const Center(
-                      child: Text(
+                      child: AutoSizeText(
                         'No beneficiaries added yet.',
                         style: TextStyle(
                           fontSize: 18,
                           fontFamily: 'Montserrat',
                         ),
+                        maxLines: 1,
+                        minFontSize: 12,
                       ),
                     )
                   : ListView.builder(
@@ -235,13 +225,15 @@ class _BeneficiaryPageState extends State<BeneficiaryPage> {
                                     crossAxisAlignment:
                                         CrossAxisAlignment.start,
                                     children: [
-                                      Text(
+                                      AutoSizeText(
                                         item['full_name'] ?? '',
                                         style: const TextStyle(
                                           fontSize: 18,
                                           fontWeight: FontWeight.bold,
                                           fontFamily: 'Montserrat',
                                         ),
+                                        maxLines: 1,
+                                        minFontSize: 12,
                                       ),
                                       const SizedBox(height: 4),
                                       Text(
@@ -249,7 +241,7 @@ class _BeneficiaryPageState extends State<BeneficiaryPage> {
                                         style: const TextStyle(
                                           fontSize: 16,
                                           color: Colors.black54,
-                                          fontFamily: 'Montserrat',
+                                          fontFamily: 'OpenSans',
                                         ),
                                       ),
                                       if (item['status'] != null)
@@ -283,6 +275,7 @@ class _BeneficiaryPageState extends State<BeneficiaryPage> {
                                                     ? Colors.red[900]
                                                     : Colors.orange[900],
                                                 fontWeight: FontWeight.bold,
+                                                fontFamily: 'OpenSans',
                                               ),
                                             ),
                                           ),
@@ -329,13 +322,15 @@ class _BeneficiaryPageState extends State<BeneficiaryPage> {
                     ),
                   ),
                   icon: const Icon(Icons.add),
-                  label: const Text(
+                  label: const AutoSizeText(
                     'Add a Beneficiary',
                     style: TextStyle(
                       fontSize: 18,
                       fontFamily: 'Montserrat',
                       fontWeight: FontWeight.w500,
                     ),
+                    maxLines: 1,
+                    minFontSize: 12,
                   ),
                 ),
               ),

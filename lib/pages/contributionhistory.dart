@@ -1,11 +1,11 @@
-import 'package:capstone_app/Members/dashboard.dart';
-import 'package:capstone_app/pages/claims.dart';
 import 'package:capstone_app/pages/notification.dart';
 import 'package:capstone_app/profile/profile.dart';
 import 'package:flutter/material.dart';
-import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:auto_size_text/auto_size_text.dart';
+import 'package:provider/provider.dart';
+import 'package:capstone_app/settings/dayung_provider.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 class ContributionHistory extends StatefulWidget {
   const ContributionHistory({super.key});
@@ -17,10 +17,18 @@ class ContributionHistory extends StatefulWidget {
 class _ContributionHistoryState extends State<ContributionHistory> {
   final bool _showNavBar = true;
   String? selectedDayungUnit;
+  String? _profileUrl;
 
   @override
   void initState() {
     super.initState();
+    _loadDayungUnit();
+    _loadProfileImage();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
     _loadDayungUnit();
   }
 
@@ -30,10 +38,27 @@ class _ContributionHistoryState extends State<ContributionHistory> {
     setState(() => selectedDayungUnit = unit ?? 'Dayung');
   }
 
+  Future<void> _loadProfileImage() async {
+    final supabase = Supabase.instance.client;
+    final currentUser = supabase.auth.currentUser;
+    if (currentUser != null) {
+      final response = await supabase
+          .from('users')
+          .select('profile_url')
+          .eq('id', currentUser.id)
+          .maybeSingle();
+      setState(() {
+        _profileUrl = response?['profile_url'] as String?;
+      });
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final width = MediaQuery.of(context).size.width;
     final isWide = width > 700;
+    final selectedDayungUnit =
+        context.watch<DayungUnitProvider>().selectedDayungUnit ?? 'Dayung';
     final contributions = [
       {'date': 'February 17, 2025', 'amount': '₱ 200'},
       {'date': 'March 20, 2024', 'amount': '₱ 200'},
@@ -57,7 +82,7 @@ class _ContributionHistoryState extends State<ContributionHistory> {
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       AutoSizeText(
-                        selectedDayungUnit ?? 'Dayung',
+                        selectedDayungUnit,
                         style: TextStyle(
                           fontSize: isWide ? 36 : 28,
                           fontWeight: FontWeight.bold,
@@ -92,16 +117,24 @@ class _ContributionHistoryState extends State<ContributionHistory> {
                                 MaterialPageRoute(
                                   builder: (_) => const ProfilePage(),
                                 ),
-                              );
+                              ).then((_) => _loadProfileImage());
                             },
-                            child: const CircleAvatar(
+                            child: CircleAvatar(
                               radius: 20,
                               backgroundColor: Colors.blue,
-                              child: Icon(
-                                Icons.account_circle,
-                                size: 36,
-                                color: Colors.white,
-                              ),
+                              backgroundImage:
+                                  (_profileUrl != null &&
+                                      _profileUrl!.isNotEmpty)
+                                  ? NetworkImage(_profileUrl!)
+                                  : null,
+                              child:
+                                  (_profileUrl == null || _profileUrl!.isEmpty)
+                                  ? const Icon(
+                                      Icons.account_circle,
+                                      size: 36,
+                                      color: Colors.white,
+                                    )
+                                  : null,
                             ),
                           ),
                         ],

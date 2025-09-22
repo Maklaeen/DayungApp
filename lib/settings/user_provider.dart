@@ -6,11 +6,13 @@ class UserProvider extends ChangeNotifier {
   String _fullName = '';
   String _mobileNumber = 'Not Available';
   String _userAddress = 'Not Provided';
+  String? _profileUrl; // <-- Add this
 
   User? get user => _user;
   String get fullName => _fullName;
   String get mobileNumber => _mobileNumber;
   String get userAddress => _userAddress;
+  String? get profileUrl => _profileUrl; // <-- Add this
 
   // Fetch user data
   Future<void> loadUserData() async {
@@ -29,14 +31,21 @@ class UserProvider extends ChangeNotifier {
         _fullName = _getTitle(response['sex']) + ' ' + response['full_name'];
         _mobileNumber = response['mobile_number'] ?? 'Not Available';
         _userAddress = response['address'] ?? 'Not Provided';
+        _profileUrl = response['profile_url']; // <-- Add this
       } else {
         _fullName = 'Member';
         _mobileNumber = 'Not Available';
         _userAddress = 'Not Provided';
+        _profileUrl = null; // <-- Add this
       }
 
       notifyListeners();
     }
+  }
+
+  void setProfileUrl(String? url) {
+    _profileUrl = url;
+    notifyListeners();
   }
 
   String _getTitle(String sex) {

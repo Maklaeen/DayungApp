@@ -1,5 +1,7 @@
+import 'package:capstone_app/settings/dayung_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
+import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:capstone_app/pages/notification.dart';
@@ -18,6 +20,7 @@ class _ClaimsPageState extends State<ClaimsPage>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
   String? selectedDayungUnit;
+  String? _profileUrl;
 
   bool isLoading = true;
   List<Map<String, dynamic>> ongoingClaims = [];
@@ -32,12 +35,34 @@ class _ClaimsPageState extends State<ClaimsPage>
     });
     _loadDayungUnit();
     _fetchClaims();
+    _loadProfileImage();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _loadDayungUnit();
   }
 
   Future<void> _loadDayungUnit() async {
     final prefs = await SharedPreferences.getInstance();
     final unit = prefs.getString('selectedDayungUnit');
     setState(() => selectedDayungUnit = unit ?? 'Dayung');
+  }
+
+  Future<void> _loadProfileImage() async {
+    final supabase = Supabase.instance.client;
+    final currentUser = supabase.auth.currentUser;
+    if (currentUser != null) {
+      final response = await supabase
+          .from('users')
+          .select('profile_url')
+          .eq('id', currentUser.id)
+          .maybeSingle();
+      setState(() {
+        _profileUrl = response?['profile_url'] as String?;
+      });
+    }
   }
 
   Future<void> _fetchClaims() async {
@@ -119,6 +144,8 @@ class _ClaimsPageState extends State<ClaimsPage>
   Widget build(BuildContext context) {
     final width = MediaQuery.of(context).size.width;
     final isWide = width > 700;
+    final selectedDayungUnit =
+        context.watch<DayungUnitProvider>().selectedDayungUnit ?? 'Dayung';
 
     return Scaffold(
       backgroundColor: Colors.white,
@@ -132,7 +159,7 @@ class _ClaimsPageState extends State<ClaimsPage>
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   AutoSizeText(
-                    selectedDayungUnit ?? 'Dayung',
+                    selectedDayungUnit,
                     style: TextStyle(
                       fontSize: isWide ? 36 : 28,
                       fontWeight: FontWeight.bold,
@@ -167,16 +194,22 @@ class _ClaimsPageState extends State<ClaimsPage>
                             MaterialPageRoute(
                               builder: (_) => const ProfilePage(),
                             ),
-                          );
+                          ).then((_) => _loadProfileImage());
                         },
-                        child: const CircleAvatar(
+                        child: CircleAvatar(
                           radius: 20,
                           backgroundColor: Colors.blue,
-                          child: Icon(
-                            Icons.account_circle,
-                            size: 36,
-                            color: Colors.white,
-                          ),
+                          backgroundImage:
+                              (_profileUrl != null && _profileUrl!.isNotEmpty)
+                              ? NetworkImage(_profileUrl!)
+                              : null,
+                          child: (_profileUrl == null || _profileUrl!.isEmpty)
+                              ? const Icon(
+                                  Icons.account_circle,
+                                  size: 36,
+                                  color: Colors.white,
+                                )
+                              : null,
                         ),
                       ),
                     ],
@@ -288,12 +321,27 @@ class _ClaimsPageState extends State<ClaimsPage>
           itemCount: claims.length,
           itemBuilder: (context, index) {
             final claim = claims[index];
+            final status = claim['status']?.toString().toLowerCase() ?? '';
+            Color bgColor;
+            Color textColor;
+
+            if (status == 'rejected') {
+              bgColor = Colors.red[100]!;
+              textColor = Colors.red[800]!;
+            } else if (isOngoing) {
+              bgColor = Colors.orange[100]!;
+              textColor = Colors.brown;
+            } else {
+              bgColor = Colors.green[100]!;
+              textColor = Colors.green[900]!;
+            }
+
             return _claimCard(
               _formatDate(claim['date_submitted']?.toString() ?? ''),
               claim['title']?.toString() ?? '',
               claim['status']?.toString() ?? '',
-              isOngoing ? Colors.orange[100]! : Colors.green[100]!,
-              isOngoing ? Colors.brown : Colors.green[900]!,
+              bgColor,
+              textColor,
               isWide,
             );
           },

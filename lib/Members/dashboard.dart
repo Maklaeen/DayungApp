@@ -3,14 +3,17 @@ import 'package:capstone_app/pages/notification.dart';
 import 'package:capstone_app/pages/paymentmethod.dart';
 import 'package:capstone_app/profile/profile.dart';
 import 'package:capstone_app/screens/selectdayung.dart';
+import 'package:capstone_app/settings/dayung_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:capstone_app/pages/contributionhistory.dart';
 import 'package:capstone_app/pages/recentdeathnotices.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
+import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:capstone_app/Auth/login.dart';
 import 'package:auto_size_text/auto_size_text.dart';
+import 'package:capstone_app/settings/user_provider.dart';
 
 class MemberDashboard extends StatefulWidget {
   const MemberDashboard({super.key});
@@ -21,6 +24,8 @@ class MemberDashboard extends StatefulWidget {
 
 class _MemberDashboardState extends State<MemberDashboard> {
   final ScrollController _scrollController = ScrollController();
+  String? get profileUrl => context.watch<UserProvider>().profileUrl;
+
   bool _showNavBar = true;
   String? selectedDayungUnit;
   // ignore: unused_field
@@ -29,6 +34,7 @@ class _MemberDashboardState extends State<MemberDashboard> {
   // ignore: unused_field
   bool _loading = true;
   int _selectedIndex = 0;
+  String? _profileUrl;
 
   @override
   void initState() {
@@ -51,6 +57,12 @@ class _MemberDashboardState extends State<MemberDashboard> {
     });
   }
 
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _loadOrAskDayung();
+  }
+
   Future<void> _loadUserData() async {
     final currentUser = Supabase.instance.client.auth.currentUser;
 
@@ -59,7 +71,7 @@ class _MemberDashboardState extends State<MemberDashboard> {
 
       final response = await Supabase.instance.client
           .from('users')
-          .select()
+          .select('full_name, sex, profile_url')
           .eq('id', userId)
           .maybeSingle();
 
@@ -67,6 +79,7 @@ class _MemberDashboardState extends State<MemberDashboard> {
         setState(() {
           _user = currentUser;
           _fullName = _getTitle(response['sex']) + ' ' + response['full_name'];
+          _profileUrl = response['profile_url'] as String?;
         });
       } else {
         setState(() {
@@ -291,6 +304,8 @@ class _MemberDashboardState extends State<MemberDashboard> {
   Widget _buildHeader() {
     final width = MediaQuery.of(context).size.width;
     final isWide = width > 700;
+    final selectedDayungUnit =
+        context.watch<DayungUnitProvider>().selectedDayungUnit ?? 'Dayung';
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       crossAxisAlignment: CrossAxisAlignment.center,
@@ -298,19 +313,18 @@ class _MemberDashboardState extends State<MemberDashboard> {
         Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            if (selectedDayungUnit != null)
-              AutoSizeText(
-                selectedDayungUnit!,
-                style: TextStyle(
-                  fontSize: isWide ? 36 : 28,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.black,
-                  fontFamily: 'Montserrat',
-                ),
-                maxLines: 1,
-                minFontSize: 20,
-                overflow: TextOverflow.ellipsis,
+            AutoSizeText(
+              selectedDayungUnit,
+              style: TextStyle(
+                fontSize: isWide ? 36 : 28,
+                fontWeight: FontWeight.bold,
+                color: Colors.black,
+                fontFamily: 'Montserrat',
               ),
+              maxLines: 1,
+              minFontSize: 20,
+              overflow: TextOverflow.ellipsis,
+            ),
           ],
         ),
         Row(
@@ -334,6 +348,30 @@ class _MemberDashboardState extends State<MemberDashboard> {
                 ],
               ),
             ),
+            const SizedBox(width: 18),
+
+            GestureDetector(
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const ProfilePage()),
+                );
+              },
+              child: CircleAvatar(
+                backgroundColor: Colors.blue,
+                backgroundImage:
+                    (_profileUrl != null && _profileUrl!.isNotEmpty)
+                    ? NetworkImage(_profileUrl!)
+                    : null,
+                child: (_profileUrl == null || _profileUrl!.isEmpty)
+                    ? const Icon(
+                        Icons.account_circle,
+                        size: 36,
+                        color: Colors.white,
+                      )
+                    : null,
+              ),
+            ),
           ],
         ),
       ],
@@ -354,20 +392,6 @@ class _MemberDashboardState extends State<MemberDashboard> {
             letterSpacing: 1,
             height: 1.1,
           ),
-        ),
-      ),
-      const SizedBox(width: 12),
-      GestureDetector(
-        onTap: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(builder: (_) => const ProfilePage()),
-          );
-        },
-        child: const CircleAvatar(
-          radius: 28,
-          backgroundColor: Colors.blue,
-          child: Icon(Icons.account_circle, size: 48, color: Colors.white),
         ),
       ),
     ],

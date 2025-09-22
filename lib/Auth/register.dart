@@ -1,3 +1,4 @@
+import 'package:auto_size_text/auto_size_text.dart';
 import 'package:capstone_app/screens/dayungquestion.dart';
 import 'package:flutter/material.dart';
 import 'package:capstone_app/Auth/login.dart';
@@ -18,6 +19,31 @@ class _RegisterState extends State<Register> {
   final addressController = TextEditingController();
   final passwordController = TextEditingController();
   final confirmPasswordController = TextEditingController();
+
+  bool _obscurePassword = true;
+  bool _obscureConfirmPassword = true;
+  String? _confirmPasswordError;
+
+  @override
+  void initState() {
+    super.initState();
+    confirmPasswordController.addListener(_checkPasswordMatch);
+    passwordController.addListener(_checkPasswordMatch);
+  }
+
+  void _checkPasswordMatch() {
+    final password = passwordController.text;
+    final confirm = confirmPasswordController.text;
+    setState(() {
+      if (confirm.isEmpty) {
+        _confirmPasswordError = null;
+      } else if (password != confirm) {
+        _confirmPasswordError = 'Passwords do not match';
+      } else {
+        _confirmPasswordError = null;
+      }
+    });
+  }
 
   String? selectedMonth;
   String? selectedDay;
@@ -51,6 +77,8 @@ class _RegisterState extends State<Register> {
     passwordController.dispose();
     confirmPasswordController.dispose();
     emailController.dispose();
+    confirmPasswordController.removeListener(_checkPasswordMatch);
+    passwordController.removeListener(_checkPasswordMatch);
     super.dispose();
   }
 
@@ -307,8 +335,12 @@ class _RegisterState extends State<Register> {
 
   @override
   Widget build(BuildContext context) {
+    final width = MediaQuery.of(context).size.width;
+    final isWide = width > 700;
+
     return Scaffold(
       backgroundColor: const Color(0xFFFEFFFF),
+      resizeToAvoidBottomInset: true,
       body: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 24.0),
         child: SingleChildScrollView(
@@ -319,18 +351,21 @@ class _RegisterState extends State<Register> {
                 const SizedBox(height: 48),
                 Image.asset(
                   'assets/images/dayunglogo.jpeg',
-                  width: 220,
-                  height: 80,
+                  width: isWide ? 260 : 180,
+                  height: isWide ? 90 : 60,
                   fit: BoxFit.contain,
                 ),
                 const SizedBox(height: 8),
-                const Text(
+                AutoSizeText(
                   'Tabang sa Kalisud, Sa Isa ka Tap.',
                   style: TextStyle(
-                    fontSize: 18,
+                    fontSize: isWide ? 20 : 16,
                     fontWeight: FontWeight.w500,
                     color: Colors.black87,
+                    fontFamily: 'OpenSans',
                   ),
+                  maxLines: 1,
+                  minFontSize: 12,
                 ),
                 const SizedBox(height: 36),
 
@@ -345,7 +380,9 @@ class _RegisterState extends State<Register> {
                       }
                       return null;
                     },
+                    isWide: isWide,
                   ),
+                  isWide: isWide,
                 ),
 
                 _overlapLabelField(
@@ -357,13 +394,14 @@ class _RegisterState extends State<Register> {
                       if (val == null || val.trim().isEmpty) {
                         return 'Email is required';
                       }
-                      // Basic email validation
                       if (!RegExp(r'^[^@]+@[^@]+\.[^@]+').hasMatch(val)) {
                         return 'Enter a valid email';
                       }
                       return null;
                     },
+                    isWide: isWide,
                   ),
+                  isWide: isWide,
                 ),
 
                 _overlapLabelField(
@@ -380,6 +418,7 @@ class _RegisterState extends State<Register> {
                               setState(() => selectedMonth = val),
                           validator: (val) =>
                               val == null ? 'Month is required' : null,
+                          isWide: isWide,
                         ),
                       ),
                       const SizedBox(width: 8),
@@ -392,6 +431,7 @@ class _RegisterState extends State<Register> {
                           onChanged: (val) => setState(() => selectedDay = val),
                           validator: (val) =>
                               val == null ? 'Day is required' : null,
+                          isWide: isWide,
                         ),
                       ),
                       const SizedBox(width: 8),
@@ -408,10 +448,12 @@ class _RegisterState extends State<Register> {
                               setState(() => selectedYear = val),
                           validator: (val) =>
                               val == null ? 'Year is required' : null,
+                          isWide: isWide,
                         ),
                       ),
                     ],
                   ),
+                  isWide: isWide,
                 ),
 
                 _overlapLabelField(
@@ -421,7 +463,9 @@ class _RegisterState extends State<Register> {
                     items: ['Male', 'Female'],
                     onChanged: (val) => setState(() => selectedSex = val),
                     validator: (val) => val == null ? 'Sex is required' : null,
+                    isWide: isWide,
                   ),
+                  isWide: isWide,
                 ),
 
                 _overlapLabelField(
@@ -435,7 +479,9 @@ class _RegisterState extends State<Register> {
                       }
                       return null;
                     },
+                    isWide: isWide,
                   ),
+                  isWide: isWide,
                 ),
 
                 _overlapLabelField(
@@ -449,15 +495,16 @@ class _RegisterState extends State<Register> {
                       }
                       return null;
                     },
+                    isWide: isWide,
                   ),
+                  isWide: isWide,
                 ),
 
                 _overlapLabelField(
                   'Create Password',
-                  _customTextField(
-                    hint: '********',
-                    obscure: true,
+                  TextFormField(
                     controller: passwordController,
+                    obscureText: _obscurePassword,
                     validator: (val) {
                       if (val == null || val.trim().isEmpty) {
                         return 'Password is required';
@@ -467,15 +514,45 @@ class _RegisterState extends State<Register> {
                       }
                       return null;
                     },
+                    decoration: InputDecoration(
+                      hintText: '********',
+                      filled: true,
+                      fillColor: Colors.grey[100],
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                        borderSide: BorderSide.none,
+                      ),
+                      contentPadding: const EdgeInsets.symmetric(
+                        vertical: 16,
+                        horizontal: 16,
+                      ),
+                      suffixIcon: IconButton(
+                        icon: Icon(
+                          _obscurePassword
+                              ? Icons.visibility_off
+                              : Icons.visibility,
+                          color: Colors.grey,
+                        ),
+                        onPressed: () {
+                          setState(() {
+                            _obscurePassword = !_obscurePassword;
+                          });
+                        },
+                      ),
+                    ),
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontFamily: 'OpenSans',
+                    ),
                   ),
+                  isWide: MediaQuery.of(context).size.width > 700,
                 ),
 
                 _overlapLabelField(
                   'Confirm Password',
-                  _customTextField(
-                    hint: '********',
-                    obscure: true,
+                  TextFormField(
                     controller: confirmPasswordController,
+                    obscureText: _obscureConfirmPassword,
                     validator: (val) {
                       if (val == null || val.trim().isEmpty) {
                         return 'Confirm your password';
@@ -485,17 +562,47 @@ class _RegisterState extends State<Register> {
                       }
                       return null;
                     },
+                    decoration: InputDecoration(
+                      hintText: '********',
+                      filled: true,
+                      fillColor: Colors.grey[100],
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                        borderSide: BorderSide.none,
+                      ),
+                      contentPadding: const EdgeInsets.symmetric(
+                        vertical: 16,
+                        horizontal: 16,
+                      ),
+                      suffixIcon: IconButton(
+                        icon: Icon(
+                          _obscureConfirmPassword
+                              ? Icons.visibility_off
+                              : Icons.visibility,
+                          color: Colors.grey,
+                        ),
+                        onPressed: () {
+                          setState(() {
+                            _obscureConfirmPassword = !_obscureConfirmPassword;
+                          });
+                        },
+                      ),
+                      errorText: _confirmPasswordError,
+                    ),
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontFamily: 'OpenSans',
+                    ),
                   ),
+                  isWide: MediaQuery.of(context).size.width > 700,
                 ),
 
-                _overlapLabelField('Birth Certificate', _filePickerField()),
-                _overlapLabelField('Marriage Certificate', _filePickerField()),
-
+                // ...file pickers and other fields...
                 const SizedBox(height: 36),
 
                 SizedBox(
                   width: double.infinity,
-                  height: 50,
+                  height: isWide ? 56 : 48,
                   child: ElevatedButton(
                     onPressed: _registerUser,
                     style: ElevatedButton.styleFrom(
@@ -504,13 +611,16 @@ class _RegisterState extends State<Register> {
                         borderRadius: BorderRadius.circular(8),
                       ),
                     ),
-                    child: const Text(
+                    child: AutoSizeText(
                       'Submit',
                       style: TextStyle(
-                        fontSize: 18,
+                        fontSize: isWide ? 22 : 18,
                         color: Color(0xFFFFFFFF),
                         fontWeight: FontWeight.bold,
+                        fontFamily: 'Montserrat',
                       ),
+                      maxLines: 1,
+                      minFontSize: 12,
                     ),
                   ),
                 ),
@@ -518,7 +628,7 @@ class _RegisterState extends State<Register> {
                 const SizedBox(height: 16),
                 SizedBox(
                   width: double.infinity,
-                  height: 50,
+                  height: isWide ? 56 : 48,
                   child: OutlinedButton(
                     onPressed: () {
                       Navigator.pushReplacementNamed(context, '/login');
@@ -529,13 +639,16 @@ class _RegisterState extends State<Register> {
                       ),
                       side: const BorderSide(color: Color(0xFF1565B3)),
                     ),
-                    child: const Text(
+                    child: AutoSizeText(
                       'Already have an account? Login',
                       style: TextStyle(
-                        fontSize: 16,
+                        fontSize: isWide ? 18 : 14,
                         color: Color(0xFF1565B3),
                         fontWeight: FontWeight.w600,
+                        fontFamily: 'OpenSans',
                       ),
+                      maxLines: 1,
+                      minFontSize: 10,
                     ),
                   ),
                 ),
@@ -549,10 +662,10 @@ class _RegisterState extends State<Register> {
     );
   }
 
-  Widget _overlapLabelField(String label, Widget child) {
+  Widget _overlapLabelField(String label, Widget child, {bool isWide = false}) {
     return Container(
       margin: const EdgeInsets.only(top: 25, bottom: 8),
-      height: 72,
+      height: isWide ? 80 : 72,
       child: Stack(
         clipBehavior: Clip.none,
         children: [
@@ -565,17 +678,20 @@ class _RegisterState extends State<Register> {
                 color: const Color(0xFF3F86BF),
                 borderRadius: BorderRadius.circular(16),
               ),
-              child: Text(
+              child: AutoSizeText(
                 label,
-                style: const TextStyle(
+                style: TextStyle(
                   color: Colors.white,
                   fontWeight: FontWeight.w500,
-                  fontSize: 18,
+                  fontSize: isWide ? 18 : 15,
+                  fontFamily: 'Montserrat',
                 ),
+                maxLines: 1,
+                minFontSize: 10,
               ),
             ),
           ),
-          Positioned(left: 0, right: 0, top: 32, child: child),
+          Positioned(left: 0, right: 0, top: isWide ? 36 : 32, child: child),
         ],
       ),
     );
@@ -586,6 +702,7 @@ class _RegisterState extends State<Register> {
     bool obscure = false,
     TextEditingController? controller,
     String? Function(String?)? validator,
+    bool isWide = false,
   }) {
     return TextFormField(
       controller: controller,
@@ -599,12 +716,12 @@ class _RegisterState extends State<Register> {
           borderRadius: BorderRadius.circular(8),
           borderSide: BorderSide.none,
         ),
-        contentPadding: const EdgeInsets.symmetric(
-          vertical: 16,
-          horizontal: 16,
+        contentPadding: EdgeInsets.symmetric(
+          vertical: isWide ? 18 : 16,
+          horizontal: isWide ? 18 : 16,
         ),
       ),
-      style: const TextStyle(fontSize: 16),
+      style: TextStyle(fontSize: isWide ? 18 : 16, fontFamily: 'OpenSans'),
     );
   }
 
@@ -614,6 +731,7 @@ class _RegisterState extends State<Register> {
     required void Function(String?) onChanged,
     String? Function(String?)? validator,
     String? value,
+    bool isWide = false,
   }) {
     return DropdownButtonFormField<String>(
       decoration: InputDecoration(
@@ -624,9 +742,9 @@ class _RegisterState extends State<Register> {
           borderRadius: BorderRadius.circular(8),
           borderSide: BorderSide.none,
         ),
-        contentPadding: const EdgeInsets.symmetric(
-          vertical: 13,
-          horizontal: 13,
+        contentPadding: EdgeInsets.symmetric(
+          vertical: isWide ? 15 : 13,
+          horizontal: isWide ? 15 : 13,
         ),
       ),
       value: value,
@@ -637,37 +755,37 @@ class _RegisterState extends State<Register> {
       onChanged: onChanged,
     );
   }
+}
 
-  Widget _filePickerField() {
-    return Row(
-      children: [
-        Expanded(
-          child: TextFormField(
-            enabled: false,
-            decoration: InputDecoration(
-              hintText: 'Choose file',
-              filled: true,
-              fillColor: Colors.grey[100],
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(8),
-                borderSide: BorderSide.none,
-              ),
-              contentPadding: const EdgeInsets.symmetric(
-                vertical: 16,
-                horizontal: 16,
-              ),
+Widget _filePickerField() {
+  return Row(
+    children: [
+      Expanded(
+        child: TextFormField(
+          enabled: false,
+          decoration: InputDecoration(
+            hintText: 'Choose file',
+            filled: true,
+            fillColor: Colors.grey[100],
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(8),
+              borderSide: BorderSide.none,
             ),
-            style: const TextStyle(fontSize: 16),
+            contentPadding: const EdgeInsets.symmetric(
+              vertical: 16,
+              horizontal: 16,
+            ),
           ),
+          style: const TextStyle(fontSize: 16),
         ),
-        const SizedBox(width: 8),
-        IconButton(
-          onPressed: () {},
-          icon: const Icon(Icons.upload_outlined, color: Colors.black54),
-        ),
-      ],
-    );
-  }
+      ),
+      const SizedBox(width: 8),
+      IconButton(
+        onPressed: () {},
+        icon: const Icon(Icons.upload_outlined, color: Colors.black54),
+      ),
+    ],
+  );
 }
 
 extension on PostgrestMap {

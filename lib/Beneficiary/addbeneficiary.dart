@@ -1,6 +1,7 @@
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:auto_size_text/auto_size_text.dart';
 
 class AddBeneficiaryPage extends StatefulWidget {
   const AddBeneficiaryPage({super.key});
@@ -37,6 +38,9 @@ class _AddBeneficiaryPageState extends State<AddBeneficiaryPage> {
 
   @override
   Widget build(BuildContext context) {
+    final width = MediaQuery.of(context).size.width;
+    final isWide = width > 700;
+
     return Scaffold(
       backgroundColor: const Color(0xFFFEFFFF),
       body: SafeArea(
@@ -46,73 +50,29 @@ class _AddBeneficiaryPageState extends State<AddBeneficiaryPage> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               const SizedBox(height: 16),
+              // HEADER
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  const Text(
-                    'Dayung',
+                  AutoSizeText(
+                    'Add Beneficiary',
                     style: TextStyle(
-                      fontSize: 28,
+                      fontSize: isWide ? 28 : 22,
                       fontWeight: FontWeight.bold,
                       fontFamily: 'Montserrat',
                     ),
-                  ),
-                  Stack(
-                    children: [
-                      const Icon(
-                        Icons.notifications_none,
-                        color: Colors.orange,
-                        size: 32,
-                      ),
-                      Positioned(
-                        right: 0,
-                        top: 0,
-                        child: Container(
-                          padding: const EdgeInsets.all(2),
-                          decoration: const BoxDecoration(
-                            color: Colors.red,
-                            shape: BoxShape.circle,
-                          ),
-                          constraints: const BoxConstraints(
-                            minWidth: 16,
-                            minHeight: 16,
-                          ),
-                          child: const Text(
-                            '1',
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 10,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ],
+                    maxLines: 1,
+                    minFontSize: 16,
                   ),
                 ],
               ),
               const Divider(thickness: 1.2),
-              Row(
-                children: [
-                  IconButton(
-                    icon: const Icon(Icons.arrow_back, size: 28),
-                    onPressed: () => Navigator.pop(context),
-                  ),
-                  const SizedBox(width: 4),
-                  const Text(
-                    'Add Beneficiary',
-                    style: TextStyle(
-                      fontSize: 22,
-                      fontWeight: FontWeight.w600,
-                      fontFamily: 'Montserrat',
-                    ),
-                  ),
-                ],
-              ),
+              Row(children: [const SizedBox(width: 4)]),
 
               _overlapLabelField(
                 label: 'Full Name',
                 child: _customTextField(controller: fullNameController),
+                isWide: isWide,
               ),
 
               _overlapLabelField(
@@ -153,19 +113,23 @@ class _AddBeneficiaryPageState extends State<AddBeneficiaryPage> {
                     ),
                   ],
                 ),
+                isWide: isWide,
               ),
 
               _overlapLabelField(
                 label: 'Marital Status',
                 child: _customTextField(controller: maritalController),
+                isWide: isWide,
               ),
               _overlapLabelField(
                 label: 'Relationship',
                 child: _customTextField(controller: relationshipController),
+                isWide: isWide,
               ),
               _overlapLabelField(
                 label: 'Birth Certificate',
                 child: _filePickerField(),
+                isWide: isWide,
               ),
 
               const SizedBox(height: 30),
@@ -181,14 +145,17 @@ class _AddBeneficiaryPageState extends State<AddBeneficiaryPage> {
                     ),
                     elevation: 0,
                   ),
-                  child: const Text(
+                  child: const AutoSizeText(
                     'Submit Beneficiary',
                     style: TextStyle(
                       fontSize: 20,
                       color: Colors.white,
                       fontWeight: FontWeight.normal,
                       letterSpacing: 1,
+                      fontFamily: 'Montserrat',
                     ),
+                    maxLines: 1,
+                    minFontSize: 14,
                   ),
                 ),
               ),
@@ -207,16 +174,18 @@ class _AddBeneficiaryPageState extends State<AddBeneficiaryPage> {
                     ),
                   ),
                   onPressed: () async {
-                    // ignore: use_build_context_synchronously
                     Navigator.of(context).pop();
                   },
-                  child: const Text(
+                  child: const AutoSizeText(
                     'Cancel',
                     style: TextStyle(
                       fontSize: 20,
                       color: Color.fromARGB(255, 179, 21, 21),
                       fontWeight: FontWeight.w600,
+                      fontFamily: 'Montserrat',
                     ),
+                    maxLines: 1,
+                    minFontSize: 14,
                   ),
                 ),
               ),
@@ -240,7 +209,6 @@ class _AddBeneficiaryPageState extends State<AddBeneficiaryPage> {
       final filePath = 'birth_certificates/$fileName';
 
       try {
-        // Upload to Supabase Storage
         await Supabase.instance.client.storage
             .from('birth_certificates')
             .uploadBinary(
@@ -249,7 +217,6 @@ class _AddBeneficiaryPageState extends State<AddBeneficiaryPage> {
               fileOptions: const FileOptions(upsert: true),
             );
 
-        // Get public URL
         final publicUrl = Supabase.instance.client.storage
             .from('birth_certificates')
             .getPublicUrl(filePath);
@@ -305,21 +272,18 @@ class _AddBeneficiaryPageState extends State<AddBeneficiaryPage> {
             'dob': dob,
             'marital_status': maritalStatus,
             'relationship': relationship,
-            'birth_certificate': birthCertificate, // this is the URL
-            'status': 'Pending', // default status
+            'birth_certificate': birthCertificate,
+            'status': 'Pending',
           },
         ])
         .select()
         .single();
 
-    // ignore: unnecessary_null_comparison
     if (response == null || response['id'] == null) {
-      print('Error inserting beneficiary');
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Failed to add beneficiary')),
       );
     } else {
-      print('Beneficiary added successfully');
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(const SnackBar(content: Text('Beneficiary added')));
@@ -332,11 +296,15 @@ class _AddBeneficiaryPageState extends State<AddBeneficiaryPage> {
         selectedYear = null;
         birthCertificateFile = null;
       });
-      Navigator.pop(context); // Return to previous screen
+      Navigator.pop(context);
     }
   }
 
-  Widget _overlapLabelField({required String label, required Widget child}) {
+  Widget _overlapLabelField({
+    required String label,
+    required Widget child,
+    required bool isWide,
+  }) {
     return Container(
       margin: const EdgeInsets.only(top: 25, bottom: 8),
       height: 72,
@@ -352,13 +320,16 @@ class _AddBeneficiaryPageState extends State<AddBeneficiaryPage> {
                 color: const Color(0xFF3F86BF),
                 borderRadius: BorderRadius.circular(16),
               ),
-              child: Text(
+              child: AutoSizeText(
                 label,
-                style: const TextStyle(
+                style: TextStyle(
                   color: Colors.white,
                   fontWeight: FontWeight.w400,
-                  fontSize: 18,
+                  fontSize: isWide ? 18 : 15,
+                  fontFamily: 'Montserrat',
                 ),
+                maxLines: 1,
+                minFontSize: 10,
               ),
             ),
           ),
@@ -387,7 +358,7 @@ class _AddBeneficiaryPageState extends State<AddBeneficiaryPage> {
             horizontal: 16,
           ),
         ),
-        style: const TextStyle(fontSize: 16),
+        style: const TextStyle(fontSize: 16, fontFamily: 'OpenSans'),
       ),
     );
   }
@@ -414,7 +385,7 @@ class _AddBeneficiaryPageState extends State<AddBeneficiaryPage> {
                   horizontal: 16,
                 ),
               ),
-              style: const TextStyle(fontSize: 16),
+              style: const TextStyle(fontSize: 16, fontFamily: 'OpenSans'),
             ),
           ),
           const SizedBox(width: 8),

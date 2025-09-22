@@ -4,7 +4,6 @@ import 'package:capstone_app/settings/settings.dart';
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:flutter/foundation.dart'; // for kIsWeb
 
 class ProfilePage extends StatefulWidget {
   const ProfilePage({super.key});
@@ -16,7 +15,6 @@ class ProfilePage extends StatefulWidget {
 class _ProfilePageState extends State<ProfilePage> {
   final supabase = Supabase.instance.client;
 
-  // form controllers
   final _fullNameController = TextEditingController();
   final _mobileController = TextEditingController();
   final _addressController = TextEditingController();
@@ -79,7 +77,6 @@ class _ProfilePageState extends State<ProfilePage> {
         address = response['address'] as String? ?? '';
         sex = response['sex'] as String? ?? '';
         profileUrl = response['profile_url'] as String?;
-        // prepare controllers
         _fullNameController.text = fullName;
         _mobileController.text = mobileNumber;
         _addressController.text = address;
@@ -146,7 +143,6 @@ class _ProfilePageState extends State<ProfilePage> {
         profileUrl = publicUrl;
       });
     } catch (e) {
-      print('Image upload error: $e');
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text('Error uploading image: $e')));
@@ -176,7 +172,6 @@ class _ProfilePageState extends State<ProfilePage> {
           .select();
 
       if (res.isEmpty) {
-        debugPrint("⚠️ No row updated. userId: $userId");
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('⚠️ No profile found to update')),
         );
@@ -196,7 +191,6 @@ class _ProfilePageState extends State<ProfilePage> {
         );
       }
     } catch (e) {
-      debugPrint('Profile update error: $e');
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text('Error updating profile: $e')));
@@ -207,25 +201,8 @@ class _ProfilePageState extends State<ProfilePage> {
 
   @override
   Widget build(BuildContext context) {
-    const headerFont = TextStyle(
-      fontSize: 32,
-      fontWeight: FontWeight.bold,
-      color: Colors.white,
-      fontFamily: 'Montserrat',
-    );
-
-    const labelStyle = TextStyle(
-      fontSize: 18,
-      fontWeight: FontWeight.w600,
-      color: Colors.black87,
-      fontFamily: 'Montserrat',
-    );
-
-    const valueStyle = TextStyle(
-      fontSize: 18,
-      color: Colors.black54,
-      fontFamily: 'Montserrat',
-    );
+    final width = MediaQuery.of(context).size.width;
+    final isWide = width > 700;
 
     if (isLoading) {
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
@@ -241,7 +218,7 @@ class _ProfilePageState extends State<ProfilePage> {
           children: [
             IconButton(
               icon: const Icon(Icons.arrow_back, color: Colors.white, size: 28),
-              onPressed: () => Navigator.pop(context),
+              onPressed: () => Navigator.pop(context, true),
             ),
             const SizedBox(width: 8),
             Expanded(child: Container()),
@@ -353,8 +330,6 @@ class _ProfilePageState extends State<ProfilePage> {
                             ),
                           ),
                           const SizedBox(height: 6),
-                          if (_editing)
-                            if (!_editing) const SizedBox(height: 22),
                         ],
                       ),
                     ),
@@ -373,6 +348,7 @@ class _ProfilePageState extends State<ProfilePage> {
                         editing: _editing,
                         validator: (v) =>
                             v == null || v.trim().isEmpty ? 'Required' : null,
+                        isWide: isWide,
                       ),
                       _buildProfileCard(
                         icon: Icons.location_on,
@@ -380,6 +356,7 @@ class _ProfilePageState extends State<ProfilePage> {
                         controller: _addressController,
                         value: address,
                         editing: _editing,
+                        isWide: isWide,
                       ),
                       _buildProfileCard(
                         icon: Icons.phone,
@@ -388,6 +365,7 @@ class _ProfilePageState extends State<ProfilePage> {
                         value: mobileNumber,
                         editing: _editing,
                         inputType: TextInputType.phone,
+                        isWide: isWide,
                       ),
                       _buildProfileCard(
                         icon: Icons.person_outline,
@@ -395,6 +373,7 @@ class _ProfilePageState extends State<ProfilePage> {
                         controller: _sexController,
                         value: sex,
                         editing: _editing,
+                        isWide: isWide,
                       ),
                     ],
                   ),
@@ -428,6 +407,7 @@ class _ProfilePageState extends State<ProfilePage> {
                                       fontSize: 18,
                                       fontWeight: FontWeight.w600,
                                       color: Colors.white,
+                                      fontFamily: 'OpenSans',
                                     ),
                                   ),
                           ),
@@ -456,6 +436,7 @@ class _ProfilePageState extends State<ProfilePage> {
                                 fontSize: 18,
                                 color: Colors.black54,
                                 fontWeight: FontWeight.w600,
+                                fontFamily: 'OpenSans',
                               ),
                             ),
                           ),
@@ -485,6 +466,7 @@ class _ProfilePageState extends State<ProfilePage> {
                                 fontSize: 20,
                                 color: Colors.white,
                                 fontWeight: FontWeight.w600,
+                                fontFamily: 'OpenSans',
                               ),
                             ),
                           ),
@@ -517,6 +499,7 @@ class _ProfilePageState extends State<ProfilePage> {
                                 fontSize: 20,
                                 color: Color.fromARGB(255, 179, 21, 21),
                                 fontWeight: FontWeight.w600,
+                                fontFamily: 'OpenSans',
                               ),
                             ),
                           ),
@@ -542,18 +525,19 @@ class _ProfilePageState extends State<ProfilePage> {
     required bool editing,
     TextInputType inputType = TextInputType.text,
     String? Function(String?)? validator,
+    required bool isWide,
   }) {
-    const labelStyle = TextStyle(
-      fontSize: 18,
+    final labelStyle = TextStyle(
+      fontSize: isWide ? 18 : 15,
       fontWeight: FontWeight.w600,
       color: Colors.black87,
       fontFamily: 'Montserrat',
     );
 
-    const valueStyle = TextStyle(
-      fontSize: 18,
+    final valueStyle = TextStyle(
+      fontSize: isWide ? 18 : 15,
       color: Colors.black54,
-      fontFamily: 'Montserrat',
+      fontFamily: 'OpenSans',
     );
 
     return Card(
@@ -601,9 +585,4 @@ class _ProfilePageState extends State<ProfilePage> {
       ),
     );
   }
-}
-
-extension on String {
-  // ignore: unused_element
-  get error => null;
 }

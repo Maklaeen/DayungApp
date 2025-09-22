@@ -1,6 +1,9 @@
 import 'package:capstone_app/screens/selectdayung.dart';
+import 'package:capstone_app/settings/dayung_provider.dart';
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:auto_size_text/auto_size_text.dart';
 
 class SettingsPage extends StatefulWidget {
   const SettingsPage({super.key});
@@ -47,25 +50,30 @@ class _SettingsPageState extends State<SettingsPage> {
       MaterialPageRoute(builder: (_) => SelectDayungPage()),
     );
     if (newUnit != null) {
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setString('selectedDayungUnit', newUnit);
+      context.read<DayungUnitProvider>().setDayungUnit(newUnit);
       setState(() => _currentDayung = newUnit);
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    const headerStyle = TextStyle(
-      fontSize: 30,
+    final width = MediaQuery.of(context).size.width;
+    final isWide = width > 700;
+
+    final headerStyle = TextStyle(
+      fontSize: isWide ? 30 : 22,
       fontWeight: FontWeight.bold,
       fontFamily: 'Montserrat',
     );
-    const sectionTitleStyle = TextStyle(
-      fontSize: 20,
+    final sectionTitleStyle = TextStyle(
+      fontSize: isWide ? 20 : 16,
       fontWeight: FontWeight.w600,
       fontFamily: 'Montserrat',
     );
-    const bodyTextStyle = TextStyle(fontSize: 18, fontFamily: 'Montserrat');
+    final bodyTextStyle = TextStyle(
+      fontSize: isWide ? 18 : 14,
+      fontFamily: 'OpenSans',
+    );
 
     return Scaffold(
       backgroundColor: const Color(0xFFFEFFFF),
@@ -80,9 +88,14 @@ class _SettingsPageState extends State<SettingsPage> {
                 children: [
                   IconButton(
                     icon: const Icon(Icons.arrow_back, size: 32),
-                    onPressed: () => Navigator.pop(context),
+                    onPressed: () => Navigator.pop(context, true),
                   ),
-                  const Text('Profile settings', style: headerStyle),
+                  AutoSizeText(
+                    'Profile settings',
+                    style: headerStyle,
+                    maxLines: 1,
+                    minFontSize: 16,
+                  ),
                 ],
               ),
               const SizedBox(height: 20),
@@ -97,10 +110,17 @@ class _SettingsPageState extends State<SettingsPage> {
                     horizontal: 20,
                     vertical: 16,
                   ),
-                  title: Text('Current Dayung', style: sectionTitleStyle),
-                  subtitle: Text(
+                  title: AutoSizeText(
+                    'Current Dayung',
+                    style: sectionTitleStyle,
+                    maxLines: 1,
+                    minFontSize: 12,
+                  ),
+                  subtitle: AutoSizeText(
                     _currentDayung,
                     style: bodyTextStyle.copyWith(color: Colors.blue),
+                    maxLines: 1,
+                    minFontSize: 10,
                   ),
                   trailing: ElevatedButton(
                     style: ElevatedButton.styleFrom(
@@ -116,7 +136,10 @@ class _SettingsPageState extends State<SettingsPage> {
                     onPressed: _changeDayung,
                     child: Text(
                       'Change',
-                      style: TextStyle(fontSize: 16, color: Colors.white),
+                      style: TextStyle(
+                        fontSize: isWide ? 16 : 13,
+                        color: Colors.white,
+                      ),
                     ),
                   ),
                 ),
@@ -137,15 +160,20 @@ class _SettingsPageState extends State<SettingsPage> {
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          const Text('Filters', style: sectionTitleStyle),
+                          AutoSizeText(
+                            'Filters',
+                            style: sectionTitleStyle,
+                            maxLines: 1,
+                            minFontSize: 12,
+                          ),
                           TextButton.icon(
                             onPressed: () {},
                             icon: const Icon(Icons.edit, color: Colors.blue),
-                            label: const Text(
+                            label: Text(
                               'Edit',
                               style: TextStyle(
                                 color: Colors.blue,
-                                fontSize: 16,
+                                fontSize: isWide ? 16 : 13,
                               ),
                             ),
                           ),
@@ -153,7 +181,12 @@ class _SettingsPageState extends State<SettingsPage> {
                       ),
 
                       const SizedBox(height: 12),
-                      const Text('Selected tags:', style: bodyTextStyle),
+                      AutoSizeText(
+                        'Selected tags:',
+                        style: bodyTextStyle,
+                        maxLines: 1,
+                        minFontSize: 10,
+                      ),
                       const SizedBox(height: 8),
 
                       Wrap(
@@ -167,7 +200,7 @@ class _SettingsPageState extends State<SettingsPage> {
                             ),
                             label: Text(
                               tag,
-                              style: const TextStyle(fontSize: 16),
+                              style: TextStyle(fontSize: isWide ? 16 : 13),
                             ),
                             backgroundColor: Colors.grey.shade200,
                           );
@@ -180,7 +213,12 @@ class _SettingsPageState extends State<SettingsPage> {
 
               const SizedBox(height: 24),
 
-              Text('Recommended for you', style: sectionTitleStyle),
+              AutoSizeText(
+                'Recommended for you',
+                style: sectionTitleStyle,
+                maxLines: 1,
+                minFontSize: 12,
+              ),
               const SizedBox(height: 12),
 
               Expanded(
@@ -202,13 +240,15 @@ class _SettingsPageState extends State<SettingsPage> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text(
+                            AutoSizeText(
                               key,
                               style: TextStyle(
-                                fontSize: 18,
+                                fontSize: isWide ? 18 : 15,
                                 fontWeight: FontWeight.bold,
                                 fontFamily: 'Montserrat',
                               ),
+                              maxLines: 1,
+                              minFontSize: 12,
                             ),
                             const SizedBox(height: 10),
                             Wrap(
@@ -222,7 +262,9 @@ class _SettingsPageState extends State<SettingsPage> {
                                   ),
                                   label: Text(
                                     t,
-                                    style: const TextStyle(fontSize: 16),
+                                    style: TextStyle(
+                                      fontSize: isWide ? 16 : 13,
+                                    ),
                                   ),
                                   backgroundColor: Colors.blue.shade50,
                                 );
