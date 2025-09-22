@@ -5,6 +5,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:capstone_app/pages/notification.dart';
 import 'package:capstone_app/profile/profile.dart';
 import 'package:capstone_app/pages/submit_claim.dart';
+import 'package:auto_size_text/auto_size_text.dart';
 
 class ClaimsPage extends StatefulWidget {
   const ClaimsPage({super.key});
@@ -130,18 +131,26 @@ class _ClaimsPageState extends State<ClaimsPage>
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Text(
+                  AutoSizeText(
                     selectedDayungUnit ?? 'Dayung',
-                    style: const TextStyle(
-                      fontSize: 36,
+                    style: TextStyle(
+                      fontSize: isWide ? 36 : 28,
                       fontWeight: FontWeight.bold,
                       fontFamily: 'Montserrat',
                     ),
+                    maxLines: 1,
+                    minFontSize: 20,
+                    overflow: TextOverflow.ellipsis,
                   ),
                   Row(
                     children: [
-                      GestureDetector(
-                        onTap: () {
+                      IconButton(
+                        icon: Icon(
+                          Icons.notifications_none,
+                          color: Colors.orange[700],
+                          size: isWide ? 36 : 28,
+                        ),
+                        onPressed: () {
                           Navigator.push(
                             context,
                             MaterialPageRoute(
@@ -149,41 +158,8 @@ class _ClaimsPageState extends State<ClaimsPage>
                             ),
                           );
                         },
-                        child: Stack(
-                          children: [
-                            Icon(
-                              Icons.notifications_none,
-                              color: Colors.orange[700],
-                              size: 36,
-                            ),
-                            Positioned(
-                              right: 0,
-                              top: 0,
-                              child: Container(
-                                padding: const EdgeInsets.all(2),
-                                decoration: BoxDecoration(
-                                  color: Colors.red,
-                                  borderRadius: BorderRadius.circular(10),
-                                ),
-                                constraints: const BoxConstraints(
-                                  minWidth: 18,
-                                  minHeight: 18,
-                                ),
-                                child: const Text(
-                                  '1',
-                                  style: TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                  textAlign: TextAlign.center,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
                       ),
-                      const SizedBox(width: 16),
+                      const SizedBox(width: 8),
                       GestureDetector(
                         onTap: () {
                           Navigator.push(
@@ -208,10 +184,7 @@ class _ClaimsPageState extends State<ClaimsPage>
                 ],
               ),
             ),
-            const Padding(
-              padding: EdgeInsets.symmetric(horizontal: 16),
-              child: Divider(height: 1, thickness: 1),
-            ),
+            const Divider(thickness: 1, height: 24, color: Colors.grey),
 
             // Submit New Claim Button
             Padding(
@@ -220,9 +193,13 @@ class _ClaimsPageState extends State<ClaimsPage>
                 width: double.infinity,
                 child: ElevatedButton.icon(
                   icon: const Icon(Icons.add, color: Colors.white),
-                  label: const Text(
+                  label: Text(
                     'Submit New Claim',
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.w500),
+                    style: TextStyle(
+                      fontFamily: 'OpenSans',
+                      fontSize: isWide ? 20 : 16,
+                      color: Colors.white,
+                    ),
                   ),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.blue[800],
@@ -234,20 +211,22 @@ class _ClaimsPageState extends State<ClaimsPage>
                     elevation: 0,
                   ),
                   onPressed: () {
-  showModalBottomSheet(
-    context: context,
-    isScrollControlled: true,
-    shape: const RoundedRectangleBorder(
-      borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-    ),
-    builder: (context) => Padding(  
-      padding: EdgeInsets.only(
-        bottom: MediaQuery.of(context).viewInsets.bottom,
-      ),
-      child: const SubmitClaimForm(),
-    ),
-  );
-},
+                    showModalBottomSheet(
+                      context: context,
+                      isScrollControlled: true,
+                      shape: const RoundedRectangleBorder(
+                        borderRadius: BorderRadius.vertical(
+                          top: Radius.circular(24),
+                        ),
+                      ),
+                      builder: (context) => Padding(
+                        padding: EdgeInsets.only(
+                          bottom: MediaQuery.of(context).viewInsets.bottom,
+                        ),
+                        child: const SubmitClaimForm(),
+                      ),
+                    );
+                  },
                 ),
               ),
             ),

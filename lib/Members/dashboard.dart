@@ -250,22 +250,20 @@ class _MemberDashboardState extends State<MemberDashboard> {
     final isWide = width > 700;
     return SingleChildScrollView(
       controller: _scrollController,
-      // Remove horizontal padding here!
+
       padding: const EdgeInsets.symmetric(vertical: 16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Header with padding
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 0),
             child: _buildHeader(),
           ),
-          // Divider with same horizontal padding
-          const Padding(
-            padding: EdgeInsets.symmetric(horizontal: 16),
-            child: Divider(thickness: 1, height: 24, color: Colors.grey),
-          ),
           const SizedBox(height: 16),
+
+          const Divider(thickness: 1, height: 24, color: Colors.grey),
+
+          const SizedBox(height: 13),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16),
             child: _buildWelcomeMessage(),
@@ -291,6 +289,8 @@ class _MemberDashboardState extends State<MemberDashboard> {
   }
 
   Widget _buildHeader() {
+    final width = MediaQuery.of(context).size.width;
+    final isWide = width > 700;
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       crossAxisAlignment: CrossAxisAlignment.center,
@@ -299,14 +299,17 @@ class _MemberDashboardState extends State<MemberDashboard> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             if (selectedDayungUnit != null)
-              Text(
+              AutoSizeText(
                 selectedDayungUnit!,
-                style: const TextStyle(
-                  fontSize: 36,
+                style: TextStyle(
+                  fontSize: isWide ? 36 : 28,
                   fontWeight: FontWeight.bold,
                   color: Colors.black,
                   fontFamily: 'Montserrat',
                 ),
+                maxLines: 1,
+                minFontSize: 20,
+                overflow: TextOverflow.ellipsis,
               ),
           ],
         ),
@@ -326,31 +329,7 @@ class _MemberDashboardState extends State<MemberDashboard> {
                   Icon(
                     Icons.notifications_none,
                     color: Colors.orange[700],
-                    size: 36,
-                  ),
-                  Positioned(
-                    right: 0,
-                    top: 0,
-                    child: Container(
-                      padding: const EdgeInsets.all(2),
-                      decoration: BoxDecoration(
-                        color: Colors.red,
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      constraints: const BoxConstraints(
-                        minWidth: 18,
-                        minHeight: 18,
-                      ),
-                      child: const Text(
-                        '1',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 12,
-                          fontWeight: FontWeight.bold,
-                        ),
-                        textAlign: TextAlign.center,
-                      ),
-                    ),
+                    size: isWide ? 36 : 28,
                   ),
                 ],
               ),

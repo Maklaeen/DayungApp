@@ -5,6 +5,7 @@ import 'package:capstone_app/profile/profile.dart';
 import 'package:flutter/material.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:auto_size_text/auto_size_text.dart';
 
 class ContributionHistory extends StatefulWidget {
   const ContributionHistory({super.key});
@@ -31,6 +32,8 @@ class _ContributionHistoryState extends State<ContributionHistory> {
 
   @override
   Widget build(BuildContext context) {
+    final width = MediaQuery.of(context).size.width;
+    final isWide = width > 700;
     final contributions = [
       {'date': 'February 17, 2025', 'amount': '₱ 200'},
       {'date': 'March 20, 2024', 'amount': '₱ 200'},
@@ -53,18 +56,26 @@ class _ContributionHistoryState extends State<ContributionHistory> {
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Text(
+                      AutoSizeText(
                         selectedDayungUnit ?? 'Dayung',
-                        style: const TextStyle(
-                          fontSize: 36,
+                        style: TextStyle(
+                          fontSize: isWide ? 36 : 28,
                           fontWeight: FontWeight.bold,
                           fontFamily: 'Montserrat',
                         ),
+                        maxLines: 1,
+                        minFontSize: 20,
+                        overflow: TextOverflow.ellipsis,
                       ),
                       Row(
                         children: [
-                          GestureDetector(
-                            onTap: () {
+                          IconButton(
+                            icon: Icon(
+                              Icons.notifications_none,
+                              color: Colors.orange[700],
+                              size: isWide ? 36 : 28,
+                            ),
+                            onPressed: () {
                               Navigator.push(
                                 context,
                                 MaterialPageRoute(
@@ -72,41 +83,8 @@ class _ContributionHistoryState extends State<ContributionHistory> {
                                 ),
                               );
                             },
-                            child: Stack(
-                              children: [
-                                Icon(
-                                  Icons.notifications_none,
-                                  color: Colors.orange[700],
-                                  size: 36,
-                                ),
-                                Positioned(
-                                  right: 0,
-                                  top: 0,
-                                  child: Container(
-                                    padding: const EdgeInsets.all(2),
-                                    decoration: BoxDecoration(
-                                      color: Colors.red,
-                                      borderRadius: BorderRadius.circular(10),
-                                    ),
-                                    constraints: const BoxConstraints(
-                                      minWidth: 18,
-                                      minHeight: 18,
-                                    ),
-                                    child: const Text(
-                                      '1',
-                                      style: TextStyle(
-                                        color: Colors.white,
-                                        fontSize: 12,
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                      textAlign: TextAlign.center,
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
                           ),
-                          const SizedBox(width: 16),
+                          const SizedBox(width: 8),
                           GestureDetector(
                             onTap: () {
                               Navigator.push(
@@ -131,20 +109,22 @@ class _ContributionHistoryState extends State<ContributionHistory> {
                     ],
                   ),
                 ),
-
-                const Divider(height: 1, thickness: 1),
+                const Divider(thickness: 1, height: 24, color: Colors.grey),
 
                 // Title
-                const Padding(
-                  padding: EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 16,
+                  ),
                   child: Align(
                     alignment: Alignment.centerLeft,
                     child: Text(
                       'Contribution History',
                       style: TextStyle(
-                        fontSize: 24,
-                        fontWeight: FontWeight.bold,
-                        fontFamily: 'Montserrat',
+                        fontFamily: 'OpenSans',
+                        fontSize: isWide ? 20 : 16,
+                        color: Colors.black87,
                       ),
                     ),
                   ),
