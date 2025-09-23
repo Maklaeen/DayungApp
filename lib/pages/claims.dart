@@ -8,6 +8,7 @@ import 'package:capstone_app/pages/notification.dart';
 import 'package:capstone_app/profile/profile.dart';
 import 'package:capstone_app/pages/submit_claim.dart';
 import 'package:auto_size_text/auto_size_text.dart';
+import 'dart:convert';
 
 class ClaimsPage extends StatefulWidget {
   const ClaimsPage({super.key});
@@ -25,6 +26,7 @@ class _ClaimsPageState extends State<ClaimsPage>
   bool isLoading = true;
   List<Map<String, dynamic>> ongoingClaims = [];
   List<Map<String, dynamic>> historyClaims = [];
+  Map<String, dynamic>? _selectedDayungUnitObj;
 
   @override
   void initState() {
@@ -46,8 +48,19 @@ class _ClaimsPageState extends State<ClaimsPage>
 
   Future<void> _loadDayungUnit() async {
     final prefs = await SharedPreferences.getInstance();
-    final unit = prefs.getString('selectedDayungUnit');
-    setState(() => selectedDayungUnit = unit ?? 'Dayung');
+    final unitJson = prefs.getString('selectedDayungUnit');
+    if (unitJson != null) {
+      final unit = jsonDecode(unitJson);
+      setState(() {
+        selectedDayungUnit = unit['name'];
+        _selectedDayungUnitObj = unit;
+      });
+    } else {
+      setState(() {
+        selectedDayungUnit = 'Dayung';
+        _selectedDayungUnitObj = null;
+      });
+    }
   }
 
   Future<void> _loadProfileImage() async {
@@ -82,6 +95,7 @@ class _ClaimsPageState extends State<ClaimsPage>
         .eq('user_id', userId)
         .order('date_submitted', ascending: false);
 
+    // ignore: unnecessary_null_comparison
     if (response == null) {
       setState(() {
         ongoingClaims = [];
@@ -144,8 +158,9 @@ class _ClaimsPageState extends State<ClaimsPage>
   Widget build(BuildContext context) {
     final width = MediaQuery.of(context).size.width;
     final isWide = width > 700;
-    final selectedDayungUnit =
-        context.watch<DayungUnitProvider>().selectedDayungUnit ?? 'Dayung';
+    final dayungName = _selectedDayungUnitObj?['name'] ?? 'Dayung';
+    final barangay = _selectedDayungUnitObj?['barangay'];
+    final city = _selectedDayungUnitObj?['city'];
 
     return Scaffold(
       backgroundColor: Colors.white,
@@ -159,7 +174,7 @@ class _ClaimsPageState extends State<ClaimsPage>
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   AutoSizeText(
-                    selectedDayungUnit,
+                    dayungName,
                     style: TextStyle(
                       fontSize: isWide ? 36 : 28,
                       fontWeight: FontWeight.bold,
@@ -169,6 +184,15 @@ class _ClaimsPageState extends State<ClaimsPage>
                     minFontSize: 20,
                     overflow: TextOverflow.ellipsis,
                   ),
+                  if (barangay != null)
+                    Text(
+                      '$barangay${city != null ? ', $city' : ''}',
+                      style: TextStyle(
+                        fontSize: isWide ? 16 : 13,
+                        color: Colors.black54,
+                        fontFamily: 'OpenSans',
+                      ),
+                    ),
                   Row(
                     children: [
                       IconButton(

@@ -279,6 +279,7 @@ class _AddBeneficiaryPageState extends State<AddBeneficiaryPage> {
         .select()
         .single();
 
+    // ignore: unnecessary_null_comparison
     if (response == null || response['id'] == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Failed to add beneficiary')),

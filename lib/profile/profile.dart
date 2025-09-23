@@ -4,6 +4,7 @@ import 'package:capstone_app/settings/settings.dart';
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class ProfilePage extends StatefulWidget {
   const ProfilePage({super.key});
@@ -486,6 +487,9 @@ class _ProfilePageState extends State<ProfilePage> {
                             ),
                             onPressed: () async {
                               await Supabase.instance.client.auth.signOut();
+                              final prefs =
+                                  await SharedPreferences.getInstance();
+                              await prefs.remove('selectedDayungUnit');
                               Navigator.of(context).pushAndRemoveUntil(
                                 MaterialPageRoute(
                                   builder: (_) => const Login(),

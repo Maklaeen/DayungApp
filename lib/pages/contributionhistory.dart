@@ -6,6 +6,7 @@ import 'package:auto_size_text/auto_size_text.dart';
 import 'package:provider/provider.dart';
 import 'package:capstone_app/settings/dayung_provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'dart:convert';
 
 class ContributionHistory extends StatefulWidget {
   const ContributionHistory({super.key});
@@ -15,9 +16,9 @@ class ContributionHistory extends StatefulWidget {
 }
 
 class _ContributionHistoryState extends State<ContributionHistory> {
-  final bool _showNavBar = true;
   String? selectedDayungUnit;
   String? _profileUrl;
+  Map<String, dynamic>? _selectedDayungUnitObj;
 
   @override
   void initState() {
@@ -34,8 +35,19 @@ class _ContributionHistoryState extends State<ContributionHistory> {
 
   Future<void> _loadDayungUnit() async {
     final prefs = await SharedPreferences.getInstance();
-    final unit = prefs.getString('selectedDayungUnit');
-    setState(() => selectedDayungUnit = unit ?? 'Dayung');
+    final unitJson = prefs.getString('selectedDayungUnit');
+    if (unitJson != null) {
+      final unit = jsonDecode(unitJson);
+      setState(() {
+        selectedDayungUnit = unit['name'];
+        _selectedDayungUnitObj = unit;
+      });
+    } else {
+      setState(() {
+        selectedDayungUnit = 'Dayung';
+        _selectedDayungUnitObj = null;
+      });
+    }
   }
 
   Future<void> _loadProfileImage() async {
@@ -57,8 +69,9 @@ class _ContributionHistoryState extends State<ContributionHistory> {
   Widget build(BuildContext context) {
     final width = MediaQuery.of(context).size.width;
     final isWide = width > 700;
-    final selectedDayungUnit =
-        context.watch<DayungUnitProvider>().selectedDayungUnit ?? 'Dayung';
+    final dayungName = _selectedDayungUnitObj?['name'] ?? 'Dayung';
+    final barangay = _selectedDayungUnitObj?['barangay'];
+    final city = _selectedDayungUnitObj?['city'];
     final contributions = [
       {'date': 'February 17, 2025', 'amount': '₱ 200'},
       {'date': 'March 20, 2024', 'amount': '₱ 200'},
@@ -82,7 +95,7 @@ class _ContributionHistoryState extends State<ContributionHistory> {
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       AutoSizeText(
-                        selectedDayungUnit,
+                        dayungName,
                         style: TextStyle(
                           fontSize: isWide ? 36 : 28,
                           fontWeight: FontWeight.bold,
@@ -92,6 +105,15 @@ class _ContributionHistoryState extends State<ContributionHistory> {
                         minFontSize: 20,
                         overflow: TextOverflow.ellipsis,
                       ),
+                      if (barangay != null)
+                        Text(
+                          '$barangay${city != null ? ', $city' : ''}',
+                          style: TextStyle(
+                            fontSize: isWide ? 16 : 13,
+                            color: Colors.black54,
+                            fontFamily: 'OpenSans',
+                          ),
+                        ),
                       Row(
                         children: [
                           IconButton(

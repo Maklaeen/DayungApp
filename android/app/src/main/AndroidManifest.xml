@@ -3,7 +3,7 @@
 <uses-permission android:name="android.permission.READ_MEDIA_IMAGES"/>
 <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"/>
     <application
-        android:label="capstone_app"
+        android:label="Dayung"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <activity
@@ -20,7 +20,8 @@
                  while the Flutter UI initializes. After that, this theme continues
                  to determine the Window background behind the Flutter UI. -->
                  
-
+            <meta-data android:name="com.google.android.geo.API_KEY"
+               android:value="AIzaSyAbWnlxrn_Aq2QXyzgS1-D2ZU0UXsO1-ng"/>
             <meta-data
               android:name="io.flutter.embedding.android.NormalTheme"
               android:resource="@style/NormalTheme"

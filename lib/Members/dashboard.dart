@@ -14,6 +14,8 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:capstone_app/Auth/login.dart';
 import 'package:auto_size_text/auto_size_text.dart';
 import 'package:capstone_app/settings/user_provider.dart';
+import 'dart:convert';
+
 
 class MemberDashboard extends StatefulWidget {
   const MemberDashboard({super.key});
@@ -24,7 +26,10 @@ class MemberDashboard extends StatefulWidget {
 
 class _MemberDashboardState extends State<MemberDashboard> {
   final ScrollController _scrollController = ScrollController();
+  
   String? get profileUrl => context.watch<UserProvider>().profileUrl;
+
+  Map<String, dynamic>? _selectedDayungUnitObj;
 
   bool _showNavBar = true;
   String? selectedDayungUnit;
@@ -60,7 +65,6 @@ class _MemberDashboardState extends State<MemberDashboard> {
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    _loadOrAskDayung();
   }
 
   Future<void> _loadUserData() async {
@@ -111,28 +115,32 @@ class _MemberDashboardState extends State<MemberDashboard> {
   }
 
   Future<void> _loadOrAskDayung() async {
+  final prefs = await SharedPreferences.getInstance();
+  final unitJson = prefs.getString('selectedDayungUnit');
+  if (unitJson == null) {
+    _navigateAndPickUnit();
+  } else {
+    final unit = jsonDecode(unitJson);
+    setState(() {
+      selectedDayungUnit = unit['name'];
+      _selectedDayungUnitObj = unit;
+    });
+  }
+}
+
+Future<void> _navigateAndPickUnit() async {
+  final result = await Navigator.push(
+    context,
+    MaterialPageRoute(builder: (_) => const SelectDayungPage()),
+  );
+
+  if (result != null) {
     final prefs = await SharedPreferences.getInstance();
-    final unit = prefs.getString('selectedDayungUnit');
-
-    if (unit == null) {
-      _navigateAndPickUnit();
-    } else {
-      setState(() => selectedDayungUnit = unit);
-    }
+    await prefs.setString('selectedDayungUnit', jsonEncode(result));
+    setState(() => selectedDayungUnit = result['name']);
+    context.read<DayungUnitProvider>().setDayungUnit(result['name']);
   }
-
-  Future<void> _navigateAndPickUnit() async {
-    final result = await Navigator.push<String>(
-      context,
-      MaterialPageRoute(builder: (_) => SelectDayungPage()),
-    );
-
-    if (result != null) {
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setString('selectedDayungUnit', result);
-      setState(() => selectedDayungUnit = result);
-    }
-  }
+}
 
   @override
   void dispose() {
@@ -304,8 +312,9 @@ class _MemberDashboardState extends State<MemberDashboard> {
   Widget _buildHeader() {
     final width = MediaQuery.of(context).size.width;
     final isWide = width > 700;
-    final selectedDayungUnit =
-        context.watch<DayungUnitProvider>().selectedDayungUnit ?? 'Dayung';
+    final dayungName = _selectedDayungUnitObj?['name'] ?? 'Dayung';
+final barangay = _selectedDayungUnitObj?['barangay'];
+final city = _selectedDayungUnitObj?['city'];
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       crossAxisAlignment: CrossAxisAlignment.center,
@@ -314,17 +323,26 @@ class _MemberDashboardState extends State<MemberDashboard> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             AutoSizeText(
-              selectedDayungUnit,
-              style: TextStyle(
-                fontSize: isWide ? 36 : 28,
-                fontWeight: FontWeight.bold,
-                color: Colors.black,
-                fontFamily: 'Montserrat',
-              ),
+  dayungName,
+  style: TextStyle(
+    fontSize: isWide ? 36 : 28,
+    fontWeight: FontWeight.bold,
+    color: Colors.black,
+    fontFamily: 'Montserrat',
+  ),
               maxLines: 1,
               minFontSize: 20,
               overflow: TextOverflow.ellipsis,
             ),
+            if (barangay != null)
+  Text(
+    '$barangay${city != null ? ', $city' : ''}',
+    style: TextStyle(
+      fontSize: isWide ? 16 : 13,
+      color: Colors.black54,
+      fontFamily: 'OpenSans',
+    ),
+  ),
           ],
         ),
         Row(

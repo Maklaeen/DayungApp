@@ -1,12 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:geocoding/geocoding.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart';
 
 class DeathNoticeDetail extends StatefulWidget {
   final String name;
   final String date;
   final String birthDate;
-  final double? latitude;   // <-- Add these
+  final double? latitude; // <-- Add these
   final double? longitude;
+  final String? barangay;
 
   const DeathNoticeDetail({
     Key? key,
@@ -15,6 +17,7 @@ class DeathNoticeDetail extends StatefulWidget {
     this.birthDate = 'Sept 21, 1958',
     this.latitude,
     this.longitude,
+    this.barangay,
   }) : super(key: key);
 
   @override
@@ -23,6 +26,8 @@ class DeathNoticeDetail extends StatefulWidget {
 
 class _DeathNoticeDetailState extends State<DeathNoticeDetail> {
   String? _locationName;
+  GoogleMapController? _mapController;
+  // ignore: unused_field
   bool _loadingLocation = true;
 
   @override
@@ -268,15 +273,28 @@ class _DeathNoticeDetailState extends State<DeathNoticeDetail> {
                 child: ClipRRect(
                   borderRadius: BorderRadius.circular(16),
                   child: Container(
-                    height: 180,
+                    height: 80,
                     width: double.infinity,
                     color: Colors.grey.shade200,
-                    child: (widget.latitude == null || widget.longitude == null)
-                        ? const Center(child: Text("Location unavailable"))
-                        : Center(
-                            child: Text(
-                              'Lat: ${widget.latitude!.toStringAsFixed(4)}\n'
-                              'Lng: ${widget.longitude!.toStringAsFixed(4)}',
+                    child: Center(
+                      child:
+                          widget.barangay != null && widget.barangay!.isNotEmpty
+                          ? Text(
+                              widget.barangay!,
+                              style: TextStyle(
+                                fontSize: 20 * scale,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.black87,
+                              ),
+                              textAlign: TextAlign.center,
+                            )
+                          : (widget.latitude == null ||
+                                widget.longitude == null)
+                          ? const Text("Location unavailable")
+                          : Text(
+                              _locationName ??
+                                  'Lat: ${widget.latitude!.toStringAsFixed(4)}\n'
+                                      'Lng: ${widget.longitude!.toStringAsFixed(4)}',
                               style: TextStyle(
                                 fontSize: 18 * scale,
                                 fontWeight: FontWeight.bold,
@@ -285,21 +303,43 @@ class _DeathNoticeDetailState extends State<DeathNoticeDetail> {
                               ),
                               textAlign: TextAlign.center,
                             ),
-                          ),
+                    ),
                   ),
                 ),
               ),
-              if (_locationName != null) ...[
-                const SizedBox(height: 8),
+              if (widget.latitude != null && widget.longitude != null) ...[
+                const SizedBox(height: 20),
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 16),
-                  child: Text(
-                    _locationName!,
-                    style: TextStyle(
-                      fontSize: 18 * scale,
-                      color: Colors.black87,
+                  child: SizedBox(
+                    height: 220,
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(16),
+                      child: GoogleMap(
+                        initialCameraPosition: CameraPosition(
+                          target: LatLng(widget.latitude!, widget.longitude!),
+                          zoom: 16,
+                        ),
+                        markers: {
+                          Marker(
+                            markerId: const MarkerId('vigil'),
+                            position: LatLng(
+                              widget.latitude!,
+                              widget.longitude!,
+                            ),
+                            infoWindow: InfoWindow(
+                              title: widget.name,
+                              snippet: widget.barangay ?? _locationName,
+                            ),
+                          ),
+                        },
+                        myLocationButtonEnabled: false,
+                        zoomControlsEnabled: true,
+                        onMapCreated: (controller) {
+                          _mapController = controller;
+                        },
+                      ),
                     ),
-                    textAlign: TextAlign.center,
                   ),
                 ),
               ],

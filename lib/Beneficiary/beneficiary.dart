@@ -30,6 +30,7 @@ class _BeneficiaryPageState extends State<BeneficiaryPage> {
         .select()
         .eq('user_id', user!.id);
 
+    // ignore: unnecessary_type_check
     if (response is List) {
       setState(() {
         beneficiaries = response;
