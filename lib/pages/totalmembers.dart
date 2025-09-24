@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 class TotalMembersPage extends StatefulWidget {
   const TotalMembersPage({super.key});
@@ -11,27 +12,64 @@ class _TotalMembersPageState extends State<TotalMembersPage>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
 
-  // Example data; replace with your actual data from Supabase
-  final List<String> activeMembers = [
-    "Brian Charles Norton",
-    "Clara Danielle O'Brien",
-    "David Eric Powell",
-    "Emma Faith Quinn",
-    "Grace Hannah Stevens",
-    "Hugo Ian Taylor",
-    "Isabella Claire Hall",
-  ];
+  List<String> activeMembers = [];
+  List<String> pendingMembers = [];
+  bool _loading = true;
 
-  final List<String> pendingMembers = [
-    "Jack Kevin Lee",
-    "Liam Mason Clark",
-    "Mia Natalie Evans",
-  ];
+  // Scroll controllers for each tab
+  final ScrollController _activeScrollController = ScrollController();
+  final ScrollController _pendingScrollController = ScrollController();
 
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
+    _fetchMembers();
+  }
+
+  @override
+  void dispose() {
+    _activeScrollController.dispose();
+    _pendingScrollController.dispose();
+    _tabController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _fetchMembers() async {
+    setState(() => _loading = true);
+    final supabase = Supabase.instance.client;
+    try {
+      // Fetch active members (status = 'approved')
+      final active = await supabase
+          .from('users')
+          .select('full_name')
+          .eq('status', 'approved')
+          .order('full_name', ascending: true);
+      // Fetch pending members (status = 'pending')
+      final pending = await supabase
+          .from('users')
+          .select('full_name')
+          .eq('status', 'pending')
+          .order('full_name', ascending: true);
+      setState(() {
+        activeMembers = List<String>.from(
+          active.map((u) => u['full_name'] ?? 'Unnamed'),
+        );
+        pendingMembers = List<String>.from(
+          pending.map((u) => u['full_name'] ?? 'Unnamed'),
+        );
+        _loading = false;
+      });
+    } catch (e) {
+      setState(() {
+        activeMembers = [];
+        pendingMembers = [];
+        _loading = false;
+      });
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Error loading members: $e')));
+    }
   }
 
   Widget _memberTile(String name) {
@@ -63,8 +101,25 @@ class _TotalMembersPageState extends State<TotalMembersPage>
     );
   }
 
+  void _scrollToLetter(String letter, int tabIndex) {
+    final members = tabIndex == 0 ? activeMembers : pendingMembers;
+    final controller = tabIndex == 0
+        ? _activeScrollController
+        : _pendingScrollController;
+    final index = members.indexWhere(
+      (name) =>
+          name.isNotEmpty && name[0].toUpperCase() == letter.toUpperCase(),
+    );
+    if (index != -1) {
+      controller.animateTo(
+        index * 72.0, // Approximate height of each tile+divider
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeInOut,
+      );
+    }
+  }
+
   Widget _alphabetScrollbar() {
-    // Just a visual scrollbar for demo; implement jump-to-letter if needed
     return Container(
       width: 32,
       margin: const EdgeInsets.only(right: 4, top: 8),
@@ -76,15 +131,18 @@ class _TotalMembersPageState extends State<TotalMembersPage>
         mainAxisAlignment: MainAxisAlignment.center,
         children: List.generate(26, (i) {
           final letter = String.fromCharCode(65 + i);
-          return Padding(
-            padding: const EdgeInsets.symmetric(vertical: 2),
-            child: Text(
-              letter,
-              style: const TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.bold,
-                color: Colors.black54,
-                fontFamily: 'Montserrat',
+          return InkWell(
+            onTap: () => _scrollToLetter(letter, _tabController.index),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 2),
+              child: Text(
+                letter,
+                style: const TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.black54,
+                  fontFamily: 'Montserrat',
+                ),
               ),
             ),
           );
@@ -118,7 +176,11 @@ class _TotalMembersPageState extends State<TotalMembersPage>
                     children: [
                       Stack(
                         children: [
-                          const Icon(Icons.notifications, color: Colors.orange, size: 28),
+                          const Icon(
+                            Icons.notifications,
+                            color: Colors.orange,
+                            size: 28,
+                          ),
                           Positioned(
                             right: 0,
                             top: 0,
@@ -148,7 +210,11 @@ class _TotalMembersPageState extends State<TotalMembersPage>
                       const CircleAvatar(
                         radius: 16,
                         backgroundColor: Colors.blueGrey,
-                        child: Icon(Icons.person, color: Colors.white, size: 20),
+                        child: Icon(
+                          Icons.person,
+                          color: Colors.white,
+                          size: 20,
+                        ),
                       ),
                     ],
                   ),
@@ -199,35 +265,39 @@ class _TotalMembersPageState extends State<TotalMembersPage>
             const Divider(thickness: 1),
             // List and Alphabet scrollbar
             Expanded(
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Members list
-                  Expanded(
-                    child: TabBarView(
-                      controller: _tabController,
+              child: _loading
+                  ? const Center(child: CircularProgressIndicator())
+                  : Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        // Active members
-                        ListView.builder(
-                          padding: EdgeInsets.zero,
-                          itemCount: activeMembers.length,
-                          itemBuilder: (context, i) =>
-                              _memberTile(activeMembers[i]),
+                        // Members list
+                        Expanded(
+                          child: TabBarView(
+                            controller: _tabController,
+                            children: [
+                              // Active members
+                              ListView.builder(
+                                controller: _activeScrollController,
+                                padding: EdgeInsets.zero,
+                                itemCount: activeMembers.length,
+                                itemBuilder: (context, i) =>
+                                    _memberTile(activeMembers[i]),
+                              ),
+                              // Pending members
+                              ListView.builder(
+                                controller: _pendingScrollController,
+                                padding: EdgeInsets.zero,
+                                itemCount: pendingMembers.length,
+                                itemBuilder: (context, i) =>
+                                    _memberTile(pendingMembers[i]),
+                              ),
+                            ],
+                          ),
                         ),
-                        // Pending members
-                        ListView.builder(
-                          padding: EdgeInsets.zero,
-                          itemCount: pendingMembers.length,
-                          itemBuilder: (context, i) =>
-                              _memberTile(pendingMembers[i]),
-                        ),
+                        // Alphabet scrollbar
+                        _alphabetScrollbar(),
                       ],
                     ),
-                  ),
-                  // Alphabet scrollbar
-                  _alphabetScrollbar(),
-                ],
-              ),
             ),
           ],
         ),

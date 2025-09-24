@@ -1,3 +1,5 @@
+import 'package:capstone_app/Admin/assign_user_dayung.dart';
+import 'package:capstone_app/Admin/dashboard.dart';
 import 'package:capstone_app/Members/dashboard.dart';
 import 'package:capstone_app/President/dashboard.dart';
 import 'package:capstone_app/Secretary/dashboard.dart';
@@ -11,6 +13,9 @@ import 'Auth/login.dart';
 import 'Auth/register.dart';
 import 'Auth/reapply.dart';
 import 'package:provider/provider.dart';
+import 'package:capstone_app/Admin/manage_dayung_units.dart';
+import 'package:capstone_app/Admin/manage_users.dart';
+import 'package:capstone_app/Admin/manage_roles.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -22,7 +27,6 @@ void main() async {
   runApp(const MyApp());
 }
 
-// hello
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
 
@@ -48,6 +52,12 @@ class MyApp extends StatelessWidget {
           '/dashboard': (context) => const MemberDashboard(),
           '/president-dashboard': (context) => const PresidentDashboardPage(),
           '/secretary-dashboard': (context) => SecretaryDashboard(),
+          '/admin-dashboard': (context) => AdminDashboardPage(),
+          '/admin-users': (context) => const ManageUsersPage(),
+          '/admin-roles': (context) => const ManageRolesPage(),
+          '/admin-dayung-units': (context) => const ManageDayungUnitsPage(),
+          '/assign-user-to-dayung': (context) =>
+              const AssignUserToDayungWidget(),
         },
       ),
     );

@@ -57,6 +57,8 @@ class _LoginState extends State<Login> {
             Navigator.pushReplacementNamed(context, '/president-dashboard');
           } else if (role == 'secretary') {
             Navigator.pushReplacementNamed(context, '/secretary-dashboard');
+          } else if (role == 'admin') {
+            Navigator.pushReplacementNamed(context, '/admin-dashboard');
           } else {
             ScaffoldMessenger.of(context).showSnackBar(
               const SnackBar(

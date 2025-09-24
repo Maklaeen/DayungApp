@@ -2,12 +2,15 @@ import 'package:capstone_app/Secretary/beneficiaries_tab.dart'
     show SecretaryBeneficiariesTab;
 import 'package:capstone_app/Secretary/certificates.dart';
 import 'package:capstone_app/Secretary/claims.dart';
+import 'package:capstone_app/Secretary/manage_applications.dart';
+import 'package:capstone_app/Secretary/secretarymemberspage.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:capstone_app/pages/totalmembers.dart';
 import 'package:capstone_app/profile/profile.dart';
 import 'package:capstone_app/pages/notification.dart';
+import 'package:capstone_app/pages/dayung_profile.dart';
 
 class SecretaryDashboard extends StatefulWidget {
   const SecretaryDashboard({super.key});
@@ -79,6 +82,26 @@ class _SecretaryDashboardState extends State<SecretaryDashboard> {
     }
   }
 
+  Future<List<Map<String, dynamic>>> fetchUserDayungApplications(
+    String userId,
+  ) async {
+    final data = await Supabase.instance.client
+        .from('user_dayung_applications')
+        .select('*, dayung_units(*)')
+        .eq('user_id', userId);
+    return List<Map<String, dynamic>>.from(data);
+  }
+
+  Future<void> updateApplicationStatus(int applicationId, String status) async {
+    await Supabase.instance.client
+        .from('user_dayung_applications')
+        .update({
+          'status': status,
+          'approved_at': DateTime.now().toIso8601String(),
+        })
+        .eq('id', applicationId);
+  }
+
   Future<void> _fetchRecentCertificates() async {
     final supabase = Supabase.instance.client;
     try {
@@ -97,30 +120,6 @@ class _SecretaryDashboardState extends State<SecretaryDashboard> {
       setState(() => _recentCertificates = certList);
     } catch (e) {
       debugPrint('Error fetching certificates: $e');
-    }
-  }
-
-  String _formatDate(dynamic ds) {
-    if (ds == null) return '';
-    try {
-      final d = DateTime.parse(ds.toString());
-      const months = [
-        'Jan',
-        'Feb',
-        'Mar',
-        'Apr',
-        'May',
-        'Jun',
-        'Jul',
-        'Aug',
-        'Sep',
-        'Oct',
-        'Nov',
-        'Dec',
-      ];
-      return '${months[d.month - 1]} ${d.day}, ${d.year}';
-    } catch (_) {
-      return ds.toString();
     }
   }
 
@@ -161,6 +160,26 @@ class _SecretaryDashboardState extends State<SecretaryDashboard> {
                         ),
                       ),
                       Spacer(),
+                      IconButton(
+                        icon: const Icon(
+                          Icons.settings,
+                          color: Colors.blueGrey,
+                          size: 28,
+                        ),
+                        tooltip: 'Dayung Profile',
+                        onPressed: () {
+                          // Replace with your actual dayungUnitId
+                          final int dayungUnitId =
+                              1; // TODO: get from context or prefs
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) =>
+                                  DayungProfilePage(dayungUnitId: dayungUnitId),
+                            ),
+                          );
+                        },
+                      ),
                       GestureDetector(
                         onTap: () {
                           Navigator.push(
@@ -378,7 +397,7 @@ class _SecretaryDashboardState extends State<SecretaryDashboard> {
                     Navigator.push(
                       context,
                       MaterialPageRoute(
-                        builder: (_) => const TotalMembersPage(),
+                        builder: (_) => const SecretaryMembersPage(),
                       ),
                     );
                   },
@@ -549,6 +568,38 @@ class _SecretaryDashboardState extends State<SecretaryDashboard> {
             ),
           ),
           const SizedBox(height: 18),
+
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => const SecretaryApplicationsPage(),
+                    ),
+                  );
+                },
+                icon: const Icon(Icons.inbox),
+                label: const Text(
+                  "Applications Inbox",
+                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700),
+                ),
+                style: ElevatedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  backgroundColor: Colors.indigo,
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 18),
+
           // Beneficiaries button
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16),

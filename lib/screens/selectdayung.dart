@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:capstone_app/screens/dayung_suggestions.dart';
 
 class SelectDayungPage extends StatefulWidget {
   const SelectDayungPage({super.key});
@@ -9,142 +10,284 @@ class SelectDayungPage extends StatefulWidget {
 }
 
 class _SelectDayungPageState extends State<SelectDayungPage> {
-  List<Map<String, dynamic>> _dayungUnits = [];
+  final _sb = Supabase.instance.client;
+
   bool _loading = true;
+  String? _error;
+  Map<String, dynamic>? _dayung;
 
   @override
   void initState() {
     super.initState();
-    _fetchDayungUnits();
+    _fetchJoinedDayung();
   }
 
-  Future<void> _fetchDayungUnits() async {
-    final response = await Supabase.instance.client
-        .from('dayung_units')
-        .select('id, name, barangay, city, province')
-        .order('name');
+  Future<void> _fetchJoinedDayung() async {
     setState(() {
-      _dayungUnits = List<Map<String, dynamic>>.from(response);
-      _loading = false;
+      _loading = true;
+      _error = null;
     });
+    final user = _sb.auth.currentUser;
+    if (user == null) {
+      setState(() {
+        _loading = false;
+        _dayung = null;
+        _error = 'Please log in.';
+      });
+      return;
+    }
+
+    try {
+      // 1) Get the user’s assigned dayung_unit_id
+      final me = await _sb
+          .from('users')
+          .select('dayung_unit_id')
+          .eq('id', user.id)
+          .maybeSingle();
+
+      final int? dayungId = me != null ? me['dayung_unit_id'] as int? : null;
+
+      if (dayungId == null) {
+        setState(() {
+          _loading = false;
+          _dayung = null;
+        });
+        return;
+      }
+
+      // 2) Load the dayung details
+      final d = await _sb
+          .from('dayung_units')
+          .select('id, name, barangay, city, province, latitude, longitude')
+          .eq('id', dayungId)
+          .maybeSingle();
+
+      setState(() {
+        _dayung = d != null ? Map<String, dynamic>.from(d) : null;
+        _loading = false;
+      });
+    } on PostgrestException catch (e) {
+      setState(() {
+        _loading = false;
+        _error = e.message.isEmpty
+            ? 'Failed to load dayung (RLS/policy?)'
+            : e.message;
+      });
+    } catch (_) {
+      setState(() {
+        _loading = false;
+        _error = 'Unexpected error loading your dayung.';
+      });
+    }
+  }
+
+  String _address(Map<String, dynamic> d) {
+    final parts = <String>[
+      if ((d['barangay'] ?? '').toString().isNotEmpty) d['barangay'],
+      if ((d['city'] ?? '').toString().isNotEmpty) d['city'],
+      if ((d['province'] ?? '').toString().isNotEmpty) d['province'],
+    ];
+    return parts.join(', ');
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFFAFAF9),
+      appBar: AppBar(title: const Text('Select Your Dayung')),
       body: SafeArea(
-        child: Column(
-          children: [
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            ),
-            const SizedBox(height: 16),
-            Center(
-              child: Column(
-                children: [
-                  Image.asset(
-                    'assets/images/dayunghandlogo.jpeg',
-                    height: 100,
-                    fit: BoxFit.contain,
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 32),
-            const Text(
-              'Choose a dayung profile to continue',
-              style: TextStyle(
-                fontSize: 20,
-                fontWeight: FontWeight.w600,
-                fontFamily: 'Montserrat',
-              ),
-            ),
-            const SizedBox(height: 24),
-            Expanded(
-              child: _loading
-                  ? const Center(child: CircularProgressIndicator())
-                  : ListView.builder(
-                      padding: const EdgeInsets.symmetric(horizontal: 24),
-                      itemCount: _dayungUnits.length,
-                      itemBuilder: (context, index) {
-                        final unit = _dayungUnits[index];
-                        return GestureDetector(
-                          onTap: () => Navigator.pop(context, unit),
-                          child: Container(
-                            margin: const EdgeInsets.only(bottom: 16),
-                            padding: const EdgeInsets.symmetric(
-                              vertical: 16,
-                              horizontal: 20,
+        child: _loading
+            ? const Center(child: CircularProgressIndicator())
+            : _error != null
+            ? _ErrorState(message: _error!, onRetry: _fetchJoinedDayung)
+            : RefreshIndicator(
+                onRefresh: _fetchJoinedDayung,
+                child: _dayung == null
+                    ? _EmptyState(
+                        onFind: () async {
+                          final selected = await Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => const DayungSuggestionsPage(),
                             ),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFFE3F3FF),
-                              borderRadius: BorderRadius.circular(16),
-                              border: Border.all(color: Colors.blue.shade100),
-                            ),
-                            child: Row(
-                              children: [
-                                const Icon(
-                                  Icons.house,
-                                  color: Colors.blue,
-                                  size: 32,
+                          );
+                          // After returning, refresh assignment (approval may happen later)
+                          await _fetchJoinedDayung();
+                          if (selected != null) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text(
+                                  'Application submitted. Awaiting approval.',
                                 ),
-                                const SizedBox(width: 16),
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
+                              ),
+                            );
+                          }
+                        },
+                      )
+                    : ListView(
+                        padding: const EdgeInsets.all(16),
+                        children: [
+                          Card(
+                            elevation: 1,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Padding(
+                              padding: const EdgeInsets.all(16.0),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Row(
                                     children: [
-                                      Text(
-                                        unit['name'] ?? '',
-                                        style: const TextStyle(
-                                          fontSize: 18,
-                                          fontWeight: FontWeight.w600,
-                                          fontFamily: 'Montserrat',
+                                      const CircleAvatar(
+                                        child: Icon(Icons.home),
+                                      ),
+                                      const SizedBox(width: 12),
+                                      Expanded(
+                                        child: Text(
+                                          _dayung!['name'] ?? 'Dayung',
+                                          style: const TextStyle(
+                                            fontSize: 18,
+                                            fontWeight: FontWeight.w700,
+                                          ),
                                         ),
                                       ),
-                                      if (unit['barangay'] != null)
-                                        Text(
-                                          unit['barangay'],
-                                          style: const TextStyle(
-                                            fontSize: 14,
-                                            color: Colors.black54,
-                                            fontFamily: 'OpenSans',
-                                          ),
-                                        ),
-                                      if (unit['city'] != null)
-                                        Text(
-                                          unit['city'],
-                                          style: const TextStyle(
-                                            fontSize: 13,
-                                            color: Colors.black45,
-                                            fontFamily: 'OpenSans',
-                                          ),
-                                        ),
                                     ],
                                   ),
-                                ),
-                              ],
+                                  const SizedBox(height: 8),
+                                  Text(
+                                    _address(_dayung!),
+                                    style: const TextStyle(
+                                      color: Colors.black54,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 16),
+                                  Row(
+                                    children: [
+                                      OutlinedButton.icon(
+                                        icon: const Icon(Icons.check_circle),
+                                        label: const Text('Use this Dayung'),
+                                        onPressed: () {
+                                          Navigator.pop(context, _dayung);
+                                        },
+                                      ),
+                                      const SizedBox(width: 12),
+                                      TextButton.icon(
+                                        icon: const Icon(Icons.find_in_page),
+                                        label: const Text('Find another'),
+                                        onPressed: () async {
+                                          final selected = await Navigator.push(
+                                            context,
+                                            MaterialPageRoute(
+                                              builder: (_) =>
+                                                  const DayungSuggestionsPage(),
+                                            ),
+                                          );
+                                          // User may apply to another; refresh assignment
+                                          await _fetchJoinedDayung();
+                                          if (selected != null) {
+                                            ScaffoldMessenger.of(
+                                              context,
+                                            ).showSnackBar(
+                                              const SnackBar(
+                                                content: Text(
+                                                  'Application submitted. Awaiting approval.',
+                                                ),
+                                              ),
+                                            );
+                                          }
+                                        },
+                                      ),
+                                    ],
+                                  ),
+                                ],
+                              ),
                             ),
                           ),
-                        );
-                      },
-                    ),
+                        ],
+                      ),
+              ),
+      ),
+    );
+  }
+}
+
+class _EmptyState extends StatelessWidget {
+  const _EmptyState({required this.onFind});
+  final VoidCallback onFind;
+
+  @override
+  Widget build(BuildContext context) {
+    return ListView(
+      physics: const AlwaysScrollableScrollPhysics(),
+      children: [
+        const SizedBox(height: 40),
+        Icon(
+          Icons.search,
+          size: 64,
+          color: Theme.of(context).colorScheme.primary,
+        ),
+        const SizedBox(height: 12),
+        const Center(
+          child: Text(
+            'You have not joined any Dayung yet.',
+            style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+          ),
+        ),
+        const SizedBox(height: 8),
+        const Center(
+          child: Padding(
+            padding: EdgeInsets.symmetric(horizontal: 24),
+            child: Text(
+              'Find your Dayung and submit an application. Once approved, it will appear here.',
+              textAlign: TextAlign.center,
+              style: TextStyle(color: Colors.black54),
             ),
-            // Add this skip button
-            Padding(
-              padding: const EdgeInsets.only(bottom: 24.0, top: 8.0),
-              child: TextButton(
-                onPressed: () => Navigator.pop(context, null),
-                child: const Text(
-                  'Skip for now',
-                  style: TextStyle(
-                    fontSize: 16,
-                    color: Colors.blue,
-                    fontFamily: 'Montserrat',
-                  ),
+          ),
+        ),
+        const SizedBox(height: 24),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 24),
+          child: SizedBox(
+            width: double.infinity,
+            child: ElevatedButton.icon(
+              icon: const Icon(Icons.explore),
+              label: const Text('Find a Dayung'),
+              onPressed: onFind,
+              style: ElevatedButton.styleFrom(
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
                 ),
               ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _ErrorState extends StatelessWidget {
+  const _ErrorState({required this.message, required this.onRetry});
+  final String message;
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.error_outline, size: 48, color: Colors.redAccent),
+            const SizedBox(height: 12),
+            Text(message, textAlign: TextAlign.center),
+            const SizedBox(height: 12),
+            OutlinedButton.icon(
+              onPressed: onRetry,
+              icon: const Icon(Icons.refresh),
+              label: const Text('Retry'),
             ),
           ],
         ),

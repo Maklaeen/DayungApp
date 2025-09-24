@@ -10,6 +10,12 @@ import 'package:capstone_app/pages/submit_claim.dart';
 import 'package:auto_size_text/auto_size_text.dart';
 import 'dart:convert';
 
+// Senior-friendly palette
+const kBg = Color(0xFFFAFAF7); // warm off-white
+const kText = Color(0xFF1F2937); // dark neutral
+const kSubText = Color(0xFF4B5563); // softer dark gray
+const kAccent = Color(0xFF3E8E7E); // muted teal
+
 class ClaimsPage extends StatefulWidget {
   const ClaimsPage({super.key});
 
@@ -20,21 +26,20 @@ class ClaimsPage extends StatefulWidget {
 class _ClaimsPageState extends State<ClaimsPage>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
+
   String? selectedDayungUnit;
   String? _profileUrl;
+  Map<String, dynamic>? _selectedDayungUnitObj;
 
   bool isLoading = true;
   List<Map<String, dynamic>> ongoingClaims = [];
   List<Map<String, dynamic>> historyClaims = [];
-  Map<String, dynamic>? _selectedDayungUnitObj;
 
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 2, vsync: this);
-    _tabController.addListener(() {
-      setState(() {});
-    });
+    _tabController = TabController(length: 2, vsync: this)
+      ..addListener(() => setState(() {}));
     _loadDayungUnit();
     _fetchClaims();
     _loadProfileImage();
@@ -50,11 +55,19 @@ class _ClaimsPageState extends State<ClaimsPage>
     final prefs = await SharedPreferences.getInstance();
     final unitJson = prefs.getString('selectedDayungUnit');
     if (unitJson != null) {
-      final unit = jsonDecode(unitJson);
-      setState(() {
-        selectedDayungUnit = unit['name'];
-        _selectedDayungUnitObj = unit;
-      });
+      try {
+        final unit = jsonDecode(unitJson);
+        setState(() {
+          selectedDayungUnit = unit['name'];
+          _selectedDayungUnitObj = Map<String, dynamic>.from(unit as Map);
+        });
+      } catch (_) {
+        await prefs.remove('selectedDayungUnit');
+        setState(() {
+          selectedDayungUnit = 'Dayung';
+          _selectedDayungUnitObj = null;
+        });
+      }
     } else {
       setState(() {
         selectedDayungUnit = 'Dayung';
@@ -79,50 +92,59 @@ class _ClaimsPageState extends State<ClaimsPage>
   }
 
   Future<void> _fetchClaims() async {
-    final currentUser = Supabase.instance.client.auth.currentUser;
-    if (currentUser == null) {
+    setState(() => isLoading = true);
+    try {
+      final currentUser = Supabase.instance.client.auth.currentUser;
+      if (currentUser == null) {
+        setState(() {
+          ongoingClaims = [];
+          historyClaims = [];
+          isLoading = false;
+        });
+        return;
+      }
+
+      final response = await Supabase.instance.client
+          .from('claims')
+          .select('id, date_submitted, title, status')
+          .eq('user_id', currentUser.id)
+          .order('date_submitted', ascending: false);
+
+      final List<Map<String, dynamic>> claimsList =
+          List<Map<String, dynamic>>.from(response as List);
+
+      final pending = claimsList.where((c) {
+        final s = (c['status'] ?? '').toString().toLowerCase();
+        return s == 'pending';
+      }).toList();
+
+      final history = claimsList.where((c) {
+        final s = (c['status'] ?? '').toString().toLowerCase();
+        return s != 'pending';
+      }).toList();
+
       setState(() {
+        ongoingClaims = pending;
+        historyClaims = history;
         isLoading = false;
       });
-      return;
-    }
-
-    final userId = currentUser.id;
-
-    final response = await Supabase.instance.client
-        .from('claims')
-        .select('id, date_submitted, title, status')
-        .eq('user_id', userId)
-        .order('date_submitted', ascending: false);
-
-    // ignore: unnecessary_null_comparison
-    if (response == null) {
+    } on PostgrestException catch (_) {
       setState(() {
         ongoingClaims = [];
         historyClaims = [];
         isLoading = false;
       });
-      return;
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Failed to load claims.')));
+    } catch (_) {
+      setState(() {
+        ongoingClaims = [];
+        historyClaims = [];
+        isLoading = false;
+      });
     }
-
-    final List<Map<String, dynamic>> claimsList =
-        List<Map<String, dynamic>>.from(response as List);
-
-    final pending = claimsList.where((c) {
-      final s = (c['status'] ?? '').toString().toLowerCase();
-      return s == 'pending';
-    }).toList();
-
-    final history = claimsList.where((c) {
-      final s = (c['status'] ?? '').toString().toLowerCase();
-      return s != 'pending';
-    }).toList();
-
-    setState(() {
-      ongoingClaims = pending;
-      historyClaims = history;
-      isLoading = false;
-    });
   }
 
   String _formatDate(String dateStr) {
@@ -148,6 +170,16 @@ class _ClaimsPageState extends State<ClaimsPage>
     }
   }
 
+  String _capitalize(String s) {
+    final t = s.trim();
+    if (t.isEmpty) return 'Pending';
+    return t[0].toUpperCase() + t.substring(1);
+  }
+
+  Future<void> _refresh() async {
+    await Future.wait([_fetchClaims(), _loadDayungUnit(), _loadProfileImage()]);
+  }
+
   @override
   void dispose() {
     _tabController.dispose();
@@ -158,172 +190,210 @@ class _ClaimsPageState extends State<ClaimsPage>
   Widget build(BuildContext context) {
     final width = MediaQuery.of(context).size.width;
     final isWide = width > 700;
-    final dayungName = _selectedDayungUnitObj?['name'] ?? 'Dayung';
+
+    // Update header immediately when provider changes
+    final providerName = context.watch<DayungUnitProvider>().dayungUnit;
+    if (providerName != null && providerName != selectedDayungUnit) {
+      WidgetsBinding.instance.addPostFrameCallback((_) async {
+        if (!mounted) return;
+        setState(() => selectedDayungUnit = providerName);
+        await _loadDayungUnit(); // reload full object for address/coords
+      });
+    }
+
+    final dayungName =
+        providerName ?? _selectedDayungUnitObj?['name'] ?? 'Dayung';
     final barangay = _selectedDayungUnitObj?['barangay'];
     final city = _selectedDayungUnitObj?['city'];
 
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: kBg,
       body: SafeArea(
-        child: Column(
-          children: [
-            // Header
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  AutoSizeText(
-                    dayungName,
-                    style: TextStyle(
-                      fontSize: isWide ? 36 : 28,
-                      fontWeight: FontWeight.bold,
-                      fontFamily: 'Montserrat',
-                    ),
-                    maxLines: 1,
-                    minFontSize: 20,
-                    overflow: TextOverflow.ellipsis,
+        child: RefreshIndicator(
+          onRefresh: _refresh, // pull-to-refresh from header area
+          child: NestedScrollView(
+            headerSliverBuilder: (context, innerBoxIsScrolled) => [
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 12,
                   ),
-                  if (barangay != null)
-                    Text(
-                      '$barangay${city != null ? ', $city' : ''}',
-                      style: TextStyle(
-                        fontSize: isWide ? 16 : 13,
-                        color: Colors.black54,
-                        fontFamily: 'OpenSans',
-                      ),
-                    ),
-                  Row(
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      IconButton(
-                        icon: Icon(
-                          Icons.notifications_none,
-                          color: Colors.orange[700],
-                          size: isWide ? 36 : 28,
-                        ),
-                        onPressed: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) => const NotificationPage(),
+                      // Title + address
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            AutoSizeText(
+                              dayungName,
+                              style: TextStyle(
+                                fontSize: isWide ? 36 : 28,
+                                fontWeight: FontWeight.bold,
+                                fontFamily: 'Montserrat',
+                                color: kText,
+                              ),
+                              maxLines: 1,
+                              minFontSize: 20,
+                              overflow: TextOverflow.ellipsis,
                             ),
-                          );
-                        },
+                            if (barangay != null)
+                              Text(
+                                '$barangay${city != null ? ', $city' : ''}',
+                                style: TextStyle(
+                                  fontSize: isWide ? 16 : 13,
+                                  color: kSubText,
+                                  fontFamily: 'OpenSans',
+                                ),
+                              ),
+                          ],
+                        ),
                       ),
-                      const SizedBox(width: 8),
-                      GestureDetector(
-                        onTap: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) => const ProfilePage(),
+                      const SizedBox(width: 12),
+                      // Actions
+                      Row(
+                        children: [
+                          IconButton(
+                            icon: Icon(
+                              Icons.notifications_none,
+                              color: kAccent,
+                              size: isWide ? 36 : 28,
                             ),
-                          ).then((_) => _loadProfileImage());
-                        },
-                        child: CircleAvatar(
-                          radius: 20,
-                          backgroundColor: Colors.blue,
-                          backgroundImage:
-                              (_profileUrl != null && _profileUrl!.isNotEmpty)
-                              ? NetworkImage(_profileUrl!)
-                              : null,
-                          child: (_profileUrl == null || _profileUrl!.isEmpty)
-                              ? const Icon(
-                                  Icons.account_circle,
-                                  size: 36,
-                                  color: Colors.white,
-                                )
-                              : null,
-                        ),
+                            onPressed: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => const NotificationPage(),
+                                ),
+                              );
+                            },
+                          ),
+                          const SizedBox(width: 8),
+                          GestureDetector(
+                            onTap: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => const ProfilePage(),
+                                ),
+                              ).then((_) => _loadProfileImage());
+                            },
+                            child: CircleAvatar(
+                              radius: 20,
+                              backgroundColor: kAccent,
+                              backgroundImage:
+                                  (_profileUrl != null &&
+                                      _profileUrl!.isNotEmpty)
+                                  ? NetworkImage(_profileUrl!)
+                                  : null,
+                              child:
+                                  (_profileUrl == null || _profileUrl!.isEmpty)
+                                  ? const Icon(
+                                      Icons.account_circle,
+                                      size: 30,
+                                      color: Colors.white,
+                                    )
+                                  : null,
+                            ),
+                          ),
+                        ],
                       ),
                     ],
                   ),
-                ],
-              ),
-            ),
-            const Divider(thickness: 1, height: 24, color: Colors.grey),
-
-            // Submit New Claim Button
-            Padding(
-              padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 32),
-              child: SizedBox(
-                width: double.infinity,
-                child: ElevatedButton.icon(
-                  icon: const Icon(Icons.add, color: Colors.white),
-                  label: Text(
-                    'Submit New Claim',
-                    style: TextStyle(
-                      fontFamily: 'OpenSans',
-                      fontSize: isWide ? 20 : 16,
-                      color: Colors.white,
-                    ),
-                  ),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.blue[800],
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    elevation: 0,
-                  ),
-                  onPressed: () {
-                    showModalBottomSheet(
-                      context: context,
-                      isScrollControlled: true,
-                      shape: const RoundedRectangleBorder(
-                        borderRadius: BorderRadius.vertical(
-                          top: Radius.circular(24),
-                        ),
-                      ),
-                      builder: (context) => Padding(
-                        padding: EdgeInsets.only(
-                          bottom: MediaQuery.of(context).viewInsets.bottom,
-                        ),
-                        child: const SubmitClaimForm(),
-                      ),
-                    );
-                  },
                 ),
               ),
-            ),
-
-            // TabBar
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 24),
-              child: TabBar(
-                controller: _tabController,
-                indicatorColor: Colors.blue,
-                labelColor: Colors.black,
-                unselectedLabelColor: Colors.black38,
-                labelStyle: const TextStyle(
-                  fontSize: 22,
-                  fontWeight: FontWeight.bold,
-                  fontFamily: 'Montserrat',
-                ),
-                tabs: const [
-                  Tab(text: 'Ongoing'),
-                  Tab(text: 'History'),
-                ],
+              const SliverToBoxAdapter(
+                child: Divider(thickness: 1, height: 24, color: Colors.grey),
               ),
-            ),
-            const SizedBox(height: 16),
-
-            // TabBarView for Claims
-            Expanded(
-              child: isLoading
-                  ? const Center(child: CircularProgressIndicator())
-                  : TabBarView(
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    vertical: 12,
+                    horizontal: 24,
+                  ),
+                  child: SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton.icon(
+                      icon: const Icon(Icons.add, color: Colors.white),
+                      label: Text(
+                        'Submit New Claim',
+                        style: TextStyle(
+                          fontFamily: 'OpenSans',
+                          fontSize: isWide ? 20 : 16,
+                          color: Colors.white,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: kAccent,
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        elevation: 0,
+                      ),
+                      onPressed: () {
+                        showModalBottomSheet(
+                          context: context,
+                          isScrollControlled: true,
+                          shape: const RoundedRectangleBorder(
+                            borderRadius: BorderRadius.vertical(
+                              top: Radius.circular(24),
+                            ),
+                          ),
+                          builder: (context) => Padding(
+                            padding: EdgeInsets.only(
+                              bottom: MediaQuery.of(context).viewInsets.bottom,
+                            ),
+                            child: const SubmitClaimForm(),
+                          ),
+                        ).whenComplete(() => _fetchClaims());
+                      },
+                    ),
+                  ),
+                ),
+              ),
+              SliverAppBar(
+                pinned: true,
+                backgroundColor: kBg,
+                elevation: 0,
+                toolbarHeight: 0,
+                bottom: PreferredSize(
+                  preferredSize: const Size.fromHeight(48),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 24),
+                    child: TabBar(
                       controller: _tabController,
-                      children: [
-                        // Ongoing Claims
-                        _buildClaimsList(context, ongoingClaims, isWide, true),
-                        // History Claims
-                        _buildClaimsList(context, historyClaims, isWide, false),
+                      indicatorColor: kAccent,
+                      labelColor: kText,
+                      unselectedLabelColor: kSubText,
+                      labelStyle: const TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                        fontFamily: 'Montserrat',
+                      ),
+                      tabs: const [
+                        Tab(text: 'Ongoing'),
+                        Tab(text: 'History'),
                       ],
                     ),
-            ),
-          ],
+                  ),
+                ),
+              ),
+            ],
+            body: isLoading
+                ? const Center(child: CircularProgressIndicator())
+                : TabBarView(
+                    controller: _tabController,
+                    children: [
+                      _buildClaimsList(context, ongoingClaims, isWide, true),
+                      _buildClaimsList(context, historyClaims, isWide, false),
+                    ],
+                  ),
+          ),
         ),
       ),
     );
@@ -336,52 +406,66 @@ class _ClaimsPageState extends State<ClaimsPage>
     bool isOngoing,
   ) {
     if (claims.isEmpty) {
-      return const Center(child: Text('No claims found.'));
+      return ListView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 32),
+        children: const [
+          SizedBox(height: 80),
+          Icon(Icons.inbox, size: 56, color: Colors.black26),
+          SizedBox(height: 8),
+          Center(
+            child: Text(
+              'No claims found.',
+              style: TextStyle(
+                fontSize: 18,
+                color: kSubText,
+                fontFamily: 'OpenSans',
+              ),
+            ),
+          ),
+        ],
+      );
     }
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        return ListView.builder(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-          itemCount: claims.length,
-          itemBuilder: (context, index) {
-            final claim = claims[index];
-            final status = claim['status']?.toString().toLowerCase() ?? '';
-            Color bgColor;
-            Color textColor;
-
-            if (status == 'rejected') {
-              bgColor = Colors.red[100]!;
-              textColor = Colors.red[800]!;
-            } else if (isOngoing) {
-              bgColor = Colors.orange[100]!;
-              textColor = Colors.brown;
-            } else {
-              bgColor = Colors.green[100]!;
-              textColor = Colors.green[900]!;
-            }
-
-            return _claimCard(
-              _formatDate(claim['date_submitted']?.toString() ?? ''),
-              claim['title']?.toString() ?? '',
-              claim['status']?.toString() ?? '',
-              bgColor,
-              textColor,
-              isWide,
-            );
-          },
+    return ListView.builder(
+      physics: const AlwaysScrollableScrollPhysics(),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      itemCount: claims.length,
+      itemBuilder: (context, index) {
+        final claim = claims[index];
+        final statusRaw = claim['status']?.toString() ?? '';
+        final status = statusRaw.toLowerCase();
+        final colors = _statusColors(status, isOngoing);
+        return _claimCard(
+          date: _formatDate(claim['date_submitted']?.toString() ?? ''),
+          title: claim['title']?.toString() ?? '',
+          statusText: _capitalize(status),
+          chipBg: colors.$1,
+          chipFg: colors.$2,
+          isWide: isWide,
         );
       },
     );
   }
 
-  Widget _claimCard(
-    String date,
-    String title,
-    String status,
-    Color bgColor,
-    Color textColor,
-    bool isWide,
-  ) {
+  (Color, Color) _statusColors(String status, bool isOngoing) {
+    if (status == 'rejected') {
+      return (Colors.red[100]!, Colors.red[800]!);
+    } else if (status == 'approved') {
+      return (Colors.green[100]!, Colors.green[900]!);
+    } else if (isOngoing) {
+      return (Colors.orange[100]!, Colors.brown);
+    }
+    return (Colors.grey[200]!, Colors.black87);
+  }
+
+  Widget _claimCard({
+    required String date,
+    required String title,
+    required String statusText,
+    required Color chipBg,
+    required Color chipFg,
+    required bool isWide,
+  }) {
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
       padding: EdgeInsets.symmetric(
@@ -405,7 +489,7 @@ class _ClaimsPageState extends State<ClaimsPage>
         children: [
           Icon(
             FontAwesomeIcons.fileInvoice,
-            color: textColor,
+            color: chipFg,
             size: isWide ? 32 : 24,
           ),
           const SizedBox(width: 16),
@@ -416,18 +500,19 @@ class _ClaimsPageState extends State<ClaimsPage>
                 Text(
                   date,
                   style: TextStyle(
-                    fontSize: isWide ? 20 : 16,
-                    color: Colors.black54,
+                    fontSize: isWide ? 18 : 16,
+                    color: kSubText,
                     fontFamily: 'Montserrat',
                   ),
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  title,
+                  title.isEmpty ? 'Untitled claim' : title,
                   style: TextStyle(
                     fontSize: isWide ? 22 : 18,
                     fontWeight: FontWeight.bold,
                     fontFamily: 'Montserrat',
+                    color: kText,
                   ),
                 ),
                 const SizedBox(height: 8),
@@ -437,13 +522,13 @@ class _ClaimsPageState extends State<ClaimsPage>
                     vertical: 6,
                   ),
                   decoration: BoxDecoration(
-                    color: bgColor,
+                    color: chipBg,
                     borderRadius: BorderRadius.circular(18),
                   ),
                   child: Text(
-                    status[0].toUpperCase() + status.substring(1),
+                    statusText,
                     style: TextStyle(
-                      color: textColor,
+                      color: chipFg,
                       fontWeight: FontWeight.bold,
                       fontSize: isWide ? 16 : 14,
                       fontFamily: 'Montserrat',
@@ -454,11 +539,7 @@ class _ClaimsPageState extends State<ClaimsPage>
             ),
           ),
           const SizedBox(width: 8),
-          Icon(
-            Icons.chevron_right,
-            color: Colors.black38,
-            size: isWide ? 32 : 24,
-          ),
+          const Icon(Icons.chevron_right, color: Colors.black38, size: 28),
         ],
       ),
     );

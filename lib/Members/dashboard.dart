@@ -16,6 +16,11 @@ import 'package:auto_size_text/auto_size_text.dart';
 import 'package:capstone_app/settings/user_provider.dart';
 import 'dart:convert';
 
+// Senior-friendly palette (high contrast, softer background)
+const kBg = Color(0xFFFAFAF7); // warm off-white
+const kText = Color(0xFF1F2937); // dark neutral text
+const kSubText = Color(0xFF4B5563); // softer dark gray
+const kAccent = Color(0xFF3E8E7E); // muted teal accent
 
 class MemberDashboard extends StatefulWidget {
   const MemberDashboard({super.key});
@@ -26,17 +31,15 @@ class MemberDashboard extends StatefulWidget {
 
 class _MemberDashboardState extends State<MemberDashboard> {
   final ScrollController _scrollController = ScrollController();
-  
+
   String? get profileUrl => context.watch<UserProvider>().profileUrl;
 
   Map<String, dynamic>? _selectedDayungUnitObj;
 
   bool _showNavBar = true;
   String? selectedDayungUnit;
-  // ignore: unused_field
   User? _user;
-  String _fullName = '';
-  // ignore: unused_field
+  String _fullName = 'Member';
   bool _loading = true;
   int _selectedIndex = 0;
   String? _profileUrl;
@@ -67,43 +70,72 @@ class _MemberDashboardState extends State<MemberDashboard> {
     super.didChangeDependencies();
   }
 
+  Future<void> _reloadDayungFromPrefs() async {
+    final prefs = await SharedPreferences.getInstance();
+    final unitJson = prefs.getString('selectedDayungUnit');
+    if (unitJson == null) {
+      setState(() {
+        // Do not navigate on refresh; just keep current state
+        selectedDayungUnit = null;
+        _selectedDayungUnitObj = null;
+      });
+      return;
+    }
+    try {
+      final unit = jsonDecode(unitJson);
+      setState(() {
+        selectedDayungUnit = unit['name'];
+        _selectedDayungUnitObj = Map<String, dynamic>.from(unit as Map);
+      });
+    } catch (_) {
+      await prefs.remove('selectedDayungUnit');
+      setState(() {
+        selectedDayungUnit = null;
+        _selectedDayungUnitObj = null;
+      });
+    }
+  }
+
+  Future<void> _refreshDashboard() async {
+    await Future.wait([_loadUserData(), _reloadDayungFromPrefs()]);
+  }
+
   Future<void> _loadUserData() async {
     final currentUser = Supabase.instance.client.auth.currentUser;
 
     if (currentUser != null) {
-      final userId = currentUser.id;
+      try {
+        final userId = currentUser.id;
 
-      final response = await Supabase.instance.client
-          .from('users')
-          .select('full_name, sex, profile_url')
-          .eq('id', userId)
-          .maybeSingle();
+        final response = await Supabase.instance.client
+            .from('users')
+            .select('full_name, sex, profile_url')
+            .eq('id', userId)
+            .maybeSingle();
 
-      if (response != null) {
+        final full = (response?['full_name'] as String?)?.trim();
+        final sex = response?['sex'];
         setState(() {
           _user = currentUser;
-          _fullName = _getTitle(response['sex']) + ' ' + response['full_name'];
-          _profileUrl = response['profile_url'] as String?;
+          _fullName = '${_getTitle(sex)} ${full ?? 'Member'}'.trim();
+          _profileUrl = (response?['profile_url'] as String?)?.trim();
+          _loading = false;
         });
-      } else {
+      } catch (_) {
         setState(() {
+          _loading = false;
           _fullName = 'Member';
         });
       }
-      setState(() {
-        _loading = false;
-      });
     } else {
       _redirectToLogin();
     }
   }
 
-  String _getTitle(String sex) {
-    if (sex.toLowerCase() == 'male') {
-      return 'Mr.';
-    } else if (sex.toLowerCase() == 'female') {
-      return 'Mrs.';
-    }
+  String _getTitle(dynamic sex) {
+    final s = (sex ?? '').toString().toLowerCase().trim();
+    if (s == 'male') return 'Mr.';
+    if (s == 'female') return 'Mrs.';
     return '';
   }
 
@@ -115,32 +147,35 @@ class _MemberDashboardState extends State<MemberDashboard> {
   }
 
   Future<void> _loadOrAskDayung() async {
-  final prefs = await SharedPreferences.getInstance();
-  final unitJson = prefs.getString('selectedDayungUnit');
-  if (unitJson == null) {
-    _navigateAndPickUnit();
-  } else {
-    final unit = jsonDecode(unitJson);
-    setState(() {
-      selectedDayungUnit = unit['name'];
-      _selectedDayungUnitObj = unit;
-    });
-  }
-}
-
-Future<void> _navigateAndPickUnit() async {
-  final result = await Navigator.push(
-    context,
-    MaterialPageRoute(builder: (_) => const SelectDayungPage()),
-  );
-
-  if (result != null) {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('selectedDayungUnit', jsonEncode(result));
-    setState(() => selectedDayungUnit = result['name']);
-    context.read<DayungUnitProvider>().setDayungUnit(result['name']);
+    final unitJson = prefs.getString('selectedDayungUnit');
+    if (unitJson == null) {
+      _navigateAndPickUnit();
+    } else {
+      final unit = jsonDecode(unitJson);
+      setState(() {
+        selectedDayungUnit = unit['name'];
+        _selectedDayungUnitObj = Map<String, dynamic>.from(unit as Map);
+      });
+    }
   }
-}
+
+  Future<void> _navigateAndPickUnit() async {
+    final result = await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const SelectDayungPage()),
+    );
+
+    if (result != null && result is Map) {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('selectedDayungUnit', jsonEncode(result));
+      setState(() {
+        selectedDayungUnit = result['name'];
+        _selectedDayungUnitObj = Map<String, dynamic>.from(result);
+      });
+      context.read<DayungUnitProvider>().setDayungUnit(result['name']);
+    }
+  }
 
   @override
   void dispose() {
@@ -160,7 +195,7 @@ Future<void> _navigateAndPickUnit() async {
     final isWide = width > 700;
 
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: kBg,
       body: Stack(
         children: [
           SafeArea(
@@ -177,7 +212,7 @@ Future<void> _navigateAndPickUnit() async {
                   duration: const Duration(milliseconds: 300),
                   opacity: _showNavBar ? 1.0 : 0.0,
                   child: Container(
-                    height: 70,
+                    height: 76, // larger touch target
                     margin: EdgeInsets.symmetric(
                       horizontal: isWide ? width * 0.15 : 16,
                     ),
@@ -235,33 +270,34 @@ Future<void> _navigateAndPickUnit() async {
     required bool selected,
     required VoidCallback onTap,
   }) {
-    return TextButton(
-      onPressed: onTap,
-      style: TextButton.styleFrom(
-        foregroundColor: selected ? Colors.blue[800] : Colors.black,
-        padding: const EdgeInsets.symmetric(horizontal: 12),
-        shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.all(Radius.circular(12)),
+    return Semantics(
+      button: true,
+      label: label,
+      child: TextButton(
+        onPressed: onTap,
+        style: TextButton.styleFrom(
+          foregroundColor: selected ? kAccent : kText,
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          shape: const RoundedRectangleBorder(
+            borderRadius: BorderRadius.all(Radius.circular(12)),
+          ),
         ),
-      ),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(
-            icon,
-            color: selected ? Colors.blue[800] : Colors.black,
-            size: 30,
-          ),
-          const SizedBox(height: 2),
-          Text(
-            label,
-            style: TextStyle(
-              color: selected ? Colors.blue[800] : Colors.black,
-              fontWeight: selected ? FontWeight.bold : FontWeight.normal,
-              fontSize: 16,
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(icon, color: selected ? kAccent : kText, size: 32),
+            const SizedBox(height: 2),
+            Text(
+              label,
+              style: TextStyle(
+                color: selected ? kAccent : kText,
+                fontWeight: selected ? FontWeight.bold : FontWeight.w600,
+                fontSize: 18,
+                letterSpacing: 0.2,
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -269,42 +305,45 @@ Future<void> _navigateAndPickUnit() async {
   Widget _buildHomePage(BuildContext context) {
     final width = MediaQuery.of(context).size.width;
     final isWide = width > 700;
-    return SingleChildScrollView(
-      controller: _scrollController,
+    return RefreshIndicator(
+      onRefresh: _refreshDashboard,
+      child: SingleChildScrollView(
+        controller: _scrollController,
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.symmetric(vertical: 16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 0),
+              child: _buildHeader(),
+            ),
+            const SizedBox(height: 16),
 
-      padding: const EdgeInsets.symmetric(vertical: 16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 0),
-            child: _buildHeader(),
-          ),
-          const SizedBox(height: 16),
+            const Divider(thickness: 1, height: 24, color: Colors.grey),
 
-          const Divider(thickness: 1, height: 24, color: Colors.grey),
-
-          const SizedBox(height: 13),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: _buildWelcomeMessage(),
-          ),
-          const SizedBox(height: 24),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: _buildCards(context, isWide),
-          ),
-          const SizedBox(height: 24),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: _buildNextPaymentCard(isWide),
-          ),
-          const SizedBox(height: 32),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: _buildRecentActivity(isWide),
-          ),
-        ],
+            const SizedBox(height: 13),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: _buildWelcomeMessage(),
+            ),
+            const SizedBox(height: 24),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: _buildCards(context, isWide),
+            ),
+            const SizedBox(height: 24),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: _buildNextPaymentCard(isWide),
+            ),
+            const SizedBox(height: 32),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: _buildRecentActivity(isWide),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -313,8 +352,8 @@ Future<void> _navigateAndPickUnit() async {
     final width = MediaQuery.of(context).size.width;
     final isWide = width > 700;
     final dayungName = _selectedDayungUnitObj?['name'] ?? 'Dayung';
-final barangay = _selectedDayungUnitObj?['barangay'];
-final city = _selectedDayungUnitObj?['city'];
+    final barangay = _selectedDayungUnitObj?['barangay'];
+    final city = _selectedDayungUnitObj?['city'];
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       crossAxisAlignment: CrossAxisAlignment.center,
@@ -323,26 +362,26 @@ final city = _selectedDayungUnitObj?['city'];
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             AutoSizeText(
-  dayungName,
-  style: TextStyle(
-    fontSize: isWide ? 36 : 28,
-    fontWeight: FontWeight.bold,
-    color: Colors.black,
-    fontFamily: 'Montserrat',
-  ),
+              dayungName,
+              style: TextStyle(
+                fontSize: isWide ? 36 : 28,
+                fontWeight: FontWeight.bold,
+                color: kText,
+                fontFamily: 'Montserrat',
+              ),
               maxLines: 1,
               minFontSize: 20,
               overflow: TextOverflow.ellipsis,
             ),
             if (barangay != null)
-  Text(
-    '$barangay${city != null ? ', $city' : ''}',
-    style: TextStyle(
-      fontSize: isWide ? 16 : 13,
-      color: Colors.black54,
-      fontFamily: 'OpenSans',
-    ),
-  ),
+              Text(
+                '$barangay${city != null ? ', $city' : ''}',
+                style: TextStyle(
+                  fontSize: isWide ? 16 : 13,
+                  color: kSubText,
+                  fontFamily: 'OpenSans',
+                ),
+              ),
           ],
         ),
         Row(
@@ -356,18 +395,13 @@ final city = _selectedDayungUnitObj?['city'];
                   ),
                 );
               },
-              child: Stack(
-                children: [
-                  Icon(
-                    Icons.notifications_none,
-                    color: Colors.orange[700],
-                    size: isWide ? 36 : 28,
-                  ),
-                ],
+              child: Icon(
+                Icons.notifications_none,
+                color: kAccent,
+                size: isWide ? 36 : 28,
               ),
             ),
             const SizedBox(width: 18),
-
             GestureDetector(
               onTap: () {
                 Navigator.push(
@@ -376,7 +410,7 @@ final city = _selectedDayungUnitObj?['city'];
                 );
               },
               child: CircleAvatar(
-                backgroundColor: Colors.blue,
+                backgroundColor: kAccent,
                 backgroundImage:
                     (_profileUrl != null && _profileUrl!.isNotEmpty)
                     ? NetworkImage(_profileUrl!)
@@ -405,7 +439,7 @@ final city = _selectedDayungUnitObj?['city'];
           style: const TextStyle(
             fontSize: 30,
             fontWeight: FontWeight.w700,
-            color: Colors.black,
+            color: kText,
             fontFamily: 'Montserrat',
             letterSpacing: 1,
             height: 1.1,
@@ -415,6 +449,7 @@ final city = _selectedDayungUnitObj?['city'];
     ],
   );
 
+  // Cards/boxes layout unchanged below
   Widget _buildCards(BuildContext context, bool isWide) {
     final cards = [
       _dashboardCard(
@@ -492,7 +527,7 @@ final city = _selectedDayungUnitObj?['city'];
     BuildContext? context,
   }) {
     return SizedBox(
-      height: 220, // <-- Set a fixed height for all cards
+      height: 220, // fixed height for all cards (unchanged)
       child: ClipRRect(
         borderRadius: BorderRadius.circular(18),
         child: Container(
@@ -526,7 +561,7 @@ final city = _selectedDayungUnitObj?['city'];
                 child: isDeathNotice
                     ? Column(
                         mainAxisAlignment: MainAxisAlignment.center,
-                        mainAxisSize: MainAxisSize.min, // <-- Add this line
+                        mainAxisSize: MainAxisSize.min,
                         children: [
                           ...value
                               .split('\n')
@@ -559,7 +594,6 @@ final city = _selectedDayungUnitObj?['city'];
                               )
                               .toList(),
                           Flexible(
-                            // <-- Wrap the button in Flexible
                             child: TextButton(
                               onPressed: () {
                                 if (context != null) {

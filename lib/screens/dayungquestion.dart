@@ -30,6 +30,14 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
   bool isLoading = false;
   bool isSubmitting = false;
 
+  Future<void> applyToDayungUnit(String userId, int dayungUnitId) async {
+  await Supabase.instance.client.from('applications').insert({
+    'user_id': userId,
+    'dayung_unit_id': dayungUnitId,
+    'status': 'pending',
+  });
+}
+
   Future<void> _fetchSuggestions() async {
     if (!_formKey.currentState!.validate()) return;
 
@@ -114,35 +122,49 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
                   child: Column(
                     children: [
                       _buildDropdown(
-                        label: 'Registration Fee Range',
-                        value: feeRange,
-                        items: ['Free', '₱1 - ₱100', '₱101 - ₱500', '₱501+'],
-                        onChanged: (val) => setState(() => feeRange = val),
-                      ),
+  label: 'Registration Fee Range',
+  value: feeRange,
+  items: ['Free', '₱1 - ₱100', '₱101 - ₱500', '₱501+'],
+  onChanged: (val) {
+    setState(() => feeRange = val);
+    _fetchSuggestions();
+  },
+),
                       _buildDropdown(
                         label: 'Preferred Payment Method',
                         value: paymentMethod,
                         items: ['GCash', 'Bank Transfer', 'Cash', 'Any'],
-                        onChanged: (val) => setState(() => paymentMethod = val),
+                        onChanged: (val) {
+                          setState(() => paymentMethod = val);
+                          _fetchSuggestions();
+                        },
                       ),
                       _buildDropdown(
                         label: 'Open for All?',
                         value: openForAll,
                         items: ['Yes', 'No'],
-                        onChanged: (val) => setState(() => openForAll = val),
+                        onChanged: (val) {
+                          setState(() => openForAll = val);
+                          _fetchSuggestions();
+                        },
                       ),
                       _buildDropdown(
                         label: 'Fund Support Range',
                         value: fundSupportRange,
                         items: ['₱0 - ₱500', '₱501 - ₱1000', '₱1001+'],
-                        onChanged: (val) =>
-                            setState(() => fundSupportRange = val),
+                        onChanged: (val) {
+                          setState(() => fundSupportRange = val);
+                          _fetchSuggestions();
+                        },
                       ),
                       _buildDropdown(
                         label: 'Preferred Location',
                         value: location,
                         items: ['Cebu', 'Davao', 'Manila', 'Anywhere'],
-                        onChanged: (val) => setState(() => location = val),
+                        onChanged: (val) {
+                          setState(() => location = val);
+                          _fetchSuggestions();
+                        },
                       ),
                       const SizedBox(height: 16),
                       ElevatedButton(
