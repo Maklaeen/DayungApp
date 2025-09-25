@@ -1,4 +1,4 @@
-import 'package:capstone_app/settings/user_provider.dart';
+import 'package:capstone_app/Providers/user_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';

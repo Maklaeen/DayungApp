@@ -38,14 +38,19 @@ dependencies:
   cupertino_icons: ^1.0.8
   supabase_flutter: ^2.10.1
   font_awesome_flutter: ^10.7.0
-  geolocator: ^14.0.2
-  google_maps_flutter: ^2.13.1
   geocoding: ^4.0.0
   shared_preferences: ^2.5.3
   file_picker: ^10.3.3
   auto_size_text: ^3.0.0
   flutter_launcher_icons: ^0.14.4
+  intl: ^0.20.2
+  image_cropper: ^11.0.0
+  path_provider: ^2.1.5
 
+# maps
+  geolocator: ^14.0.2
+  google_maps_flutter: ^2.13.1
+  
 flutter_icons:
   android: true
   ios: false

@@ -1,10 +1,10 @@
+import 'package:capstone_app/Providers/dayung_provider.dart';
 import 'package:capstone_app/pages/notification.dart';
 import 'package:capstone_app/profile/profile.dart';
+import 'package:capstone_app/widgets/member_header.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:auto_size_text/auto_size_text.dart';
 import 'package:provider/provider.dart';
-import 'package:capstone_app/settings/dayung_provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'dart:convert';
 
@@ -131,99 +131,27 @@ class _ContributionHistoryState extends State<ContributionHistory> {
           child: NestedScrollView(
             headerSliverBuilder: (context, innerBoxIsScrolled) => [
               SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 12,
-                  ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      // Title + address
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            AutoSizeText(
-                              dayungName,
-                              style: TextStyle(
-                                fontSize: isWide ? 36 : 28,
-                                fontWeight: FontWeight.bold,
-                                fontFamily: 'Montserrat',
-                                color: kText,
-                              ),
-                              maxLines: 1,
-                              minFontSize: 20,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                            if (addr != null && addr.isNotEmpty)
-                              Text(
-                                addr,
-                                style: TextStyle(
-                                  fontSize: isWide ? 16 : 13,
-                                  color: kSubText,
-                                  fontFamily: 'OpenSans',
-                                ),
-                              ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      // Actions
-                      Row(
-                        children: [
-                          IconButton(
-                            icon: Icon(
-                              Icons.notifications_none,
-                              color: kAccent,
-                              size: isWide ? 36 : 28,
-                            ),
-                            onPressed: () {
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (_) => const NotificationPage(),
-                                ),
-                              );
-                            },
-                          ),
-                          const SizedBox(width: 8),
-                          GestureDetector(
-                            onTap: () {
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (_) => const ProfilePage(),
-                                ),
-                              ).then((_) => _loadProfileImage());
-                            },
-                            child: CircleAvatar(
-                              radius: 20,
-                              backgroundColor: kAccent,
-                              backgroundImage:
-                                  (_profileUrl != null &&
-                                      _profileUrl!.isNotEmpty)
-                                  ? NetworkImage(_profileUrl!)
-                                  : null,
-                              child:
-                                  (_profileUrl == null || _profileUrl!.isEmpty)
-                                  ? const Icon(
-                                      Icons.account_circle,
-                                      size: 30,
-                                      color: Colors.white,
-                                    )
-                                  : null,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
+              child: MemberHeader(
+                title: (providerName ?? 'Dayung'),
+                subtitle: (addr ?? ''),
+                profileUrl: _profileUrl,
+                onNotificationTap: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => const NotificationPage(),
                   ),
                 ),
+                onProfileTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const ProfilePage()),
+                  ).then((_) => _loadProfileImage());
+                },
               ),
-              const SliverToBoxAdapter(
-                child: Divider(thickness: 1, height: 24, color: Colors.grey),
-              ),
+            ),
+            const SliverToBoxAdapter(
+              child: Divider(thickness: 1, height: 24, color: Colors.grey),
+            ),
               const SliverToBoxAdapter(
                 child: Padding(
                   padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),

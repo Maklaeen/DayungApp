@@ -1,7 +1,6 @@
 import 'package:capstone_app/screens/dayung_suggestions.dart';
 import 'package:capstone_app/screens/selectdayung.dart';
 import 'package:capstone_app/screens/dayung_map_page.dart';
-import 'package:capstone_app/settings/dayung_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';

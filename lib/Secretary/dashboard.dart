@@ -1,463 +1,383 @@
+import 'dart:convert';
 import 'package:capstone_app/Secretary/beneficiaries_tab.dart'
     show SecretaryBeneficiariesTab;
 import 'package:capstone_app/Secretary/certificates.dart';
 import 'package:capstone_app/Secretary/claims.dart';
 import 'package:capstone_app/Secretary/manage_applications.dart';
 import 'package:capstone_app/Secretary/secretarymemberspage.dart';
+import 'package:capstone_app/pages/dayung_profile.dart';
+import 'package:capstone_app/pages/notification.dart';
+import 'package:capstone_app/profile/profile.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:capstone_app/pages/totalmembers.dart';
-import 'package:capstone_app/profile/profile.dart';
-import 'package:capstone_app/pages/notification.dart';
-import 'package:capstone_app/pages/dayung_profile.dart';
+import 'package:font_awesome_flutter/font_awesome_flutter.dart';
+
+// Palette
+const Color kBg = Color(0xFFFAFAF7);
+const Color kPrimary = Color(0xFF0D47A1);
+const Color kPrimaryDark = Color(0xFF083366);
+const Color kAccent = Color(0xFF2E7D32);
+const Color kWarn = Color(0xFFF57C00);
+const Color kDanger = Color(0xFFC62828);
+const Color kNeutralText = Color(0xFF1F2937);
+const Color kSubtleText = Color(0xFF4B5563);
+const double kEdge = 18;
 
 class SecretaryDashboard extends StatefulWidget {
   const SecretaryDashboard({super.key});
-
   @override
   State<SecretaryDashboard> createState() => _SecretaryDashboardState();
 }
 
 class _SecretaryDashboardState extends State<SecretaryDashboard> {
+  final supabase = Supabase.instance.client;
+
   String _fullName = '';
   String _selectedDayungUnit = 'Dayung Unit';
   int _currentIndex = 0;
   bool _showNavBar = true;
 
-  int _pendingCount = 0;
-  int _approvedCount = 0;
-  int _rejectedCount = 0;
-  bool _loadingCounts = true;
+  int _activeMembersCount = 0;
+  bool _loadingActiveMembers = true;
+  int? _dayungUnitId;
 
   List<Map<String, dynamic>> _recentCertificates = [];
+
+  double _pendingPaymentsAmount = 0;
+  int _pendingPaymentsMembers = 0;
+  bool _loadingPendingPayments = true;
 
   @override
   void initState() {
     super.initState();
-    _loadSecretaryInfo();
-    _fetchClaimsCounts();
-    _fetchRecentCertificates();
+    _initLoad();
+  }
+
+  Future<void> _initLoad() async {
+    await _loadSecretaryInfo();
+    await Future.wait([
+      _fetchActiveMembersCount(),
+      _fetchRecentCertificates(),
+      _fetchPendingPayments(),
+    ]);
   }
 
   Future<void> _loadSecretaryInfo() async {
     final prefs = await SharedPreferences.getInstance();
+    String name = prefs.getString('secretaryFullName') ?? 'Secretary';
+    String dayungLabelRaw =
+        prefs.getString('selectedDayungUnit') ?? 'Dayung Unit';
+    int? unitId;
+    String? jsonFull = prefs.getString('selectedDayungUnitData');
+    Map<String, dynamic>? parsed;
+    if (jsonFull != null) {
+      try {
+        parsed = jsonDecode(jsonFull);
+      } catch (_) {}
+    }
+    if (parsed == null &&
+        dayungLabelRaw.trim().startsWith('{') &&
+        dayungLabelRaw.contains('"name"')) {
+      try {
+        parsed = jsonDecode(dayungLabelRaw);
+      } catch (_) {}
+    }
+    String resolvedLabel = dayungLabelRaw;
+    if (parsed != null) {
+      if (parsed['id'] != null) {
+        unitId = int.tryParse(parsed['id'].toString());
+      }
+      if ((parsed['name'] ?? '').toString().trim().isNotEmpty) {
+        resolvedLabel = parsed['name'].toString();
+      }
+    }
     setState(() {
-      _fullName = prefs.getString('secretaryFullName') ?? 'Secretary';
-      _selectedDayungUnit =
-          prefs.getString('selectedDayungUnit') ?? 'Dayung Unit';
+      _fullName = name;
+      _selectedDayungUnit = resolvedLabel;
+      _dayungUnitId = unitId ?? _dayungUnitId ?? 1;
     });
   }
 
-  Future<void> _fetchClaimsCounts() async {
-    final supabase = Supabase.instance.client;
+  Future<void> _fetchActiveMembersCount() async {
+    setState(() => _loadingActiveMembers = true);
     try {
-      final data = await supabase
-          .from('claims')
-          .select('status, date_submitted');
-
-      int pending = 0, approved = 0, rejected = 0;
-
-      for (final row in data) {
-        final status = (row['status'] ?? '').toString().trim().toLowerCase();
-        if (status == 'pending') {
-          pending++;
-        } else if (status == 'approved')
-          approved++;
-        else if (status == 'rejected')
-          rejected++;
+      final uid = supabase.auth.currentUser?.id;
+      if (uid == null) {
+        _activeMembersCount = 0;
+      } else {
+        final dayungs = await supabase
+            .from('dayung_units')
+            .select('id')
+            .eq('secretary_id', uid);
+        final ids = (dayungs as List)
+            .map((e) => (e as Map)['id'])
+            .whereType<int>()
+            .toList();
+        if (ids.isEmpty) {
+          _activeMembersCount = 0;
+        } else {
+          final membersApproved = await supabase
+              .from('users')
+              .select('id')
+              .inFilter('dayung_unit_id', ids)
+              .eq('status', 'approved');
+          _activeMembersCount = (membersApproved as List).length;
+        }
       }
-
-      if (!mounted) return;
-      setState(() {
-        _pendingCount = pending;
-        _approvedCount = approved;
-        _rejectedCount = rejected;
-        _loadingCounts = false;
-      });
-    } catch (e) {
-      debugPrint('Error fetching claims counts: $e');
-      if (!mounted) return;
-      setState(() => _loadingCounts = false);
+    } catch (_) {
+      _activeMembersCount = 0;
+    } finally {
+      if (mounted) setState(() => _loadingActiveMembers = false);
     }
   }
 
-  Future<List<Map<String, dynamic>>> fetchUserDayungApplications(
-    String userId,
-  ) async {
-    final data = await Supabase.instance.client
-        .from('user_dayung_applications')
-        .select('*, dayung_units(*)')
-        .eq('user_id', userId);
-    return List<Map<String, dynamic>>.from(data);
-  }
-
-  Future<void> updateApplicationStatus(int applicationId, String status) async {
-    await Supabase.instance.client
-        .from('user_dayung_applications')
-        .update({
-          'status': status,
-          'approved_at': DateTime.now().toIso8601String(),
-        })
-        .eq('id', applicationId);
-  }
-
   Future<void> _fetchRecentCertificates() async {
-    final supabase = Supabase.instance.client;
     try {
       final recent = await supabase
           .from('certificates')
           .select('id, deceased_name, submitted_at')
           .order('submitted_at', ascending: false)
-          .limit(3);
+          .limit(5);
+      final certList = (recent as List)
+          .map((e) => Map<String, dynamic>.from(e as Map))
+          .toList();
+      if (mounted) setState(() => _recentCertificates = certList);
+    } catch (_) {}
+  }
 
-      List<Map<String, dynamic>> certList = [];
-      certList = recent.map<Map<String, dynamic>>((e) {
-        return Map<String, dynamic>.from(e as Map);
-      }).toList();
-
-      if (!mounted) return;
-      setState(() => _recentCertificates = certList);
-    } catch (e) {
-      debugPrint('Error fetching certificates: $e');
+  Future<void> _fetchPendingPayments() async {
+    setState(() => _loadingPendingPayments = true);
+    try {
+      // Try RPC first
+      final uid = supabase.auth.currentUser?.id;
+      if (uid != null) {
+        bool done = false;
+        try {
+          final rpc = await supabase.rpc(
+            'secretary_pending_payments',
+            params: {'p_secretary_id': uid},
+          );
+          if (rpc is Map && rpc['total_amount'] != null) {
+            _pendingPaymentsAmount =
+                double.tryParse(rpc['total_amount'].toString()) ?? 0;
+            _pendingPaymentsMembers =
+                int.tryParse(rpc['member_count'].toString()) ?? 0;
+            done = true;
+          }
+        } catch (_) {}
+        if (!done) {
+          // Fallback: naive table approach
+          final rows = await supabase
+              .from('payments')
+              .select('amount, user_id, status, dayung_unit_id');
+          // Filter manually for dayungs managed by secretary (reduce risk of missing col)
+          final managed = await supabase
+              .from('dayung_units')
+              .select('id')
+              .eq('secretary_id', uid);
+          final managedIds = (managed as List)
+              .map((e) => (e as Map)['id'])
+              .whereType<int>()
+              .toSet();
+          double total = 0;
+          final memberSet = <String>{};
+          for (final r in rows as List) {
+            final m = r as Map;
+            if ((m['status'] ?? '').toString().toLowerCase() == 'pending') {
+              final dId = m['dayung_unit_id'];
+              if (dId is int && managedIds.contains(dId)) {
+                total += (m['amount'] is num)
+                    ? (m['amount'] as num).toDouble()
+                    : 0;
+                if (m['user_id'] != null)
+                  memberSet.add(m['user_id'].toString());
+              }
+            }
+          }
+          _pendingPaymentsAmount = total;
+          _pendingPaymentsMembers = memberSet.length;
+        }
+      }
+    } catch (_) {
+      _pendingPaymentsAmount = 0;
+      _pendingPaymentsMembers = 0;
+    } finally {
+      if (mounted) setState(() => _loadingPendingPayments = false);
     }
+  }
+
+  Future<void> _refreshAll() async {
+    await _loadSecretaryInfo();
+    await Future.wait([
+      _fetchActiveMembersCount(),
+      _fetchRecentCertificates(),
+      _fetchPendingPayments(),
+    ]);
   }
 
   List<Widget> get _pages => [
     _buildHomePage(context),
-    const Placeholder(
-      child: Center(child: Text("Contributions")),
-    ), // Replace with your Contributions page
+    const Placeholder(child: Center(child: Text("Contributions"))),
     const SecretaryClaimsPage(),
   ];
 
   @override
   Widget build(BuildContext context) {
     final width = MediaQuery.of(context).size.width;
-    final isWide = width > 700;
-
+    final bool wide = width > 820;
     return Scaffold(
-      backgroundColor: const Color(0xFFF5F5F5),
-      body: Stack(
-        children: [
-          SafeArea(
-            child: Column(
-              children: [
-                // Top bar (always visible)
-                Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 8,
-                  ),
-                  child: Row(
-                    children: [
-                      Text(
-                        "Dayung",
-                        style: TextStyle(
-                          fontSize: 32,
-                          fontWeight: FontWeight.w900,
-                          fontFamily: 'Montserrat',
-                        ),
-                      ),
-                      Spacer(),
-                      IconButton(
-                        icon: const Icon(
-                          Icons.settings,
-                          color: Colors.blueGrey,
-                          size: 28,
-                        ),
-                        tooltip: 'Dayung Profile',
-                        onPressed: () {
-                          // Replace with your actual dayungUnitId
-                          final int dayungUnitId =
-                              1; // TODO: get from context or prefs
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) =>
-                                  DayungProfilePage(dayungUnitId: dayungUnitId),
-                            ),
-                          );
-                        },
-                      ),
-                      GestureDetector(
-                        onTap: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) => const NotificationPage(),
-                            ),
-                          );
-                        },
-                        child: Stack(
-                          children: [
-                            const Icon(
-                              Icons.notifications,
-                              color: Colors.orange,
-                              size: 32,
-                            ),
-                            Positioned(
-                              right: 0,
-                              top: 0,
-                              child: Container(
-                                padding: const EdgeInsets.all(2),
-                                decoration: const BoxDecoration(
-                                  color: Colors.red,
-                                  shape: BoxShape.circle,
-                                ),
-                                constraints: const BoxConstraints(
-                                  minWidth: 16,
-                                  minHeight: 16,
-                                ),
-                                child: const Text(
-                                  '1',
-                                  style: TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 10,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const Divider(thickness: 1.2),
-                // Only show greeting/avatar on Home tab
-                if (_currentIndex == 0) ...[
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
-                    child: Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            "Maayung buntag, $_fullName!",
-                            style: const TextStyle(
-                              fontSize: 22,
-                              fontWeight: FontWeight.bold,
-                              fontFamily: 'Montserrat',
-                            ),
-                          ),
-                        ),
-                        GestureDetector(
-                          onTap: () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (_) => const ProfilePage(),
-                              ),
-                            );
-                          },
-                          child: const CircleAvatar(
-                            radius: 32,
-                            backgroundColor: Colors.blueGrey,
-                            child: Icon(
-                              Icons.person,
-                              size: 40,
-                              color: Colors.white,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 18),
-                ],
-                // Main content
-                Expanded(
-                  child: IndexedStack(index: _currentIndex, children: _pages),
-                ),
-              ],
-            ),
-          ),
-          // Bottom Navigation Bar (matches members/dashboard.dart)
-          Positioned(
-            left: 0,
-            right: 0,
-            bottom: 16,
-            child: Center(
-              child: IgnorePointer(
-                ignoring: !_showNavBar,
-                child: AnimatedOpacity(
-                  duration: const Duration(milliseconds: 300),
-                  opacity: _showNavBar ? 1.0 : 0.0,
-                  child: Container(
-                    height: 70,
-                    margin: EdgeInsets.symmetric(
-                      horizontal: isWide ? width * 0.15 : 16,
-                    ),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(36),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withOpacity(0.08),
-                          blurRadius: 16,
-                          offset: const Offset(0, 4),
-                        ),
-                      ],
-                      border: Border.all(
-                        color: Colors.grey.shade300,
-                        width: 1.5,
-                      ),
-                    ),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                      children: [
-                        _navBarItem(
-                          icon: Icons.home,
-                          label: 'Home',
-                          selected: _currentIndex == 0,
-                          onTap: () => setState(() => _currentIndex = 0),
-                        ),
-                        _navBarItem(
-                          icon: Icons.public,
-                          label: 'Contributions',
-                          selected: _currentIndex == 1,
-                          onTap: () => setState(() => _currentIndex = 1),
-                        ),
-                        _navBarItem(
-                          icon: Icons.description,
-                          label: 'Claims',
-                          selected: _currentIndex == 2,
-                          onTap: () => setState(() => _currentIndex = 2),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _navBarItem({
-    required IconData icon,
-    required String label,
-    required bool selected,
-    required VoidCallback onTap,
-  }) {
-    return TextButton(
-      onPressed: onTap,
-      style: TextButton.styleFrom(
-        foregroundColor: selected ? Colors.blue[800] : Colors.black,
-        padding: const EdgeInsets.symmetric(horizontal: 12),
-        shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.all(Radius.circular(12)),
-        ),
-      ),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(
-            icon,
-            color: selected ? Colors.blue[800] : Colors.black,
-            size: 30,
-          ),
-          const SizedBox(height: 2),
-          Text(
-            label,
-            style: TextStyle(
-              color: selected ? Colors.blue[800] : Colors.black,
-              fontWeight: selected ? FontWeight.bold : FontWeight.normal,
-              fontSize: 16,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // --- HOMEPAGE CONTENT ---
-  Widget _buildHomePage(BuildContext context) {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.symmetric(horizontal: 0, vertical: 0),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // 3 info cards
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: Row(
-              children: [
-                _infoCard(
-                  color: Colors.blue[100]!,
-                  icon: Icons.groups,
-                  title: "Total Active\nMembers",
-                  value: "259",
-                  action: "View All",
-                  actionColor: Colors.blue[800]!,
-                  onTap: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => const SecretaryMembersPage(),
-                      ),
-                    );
-                  },
-                ),
-                const SizedBox(width: 8),
-                _infoCard(
-                  color: Colors.pink[100]!,
-                  icon: Icons.local_florist,
-                  title: "Recent\nDeath Notices",
-                  value: _recentCertificates.isEmpty
-                      ? "No recent"
-                      : _recentCertificates
-                            .map((c) => "• ${c['deceased_name'] ?? 'Unknown'}")
-                            .join('\n'),
-                  action: "View All",
-                  actionColor: Colors.blue[800]!,
-                  isDeathNotice: true,
-                  onTap: () {}, // TODO: Add navigation
-                ),
-                const SizedBox(width: 8),
-                _infoCard(
-                  color: Colors.yellow[100]!,
-                  icon: Icons.account_balance_wallet,
-                  title: "Pending\nPayments",
-                  value: "₱ 21,900\nFrom 219 members",
-                  action: "",
-                  actionColor: Colors.transparent,
-                  onTap: () {}, // TODO: Add navigation
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 18),
-          // Death Certificate Inbox
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(24),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(18),
-                border: Border.all(color: Colors.grey.shade300),
-              ),
+      backgroundColor: kBg,
+      body: RefreshIndicator(
+        onRefresh: _refreshAll,
+        edgeOffset: 68,
+        child: Stack(
+          children: [
+            SafeArea(
               child: Column(
                 children: [
-                  const Text(
-                    "Death Certificate\nInbox",
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      fontSize: 28,
-                      fontWeight: FontWeight.w700,
-                      fontFamily: 'Montserrat',
+                  _topHeader(wide),
+                  const Divider(
+                    height: 1,
+                    thickness: 1,
+                    color: Color(0xFFE1E4E8),
+                  ),
+                  if (_currentIndex == 0) _greetingSection(),
+                  Expanded(
+                    child: AnimatedSwitcher(
+                      duration: const Duration(milliseconds: 250),
+                      child: IndexedStack(
+                        key: ValueKey(_currentIndex),
+                        index: _currentIndex,
+                        children: _pages,
+                      ),
                     ),
                   ),
-                  const SizedBox(height: 16),
-                  SizedBox(
-                    width: 120,
-                    child: OutlinedButton(
-                      onPressed: () {
+                ],
+              ),
+            ),
+            _bottomNav(wide),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _topHeader(bool wide) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 12, 16, 8),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              _selectedDayungUnit,
+              style: TextStyle(
+                fontSize: wide ? 34 : 30,
+                fontWeight: FontWeight.w800,
+                letterSpacing: .4,
+                color: kPrimaryDark,
+                fontFamily: 'Montserrat',
+              ),
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+          _iconBtn(
+            tooltip: 'Dayung Profile',
+            icon: Icons.settings,
+            color: kPrimary,
+            onTap: () {
+              final id = _dayungUnitId ?? 1;
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => DayungProfilePage(dayungUnitId: id),
+                ),
+              );
+            },
+          ),
+          _iconBtn(
+            tooltip: 'Notifications',
+            icon: Icons.notifications,
+            color: kWarn,
+            badge: '1',
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const NotificationPage()),
+              );
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _greetingSection() {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 12, 20, 6),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              "Maayung buntag, $_fullName!",
+              style: const TextStyle(
+                fontSize: 22,
+                fontWeight: FontWeight.w700,
+                fontFamily: 'Montserrat',
+                color: kNeutralText,
+                height: 1.15,
+              ),
+            ),
+          ),
+          GestureDetector(
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const ProfilePage()),
+              );
+            },
+            child: const CircleAvatar(
+              radius: 30,
+              backgroundColor: kPrimary,
+              child: Icon(Icons.person, size: 34, color: Colors.white),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildHomePage(BuildContext context) {
+    return LayoutBuilder(
+      builder: (ctx, constraints) {
+        return SingleChildScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding: const EdgeInsets.fromLTRB(20, 8, 20, 120),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _overviewTripleCards(constraints.maxWidth),
+              const SizedBox(height: 28),
+              _sectionTitle("Certificates"),
+              _panelCard(
+                child: Column(
+                  children: [
+                    const Text(
+                      "Death Certificate Inbox",
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontSize: 22,
+                        fontWeight: FontWeight.w700,
+                        fontFamily: 'Montserrat',
+                        color: kNeutralText,
+                        height: 1.15,
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+                    _primaryButton(
+                      label: "View Certificates",
+                      icon: Icons.folder_open,
+                      onTap: () {
                         Navigator.push(
                           context,
                           MaterialPageRoute(
@@ -465,116 +385,89 @@ class _SecretaryDashboardState extends State<SecretaryDashboard> {
                           ),
                         );
                       },
-                      style: OutlinedButton.styleFrom(
-                        backgroundColor: Colors.grey[100],
-                        side: const BorderSide(color: Colors.grey),
+                    ),
+                    if (_recentCertificates.isNotEmpty) ...[
+                      const SizedBox(height: 20),
+                      Align(
+                        alignment: Alignment.centerLeft,
+                        child: Text(
+                          "Recent",
+                          style: TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w600,
+                            color: kSubtleText.withOpacity(.9),
+                            fontFamily: 'Montserrat',
+                          ),
+                        ),
                       ),
-                      child: const Text("View"),
+                      const SizedBox(height: 8),
+                      Column(
+                        children: _recentCertificates.take(3).map((c) {
+                          return Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 3),
+                            child: Row(
+                              children: [
+                                const Icon(
+                                  Icons.circle,
+                                  size: 8,
+                                  color: kPrimary,
+                                ),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Text(
+                                    c['deceased_name'] ?? 'Unknown',
+                                    style: const TextStyle(
+                                      fontSize: 15,
+                                      fontFamily: 'OpenSans',
+                                    ),
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          );
+                        }).toList(),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+              const SizedBox(height: 30),
+              _sectionTitle("Actions"),
+              Row(
+                children: [
+                  Expanded(
+                    child: _actionTile(
+                      icon: Icons.info_outline,
+                      label: "Notify members to\nupdate info",
+                      color: kPrimary,
+                      onTap: () {},
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: _actionTile(
+                      icon: Icons.volunteer_activism,
+                      label: "Assign vigil\nassistants",
+                      color: kAccent,
+                      onTap: () {},
                     ),
                   ),
                 ],
               ),
-            ),
-          ),
-          const SizedBox(height: 18),
-          // 2 green action cards
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: Row(
-              children: [
-                Expanded(
-                  child: _actionCard(
-                    color: Colors.green[50]!,
-                    icon: Icons.info_outline,
-                    label: "Notify members\nto update info",
-                    onTap: () {}, // TODO: Add logic
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: _actionCard(
-                    color: Colors.green[50]!,
-                    icon: Icons.volunteer_activism,
-                    label: "Assign members\nto assist at vigil",
-                    onTap: () {}, // TODO: Add logic
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 18),
-          // Death Notice button
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: SizedBox(
-              width: double.infinity,
-              child: ElevatedButton.icon(
-                onPressed: () {
-                  // TODO: Add logic for Death Notice
-                },
-                icon: const Icon(Icons.add_circle_outline),
-                label: const Text(
-                  "Death Notice",
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
-                ),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.blue[800],
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                ),
+              const SizedBox(height: 18),
+              _primaryButton(
+                label: "Create Death Notice",
+                icon: Icons.add_circle_outline,
+                onTap: () {},
+                fillColor: kPrimary,
               ),
-            ),
-          ),
-          const SizedBox(height: 18),
-          // Claims Inbox
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: _dashboardCard(
-              title: "Claims Inbox",
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _inboxItem(
-                    "Pending Claims",
-                    _loadingCounts ? null : _pendingCount,
-                    Colors.orange,
-                    onTap: () {
-                      setState(() => _currentIndex = 2);
-                    },
-                  ),
-                  const SizedBox(height: 8),
-                  _inboxItem(
-                    "Approved Claims",
-                    _loadingCounts ? null : _approvedCount,
-                    Colors.green,
-                    onTap: () {
-                      setState(() => _currentIndex = 2);
-                    },
-                  ),
-                  const SizedBox(height: 8),
-                  _inboxItem(
-                    "Rejected Claims",
-                    _loadingCounts ? null : _rejectedCount,
-                    Colors.red,
-                    onTap: () {
-                      setState(() => _currentIndex = 2);
-                    },
-                  ),
-                ],
-              ),
-            ),
-          ),
-          const SizedBox(height: 18),
-
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: SizedBox(
-              width: double.infinity,
-              child: ElevatedButton.icon(
-                onPressed: () {
+              const SizedBox(height: 30),
+              _sectionTitle("Management"),
+              _secondaryButton(
+                label: "Applications Inbox",
+                icon: Icons.mail,
+                onTap: () {
                   Navigator.push(
                     context,
                     MaterialPageRoute(
@@ -582,39 +475,12 @@ class _SecretaryDashboardState extends State<SecretaryDashboard> {
                     ),
                   );
                 },
-                icon: const Icon(Icons.inbox),
-                label: const Text(
-                  "Applications Inbox",
-                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700),
-                ),
-                style: ElevatedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(vertical: 14),
-                  backgroundColor: Colors.indigo,
-                  foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                ),
               ),
-            ),
-          ),
-          const SizedBox(height: 18),
-
-          // Beneficiaries button
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: SizedBox(
-              width: double.infinity,
-              child: ElevatedButton.icon(
-                style: ElevatedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(vertical: 14),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  backgroundColor: Colors.teal.shade700,
-                  foregroundColor: Colors.white,
-                ),
-                onPressed: () {
+              const SizedBox(height: 14),
+              _secondaryButton(
+                label: "Beneficiaries",
+                icon: Icons.people,
+                onTap: () {
                   Navigator.push(
                     context,
                     MaterialPageRoute(
@@ -622,75 +488,453 @@ class _SecretaryDashboardState extends State<SecretaryDashboard> {
                     ),
                   );
                 },
-                icon: const Icon(Icons.people, size: 18),
-                label: const Text(
-                  "Beneficiaries",
-                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700),
-                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _overviewTripleCards(double maxWidth) {
+    final recentNames = _recentCertificates
+        .map((c) => (c['deceased_name'] ?? '').toString().trim())
+        .where((s) => s.isNotEmpty)
+        .toList();
+
+    final cards = [
+      _statCard(
+        color: const Color(0xFFD8EEFF),
+        icon: Icons.groups,
+        iconColor: Colors.blue[700],
+        title: "Total Active\nMembers",
+        value: _loadingActiveMembers ? "…" : _activeMembersCount.toString(),
+        onTap: () => Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => const SecretaryMembersPage()),
+        ),
+      ),
+      _recentDeathsCard(recentNames),
+      _statCard(
+        color: const Color(0xFFFEFBDC),
+        icon: Icons.account_balance_wallet,
+        iconColor: Colors.orange[700],
+        title: "Pending\nPayments",
+        value: _loadingPendingPayments
+            ? "…"
+            : "₱ ${_pendingPaymentsAmount.toStringAsFixed(0)}",
+        smallSubtitle: _loadingPendingPayments
+            ? ""
+            : "From $_pendingPaymentsMembers",
+        onTap: () => setState(() => _currentIndex = 1),
+      ),
+    ];
+
+    if (maxWidth < 360) {
+      return Column(
+        children: [
+          for (int i = 0; i < cards.length; i++) ...[
+            cards[i],
+            if (i != cards.length - 1) const SizedBox(height: 12),
+          ],
+        ],
+      );
+    }
+
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Expanded(child: cards[0]),
+        const SizedBox(width: 12),
+        Expanded(child: cards[1]),
+        const SizedBox(width: 12),
+        Expanded(child: cards[2]),
+      ],
+    );
+  }
+
+  Widget _statCard({
+    required Color color,
+    required IconData icon,
+    required Color? iconColor,
+    required String title,
+    required String value,
+    VoidCallback? onTap,
+    bool multiLineValue = false,
+    String smallSubtitle = "",
+  }) {
+    return InkWell(
+      borderRadius: BorderRadius.circular(18),
+      onTap: onTap,
+      child: Container(
+        height: 220,
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: color,
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: Colors.grey.shade300, width: 2),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Icon(icon, size: 32, color: iconColor),
+            const SizedBox(height: 8),
+            Text(
+              title,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                fontWeight: FontWeight.w800,
+                fontSize: 16,
+                fontFamily: 'Montserrat',
+                height: 1.15,
+                color: kNeutralText,
+              ),
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+            ),
+            const SizedBox(height: 10),
+            Expanded(
+              child: Center(
+                child: multiLineValue
+                    ? Text(
+                        value,
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w700,
+                          fontSize: 15,
+                          height: 1.15,
+                          fontFamily: 'Montserrat',
+                          color: kNeutralText,
+                        ),
+                        maxLines: 3,
+                        overflow: TextOverflow.fade,
+                      )
+                    : FittedBox(
+                        fit: BoxFit.scaleDown,
+                        child: Text(
+                          value,
+                          style: const TextStyle(
+                            fontWeight: FontWeight.w800,
+                            fontSize: 32,
+                            fontFamily: 'Montserrat',
+                            color: kNeutralText,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
               ),
             ),
-          ),
-          const SizedBox(height: 18),
-        ],
+            if (smallSubtitle.isNotEmpty)
+              Text(
+                smallSubtitle,
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.w600,
+                  fontFamily: 'OpenSans',
+                  color: kSubtleText,
+                  height: 1.1,
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+          ],
+        ),
       ),
     );
   }
 
-  // --- UI HELPERS ---
-  Widget _infoCard({
-    required Color color,
+  Widget _recentDeathsCard(List<String> names) {
+    final display = names.take(2).toList();
+    final extra = names.length - display.length;
+
+    return InkWell(
+      onTap: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => const CertificatesPage()),
+        );
+      },
+      borderRadius: BorderRadius.circular(18),
+      child: Container(
+        height: 220,
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: const Color(0xFFFFDAF6),
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: Colors.grey.shade300, width: 2),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Icon(FontAwesomeIcons.dove, size: 30, color: Colors.purple[400]),
+            const SizedBox(height: 8),
+            const Text(
+              "Recent Deaths",
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontWeight: FontWeight.w800,
+                fontSize: 16,
+                fontFamily: 'Montserrat',
+                height: 1.15,
+                color: kNeutralText,
+              ),
+              maxLines: 2,
+            ),
+            const SizedBox(height: 6),
+            Expanded(
+              child: names.isEmpty
+                  ? const Center(
+                      child: Text(
+                        "None",
+                        style: TextStyle(
+                          fontWeight: FontWeight.w600,
+                          fontSize: 14,
+                          fontFamily: 'Montserrat',
+                          color: kNeutralText,
+                        ),
+                      ),
+                    )
+                  : Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        for (final n in display)
+                          Padding(
+                            padding: const EdgeInsets.only(bottom: 4),
+                            child: Row(
+                              children: [
+                                const Icon(
+                                  FontAwesomeIcons.dove,
+                                  size: 14,
+                                  color: Colors.black87,
+                                ),
+                                const SizedBox(width: 6),
+                                Expanded(
+                                  child: Text(
+                                    n,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 14,
+                                      color: Colors.black,
+                                      fontFamily: 'Montserrat',
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        if (extra > 0)
+                          Text(
+                            '+$extra more',
+                            style: const TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                              fontFamily: 'OpenSans',
+                              color: kNeutralText,
+                            ),
+                          ),
+                      ],
+                    ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _sectionTitle(String text) => Padding(
+    padding: const EdgeInsets.only(bottom: 4),
+    child: Text(
+      text,
+      style: const TextStyle(
+        fontSize: 20,
+        fontWeight: FontWeight.w800,
+        letterSpacing: .4,
+        color: kNeutralText,
+        fontFamily: 'Montserrat',
+      ),
+    ),
+  );
+
+  Widget _panelCard({required Widget child}) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(20, 22, 20, 24),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(kEdge),
+        border: Border.all(color: Colors.grey.shade300),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(.05),
+            blurRadius: 12,
+            offset: const Offset(0, 5),
+          ),
+        ],
+      ),
+      child: child,
+    );
+  }
+
+  Widget _actionTile({
     required IconData icon,
-    required String title,
-    required String value,
-    required String action,
-    required Color actionColor,
-    bool isDeathNotice = false,
+    required String label,
+    required Color color,
     required VoidCallback onTap,
   }) {
-    return Expanded(
-      child: InkWell(
-        borderRadius: BorderRadius.circular(16),
-        onTap: onTap,
-        child: Container(
-          padding: const EdgeInsets.all(14),
-          decoration: BoxDecoration(
-            color: color,
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(kEdge),
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(20, 22, 20, 24),
+        decoration: BoxDecoration(
+          color: color.withOpacity(.09),
+          borderRadius: BorderRadius.circular(kEdge),
+          border: Border.all(color: color.withOpacity(.35)),
+        ),
+        child: Column(
+          children: [
+            Icon(icon, color: color, size: 42),
+            const SizedBox(height: 12),
+            Text(
+              label,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                fontSize: 15,
+                fontFamily: 'OpenSans',
+                fontWeight: FontWeight.w600,
+                height: 1.25,
+                color: kNeutralText,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _primaryButton({
+    required String label,
+    required IconData icon,
+    required VoidCallback onTap,
+    Color fillColor = kAccent,
+  }) {
+    return SizedBox(
+      width: double.infinity,
+      child: ElevatedButton.icon(
+        icon: Icon(icon, size: 26),
+        label: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 6),
+          child: Text(
+            label,
+            style: const TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.w700,
+              fontFamily: 'Montserrat',
+            ),
+          ),
+        ),
+        style: ElevatedButton.styleFrom(
+          backgroundColor: fillColor,
+          foregroundColor: Colors.white,
+          minimumSize: const Size.fromHeight(60),
+          shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(16),
           ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+        ),
+        onPressed: onTap,
+      ),
+    );
+  }
+
+  Widget _secondaryButton({
+    required String label,
+    required IconData icon,
+    required VoidCallback onTap,
+  }) {
+    return SizedBox(
+      width: double.infinity,
+      child: OutlinedButton.icon(
+        icon: Icon(icon, size: 24, color: kPrimary),
+        label: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 4),
+          child: Text(
+            label,
+            style: const TextStyle(
+              fontSize: 16.5,
+              fontWeight: FontWeight.w600,
+              fontFamily: 'OpenSans',
+              color: kPrimaryDark,
+            ),
+          ),
+        ),
+        style: OutlinedButton.styleFrom(
+          padding: const EdgeInsets.symmetric(vertical: 14),
+          minimumSize: const Size.fromHeight(60),
+          side: const BorderSide(color: kPrimary, width: 1.8),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+        ),
+        onPressed: onTap,
+      ),
+    );
+  }
+
+  Widget _iconBtn({
+    required IconData icon,
+    required Color color,
+    required VoidCallback onTap,
+    String? tooltip,
+    String? badge,
+  }) {
+    return Semantics(
+      button: true,
+      label: tooltip,
+      child: Padding(
+        padding: const EdgeInsets.only(left: 6),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(16),
+          onTap: onTap,
+          child: Stack(
+            clipBehavior: Clip.none,
             children: [
-              Icon(icon, color: Colors.black54, size: 28),
-              const SizedBox(height: 10),
-              Text(
-                title,
-                style: const TextStyle(
-                  fontWeight: FontWeight.w700,
-                  fontSize: 14,
-                  fontFamily: 'Montserrat',
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: color.withOpacity(.10),
+                  borderRadius: BorderRadius.circular(16),
                 ),
+                child: Icon(icon, size: 28, color: color),
               ),
-              const SizedBox(height: 8),
-              Text(
-                value,
-                style: TextStyle(
-                  fontWeight: isDeathNotice ? FontWeight.w500 : FontWeight.bold,
-                  fontSize: isDeathNotice ? 13 : 24,
-                  fontFamily: 'Montserrat',
-                ),
-              ),
-              if (action.isNotEmpty)
-                Align(
-                  alignment: Alignment.centerLeft,
-                  child: Padding(
-                    padding: const EdgeInsets.only(top: 8),
+              if (badge != null)
+                Positioned(
+                  right: -2,
+                  top: -2,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 6,
+                      vertical: 2,
+                    ),
+                    decoration: BoxDecoration(
+                      color: kDanger,
+                      borderRadius: BorderRadius.circular(12),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(.25),
+                          blurRadius: 4,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
+                    ),
                     child: Text(
-                      action,
-                      style: TextStyle(
-                        color: actionColor,
+                      badge,
+                      style: const TextStyle(
+                        fontSize: 10,
                         fontWeight: FontWeight.w700,
-                        fontSize: 13,
-                        decoration: TextDecoration.underline,
+                        color: Colors.white,
                       ),
                     ),
                   ),
@@ -702,109 +946,75 @@ class _SecretaryDashboardState extends State<SecretaryDashboard> {
     );
   }
 
-  Widget _actionCard({
-    required Color color,
-    required IconData icon,
-    required String label,
-    required VoidCallback onTap,
-  }) {
-    return InkWell(
-      borderRadius: BorderRadius.circular(16),
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.all(18),
-        decoration: BoxDecoration(
-          color: color,
-          borderRadius: BorderRadius.circular(16),
-        ),
-        child: Column(
-          children: [
-            Icon(icon, color: Colors.green[900], size: 32),
-            const SizedBox(height: 10),
-            Text(
-              label,
-              textAlign: TextAlign.center,
-              style: const TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w600,
-                fontFamily: 'Montserrat',
+  Widget _bottomNav(bool wide) {
+    return Positioned(
+      left: 0,
+      right: 0,
+      bottom: 16,
+      child: Center(
+        child: IgnorePointer(
+          ignoring: !_showNavBar,
+          child: AnimatedOpacity(
+            duration: const Duration(milliseconds: 250),
+            opacity: _showNavBar ? 1 : 0,
+            child: Container(
+              height: 86,
+              margin: EdgeInsets.symmetric(horizontal: wide ? 170 : 20),
+              padding: const EdgeInsets.symmetric(horizontal: 14),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(44),
+                border: Border.all(color: Colors.grey.shade300),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(.08),
+                    blurRadius: 18,
+                    offset: const Offset(0, 6),
+                  ),
+                ],
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                children: [
+                  _navItem(Icons.home_rounded, "Home", 0),
+                  _navItem(Icons.public, "Contributions", 1),
+                  _navItem(Icons.description, "Claims", 2),
+                ],
               ),
             ),
-          ],
+          ),
         ),
       ),
     );
   }
 
-  Widget _dashboardCard({required String title, required Widget child}) =>
-      Container(
-        width: double.infinity,
-        padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(16),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black12,
-              blurRadius: 6,
-              offset: const Offset(0, 3),
-            ),
-          ],
+  Widget _navItem(IconData icon, String label, int index) {
+    final selected = _currentIndex == index;
+    return TextButton(
+      onPressed: () => setState(() => _currentIndex = index),
+      style: TextButton.styleFrom(
+        foregroundColor: selected ? kPrimary : kNeutralText,
+        padding: const EdgeInsets.symmetric(horizontal: 12),
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.all(Radius.circular(18)),
         ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              title,
-              style: const TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.w700,
-                color: Colors.black87,
-              ),
-            ),
-            const SizedBox(height: 10),
-            child,
-          ],
-        ),
-      );
-
-  Widget _inboxItem(
-    String label,
-    int? count,
-    Color color, {
-    required VoidCallback onTap,
-  }) => InkWell(
-    onTap: onTap,
-    child: Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Text(
-          label,
-          style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
-        ),
-        if (count == null)
-          const SizedBox(
-            height: 16,
-            width: 16,
-            child: CircularProgressIndicator(strokeWidth: 2),
-          )
-        else
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-            decoration: BoxDecoration(
-              color: color,
-              borderRadius: BorderRadius.circular(20),
-            ),
-            child: Text(
-              "$count",
-              style: const TextStyle(
-                color: Colors.white,
-                fontWeight: FontWeight.w700,
-                fontSize: 12,
-              ),
+      ),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(icon, size: 30, color: selected ? kPrimary : kNeutralText),
+          const SizedBox(height: 4),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+              fontFamily: 'OpenSans',
+              letterSpacing: .3,
             ),
           ),
-      ],
-    ),
-  );
+        ],
+      ),
+    );
+  }
 }

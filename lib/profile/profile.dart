@@ -1,10 +1,16 @@
+import 'dart:io';
+import 'dart:typed_data';
+
 import 'package:capstone_app/Auth/login.dart';
 import 'package:capstone_app/Beneficiary/beneficiary.dart';
 import 'package:capstone_app/settings/settings.dart';
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:image_cropper/image_cropper.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:image_picker/image_picker.dart';
 
 // Senior-friendly color palette (high contrast, softer tones)
 const kBg = Color(0xFFFAFAF7); // warm off-white
@@ -30,6 +36,7 @@ class _ProfilePageState extends State<ProfilePage> {
   final _addressController = TextEditingController();
   final _sexController = TextEditingController();
   final _formKey = GlobalKey<FormState>();
+  final ImagePicker _imagePicker = ImagePicker();
 
   String fullName = '';
   String mobileNumber = '';
@@ -55,6 +62,160 @@ class _ProfilePageState extends State<ProfilePage> {
     _addressController.dispose();
     _sexController.dispose();
     super.dispose();
+  }
+
+  Future<void> _chooseImageSource() async {
+    if (_uploadingImage) return;
+    final source = await showModalBottomSheet<_PickSource>(
+      context: context,
+      showDragHandle: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const SizedBox(height: 4),
+            const Text(
+              'Profile Photo',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
+            ),
+            const SizedBox(height: 8),
+            ListTile(
+              leading: const Icon(Icons.photo_camera),
+              title: const Text('Take Photo'),
+              onTap: () => Navigator.pop(ctx, _PickSource.camera),
+            ),
+            ListTile(
+              leading: const Icon(Icons.photo_library),
+              title: const Text('Choose from Gallery'),
+              onTap: () => Navigator.pop(ctx, _PickSource.gallery),
+            ),
+            const SizedBox(height: 4),
+          ],
+        ),
+      ),
+    );
+
+    if (source == null) return;
+
+    switch (source) {
+      case _PickSource.camera:
+        await _capturePhoto();
+        break;
+      case _PickSource.gallery:
+        await _pickFromGallery();
+        break;
+    }
+  }
+
+  Future<void> _capturePhoto() async {
+    if (_uploadingImage) return;
+    try {
+      final xFile = await _imagePicker.pickImage(
+        source: ImageSource.camera,
+        preferredCameraDevice: CameraDevice.front,
+        maxWidth: 2400,
+        maxHeight: 2400,
+        imageQuality: 92,
+      );
+      if (xFile == null) return;
+      final bytes = await xFile.readAsBytes();
+      await _cropAndConfirm(
+        bytes,
+        originalFileName: 'camera_${DateTime.now().millisecondsSinceEpoch}.jpg',
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Camera error: $e')));
+    }
+  }
+
+  Future<void> _pickFromGallery() async {
+    // ORIGINAL logic (moved from _pickAndCropImage)
+    if (_uploadingImage) return;
+    try {
+      final result = await FilePicker.platform.pickFiles(
+        type: FileType.image,
+        allowMultiple: false,
+        withData: true,
+      );
+      if (result == null) return;
+      final bytes = result.files.first.bytes;
+      final name = result.files.first.name;
+      if (bytes == null) throw Exception('No file bytes');
+
+      await _cropAndConfirm(bytes, originalFileName: name);
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Image selection failed: $e')));
+    }
+  }
+
+  Future<void> _cropAndConfirm(
+    Uint8List bytes, {
+    required String originalFileName,
+  }) async {
+    // Save temp file
+    final tempDir = await getTemporaryDirectory();
+    final originalPath = '${tempDir.path}/$originalFileName';
+    final f = File(originalPath);
+    await f.writeAsBytes(bytes);
+
+    final crop = await ImageCropper().cropImage(
+      sourcePath: originalPath,
+      compressFormat: ImageCompressFormat.jpg,
+      compressQuality: 92,
+      aspectRatio: const CropAspectRatio(ratioX: 1, ratioY: 1),
+      uiSettings: [
+        AndroidUiSettings(
+          toolbarTitle: 'Crop Photo',
+          toolbarColor: kPrimary,
+          toolbarWidgetColor: Colors.white,
+          activeControlsWidgetColor: kAccent,
+          hideBottomControls: false,
+          lockAspectRatio: false,
+        ),
+        IOSUiSettings(title: 'Crop Photo', aspectRatioLockEnabled: false),
+      ],
+    );
+    if (crop == null) return;
+
+    final croppedBytes = await File(crop.path).readAsBytes();
+
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Use this photo?'),
+        content: ClipRRect(
+          borderRadius: BorderRadius.circular(12),
+          child: Image.memory(croppedBytes, fit: BoxFit.cover, height: 220),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: kAccent,
+              foregroundColor: Colors.white,
+            ),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Confirm'),
+          ),
+        ],
+      ),
+    );
+
+    if (ok == true) {
+      await _uploadCroppedBytes(croppedBytes, extension: 'jpg');
+    }
   }
 
   Future<void> _fetchUserProfile() async {
@@ -117,43 +278,25 @@ class _ProfilePageState extends State<ProfilePage> {
     return t.characters.first.toUpperCase();
   }
 
-  Future<void> _pickAndUploadImage() async {
-    if (_uploadingImage) return;
+  Future<void> _uploadCroppedBytes(
+    Uint8List bytes, {
+    required String extension,
+  }) async {
     setState(() => _uploadingImage = true);
-
     try {
-      final result = await FilePicker.platform.pickFiles(
-        type: FileType.image,
-        allowMultiple: false,
-        withData: true,
-      );
-      if (result == null) {
-        setState(() => _uploadingImage = false);
-        return;
-      }
-
       final userId = supabase.auth.currentUser!.id;
-      final fileBytes = result.files.first.bytes;
-      final fileName = result.files.first.name;
-
-      if (fileBytes == null) {
-        throw Exception('Failed to read file bytes');
-      }
-
-      final ext = fileName.split('.').last;
-      final uniqueFileName =
-          '$userId-${DateTime.now().millisecondsSinceEpoch}.$ext';
+      final fileName =
+          '$userId-${DateTime.now().millisecondsSinceEpoch}.$extension';
 
       await supabase.storage
           .from('avatars')
           .uploadBinary(
-            uniqueFileName,
-            fileBytes,
+            fileName,
+            bytes,
             fileOptions: const FileOptions(upsert: true),
           );
-      final publicUrl = supabase.storage
-          .from('avatars')
-          .getPublicUrl(uniqueFileName);
+
+      final publicUrl = supabase.storage.from('avatars').getPublicUrl(fileName);
 
       final update = await supabase
           .from('users')
@@ -163,7 +306,7 @@ class _ProfilePageState extends State<ProfilePage> {
           .maybeSingle();
 
       if (update == null) {
-        throw Exception('Failed to update profile image URL');
+        throw Exception('Update failed');
       }
 
       if (!mounted) return;
@@ -171,7 +314,6 @@ class _ProfilePageState extends State<ProfilePage> {
         profileUrl = publicUrl;
         _uploadingImage = false;
       });
-
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(const SnackBar(content: Text('Profile photo updated')));
@@ -180,8 +322,65 @@ class _ProfilePageState extends State<ProfilePage> {
       setState(() => _uploadingImage = false);
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(SnackBar(content: Text('Error uploading image: $e')));
+      ).showSnackBar(SnackBar(content: Text('Upload error: $e')));
     }
+  }
+
+  void _openProfilePreview() {
+    if (profileUrl == null || profileUrl!.isEmpty) return;
+    showGeneralDialog(
+      context: context,
+      barrierLabel: 'Profile Photo',
+      barrierDismissible: true,
+      barrierColor: Colors.black87,
+      pageBuilder: (_, __, ___) => const SizedBox.shrink(),
+      transitionBuilder: (ctx, a1, a2, child) {
+        final scale = Curves.easeOutCubic.transform(a1.value);
+        return Opacity(
+          opacity: a1.value,
+          child: Transform.scale(
+            scale: scale,
+            child: Scaffold(
+              backgroundColor: Colors.transparent,
+              body: Stack(
+                children: [
+                  Center(
+                    child: Hero(
+                      tag: 'profilePhotoHero',
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(16),
+                        child: InteractiveViewer(
+                          clipBehavior: Clip.none,
+                          minScale: 0.7,
+                          maxScale: 4,
+                          child: Image.network(
+                            profileUrl!,
+                            fit: BoxFit.contain,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                  Positioned(
+                    top: 40,
+                    right: 20,
+                    child: IconButton(
+                      icon: const Icon(
+                        Icons.close,
+                        color: Colors.white,
+                        size: 32,
+                      ),
+                      onPressed: () => Navigator.pop(ctx),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+      transitionDuration: const Duration(milliseconds: 260),
+    );
   }
 
   Future<void> _saveProfile() async {
@@ -311,7 +510,6 @@ class _ProfilePageState extends State<ProfilePage> {
             child: ListView(
               padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
               children: [
-                // Avatar + Edit toggle
                 Card(
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(14),
@@ -322,30 +520,41 @@ class _ProfilePageState extends State<ProfilePage> {
                       children: [
                         Stack(
                           children: [
-                            CircleAvatar(
-                              radius: isWide ? 56 : 48,
-                              backgroundColor: Colors.grey.shade300,
-                              backgroundImage:
-                                  (profileUrl != null && profileUrl!.isNotEmpty)
-                                  ? NetworkImage(profileUrl!)
-                                  : null,
-                              child: (profileUrl == null || profileUrl!.isEmpty)
-                                  ? Text(
-                                      _initialOf(fullName),
-                                      style: TextStyle(
-                                        fontSize: isWide ? 28 : 24,
-                                        color: kPrimary,
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                    )
-                                  : null,
+                            GestureDetector(
+                              onTap: _editing
+                                  ? _chooseImageSource
+                                  : _openProfilePreview,
+                              child: Hero(
+                                tag: 'profilePhotoHero',
+                                child: CircleAvatar(
+                                  radius: isWide ? 56 : 48,
+                                  backgroundColor: Colors.grey.shade300,
+                                  backgroundImage:
+                                      (profileUrl != null &&
+                                          profileUrl!.isNotEmpty)
+                                      ? NetworkImage(profileUrl!)
+                                      : null,
+                                  child:
+                                      (profileUrl == null ||
+                                          profileUrl!.isEmpty)
+                                      ? Text(
+                                          _initialOf(fullName),
+                                          style: TextStyle(
+                                            fontSize: isWide ? 28 : 24,
+                                            color: kPrimary,
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                        )
+                                      : null,
+                                ),
+                              ),
                             ),
                             if (_editing)
                               Positioned(
                                 bottom: 0,
                                 right: 0,
                                 child: InkWell(
-                                  onTap: _pickAndUploadImage,
+                                  onTap: _chooseImageSource,
                                   borderRadius: BorderRadius.circular(24),
                                   child: Container(
                                     decoration: const BoxDecoration(
@@ -380,9 +589,9 @@ class _ProfilePageState extends State<ProfilePage> {
                               ),
                               const SizedBox(height: 4),
                               Text(
-                                (mobileNumber.isNotEmpty
+                                mobileNumber.isNotEmpty
                                     ? mobileNumber
-                                    : 'Mobile not set'),
+                                    : 'Mobile not set',
                                 style: const TextStyle(
                                   color: kSubText,
                                   fontSize: 14,
@@ -429,8 +638,6 @@ class _ProfilePageState extends State<ProfilePage> {
                   ),
                 ),
                 const SizedBox(height: 12),
-
-                // Editable fields
                 _ProfileFieldCard(
                   icon: Icons.person,
                   label: 'Full Name',
@@ -495,9 +702,7 @@ class _ProfilePageState extends State<ProfilePage> {
                     decoration: _fieldDecoration('Select sex'),
                   ),
                 ),
-
                 const SizedBox(height: 16),
-
                 if (_editing) ...[
                   SizedBox(
                     height: 52,
@@ -580,10 +785,7 @@ class _ProfilePageState extends State<ProfilePage> {
                     ),
                   ),
                 ],
-
                 const SizedBox(height: 16),
-
-                // Manage Dayung entry
                 Card(
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(14),
@@ -611,8 +813,6 @@ class _ProfilePageState extends State<ProfilePage> {
               ],
             ),
           ),
-
-          // Top-right uploading badge
           if (_uploadingImage)
             Positioned(
               top: 12,
@@ -667,9 +867,7 @@ class _ProfileFieldCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final largeText =
-        MediaQuery.of(context).textScaleFactor >
-        1.2; // support system text scaling
+    final largeText = MediaQuery.of(context).textScaleFactor > 1.2;
 
     return Card(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
@@ -711,3 +909,5 @@ class _ProfileFieldCard extends StatelessWidget {
     return state?._editing ?? false;
   }
 }
+
+enum _PickSource { camera, gallery }
