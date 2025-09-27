@@ -21,7 +21,7 @@
             android:value="AIzaSyAbWnlxrn_Aq2QXyzgS1-D2ZU0UXsO1-ng" />
 
         <activity
-            android:name=".MainActivity"
+            android:name="com.example.capstone_app.MainActivity"
             android:exported="true"
             android:launchMode="singleTop"
             android:taskAffinity=""
