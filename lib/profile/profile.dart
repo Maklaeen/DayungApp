@@ -38,6 +38,13 @@ class _ProfilePageState extends State<ProfilePage> {
   final _formKey = GlobalKey<FormState>();
   final ImagePicker _imagePicker = ImagePicker();
 
+  final _currentPwController = TextEditingController();
+  final _newPwController = TextEditingController();
+  final _confirmPwController = TextEditingController();
+  bool _obscureCur = true;
+  bool _obscureNew = true;
+  bool _obscureConf = true;
+
   String fullName = '';
   String mobileNumber = '';
   String address = '';
@@ -61,7 +68,616 @@ class _ProfilePageState extends State<ProfilePage> {
     _mobileController.dispose();
     _addressController.dispose();
     _sexController.dispose();
+    _currentPwController.dispose();
+    _newPwController.dispose();
+    _confirmPwController.dispose();
     super.dispose();
+  }
+
+  Future<void> _openChangePasswordDialog() async {
+    _currentPwController.clear();
+    _newPwController.clear();
+    _confirmPwController.clear();
+
+    String? curErr;
+    String? newErr;
+    String? confErr;
+    String? genErr;
+    bool saving = false;
+
+    InputDecoration _dec(String label, {IconData? icon, bool error = false}) {
+      return InputDecoration(
+        labelText: label,
+        prefixIcon: icon != null ? Icon(icon, color: kSubText) : null,
+        filled: true,
+        fillColor: Colors.white,
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 14,
+          vertical: 14,
+        ),
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(
+            color: error ? kWarn : const Color(0xFFE5E7EB),
+          ),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(color: error ? kWarn : kAccent, width: 2),
+        ),
+        errorText: null, // we render custom error rows below
+      );
+    }
+
+    Widget _errRow(String msg) => Padding(
+      padding: const EdgeInsets.only(top: 6),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Icon(Icons.error_outline, color: kWarn, size: 18),
+          const SizedBox(width: 6),
+          Expanded(
+            child: Text(
+              msg,
+              style: const TextStyle(color: kWarn, fontSize: 13.5, height: 1.2),
+            ),
+          ),
+        ],
+      ),
+    );
+
+    await showGeneralDialog<void>(
+      context: context,
+      barrierDismissible: !saving,
+      barrierColor: Colors.black.withOpacity(0.35),
+      barrierLabel: 'Change Password',
+      transitionDuration: const Duration(milliseconds: 220),
+      pageBuilder: (_, __, ___) => const SizedBox.shrink(),
+      transitionBuilder: (ctx, anim, __, ___) {
+        final curved = CurvedAnimation(
+          parent: anim,
+          curve: Curves.easeOutCubic,
+          reverseCurve: Curves.easeInCubic,
+        );
+        return FadeTransition(
+          opacity: curved,
+          child: ScaleTransition(
+            scale: Tween<double>(begin: 0.96, end: 1.0).animate(curved),
+            child: Center(
+              child: StatefulBuilder(
+                builder: (ctx, setD) {
+                  return Material(
+                    color: Colors.transparent,
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 520),
+                      child: Container(
+                        margin: EdgeInsets.fromLTRB(
+                          24,
+                          0,
+                          24,
+                          MediaQuery.of(ctx).viewInsets.bottom + 24,
+                        ),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 20,
+                          vertical: 18,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(18),
+                          border: Border.all(
+                            color: (genErr != null ? kWarn : Colors.black12)
+                                .withOpacity(0.45),
+                          ),
+                          boxShadow: const [
+                            BoxShadow(
+                              color: Colors.black26,
+                              blurRadius: 18,
+                              offset: Offset(0, 12),
+                            ),
+                          ],
+                        ),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            // Title
+                            Row(
+                              children: [
+                                Container(
+                                  width: 40,
+                                  height: 40,
+                                  decoration: BoxDecoration(
+                                    color: kAccent.withOpacity(0.12),
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  child: const Icon(
+                                    Icons.lock_reset,
+                                    color: kAccent,
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
+                                const Expanded(
+                                  child: Text(
+                                    'Change Password',
+                                    style: TextStyle(
+                                      color: kText,
+                                      fontSize: 18,
+                                      fontWeight: FontWeight.w800,
+                                    ),
+                                  ),
+                                ),
+                                IconButton(
+                                  onPressed: saving
+                                      ? null
+                                      : () => Navigator.of(ctx).pop(),
+                                  icon: const Icon(
+                                    Icons.close,
+                                    color: kSubText,
+                                  ),
+                                  tooltip: 'Close',
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 12),
+
+                            // General error (e.g., offline)
+                            AnimatedSwitcher(
+                              duration: const Duration(milliseconds: 160),
+                              child: genErr == null
+                                  ? const SizedBox.shrink()
+                                  : _errRow(genErr!),
+                            ),
+                            if (genErr != null) const SizedBox(height: 8),
+
+                            // Current password
+                            TextField(
+                              controller: _currentPwController,
+                              obscureText: _obscureCur,
+                              onChanged: (_) => setD(() {
+                                curErr = null;
+                                genErr = null;
+                              }),
+                              decoration:
+                                  _dec(
+                                    'Current password',
+                                    icon: Icons.lock_outline,
+                                    error: curErr != null,
+                                  ).copyWith(
+                                    suffixIcon: IconButton(
+                                      icon: Icon(
+                                        _obscureCur
+                                            ? Icons.visibility_off
+                                            : Icons.visibility,
+                                        color: kSubText,
+                                      ),
+                                      onPressed: () => setD(
+                                        () => _obscureCur = !_obscureCur,
+                                      ),
+                                    ),
+                                  ),
+                            ),
+                            AnimatedSwitcher(
+                              duration: const Duration(milliseconds: 160),
+                              child: curErr == null
+                                  ? const SizedBox.shrink()
+                                  : _errRow(curErr!),
+                            ),
+                            const SizedBox(height: 12),
+
+                            // New password
+                            TextField(
+                              controller: _newPwController,
+                              obscureText: _obscureNew,
+                              onChanged: (_) => setD(() {
+                                newErr = null;
+                                genErr = null;
+                              }),
+                              decoration:
+                                  _dec(
+                                    'New password (min 6 chars)',
+                                    icon: Icons.password_outlined,
+                                    error: newErr != null,
+                                  ).copyWith(
+                                    suffixIcon: IconButton(
+                                      icon: Icon(
+                                        _obscureNew
+                                            ? Icons.visibility_off
+                                            : Icons.visibility,
+                                        color: kSubText,
+                                      ),
+                                      onPressed: () => setD(
+                                        () => _obscureNew = !_obscureNew,
+                                      ),
+                                    ),
+                                  ),
+                            ),
+                            AnimatedSwitcher(
+                              duration: const Duration(milliseconds: 160),
+                              child: newErr == null
+                                  ? const SizedBox.shrink()
+                                  : _errRow(newErr!),
+                            ),
+                            const SizedBox(height: 12),
+
+                            // Confirm password
+                            TextField(
+                              controller: _confirmPwController,
+                              obscureText: _obscureConf,
+                              onChanged: (_) => setD(() {
+                                confErr = null;
+                                genErr = null;
+                              }),
+                              decoration:
+                                  _dec(
+                                    'Confirm new password',
+                                    icon: Icons.lock_person_outlined,
+                                    error: confErr != null,
+                                  ).copyWith(
+                                    suffixIcon: IconButton(
+                                      icon: Icon(
+                                        _obscureConf
+                                            ? Icons.visibility_off
+                                            : Icons.visibility,
+                                        color: kSubText,
+                                      ),
+                                      onPressed: () => setD(
+                                        () => _obscureConf = !_obscureConf,
+                                      ),
+                                    ),
+                                  ),
+                            ),
+                            AnimatedSwitcher(
+                              duration: const Duration(milliseconds: 160),
+                              child: confErr == null
+                                  ? const SizedBox.shrink()
+                                  : _errRow(confErr!),
+                            ),
+                            const SizedBox(height: 16),
+
+                            // Actions
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: SizedBox(
+                                    height: 48,
+                                    child: OutlinedButton(
+                                      onPressed: saving
+                                          ? null
+                                          : () => Navigator.of(ctx).pop(),
+                                      style: OutlinedButton.styleFrom(
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius: BorderRadius.circular(
+                                            12,
+                                          ),
+                                        ),
+                                        side: const BorderSide(
+                                          color: kAccent,
+                                          width: 1.5,
+                                        ),
+                                        foregroundColor: kAccent,
+                                      ),
+                                      child: const Text(
+                                        'Cancel',
+                                        style: TextStyle(
+                                          fontWeight: FontWeight.w700,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: SizedBox(
+                                    height: 48,
+                                    child: ElevatedButton(
+                                      onPressed: saving
+                                          ? null
+                                          : () async {
+                                              // Clear previous errors
+                                              setD(() {
+                                                curErr = null;
+                                                newErr = null;
+                                                confErr = null;
+                                                genErr = null;
+                                              });
+
+                                              final cur = _currentPwController
+                                                  .text
+                                                  .trim();
+                                              final npw = _newPwController.text
+                                                  .trim();
+                                              final cnpw = _confirmPwController
+                                                  .text
+                                                  .trim();
+
+                                              // Client-side validation
+                                              if (cur.isEmpty)
+                                                curErr =
+                                                    'Current password is required';
+                                              if (npw.isEmpty)
+                                                newErr =
+                                                    'New password is required';
+                                              if (npw.isNotEmpty &&
+                                                  npw.length < 6)
+                                                newErr =
+                                                    'New password must be at least 6 characters';
+                                              if (cnpw.isEmpty)
+                                                confErr =
+                                                    'Please confirm your new password';
+                                              if (npw.isNotEmpty &&
+                                                  cnpw.isNotEmpty &&
+                                                  npw != cnpw) {
+                                                confErr =
+                                                    'New passwords do not match';
+                                              }
+                                              if (curErr != null ||
+                                                  newErr != null ||
+                                                  confErr != null) {
+                                                setD(() {});
+                                                return;
+                                              }
+
+                                              setD(() => saving = true);
+                                              try {
+                                                final email = supabase
+                                                    .auth
+                                                    .currentUser
+                                                    ?.email;
+                                                if (email == null) {
+                                                  throw const AuthException(
+                                                    'No signed-in user.',
+                                                  );
+                                                }
+
+                                                // Re-auth to verify current password
+                                                await supabase.auth
+                                                    .signInWithPassword(
+                                                      email: email,
+                                                      password: cur,
+                                                    );
+
+                                                // Update password
+                                                await supabase.auth.updateUser(
+                                                  UserAttributes(password: npw),
+                                                );
+
+                                                if (!mounted) return;
+                                                Navigator.of(ctx).pop();
+                                                ScaffoldMessenger.of(
+                                                  context,
+                                                ).showSnackBar(
+                                                  const SnackBar(
+                                                    content: Text(
+                                                      'Password updated successfully',
+                                                    ),
+                                                  ),
+                                                );
+                                              } on SocketException {
+                                                setD(() {
+                                                  genErr =
+                                                      'Please check your internet connection and try again.';
+                                                  saving = false;
+                                                });
+                                              } on AuthException catch (e) {
+                                                final msg = e.message
+                                                    .toLowerCase();
+                                                setD(() {
+                                                  if (msg.contains(
+                                                        'invalid login',
+                                                      ) ||
+                                                      msg.contains('invalid') ||
+                                                      msg.contains(
+                                                        'credentials',
+                                                      )) {
+                                                    curErr =
+                                                        'Current password is incorrect';
+                                                  } else {
+                                                    genErr = e.message;
+                                                  }
+                                                  saving = false;
+                                                });
+                                              } catch (e) {
+                                                setD(() {
+                                                  genErr =
+                                                      'Something went wrong. Please try again.';
+                                                  saving = false;
+                                                });
+                                              }
+                                            },
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor: kAccent,
+                                        foregroundColor: Colors.white,
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius: BorderRadius.circular(
+                                            12,
+                                          ),
+                                        ),
+                                        elevation: 0,
+                                      ),
+                                      child: saving
+                                          ? const SizedBox(
+                                              height: 22,
+                                              width: 22,
+                                              child: CircularProgressIndicator(
+                                                color: Colors.white,
+                                                strokeWidth: 2.5,
+                                              ),
+                                            )
+                                          : const Text(
+                                              'Save new password',
+                                              style: TextStyle(
+                                                fontWeight: FontWeight.w700,
+                                              ),
+                                            ),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Future<bool?> _showLogoutConfirmDialog() {
+    return showGeneralDialog<bool>(
+      context: context,
+      barrierLabel: 'Logout',
+      barrierDismissible: true,
+      barrierColor: Colors.black.withOpacity(0.35),
+      transitionDuration: const Duration(milliseconds: 220),
+      pageBuilder: (_, __, ___) => const SizedBox.shrink(),
+      transitionBuilder: (ctx, anim, __, ___) {
+        final curved = CurvedAnimation(
+          parent: anim,
+          curve: Curves.easeOutCubic,
+          reverseCurve: Curves.easeInCubic,
+        );
+        return FadeTransition(
+          opacity: curved,
+          child: ScaleTransition(
+            scale: Tween<double>(begin: 0.96, end: 1.0).animate(curved),
+            child: Center(
+              child: Material(
+                color: Colors.transparent,
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 520),
+                  child: Container(
+                    margin: const EdgeInsets.symmetric(horizontal: 24),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 20,
+                      vertical: 18,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(18),
+                      border: Border.all(color: kWarn.withOpacity(0.35)),
+                      boxShadow: const [
+                        BoxShadow(
+                          color: Colors.black26,
+                          blurRadius: 18,
+                          offset: Offset(0, 12),
+                        ),
+                      ],
+                    ),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Container(
+                              width: 40,
+                              height: 40,
+                              decoration: BoxDecoration(
+                                color: kWarn.withOpacity(0.12),
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: const Icon(Icons.logout, color: kWarn),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: const [
+                                  Text(
+                                    'Log out?',
+                                    style: TextStyle(
+                                      color: kText,
+                                      fontSize: 18,
+                                      fontWeight: FontWeight.w800,
+                                    ),
+                                  ),
+                                  SizedBox(height: 6),
+                                  Text(
+                                    'You will be logged out of your account on this device. You can sign in again anytime.',
+                                    style: TextStyle(
+                                      color: kSubText,
+                                      fontSize: 16,
+                                      height: 1.35,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            IconButton(
+                              onPressed: () => Navigator.of(ctx).pop(false),
+                              icon: const Icon(Icons.close, color: kSubText),
+                              tooltip: 'Close',
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 16),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: SizedBox(
+                                height: 48,
+                                child: OutlinedButton(
+                                  onPressed: () => Navigator.of(ctx).pop(false),
+                                  style: OutlinedButton.styleFrom(
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                    side: const BorderSide(
+                                      color: kAccent,
+                                      width: 1.5,
+                                    ),
+                                    foregroundColor: kAccent,
+                                  ),
+                                  child: const Text(
+                                    'Stay logged in',
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: SizedBox(
+                                height: 48,
+                                child: ElevatedButton(
+                                  onPressed: () => Navigator.of(ctx).pop(true),
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: kWarn,
+                                    foregroundColor: Colors.white,
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                    elevation: 0,
+                                  ),
+                                  child: const Text(
+                                    'Log out',
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        );
+      },
+    );
   }
 
   Future<void> _chooseImageSource() async {
@@ -433,23 +1049,7 @@ class _ProfilePageState extends State<ProfilePage> {
   }
 
   Future<void> _confirmLogout() async {
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Log out?'),
-        content: const Text('You will be logged out of your account.'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Cancel'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Log out'),
-          ),
-        ],
-      ),
-    );
+    final ok = await _showLogoutConfirmDialog();
     if (ok == true) {
       await Supabase.instance.client.auth.signOut();
       final prefs = await SharedPreferences.getInstance();
@@ -763,6 +1363,30 @@ class _ProfilePageState extends State<ProfilePage> {
                     ),
                   ),
                   const SizedBox(height: 12),
+
+                  SizedBox(
+                    height: 52,
+                    child: ElevatedButton.icon(
+                      icon: const Icon(Icons.lock_reset),
+                      onPressed: _openChangePasswordDialog,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: kPrimary,
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                      label: const Text(
+                        'Change Password',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+
                   SizedBox(
                     height: 52,
                     child: OutlinedButton.icon(

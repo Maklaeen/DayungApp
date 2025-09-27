@@ -1,13 +1,15 @@
 import 'dart:convert';
 import 'package:capstone_app/Providers/dayung_provider.dart';
 import 'package:capstone_app/pages/claims.dart';
-import 'package:capstone_app/pages/notification.dart';
+import 'package:capstone_app/pages/notification.dart'
+    hide kPrimary, kNeutralText, kPrimaryDark, kSubtleText;
 import 'package:capstone_app/pages/paymentmethod.dart';
 import 'package:capstone_app/pages/contributionhistory.dart';
 import 'package:capstone_app/pages/recentdeathnotices.dart';
 import 'package:capstone_app/profile/profile.dart' hide kPrimary, kWarn;
 import 'package:capstone_app/screens/selectdayung.dart';
-import 'package:capstone_app/Auth/login.dart';
+import 'package:capstone_app/Auth/login.dart'
+    hide kPrimary, kNeutralText, kSubtleText, kPrimaryDark;
 import 'package:auto_size_text/auto_size_text.dart';
 import 'package:capstone_app/ui/theme/branding.dart';
 import 'package:capstone_app/widgets/member_header.dart';

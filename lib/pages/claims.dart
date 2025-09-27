@@ -2,7 +2,7 @@ import 'dart:convert';
 
 import 'package:capstone_app/Providers/dayung_provider.dart';
 import 'package:capstone_app/ui/theme/branding.dart';
-import 'package:capstone_app/pages/notification.dart';
+import 'package:capstone_app/pages/notification.dart' hide kAccent, kDanger, kWarn, kSubtleText, kNeutralText, kBg, kPrimary, kPrimaryDark;
 import 'package:capstone_app/profile/profile.dart'
     hide kBg, kPrimary, kWarn, kAccent;
 import 'package:capstone_app/pages/submit_claim.dart'
