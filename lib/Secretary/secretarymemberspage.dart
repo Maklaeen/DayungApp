@@ -25,7 +25,8 @@ class _SecretaryMembersPageState extends State<SecretaryMembersPage>
   late TabController _tabController;
 
   // Raw fetched members (approved + pending) for secretary’s dayungs
-  List<Map<String, dynamic>> _all = [];
+  List<Map<String, dynamic>> _rows = [];
+  final Map<int, String> _dayungNames = {};
   List<int> _managedDayungIds = [];
 
   @override
@@ -46,11 +47,14 @@ class _SecretaryMembersPageState extends State<SecretaryMembersPage>
         setState(() {
           _loading = false;
           _infoMsg = 'Please log in.';
+          _rows = [];
+          _managedDayungIds = [];
+          _dayungNames.clear();
         });
         return;
       }
 
-      // Dayung units this secretary manages
+      // 1) Dayungs this secretary manages
       final dayungs = await _sb
           .from('dayung_units')
           .select('id,name')
@@ -64,34 +68,74 @@ class _SecretaryMembersPageState extends State<SecretaryMembersPage>
         setState(() {
           _loading = false;
           _infoMsg = 'You are not assigned to any Dayung.';
-          _all = [];
+          _rows = [];
           _managedDayungIds = [];
+          _dayungNames.clear();
         });
         return;
       }
 
+      _dayungNames
+        ..clear()
+        ..addEntries(
+          List<Map<String, dynamic>>.from(dayungs).map(
+            (e) => MapEntry(e['id'] as int, (e['name'] ?? 'Dayung') as String),
+          ),
+        );
+
       // Fetch users with status approved OR pending in those dayungs
-      final data = await _sb
-          .from('users')
+      final apps = await _sb
+          .from('applications')
           .select(
-            'id, full_name, email, profile_url, status, dayung_unit_id, dayung:dayung_units!users_dayung_unit_id_fkey(name)',
+            'user_id, status, dayung_unit_id, approved_at, user:users(id, full_name, email, profile_url)',
           )
           .inFilter('dayung_unit_id', ids)
           .inFilter('status', ['approved', 'pending'])
-          .order('full_name');
+          .order('approved_at', ascending: false);
 
-      final list = List<Map<String, dynamic>>.from(data);
-      // Deduplicate just in case
-      final seen = <String>{};
-      final dedup = <Map<String, dynamic>>[];
-      for (final m in list) {
-        final id = m['id']?.toString();
-        if (id != null && seen.add(id)) dedup.add(m);
+      final list = List<Map<String, dynamic>>.from(apps);
+
+      // Optional: dedupe multiple applications for same user-dayung by latest approved_at
+      final byKey = <String, Map<String, dynamic>>{};
+      for (final r in list) {
+        final u = r['user'] as Map<String, dynamic>?;
+        final userId = (u?['id'] ?? r['user_id']).toString();
+        final dayungId = r['dayung_unit_id'] as int;
+        final key = '$userId-$dayungId';
+        if (!byKey.containsKey(key)) {
+          byKey[key] = r;
+        } else {
+          final prev = byKey[key]!;
+          final prevAt = prev['approved_at']?.toString();
+          final currAt = r['approved_at']?.toString();
+          if (currAt != null &&
+              (prevAt == null ||
+                  DateTime.tryParse(
+                        currAt,
+                      )?.isAfter(DateTime.tryParse(prevAt) ?? DateTime(0)) ==
+                      true)) {
+            byKey[key] = r;
+          }
+        }
       }
 
       setState(() {
         _managedDayungIds = ids;
-        _all = dedup;
+        _rows = byKey.values.toList()
+          ..sort((a, b) {
+            // Sort: approved first, then by approved_at desc
+            final sa = (a['status'] ?? '').toString();
+            final sb = (b['status'] ?? '').toString();
+            if (sa != sb) {
+              return sa == 'approved' ? -1 : 1;
+            }
+            final ta = DateTime.tryParse(a['approved_at']?.toString() ?? '');
+            final tb = DateTime.tryParse(b['approved_at']?.toString() ?? '');
+            if (ta == null && tb == null) return 0;
+            if (ta == null) return 1;
+            if (tb == null) return -1;
+            return tb.compareTo(ta);
+          });
         _loading = false;
       });
     } on PostgrestException catch (e) {
@@ -99,7 +143,7 @@ class _SecretaryMembersPageState extends State<SecretaryMembersPage>
         _loading = false;
         _infoMsg = e.message.isEmpty ? 'Load failed (policies?)' : e.message;
       });
-    } catch (e) {
+    } catch (_) {
       setState(() {
         _loading = false;
         _infoMsg = 'Unexpected error loading members';
@@ -108,10 +152,10 @@ class _SecretaryMembersPageState extends State<SecretaryMembersPage>
   }
 
   List<Map<String, dynamic>> get _approved =>
-      _all.where((m) => (m['status'] ?? '').toString() == 'approved').toList();
+      _rows.where((r) => (r['status'] ?? '').toString() == 'approved').toList();
 
   List<Map<String, dynamic>> get _pending =>
-      _all.where((m) => (m['status'] ?? '').toString() == 'pending').toList();
+      _rows.where((r) => (r['status'] ?? '').toString() == 'pending').toList();
 
   @override
   void dispose() {
@@ -145,6 +189,14 @@ class _SecretaryMembersPageState extends State<SecretaryMembersPage>
     );
   }
 
+  String _initialOf(dynamic name) {
+    if (name is String) {
+      final t = name.trim();
+      if (t.isNotEmpty) return t.substring(0, 1).toUpperCase();
+    }
+    return 'M';
+  }
+
   Widget _memberList(List<Map<String, dynamic>> list) {
     if (list.isEmpty) {
       return RefreshIndicator(
@@ -166,10 +218,14 @@ class _SecretaryMembersPageState extends State<SecretaryMembersPage>
         physics: const AlwaysScrollableScrollPhysics(),
         itemCount: list.length,
         itemBuilder: (_, i) {
-          final m = list[i];
-          final dayung = m['dayung'] as Map<String, dynamic>?;
-          final profileUrl = (m['profile_url'] as String?)?.trim();
-          final status = (m['status'] ?? '').toString();
+          final r = list[i];
+          final u = r['user'] as Map<String, dynamic>?;
+          final profileUrl = (u?['profile_url'] as String?)?.trim();
+          final status = (r['status'] ?? '').toString();
+          final dayungId = r['dayung_unit_id'] as int?;
+          final dayungName = dayungId != null
+              ? (_dayungNames[dayungId] ?? 'Dayung')
+              : 'Dayung';
 
           Color chipColor;
           if (status == 'approved') {
@@ -186,15 +242,15 @@ class _SecretaryMembersPageState extends State<SecretaryMembersPage>
                   ? NetworkImage(profileUrl)
                   : null,
               child: (profileUrl == null || profileUrl.isEmpty)
-                  ? Text(_initialOf(m['full_name']))
+                  ? Text(_initialOf(u?['full_name']))
                   : null,
             ),
             title: Text(
-              (m['full_name'] as String?)?.trim().isNotEmpty == true
-                  ? (m['full_name'] as String).trim()
+              (u?['full_name'] as String?)?.trim().isNotEmpty == true
+                  ? (u?['full_name'] as String).trim()
                   : 'Member',
             ),
-            subtitle: Text(dayung?['name'] ?? 'Dayung'),
+            subtitle: Text(dayungName),
             trailing: Container(
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
               decoration: BoxDecoration(
@@ -212,7 +268,7 @@ class _SecretaryMembersPageState extends State<SecretaryMembersPage>
               ),
             ),
             onTap: () {
-              // Optional member detail navigation
+              // Optional member detail
             },
           );
         },

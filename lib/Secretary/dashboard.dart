@@ -106,23 +106,51 @@ class _SecretaryDashboardState extends State<SecretaryDashboard> {
       if (uid == null) {
         _activeMembersCount = 0;
       } else {
+        // Dayungs managed by this secretary
         final dayungs = await supabase
             .from('dayung_units')
             .select('id')
             .eq('secretary_id', uid);
+
         final ids = (dayungs as List)
             .map((e) => (e as Map)['id'])
             .whereType<int>()
             .toList();
+
         if (ids.isEmpty) {
           _activeMembersCount = 0;
         } else {
-          final membersApproved = await supabase
-              .from('users')
-              .select('id')
+          // Distinct members with an approved application to those dayungs
+          final apps = await supabase
+              .from('applications')
+              .select('user_id, dayung_unit_id')
               .inFilter('dayung_unit_id', ids)
               .eq('status', 'approved');
-          _activeMembersCount = (membersApproved as List).length;
+
+          final distinctUserIds = <String>{};
+          for (final row in (apps as List)) {
+            final m = row as Map<String, dynamic>;
+            final uidStr = (m['user_id'] ?? '').toString();
+            if (uidStr.isNotEmpty) distinctUserIds.add(uidStr);
+          }
+
+          if (distinctUserIds.isEmpty) {
+            _activeMembersCount = 0;
+          } else {
+            // Optional: exclude deceased
+            final usersRows = await supabase
+                .from('users')
+                .select('id, is_deceased')
+                .inFilter('id', distinctUserIds.toList());
+
+            final aliveIds = (usersRows as List)
+                .map((e) => Map<String, dynamic>.from(e as Map))
+                .where((u) => (u['is_deceased'] ?? false) == false)
+                .map((u) => u['id'].toString())
+                .toSet();
+
+            _activeMembersCount = aliveIds.length;
+          }
         }
       }
     } catch (_) {

@@ -1,9 +1,12 @@
 import 'dart:convert';
+
 import 'package:capstone_app/Providers/dayung_provider.dart';
 import 'package:capstone_app/ui/theme/branding.dart';
 import 'package:capstone_app/pages/notification.dart';
-import 'package:capstone_app/profile/profile.dart' hide kBg, kPrimary, kWarn, kAccent;
-import 'package:capstone_app/pages/submit_claim.dart' hide kSubtleText, kNeutralText, kPrimaryDark, kPrimary;
+import 'package:capstone_app/profile/profile.dart'
+    hide kBg, kPrimary, kWarn, kAccent;
+import 'package:capstone_app/pages/submit_claim.dart'
+    hide kSubtleText, kNeutralText, kPrimaryDark, kPrimary;
 import 'package:capstone_app/widgets/member_header.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -13,7 +16,11 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 const double kCardRadius = 18;
 
 class ClaimsPage extends StatefulWidget {
-  const ClaimsPage({super.key});
+  const ClaimsPage({super.key, this.onNavBarVisible});
+
+  // Dashboard passes a callback to show/hide the bottom navbar
+  final ValueChanged<bool>? onNavBarVisible;
+
   @override
   State<ClaimsPage> createState() => _ClaimsPageState();
 }
@@ -24,6 +31,8 @@ class _ClaimsPageState extends State<ClaimsPage>
 
   bool _loading = true;
   bool _submittingModalOpen = false;
+  bool _bottomRefreshing = false;
+  bool _navBarVisible = true;
 
   List<Map<String, dynamic>> _allClaims = [];
   List<Map<String, dynamic>> _pending = [];
@@ -37,39 +46,166 @@ class _ClaimsPageState extends State<ClaimsPage>
   String _dayungName = 'Dayung';
   String? _barangay;
   String? _city;
+  int? _dayungId;
 
   @override
   void initState() {
     super.initState();
+    // Ensure navbar visible when page opens
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      widget.onNavBarVisible?.call(true);
+    });
+
     _tabController = TabController(length: 2, vsync: this)
-      ..addListener(() => setState(() {}));
+      ..addListener(() {
+        if (_tabController.indexIsChanging) return; // wait until settled
+        _fetchClaims();
+      });
+
     _init();
   }
 
+  @override
+  void dispose() {
+    // Ensure navbar visible when leaving
+    widget.onNavBarVisible?.call(true);
+    _tabController.dispose();
+    _searchCtrl.dispose();
+    super.dispose();
+  }
+
   Future<void> _init() async {
-    await Future.wait([
-      _loadDayungUnit(),
-      _loadProfileImage(),
-      _fetchClaims(),
-    ]);
+    setState(() => _loading = true);
+    await _loadDayungUnit();
+    await _loadProfileImage();
+    await _fetchClaims();
+  }
+
+  Future<void> _refresh() async {
+    // Force server sync on pull-to-refresh
+    setState(() => _loading = true);
+    await _loadDayungFromServerAndCache();
+    await _fetchClaims();
+    await _loadProfileImage();
+  }
+
+  Future<void> _triggerBottomRefresh() async {
+    if (_bottomRefreshing) return;
+    _bottomRefreshing = true;
+    try {
+      await _refresh();
+    } finally {
+      _bottomRefreshing = false;
+    }
   }
 
   Future<void> _loadDayungUnit() async {
     final prefs = await SharedPreferences.getInstance();
     final unitJson = prefs.getString('selectedDayungUnit');
+
     if (unitJson != null) {
       try {
         final raw = jsonDecode(unitJson);
         final map = Map<String, dynamic>.from(raw as Map);
         setState(() {
           _dayungObj = map;
+          _dayungId = (map['id'] is int)
+              ? map['id'] as int
+              : int.tryParse('${map['id']}');
           _dayungName = (map['name'] ?? 'Dayung').toString();
           _barangay = map['barangay'];
           _city = map['city'];
         });
+
+        // Verify prefs against server; if different, replace cache with server value
+        final sb = Supabase.instance.client;
+        final u = sb.auth.currentUser;
+        if (u != null) {
+          final me = await sb
+              .from('users')
+              .select('dayung_unit_id')
+              .eq('id', u.id)
+              .maybeSingle();
+          final int? serverId = me != null
+              ? (me['dayung_unit_id'] as int?)
+              : null;
+          if (serverId != null && serverId != _dayungId) {
+            await _loadDayungFromServerAndCache();
+          }
+        }
+        return;
       } catch (_) {
-        setState(() => _dayungObj = null);
+        setState(() {
+          _dayungObj = null;
+          _dayungId = null;
+        });
       }
+    } else {
+      setState(() {
+        _dayungObj = null;
+        _dayungId = null;
+      });
+    }
+    await _loadDayungFromServerAndCache();
+  }
+
+  Future<void> _loadDayungFromServerAndCache() async {
+    final sb = Supabase.instance.client;
+    final u = sb.auth.currentUser;
+    if (u == null) {
+      setState(() {
+        _dayungObj = null;
+        _dayungId = null;
+      });
+      return;
+    }
+    try {
+      final me = await sb
+          .from('users')
+          .select('dayung_unit_id')
+          .eq('id', u.id)
+          .maybeSingle();
+
+      final int? id = me != null ? (me['dayung_unit_id'] as int?) : null;
+      if (id == null) {
+        setState(() {
+          _dayungObj = null;
+          _dayungId = null;
+          _dayungName = 'Dayung';
+          _barangay = null;
+          _city = null;
+        });
+        return;
+      }
+
+      final d = await sb
+          .from('dayung_units')
+          .select('id, name, barangay, city')
+          .eq('id', id)
+          .maybeSingle();
+
+      final map = {
+        'id': id,
+        'name': d?['name'] ?? 'Dayung',
+        'barangay': d?['barangay'],
+        'city': d?['city'],
+      };
+
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('selectedDayungUnit', jsonEncode(map));
+
+      setState(() {
+        _dayungObj = map;
+        _dayungId = id;
+        _dayungName = map['name'] as String;
+        _barangay = map['barangay'] as String?;
+        _city = map['city'] as String?;
+      });
+    } catch (_) {
+      setState(() {
+        _dayungObj = null;
+        _dayungId = null;
+      });
     }
   }
 
@@ -102,23 +238,40 @@ class _ClaimsPageState extends State<ClaimsPage>
         });
         return;
       }
+
+      // Require a selected Dayung; show per Dayung only
+      if (_dayungId == null) {
+        setState(() {
+          _allClaims = [];
+          _pending = [];
+          _history = [];
+          _loading = false;
+        });
+        return;
+      }
+
       final data = await Supabase.instance.client
           .from('claims')
-          .select('id, title, description, status, date_submitted')
+          .select(
+            'id, title, description, status, date_submitted, dayung_unit_id',
+          )
           .eq('user_id', user.id)
+          .eq('dayung_unit_id', _dayungId as Object)
           .order('date_submitted', ascending: false);
-      final claims =
-          List<Map<String, dynamic>>.from(data as List<dynamic>).map((c) {
-        return Map<String, dynamic>.from(c);
-      }).toList();
+
+      final claims = List<Map<String, dynamic>>.from(
+        data as List<dynamic>,
+      ).map((c) => Map<String, dynamic>.from(c)).toList();
 
       final pending = claims
-          .where((c) =>
-              (c['status'] ?? '').toString().toLowerCase() == 'pending')
+          .where(
+            (c) => (c['status'] ?? '').toString().toLowerCase() == 'pending',
+          )
           .toList();
       final history = claims
-          .where((c) =>
-              (c['status'] ?? '').toString().toLowerCase() != 'pending')
+          .where(
+            (c) => (c['status'] ?? '').toString().toLowerCase() != 'pending',
+          )
           .toList();
 
       setState(() {
@@ -137,14 +290,6 @@ class _ClaimsPageState extends State<ClaimsPage>
     }
   }
 
-  Future<void> _refresh() async {
-    await Future.wait([
-      _fetchClaims(),
-      _loadDayungUnit(),
-      _loadProfileImage(),
-    ]);
-  }
-
   String _formatDate(dynamic v) {
     if (v == null) return '';
     try {
@@ -161,7 +306,7 @@ class _ClaimsPageState extends State<ClaimsPage>
         'Sep',
         'Oct',
         'Nov',
-        'Dec'
+        'Dec',
       ];
       return '${months[dt.month - 1]} ${dt.day}, ${dt.year}';
     } catch (_) {
@@ -222,8 +367,9 @@ class _ClaimsPageState extends State<ClaimsPage>
         borderRadius: BorderRadius.vertical(top: Radius.circular(26)),
       ),
       builder: (_) => Padding(
-        padding:
-            EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+        padding: EdgeInsets.only(
+          bottom: MediaQuery.of(context).viewInsets.bottom,
+        ),
         child: const SubmitClaimForm(),
       ),
     ).whenComplete(() {
@@ -258,8 +404,10 @@ class _ClaimsPageState extends State<ClaimsPage>
               Row(
                 children: [
                   Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 6,
+                    ),
                     decoration: BoxDecoration(
                       color: color.withOpacity(.12),
                       borderRadius: BorderRadius.circular(30),
@@ -307,8 +455,7 @@ class _ClaimsPageState extends State<ClaimsPage>
               const SizedBox(height: 10),
               Row(
                 children: [
-                  const Icon(Icons.access_time,
-                      size: 16, color: kSubtleText),
+                  const Icon(Icons.access_time, size: 16, color: kSubtleText),
                   const SizedBox(width: 6),
                   Text(
                     _formatDate(claim['date_submitted']),
@@ -370,14 +517,8 @@ class _ClaimsPageState extends State<ClaimsPage>
   }
 
   @override
-  void dispose() {
-    _tabController.dispose();
-    _searchCtrl.dispose();
-    super.dispose();
-  }
-
-  @override
   Widget build(BuildContext context) {
+    // If provider changes the Dayung name, reload dayung info
     final providerName = context.watch<DayungUnitProvider>().dayungUnit;
     if (providerName != null && providerName != _dayungName) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -404,94 +545,118 @@ class _ClaimsPageState extends State<ClaimsPage>
         backgroundColor: kPrimary,
         foregroundColor: Colors.white,
       ),
-      body: RefreshIndicator(
-        onRefresh: _refresh,
-        edgeOffset: 120,
-        child: NestedScrollView(
-          headerSliverBuilder: (_, __) => [
-            SliverToBoxAdapter(
-              child: MemberHeader(
-                title: _dayungName,
-                subtitle: _barangay != null
-                    ? '${_barangay!}${_city != null ? ', $_city' : ''}'
-                    : null,
-                profileUrl: _profileUrl,
-                onNotificationTap: () => Navigator.push(
+      body: NestedScrollView(
+        headerSliverBuilder: (_, __) => [
+          SliverToBoxAdapter(
+            child: MemberHeader(
+              title: _dayungName,
+              subtitle: _barangay != null
+                  ? '${_barangay!}${_city != null ? ', $_city' : ''}'
+                  : null,
+              profileUrl: _profileUrl,
+              onNotificationTap: () => Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const NotificationPage()),
+              ),
+              onProfileTap: () {
+                Navigator.push(
                   context,
-                  MaterialPageRoute(
-                    builder: (_) => const NotificationPage(),
-                  ),
-                ),
-                onProfileTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => const ProfilePage(),
-                    ),
-                  ).then((_) => _loadProfileImage());
-                },
-              ),
+                  MaterialPageRoute(builder: (_) => const ProfilePage()),
+                ).then((_) => _loadProfileImage());
+              },
             ),
-            const SliverToBoxAdapter(
-              child: Divider(thickness: 1, height: 24, color: Colors.grey),
+          ),
+          const SliverToBoxAdapter(
+            child: Divider(thickness: 1, height: 24, color: Colors.grey),
+          ),
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
+              child: _searchField(),
             ),
-            SliverToBoxAdapter(
+          ),
+          SliverAppBar(
+            pinned: true,
+            backgroundColor: kBg,
+            elevation: 0,
+            toolbarHeight: 0,
+            bottom: PreferredSize(
+              preferredSize: const Size.fromHeight(52),
               child: Padding(
-                padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
-                child: _searchField(),
-              ),
-            ),
-            SliverAppBar(
-              pinned: true,
-              backgroundColor: kBg,
-              elevation: 0,
-              toolbarHeight: 0,
-              bottom: PreferredSize(
-                preferredSize: const Size.fromHeight(52),
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 12),
-                  child: TabBar(
-                    controller: _tabController,
-                    labelColor: kPrimaryDark,
-                    unselectedLabelColor: kSubtleText,
-                    indicator: UnderlineTabIndicator(
-                      borderSide:
-                          const BorderSide(color: kPrimaryDark, width: 3),
-                      insets:
-                          EdgeInsets.symmetric(horizontal: isWide ? 120 : 40),
-                    ),
-                    labelStyle: const TextStyle(
-                      fontWeight: FontWeight.w700,
-                      fontSize: 16,
-                      fontFamily: 'Montserrat',
-                    ),
-                    unselectedLabelStyle: const TextStyle(
-                      fontWeight: FontWeight.w500,
-                      fontSize: 16,
-                      fontFamily: 'Montserrat',
-                    ),
-                    tabs: const [
-                      Tab(text: 'Ongoing'),
-                      Tab(text: 'History'),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          ],
-          body: _loading
-              ? ListView(
-                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 90),
-                  children: List.generate(4, (_) => _skeletonCard()),
-                )
-              : TabBarView(
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+                child: TabBar(
                   controller: _tabController,
-                  children: [
-                    _claimListView(ongoingList, true),
-                    _claimListView(historyList, false),
+                  labelColor: kPrimaryDark,
+                  unselectedLabelColor: kSubtleText,
+                  indicator: UnderlineTabIndicator(
+                    borderSide: const BorderSide(color: kPrimaryDark, width: 3),
+                    insets: EdgeInsets.symmetric(horizontal: isWide ? 120 : 40),
+                  ),
+                  labelStyle: const TextStyle(
+                    fontWeight: FontWeight.w700,
+                    fontSize: 16,
+                    fontFamily: 'Montserrat',
+                  ),
+                  unselectedLabelStyle: const TextStyle(
+                    fontWeight: FontWeight.w500,
+                    fontSize: 16,
+                    fontFamily: 'Montserrat',
+                  ),
+                  tabs: const [
+                    Tab(text: 'Ongoing'),
+                    Tab(text: 'History'),
                   ],
                 ),
-        ),
+              ),
+            ),
+          ),
+        ],
+        body: _loading
+            ? _wrapWithRefreshAndNav(
+                ListView(
+                  physics: const AlwaysScrollableScrollPhysics(
+                    parent: BouncingScrollPhysics(),
+                  ),
+                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 90),
+                  children: List.generate(4, (_) => _skeletonCard()),
+                ),
+              )
+            : TabBarView(
+                controller: _tabController,
+                children: [
+                  _claimListView(ongoingList, true),
+                  _claimListView(historyList, false),
+                ],
+              ),
+      ),
+    );
+  }
+
+  Widget _wrapWithRefreshAndNav(Widget scrollable) {
+    return NotificationListener<ScrollNotification>(
+      onNotification: (n) {
+        if (n.metrics.axis != Axis.vertical) return false;
+
+        final atBottom =
+            n.metrics.pixels >= n.metrics.maxScrollExtent &&
+            n.metrics.maxScrollExtent > 0;
+
+        final wantVisible = !atBottom;
+        if (wantVisible != _navBarVisible) {
+          _navBarVisible = wantVisible;
+          widget.onNavBarVisible?.call(_navBarVisible);
+        }
+
+        if (atBottom && n is OverscrollNotification && n.overscroll > 0) {
+          _triggerBottomRefresh();
+        }
+        return false;
+      },
+      child: RefreshIndicator(
+        onRefresh: _refresh,
+        edgeOffset: 0,
+        color: kPrimary, // Material spinner color
+        child: scrollable,
       ),
     );
   }
@@ -533,46 +698,57 @@ class _ClaimsPageState extends State<ClaimsPage>
 
   Widget _claimListView(List<Map<String, dynamic>> list, bool ongoing) {
     if (list.isEmpty) {
-      return ListView(
-        padding: const EdgeInsets.fromLTRB(16, 60, 16, 120),
-        children: [
-          Icon(
-            ongoing ? Icons.pending_actions : Icons.inbox_outlined,
-            size: 60,
-            color: kSubtleText.withOpacity(.35),
+      return _wrapWithRefreshAndNav(
+        ListView(
+          physics: const AlwaysScrollableScrollPhysics(
+            parent: BouncingScrollPhysics(),
           ),
-          const SizedBox(height: 18),
-          Center(
-            child: Text(
-              ongoing ? 'No pending claims' : 'No claim history',
-              style: const TextStyle(
-                fontSize: 16,
-                fontFamily: 'OpenSans',
-                fontWeight: FontWeight.w600,
-                color: kSubtleText,
-              ),
+          padding: const EdgeInsets.fromLTRB(16, 60, 16, 120),
+          children: [
+            Icon(
+              ongoing ? Icons.pending_actions : Icons.inbox_outlined,
+              size: 60,
+              color: kSubtleText.withOpacity(.35),
             ),
-          ),
-          const SizedBox(height: 10),
-          if (ongoing)
+            const SizedBox(height: 18),
             Center(
               child: Text(
-                'Tap "New Claim" to submit one.',
-                style: TextStyle(
-                  fontSize: 13,
+                ongoing ? 'No pending claims' : 'No claim history',
+                style: const TextStyle(
+                  fontSize: 16,
                   fontFamily: 'OpenSans',
-                  color: kSubtleText.withOpacity(.75),
+                  fontWeight: FontWeight.w600,
+                  color: kSubtleText,
                 ),
               ),
             ),
-        ],
+            const SizedBox(height: 10),
+            if (ongoing)
+              Center(
+                child: Text(
+                  'Tap "New Claim" to submit one.',
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontFamily: 'OpenSans',
+                    color: kSubtleText.withOpacity(.75),
+                  ),
+                ),
+              ),
+          ],
+        ),
       );
     }
-    return ListView.separated(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 120),
-      itemCount: list.length,
-      separatorBuilder: (_, __) => const SizedBox(height: 14),
-      itemBuilder: (_, i) => _claimCard(list[i]),
+
+    return _wrapWithRefreshAndNav(
+      ListView.separated(
+        physics: const AlwaysScrollableScrollPhysics(
+          parent: BouncingScrollPhysics(),
+        ),
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 120),
+        itemCount: list.length,
+        separatorBuilder: (_, __) => const SizedBox(height: 14),
+        itemBuilder: (_, i) => _claimCard(list[i]),
+      ),
     );
   }
 
@@ -606,8 +782,10 @@ class _ClaimsPageState extends State<ClaimsPage>
             Row(
               children: [
                 Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 5,
+                  ),
                   decoration: BoxDecoration(
                     color: color.withOpacity(.12),
                     borderRadius: BorderRadius.circular(30),
@@ -684,8 +862,11 @@ class _ClaimsPageState extends State<ClaimsPage>
                     ),
                   ),
                 ),
-                const Icon(Icons.chevron_right,
-                    size: 20, color: Colors.black38),
+                const Icon(
+                  Icons.chevron_right,
+                  size: 20,
+                  color: Colors.black38,
+                ),
               ],
             ),
           ],
@@ -696,13 +877,13 @@ class _ClaimsPageState extends State<ClaimsPage>
 
   Widget _skeletonCard() {
     Widget bar(double w, double h) => Container(
-          width: w,
-          height: h,
-          decoration: BoxDecoration(
-            color: Colors.grey.shade200,
-            borderRadius: BorderRadius.circular(6),
-          ),
-        );
+      width: w,
+      height: h,
+      decoration: BoxDecoration(
+        color: Colors.grey.shade200,
+        borderRadius: BorderRadius.circular(6),
+      ),
+    );
     return Container(
       margin: const EdgeInsets.only(bottom: 14),
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 14),

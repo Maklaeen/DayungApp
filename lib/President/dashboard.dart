@@ -1,106 +1,341 @@
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:capstone_app/pages/notification.dart';
+import 'package:capstone_app/profile/profile.dart';
 
-void main() => runApp(const DayungApp());
+// Palette aligned with Secretary
+const Color kBg = Color(0xFFFAFAF7);
+const Color kPrimary = Color(0xFF0D47A1);
+const Color kPrimaryDark = Color(0xFF083366);
+const Color kAccent = Color(0xFF2E7D32);
+const Color kWarn = Color(0xFFF57C00);
+const Color kDanger = Color(0xFFC62828);
+const Color kNeutralText = Color(0xFF1F2937);
+const Color kSubtleText = Color(0xFF4B5563);
 
-class DayungApp extends StatelessWidget {
-  const DayungApp({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'Dayung',
-      debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF2956A3)),
-        useMaterial3: true,
-        fontFamily: 'Roboto',
-      ),
-      home: const PresidentDashboardPage(),
-    );
-  }
-}
-
-class PresidentDashboardPage extends StatelessWidget {
+class PresidentDashboardPage extends StatefulWidget {
   const PresidentDashboardPage({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFFF7F7F7),
-      body: SafeArea(
-        child: Column(
-          children: [
-            const _TopBar(),
-            const Divider(height: 1),
-            Expanded(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const _GreetingRow(),
-                    const SizedBox(height: 14),
-                    // Four cards grid
-                    LayoutBuilder(
-  builder: (context, constraints) {
-    final isSmallDevice = constraints.maxWidth < 360;
+  State<PresidentDashboardPage> createState() => _PresidentDashboardPageState();
+}
 
-    return GridView.count(
-      crossAxisCount: 2,
+class _PresidentDashboardPageState extends State<PresidentDashboardPage> {
+  final _sb = Supabase.instance.client;
+
+  bool _loading = true;
+  int _activeMembersCount = 0;
+  List<String> _recentDeaths = [];
+
+  // TODO: wire to your payments schema
+  int _pendingMembers = 0;
+  num _pendingAmount = 0;
+
+  // Responsive + nav state (match Secretary)
+  int _currentIndex = 0;
+  bool _showNavBar = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    setState(() => _loading = true);
+    try {
+      final ids = await _managedDayungIds();
+      await Future.wait([
+        _fetchActiveMembersCount(ids),
+        _fetchRecentDeaths(ids),
+        _fetchPendingPayments(ids),
+      ]);
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  Future<List<int>> _managedDayungIds() async {
+    try {
+      final rows = await _sb
+          .from('dayung_units')
+          .select('id')
+          // .eq('president_id', _sb.auth.currentUser?.id) // if you have this column
+          .order('id');
+      return List<Map<String, dynamic>>.from(
+        rows,
+      ).map((e) => (e['id'] as int)).toList();
+    } catch (e) {
+      debugPrint('PresidentDashboard _managedDayungIds error: $e');
+      return <int>[];
+    }
+  }
+
+  Future<void> _fetchActiveMembersCount(List<int> ids) async {
+    if (ids.isEmpty) {
+      _activeMembersCount = 0;
+      return;
+    }
+    final apps = await _sb
+        .from('applications')
+        .select('user_id')
+        .inFilter('dayung_unit_id', ids)
+        .eq('status', 'approved');
+    final userIds = <String>{};
+    for (final r in List<Map<String, dynamic>>.from(apps)) {
+      final id = (r['user_id'] ?? '').toString();
+      if (id.isNotEmpty) userIds.add(id);
+    }
+    if (userIds.isEmpty) {
+      _activeMembersCount = 0;
+      return;
+    }
+    final users = await _sb
+        .from('users')
+        .select('id,is_deceased')
+        .inFilter('id', userIds.toList());
+    final alive = List<Map<String, dynamic>>.from(users)
+        .where((u) => (u['is_deceased'] ?? false) == false)
+        .map((u) => u['id'].toString())
+        .toSet();
+    _activeMembersCount = alive.length;
+  }
+
+  Future<void> _fetchRecentDeaths(List<int> ids) async {
+    if (ids.isEmpty) {
+      _recentDeaths = [];
+      return;
+    }
+    final rows = await _sb
+        .from('users')
+        .select('full_name')
+        .inFilter('dayung_unit_id', ids)
+        .eq('is_deceased', true)
+        .order('date_of_death', ascending: false)
+        .limit(2);
+    _recentDeaths = List<Map<String, dynamic>>.from(
+      rows,
+    ).map((e) => (e['full_name'] ?? 'Member') as String).toList();
+  }
+
+  Future<void> _fetchPendingPayments(List<int> ids) async {
+    // TODO: Replace with your real query (e.g., dues/payments tables).
+    _pendingMembers = 0;
+    _pendingAmount = 0;
+  }
+
+  List<Widget> get _pages => [
+    _buildHomePage(context),
+    const Placeholder(child: Center(child: Text("Contributions"))),
+    const Placeholder(child: Center(child: Text("Claims"))),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    final width = MediaQuery.of(context).size.width;
+    final bool wide = width > 820;
+
+    return Scaffold(
+      backgroundColor: kBg,
+      body: Stack(
+        children: [
+          SafeArea(
+            child: Column(
+              children: [
+                const _TopBar(),
+                const Divider(height: 1, color: Color(0xFFE1E4E8)),
+                if (_currentIndex == 0) const _GreetingRow(),
+                Expanded(
+                  child: AnimatedSwitcher(
+                    duration: const Duration(milliseconds: 250),
+                    child: IndexedStack(
+                      key: ValueKey(_currentIndex),
+                      index: _currentIndex,
+                      children: _pages,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          _bottomNav(wide),
+        ],
+      ),
+    );
+  }
+
+  /* ------------------------------- Home page ------------------------------- */
+  Widget _buildHomePage(BuildContext context) {
+    return LayoutBuilder(
+      builder: (ctx, constraints) {
+        return RefreshIndicator(
+          onRefresh: _load,
+          edgeOffset: 68,
+          child: SingleChildScrollView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            padding: const EdgeInsets.fromLTRB(20, 8, 20, 120),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _overviewTripleCards(constraints.maxWidth),
+                const SizedBox(height: 16),
+                const _PostAnnouncementButton(),
+                const SizedBox(height: 18),
+                const _UpcomingText(),
+                const SizedBox(height: 12),
+                const _ContributionBarChartCard(),
+                const SizedBox(height: 12),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _overviewTripleCards(double maxWidth) {
+    const gap = 12.0;
+
+    // Target equal height for all cards
+    final targetHeight = _cardHeightFor(maxWidth);
+    final isTight = maxWidth < 360;
+    final crossAxisCount = isTight ? 1 : 2;
+
+    // Compute aspect ratio so Grid gives each tile the same size
+    final itemWidth =
+        (maxWidth - (gap * (crossAxisCount - 1))) / crossAxisCount;
+    final childAspectRatio = itemWidth / targetHeight;
+
+    final cards = <Widget>[
+      StatCard(
+        bg: const Color(0xFFD8EEFF),
+        title: 'Total Active\nMembers',
+        bigText: _loading ? '—' : _activeMembersCount.toString(),
+        footerText: 'View All',
+        leading: Icons.groups_rounded,
+      ),
+      StatCard(
+        bg: const Color(0xFFFFDAF6),
+        title: 'Recent Death\nNotices',
+        customListBullets: _loading
+            ? const []
+            : (_recentDeaths.isEmpty
+                  ? const ['No recent notices']
+                  : _recentDeaths.take(2).toList()),
+        footerText: 'View All',
+        leading: Icons.local_florist_rounded,
+      ),
+      StatCard(
+        bg: const Color(0xFFFEFBDC),
+        title: 'Pending Payments',
+        bigText: _loading ? '—' : '₱ ${_pendingAmount.toStringAsFixed(0)}',
+        subText: _loading
+            ? ''
+            : (_pendingMembers > 0
+                  ? 'From $_pendingMembers members'
+                  : 'All settled'),
+        footerText: '',
+        leading: Icons.account_balance_wallet_rounded,
+      ),
+      const StatCard(
+        bg: Color(0xFFE6F0FF),
+        title: 'Manage Roles',
+        leading: Icons.manage_accounts_rounded,
+        footerText: 'Manage',
+      ),
+    ];
+
+    return GridView.builder(
+      itemCount: cards.length,
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
-      mainAxisSpacing: 12,
-      crossAxisSpacing: 12,
-      childAspectRatio: isSmallDevice ? 0.9 : 1.1, // Adjust for small screens
-      children: const [
-        StatCard(
-          bg: Color(0xFFE6F0FF),
-          title: 'Total Active\nMembers',
-          bigText: '259',
-          footerText: 'View All',
-          leading: Icons.groups_rounded,
-        ),
-        StatCard(
-          bg: Color(0xFFFBE6F3),
-          title: 'Recent Death\nNotices',
-          customListBullets: ['Inday H.', 'Pedro M.'],
-          footerText: 'View All',
-          leading: Icons.local_florist_rounded,
-        ),
-        StatCard(
-          bg: Color(0xFFFDE6EF),
-          title: 'Pending Payments',
-          bigText: '₱ 21,900',
-          subText: 'From 219 members',
-          footerText: '',
-          leading: Icons.account_balance_wallet_rounded,
-        ),
-        StatCard(
-          bg: Color(0xFFE6F0FF),
-          title: 'Manage Roles',
-          bigText: '',
-          footerText: 'Manage',
-          leading: Icons.manage_accounts_rounded,
-        ),
-      ],
+      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: crossAxisCount,
+        crossAxisSpacing: gap,
+        mainAxisSpacing: gap,
+        childAspectRatio: childAspectRatio, // forces equal visual size
+      ),
+      itemBuilder: (context, index) => cards[index],
     );
-  },
-),
-                    const SizedBox(height: 16),
-                    const _PostAnnouncementButton(),
-                    const SizedBox(height: 18),
-                    const _UpcomingText(),
-                    const SizedBox(height: 12),
-                    const _ContributionBarChartCard(),
-                    const SizedBox(height: 80), // space above bottom nav
-                  ],
-                ),
+  }
+
+  double _cardHeightFor(double maxWidth) {
+    if (maxWidth < 360) return 200; // small phones (when single column)
+    if (maxWidth < 500) return 220; // typical phones
+    if (maxWidth < 800) return 220; // large phones / small tablets
+    return 230; // tablets
+  }
+
+  /* ------------------------- Bottom nav (responsive) ------------------------- */
+  Widget _bottomNav(bool wide) {
+    return Positioned(
+      left: 0,
+      right: 0,
+      bottom: 16,
+      child: Center(
+        child: IgnorePointer(
+          ignoring: !_showNavBar,
+          child: AnimatedOpacity(
+            duration: const Duration(milliseconds: 250),
+            opacity: _showNavBar ? 1 : 0,
+            child: Container(
+              height: 86,
+              margin: EdgeInsets.symmetric(horizontal: wide ? 170 : 20),
+              padding: const EdgeInsets.symmetric(horizontal: 14),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(44),
+                border: Border.all(color: Colors.grey.shade300),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(.08),
+                    blurRadius: 18,
+                    offset: const Offset(0, 6),
+                  ),
+                ],
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                children: [
+                  _navItem(Icons.home_rounded, "Home", 0),
+                  _navItem(Icons.public, "Contributions", 1),
+                  _navItem(Icons.description, "Claims", 2),
+                ],
               ),
             ),
-          ],
+          ),
         ),
       ),
-      bottomNavigationBar: const _BottomNav(),
+    );
+  }
+
+  Widget _navItem(IconData icon, String label, int index) {
+    final selected = _currentIndex == index;
+    return TextButton(
+      onPressed: () => setState(() => _currentIndex = index),
+      style: TextButton.styleFrom(
+        foregroundColor: selected ? kPrimary : kNeutralText,
+        padding: const EdgeInsets.symmetric(horizontal: 12),
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.all(Radius.circular(18)),
+        ),
+      ),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(icon, size: 30, color: selected ? kPrimary : kNeutralText),
+          const SizedBox(height: 4),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+              fontFamily: 'OpenSans',
+              letterSpacing: .3,
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -113,70 +348,98 @@ class _TopBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+      padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
       color: Colors.white,
       child: Row(
         children: [
-          // App name
           Text(
             'Dayung',
             style: TextStyle(
+              fontFamily: 'Montserrat',
               fontSize: 28,
               fontWeight: FontWeight.w800,
-              color: Colors.black.withOpacity(0.9),
+              color: kPrimaryDark,
               letterSpacing: 0.4,
             ),
           ),
           const Spacer(),
-          // Notification bell with badge
-          Stack(
-            clipBehavior: Clip.none,
-            children: [
-              IconButton(
-                icon: const Icon(Icons.notifications_active_rounded),
-                onPressed: () {},
-                color: const Color(0xFFFFB703),
+          _iconBtn(
+            icon: Icons.notifications_active_rounded,
+            color: kWarn,
+            tooltip: 'Notifications',
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const NotificationPage()),
+              );
+            },
+            badge: '1',
+          ),
+          const SizedBox(width: 6),
+          _iconBtn(
+            icon: Icons.settings_rounded,
+            color: kPrimary,
+            tooltip: 'Profile & Settings',
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const ProfilePage()),
+              );
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _iconBtn({
+    required IconData icon,
+    required Color color,
+    required VoidCallback onTap,
+    String? tooltip,
+    String? badge,
+  }) {
+    return Semantics(
+      label: tooltip,
+      button: true,
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          InkWell(
+            borderRadius: BorderRadius.circular(12),
+            onTap: onTap,
+            child: Container(
+              width: 40,
+              height: 40,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: color.withOpacity(.10),
+                borderRadius: BorderRadius.circular(12),
               ),
-              Positioned(
-                right: 8,
-                top: 6,
-                child: Container(
-                  width: 16,
-                  height: 16,
-                  alignment: Alignment.center,
-                  decoration: BoxDecoration(
-                    color: Colors.redAccent,
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: const Text(
-                    '1',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 10,
-                      fontWeight: FontWeight.bold,
-                    ),
+              child: Icon(icon, color: color, size: 22),
+            ),
+          ),
+          if (badge != null)
+            Positioned(
+              right: -2,
+              top: -2,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                decoration: BoxDecoration(
+                  color: kDanger,
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Text(
+                  badge,
+                  style: const TextStyle(
+                    fontFamily: 'OpenSans',
+                    fontSize: 10,
+                    fontWeight: FontWeight.w700,
+                    color: Colors.white,
                   ),
                 ),
               ),
-            ],
-          ),
-          // Settings gear + profile circle (combined in one avatar w/ gear bg)
-          Container(
-            width: 36,
-            height: 36,
-            decoration: BoxDecoration(
-              color: const Color(0xFFEAF2FF),
-              borderRadius: BorderRadius.circular(10),
             ),
-            child: IconButton(
-              icon: const Icon(
-                Icons.settings_rounded,
-                color: Color(0xFF4A6BD8),
-              ),
-              onPressed: () {},
-              tooltip: 'Settings',
-            ),
-          ),
         ],
       ),
     );
@@ -190,41 +453,55 @@ class _GreetingRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      children: [
-        // Greeting
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Maayung buntag,',
-                style: TextStyle(
-                  fontSize: 24,
-                  color: Colors.black.withOpacity(0.8),
-                  fontWeight: FontWeight.w600,
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 12, 20, 8), // more breathing room
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start, // left-align title
+              children: [
+                Text(
+                  'Maayung buntag,',
+                  style: TextStyle(
+                    fontFamily: 'Montserrat',
+                    fontSize: 22,
+                    color: kNeutralText.withOpacity(0.85),
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
-              ),
-              const SizedBox(height: 2),
-              Text(
-                'President!',
-                style: TextStyle(
-                  fontSize: 26,
-                  height: 1.05,
-                  color: Colors.black.withOpacity(0.9),
-                  fontWeight: FontWeight.w800,
+                const SizedBox(height: 4),
+                const Text(
+                  'President!',
+                  style: TextStyle(
+                    fontFamily: 'Montserrat',
+                    fontSize: 26,
+                    height: 1.05,
+                    color: kNeutralText,
+                    fontWeight: FontWeight.w800,
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
-        ),
-        // Profile avatar
-        CircleAvatar(
-          radius: 28,
-          backgroundColor: const Color(0xFFEAEAEA),
-          child: Icon(Icons.person, size: 34, color: Colors.blue.shade700),
-        ),
-      ],
+          const SizedBox(width: 14), // add gap from the avatar
+          InkWell(
+            borderRadius: BorderRadius.circular(28),
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const ProfilePage()),
+              );
+            },
+            child: const CircleAvatar(
+              radius: 28,
+              backgroundColor: kPrimary,
+              child: Icon(Icons.person, size: 34, color: Colors.white),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -239,6 +516,7 @@ class StatCard extends StatelessWidget {
   final String footerText;
   final IconData leading;
   final List<String>? customListBullets;
+  final VoidCallback? onTap; // NEW
 
   const StatCard({
     super.key,
@@ -249,6 +527,7 @@ class StatCard extends StatelessWidget {
     this.subText = '',
     this.footerText = '',
     this.customListBullets,
+    this.onTap, // NEW
   });
 
   @override
@@ -258,45 +537,49 @@ class StatCard extends StatelessWidget {
 
     return Material(
       color: bg,
-      elevation: 1,
+      elevation: 0,
       borderRadius: BorderRadius.circular(16),
       child: InkWell(
         borderRadius: BorderRadius.circular(16),
-        onTap: () {}, // Add navigation or actions
-        child: Padding(
+        onTap: onTap, // use per-card handler
+        child: Container(
+          decoration: BoxDecoration(
+            border: Border.all(color: Colors.grey.shade300, width: 1.8),
+            borderRadius: BorderRadius.circular(16),
+          ),
           padding: const EdgeInsets.fromLTRB(12, 16, 12, 14),
           child: Column(
+            mainAxisSize: MainAxisSize.max, // fill given height
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              // Top-centered icon
-              Container(
-                padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.9),
-                  shape: BoxShape.circle,
-                ),
-                child: Icon(
-                  leading,
-                  size: 32,
-                  color: Colors.blueAccent.shade700, // Eye-catching color
-                ),
+              // header
+              Column(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.92),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(leading, size: 30, color: kPrimary),
+                  ),
+                  const SizedBox(height: 10),
+                  Text(
+                    title,
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontFamily: 'Montserrat',
+                      fontSize: 15.5,
+                      height: 1.25,
+                      fontWeight: FontWeight.w800,
+                      color: kNeutralText,
+                    ),
+                  ),
+                ],
               ),
-              const SizedBox(height: 10),
 
-              // Title
-              Text(
-                title,
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontSize: 15.5,
-                  height: 1.25,
-                  fontWeight: FontWeight.w700,
-                  color: Colors.black.withOpacity(0.85),
-                ),
-              ),
-              const SizedBox(height: 10),
-
-              // Big Text / List
+              // body
               if (isListCard)
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -307,18 +590,20 @@ class StatCard extends StatelessWidget {
                           padding: const EdgeInsets.symmetric(vertical: 2),
                           child: Row(
                             children: [
-                              Icon(
+                              const Icon(
                                 Icons.local_florist_rounded,
                                 size: 16,
-                                color: Colors.pink.shade400,
+                                color: Color(0xFFEC4899),
                               ),
                               const SizedBox(width: 6),
                               Expanded(
                                 child: Text(
                                   item,
                                   style: const TextStyle(
+                                    fontFamily: 'OpenSans',
                                     fontSize: 14.5,
                                     fontWeight: FontWeight.w600,
+                                    color: kNeutralText,
                                   ),
                                 ),
                               ),
@@ -328,38 +613,42 @@ class StatCard extends StatelessWidget {
                       )
                       .toList(),
                 )
-              else ...[
-                if (bigText.isNotEmpty)
-                  Text(
-                    bigText,
-                    style: const TextStyle(
-                      fontSize: 26,
-                      fontWeight: FontWeight.w900,
-                    ),
-                    textAlign: TextAlign.center,
-                  ),
-                if (subText.isNotEmpty)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 4),
-                    child: Text(
-                      subText,
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        fontSize: 13,
-                        color: Colors.black.withOpacity(0.65),
-                        fontWeight: FontWeight.w600,
+              else
+                Column(
+                  children: [
+                    if (bigText.isNotEmpty)
+                      Text(
+                        bigText,
+                        style: const TextStyle(
+                          fontFamily: 'Montserrat',
+                          fontSize: 26,
+                          fontWeight: FontWeight.w900,
+                          color: kNeutralText,
+                        ),
+                        textAlign: TextAlign.center,
                       ),
-                    ),
-                  ),
-              ],
+                    if (subText.isNotEmpty) ...[
+                      const SizedBox(height: 4),
+                      Text(
+                        subText,
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          fontFamily: 'OpenSans',
+                          fontSize: 13,
+                          color: kSubtleText,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
 
-              const Spacer(),
-
-              // Footer Text
+              // footer
               if (footerText.isNotEmpty)
                 Text(
                   footerText,
                   style: const TextStyle(
+                    fontFamily: 'OpenSans',
                     fontSize: 14,
                     color: Color(0xFF2D63D6),
                     fontWeight: FontWeight.w800,
@@ -381,9 +670,9 @@ class _PostAnnouncementButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: const Color(0xFF2956A3),
+      color: kPrimary,
       borderRadius: BorderRadius.circular(18),
-      elevation: 1,
+      elevation: 0,
       child: InkWell(
         onTap: () {},
         borderRadius: BorderRadius.circular(18),
@@ -399,6 +688,7 @@ class _PostAnnouncementButton extends StatelessWidget {
               Text(
                 'Post Announcement',
                 style: TextStyle(
+                  fontFamily: 'Montserrat',
                   color: Colors.white,
                   fontSize: 18.5,
                   fontWeight: FontWeight.w800,
@@ -424,9 +714,10 @@ class _UpcomingText extends StatelessWidget {
         'Upcoming:  July 16 - Monthly\nMeeting @ 3PM',
         textAlign: TextAlign.center,
         style: TextStyle(
+          fontFamily: 'Montserrat',
           fontSize: 18,
           height: 1.25,
-          color: Colors.black.withOpacity(0.85),
+          color: kNeutralText,
           fontWeight: FontWeight.w700,
           letterSpacing: 0.2,
         ),
@@ -446,8 +737,8 @@ class _ContributionBarChartCard extends StatelessWidget {
       elevation: 0,
       color: Colors.white,
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(8),
-        side: BorderSide(color: Colors.black.withOpacity(0.05)),
+        borderRadius: BorderRadius.circular(12),
+        side: BorderSide(color: Colors.black.withOpacity(0.06)),
       ),
       child: Padding(
         padding: const EdgeInsets.fromLTRB(12, 10, 12, 14),
@@ -456,13 +747,17 @@ class _ContributionBarChartCard extends StatelessWidget {
           children: [
             const Text(
               'Contribution Records by Year',
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800),
+              style: TextStyle(
+                fontFamily: 'Montserrat',
+                fontSize: 16,
+                fontWeight: FontWeight.w800,
+                color: kNeutralText,
+              ),
             ),
             const SizedBox(height: 8),
             SizedBox(
               height: 160,
               child: _MiniBarChart(
-                // simplified sample values for 2023–2025
                 values: const [14, 20, 13],
                 maxY: 25,
                 labels: const ['2023', '2024', '2025'],
@@ -490,17 +785,15 @@ class _MiniBarChart extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final barColor = const Color(0xFF2D63D6);
+    const barColor = Color(0xFF2D63D6);
     return LayoutBuilder(
       builder: (context, c) {
         final barWidth = (c.maxWidth - 40) / (values.length * 2);
         return Stack(
           children: [
-            // horizontal grid lines (0, 5, 10, 15, 20, 25)
             Positioned.fill(
               child: CustomPaint(painter: _GridLinesPainter(maxY: maxY)),
             ),
-            // bars
             Padding(
               padding: const EdgeInsets.fromLTRB(26, 4, 12, 28),
               child: Row(
@@ -523,8 +816,9 @@ class _MiniBarChart extends StatelessWidget {
                         Text(
                           labels[i],
                           style: TextStyle(
+                            fontFamily: 'OpenSans',
                             fontSize: 12,
-                            color: Colors.black.withOpacity(0.75),
+                            color: kSubtleText,
                           ),
                         ),
                       ],
@@ -557,11 +851,11 @@ class _GridLinesPainter extends CustomPainter {
     for (int y = 0; y <= maxY; y += 5) {
       final dy = size.height - bottomPad - (y / maxY) * chartHeight;
       canvas.drawLine(Offset(leftPad, dy), Offset(size.width - 8, dy), paint);
-      // left axis labels
       final tp = TextPainter(
         text: TextSpan(
           text: y == 0 ? '0' : '$y',
           style: TextStyle(
+            fontFamily: 'OpenSans',
             fontSize: 10,
             color: Colors.black.withOpacity(0.6),
             fontWeight: FontWeight.w600,
@@ -588,7 +882,11 @@ class _MiniLegendRow extends StatelessWidget {
         const SizedBox(width: 6),
         Text(
           'batches',
-          style: TextStyle(fontSize: 12, color: Colors.black.withOpacity(0.65)),
+          style: TextStyle(
+            fontFamily: 'OpenSans',
+            fontSize: 12,
+            color: kSubtleText,
+          ),
         ),
       ],
     );
@@ -599,81 +897,4 @@ class _MiniLegendRow extends StatelessWidget {
     height: 10,
     decoration: BoxDecoration(color: c, borderRadius: BorderRadius.circular(3)),
   );
-}
-
-/* ---------------------------- BOTTOM NAVIGATION ------------------------- */
-
-class _BottomNav extends StatelessWidget {
-  const _BottomNav();
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      height: 72,
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: const BorderRadius.only(
-          topLeft: Radius.circular(24),
-          topRight: Radius.circular(24),
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.06),
-            blurRadius: 8,
-            offset: const Offset(0, -2),
-          ),
-        ],
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-        children: const [
-          _NavItem(icon: Icons.home_rounded, label: 'Home', active: true),
-          _NavItem(
-            icon: Icons.volunteer_activism_rounded,
-            label: 'Contributions',
-          ),
-          _NavItem(icon: Icons.description_rounded, label: 'Claims'),
-        ],
-      ),
-    );
-  }
-}
-
-class _NavItem extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final bool active;
-
-  const _NavItem({
-    required this.icon,
-    required this.label,
-    this.active = false,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final color = active ? const Color(0xFF2D63D6) : Colors.black54;
-    return InkWell(
-      borderRadius: BorderRadius.circular(14),
-      onTap: () {},
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(icon, size: 30, color: color),
-            const SizedBox(height: 2),
-            Text(
-              label,
-              style: TextStyle(
-                fontWeight: active ? FontWeight.w800 : FontWeight.w700,
-                color: color,
-                fontSize: 13.5,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
 }
