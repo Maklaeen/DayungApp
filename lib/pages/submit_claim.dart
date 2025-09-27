@@ -91,125 +91,158 @@ class _SubmitClaimFormState extends State<SubmitClaimForm> {
 
   @override
   Widget build(BuildContext context) {
-    final width = MediaQuery.of(context).size.width;
-    final padH = width > 640 ? width * 0.18 : 20;
-    return SingleChildScrollView(
-      padding: EdgeInsets.fromLTRB(padH.toDouble(), 22, padH.toDouble(), 30),
-      child: Container(
-        padding: const EdgeInsets.fromLTRB(20, 26, 20, 30),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(kRadius),
-          border: Border.all(color: Colors.grey.shade300),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(.05),
-              blurRadius: 12,
-              offset: const Offset(0, 4),
+    final mq = MediaQuery.of(context);
+    final width = mq.size.width;
+    final isTablet = width >= 600;
+    final double padH = isTablet ? 24 : 16;
+
+    return SafeArea(
+      child: AnimatedPadding(
+        duration: const Duration(milliseconds: 200),
+        curve: Curves.easeOutCubic,
+        // Lift above the keyboard when typing
+        padding: EdgeInsets.only(bottom: mq.viewInsets.bottom),
+        child: Center(
+          child: ConstrainedBox(
+            // Keep a nice readable width on desktop/tablet
+            constraints: BoxConstraints(
+              maxWidth: 640,
+              // Ensure the modal never exceeds the viewport height
+              maxHeight: mq.size.height - 40,
             ),
-          ],
-        ),
-        child: Form(
-          key: _formKey,
-          child: Column(
-            children: [
-              Icon(Icons.description_outlined, size: 54, color: kPrimaryDark),
-              const SizedBox(height: 12),
-              const Text(
-                'Claim Submission',
-                style: TextStyle(
-                  fontSize: 24,
-                  fontWeight: FontWeight.w800,
-                  fontFamily: 'Montserrat',
-                  color: kNeutralText,
-                  height: 1.1,
-                ),
-              ),
-              const SizedBox(height: 6),
-              Text(
-                'Provide clear details to speed up review.',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontSize: 13,
-                  fontFamily: 'OpenSans',
-                  color: kSubtleText.withOpacity(.85),
-                ),
-              ),
-              const SizedBox(height: 26),
-              TextFormField(
-                controller: _title,
-                textInputAction: TextInputAction.next,
-                decoration: _fieldDec(label: 'Title', icon: Icons.title),
-                validator: (v) {
-                  final t = (v ?? '').trim();
-                  if (t.isEmpty) return 'Enter a title';
-                  if (t.length < 4) return 'Too short';
-                  return null;
-                },
-              ),
-              const SizedBox(height: 18),
-              TextFormField(
-                controller: _desc,
-                minLines: 4,
-                maxLines: 6,
-                decoration: _fieldDec(
-                  label: 'Description (optional)',
-                  icon: Icons.notes_outlined,
-                  lines: 4,
-                ),
-              ),
-              const SizedBox(height: 30),
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton.icon(
-                  onPressed: _submitting ? null : _submit,
-                  icon: _submitting
-                      ? const SizedBox(
-                          width: 22,
-                          height: 22,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2.4,
-                            valueColor: AlwaysStoppedAnimation<Color>(
-                              Colors.white,
+            child: Material(
+              color: Colors.transparent,
+              child: SingleChildScrollView(
+                physics: const BouncingScrollPhysics(),
+                padding: EdgeInsets.fromLTRB(padH, 22, padH, 30),
+                child: Container(
+                  padding: const EdgeInsets.fromLTRB(20, 26, 20, 30),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(kRadius),
+                    border: Border.all(color: Colors.grey.shade300),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(.05),
+                        blurRadius: 12,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
+                  ),
+                  child: Form(
+                    key: _formKey,
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.description_outlined, size: isTablet ? 58 : 52, color: kPrimaryDark),
+                        const SizedBox(height: 12),
+                        Text(
+                          'Claim Submission',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            fontSize: isTablet ? 24 : 22,
+                            fontWeight: FontWeight.w800,
+                            fontFamily: 'Montserrat',
+                            color: kNeutralText,
+                            height: 1.1,
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          'Provide clear details to speed up review.',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            fontSize: isTablet ? 14 : 13,
+                            fontFamily: 'OpenSans',
+                            color: kSubtleText.withOpacity(.85),
+                          ),
+                        ),
+                        const SizedBox(height: 26),
+
+                        // Title
+                        TextFormField(
+                          controller: _title,
+                          textInputAction: TextInputAction.next,
+                          decoration: _fieldDec(label: 'Title', icon: Icons.title),
+                          validator: (v) {
+                            final t = (v ?? '').trim();
+                            if (t.isEmpty) return 'Enter a title';
+                            if (t.length < 4) return 'Too short';
+                            return null;
+                          },
+                        ),
+                        const SizedBox(height: 18),
+
+                        // Description
+                        TextFormField(
+                          controller: _desc,
+                          minLines: 4,
+                          maxLines: 6,
+                          decoration: _fieldDec(
+                            label: 'Description (optional)',
+                            icon: Icons.notes_outlined,
+                            lines: 4,
+                          ),
+                        ),
+                        const SizedBox(height: 30),
+
+                        // Submit
+                        SizedBox(
+                          width: double.infinity,
+                          child: ElevatedButton.icon(
+                            onPressed: _submitting ? null : _submit,
+                            icon: _submitting
+                                ? const SizedBox(
+                                    width: 22,
+                                    height: 22,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2.4,
+                                      valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                                    ),
+                                  )
+                                : const Icon(Icons.send_rounded),
+                            label: Padding(
+                              padding: const EdgeInsets.symmetric(vertical: 6),
+                              child: Text(
+                                _submitting ? 'Submitting...' : 'Submit Claim',
+                                style: const TextStyle(
+                                  fontSize: 17,
+                                  fontWeight: FontWeight.w700,
+                                  fontFamily: 'Montserrat',
+                                  letterSpacing: .4,
+                                ),
+                              ),
+                            ),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: kPrimary,
+                              foregroundColor: Colors.white,
+                              minimumSize: const Size.fromHeight(54),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(16),
+                              ),
                             ),
                           ),
-                        )
-                      : const Icon(Icons.send_rounded),
-                  label: Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 6),
-                    child: Text(
-                      _submitting ? 'Submitting...' : 'Submit Claim',
-                      style: const TextStyle(
-                        fontSize: 17,
-                        fontWeight: FontWeight.w700,
-                        fontFamily: 'Montserrat',
-                        letterSpacing: .4,
-                      ),
-                    ),
-                  ),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: kPrimary,
-                    foregroundColor: Colors.white,
-                    minimumSize: const Size.fromHeight(54),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16),
+                        ),
+                        const SizedBox(height: 14),
+
+                        // Cancel
+                        TextButton.icon(
+                          onPressed: _submitting ? null : () => Navigator.pop(context),
+                          icon: const Icon(Icons.close),
+                          label: const Text(
+                            'Cancel',
+                            style: TextStyle(
+                              fontFamily: 'OpenSans',
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 ),
               ),
-              const SizedBox(height: 14),
-              TextButton.icon(
-                onPressed: _submitting ? null : () => Navigator.pop(context),
-                icon: const Icon(Icons.close),
-                label: const Text(
-                  'Cancel',
-                  style: TextStyle(
-                    fontFamily: 'OpenSans',
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ),
-            ],
+            ),
           ),
         ),
       ),

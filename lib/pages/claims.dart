@@ -2,7 +2,16 @@ import 'dart:convert';
 
 import 'package:capstone_app/Providers/dayung_provider.dart';
 import 'package:capstone_app/ui/theme/branding.dart';
-import 'package:capstone_app/pages/notification.dart' hide kAccent, kDanger, kWarn, kSubtleText, kNeutralText, kBg, kPrimary, kPrimaryDark;
+import 'package:capstone_app/pages/notification.dart'
+    hide
+        kAccent,
+        kDanger,
+        kWarn,
+        kSubtleText,
+        kNeutralText,
+        kBg,
+        kPrimary,
+        kPrimaryDark;
 import 'package:capstone_app/profile/profile.dart'
     hide kBg, kPrimary, kWarn, kAccent;
 import 'package:capstone_app/pages/submit_claim.dart'
@@ -33,6 +42,8 @@ class _ClaimsPageState extends State<ClaimsPage>
   bool _submittingModalOpen = false;
   bool _bottomRefreshing = false;
   bool _navBarVisible = true;
+
+  final double _fabBottomOffset = 16.0;
 
   List<Map<String, dynamic>> _allClaims = [];
   List<Map<String, dynamic>> _pending = [];
@@ -530,20 +541,31 @@ class _ClaimsPageState extends State<ClaimsPage>
     final ongoingList = _filteredList(true);
     final historyList = _filteredList(false);
 
+    // Compute a safe bottom offset so the FAB clears the bottom nav
+    final bottomSafeInset = MediaQuery.of(context).viewPadding.bottom;
+    final double fabBottom =
+        (_navBarVisible ? 90.0 : 24.0) + bottomSafeInset; // tweak 76 as needed
+
     return Scaffold(
-      backgroundColor: kBg,
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: _openSubmitSheet,
-        icon: const Icon(Icons.add),
-        label: const Text(
-          'New Claim',
-          style: TextStyle(
-            fontWeight: FontWeight.w700,
-            fontFamily: 'Montserrat',
+      floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
+      floatingActionButton: SafeArea(
+        top: false,
+        child: Padding(
+          padding: EdgeInsets.only(bottom: fabBottom),
+          child: FloatingActionButton.extended(
+            onPressed: _openSubmitSheet,
+            icon: const Icon(Icons.add),
+            label: const Text(
+              'New Claim',
+              style: TextStyle(
+                fontWeight: FontWeight.w700,
+                fontFamily: 'Montserrat',
+              ),
+            ),
+            backgroundColor: kPrimary,
+            foregroundColor: Colors.white,
           ),
         ),
-        backgroundColor: kPrimary,
-        foregroundColor: Colors.white,
       ),
       body: NestedScrollView(
         headerSliverBuilder: (_, __) => [
