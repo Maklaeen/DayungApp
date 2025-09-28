@@ -239,6 +239,10 @@ class _LoginState extends State<Login> {
           Navigator.pushReplacementNamed(context, '/president-dashboard');
         } else if (role == 'secretary') {
           Navigator.pushReplacementNamed(context, '/secretary-dashboard');
+        } else if (role == 'treasurer') {
+          Navigator.pushReplacementNamed(context, '/treasurer-dashboard');
+        } else if (role == 'collector') {
+          Navigator.pushReplacementNamed(context, '/collector-dashboard');
         } else if (role == 'admin') {
           Navigator.pushReplacementNamed(context, '/admin-dashboard');
         } else {

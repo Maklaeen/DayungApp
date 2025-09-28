@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:file_picker/file_picker.dart';
+import 'dart:io';
 
 // Shared palette (aligned with claims page)
 const Color kPrimary = Color(0xFF0D47A1);
@@ -19,12 +21,37 @@ class _SubmitClaimFormState extends State<SubmitClaimForm> {
   final _title = TextEditingController();
   final _desc = TextEditingController();
   bool _submitting = false;
+  File? _deathCertFile;
+  String? _deathCertUrl;
 
   @override
   void dispose() {
     _title.dispose();
     _desc.dispose();
     super.dispose();
+  }
+
+  Future<void> _pickDeathCert() async {
+    final result = await FilePicker.platform.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: ['pdf', 'jpg', 'jpeg', 'png'],
+    );
+    if (result != null && result.files.single.path != null) {
+      setState(() {
+        _deathCertFile = File(result.files.single.path!);
+      });
+    }
+  }
+
+  Future<String?> _uploadDeathCert(String claimId) async {
+    if (_deathCertFile == null) return null;
+    final storage = Supabase.instance.client.storage;
+    final fileName =
+        'death_cert_${claimId}_${DateTime.now().millisecondsSinceEpoch}.${_deathCertFile!.path.split('.').last}';
+    final bucket = 'death_certificates'; // <-- This is the correct place!
+    final res = await storage.from(bucket).upload(fileName, _deathCertFile!);
+    if (res.error != null) throw Exception(res.error!.message);
+    return storage.from(bucket).getPublicUrl(fileName);
   }
 
   Future<void> _submit() async {
@@ -38,13 +65,31 @@ class _SubmitClaimFormState extends State<SubmitClaimForm> {
     }
     setState(() => _submitting = true);
     try {
-      await Supabase.instance.client.from('claims').insert({
-        'user_id': user.id,
-        'title': _title.text.trim(),
-        'description': _desc.text.trim(),
-        'status': 'Pending',
-        'date_submitted': DateTime.now().toIso8601String(),
-      });
+      // 1. Insert claim (without file URL yet)
+      final insertRes = await Supabase.instance.client
+          .from('claims')
+          .insert({
+            'user_id': user.id,
+            'title': _title.text.trim(),
+            'description': _desc.text.trim(),
+            'status': 'Pending',
+            'date_submitted': DateTime.now().toIso8601String(),
+          })
+          .select()
+          .single();
+      final claimId = insertRes['id'].toString();
+
+      // 2. Upload file if picked
+      String? fileUrl;
+      if (_deathCertFile != null) {
+        fileUrl = await _uploadDeathCert(claimId);
+        // 3. Update claim with file URL
+        await Supabase.instance.client
+            .from('claims')
+            .update({'death_certificate_url': fileUrl})
+            .eq('id', claimId);
+      }
+
       if (!mounted) return;
       Navigator.pop(context);
       ScaffoldMessenger.of(
@@ -134,7 +179,11 @@ class _SubmitClaimFormState extends State<SubmitClaimForm> {
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Icon(Icons.description_outlined, size: isTablet ? 58 : 52, color: kPrimaryDark),
+                        Icon(
+                          Icons.description_outlined,
+                          size: isTablet ? 58 : 52,
+                          color: kPrimaryDark,
+                        ),
                         const SizedBox(height: 12),
                         Text(
                           'Claim Submission',
@@ -163,7 +212,10 @@ class _SubmitClaimFormState extends State<SubmitClaimForm> {
                         TextFormField(
                           controller: _title,
                           textInputAction: TextInputAction.next,
-                          decoration: _fieldDec(label: 'Title', icon: Icons.title),
+                          decoration: _fieldDec(
+                            label: 'Title',
+                            icon: Icons.title,
+                          ),
                           validator: (v) {
                             final t = (v ?? '').trim();
                             if (t.isEmpty) return 'Enter a title';
@@ -186,6 +238,54 @@ class _SubmitClaimFormState extends State<SubmitClaimForm> {
                         ),
                         const SizedBox(height: 30),
 
+                        Align(
+                          alignment: Alignment.centerLeft,
+                          child: Text(
+                            'Death Certificate (PDF/JPG/PNG)',
+                            style: TextStyle(
+                              fontWeight: FontWeight.w700,
+                              fontFamily: 'Montserrat',
+                              fontSize: 15,
+                              color: kNeutralText,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Row(
+                          children: [
+                            ElevatedButton.icon(
+                              onPressed: _submitting ? null : _pickDeathCert,
+                              icon: const Icon(Icons.attach_file),
+                              label: Text(
+                                _deathCertFile == null
+                                    ? 'Attach File'
+                                    : 'Change File',
+                              ),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: kPrimary,
+                                foregroundColor: Colors.white,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            if (_deathCertFile != null)
+                              Expanded(
+                                child: Text(
+                                  _deathCertFile!.path.split('/').last,
+                                  style: const TextStyle(
+                                    fontSize: 13,
+                                    fontFamily: 'OpenSans',
+                                    color: kSubtleText,
+                                  ),
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                          ],
+                        ),
+                        const SizedBox(height: 26),
+
                         // Submit
                         SizedBox(
                           width: double.infinity,
@@ -197,7 +297,9 @@ class _SubmitClaimFormState extends State<SubmitClaimForm> {
                                     height: 22,
                                     child: CircularProgressIndicator(
                                       strokeWidth: 2.4,
-                                      valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                                      valueColor: AlwaysStoppedAnimation<Color>(
+                                        Colors.white,
+                                      ),
                                     ),
                                   )
                                 : const Icon(Icons.send_rounded),
@@ -227,7 +329,9 @@ class _SubmitClaimFormState extends State<SubmitClaimForm> {
 
                         // Cancel
                         TextButton.icon(
-                          onPressed: _submitting ? null : () => Navigator.pop(context),
+                          onPressed: _submitting
+                              ? null
+                              : () => Navigator.pop(context),
                           icon: const Icon(Icons.close),
                           label: const Text(
                             'Cancel',
@@ -248,4 +352,8 @@ class _SubmitClaimFormState extends State<SubmitClaimForm> {
       ),
     );
   }
+}
+
+extension on String {
+  get error => null;
 }

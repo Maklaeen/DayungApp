@@ -1,6 +1,13 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:intl/intl.dart';
+import 'package:url_launcher/url_launcher.dart';
+import 'package:photo_view/photo_view.dart';
+import 'package:flutter_pdfview/flutter_pdfview.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:http/http.dart' as http;
 
 // Shared palette (aligns with dashboard.dart)
 const Color kPrimary = Color(0xFF0D47A1);
@@ -158,7 +165,9 @@ class _SecretaryClaimsPageState extends State<SecretaryClaimsPage>
       // 2. Fetch claims for those user_ids (no join)
       var claimQuery = supabase
           .from('claims')
-          .select('id, user_id, title, description, status, date_submitted')
+          .select(
+            'id, user_id, title, description, status, date_submitted, death_certificate_url',
+          )
           .eq('status', statusTitle)
           .inFilter('user_id', allowedUserIds)
           .order('date_submitted', ascending: false);
@@ -914,6 +923,102 @@ class _SecretaryClaimsPageState extends State<SecretaryClaimsPage>
                 ],
               ),
               const SizedBox(height: 22),
+              if ((claim['death_certificate_url'] ?? '').toString().isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 18),
+                  child: ElevatedButton.icon(
+                    icon: const Icon(Icons.visibility),
+                    label: const Text('View Death Certificate'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: kPrimary,
+                      foregroundColor: Colors.white,
+                      minimumSize: const Size.fromHeight(48),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                    ),
+                    onPressed: () async {
+                      final url = claim['death_certificate_url'].toString();
+                      final isImage =
+                          url.endsWith('.jpg') ||
+                          url.endsWith('.jpeg') ||
+                          url.endsWith('.png');
+                      final isPdf = url.endsWith('.pdf');
+
+                      if (isImage) {
+                        showDialog(
+                          context: context,
+                          builder: (ctx) => Dialog(
+                            backgroundColor: Colors.black,
+                            insetPadding: const EdgeInsets.all(12),
+                            child: PhotoView(
+                              imageProvider: NetworkImage(url),
+                              backgroundDecoration: const BoxDecoration(
+                                color: Colors.black,
+                              ),
+                              minScale: PhotoViewComputedScale.contained,
+                              maxScale: PhotoViewComputedScale.covered * 3,
+                            ),
+                          ),
+                        );
+                      } else if (isPdf) {
+                        // Download PDF to local file
+                        final tempDir = await getTemporaryDirectory();
+                        final filePath = '${tempDir.path}/death_cert.pdf';
+                        final response = await http.get(Uri.parse(url));
+                        final file = File(filePath);
+                        await file.writeAsBytes(response.bodyBytes);
+
+                        showDialog(
+                          context: context,
+                          builder: (ctx) => Dialog(
+                            backgroundColor: Colors.black,
+                            insetPadding: const EdgeInsets.all(12),
+                            child: Stack(
+                              children: [
+                                PhotoView(
+                                  imageProvider: NetworkImage(url),
+                                  backgroundDecoration: const BoxDecoration(
+                                    color: Colors.black,
+                                  ),
+                                  minScale: PhotoViewComputedScale.contained,
+                                  maxScale: PhotoViewComputedScale.covered * 3,
+                                ),
+                                Positioned(
+                                  top: 12,
+                                  right: 12,
+                                  child: IconButton(
+                                    icon: const Icon(
+                                      Icons.close,
+                                      color: Colors.white,
+                                      size: 32,
+                                    ),
+                                    onPressed: () => Navigator.of(ctx).pop(),
+                                    tooltip: 'Close',
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        );
+                      } else {
+                        // Fallback: open in browser
+                        if (await canLaunchUrl(Uri.parse(url))) {
+                          await launchUrl(
+                            Uri.parse(url),
+                            mode: LaunchMode.externalApplication,
+                          );
+                        } else {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Could not open file.'),
+                            ),
+                          );
+                        }
+                      }
+                    },
+                  ),
+                ),
               _bottomSheetActions(status, claim),
             ],
           ),

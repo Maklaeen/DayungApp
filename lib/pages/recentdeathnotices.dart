@@ -1,9 +1,11 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:capstone_app/pages/deathnoticedetail.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 class RecentDeathNotices extends StatefulWidget {
-  const RecentDeathNotices({Key? key}) : super(key: key);
+  final int? dayungUnitId;
+  const RecentDeathNotices({Key? key, this.dayungUnitId}) : super(key: key);
 
   @override
   State<RecentDeathNotices> createState() => _RecentDeathNoticesState();
@@ -13,31 +15,57 @@ class _RecentDeathNoticesState extends State<RecentDeathNotices> {
   List<Map<String, dynamic>> _deathNotices = [];
   bool _loading = true;
 
+  StreamSubscription<List<Map<String, dynamic>>>? _sub;
+
   @override
   void initState() {
     super.initState();
     _fetchDeathNotices();
-    // Optional: Listen for real-time updates
-    Supabase.instance.client
-        .from('death_notices')
-        .stream(primaryKey: ['id'])
-        .listen((data) {
-          setState(() {
-            _deathNotices = List<Map<String, dynamic>>.from(data);
-            _loading = false;
-          });
-        });
+
+    // Realtime stream filtered by dayung, if provided
+    final client = Supabase.instance.client;
+    final stream = (widget.dayungUnitId != null)
+        ? client
+              .from('death_notices')
+              .stream(primaryKey: ['id'])
+              .eq('dayung_unit_id', widget.dayungUnitId as Object)
+        : client.from('death_notices').stream(primaryKey: ['id']);
+
+    _sub = stream.listen((data) {
+      setState(() {
+        _deathNotices = List<Map<String, dynamic>>.from(data);
+        _loading = false;
+      });
+    });
+  }
+
+  @override
+  void dispose() {
+    _sub?.cancel();
+    super.dispose();
   }
 
   Future<void> _fetchDeathNotices() async {
-    final response = await Supabase.instance.client
-        .from('death_notices')
-        .select('id, name, date_of_death, barangay')
-        .order('date_of_death', ascending: false);
-    setState(() {
-      _deathNotices = List<Map<String, dynamic>>.from(response);
-      _loading = false;
-    });
+    try {
+      var q = Supabase.instance.client
+          .from('death_notices')
+          .select('id, name, date_of_death, barangay, dayung_unit_id');
+
+      if (widget.dayungUnitId != null) {
+        q = q.eq('dayung_unit_id', widget.dayungUnitId as Object);
+      }
+
+      final response = await q.order('date_of_death', ascending: false);
+      setState(() {
+        _deathNotices = List<Map<String, dynamic>>.from(response as List);
+        _loading = false;
+      });
+    } catch (_) {
+      setState(() {
+        _deathNotices = [];
+        _loading = false;
+      });
+    }
   }
 
   @override
@@ -50,7 +78,7 @@ class _RecentDeathNoticesState extends State<RecentDeathNotices> {
         backgroundColor: Colors.white,
         elevation: 1,
         leading: IconButton(
-          icon: Icon(Icons.arrow_back, color: Colors.black87),
+          icon: const Icon(Icons.arrow_back, color: Colors.black87),
           onPressed: () => Navigator.of(context).pop(),
         ),
         centerTitle: false,
@@ -87,14 +115,10 @@ class _RecentDeathNoticesState extends State<RecentDeathNotices> {
                       horizontal: 20,
                       vertical: 16,
                     ),
-                    leading: CircleAvatar(
+                    leading: const CircleAvatar(
                       radius: 28,
                       backgroundColor: Colors.indigo,
-                      child: const Icon(
-                        Icons.person,
-                        size: 32,
-                        color: Colors.white,
-                      ),
+                      child: Icon(Icons.person, size: 32, color: Colors.white),
                     ),
                     title: Text(
                       notice['name'] ?? '',
@@ -107,7 +131,7 @@ class _RecentDeathNoticesState extends State<RecentDeathNotices> {
                     subtitle: Padding(
                       padding: const EdgeInsets.only(top: 4),
                       child: Text(
-                        notice['date_of_death'] ?? '',
+                        '${notice['date_of_death'] ?? ''}${notice['barangay'] != null ? ' • ${notice['barangay']}' : ''}',
                         style: TextStyle(
                           fontSize: 16 * textScale,
                           color: Colors.black54,

@@ -3,6 +3,7 @@ import 'package:capstone_app/Secretary/beneficiaries_tab.dart'
     show SecretaryBeneficiariesTab;
 import 'package:capstone_app/Secretary/certificates.dart';
 import 'package:capstone_app/Secretary/claims.dart';
+import 'package:capstone_app/Secretary/deathnotice.dart';
 import 'package:capstone_app/Secretary/manage_applications.dart';
 import 'package:capstone_app/Secretary/secretarymemberspage.dart';
 import 'package:capstone_app/pages/dayung_profile.dart';
@@ -24,13 +25,13 @@ const Color kNeutralText = Color(0xFF1F2937);
 const Color kSubtleText = Color(0xFF4B5563);
 const double kEdge = 18;
 
-class SecretaryDashboard extends StatefulWidget {
-  const SecretaryDashboard({super.key});
+class SecretaryDashboardPage extends StatefulWidget {
+  const SecretaryDashboardPage({super.key});
   @override
-  State<SecretaryDashboard> createState() => _SecretaryDashboardState();
+  State<SecretaryDashboardPage> createState() => _SecretaryDashboardPageState();
 }
 
-class _SecretaryDashboardState extends State<SecretaryDashboard> {
+class _SecretaryDashboardPageState extends State<SecretaryDashboardPage> {
   final supabase = Supabase.instance.client;
 
   String _fullName = '';
@@ -487,7 +488,15 @@ class _SecretaryDashboardState extends State<SecretaryDashboard> {
               _primaryButton(
                 label: "Create Death Notice",
                 icon: Icons.add_circle_outline,
-                onTap: () {},
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) =>
+                          CreateDeathNoticePage(dayungUnitId: _dayungUnitId),
+                    ),
+                  );
+                },
                 fillColor: kPrimary,
               ),
               const SizedBox(height: 30),

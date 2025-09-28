@@ -96,7 +96,7 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
         );
         await Future.delayed(const Duration(milliseconds: 800));
         Navigator.of(context).pushReplacement(
-          MaterialPageRoute(builder: (_) => const MemberDashboard()),
+          MaterialPageRoute(builder: (_) => const MemberDashboardPage()),
         );
       }
     } catch (e) {

@@ -22,17 +22,20 @@ class ContributionHistory extends StatefulWidget {
 }
 
 class _ContributionHistoryState extends State<ContributionHistory> {
+  Map<String, dynamic>? _selectedDayungUnitObj;
   String? selectedDayungUnit;
   String? _profileUrl;
-  Map<String, dynamic>? _selectedDayungUnitObj;
 
   bool _loading = false;
+  List<Map<String, dynamic>> _paidContributions = [];
+  bool _loadingPaid = true;
 
   @override
   void initState() {
     super.initState();
     _loadDayungUnit();
     _loadProfileImage();
+    _fetchPaidContributions();
   }
 
   @override
@@ -64,6 +67,18 @@ class _ContributionHistoryState extends State<ContributionHistory> {
         _selectedDayungUnitObj = null;
       });
     }
+    // Refresh data when dayung selection changes
+    await _fetchPaidContributions();
+  }
+
+  Future<void> _refresh() async {
+    setState(() => _loading = true);
+    await Future.wait([
+      _loadDayungUnit(),
+      _loadProfileImage(),
+      _fetchPaidContributions(),
+    ]);
+    if (mounted) setState(() => _loading = false);
   }
 
   Future<void> _loadProfileImage() async {
@@ -81,10 +96,87 @@ class _ContributionHistoryState extends State<ContributionHistory> {
     }
   }
 
-  Future<void> _refresh() async {
-    setState(() => _loading = true);
-    await Future.wait([_loadDayungUnit(), _loadProfileImage()]);
-    if (mounted) setState(() => _loading = false);
+  Future<void> _fetchPaidContributions() async {
+    setState(() => _loadingPaid = true);
+    final supabase = Supabase.instance.client;
+    try {
+      final uid = supabase.auth.currentUser?.id;
+      if (uid == null) {
+        setState(() {
+          _paidContributions = [];
+          _loadingPaid = false;
+        });
+        return;
+      }
+
+      final dayungId = _selectedDayungUnitObj?['id'];
+      var q = supabase
+          .from('payments')
+          .select(
+            'id, amount, status, created_at, dayung_unit_id, death_notice_id',
+          )
+          .eq('user_id', uid)
+          .eq('status', 'paid');
+
+      if (dayungId != null) {
+        q = q.eq('dayung_unit_id', dayungId);
+      }
+
+      final payments = List<Map<String, dynamic>>.from(
+        await q.order('created_at', ascending: false),
+      );
+
+      if (payments.isEmpty) {
+        setState(() {
+          _paidContributions = [];
+          _loadingPaid = false;
+        });
+        return;
+      }
+
+      // Fetch notice details
+      final noticeIds = payments
+          .map((p) => p['death_notice_id'])
+          .where((id) => id != null)
+          .cast<int>()
+          .toSet()
+          .toList();
+
+      Map<int, Map<String, dynamic>> noticeById = {};
+      if (noticeIds.isNotEmpty) {
+        final notices = List<Map<String, dynamic>>.from(
+          await supabase
+              .from('death_notices')
+              .select('id, name, date_of_death')
+              .inFilter('id', noticeIds),
+        );
+        noticeById = {for (final n in notices) (n['id'] as int): n};
+      }
+
+      // Merge and normalize for UI
+      final merged = payments.map((p) {
+        final nid = p['death_notice_id'] as int?;
+        final n = nid != null ? noticeById[nid] : null;
+        return {
+          'date': (p['created_at'] ?? '').toString(), // fallback to created_at
+          'amount': (p['amount'] is num)
+              ? (p['amount'] as num).toDouble()
+              : double.tryParse('${p['amount']}') ?? 0.0,
+          'notice_name': (n?['name'] ?? 'Death Notice #$nid').toString(),
+          'date_of_death': n?['date_of_death'],
+        };
+      }).toList();
+
+      setState(() {
+        _paidContributions = merged;
+        _loadingPaid = false;
+      });
+    } catch (_) {
+      setState(() {
+        _paidContributions = [];
+        _loadingPaid = false;
+      });
+    }
   }
 
   String _address(Map<String, dynamic> d) {
@@ -93,6 +185,13 @@ class _ContributionHistoryState extends State<ContributionHistory> {
       if ((d['city'] ?? '').toString().isNotEmpty) d['city'],
     ];
     return parts.join(', ');
+  }
+
+  String _fmtDate(String iso) {
+    // Simple yyyy-MM-dd from ISO string
+    if (iso.isEmpty) return '';
+    final t = iso.split('T').first;
+    return t;
   }
 
   @override
@@ -131,27 +230,25 @@ class _ContributionHistoryState extends State<ContributionHistory> {
           child: NestedScrollView(
             headerSliverBuilder: (context, innerBoxIsScrolled) => [
               SliverToBoxAdapter(
-              child: MemberHeader(
-                title: (providerName ?? 'Dayung'),
-                subtitle: (addr ?? ''),
-                profileUrl: _profileUrl,
-                onNotificationTap: () => Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => const NotificationPage(),
-                  ),
-                ),
-                onProfileTap: () {
-                  Navigator.push(
+                child: MemberHeader(
+                  title: (providerName ?? 'Dayung'),
+                  subtitle: (addr ?? ''),
+                  profileUrl: _profileUrl,
+                  onNotificationTap: () => Navigator.push(
                     context,
-                    MaterialPageRoute(builder: (_) => const ProfilePage()),
-                  ).then((_) => _loadProfileImage());
-                },
+                    MaterialPageRoute(builder: (_) => const NotificationPage()),
+                  ),
+                  onProfileTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => const ProfilePage()),
+                    ).then((_) => _loadProfileImage());
+                  },
+                ),
               ),
-            ),
-            const SliverToBoxAdapter(
-              child: Divider(thickness: 1, height: 24, color: Colors.grey),
-            ),
+              const SliverToBoxAdapter(
+                child: Divider(thickness: 1, height: 24, color: Colors.grey),
+              ),
               const SliverToBoxAdapter(
                 child: Padding(
                   padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -173,9 +270,37 @@ class _ContributionHistoryState extends State<ContributionHistory> {
             body: ListView.builder(
               physics: const AlwaysScrollableScrollPhysics(),
               padding: const EdgeInsets.symmetric(horizontal: 16),
-              itemCount: contributions.length,
+              itemCount: _loadingPaid ? 1 : _paidContributions.length,
               itemBuilder: (context, index) {
-                final item = contributions[index];
+                if (_loadingPaid) {
+                  return const Padding(
+                    padding: EdgeInsets.all(24.0),
+                    child: Center(child: CircularProgressIndicator()),
+                  );
+                }
+                if (_paidContributions.isEmpty) {
+                  return Container(
+                    margin: const EdgeInsets.only(top: 32),
+                    child: const Center(
+                      child: Text(
+                        'No paid contributions yet.',
+                        style: TextStyle(
+                          fontSize: 16,
+                          color: Colors.black54,
+                          fontFamily: 'OpenSans',
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  );
+                }
+
+                final item = _paidContributions[index];
+                final datePaid = _fmtDate(item['date']?.toString() ?? '');
+                final amount = (item['amount'] as double?) ?? 0.0;
+                final name = item['notice_name']?.toString() ?? 'Death Notice';
+                final dod = item['date_of_death']?.toString();
+
                 return Container(
                   margin: const EdgeInsets.only(bottom: 16),
                   decoration: BoxDecoration(
@@ -195,35 +320,53 @@ class _ContributionHistoryState extends State<ContributionHistory> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
+                        // Notice name
                         Text(
-                          item['date']!,
+                          name,
                           style: const TextStyle(
-                            fontSize: 20,
-                            fontWeight: FontWeight.bold,
+                            fontSize: 18,
+                            fontWeight: FontWeight.w800,
                             fontFamily: 'Montserrat',
                             color: kText,
                           ),
                         ),
-                        const SizedBox(height: 8),
-                        Text(
-                          item['amount']!,
-                          style: const TextStyle(
-                            fontSize: 28,
-                            fontWeight: FontWeight.bold,
-                            letterSpacing: 1,
-                            color: Colors.blue,
-                            fontFamily: 'Montserrat',
-                          ),
-                        ),
                         const SizedBox(height: 6),
-                        const Text(
-                          'Contribution Payment',
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w600,
-                            color: kSubText,
-                            fontFamily: 'Montserrat',
+                        // Optional DoD
+                        if (dod != null && dod.isNotEmpty)
+                          Text(
+                            'Date of death: $dod',
+                            style: const TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                              color: kSubText,
+                              fontFamily: 'OpenSans',
+                            ),
                           ),
+                        const SizedBox(height: 10),
+                        // Amount + date paid
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text(
+                              '₱ ${amount.toStringAsFixed(0)}',
+                              style: const TextStyle(
+                                fontSize: 28,
+                                fontWeight: FontWeight.bold,
+                                letterSpacing: 1,
+                                color: Colors.blue,
+                                fontFamily: 'Montserrat',
+                              ),
+                            ),
+                            Text(
+                              datePaid.isEmpty ? '' : 'Paid on $datePaid',
+                              style: const TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w600,
+                                color: kSubText,
+                                fontFamily: 'OpenSans',
+                              ),
+                            ),
+                          ],
                         ),
                       ],
                     ),

@@ -25,13 +25,13 @@ const kText = Color(0xFF1F2937);
 const kSubText = Color(0xFF4B5563);
 const kAccent = Color(0xFF0D47A1);
 
-class MemberDashboard extends StatefulWidget {
-  const MemberDashboard({super.key});
+class MemberDashboardPage extends StatefulWidget {
+  const MemberDashboardPage({super.key});
   @override
-  State<MemberDashboard> createState() => _MemberDashboardState();
+  State<MemberDashboardPage> createState() => _MemberDashboardPageState();
 }
 
-class _MemberDashboardState extends State<MemberDashboard> {
+class _MemberDashboardPageState extends State<MemberDashboardPage> {
   final supabase = Supabase.instance.client;
   final ScrollController _scrollController = ScrollController();
 
@@ -53,15 +53,24 @@ class _MemberDashboardState extends State<MemberDashboard> {
   List<Map<String, dynamic>> _recentCertificates = [];
   bool _loadingCertificates = true;
 
+  List<Map<String, dynamic>> _pendingPaymentsByDeathNotice = [];
+
   double _pendingPaymentsAmount = 0;
   int _pendingPaymentCount = 0;
   bool _loadingPending = true;
+
+  int? _asInt(dynamic v) {
+    if (v == null) return null;
+    if (v is int) return v;
+    return int.tryParse(v.toString());
+  }
 
   @override
   void initState() {
     super.initState();
     _init();
     _scrollController.addListener(() {
+      if (!_scrollController.hasClients) return;
       final maxScroll = _scrollController.position.maxScrollExtent;
       final current = _scrollController.position.pixels;
       if (current >= maxScroll && _showNavBar) {
@@ -78,7 +87,10 @@ class _MemberDashboardState extends State<MemberDashboard> {
   Future<void> _init() async {
     await _loadUserData();
     await _reloadDayungFromPrefs();
-    await _fetchAllStats();
+    // Only fetch stats if we already have a selected dayung
+    if (_selectedDayungUnitObj?['id'] != null) {
+      await _fetchAllStats();
+    }
   }
 
   Future<void> _fetchAllStats() async {
@@ -100,11 +112,22 @@ class _MemberDashboardState extends State<MemberDashboard> {
       return;
     }
     try {
-      final unit = jsonDecode(unitJson);
-      setState(() {
-        selectedDayungUnit = unit['name'];
-        _selectedDayungUnitObj = Map<String, dynamic>.from(unit as Map);
-      });
+      // Some older versions stored a plain string; guard for that
+      final decoded = jsonDecode(unitJson);
+      if (decoded is Map) {
+        final unit = Map<String, dynamic>.from(decoded);
+        setState(() {
+          selectedDayungUnit = unit['name']?.toString();
+          _selectedDayungUnitObj = unit;
+        });
+      } else {
+        // Not an object, clear and re-pick
+        await prefs.remove('selectedDayungUnit');
+        setState(() {
+          selectedDayungUnit = null;
+          _selectedDayungUnitObj = null;
+        });
+      }
     } catch (_) {
       await prefs.remove('selectedDayungUnit');
       setState(() {
@@ -159,19 +182,58 @@ class _MemberDashboardState extends State<MemberDashboard> {
   Future<void> _loadOrAskDayung() async {
     final prefs = await SharedPreferences.getInstance();
     final unitJson = prefs.getString('selectedDayungUnit');
-    if (unitJson == null) {
-      _navigateAndPickUnit();
-    } else {
+    if (unitJson != null) {
       try {
         final unit = jsonDecode(unitJson);
         setState(() {
           selectedDayungUnit = unit['name'];
           _selectedDayungUnitObj = Map<String, dynamic>.from(unit as Map);
         });
+        if (_selectedDayungUnitObj?['id'] != null) {
+          await _fetchAllStats();
+        }
+        return;
       } catch (_) {
         await prefs.remove('selectedDayungUnit');
       }
     }
+
+    // Auto-pick from profile if possible
+    try {
+      final uid = supabase.auth.currentUser?.id;
+      if (uid != null) {
+        final profile = await supabase
+            .from('users')
+            .select('dayung_unit_id')
+            .eq('id', uid)
+            .maybeSingle();
+
+        final dId = _asInt(profile?['dayung_unit_id']);
+        if (dId != null) {
+          // Load display fields of the dayung unit
+          final unit = await supabase
+              .from('dayung_units')
+              .select('id, name, barangay, city')
+              .eq('id', dId)
+              .maybeSingle();
+
+          if (unit != null) {
+            await prefs.setString('selectedDayungUnit', jsonEncode(unit));
+            setState(() {
+              _selectedDayungUnitObj = Map<String, dynamic>.from(unit);
+              selectedDayungUnit = unit['name']?.toString();
+            });
+            await _fetchAllStats();
+            return;
+          }
+        }
+      }
+    } catch (_) {
+      // ignore and fallback to manual pick
+    }
+
+    // Fallback: ask user to pick
+    await _navigateAndPickUnit();
   }
 
   Future<void> _navigateAndPickUnit() async {
@@ -194,16 +256,32 @@ class _MemberDashboardState extends State<MemberDashboard> {
   Future<void> _fetchActiveMembers() async {
     setState(() => _loadingActiveMembers = true);
     try {
-      final id = _selectedDayungUnitObj?['id'];
+      final id = _asInt(_selectedDayungUnitObj?['id']);
       if (id == null) {
         _activeMembersCount = 0;
       } else {
-        final rows = await supabase
-            .from('users')
-            .select('id')
+        // Get approved application user_ids in this dayung
+        final appRows = await supabase
+            .from('applications')
+            .select('user_id')
             .eq('dayung_unit_id', id)
             .eq('status', 'approved');
-        _activeMembersCount = (rows as List).length;
+
+        final userIds = <String>[
+          for (final r in (appRows as List))
+            if ((r as Map)['user_id'] != null) (r['user_id']).toString(),
+        ];
+        if (userIds.isEmpty) {
+          _activeMembersCount = 0;
+        } else {
+          final users = await supabase
+              .from('users')
+              .select('id, is_deceased')
+              .inFilter('id', userIds);
+          _activeMembersCount = (users as List)
+              .where((u) => ((u as Map)['is_deceased'] ?? false) == false)
+              .length;
+        }
       }
     } catch (_) {
       _activeMembersCount = 0;
@@ -215,27 +293,29 @@ class _MemberDashboardState extends State<MemberDashboard> {
   Future<void> _fetchRecentDeaths() async {
     setState(() => _loadingCertificates = true);
     try {
-      final unitId = _selectedDayungUnitObj?['id'];
-      List data;
-      try {
-        // Try filtering by dayung_unit_id if column exists
-        data = await supabase
-            .from('certificates')
-            .select('id, deceased_name, submitted_at, dayung_unit_id')
+      final unitId = _asInt(_selectedDayungUnitObj?['id']);
+      if (unitId == null) {
+        _recentCertificates = [];
+      } else {
+        final data = await supabase
+            .from('death_notices')
+            .select('id, name, date_of_death, dayung_unit_id')
             .eq('dayung_unit_id', unitId)
-            .order('submitted_at', ascending: false)
+            .order('date_of_death', ascending: false)
             .limit(5);
-      } catch (_) {
-        // Fallback: no column
-        data = await supabase
-            .from('certificates')
-            .select('id, deceased_name, submitted_at')
-            .order('submitted_at', ascending: false)
-            .limit(5);
+
+        // Normalize to existing UI keys
+        _recentCertificates = (data as List)
+            .map(
+              (e) => {
+                'deceased_name': (e as Map)['name'],
+                'date_of_death': e['date_of_death'],
+                'dayung_unit_id': e['dayung_unit_id'],
+              },
+            )
+            .map((e) => Map<String, dynamic>.from(e))
+            .toList();
       }
-      _recentCertificates = data
-          .map((e) => Map<String, dynamic>.from(e as Map))
-          .toList();
     } catch (_) {
       _recentCertificates = [];
     } finally {
@@ -247,55 +327,68 @@ class _MemberDashboardState extends State<MemberDashboard> {
     setState(() => _loadingPending = true);
     try {
       final uid = supabase.auth.currentUser?.id;
-      if (uid == null) {
+      final dayungId = _asInt(_selectedDayungUnitObj?['id']);
+      if (uid == null || dayungId == null) {
         _pendingPaymentsAmount = 0;
         _pendingPaymentCount = 0;
+        _pendingPaymentsByDeathNotice = [];
       } else {
-        bool done = false;
-        // RPC attempt
-        try {
-          final rpc = await supabase.rpc(
-            'member_pending_payments',
-            params: {'p_member_id': uid},
-          );
-          if (rpc is Map && rpc['total_amount'] != null) {
-            _pendingPaymentsAmount =
-                double.tryParse(rpc['total_amount'].toString()) ?? 0;
-            _pendingPaymentCount =
-                int.tryParse(rpc['pending_count'].toString()) ?? 0;
-            done = true;
+        final rows = await supabase
+            .from('payments')
+            .select('amount, status, user_id, death_notice_id')
+            .eq('user_id', uid)
+            .eq('dayung_unit_id', dayungId)
+            .eq('status', 'pending');
+
+        double total = 0;
+        int cnt = 0;
+        final noticeTotals = <int, double>{};
+        final noticeCounts = <int, int>{};
+
+        for (final r in rows as List) {
+          final m = r as Map<String, dynamic>;
+          final noticeId = m['death_notice_id'] as int?;
+          final amt = (m['amount'] is num)
+              ? (m['amount'] as num).toDouble()
+              : 0.0;
+          if (noticeId != null) {
+            noticeTotals[noticeId] = (noticeTotals[noticeId] ?? 0) + amt;
+            noticeCounts[noticeId] = (noticeCounts[noticeId] ?? 0) + 1;
           }
-        } catch (_) {}
-        if (!done) {
-          // Table fallback
-          try {
-            final rows = await supabase
-                .from('payments')
-                .select('amount, status, user_id')
-                .eq('user_id', uid);
-            double total = 0;
-            int cnt = 0;
-            for (final r in rows as List) {
-              final m = r as Map;
-              final status = (m['status'] ?? '').toString().toLowerCase();
-              if (status == 'pending') {
-                total += (m['amount'] is num)
-                    ? (m['amount'] as num).toDouble()
-                    : 0;
-                cnt++;
-              }
-            }
-            _pendingPaymentsAmount = total;
-            _pendingPaymentCount = cnt;
-          } catch (_) {
-            _pendingPaymentsAmount = 0;
-            _pendingPaymentCount = 0;
+          total += amt;
+          cnt++;
+        }
+
+        List<Map<String, dynamic>> notices = [];
+        if (noticeTotals.isNotEmpty) {
+          final ids = noticeTotals.keys.toList();
+          final noticeRows = await supabase
+              .from('death_notices')
+              .select('id, name, date_of_death')
+              .inFilter('id', ids);
+          final noticeMap = {
+            for (final n in (noticeRows as List))
+              (n as Map)['id'] as int: Map<String, dynamic>.from(n),
+          };
+          for (final id in ids) {
+            notices.add({
+              'id': id,
+              'name': noticeMap[id]?['name'] ?? 'Death Notice #$id',
+              'date_of_death': noticeMap[id]?['date_of_death'],
+              'amount': noticeTotals[id],
+              'count': noticeCounts[id],
+            });
           }
         }
+
+        _pendingPaymentsAmount = total;
+        _pendingPaymentCount = cnt;
+        _pendingPaymentsByDeathNotice = notices;
       }
     } catch (_) {
       _pendingPaymentsAmount = 0;
       _pendingPaymentCount = 0;
+      _pendingPaymentsByDeathNotice = [];
     } finally {
       if (mounted) setState(() => _loadingPending = false);
     }
@@ -574,9 +667,12 @@ class _MemberDashboardState extends State<MemberDashboard> {
         isDeathNotice: true,
         context: context,
         onTap: () {
+          final id = _asInt(_selectedDayungUnitObj?['id']);
           Navigator.push(
             context,
-            MaterialPageRoute(builder: (_) => const RecentDeathNotices()),
+            MaterialPageRoute(
+              builder: (_) => RecentDeathNotices(dayungUnitId: id),
+            ),
           );
         },
       ),
@@ -781,10 +877,13 @@ class _MemberDashboardState extends State<MemberDashboard> {
           ),
         TextButton(
           onPressed: () {
+            final id = _asInt(_selectedDayungUnitObj?['id']);
             if (ctx != null) {
               Navigator.push(
                 ctx,
-                MaterialPageRoute(builder: (_) => const RecentDeathNotices()),
+                MaterialPageRoute(
+                  builder: (_) => RecentDeathNotices(dayungUnitId: id),
+                ),
               );
             }
           },
@@ -851,16 +950,50 @@ class _MemberDashboardState extends State<MemberDashboard> {
                 ),
               ),
               const SizedBox(width: 10),
-              if (!_loadingPending)
-                Text(
-                  _pendingPaymentCount > 0
-                      ? '($_pendingPaymentCount pending)'
-                      : '(No pending)',
-                  style: TextStyle(
-                    fontSize: 14.5,
-                    fontWeight: FontWeight.w600,
-                    fontFamily: 'OpenSans',
-                    color: kSubtleText.withOpacity(.9),
+              if (!_loadingPending && _pendingPaymentsByDeathNotice.isNotEmpty)
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: _pendingPaymentsByDeathNotice.map((p) {
+                      final amt = (p['amount'] is num)
+                          ? (p['amount'] as num).toDouble()
+                          : 0.0;
+                      final name = (p['name'] ?? '').toString();
+                      final dod = p['date_of_death'];
+                      return Padding(
+                        padding: const EdgeInsets.only(top: 8.0),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.end,
+                          children: [
+                            Flexible(
+                              child: Text(
+                                '₱${amt.toStringAsFixed(0)} for $name',
+                                style: const TextStyle(
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.w600,
+                                  color: kPrimaryDark,
+                                  fontFamily: 'Montserrat',
+                                ),
+                                overflow: TextOverflow.ellipsis,
+                                softWrap: false,
+                              ),
+                            ),
+                            if (dod != null) ...[
+                              const SizedBox(width: 6),
+                              Text(
+                                '($dod)',
+                                style: const TextStyle(
+                                  fontSize: 13,
+                                  color: kSubtleText,
+                                  fontFamily: 'OpenSans',
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
+                      );
+                    }).toList(),
                   ),
                 ),
             ],

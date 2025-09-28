@@ -1,5 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:url_launcher/url_launcher.dart';
+
+const Color kBg = Color(0xFFFAFAF7);
+const Color kPrimary = Color(0xFF0D47A1);
+const Color kPrimaryDark = Color(0xFF083366);
+const Color kAccent = Color(0xFF2E7D32);
+const Color kWarn = Color(0xFFF57C00);
+const Color kDanger = Color(0xFFC62828);
+const Color kNeutralText = Color(0xFF1F2937);
+const Color kSubtleText = Color(0xFF4B5563);
 
 class SecretaryMembersPage extends StatefulWidget {
   const SecretaryMembersPage({super.key});
@@ -21,6 +31,8 @@ class _SecretaryMembersPageState extends State<SecretaryMembersPage>
   final _sb = Supabase.instance.client;
   bool _loading = true;
   String? _infoMsg;
+  TextEditingController _searchController = TextEditingController();
+  String _searchQuery = '';
 
   late TabController _tabController;
 
@@ -173,7 +185,7 @@ class _SecretaryMembersPageState extends State<SecretaryMembersPage>
         bottom: TabBar(
           controller: _tabController,
           tabs: [
-            Tab(text: 'Approved (${_approved.length})'),
+            Tab(text: 'Active (${_approved.length})'),
             Tab(text: 'Pending (${_pending.length})'),
           ],
         ),
@@ -182,9 +194,39 @@ class _SecretaryMembersPageState extends State<SecretaryMembersPage>
           ? const Center(child: CircularProgressIndicator())
           : (_infoMsg != null)
           ? Center(child: Text(_infoMsg!))
-          : TabBarView(
-              controller: _tabController,
-              children: [_memberList(_approved), _memberList(_pending)],
+          : Column(
+              children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+                  child: TextField(
+                    controller: _searchController,
+                    decoration: InputDecoration(
+                      hintText: 'Search active member...',
+                      prefixIcon: const Icon(Icons.search, color: kPrimaryDark),
+                      filled: true,
+                      fillColor: Colors.white,
+                      contentPadding: const EdgeInsets.symmetric(vertical: 14),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(16),
+                        borderSide: BorderSide(color: kPrimary.withOpacity(.2)),
+                      ),
+                    ),
+                    style: const TextStyle(fontSize: 18, color: kNeutralText),
+                    onChanged: (q) {
+                      setState(() => _searchQuery = q.trim().toLowerCase());
+                    },
+                  ),
+                ),
+                Expanded(
+                  child: TabBarView(
+                    controller: _tabController,
+                    children: [
+                      _memberList(_approved, isActive: true),
+                      _memberList(_pending, isActive: false),
+                    ],
+                  ),
+                ),
+              ],
             ),
     );
   }
@@ -197,8 +239,16 @@ class _SecretaryMembersPageState extends State<SecretaryMembersPage>
     return 'M';
   }
 
-  Widget _memberList(List<Map<String, dynamic>> list) {
-    if (list.isEmpty) {
+  Widget _memberList(List<Map<String, dynamic>> list, {bool isActive = false}) {
+    List<Map<String, dynamic>> filtered = list;
+    if (isActive && _searchQuery.isNotEmpty) {
+      filtered = list.where((r) {
+        final u = r['user'] as Map<String, dynamic>?;
+        final name = (u?['full_name'] ?? '').toString().toLowerCase();
+        return name.contains(_searchQuery);
+      }).toList();
+    }
+    if (filtered.isEmpty) {
       return RefreshIndicator(
         onRefresh: _refresh,
         child: ListView(
@@ -216,9 +266,9 @@ class _SecretaryMembersPageState extends State<SecretaryMembersPage>
       onRefresh: _refresh,
       child: ListView.builder(
         physics: const AlwaysScrollableScrollPhysics(),
-        itemCount: list.length,
+        itemCount: filtered.length,
         itemBuilder: (_, i) {
-          final r = list[i];
+          final r = filtered[i];
           final u = r['user'] as Map<String, dynamic>?;
           final profileUrl = (u?['profile_url'] as String?)?.trim();
           final status = (r['status'] ?? '').toString();
@@ -236,43 +286,385 @@ class _SecretaryMembersPageState extends State<SecretaryMembersPage>
             chipColor = Colors.grey;
           }
 
-          return ListTile(
-            leading: CircleAvatar(
-              backgroundImage: (profileUrl != null && profileUrl.isNotEmpty)
-                  ? NetworkImage(profileUrl)
-                  : null,
-              child: (profileUrl == null || profileUrl.isEmpty)
-                  ? Text(_initialOf(u?['full_name']))
-                  : null,
+          return Card(
+            margin: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+            elevation: 2,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
             ),
-            title: Text(
-              (u?['full_name'] as String?)?.trim().isNotEmpty == true
-                  ? (u?['full_name'] as String).trim()
-                  : 'Member',
-            ),
-            subtitle: Text(dayungName),
-            trailing: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-              decoration: BoxDecoration(
-                color: chipColor.withOpacity(.15),
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: chipColor),
+            child: ListTile(
+              leading: CircleAvatar(
+                backgroundImage: (profileUrl != null && profileUrl.isNotEmpty)
+                    ? NetworkImage(profileUrl)
+                    : null,
+                child: (profileUrl == null || profileUrl.isEmpty)
+                    ? Text(
+                        _initialOf(u?['full_name']),
+                        style: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 22,
+                          color: kPrimaryDark,
+                        ),
+                      )
+                    : null,
+                backgroundColor: kBg,
+                radius: 26,
               ),
-              child: Text(
-                status,
-                style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                  color: chipColor,
+              title: Text(
+                (u?['full_name'] as String?)?.trim().isNotEmpty == true
+                    ? (u?['full_name'] as String).trim()
+                    : 'Member',
+                style: const TextStyle(
+                  fontWeight: FontWeight.w700,
+                  fontSize: 18,
+                  color: kPrimaryDark,
+                  fontFamily: 'Montserrat',
                 ),
               ),
+              subtitle: Text(
+                dayungName,
+                style: const TextStyle(
+                  fontSize: 15,
+                  color: kSubtleText,
+                  fontFamily: 'OpenSans',
+                ),
+              ),
+              trailing: Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 4,
+                ),
+                decoration: BoxDecoration(
+                  color: chipColor.withOpacity(.15),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: chipColor),
+                ),
+                child: Text(
+                  status,
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: chipColor,
+                  ),
+                ),
+              ),
+              onTap: isActive
+                  ? () {
+                      // Ensure we pass a valid UUID string
+                      final u = r['user'] as Map<String, dynamic>?;
+                      final uuid =
+                          (u?['id'] as String?)?.trim().isNotEmpty == true
+                          ? (u?['id'] as String).trim()
+                          : (r['user_id']?.toString().trim());
+                      _showBeneficiariesModal(context, uuid, u?['full_name']);
+                    }
+                  : null,
             ),
-            onTap: () {
-              // Optional member detail
-            },
           );
         },
       ),
     );
   }
 }
+
+Future<void> _showBeneficiariesModal(
+  BuildContext context,
+  String? userId,
+  String? userName,
+) async {
+  final String uuid = (userId ?? '').trim();
+  if (uuid.isEmpty) return;
+
+  showModalBottomSheet(
+    context: context,
+    isScrollControlled: true,
+    backgroundColor: Colors.white,
+    shape: const RoundedRectangleBorder(
+      borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+    ),
+    builder: (ctx) {
+      // BENEFICIARIES: keep the exact working pattern
+      final futureBeneficiaries = Supabase.instance.client
+          .from('beneficiaries')
+          .select(
+            'id, full_name, relationship, dob, status, birth_certificate, user_id',
+          )
+          .eq('user_id', uuid)
+          .order('full_name', ascending: true);
+
+      return FutureBuilder<dynamic>(
+        future: futureBeneficiaries,
+        builder: (ctx, snap) {
+          if (snap.connectionState != ConnectionState.done) {
+            return const Padding(
+              padding: EdgeInsets.all(32),
+              child: Center(child: CircularProgressIndicator()),
+            );
+          }
+          if (snap.hasError) {
+            return Padding(
+              padding: const EdgeInsets.all(24),
+              child: Text('Failed to load beneficiaries: ${snap.error}'),
+            );
+          }
+
+          final list = (snap.data as List<dynamic>? ?? [])
+              .map<Map<String, dynamic>>(
+                (e) => Map<String, dynamic>.from(e as Map),
+              )
+              .toList();
+
+          // USER HEADER: load separately so it never blocks beneficiaries
+          final userFuture = Supabase.instance.client
+              .from('users')
+              .select(
+                'mobile_number, birth_certificate_url, marriage_certificate_url, death_certificate_url',
+              )
+              .eq('id', uuid)
+              .limit(1)
+              .then<Map<String, dynamic>?>((rows) {
+                final l = rows as List<dynamic>?;
+                if (l == null || l.isEmpty) return null;
+                return Map<String, dynamic>.from(l.first as Map);
+              });
+
+          return Padding(
+            padding: EdgeInsets.only(
+              left: 18,
+              right: 18,
+              top: 18,
+              bottom: MediaQuery.of(ctx).viewInsets.bottom + 18,
+            ),
+            child: SingleChildScrollView(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // Header card (non-blocking)
+                  FutureBuilder<Map<String, dynamic>?>(
+                    future: userFuture,
+                    builder: (ctx, uSnap) {
+                      final u = uSnap.data ?? const {};
+                      final phone = (u['mobile_number'] ?? '').toString();
+                      final hasBirth = (u['birth_certificate_url'] ?? '')
+                          .toString()
+                          .isNotEmpty;
+                      final hasMarriage = (u['marriage_certificate_url'] ?? '')
+                          .toString()
+                          .isNotEmpty;
+                      final hasDeath = (u['death_certificate_url'] ?? '')
+                          .toString()
+                          .isNotEmpty;
+
+                      Widget docItem(String label, bool ok) => Row(
+                        children: [
+                          Icon(
+                            ok
+                                ? Icons.check_circle
+                                : Icons.radio_button_unchecked,
+                            color: ok ? kAccent : kSubtleText,
+                            size: 20,
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            label,
+                            style: const TextStyle(
+                              fontSize: 16,
+                              color: kNeutralText,
+                            ),
+                          ),
+                        ],
+                      );
+
+                      return Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(color: const Color(0xFFE1E4E8)),
+                          boxShadow: const [
+                            BoxShadow(
+                              color: Color(0x0F000000),
+                              blurRadius: 6,
+                              offset: Offset(0, 2),
+                            ),
+                          ],
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                const CircleAvatar(
+                                  radius: 22,
+                                  backgroundColor: Color(0xFF3B82F6),
+                                  child: Icon(
+                                    Icons.person,
+                                    color: Colors.white,
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        (userName ?? 'Member'),
+                                        style: const TextStyle(
+                                          fontWeight: FontWeight.w800,
+                                          fontSize: 18,
+                                          color: kNeutralText,
+                                          fontFamily: 'Montserrat',
+                                        ),
+                                      ),
+                                      if (phone.isNotEmpty)
+                                        Text(
+                                          phone,
+                                          style: const TextStyle(
+                                            fontSize: 14,
+                                            color: kSubtleText,
+                                            fontFamily: 'OpenSans',
+                                          ),
+                                        ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 14),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 10,
+                                vertical: 6,
+                              ),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFE8F5E9),
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              child: const Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(
+                                    Icons.check_circle,
+                                    color: Colors.green,
+                                    size: 18,
+                                  ),
+                                  SizedBox(width: 6),
+                                  Text(
+                                    'Eligible',
+                                    style: TextStyle(
+                                      color: Colors.green,
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(height: 16),
+                            const Text(
+                              'Last Contribution:',
+                              style: TextStyle(
+                                fontWeight: FontWeight.w800,
+                                fontSize: 18,
+                                color: kNeutralText,
+                                fontFamily: 'Montserrat',
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            const Text(
+                              '—',
+                              style: TextStyle(
+                                fontSize: 15,
+                                color: kNeutralText,
+                                fontFamily: 'OpenSans',
+                              ),
+                            ),
+                            const SizedBox(height: 18),
+                            const Text(
+                              'Required Documents',
+                              style: TextStyle(
+                                fontWeight: FontWeight.w800,
+                                fontSize: 18,
+                                color: kNeutralText,
+                                fontFamily: 'Montserrat',
+                              ),
+                            ),
+                            const SizedBox(height: 10),
+                            docItem('Birth Certificate', hasBirth),
+                            const SizedBox(height: 10),
+                            docItem('Marriage Certificate', hasMarriage),
+                            const SizedBox(height: 10),
+                            docItem('Death Certificate', hasDeath),
+                          ],
+                        ),
+                      );
+                    },
+                  ),
+
+                  const SizedBox(height: 22),
+                  const Text(
+                    'Beneficiaries',
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 20,
+                      color: kPrimaryDark,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+
+                  if (list.isEmpty)
+                    const Text(
+                      'No beneficiaries found.',
+                      style: TextStyle(color: kSubtleText, fontSize: 16),
+                    ),
+
+                  ...list.map(
+                    (b) => Card(
+                      margin: const EdgeInsets.symmetric(vertical: 6),
+                      child: ListTile(
+                        leading: const Icon(Icons.person, color: Colors.blue),
+                        title: Text(
+                          b['full_name'] ?? '',
+                          style: const TextStyle(fontWeight: FontWeight.bold),
+                        ),
+                        subtitle: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text('Relationship: ${b['relationship'] ?? ''}'),
+                            Text('DOB: ${b['dob'] ?? ''}'),
+                            Text('Status: ${b['status'] ?? ''}'),
+                            if ((b['birth_certificate'] ?? '')
+                                .toString()
+                                .isNotEmpty)
+                              InkWell(
+                                onTap: () => launchUrl(
+                                  Uri.parse(b['birth_certificate']),
+                                ),
+                                child: const Padding(
+                                  padding: EdgeInsets.only(top: 4.0),
+                                  child: Text(
+                                    'View Birth Certificate',
+                                    style: TextStyle(
+                                      color: Colors.blue,
+                                      decoration: TextDecoration.underline,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                ],
+              ),
+            ),
+          );
+        },
+      );
+    },
+  );
+} 

@@ -1,10 +1,12 @@
 import 'package:capstone_app/Admin/assign_user_dayung.dart';
 import 'package:capstone_app/Admin/dashboard.dart';
+import 'package:capstone_app/Collector/dashboard.dart';
 import 'package:capstone_app/Members/dashboard.dart';
 import 'package:capstone_app/President/dashboard.dart';
 import 'package:capstone_app/Providers/dayung_provider.dart';
 import 'package:capstone_app/Providers/user_provider.dart';
 import 'package:capstone_app/Secretary/dashboard.dart';
+import 'package:capstone_app/Treasurer/dashboard.dart';
 import 'package:flutter/material.dart';
 import 'package:capstone_app/settings/custom_scroll_behavior.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -50,9 +52,11 @@ class MyApp extends StatelessWidget {
           '/login': (context) => Login(),
           '/register': (context) => Register(),
           '/reapply': (context) => Reapply(),
-          '/dashboard': (context) => const MemberDashboard(),
-          '/president-dashboard': (context) => const PresidentDashboardPage(),
-          '/secretary-dashboard': (context) => SecretaryDashboard(),
+          '/dashboard': (context) => const MemberDashboardPage(),
+          '/president-dashboard': (context) => PresidentDashboardPage(),
+          '/secretary-dashboard': (context) => SecretaryDashboardPage(),
+          '/treasurer-dashboard': (context) => TreasurerDashboardPage(),
+          '/collector-dashboard': (context) => CollectorDashboardPage(),
           '/admin-dashboard': (context) => AdminDashboardPage(),
           '/admin-users': (context) => const ManageUsersPage(),
           '/admin-roles': (context) => const ManageRolesPage(),
