@@ -5,7 +5,6 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:photo_view/photo_view.dart';
-import 'package:flutter_pdfview/flutter_pdfview.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:http/http.dart' as http;
 
@@ -31,18 +30,16 @@ class _SecretaryClaimsPageState extends State<SecretaryClaimsPage>
 
   late TabController _tabController;
 
-  // Data
   Map<String, Map<String, dynamic>> _userMap = {};
   List<Map<String, dynamic>> _claims = [];
-  List<Map<String, dynamic>> _dayungUnits = []; // [{id: int, name: String}]
+  List<Map<String, dynamic>> _dayungUnits = [];
   Map<int, String> _dayungNameMap = {};
   bool _loading = true;
   bool _updating = false;
   bool _loadingDayungs = true;
 
-  // Filters / state
   final List<String> _tabs = ["Pending", "Approved", "Rejected"];
-  int? _selectedDayungId; // null = All
+  int? _selectedDayungId;
   String _search = '';
   final _searchCtrl = TextEditingController();
 

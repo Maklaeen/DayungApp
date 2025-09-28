@@ -29,6 +29,7 @@ class TreasurerDashboardPage extends StatefulWidget {
 
 class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
   final sb = Supabase.instance.client;
+  final ScrollController _scrollController = ScrollController();
 
   Future<List<Map<String, dynamic>>> _deathNoticesFuture() async {
     await _ensureDayungId();
@@ -52,6 +53,22 @@ class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
   void initState() {
     super.initState();
     _init();
+    _scrollController.addListener(() {
+      if (!_scrollController.hasClients) return;
+      final maxScroll = _scrollController.position.maxScrollExtent;
+      final current = _scrollController.position.pixels;
+      if (current >= maxScroll && _showNavBar) {
+        setState(() => _showNavBar = false);
+      } else if (current < maxScroll && !_showNavBar) {
+        setState(() => _showNavBar = true);
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
   }
 
   Future<void> _init() async {
@@ -503,8 +520,8 @@ class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 12, 20, 8),
       child: Row(
-        children: const [
-          Expanded(
+        children: [
+          const Expanded(
             child: Text(
               'Maayung buntag,\nTreasurer!',
               style: TextStyle(
@@ -516,10 +533,19 @@ class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
               ),
             ),
           ),
-          CircleAvatar(
-            radius: 28,
-            backgroundColor: kPrimary,
-            child: Icon(Icons.person, size: 34, color: Colors.white),
+          InkWell(
+            borderRadius: BorderRadius.circular(28),
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const ProfilePage()),
+              );
+            },
+            child: const CircleAvatar(
+              radius: 28,
+              backgroundColor: kPrimary,
+              child: Icon(Icons.person, size: 34, color: Colors.white),
+            ),
           ),
         ],
       ),
@@ -531,6 +557,7 @@ class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
       onRefresh: _fetchAll,
       edgeOffset: 68,
       child: SingleChildScrollView(
+        controller: _scrollController,
         physics: const AlwaysScrollableScrollPhysics(),
         padding: const EdgeInsets.fromLTRB(20, 8, 20, 120),
         child: Column(

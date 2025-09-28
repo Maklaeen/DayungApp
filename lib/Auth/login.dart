@@ -31,6 +31,30 @@ class _LoginState extends State<Login> {
   bool _isLoading = false;
   bool _obscurePassword = true;
 
+  Future<void> _forgotPassword() async {
+    final email = emailController.text.trim();
+    if (email.isEmpty) {
+      _showErrorDialog('Missing Email', 'Please enter your email address.');
+      return;
+    }
+    setState(() => _isLoading = true);
+    try {
+      await Supabase.instance.client.auth.resetPasswordForEmail(email);
+      setState(() => _isLoading = false);
+      await _showErrorDialog(
+        'Check Your Email',
+        'A password reset link has been sent to your email.',
+        color: kAccent,
+      );
+    } catch (e) {
+      setState(() => _isLoading = false);
+      await _showErrorDialog(
+        'Reset Failed',
+        'Could not send reset link. Please check your email and try again.',
+      );
+    }
+  }
+
   Future<void> _showErrorDialog(
     String title,
     String message, {
@@ -535,10 +559,7 @@ class _LoginState extends State<Login> {
                                 TextButton(
                                   onPressed: _isLoading
                                       ? null
-                                      : () => Navigator.pushNamed(
-                                          context,
-                                          '/reapply',
-                                        ),
+                                      : _forgotPassword,
                                   child: const Text(
                                     'Forgot password?',
                                     style: TextStyle(

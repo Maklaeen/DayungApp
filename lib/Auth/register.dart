@@ -35,6 +35,7 @@ class _RegisterState extends State<Register> {
   bool _obscureConfirmPassword = true;
   String? _confirmPasswordError;
   bool _isSubmitting = false;
+  DateTime? _selectedDob;
 
   @override
   void initState() {
@@ -193,12 +194,10 @@ class _RegisterState extends State<Register> {
         return;
       }
 
-      final int monthIndex = _months.indexOf(selectedMonth!) + 1;
-      final dob = DateTime(
-        int.parse(selectedYear!),
-        monthIndex,
-        int.parse(selectedDay!),
-      ).toIso8601String().split('T').first; // YYYY-MM-DD
+      final dob = _selectedDob!
+          .toIso8601String()
+          .split('T')
+          .first; // YYYY-MM-DD
 
       // Insert profile row; errors will throw and be caught by catch
       await Supabase.instance.client.from('users').insert({
@@ -226,6 +225,39 @@ class _RegisterState extends State<Register> {
       setState(() => _isSubmitting = false);
       _showTopErrorDialog(context, 'Error: ${e.toString()}');
     }
+  }
+
+  Widget _dobField(BuildContext context) {
+    return GestureDetector(
+      onTap: () async {
+        final now = DateTime.now();
+        final picked = await showDatePicker(
+          context: context,
+          initialDate: _selectedDob ?? DateTime(now.year - 18, 1, 1),
+          firstDate: DateTime(now.year - 100),
+          lastDate: now,
+          helpText: 'Select Date of Birth',
+        );
+        if (picked != null) {
+          setState(() => _selectedDob = picked);
+        }
+      },
+      child: AbsorbPointer(
+        child: TextFormField(
+          decoration: _dec(
+            'Date of Birth',
+            icon: Icons.cake,
+          ).copyWith(hintText: 'Select your birth date'),
+          controller: TextEditingController(
+            text: _selectedDob == null
+                ? ''
+                : '${_selectedDob!.year}-${_selectedDob!.month.toString().padLeft(2, '0')}-${_selectedDob!.day.toString().padLeft(2, '0')}',
+          ),
+          validator: (v) =>
+              _selectedDob == null ? 'Date of birth is required' : null,
+        ),
+      ),
+    );
   }
 
   InputDecoration _dec(String label, {String? hint, IconData? icon}) {
@@ -264,6 +296,7 @@ class _RegisterState extends State<Register> {
   Widget build(BuildContext context) {
     final width = MediaQuery.of(context).size.width;
     final isWide = width > 720;
+    final isSmall = width < 350;
 
     return Scaffold(
       backgroundColor: const Color.fromARGB(255, 255, 255, 255),
@@ -271,29 +304,32 @@ class _RegisterState extends State<Register> {
       body: SafeArea(
         child: Center(
           child: SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+            padding: EdgeInsets.symmetric(
+              horizontal: isSmall ? 8 : 24,
+              vertical: isSmall ? 8 : 16,
+            ),
             child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 640),
+              constraints: BoxConstraints(maxWidth: isWide ? 640 : 420),
               child: Column(
                 children: [
                   // Header
                   Padding(
-                    padding: const EdgeInsets.only(bottom: 16),
+                    padding: EdgeInsets.only(bottom: isSmall ? 8 : 16),
                     child: Column(
                       children: [
                         Image.asset(
                           'assets/images/dayunglogo.jpeg',
-                          width: isWide ? 280 : 220,
-                          height: isWide ? 100 : 80,
+                          width: isWide ? 280 : (isSmall ? 120 : 220),
+                          height: isWide ? 100 : (isSmall ? 40 : 80),
                           fit: BoxFit.contain,
                         ),
-                        const SizedBox(height: 8),
+                        SizedBox(height: isSmall ? 4 : 8),
                         AutoSizeText(
                           'Tabang sa Kalisud, Sa Isa ka Tap.',
                           maxLines: 1,
-                          minFontSize: 12,
+                          minFontSize: 10,
                           style: TextStyle(
-                            fontSize: isWide ? 20 : 16,
+                            fontSize: isWide ? 20 : (isSmall ? 12 : 16),
                             fontWeight: FontWeight.w600,
                             color: kSubtleText,
                           ),
@@ -302,7 +338,6 @@ class _RegisterState extends State<Register> {
                     ),
                   ),
 
-                  // Form Card
                   Card(
                     elevation: 2,
                     shadowColor: Colors.black12,
@@ -311,15 +346,17 @@ class _RegisterState extends State<Register> {
                       borderRadius: BorderRadius.circular(kEdge),
                     ),
                     child: Padding(
-                      padding: const EdgeInsets.all(20),
+                      padding: EdgeInsets.all(isSmall ? 10 : 20),
                       child: Form(
                         key: _formKey,
                         child: Column(
                           children: [
                             if (_isSubmitting)
-                              const Padding(
-                                padding: EdgeInsets.only(bottom: 12),
-                                child: LinearProgressIndicator(
+                              Padding(
+                                padding: EdgeInsets.only(
+                                  bottom: isSmall ? 6 : 12,
+                                ),
+                                child: const LinearProgressIndicator(
                                   color: kPrimary,
                                   backgroundColor: Color(0xFFEFF2F7),
                                   minHeight: 3,
@@ -379,76 +416,7 @@ class _RegisterState extends State<Register> {
                                   v == null ? 'Sex is required' : null,
                             ),
                             const SizedBox(height: 14),
-
-                            // Date of Birth
-                            Row(
-                              children: [
-                                Expanded(
-                                  flex: 4,
-                                  child: DropdownButtonFormField<String>(
-                                    value: selectedMonth,
-                                    decoration: _dropdownDec('Month'),
-                                    items: _months
-                                        .map(
-                                          (m) => DropdownMenuItem(
-                                            value: m,
-                                            child: Text(m),
-                                          ),
-                                        )
-                                        .toList(),
-                                    onChanged: (v) =>
-                                        setState(() => selectedMonth = v),
-                                    validator: (v) =>
-                                        v == null ? 'Required' : null,
-                                  ),
-                                ),
-                                const SizedBox(width: 8),
-                                Expanded(
-                                  flex: 2,
-                                  child: DropdownButtonFormField<String>(
-                                    value: selectedDay,
-                                    decoration: _dropdownDec('Day'),
-                                    items: List.generate(31, (i) => '${i + 1}')
-                                        .map(
-                                          (d) => DropdownMenuItem(
-                                            value: d,
-                                            child: Text(d),
-                                          ),
-                                        )
-                                        .toList(),
-                                    onChanged: (v) =>
-                                        setState(() => selectedDay = v),
-                                    validator: (v) =>
-                                        v == null ? 'Required' : null,
-                                  ),
-                                ),
-                                const SizedBox(width: 8),
-                                Expanded(
-                                  flex: 3,
-                                  child: DropdownButtonFormField<String>(
-                                    value: selectedYear,
-                                    decoration: _dropdownDec('Year'),
-                                    items:
-                                        List.generate(
-                                              100,
-                                              (i) =>
-                                                  '${DateTime.now().year - i}',
-                                            )
-                                            .map(
-                                              (y) => DropdownMenuItem(
-                                                value: y,
-                                                child: Text(y),
-                                              ),
-                                            )
-                                            .toList(),
-                                    onChanged: (v) =>
-                                        setState(() => selectedYear = v),
-                                    validator: (v) =>
-                                        v == null ? 'Required' : null,
-                                  ),
-                                ),
-                              ],
-                            ),
+                            _dobField(context),
                             const SizedBox(height: 14),
 
                             // Mobile
@@ -695,7 +663,7 @@ class _RegisterState extends State<Register> {
 
                   const SizedBox(height: 16),
                   const Text(
-                    'Your information is kept private and secure.',
+                    'Your information is sept private and secure.',
                     textAlign: TextAlign.center,
                     style: TextStyle(color: kSubtleText, fontSize: 14),
                   ),

@@ -33,6 +33,7 @@ class SecretaryDashboardPage extends StatefulWidget {
 
 class _SecretaryDashboardPageState extends State<SecretaryDashboardPage> {
   final supabase = Supabase.instance.client;
+  final ScrollController _scrollController = ScrollController();
 
   String _fullName = '';
   String _selectedDayungUnit = 'Dayung Unit';
@@ -52,7 +53,22 @@ class _SecretaryDashboardPageState extends State<SecretaryDashboardPage> {
   @override
   void initState() {
     super.initState();
-    _initLoad();
+    _scrollController.addListener(() {
+      if (!_scrollController.hasClients) return;
+      final maxScroll = _scrollController.position.maxScrollExtent;
+      final current = _scrollController.position.pixels;
+      if (current >= maxScroll && _showNavBar) {
+        setState(() => _showNavBar = false);
+      } else if (current < maxScroll && !_showNavBar) {
+        setState(() => _showNavBar = true);
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
   }
 
   Future<void> _initLoad() async {
@@ -380,6 +396,7 @@ class _SecretaryDashboardPageState extends State<SecretaryDashboardPage> {
     return LayoutBuilder(
       builder: (ctx, constraints) {
         return SingleChildScrollView(
+          controller: _scrollController,
           physics: const AlwaysScrollableScrollPhysics(),
           padding: const EdgeInsets.fromLTRB(20, 8, 20, 120),
           child: Column(
@@ -493,7 +510,7 @@ class _SecretaryDashboardPageState extends State<SecretaryDashboardPage> {
                     context,
                     MaterialPageRoute(
                       builder: (_) =>
-                          CreateDeathNoticePage(dayungUnitId: _dayungUnitId),
+                          CreateDeathNoticePage(dayungUnitId: _dayungUnitId ?? 1),
                     ),
                   );
                 },

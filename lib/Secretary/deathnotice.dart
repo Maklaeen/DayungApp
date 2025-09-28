@@ -11,8 +11,8 @@ const Color kNeutralText = Color(0xFF1F2937);
 const Color kSubtleText = Color(0xFF4B5563);
 
 class CreateDeathNoticePage extends StatefulWidget {
-  final int? dayungUnitId;
-  const CreateDeathNoticePage({super.key, this.dayungUnitId});
+  final int dayungUnitId;
+  const CreateDeathNoticePage({super.key, required this.dayungUnitId});
 
   @override
   State<CreateDeathNoticePage> createState() => _CreateDeathNoticePageState();
@@ -36,17 +36,29 @@ class _CreateDeathNoticePageState extends State<CreateDeathNoticePage> {
 
   Future<void> _fetchMembers() async {
     setState(() => _loading = true);
-    final rows = await supabase
-        .from('users')
-        .select('id, full_name, is_deceased')
-        .eq('is_deceased', false)
-        .eq('dayung_unit_id', widget.dayungUnitId as Object);
-    final list = List<Map<String, dynamic>>.from(rows);
-    setState(() {
-      _members = list;
-      _filtered = list;
-      _loading = false;
-    });
+    try {
+      final rows = await supabase
+          .from('users')
+          .select('id, full_name, is_deceased, dayung_unit_id')
+          .eq('is_deceased', false)
+          .eq('dayung_unit_id', widget.dayungUnitId) // ALWAYS filter by dayung
+          .order('full_name');
+
+      final list = List<Map<String, dynamic>>.from(rows);
+      setState(() {
+        _members = list;
+        _filtered = list;
+      });
+    } catch (e) {
+      debugPrint('CreateDeathNoticePage _fetchMembers error: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Failed to load members: $e')));
+      }
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
   }
 
   void _filter(String q) {
@@ -162,7 +174,6 @@ class _MarkDeceasedModalState extends State<MarkDeceasedModal> {
   List<Map<String, dynamic>> _beneficiaries = [];
   String? _selectedBeneficiaryId;
   File? _deathCertFile;
-  String? _deathCertUrl;
   String? _barangay;
   double? _latitude;
   double? _longitude;
