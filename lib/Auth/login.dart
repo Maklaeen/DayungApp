@@ -1,3 +1,4 @@
+import 'package:capstone_app/Auth/utils_file.dart';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:auto_size_text/auto_size_text.dart';
@@ -225,16 +226,14 @@ class _LoginState extends State<Login> {
 
   Future<void> _handleLogin() async {
     if (!_formKey.currentState!.validate()) return;
-
     setState(() => _isLoading = true);
-
     final email = emailController.text.trim();
     final password = passwordController.text.trim();
 
     try {
       final res = await Supabase.instance.client.auth
           .signInWithPassword(email: email, password: password)
-          .timeout(const Duration(seconds: 20)); // handle stalls
+          .timeout(const Duration(seconds: 20));
 
       if (res.user == null) {
         setState(() => _isLoading = false);
@@ -254,63 +253,42 @@ class _LoginState extends State<Login> {
           .maybeSingle();
 
       setState(() => _isLoading = false);
-
-      if (userData != null) {
-        final role = userData['role'];
-        if (role == 'member') {
-          Navigator.pushReplacementNamed(context, '/dashboard');
-        } else if (role == 'president') {
-          Navigator.pushReplacementNamed(context, '/president-dashboard');
-        } else if (role == 'secretary') {
-          Navigator.pushReplacementNamed(context, '/secretary-dashboard');
-        } else if (role == 'treasurer') {
-          Navigator.pushReplacementNamed(context, '/treasurer-dashboard');
-        } else if (role == 'collector') {
-          Navigator.pushReplacementNamed(context, '/collector-dashboard');
-        } else if (role == 'admin') {
-          Navigator.pushReplacementNamed(context, '/admin-dashboard');
-        } else {
-          await _showErrorDialog('Access Error', 'Unknown user role.');
-        }
+      if (userData != null && (userData['role'] ?? '') == 'admin') {
+        Navigator.pushReplacementNamed(context, '/admin-dashboard');
       } else {
-        await _showErrorDialog(
-          'Profile Error',
-          'User not found in users table.',
+        final home = await pickHome();
+        // if (userData != null) {
+        //   final role = userData['role'];
+        //   if (role == 'member') {
+        //     Navigator.pushReplacementNamed(context, '/dashboard');
+        //   } else if (role == 'president') {
+        //     Navigator.pushReplacementNamed(context, '/president-dashboard');
+        //   } else if (role == 'secretary') {
+        //     Navigator.pushReplacementNamed(context, '/secretary-dashboard');
+        //   } else if (role == 'treasurer') {
+        //     Navigator.pushReplacementNamed(context, '/treasurer-dashboard');
+        //   } else if (role == 'collector') {
+        //     Navigator.pushReplacementNamed(context, '/collector-dashboard');
+        //   } else if (role == 'admin') {
+        //     Navigator.pushReplacementNamed(context, '/admin-dashboard');
+        //   } else {
+        //     await _showErrorDialog('Access Error', 'Unknown user role.');
+        //   }
+        // } else {
+        //   await _showErrorDialog(
+        //     'Profile Error',
+        //     'User not found in users table.',
+        //   );
+        // }
+        // }
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (_) => home),
         );
       }
-    } on SocketException {
-      setState(() => _isLoading = false);
-      await _showErrorDialog(
-        'No Internet Connection',
-        'Connect to your internet connection',
-        color: kWarn,
-        onTryAgain: _handleLogin,
-      );
-    } on http.ClientException {
-      setState(() => _isLoading = false);
-      await _showErrorDialog(
-        'No Internet Connection',
-        'Connect to your internet connection',
-        color: kWarn,
-        onTryAgain: _handleLogin,
-      );
-    } on TimeoutException {
-      setState(() => _isLoading = false);
-      await _showErrorDialog(
-        'Connection Timed Out',
-        'Connect to your internet connection',
-        color: kWarn,
-        onTryAgain: _handleLogin,
-      );
-    } on AuthException catch (e) {
-      setState(() => _isLoading = false);
-      final msg = (e.message.toLowerCase().contains('invalid'))
-          ? 'Incorrect email or password.'
-          : e.message;
-      await _showErrorDialog('Sign-in Failed', msg, onTryAgain: _handleLogin);
     } catch (e) {
       setState(() => _isLoading = false);
-      if (_looksOffline(e)) {
+      if (e is SocketException || _looksOffline(e)) {
         await _showErrorDialog(
           'No Internet Connection',
           'Connect to your internet connection',

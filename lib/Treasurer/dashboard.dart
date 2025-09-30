@@ -8,6 +8,7 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
+import 'package:flutter/foundation.dart';
 
 // Palette
 const Color kBg = Color(0xFFFAFAF7);
@@ -29,6 +30,10 @@ class TreasurerDashboardPage extends StatefulWidget {
 class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
   final sb = Supabase.instance.client;
   final ScrollController _scrollController = ScrollController();
+  Future<List<Map<String, dynamic>>>? _deathNoticesFutureCached;
+  Future<Map<int, Map<String, dynamic>>>? _paymentStatsFutureCached;
+  List<int> _lastNoticeIds = const [];
+  int? _lastStatsDayungId;
 
   String _dayungLabel = 'Dayung';
   int? _dayungUnitId;
@@ -46,6 +51,8 @@ class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
   @override
   void initState() {
     super.initState();
+    // Prime the notices future immediately so the first build doesn't recreate it
+    _deathNoticesFutureCached = _deathNoticesFuture();
     _init();
     _scrollController.addListener(() {
       if (!_scrollController.hasClients) return;
@@ -68,6 +75,17 @@ class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
   Future<void> _init() async {
     await _ensureDayungId();
     await _fetchAll();
+  }
+
+  void _ensureStatsFuture(List<int> noticeIds, int dayungUnitId) {
+    if (_paymentStatsFutureCached != null &&
+        listEquals(_lastNoticeIds, noticeIds) &&
+        _lastStatsDayungId == dayungUnitId) {
+      return;
+    }
+    _lastNoticeIds = List<int>.from(noticeIds);
+    _lastStatsDayungId = dayungUnitId;
+    _paymentStatsFutureCached = _paymentStatsByNotice(noticeIds, dayungUnitId);
   }
 
   Future<List<int>> _selectedDayungIds() async {
@@ -176,6 +194,14 @@ class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
     setState(() => _loading = true);
     try {
       final selected = await _selectedDayungIds(); // only current dayung
+
+      // Refresh death notices only when explicitly refreshing
+      _deathNoticesFutureCached = _deathNoticesFuture();
+      // Reset stats cache; it will be re-initialized lazily when notices arrive
+      _paymentStatsFutureCached = null;
+      _lastNoticeIds = const [];
+      _lastStatsDayungId = _dayungUnitId;
+
       await Future.wait([
         _fetchActiveMembers(selected),
         _fetchPendingPayments(selected),
@@ -263,26 +289,22 @@ class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
 
   Future<void> _ensureDayungId() async {
     if (_dayungUnitId != null) return;
-
-    // Try prefs first
     await _loadDayungFromPrefs();
     if (_dayungUnitId != null) return;
 
-    // Fallback: read treasurer's user row
     try {
       final uid = sb.auth.currentUser?.id;
       if (uid != null) {
         final res = await sb
-            .from('users')
-            .select('dayung_unit_id')
-            .eq('id', uid)
+            .from('dayung_units')
+            .select('id')
+            .eq('treasurer_id', uid)
             .limit(1);
         final list = List<Map<String, dynamic>>.from(res);
         if (list.isNotEmpty) {
-          final id = list.first['dayung_unit_id'];
-          if (id != null) {
-            setState(() => _dayungUnitId = int.tryParse(id.toString()));
-          }
+          setState(
+            () => _dayungUnitId = int.tryParse(list.first['id'].toString()),
+          );
         }
       }
     } catch (_) {}
@@ -595,7 +617,7 @@ class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
             const SizedBox(height: 14),
             _collectedPanel(),
             FutureBuilder<List<Map<String, dynamic>>>(
-              future: _deathNoticesFuture(),
+              future: _deathNoticesFutureCached,
               builder: (context, snap) {
                 if (snap.connectionState == ConnectionState.waiting) {
                   return const Padding(
@@ -635,6 +657,8 @@ class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
                     (notices.isNotEmpty
                         ? (notices.first['dayung_unit_id'] ?? 0)
                         : 0);
+
+                _ensureStatsFuture(noticeIds, dayungId);
 
                 return FutureBuilder<Map<int, Map<String, dynamic>>>(
                   future: _paymentStatsByNotice(noticeIds, dayungId),

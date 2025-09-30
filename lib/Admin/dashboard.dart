@@ -1,6 +1,5 @@
 import 'package:capstone_app/Auth/login.dart';
 import 'package:flutter/material.dart';
-import 'package:capstone_app/Admin/assign_user_dayung.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 class AdminDashboardPage extends StatelessWidget {
@@ -44,16 +43,16 @@ class AdminDashboardPage extends StatelessWidget {
             label: 'Manage Dayung Units',
             onTap: () => Navigator.pushNamed(context, '/admin-dayung-units'),
           ),
-          _AdminTile(
-            icon: Icons.assignment_ind,
-            label: 'Assign User to Dayung',
-            onTap: () => Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (_) => const AssignUserToDayungWidget(),
-              ),
-            ),
-          ),
+          // _AdminTile(
+          //   icon: Icons.assignment_ind,
+          //   label: 'Assign User to Dayung',
+          //   onTap: () => Navigator.push(
+          //     context,
+          //     MaterialPageRoute(
+          //       builder: (_) => const AssignUserToDayungWidget(),
+          //     ),
+          //   ),
+          // ),
           const SizedBox(height: 32),
           Center(
             child: ElevatedButton.icon(

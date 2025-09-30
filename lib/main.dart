@@ -1,4 +1,3 @@
-import 'package:capstone_app/Admin/assign_user_dayung.dart';
 import 'package:capstone_app/Admin/dashboard.dart';
 import 'package:capstone_app/Collector/dashboard.dart';
 import 'package:capstone_app/Members/dashboard.dart';
@@ -16,8 +15,6 @@ import 'Auth/register.dart';
 import 'Auth/reapply.dart';
 import 'package:provider/provider.dart';
 import 'package:capstone_app/Admin/manage_dayung_units.dart';
-import 'package:capstone_app/Admin/manage_users.dart';
-import 'package:capstone_app/Admin/manage_roles.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -57,11 +54,7 @@ class MyApp extends StatelessWidget {
           '/treasurer-dashboard': (context) => TreasurerDashboardPage(),
           '/collector-dashboard': (context) => CollectorDashboardPage(),
           '/admin-dashboard': (context) => AdminDashboardPage(),
-          '/admin-users': (context) => const ManageUsersPage(),
-          '/admin-roles': (context) => const ManageRolesPage(),
           '/admin-dayung-units': (context) => const ManageDayungUnitsPage(),
-          '/assign-user-to-dayung': (context) =>
-              const AssignUserToDayungWidget(),
         },
       ),
     );

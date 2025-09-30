@@ -1,3 +1,4 @@
+import 'package:capstone_app/President/manage_roles.dart';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:capstone_app/pages/notification.dart';
@@ -27,11 +28,9 @@ class _PresidentDashboardPageState extends State<PresidentDashboardPage> {
   int _activeMembersCount = 0;
   List<String> _recentDeaths = [];
 
-  // TODO: wire to your payments schema
   int _pendingMembers = 0;
   num _pendingAmount = 0;
 
-  // Responsive + nav state (match Secretary)
   int _currentIndex = 0;
   bool _showNavBar = true;
 
@@ -56,19 +55,56 @@ class _PresidentDashboardPageState extends State<PresidentDashboardPage> {
   }
 
   Future<List<int>> _managedDayungIds() async {
-    try {
-      final rows = await _sb
-          .from('dayung_units')
-          .select('id')
-          // .eq('president_id', _sb.auth.currentUser?.id) // if you have this column
-          .order('id');
-      return List<Map<String, dynamic>>.from(
-        rows,
-      ).map((e) => (e['id'] as int)).toList();
-    } catch (e) {
-      debugPrint('PresidentDashboard _managedDayungIds error: $e');
-      return <int>[];
-    }
+    final uid = _sb.auth.currentUser?.id;
+    if (uid == null) return <int>[];
+
+    final rows = await _sb
+        .from('dayung_units')
+        .select('id')
+        .eq('president_id', uid)
+        .order('id');
+
+    return List<Map<String, dynamic>>.from(
+      rows,
+    ).map((e) => e['id'] as int).toList();
+  }
+
+  // No filepath: utility snippet
+  Future<void> addCollector({
+    required int dayungUnitId,
+    required String userId,
+  }) async {
+    await Supabase.instance.client.from('dayung_collectors').insert({
+      'dayung_unit_id': dayungUnitId,
+      'user_id': userId,
+      'added_by': Supabase.instance.client.auth.currentUser?.id,
+    });
+  }
+
+  Future<void> removeCollector({
+    required int dayungUnitId,
+    required String userId,
+  }) async {
+    await Supabase.instance.client.from('dayung_collectors').delete().match({
+      'dayung_unit_id': dayungUnitId,
+      'user_id': userId,
+    });
+  }
+
+  Future<List<Map<String, dynamic>>> listCollectors(int dayungUnitId) async {
+    final rows = await Supabase.instance.client
+        .from('dayung_collectors')
+        .select('user_id')
+        .eq('dayung_unit_id', dayungUnitId);
+    final ids = List<Map<String, dynamic>>.from(
+      rows,
+    ).map((r) => (r['user_id'] as String)).toList();
+    if (ids.isEmpty) return [];
+    final users = await Supabase.instance.client
+        .from('users')
+        .select('id, full_name, mobile_number')
+        .inFilter('id', ids);
+    return List<Map<String, dynamic>>.from(users);
   }
 
   Future<void> _fetchActiveMembersCount(List<int> ids) async {
@@ -177,7 +213,7 @@ class _PresidentDashboardPageState extends State<PresidentDashboardPage> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                _overviewTripleCards(constraints.maxWidth),
+                _overviewFourCards(constraints.maxWidth),
                 const SizedBox(height: 16),
                 const _PostAnnouncementButton(),
                 const SizedBox(height: 18),
@@ -193,7 +229,7 @@ class _PresidentDashboardPageState extends State<PresidentDashboardPage> {
     );
   }
 
-  Widget _overviewTripleCards(double maxWidth) {
+  Widget _overviewFourCards(double maxWidth) {
     const gap = 12.0;
 
     // Target equal height for all cards
@@ -237,11 +273,17 @@ class _PresidentDashboardPageState extends State<PresidentDashboardPage> {
         footerText: '',
         leading: Icons.account_balance_wallet_rounded,
       ),
-      const StatCard(
+      StatCard(
         bg: Color(0xFFE6F0FF),
         title: 'Manage Roles',
         leading: Icons.manage_accounts_rounded,
         footerText: 'Manage',
+        onTap: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => const ManageRolesPagePres()),
+          );
+        },
       ),
     ];
 

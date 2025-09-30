@@ -130,24 +130,26 @@ class _CollectorDashboardPageState extends State<CollectorDashboardPage> {
   }
 
   Future<List<int>> _managedDayungIds() async {
-    final ids = <int>[];
     final uid = sb.auth.currentUser?.id;
+    if (uid == null) return <int>[];
 
-    // Rely on users.dayung_unit_id (matches your working policies)
-    if (uid != null) {
-      try {
-        final res = await sb
-            .from('users')
-            .select('dayung_unit_id')
-            .eq('id', uid)
-            .maybeSingle();
-        final did = int.tryParse('${res?['dayung_unit_id'] ?? ''}');
-        if (did != null) ids.add(did);
-      } catch (_) {}
-    }
+    try {
+      final rows = await sb
+          .from('dayung_collectors')
+          .select('dayung_unit_id')
+          .eq('user_id', uid);
+      final ids = <int>{
+        for (final r in List<Map<String, dynamic>>.from(rows))
+          if (r['dayung_unit_id'] != null)
+            int.tryParse(r['dayung_unit_id'].toString()) ?? -1,
+      }..remove(-1);
 
-    if (ids.isEmpty && _dayungUnitId != null) ids.add(_dayungUnitId!);
-    return ids;
+      if (ids.isNotEmpty) return ids.toList();
+    } catch (_) {}
+
+    // Fallback to selected pref (if any)
+    if (_dayungUnitId != null) return [_dayungUnitId!];
+    return <int>[];
   }
 
   Future<void> _fetchActiveMembers(List<int> ids) async {
