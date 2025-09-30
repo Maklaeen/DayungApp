@@ -356,25 +356,34 @@ class _NotificationPageState extends State<NotificationPage> {
               final sb = Supabase.instance.client;
               final uid = sb.auth.currentUser?.id;
               if (uid != null) {
-                // Mark all notifications as read
+                // Notifications -> set read_at
                 await sb
                     .from('notifications')
                     .update({'read_at': DateTime.now().toIso8601String()})
                     .eq('recipient_id', uid)
                     .isFilter('read_at', null);
 
-                // Mark all announcements as read for this user
+                // Announcements -> per-user reads via upsert
                 final unreadAnn = _items.where(
                   (n) =>
                       n['type'] == 'announcement_direct' &&
                       !(n['is_read'] ?? false),
                 );
-                for (final ann in unreadAnn) {
-                  await sb.from('announcement_reads').insert({
-                    'announcement_id': ann['id'],
-                    'user_id': uid,
-                    'read_at': DateTime.now().toIso8601String(),
-                  });
+                if (unreadAnn.isNotEmpty) {
+                  await sb
+                      .from('announcement_reads')
+                      .upsert(
+                        unreadAnn
+                            .map(
+                              (ann) => {
+                                'announcement_id': ann['id'],
+                                'user_id': uid,
+                                'read_at': DateTime.now().toIso8601String(),
+                              },
+                            )
+                            .toList(),
+                        onConflict: 'announcement_id,user_id',
+                      );
                 }
                 await _fetchAll();
               }
@@ -422,23 +431,16 @@ class _NotificationPageState extends State<NotificationPage> {
                               'read_at': DateTime.now().toIso8601String(),
                             })
                             .eq('id', n['id']);
-                      } else if (isAnnouncement) {
-                        final existing = await sb
-                            .from('announcement_reads')
-                            .select('id')
-                            .eq('announcement_id', n['id'])
-                            .eq('user_id', uid as Object)
-                            .maybeSingle();
-                        if (existing == null) {
-                          await sb.from('announcement_reads').insert({
+                      } else if (isAnnouncement && uid != null) {
+                        await sb.from('announcement_reads').upsert([
+                          {
                             'announcement_id': n['id'],
                             'user_id': uid,
                             'read_at': DateTime.now().toIso8601String(),
-                          });
-                        }
+                          },
+                        ], onConflict: 'announcement_id,user_id');
                       }
                       await _fetchAll();
-                      if (mounted) setState(() {});
                     },
                     child: NotificationPage._notificationCard(
                       title:

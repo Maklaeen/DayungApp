@@ -18,6 +18,7 @@ import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:capstone_app/Members/top_notification.dart';
 
 // Shared palette aligned to Secretary
 const kBg = Color(0xFFFAFAF7);
@@ -34,6 +35,7 @@ class MemberDashboardPage extends StatefulWidget {
 class _MemberDashboardPageState extends State<MemberDashboardPage> {
   final supabase = Supabase.instance.client;
   RealtimeChannel? _notifChannel;
+  final List<RealtimeChannel> _announcementChannels = [];
   final ScrollController _scrollController = ScrollController();
   int _unreadNotifCount = 0;
 
@@ -71,7 +73,7 @@ class _MemberDashboardPageState extends State<MemberDashboardPage> {
   @override
   void initState() {
     super.initState();
-    _subscribeMembershipApproved();
+    _subscribeNotificationsRealtime();
     _loadOrAskDayung();
     _fetchUnreadNotifCount();
     _loadUserData();
@@ -382,6 +384,7 @@ class _MemberDashboardPageState extends State<MemberDashboardPage> {
             _selectedDayungUnitObj = Map<String, dynamic>.from(unit);
           });
           await _fetchAllStats(); // ...existing code...
+          await _subscribeAnnouncementsRealtime();
           return;
         } else {
           await prefs.remove('selectedDayungUnit');
@@ -439,6 +442,123 @@ class _MemberDashboardPageState extends State<MemberDashboardPage> {
       _fetchPendingPayments(),
       _fetchRecentActivity(),
     ]);
+  }
+
+  void _subscribeNotificationsRealtime() {
+    final sb = Supabase.instance.client;
+    final uid = sb.auth.currentUser?.id;
+    if (uid == null) return;
+
+    _notifChannel?.unsubscribe();
+    _notifChannel = sb.channel('member_notifications_$uid');
+
+    _notifChannel!
+        .onPostgresChanges(
+          event: PostgresChangeEvent.insert,
+          schema: 'public',
+          table: 'notifications',
+          filter: PostgresChangeFilter(
+            type: PostgresChangeFilterType.eq,
+            column: 'recipient_id',
+            value: uid,
+          ),
+          callback: (payload) async {
+            final row = payload.newRecord;
+            final type = (row['type'] ?? '').toString();
+            if (type == 'membership_approved' || type == 'announcement') {
+              // Show top banner
+              TopNotificationBanner.show(
+                context,
+                title: row['title']?.toString() ?? 'Notification',
+                message: row['body']?.toString() ?? '',
+                icon: type == 'announcement'
+                    ? Icons.campaign
+                    : Icons.notifications_active_rounded,
+                onTap: () async {
+                  // Mark this notification as read when tapped
+                  try {
+                    await sb
+                        .from('notifications')
+                        .update({'read_at': DateTime.now().toIso8601String()})
+                        .eq('id', row['id']);
+                  } catch (_) {}
+                  await _fetchUnreadNotifCount();
+                },
+              );
+              await _fetchUnreadNotifCount(); // update badge immediately
+            }
+          },
+        )
+        .subscribe();
+
+    _checkUnreadNotifications();
+  }
+
+  Future<void> _subscribeAnnouncementsRealtime() async {
+    final sb = Supabase.instance.client;
+    final uid = sb.auth.currentUser?.id;
+    if (uid == null) return;
+
+    // Clear existing channels
+    for (final ch in _announcementChannels) {
+      ch.unsubscribe();
+    }
+    _announcementChannels.clear();
+
+    // Fetch all approved dayung units of this user
+    final apps = await sb
+        .from('applications')
+        .select('dayung_unit_id')
+        .eq('user_id', uid)
+        .eq('status', 'approved');
+
+    final unitIds = <int>{
+      for (final r in (apps as List))
+        if ((r as Map)['dayung_unit_id'] != null)
+          int.parse(r['dayung_unit_id'].toString()),
+    }.toList();
+
+    // Subscribe to inserts on announcements per unit
+    for (final id in unitIds) {
+      final ch = sb.channel('announcements_unit_$id');
+      ch
+          .onPostgresChanges(
+            event: PostgresChangeEvent.insert,
+            schema: 'public',
+            table: 'announcements',
+            filter: PostgresChangeFilter(
+              type: PostgresChangeFilterType.eq,
+              column: 'dayung_unit_id',
+              value: id,
+            ),
+            callback: (payload) async {
+              final row = payload.newRecord;
+              // Pop top banner
+              TopNotificationBanner.show(
+                context,
+                title: (row['title'] ?? 'Announcement').toString(),
+                message: (row['body'] ?? '').toString(),
+                icon: Icons.campaign,
+                onTap: () async {
+                  // Mark as read FOR THIS USER using announcement_reads
+                  try {
+                    await sb.from('announcement_reads').upsert([
+                      {
+                        'announcement_id': row['id'],
+                        'user_id': uid,
+                        'read_at': DateTime.now().toIso8601String(),
+                      },
+                    ], onConflict: 'announcement_id,user_id');
+                  } catch (_) {}
+                  await _fetchUnreadNotifCount();
+                },
+              );
+              await _fetchUnreadNotifCount();
+            },
+          )
+          .subscribe();
+      _announcementChannels.add(ch);
+    }
   }
 
   Future<void> _fetchRecentActivity() async {
@@ -649,6 +769,8 @@ class _MemberDashboardPageState extends State<MemberDashboardPage> {
       });
       context.read<DayungUnitProvider>().setDayungUnit(result['name']);
       await _fetchAllStats();
+      await _subscribeAnnouncementsRealtime();
+      return;
     }
   }
 
@@ -803,6 +925,10 @@ class _MemberDashboardPageState extends State<MemberDashboardPage> {
   @override
   void dispose() {
     _notifChannel?.unsubscribe();
+    for (final ch in _announcementChannels) {
+      ch.unsubscribe();
+    }
+    _announcementChannels.clear();
     _scrollController.dispose();
     super.dispose();
   }
