@@ -35,13 +35,13 @@ class _MemberDashboardPageState extends State<MemberDashboardPage> {
   final supabase = Supabase.instance.client;
   final ScrollController _scrollController = ScrollController();
 
+  Map<String, dynamic>? _selectedDayungUnitObj;
+  String? selectedDayungUnit;
+
   // ignore: unused_field
   User? _user;
   String _fullName = 'Member';
   String? _profileUrl;
-
-  Map<String, dynamic>? _selectedDayungUnitObj;
-  String? selectedDayungUnit;
 
   bool _showNavBar = true;
   // ignore: unused_field
@@ -64,16 +64,14 @@ class _MemberDashboardPageState extends State<MemberDashboardPage> {
   bool _loadingActivity = true;
   List<Map<String, dynamic>> _latestActivities = [];
 
-  int? _asInt(dynamic v) {
-    if (v == null) return null;
-    if (v is int) return v;
-    return int.tryParse(v.toString());
-  }
+  int? _asInt(dynamic v) => v == null ? null : int.tryParse(v.toString());
 
   @override
   void initState() {
     super.initState();
-    _init();
+    // _init();
+    _loadOrAskDayung();
+    _loadUserData();
     _scrollController.addListener(() {
       if (!_scrollController.hasClients) return;
       final maxScroll = _scrollController.position.maxScrollExtent;
@@ -84,18 +82,138 @@ class _MemberDashboardPageState extends State<MemberDashboardPage> {
         setState(() => _showNavBar = true);
       }
     });
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _loadOrAskDayung();
-    });
   }
 
-  Future<void> _init() async {
-    await _loadUserData();
-    await _reloadDayungFromPrefs();
-    // Only fetch stats if we already have a selected dayung
-    if (_selectedDayungUnitObj?['id'] != null) {
-      await _fetchAllStats();
+  // Future<void> _init() async {
+  //   await _loadUserData();
+  //   await _reloadDayungFromPrefs();
+  //   // Only fetch stats if we already have a selected dayung
+  //   if (_selectedDayungUnitObj?['id'] != null) {
+  //     await _fetchAllStats();
+  //   }
+  // }
+
+  Future<bool> _isApprovedForUnit(int unitId) async {
+    final uid = supabase.auth.currentUser?.id;
+    if (uid == null) return false;
+    try {
+      final rows = await supabase
+          .from('applications')
+          .select('id')
+          .eq('user_id', uid)
+          .eq('dayung_unit_id', unitId)
+          .eq('status', 'approved')
+          .limit(1);
+      return (rows as List).isNotEmpty;
+    } catch (_) {
+      return false;
     }
+  }
+
+  Future<void> _reloadDayungFromPrefs() async {
+    final prefs = await SharedPreferences.getInstance();
+    final unitJson = prefs.getString('selectedDayungUnit');
+    if (unitJson == null) {
+      setState(() {
+        selectedDayungUnit = null;
+        _selectedDayungUnitObj = null;
+      });
+      return;
+    }
+    try {
+      final decoded = jsonDecode(unitJson);
+      if (decoded is Map) {
+        final unit = Map<String, dynamic>.from(decoded);
+        final id = _asInt(unit['id']);
+        if (id != null && await _isApprovedForUnit(id)) {
+          setState(() {
+            selectedDayungUnit = unit['name']?.toString();
+            _selectedDayungUnitObj = unit;
+          });
+        } else {
+          await prefs.remove('selectedDayungUnit');
+          setState(() {
+            selectedDayungUnit = null;
+            _selectedDayungUnitObj = null;
+          });
+        }
+      } else {
+        await prefs.remove('selectedDayungUnit');
+        setState(() {
+          selectedDayungUnit = null;
+          _selectedDayungUnitObj = null;
+        });
+      }
+    } catch (_) {
+      await prefs.remove('selectedDayungUnit');
+      setState(() {
+        selectedDayungUnit = null;
+        _selectedDayungUnitObj = null;
+      });
+    }
+  }
+
+  Future<void> _loadOrAskDayung() async {
+    final prefs = await SharedPreferences.getInstance();
+    final unitJson = prefs.getString('selectedDayungUnit');
+    if (unitJson != null) {
+      try {
+        final unit = jsonDecode(unitJson);
+        final id = _asInt((unit as Map)['id']);
+        if (id != null && await _isApprovedForUnit(id)) {
+          setState(() {
+            selectedDayungUnit = unit['name'];
+            _selectedDayungUnitObj = Map<String, dynamic>.from(unit);
+          });
+          await _fetchAllStats(); // ...existing code...
+          return;
+        } else {
+          await prefs.remove('selectedDayungUnit');
+        }
+      } catch (_) {
+        await prefs.remove('selectedDayungUnit');
+      }
+    }
+
+    // Auto-pick latest APPROVED application (do NOT use users.dayung_unit_id)
+    try {
+      final uid = supabase.auth.currentUser?.id;
+      if (uid != null) {
+        final apps = await supabase
+            .from('applications')
+            .select('dayung_unit_id, approved_at')
+            .eq('user_id', uid)
+            .eq('status', 'approved')
+            .order('approved_at', ascending: false)
+            .limit(1);
+
+        final list = (apps as List);
+        if (list.isNotEmpty) {
+          final dId = _asInt((list.first as Map)['dayung_unit_id']);
+          if (dId != null) {
+            final unit = await supabase
+                .from('dayung_units')
+                .select('id, name, barangay, city')
+                .eq('id', dId)
+                .maybeSingle();
+            if (unit != null) {
+              await prefs.setString('selectedDayungUnit', jsonEncode(unit));
+              setState(() {
+                _selectedDayungUnitObj = Map<String, dynamic>.from(unit);
+                selectedDayungUnit = unit['name']?.toString();
+              });
+              await _fetchAllStats(); // ...existing code...
+              return;
+            }
+          }
+        }
+      }
+    } catch (_) {
+      // ignore and fallback to manual pick
+    }
+
+    // No approved membership -> open selection flow (may show none)
+    await _navigateAndPickUnit(); // ...existing code...
   }
 
   Future<void> _fetchAllStats() async {
@@ -259,42 +377,6 @@ class _MemberDashboardPageState extends State<MemberDashboardPage> {
     return '${months[now.month - 1]} ${now.day}, ${now.year}';
   }
 
-  Future<void> _reloadDayungFromPrefs() async {
-    final prefs = await SharedPreferences.getInstance();
-    final unitJson = prefs.getString('selectedDayungUnit');
-    if (unitJson == null) {
-      setState(() {
-        selectedDayungUnit = null;
-        _selectedDayungUnitObj = null;
-      });
-      return;
-    }
-    try {
-      // Some older versions stored a plain string; guard for that
-      final decoded = jsonDecode(unitJson);
-      if (decoded is Map) {
-        final unit = Map<String, dynamic>.from(decoded);
-        setState(() {
-          selectedDayungUnit = unit['name']?.toString();
-          _selectedDayungUnitObj = unit;
-        });
-      } else {
-        // Not an object, clear and re-pick
-        await prefs.remove('selectedDayungUnit');
-        setState(() {
-          selectedDayungUnit = null;
-          _selectedDayungUnitObj = null;
-        });
-      }
-    } catch (_) {
-      await prefs.remove('selectedDayungUnit');
-      setState(() {
-        selectedDayungUnit = null;
-        _selectedDayungUnitObj = null;
-      });
-    }
-  }
-
   Future<void> _refreshDashboard() async {
     await _loadUserData();
     await _reloadDayungFromPrefs();
@@ -335,63 +417,6 @@ class _MemberDashboardPageState extends State<MemberDashboardPage> {
     if (s == 'male') return 'Mr.';
     if (s == 'female') return 'Mrs.';
     return '';
-  }
-
-  Future<void> _loadOrAskDayung() async {
-    final prefs = await SharedPreferences.getInstance();
-    final unitJson = prefs.getString('selectedDayungUnit');
-    if (unitJson != null) {
-      try {
-        final unit = jsonDecode(unitJson);
-        setState(() {
-          selectedDayungUnit = unit['name'];
-          _selectedDayungUnitObj = Map<String, dynamic>.from(unit as Map);
-        });
-        if (_selectedDayungUnitObj?['id'] != null) {
-          await _fetchAllStats();
-        }
-        return;
-      } catch (_) {
-        await prefs.remove('selectedDayungUnit');
-      }
-    }
-
-    // Auto-pick from profile if possible
-    try {
-      final uid = supabase.auth.currentUser?.id;
-      if (uid != null) {
-        final profile = await supabase
-            .from('users')
-            .select('dayung_unit_id')
-            .eq('id', uid)
-            .maybeSingle();
-
-        final dId = _asInt(profile?['dayung_unit_id']);
-        if (dId != null) {
-          // Load display fields of the dayung unit
-          final unit = await supabase
-              .from('dayung_units')
-              .select('id, name, barangay, city')
-              .eq('id', dId)
-              .maybeSingle();
-
-          if (unit != null) {
-            await prefs.setString('selectedDayungUnit', jsonEncode(unit));
-            setState(() {
-              _selectedDayungUnitObj = Map<String, dynamic>.from(unit);
-              selectedDayungUnit = unit['name']?.toString();
-            });
-            await _fetchAllStats();
-            return;
-          }
-        }
-      }
-    } catch (_) {
-      // ignore and fallback to manual pick
-    }
-
-    // Fallback: ask user to pick
-    await _navigateAndPickUnit();
   }
 
   Future<void> _navigateAndPickUnit() async {

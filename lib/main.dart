@@ -14,7 +14,6 @@ import 'Auth/login.dart';
 import 'Auth/register.dart';
 import 'Auth/reapply.dart';
 import 'package:provider/provider.dart';
-import 'package:capstone_app/Admin/manage_dayung_units.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -54,7 +53,6 @@ class MyApp extends StatelessWidget {
           '/treasurer-dashboard': (context) => TreasurerDashboardPage(),
           '/collector-dashboard': (context) => CollectorDashboardPage(),
           '/admin-dashboard': (context) => AdminDashboardPage(),
-          '/admin-dayung-units': (context) => const ManageDayungUnitsPage(),
         },
       ),
     );

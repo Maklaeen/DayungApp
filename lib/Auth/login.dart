@@ -297,8 +297,8 @@ class _LoginState extends State<Login> {
         );
       } else {
         await _showErrorDialog(
-          'Unexpected Error',
-          'Please try again later.',
+          'Incorrect Email or Password',
+          'Please try again.',
           onTryAgain: _handleLogin,
         );
       }

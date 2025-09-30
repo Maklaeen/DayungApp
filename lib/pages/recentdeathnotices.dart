@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:capstone_app/screens/dayung_suggestions.dart';
 import 'package:flutter/material.dart';
 import 'package:capstone_app/pages/deathnoticedetail.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -20,23 +21,26 @@ class _RecentDeathNoticesState extends State<RecentDeathNotices> {
   @override
   void initState() {
     super.initState();
+
+    if (widget.dayungUnitId == null) {
+      setState(() => _loading = false);
+      return;
+    }
+
     _fetchDeathNotices();
 
     // Realtime stream filtered by dayung, if provided
     final client = Supabase.instance.client;
-    final stream = (widget.dayungUnitId != null)
-        ? client
-              .from('death_notices')
-              .stream(primaryKey: ['id'])
-              .eq('dayung_unit_id', widget.dayungUnitId as Object)
-        : client.from('death_notices').stream(primaryKey: ['id']);
-
-    _sub = stream.listen((data) {
-      setState(() {
-        _deathNotices = List<Map<String, dynamic>>.from(data);
-        _loading = false;
-      });
-    });
+    _sub = client
+        .from('death_notices')
+        .stream(primaryKey: ['id'])
+        .eq('dayung_unit_id', widget.dayungUnitId as Object)
+        .listen((data) {
+          setState(() {
+            _deathNotices = List<Map<String, dynamic>>.from(data);
+            _loading = false;
+          });
+        });
   }
 
   @override
@@ -46,16 +50,21 @@ class _RecentDeathNoticesState extends State<RecentDeathNotices> {
   }
 
   Future<void> _fetchDeathNotices() async {
+    if (widget.dayungUnitId == null) {
+      setState(() {
+        _deathNotices = [];
+        _loading = false;
+      });
+      return;
+    }
+
     try {
-      var q = Supabase.instance.client
+      final response = await Supabase.instance.client
           .from('death_notices')
-          .select('id, name, date_of_death, barangay, dayung_unit_id');
+          .select('id, name, date_of_death, barangay, dayung_unit_id')
+          .eq('dayung_unit_id', widget.dayungUnitId as Object)
+          .order('date_of_death', ascending: false);
 
-      if (widget.dayungUnitId != null) {
-        q = q.eq('dayung_unit_id', widget.dayungUnitId as Object);
-      }
-
-      final response = await q.order('date_of_death', ascending: false);
       setState(() {
         _deathNotices = List<Map<String, dynamic>>.from(response as List);
         _loading = false;
@@ -71,6 +80,38 @@ class _RecentDeathNoticesState extends State<RecentDeathNotices> {
   @override
   Widget build(BuildContext context) {
     final textScale = MediaQuery.of(context).textScaleFactor.clamp(1.0, 1.3);
+
+    // Block page content when no dayung id
+    if (widget.dayungUnitId == null) {
+      return Scaffold(
+        appBar: AppBar(
+          title: const Text('Deaths and Vigil locations'),
+          backgroundColor: Colors.white,
+          elevation: 1,
+          iconTheme: const IconThemeData(color: Colors.black87),
+        ),
+        backgroundColor: Colors.grey.shade100,
+        body: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              ElevatedButton.icon(
+                icon: const Icon(Icons.add),
+                label: const Text('Apply a Dayung first'),
+                onPressed: () async {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => const DayungSuggestionsPage(),
+                    ),
+                  );
+                },
+              ),
+            ],
+          ),
+        ),
+      );
+    }
 
     return Scaffold(
       backgroundColor: Colors.grey.shade100,

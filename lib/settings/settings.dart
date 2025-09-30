@@ -4,7 +4,6 @@ import 'package:capstone_app/screens/dayung_suggestions.dart';
 import 'package:capstone_app/screens/selectdayung.dart';
 import 'package:capstone_app/screens/dayung_map_page.dart';
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:auto_size_text/auto_size_text.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -17,7 +16,6 @@ class SettingsPage extends StatefulWidget {
 }
 
 class _SettingsPageState extends State<SettingsPage> {
-  String _currentDayung = '—';
   int? _currentDayungId;
   String? _currentDayungName;
   Map<String, dynamic>? _currentDayungData;
@@ -238,40 +236,59 @@ class _SettingsPageState extends State<SettingsPage> {
 
                                 // If user picked a Dayung, update users.dayung_unit_id
                                 if (!mounted) return;
-  if (selected != null && selected is Map<String, dynamic>) {
-    final supabase = Supabase.instance.client;
-    final user = supabase.auth.currentUser;
-    if (user != null && selected['id'] != null) {
-      try {
-        await supabase
-            .from('users')
-            .update({'dayung_unit_id': selected['id']})
-            .eq('id', user.id);
+                                if (selected != null &&
+                                    selected is Map<String, dynamic>) {
+                                  final supabase = Supabase.instance.client;
+                                  final user = supabase.auth.currentUser;
+                                  if (user != null && selected['id'] != null) {
+                                    try {
+                                      await supabase
+                                          .from('users')
+                                          .update({
+                                            'dayung_unit_id': selected['id'],
+                                          })
+                                          .eq('id', user.id);
 
-        // Persist the new selection to SharedPreferences so ClaimsPage picks it up
-        final prefs = await SharedPreferences.getInstance();
-        await prefs.setString('selectedDayungUnit', jsonEncode({
-          'id': selected['id'],
-          'name': selected['name'],
-          'barangay': selected['barangay'],
-          'city': selected['city'],
-        }));
+                                      // Persist the new selection to SharedPreferences so ClaimsPage picks it up
+                                      final prefs =
+                                          await SharedPreferences.getInstance();
+                                      await prefs.setString(
+                                        'selectedDayungUnit',
+                                        jsonEncode({
+                                          'id': selected['id'],
+                                          'name': selected['name'],
+                                          'barangay': selected['barangay'],
+                                          'city': selected['city'],
+                                        }),
+                                      );
 
-        // (Optional) notify a provider if you use one
-        // context.read<DayungUnitProvider>().setDayungName(selected['name']);
+                                      // (Optional) notify a provider if you use one
+                                      // context.read<DayungUnitProvider>().setDayungName(selected['name']);
 
-        if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Current Dayung updated to ${selected['name']}')),
-        );
-      } on PostgrestException catch (e) {
-        if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to set Dayung: ${e.message}')),
-        );
-      }
-    }
-  }
+                                      if (!mounted) return;
+                                      ScaffoldMessenger.of(
+                                        context,
+                                      ).showSnackBar(
+                                        SnackBar(
+                                          content: Text(
+                                            'Current Dayung updated to ${selected['name']}',
+                                          ),
+                                        ),
+                                      );
+                                    } on PostgrestException catch (e) {
+                                      if (!mounted) return;
+                                      ScaffoldMessenger.of(
+                                        context,
+                                      ).showSnackBar(
+                                        SnackBar(
+                                          content: Text(
+                                            'Failed to set Dayung: ${e.message}',
+                                          ),
+                                        ),
+                                      );
+                                    }
+                                  }
+                                }
 
                                 await _loadCurrentDayung(); // refresh UI
                               },
