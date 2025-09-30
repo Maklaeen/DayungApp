@@ -3,8 +3,6 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:auto_size_text/auto_size_text.dart';
 import 'dart:io' show SocketException;
-import 'dart:async' show TimeoutException;
-import 'package:http/http.dart' as http show ClientException;
 
 // Palette
 const Color kBg = Color(0xFFFAFAF7);
@@ -303,12 +301,6 @@ class _LoginState extends State<Login> {
         );
       }
     }
-  }
-
-  void _snack(String msg, Color color) {
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(SnackBar(content: Text(msg), backgroundColor: color));
   }
 
   @override

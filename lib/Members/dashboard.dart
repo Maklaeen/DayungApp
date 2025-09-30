@@ -12,7 +12,7 @@ import 'package:capstone_app/Auth/login.dart'
     hide kPrimary, kNeutralText, kSubtleText, kPrimaryDark;
 import 'package:auto_size_text/auto_size_text.dart';
 import 'package:capstone_app/ui/theme/branding.dart';
-import 'package:capstone_app/widgets/member_header.dart';
+import 'package:capstone_app/Members/member_header.dart';
 import 'package:flutter/material.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:provider/provider.dart';
@@ -33,7 +33,9 @@ class MemberDashboardPage extends StatefulWidget {
 
 class _MemberDashboardPageState extends State<MemberDashboardPage> {
   final supabase = Supabase.instance.client;
+  RealtimeChannel? _notifChannel;
   final ScrollController _scrollController = ScrollController();
+  int _unreadNotifCount = 0;
 
   Map<String, dynamic>? _selectedDayungUnitObj;
   String? selectedDayungUnit;
@@ -69,8 +71,9 @@ class _MemberDashboardPageState extends State<MemberDashboardPage> {
   @override
   void initState() {
     super.initState();
-    // _init();
+    _subscribeMembershipApproved();
     _loadOrAskDayung();
+    _fetchUnreadNotifCount();
     _loadUserData();
     _scrollController.addListener(() {
       if (!_scrollController.hasClients) return;
@@ -84,14 +87,61 @@ class _MemberDashboardPageState extends State<MemberDashboardPage> {
     });
   }
 
-  // Future<void> _init() async {
-  //   await _loadUserData();
-  //   await _reloadDayungFromPrefs();
-  //   // Only fetch stats if we already have a selected dayung
-  //   if (_selectedDayungUnitObj?['id'] != null) {
-  //     await _fetchAllStats();
-  //   }
-  // }
+  Future<void> _fetchUnreadNotifCount() async {
+    final sb = Supabase.instance.client;
+    final uid = sb.auth.currentUser?.id;
+    if (uid == null) {
+      if (mounted) setState(() => _unreadNotifCount = 0);
+      return;
+    }
+
+    // 1. Unread notifications
+    final notifData = await sb
+        .from('notifications')
+        .select('id')
+        .eq('recipient_id', uid)
+        .isFilter('read_at', null);
+
+    int notifCount = (notifData as List).length;
+
+    // 2. Unread announcements (for all user's approved dayung units)
+    final apps = await sb
+        .from('applications')
+        .select('dayung_unit_id')
+        .eq('user_id', uid)
+        .eq('status', 'approved');
+    final unitIds = List<Map<String, dynamic>>.from(apps)
+        .map((a) => a['dayung_unit_id'])
+        .where((id) => id != null)
+        .toSet()
+        .toList();
+
+    int annCount = 0;
+    if (unitIds.isNotEmpty) {
+      // Get all announcements for user's units
+      final annData = await sb
+          .from('announcements')
+          .select('id')
+          .inFilter('dayung_unit_id', unitIds);
+
+      final allAnnIds = (annData as List).map((a) => a['id']).toList();
+
+      // Get which announcements the user has read
+      final reads = await sb
+          .from('announcement_reads')
+          .select('announcement_id')
+          .eq('user_id', uid);
+
+      final readIds = Set.from(
+        (reads as List).map((r) => r['announcement_id']),
+      );
+
+      // Count only announcements the user has NOT read
+      annCount = allAnnIds.where((id) => !readIds.contains(id)).length;
+    }
+
+    if (mounted) setState(() => _unreadNotifCount = notifCount + annCount);
+  }
 
   Future<bool> _isApprovedForUnit(int unitId) async {
     final uid = supabase.auth.currentUser?.id;
@@ -108,6 +158,172 @@ class _MemberDashboardPageState extends State<MemberDashboardPage> {
     } catch (_) {
       return false;
     }
+  }
+
+  void _subscribeMembershipApproved() {
+    final sb = Supabase.instance.client;
+    final uid = sb.auth.currentUser?.id;
+    if (uid == null) return;
+
+    _notifChannel?.unsubscribe();
+    _notifChannel = sb.channel('member_notifications_${uid}');
+
+    _notifChannel!
+        .onPostgresChanges(
+          event: PostgresChangeEvent.insert,
+          schema: 'public',
+          table: 'notifications',
+          filter: PostgresChangeFilter(
+            type: PostgresChangeFilterType.eq,
+            column: 'recipient_id',
+            value: uid,
+          ),
+          callback: (payload) async {
+            final row = payload.newRecord;
+            if ((row['type'] ?? '') == 'membership_approved' &&
+                row['read_at'] == null) {
+              _showAnnouncementDialog(row);
+            }
+            if ((row['type'] ?? '') == 'announcement' &&
+                row['read_at'] == null) {
+              _showAnnouncementDialog(row);
+            }
+          },
+        )
+        .subscribe();
+
+    _checkUnreadNotifications();
+  }
+
+  Future<void> _checkUnreadNotifications() async {
+    final sb = Supabase.instance.client;
+    final uid = sb.auth.currentUser?.id;
+    if (uid == null) return;
+    final data = await sb
+        .from('notifications')
+        .select('id, title, body, type, created_at')
+        .eq('recipient_id', uid)
+        .isFilter('read_at', null)
+        .order('created_at', ascending: false)
+        .limit(1);
+    final list = List<Map<String, dynamic>>.from(data);
+    if (list.isNotEmpty) {
+      final notif = list.first;
+      if (notif['type'] == 'membership_approved' ||
+          notif['type'] == 'announcement') {
+        _showAnnouncementDialog(notif);
+      }
+    }
+  }
+
+  void _showAnnouncementDialog(Map<String, dynamic> notif) {
+    if (!mounted) return;
+    showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) {
+        return Dialog(
+          backgroundColor: const Color(0xFF8CA6C7), // blueish background
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(28),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.all(32),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text(
+                  'Announcement',
+                  style: TextStyle(
+                    fontFamily: 'Montserrat',
+                    fontWeight: FontWeight.w800,
+                    fontSize: 28,
+                    color: Colors.white,
+                  ),
+                ),
+                const SizedBox(height: 16),
+                const Icon(
+                  Icons.notifications_active_rounded,
+                  color: Colors.amber,
+                  size: 64,
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  notif['body']?.toString() ?? '',
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    fontFamily: 'Montserrat',
+                    fontWeight: FontWeight.w800,
+                    fontSize: 24,
+                    color: Colors.white,
+                  ),
+                ),
+                const SizedBox(height: 24),
+                TextButton(
+                  onPressed: () async {
+                    final sb = Supabase.instance.client;
+                    try {
+                      await sb
+                          .from('notifications')
+                          .update({'read_at': DateTime.now().toIso8601String()})
+                          .eq('id', notif['id']);
+                    } catch (_) {}
+                    if (!mounted) return;
+                    Navigator.of(context).pop();
+                    await _loadOrAskDayung();
+                    await _fetchUnreadNotifCount();
+                  },
+                  child: const Text(
+                    'Continue',
+                    style: TextStyle(
+                      fontFamily: 'Montserrat',
+                      fontWeight: FontWeight.w800,
+                      fontSize: 22,
+                      color: Color(0xFFDDE3EA),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  void _showApprovedDialog(Map<String, dynamic> notif) {
+    if (!mounted) return;
+    showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) {
+        return AlertDialog(
+          title: Text(notif['title']?.toString() ?? 'Approved'),
+          content: Text(
+            notif['body']?.toString() ??
+                'You are now a member. Congratulations!',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () async {
+                final sb = Supabase.instance.client;
+                try {
+                  await sb
+                      .from('notifications')
+                      .update({'read_at': DateTime.now().toIso8601String()})
+                      .eq('id', notif['id']);
+                } catch (_) {}
+                if (!mounted) return;
+                Navigator.of(context).pop();
+                // Refresh member dashboard data and unit selection
+                await _loadOrAskDayung(); // uses approved applications
+              },
+              child: const Text('Continue'),
+            ),
+          ],
+        );
+      },
+    );
   }
 
   Future<void> _reloadDayungFromPrefs() async {
@@ -586,6 +802,7 @@ class _MemberDashboardPageState extends State<MemberDashboardPage> {
 
   @override
   void dispose() {
+    _notifChannel?.unsubscribe();
     _scrollController.dispose();
     super.dispose();
   }
@@ -767,11 +984,12 @@ class _MemberDashboardPageState extends State<MemberDashboardPage> {
       title: dayungName,
       subtitle: subtitle,
       profileUrl: _profileUrl,
-      onNotificationTap: () {
-        Navigator.push(
+      onNotificationTap: () async {
+        await Navigator.push(
           context,
           MaterialPageRoute(builder: (_) => const NotificationPage()),
         );
+        await _fetchUnreadNotifCount(); // Refresh badge after returning
       },
       onProfileTap: () {
         Navigator.push(
@@ -779,6 +997,7 @@ class _MemberDashboardPageState extends State<MemberDashboardPage> {
           MaterialPageRoute(builder: (_) => const ProfilePage()),
         );
       },
+      notificationBadge: _unreadNotifCount > 0 ? _unreadNotifCount : null,
     );
   }
 

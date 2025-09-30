@@ -63,6 +63,7 @@ class _RegisterState extends State<Register> {
   String? selectedYear;
   String? selectedSex;
 
+  // ignore: unused_field
   final List<String> _months = const [
     'January',
     'February',

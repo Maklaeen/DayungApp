@@ -16,7 +16,7 @@ import 'package:capstone_app/profile/profile.dart'
     hide kBg, kPrimary, kWarn, kAccent;
 import 'package:capstone_app/pages/submit_claim.dart'
     hide kSubtleText, kNeutralText, kPrimaryDark, kPrimary;
-import 'package:capstone_app/widgets/member_header.dart';
+import 'package:capstone_app/Members/member_header.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';

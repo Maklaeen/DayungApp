@@ -1,4 +1,5 @@
 import 'package:capstone_app/President/manage_roles.dart';
+import 'package:capstone_app/President/post_announcement.dart';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:capstone_app/pages/notification.dart';
@@ -274,7 +275,7 @@ class _PresidentDashboardPageState extends State<PresidentDashboardPage> {
         leading: Icons.account_balance_wallet_rounded,
       ),
       StatCard(
-        bg: Color(0xFFE6F0FF),
+        bg: const Color(0xFFE6F0FF),
         title: 'Manage Roles',
         leading: Icons.manage_accounts_rounded,
         footerText: 'Manage',
@@ -716,7 +717,12 @@ class _PostAnnouncementButton extends StatelessWidget {
       borderRadius: BorderRadius.circular(18),
       elevation: 0,
       child: InkWell(
-        onTap: () {},
+        onTap: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => const PostAnnouncementPage()),
+          );
+        },
         borderRadius: BorderRadius.circular(18),
         child: Container(
           width: double.infinity,

@@ -1,5 +1,4 @@
 import 'dart:convert';
-
 import 'package:capstone_app/screens/dayung_suggestions.dart';
 import 'package:capstone_app/screens/selectdayung.dart';
 import 'package:capstone_app/screens/dayung_map_page.dart';
@@ -7,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:auto_size_text/auto_size_text.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:capstone_app/President/manage_rules.dart';
 
 class SettingsPage extends StatefulWidget {
   const SettingsPage({super.key});
@@ -20,6 +20,7 @@ class _SettingsPageState extends State<SettingsPage> {
   String? _currentDayungName;
   Map<String, dynamic>? _currentDayungData;
   bool _loadingDayung = false;
+  bool _isPresident = false;
 
   final List<String> selectedFilters = const [
     'Low fee',
@@ -41,6 +42,7 @@ class _SettingsPageState extends State<SettingsPage> {
   void initState() {
     super.initState();
     _loadCurrentDayung();
+    _checkPresident();
   }
 
   Future<void> _loadCurrentDayung() async {
@@ -87,6 +89,26 @@ class _SettingsPageState extends State<SettingsPage> {
       }
     } on PostgrestException catch (_) {
       setState(() => _loadingDayung = false);
+    }
+  }
+
+  Future<void> _checkPresident() async {
+    final sb = Supabase.instance.client;
+    final uid = sb.auth.currentUser?.id;
+    if (uid == null) {
+      if (mounted) setState(() => _isPresident = false);
+      return;
+    }
+    try {
+      final rows = await sb
+          .from('dayung_units')
+          .select('id')
+          .eq('president_id', uid)
+          .limit(1);
+      final isPres = (rows as List).isNotEmpty;
+      if (mounted) setState(() => _isPresident = isPres);
+    } catch (_) {
+      if (mounted) setState(() => _isPresident = false);
     }
   }
 
@@ -349,6 +371,26 @@ class _SettingsPageState extends State<SettingsPage> {
                   ),
                 ),
               ),
+
+              if (_isPresident) ...[
+                const SizedBox(height: 12),
+                SizedBox(
+                  width: double.infinity,
+                  height: 48,
+                  child: OutlinedButton.icon(
+                    icon: const Icon(Icons.rule_folder_rounded),
+                    label: const Text('Manage Rules'),
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const ManageRulesPagePres(),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ],
 
               const SizedBox(height: 24),
 

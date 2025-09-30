@@ -10,6 +10,7 @@ class MemberHeader extends StatelessWidget {
   final EdgeInsets padding;
   final bool responsive;
   final double avatarRadius;
+  final int? notificationBadge;
 
   const MemberHeader({
     super.key,
@@ -21,6 +22,7 @@ class MemberHeader extends StatelessWidget {
     this.padding = const EdgeInsets.fromLTRB(16, 14, 16, 4),
     this.responsive = true,
     this.avatarRadius = 28,
+    this.notificationBadge,
   });
 
   @override
@@ -59,13 +61,46 @@ class MemberHeader extends StatelessWidget {
               ),
             ),
           ),
-          IconButton(
-            tooltip: 'Notifications',
-            icon: const Icon(Icons.notifications_outlined,
-                color: kWarn, size: 30),
-            onPressed: onNotificationTap,
+          Stack(
+            children: [
+              IconButton(
+                tooltip: 'Notifications',
+                icon: const Icon(
+                  Icons.notifications_outlined,
+                  color: kWarn,
+                  size: 30,
+                ),
+                onPressed: onNotificationTap,
+              ),
+              if (notificationBadge != null && notificationBadge! > 0)
+                Positioned(
+                  right: 6,
+                  top: 6,
+                  child: Container(
+                    padding: const EdgeInsets.all(4),
+                    decoration: const BoxDecoration(
+                      color: Colors.red,
+                      shape: BoxShape.circle,
+                    ),
+                    constraints: const BoxConstraints(
+                      minWidth: 20,
+                      minHeight: 20,
+                    ),
+                    child: Center(
+                      child: Text(
+                        '${notificationBadge! > 99 ? '99+' : notificationBadge}',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+            ],
           ),
-            GestureDetector(
+          GestureDetector(
             onTap: onProfileTap,
             child: CircleAvatar(
               radius: avatarRadius,

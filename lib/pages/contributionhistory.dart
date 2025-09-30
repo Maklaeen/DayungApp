@@ -1,7 +1,7 @@
 import 'package:capstone_app/Providers/dayung_provider.dart';
 import 'package:capstone_app/pages/notification.dart';
 import 'package:capstone_app/profile/profile.dart';
-import 'package:capstone_app/widgets/member_header.dart';
+import 'package:capstone_app/Members/member_header.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:provider/provider.dart';

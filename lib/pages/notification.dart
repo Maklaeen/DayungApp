@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:auto_size_text/auto_size_text.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 // Palette
 const Color kBg = Color(0xFFFAFAF7);
@@ -11,204 +12,11 @@ const Color kDanger = Color(0xFFC62828);
 const Color kNeutralText = Color(0xFF1F2937);
 const Color kSubtleText = Color(0xFF4B5563);
 
-class NotificationPage extends StatelessWidget {
+class NotificationPage extends StatefulWidget {
   const NotificationPage({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    final width = MediaQuery.of(context).size.width;
-    final isWide = width > 700;
-
-    return Scaffold(
-      backgroundColor: kBg,
-      appBar: AppBar(
-        backgroundColor: kPrimary,
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, size: 28, color: Colors.white),
-          onPressed: () => Navigator.pop(context),
-          tooltip: 'Back',
-        ),
-        title: AutoSizeText(
-          'Notifications',
-          style: TextStyle(
-            fontSize: isWide ? 28 : 24,
-            fontWeight: FontWeight.w800,
-            color: Colors.white,
-            fontFamily: 'Montserrat',
-            letterSpacing: 0.3,
-          ),
-          maxLines: 1,
-          minFontSize: 18,
-        ),
-        centerTitle: false,
-        actions: [
-          TextButton.icon(
-            onPressed: () {
-              // TODO: mark all as read logic
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('All notifications marked as read'),
-                ),
-              );
-            },
-            icon: const Icon(Icons.done_all, color: Colors.white),
-            label: const Text(
-              'Mark all read',
-              style: TextStyle(color: Colors.white),
-            ),
-          ),
-        ],
-      ),
-      body: SafeArea(
-        child: ListView(
-          padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
-          children: [
-            _sectionHeader('Announcements', isWide: isWide),
-            _notificationCard(
-              title: 'Announcement from President',
-              message: 'Meeting on July 16, 2025 at 3PM',
-              time: '2 hours ago',
-              icon: Icons.campaign,
-              iconBg: kPrimary.withOpacity(0.10),
-              iconColor: kPrimary,
-              isWide: isWide,
-            ),
-            const SizedBox(height: 14),
-            _sectionHeader('Recent Deaths', isWide: isWide),
-            _deathNoticeCard(
-              name: 'Sophia Martinez has passed away',
-              date: 'February 17, 2025',
-              isWide: isWide,
-            ),
-            const SizedBox(height: 12),
-            _deathNoticeCard(
-              name: 'Liam Anderson has passed away',
-              date: 'March 20, 2024',
-              isWide: isWide,
-            ),
-            const SizedBox(height: 16),
-            // Empty-state example (show when no notifications)
-            // _emptyState(isWide: isWide),
-          ],
-        ),
-      ),
-    );
-  }
-
-  static Widget _sectionHeader(String text, {required bool isWide}) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(4, 6, 4, 10),
-      child: Text(
-        text,
-        style: TextStyle(
-          fontSize: isWide ? 20 : 18,
-          fontWeight: FontWeight.w800,
-          color: kNeutralText,
-          letterSpacing: 0.2,
-        ),
-      ),
-    );
-  }
-
-  static Widget _notificationCard({
-    required String title,
-    required String message,
-    required String time,
-    required IconData icon,
-    required Color iconBg,
-    required Color iconColor,
-    required bool isWide,
-  }) {
-    return Semantics(
-      label: '$title. $message. $time.',
-      child: Container(
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: const Color(0xFFE6E8EF)),
-          boxShadow: const [
-            BoxShadow(
-              color: Colors.black12,
-              blurRadius: 12,
-              offset: Offset(0, 6),
-            ),
-          ],
-        ),
-        padding: const EdgeInsets.all(18),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Container(
-              width: isWide ? 48 : 44,
-              height: isWide ? 48 : 44,
-              decoration: BoxDecoration(
-                color: iconBg,
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Icon(icon, color: iconColor, size: isWide ? 26 : 24),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  AutoSizeText(
-                    title,
-                    style: TextStyle(
-                      fontSize: isWide ? 20 : 18,
-                      fontWeight: FontWeight.w800,
-                      color: kNeutralText,
-                      fontFamily: 'Montserrat',
-                    ),
-                    maxLines: 2,
-                    minFontSize: 14,
-                  ),
-                  const SizedBox(height: 6),
-                  Text(
-                    message,
-                    style: TextStyle(
-                      fontSize: isWide ? 18 : 16,
-                      height: 1.35,
-                      color: kNeutralText,
-                      fontFamily: 'OpenSans',
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Row(
-                    children: [
-                      const Icon(
-                        Icons.access_time,
-                        size: 16,
-                        color: kSubtleText,
-                      ),
-                      const SizedBox(width: 6),
-                      Text(
-                        time,
-                        style: TextStyle(
-                          fontSize: isWide ? 15 : 14,
-                          color: kSubtleText,
-                          fontFamily: 'OpenSans',
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(width: 8),
-            IconButton(
-              tooltip: 'More options',
-              onPressed: () {
-                // TODO: Add actions (e.g., view details, delete)
-              },
-              icon: const Icon(Icons.more_vert, color: kSubtleText),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
+  State<NotificationPage> createState() => _NotificationPageState();
 
   static Widget _deathNoticeCard({
     required String name,
@@ -312,5 +120,359 @@ class NotificationPage extends StatelessWidget {
         ],
       ),
     );
+  }
+
+  static Widget _notificationCard({
+    required String title,
+    required String message,
+    required String time,
+    required IconData icon,
+    required Color iconBg,
+    required Color iconColor,
+    required bool isWide,
+    required bool isUnread, // <-- add this
+  }) {
+    return Semantics(
+      label: '$title. $message. $time.',
+      child: Stack(
+        children: [
+          Container(
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: const Color(0xFFE6E8EF)),
+              boxShadow: const [
+                BoxShadow(
+                  color: Colors.black12,
+                  blurRadius: 12,
+                  offset: Offset(0, 6),
+                ),
+              ],
+            ),
+            padding: const EdgeInsets.all(18),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  width: isWide ? 48 : 44,
+                  height: isWide ? 48 : 44,
+                  decoration: BoxDecoration(
+                    color: iconBg,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Icon(icon, color: iconColor, size: isWide ? 26 : 24),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      AutoSizeText(
+                        title,
+                        style: TextStyle(
+                          fontSize: isWide ? 20 : 18,
+                          fontWeight: FontWeight.w800,
+                          color: kNeutralText,
+                          fontFamily: 'Montserrat',
+                        ),
+                        maxLines: 2,
+                        minFontSize: 14,
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        message,
+                        style: TextStyle(
+                          fontSize: isWide ? 18 : 16,
+                          height: 1.35,
+                          color: kNeutralText,
+                          fontFamily: 'OpenSans',
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Row(
+                        children: [
+                          const Icon(
+                            Icons.access_time,
+                            size: 16,
+                            color: kSubtleText,
+                          ),
+                          const SizedBox(width: 6),
+                          Text(
+                            time,
+                            style: TextStyle(
+                              fontSize: isWide ? 15 : 14,
+                              color: kSubtleText,
+                              fontFamily: 'OpenSans',
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 8),
+                IconButton(
+                  tooltip: 'More options',
+                  onPressed: () {
+                    // TODO: Add actions (e.g., view details, delete)
+                  },
+                  icon: const Icon(Icons.more_vert, color: kSubtleText),
+                ),
+              ],
+            ),
+          ),
+          if (isUnread)
+            Positioned(
+              top: 12,
+              right: 12,
+              child: Container(
+                width: 12,
+                height: 12,
+                decoration: const BoxDecoration(
+                  color: Colors.red,
+                  shape: BoxShape.circle,
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _NotificationPageState extends State<NotificationPage> {
+  List<Map<String, dynamic>> _items = [];
+  bool _loading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchAll();
+  }
+
+  Future<void> _fetchAll() async {
+    setState(() => _loading = true);
+    final sb = Supabase.instance.client;
+    final uid = sb.auth.currentUser?.id;
+    if (uid == null) {
+      setState(() {
+        _items = [];
+        _loading = false;
+      });
+      return;
+    }
+
+    // 1. Fetch notifications
+    final notifData = await sb
+        .from('notifications')
+        .select('id, type, title, body, created_at, read_at')
+        .eq('recipient_id', uid)
+        .order('created_at', ascending: false);
+
+    // 2. Fetch announcements for user's dayung memberships
+    final apps = await sb
+        .from('applications')
+        .select('dayung_unit_id')
+        .eq('user_id', uid)
+        .eq('status', 'approved');
+    final unitIds = List<Map<String, dynamic>>.from(apps)
+        .map((a) => a['dayung_unit_id'])
+        .where((id) => id != null)
+        .toSet()
+        .toList();
+
+    List<Map<String, dynamic>> annData = [];
+    Set readIds = {};
+    if (unitIds.isNotEmpty) {
+      annData = await sb
+          .from('announcements')
+          .select('id, title, body, created_at, dayung_unit_id')
+          .inFilter('dayung_unit_id', unitIds)
+          .order('created_at', ascending: false);
+
+      // Fetch which announcements this user has read
+      final reads = await sb
+          .from('announcement_reads')
+          .select('announcement_id')
+          .eq('user_id', uid);
+      readIds = Set.from((reads as List).map((r) => r['announcement_id']));
+
+      annData = List<Map<String, dynamic>>.from(annData)
+          .map(
+            (a) => {
+              ...a,
+              'type': 'announcement_direct',
+              'is_read': readIds.contains(a['id']),
+            },
+          )
+          .toList();
+    }
+
+    // 3. Merge and sort
+    final all = [...List<Map<String, dynamic>>.from(notifData), ...annData];
+    all.sort(
+      (a, b) => DateTime.parse(
+        b['created_at'].toString(),
+      ).compareTo(DateTime.parse(a['created_at'].toString())),
+    );
+
+    setState(() {
+      _items = all;
+      _loading = false;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final width = MediaQuery.of(context).size.width;
+    final isWide = width > 700;
+
+    return Scaffold(
+      backgroundColor: kBg,
+      appBar: AppBar(
+        backgroundColor: kPrimary,
+        elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back, size: 28, color: Colors.white),
+          onPressed: () => Navigator.pop(context),
+          tooltip: 'Back',
+        ),
+        title: AutoSizeText(
+          'Notifications',
+          style: TextStyle(
+            fontSize: isWide ? 28 : 24,
+            fontWeight: FontWeight.w800,
+            color: Colors.white,
+            fontFamily: 'Montserrat',
+            letterSpacing: 0.3,
+          ),
+          maxLines: 1,
+          minFontSize: 18,
+        ),
+        centerTitle: false,
+        actions: [
+          TextButton.icon(
+            onPressed: () async {
+              final sb = Supabase.instance.client;
+              final uid = sb.auth.currentUser?.id;
+              if (uid != null) {
+                // Mark all notifications as read
+                await sb
+                    .from('notifications')
+                    .update({'read_at': DateTime.now().toIso8601String()})
+                    .eq('recipient_id', uid)
+                    .isFilter('read_at', null);
+
+                // Mark all announcements as read for this user
+                final unreadAnn = _items.where(
+                  (n) =>
+                      n['type'] == 'announcement_direct' &&
+                      !(n['is_read'] ?? false),
+                );
+                for (final ann in unreadAnn) {
+                  await sb.from('announcement_reads').insert({
+                    'announcement_id': ann['id'],
+                    'user_id': uid,
+                    'read_at': DateTime.now().toIso8601String(),
+                  });
+                }
+                await _fetchAll();
+              }
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('All notifications marked as read'),
+                ),
+              );
+            },
+            icon: const Icon(Icons.done_all, color: Colors.white),
+            label: const Text(
+              'Mark all read',
+              style: TextStyle(color: Colors.white),
+            ),
+          ),
+        ],
+      ),
+      body: SafeArea(
+        child: _loading
+            ? const Center(child: CircularProgressIndicator())
+            : _items.isEmpty
+            ? NotificationPage._emptyState(isWide: isWide)
+            : ListView.separated(
+                padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
+                itemCount: _items.length,
+                separatorBuilder: (_, __) => const SizedBox(height: 14),
+                itemBuilder: (context, i) {
+                  final n = _items[i];
+                  final isNotif =
+                      n['type'] == 'membership_approved' ||
+                      n['type'] == 'announcement';
+                  final isAnnouncement = n['type'] == 'announcement_direct';
+                  final isUnread = isNotif
+                      ? n['read_at'] == null
+                      : !(n['is_read'] ?? false);
+
+                  return GestureDetector(
+                    onTap: () async {
+                      final sb = Supabase.instance.client;
+                      final uid = sb.auth.currentUser?.id;
+                      if (isNotif) {
+                        await sb
+                            .from('notifications')
+                            .update({
+                              'read_at': DateTime.now().toIso8601String(),
+                            })
+                            .eq('id', n['id']);
+                      } else if (isAnnouncement) {
+                        final existing = await sb
+                            .from('announcement_reads')
+                            .select('id')
+                            .eq('announcement_id', n['id'])
+                            .eq('user_id', uid as Object)
+                            .maybeSingle();
+                        if (existing == null) {
+                          await sb.from('announcement_reads').insert({
+                            'announcement_id': n['id'],
+                            'user_id': uid,
+                            'read_at': DateTime.now().toIso8601String(),
+                          });
+                        }
+                      }
+                      await _fetchAll();
+                      if (mounted) setState(() {});
+                    },
+                    child: NotificationPage._notificationCard(
+                      title:
+                          n['title'] ??
+                          (isAnnouncement ? 'Announcement' : 'Notification'),
+                      message: n['body'] ?? '',
+                      time: _formatTime(n['created_at']),
+                      icon: isAnnouncement
+                          ? Icons.campaign
+                          : Icons.notifications_active_rounded,
+                      iconBg: isAnnouncement
+                          ? kPrimary.withOpacity(0.10)
+                          : kAccent.withOpacity(0.10),
+                      iconColor: isAnnouncement ? kPrimary : kAccent,
+                      isWide: isWide,
+                      isUnread: isUnread,
+                    ),
+                  );
+                },
+              ),
+      ),
+    );
+  }
+
+  static String _formatTime(dynamic iso) {
+    if (iso == null) return '';
+    final dt = DateTime.tryParse(iso.toString());
+    if (dt == null) return '';
+    final now = DateTime.now();
+    final diff = now.difference(dt);
+    if (diff.inMinutes < 1) return 'just now';
+    if (diff.inMinutes < 60) return '${diff.inMinutes} min ago';
+    if (diff.inHours < 24) return '${diff.inHours} hr ago';
+    if (diff.inDays < 7) return '${diff.inDays} days ago';
+    return '${dt.year}-${dt.month.toString().padLeft(2, '0')}-${dt.day.toString().padLeft(2, '0')}';
   }
 }
