@@ -170,7 +170,9 @@ class MarkDeceasedModal extends StatefulWidget {
 
 class _MarkDeceasedModalState extends State<MarkDeceasedModal> {
   DateTime? _dateOfDeath;
+  DateTime? _dateOfBirth;
   bool _submitting = false;
+  bool _loadingUser = true;
   List<Map<String, dynamic>> _beneficiaries = [];
   String? _selectedBeneficiaryId;
   File? _deathCertFile;
@@ -181,7 +183,35 @@ class _MarkDeceasedModalState extends State<MarkDeceasedModal> {
   @override
   void initState() {
     super.initState();
+    _fetchUserDetails();
     _fetchBeneficiaries();
+  }
+
+  Future<void> _fetchUserDetails() async {
+    try {
+      final response = await Supabase.instance.client
+          .from('users')
+          .select('dob, address')
+          .eq('id', widget.memberId)
+          .single();
+
+      // Parse the DOB if available
+      if (response != null && response['dob'] != null) {
+        final dobStr = response['dob'].toString();
+        _dateOfBirth = DateTime.tryParse(dobStr);
+      }
+
+      // Use address as barangay default if available
+      if (response != null && response['address'] != null) {
+        _barangay = response['address'];
+      }
+    } catch (e) {
+      debugPrint('Error fetching user details: $e');
+    } finally {
+      if (mounted) {
+        setState(() => _loadingUser = false);
+      }
+    }
   }
 
   Future<void> _fetchBeneficiaries() async {
@@ -215,6 +245,15 @@ class _MarkDeceasedModalState extends State<MarkDeceasedModal> {
     final res = await storage.from(bucket).upload(fileName, _deathCertFile!);
     if (res.error != null) throw Exception(res.error!.message);
     return storage.from(bucket).getPublicUrl(fileName);
+  }
+
+  Future<int?> _getDayungUnitId(String userId) async {
+    final res = await Supabase.instance.client
+        .from('users')
+        .select('dayung_unit_id')
+        .eq('id', userId)
+        .single();
+    return res?['dayung_unit_id'] as int?;
   }
 
   Future<void> _submit() async {
@@ -258,6 +297,9 @@ class _MarkDeceasedModalState extends State<MarkDeceasedModal> {
         'latitude': _latitude,
         'longitude': _longitude,
         if (fileUrl != null) 'death_certificate_url': fileUrl,
+        'dayung_unit_id': await _getDayungUnitId(
+          widget.memberId,
+        ), // <-- Add this line
       });
 
       if (mounted) {
@@ -277,6 +319,11 @@ class _MarkDeceasedModalState extends State<MarkDeceasedModal> {
 
   @override
   Widget build(BuildContext context) {
+    String formatDate(DateTime? date) {
+      if (date == null) return 'Not available';
+      return '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
+    }
+
     return Padding(
       padding: EdgeInsets.only(
         left: 18,
@@ -305,6 +352,45 @@ class _MarkDeceasedModalState extends State<MarkDeceasedModal> {
                 ),
               ),
             ),
+            const SizedBox(height: 18),
+            Text(
+              'Date of birth',
+              style: const TextStyle(
+                fontWeight: FontWeight.w600,
+                fontSize: 16,
+                color: kNeutralText,
+              ),
+            ),
+            const SizedBox(height: 6),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 12),
+              decoration: BoxDecoration(
+                color: Colors.grey[100],
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.grey.shade300),
+              ),
+              child: Row(
+                children: [
+                  _loadingUser
+                      ? const SizedBox(
+                          height: 16,
+                          width: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : Text(
+                          formatDate(_dateOfBirth),
+                          style: const TextStyle(
+                            fontSize: 17,
+                            color: kNeutralText,
+                          ),
+                        ),
+                  const Spacer(),
+                  Icon(Icons.calendar_today, color: Colors.grey.shade400),
+                ],
+              ),
+            ),
+
             const SizedBox(height: 18),
             Text(
               'Date of death',

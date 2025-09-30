@@ -8,6 +8,7 @@ import 'package:capstone_app/Secretary/manage_applications.dart';
 import 'package:capstone_app/Secretary/secretarymemberspage.dart';
 import 'package:capstone_app/pages/dayung_profile.dart';
 import 'package:capstone_app/pages/notification.dart';
+import 'package:capstone_app/pages/recentdeathnotices.dart';
 import 'package:capstone_app/profile/profile.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -63,6 +64,9 @@ class _SecretaryDashboardPageState extends State<SecretaryDashboardPage> {
         setState(() => _showNavBar = true);
       }
     });
+
+    // Load secretary info + recent deaths/pending on start
+    _initLoad();
   }
 
   @override
@@ -179,16 +183,72 @@ class _SecretaryDashboardPageState extends State<SecretaryDashboardPage> {
 
   Future<void> _fetchRecentCertificates() async {
     try {
-      final recent = await supabase
-          .from('certificates')
-          .select('id, deceased_name, submitted_at')
-          .order('submitted_at', ascending: false)
+      final unitId = _dayungUnitId;
+      if (unitId == null) {
+        if (mounted) setState(() => _recentCertificates = []);
+        return;
+      }
+
+      // Fetch death notices for this dayung, including those where dayung_unit_id is null but user's dayung matches
+      final noticesDirect = await supabase
+          .from('death_notices')
+          .select('id, name, date_of_death, dayung_unit_id, user_id')
+          .eq('dayung_unit_id', unitId)
+          .order('date_of_death', ascending: false)
           .limit(5);
-      final certList = (recent as List)
-          .map((e) => Map<String, dynamic>.from(e as Map))
+
+      // Also fetch notices where dayung_unit_id is null but user's dayung matches
+      final usersRes = await supabase
+          .from('users')
+          .select('id')
+          .eq('dayung_unit_id', unitId);
+      final userIds = (usersRes as List)
+          .map((e) => (e as Map)['id'].toString())
+          .where((s) => s.isNotEmpty)
           .toList();
-      if (mounted) setState(() => _recentCertificates = certList);
-    } catch (_) {}
+
+      List<Map<String, dynamic>> noticesViaUser = [];
+      if (userIds.isNotEmpty) {
+        final viaUser = await supabase
+            .from('death_notices')
+            .select('id, name, date_of_death, dayung_unit_id, user_id')
+            .isFilter('dayung_unit_id', null)
+            .inFilter('user_id', userIds)
+            .order('date_of_death', ascending: false)
+            .limit(5);
+        noticesViaUser = (viaUser as List)
+            .map((e) => Map<String, dynamic>.from(e as Map))
+            .toList();
+      }
+
+      // Merge and deduplicate by id
+      final allNotices = <int, Map<String, dynamic>>{};
+      for (final n in [...noticesDirect, ...noticesViaUser]) {
+        final id = n['id'] as int?;
+        if (id != null) allNotices[id] = n;
+      }
+      final list = allNotices.values.toList();
+      list.sort(
+        (a, b) => DateTime.parse(
+          b['date_of_death'].toString(),
+        ).compareTo(DateTime.parse(a['date_of_death'].toString())),
+      );
+
+      // Normalize keys for UI
+      final normalized = list
+          .map(
+            (e) => {
+              'deceased_name': e['name'],
+              'date_of_death': e['date_of_death'],
+              'dayung_unit_id': e['dayung_unit_id'],
+            },
+          )
+          .toList();
+
+      if (mounted) setState(() => _recentCertificates = normalized);
+    } catch (_) {
+      if (mounted) setState(() => _recentCertificates = []);
+    }
   }
 
   Future<void> _fetchPendingPayments() async {
@@ -509,8 +569,9 @@ class _SecretaryDashboardPageState extends State<SecretaryDashboardPage> {
                   Navigator.push(
                     context,
                     MaterialPageRoute(
-                      builder: (_) =>
-                          CreateDeathNoticePage(dayungUnitId: _dayungUnitId ?? 1),
+                      builder: (_) => CreateDeathNoticePage(
+                        dayungUnitId: _dayungUnitId ?? 1,
+                      ),
                     ),
                   );
                 },
@@ -705,9 +766,12 @@ class _SecretaryDashboardPageState extends State<SecretaryDashboardPage> {
 
     return InkWell(
       onTap: () {
+        final id = _dayungUnitId ?? 1;
         Navigator.push(
           context,
-          MaterialPageRoute(builder: (_) => const CertificatesPage()),
+          MaterialPageRoute(
+            builder: (_) => RecentDeathNotices(dayungUnitId: id),
+          ),
         );
       },
       borderRadius: BorderRadius.circular(18),

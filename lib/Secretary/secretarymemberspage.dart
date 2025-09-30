@@ -28,10 +28,15 @@ String _initialOf(dynamic name) {
 
 class _SecretaryMembersPageState extends State<SecretaryMembersPage>
     with SingleTickerProviderStateMixin {
+  // Responsive breakpoints and max content width
+  static const double _kTablet = 700; // >= tablet
+  static const double _kDesktop = 1100; // >= desktop
+  static const double _kMaxContentWidth = 1000;
+
   final _sb = Supabase.instance.client;
   bool _loading = true;
   String? _infoMsg;
-  TextEditingController _searchController = TextEditingController();
+  final TextEditingController _searchController = TextEditingController();
   String _searchQuery = '';
 
   late TabController _tabController;
@@ -44,7 +49,7 @@ class _SecretaryMembersPageState extends State<SecretaryMembersPage>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 2, vsync: this);
+    _tabController = TabController(length: 3, vsync: this);
     _load();
   }
 
@@ -66,7 +71,6 @@ class _SecretaryMembersPageState extends State<SecretaryMembersPage>
         return;
       }
 
-      // 1) Dayungs this secretary manages
       final dayungs = await _sb
           .from('dayung_units')
           .select('id,name')
@@ -99,7 +103,8 @@ class _SecretaryMembersPageState extends State<SecretaryMembersPage>
       final apps = await _sb
           .from('applications')
           .select(
-            'user_id, status, dayung_unit_id, approved_at, user:users(id, full_name, email, profile_url)',
+            'user_id, status, dayung_unit_id, approved_at, '
+            'user:users(id, full_name, email, profile_url, is_deceased, date_of_death)',
           )
           .inFilter('dayung_unit_id', ids)
           .inFilter('status', ['approved', 'pending'])
@@ -107,7 +112,6 @@ class _SecretaryMembersPageState extends State<SecretaryMembersPage>
 
       final list = List<Map<String, dynamic>>.from(apps);
 
-      // Optional: dedupe multiple applications for same user-dayung by latest approved_at
       final byKey = <String, Map<String, dynamic>>{};
       for (final r in list) {
         final u = r['user'] as Map<String, dynamic>?;
@@ -163,15 +167,29 @@ class _SecretaryMembersPageState extends State<SecretaryMembersPage>
     }
   }
 
-  List<Map<String, dynamic>> get _approved =>
-      _rows.where((r) => (r['status'] ?? '').toString() == 'approved').toList();
+  List<Map<String, dynamic>> get _approved => _rows.where((r) {
+    final status = (r['status'] ?? '').toString();
+    final u = r['user'] as Map<String, dynamic>?;
+    final deceased = (u?['is_deceased'] == true);
+    return status == 'approved' && !deceased;
+  }).toList();
 
-  List<Map<String, dynamic>> get _pending =>
-      _rows.where((r) => (r['status'] ?? '').toString() == 'pending').toList();
+  List<Map<String, dynamic>> get _pending => _rows.where((r) {
+    final status = (r['status'] ?? '').toString();
+    final u = r['user'] as Map<String, dynamic>?;
+    final deceased = (u?['is_deceased'] == true);
+    return status == 'pending' && !deceased;
+  }).toList();
+
+  List<Map<String, dynamic>> get _deceased => _rows.where((r) {
+    final u = r['user'] as Map<String, dynamic>?;
+    return (u?['is_deceased'] == true);
+  }).toList();
 
   @override
   void dispose() {
     _tabController.dispose();
+    _searchController.dispose();
     super.dispose();
   }
 
@@ -184,9 +202,11 @@ class _SecretaryMembersPageState extends State<SecretaryMembersPage>
         title: const Text('Members'),
         bottom: TabBar(
           controller: _tabController,
+          isScrollable: true, // better on small screens
           tabs: [
             Tab(text: 'Active (${_approved.length})'),
             Tab(text: 'Pending (${_pending.length})'),
+            Tab(text: 'Deceased (${_deceased.length})'),
           ],
         ),
       ),
@@ -194,60 +214,105 @@ class _SecretaryMembersPageState extends State<SecretaryMembersPage>
           ? const Center(child: CircularProgressIndicator())
           : (_infoMsg != null)
           ? Center(child: Text(_infoMsg!))
-          : Column(
-              children: [
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-                  child: TextField(
-                    controller: _searchController,
-                    decoration: InputDecoration(
-                      hintText: 'Search active member...',
-                      prefixIcon: const Icon(Icons.search, color: kPrimaryDark),
-                      filled: true,
-                      fillColor: Colors.white,
-                      contentPadding: const EdgeInsets.symmetric(vertical: 14),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(16),
-                        borderSide: BorderSide(color: kPrimary.withOpacity(.2)),
+          : LayoutBuilder(
+              builder: (context, constraints) {
+                final width = constraints.maxWidth;
+                final padH = width >= _kTablet ? 24.0 : 12.0;
+
+                return Column(
+                  children: [
+                    // Centered search on wide screens
+                    Padding(
+                      padding: EdgeInsets.fromLTRB(padH, 12, padH, 0),
+                      child: Center(
+                        child: ConstrainedBox(
+                          constraints: const BoxConstraints(
+                            maxWidth: _kMaxContentWidth,
+                          ),
+                          child: TextField(
+                            controller: _searchController,
+                            decoration: InputDecoration(
+                              hintText: 'Search member...',
+                              prefixIcon: const Icon(
+                                Icons.search,
+                                color: kPrimaryDark,
+                              ),
+                              filled: true,
+                              fillColor: Colors.white,
+                              contentPadding: const EdgeInsets.symmetric(
+                                vertical: 14,
+                              ),
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(16),
+                                borderSide: BorderSide(
+                                  color: kPrimary.withOpacity(.2),
+                                ),
+                              ),
+                            ),
+                            style: const TextStyle(
+                              fontSize: 18,
+                              color: kNeutralText,
+                            ),
+                            onChanged: (q) {
+                              setState(
+                                () => _searchQuery = q.trim().toLowerCase(),
+                              );
+                            },
+                          ),
+                        ),
                       ),
                     ),
-                    style: const TextStyle(fontSize: 18, color: kNeutralText),
-                    onChanged: (q) {
-                      setState(() => _searchQuery = q.trim().toLowerCase());
-                    },
-                  ),
-                ),
-                Expanded(
-                  child: TabBarView(
-                    controller: _tabController,
-                    children: [
-                      _memberList(_approved, isActive: true),
-                      _memberList(_pending, isActive: false),
-                    ],
-                  ),
-                ),
-              ],
+                    Expanded(
+                      child: Center(
+                        child: ConstrainedBox(
+                          constraints: const BoxConstraints(
+                            maxWidth: _kMaxContentWidth,
+                          ),
+                          child: TabBarView(
+                            controller: _tabController,
+                            children: [
+                              _memberList(
+                                _approved,
+                                mode: 'active',
+                                constraints: constraints,
+                              ),
+                              _memberList(
+                                _pending,
+                                mode: 'pending',
+                                constraints: constraints,
+                              ),
+                              _memberList(
+                                _deceased,
+                                mode: 'deceased',
+                                constraints: constraints,
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                );
+              },
             ),
     );
   }
 
-  String _initialOf(dynamic name) {
-    if (name is String) {
-      final t = name.trim();
-      if (t.isNotEmpty) return t.substring(0, 1).toUpperCase();
-    }
-    return 'M';
-  }
-
-  Widget _memberList(List<Map<String, dynamic>> list, {bool isActive = false}) {
+  Widget _memberList(
+    List<Map<String, dynamic>> list, {
+    String mode = 'active',
+    required BoxConstraints constraints,
+  }) {
+    // search filter
     List<Map<String, dynamic>> filtered = list;
-    if (isActive && _searchQuery.isNotEmpty) {
+    if (_searchQuery.isNotEmpty) {
       filtered = list.where((r) {
         final u = r['user'] as Map<String, dynamic>?;
         final name = (u?['full_name'] ?? '').toString().toLowerCase();
         return name.contains(_searchQuery);
       }).toList();
     }
+
     if (filtered.isEmpty) {
       return RefreshIndicator(
         onRefresh: _refresh,
@@ -262,106 +327,136 @@ class _SecretaryMembersPageState extends State<SecretaryMembersPage>
         ),
       );
     }
+
+    final width = constraints.maxWidth;
+    final useGrid = width >= _kTablet;
+    final crossAxisCount = width >= _kDesktop ? 3 : 2;
+
+    if (!useGrid) {
+      // Phone: ListView
+      return RefreshIndicator(
+        onRefresh: _refresh,
+        child: ListView.builder(
+          physics: const AlwaysScrollableScrollPhysics(),
+          itemCount: filtered.length,
+          itemBuilder: (_, i) => _memberTileCard(filtered[i], mode: mode),
+        ),
+      );
+    }
+
+    // Tablet/Desktop: GridView
     return RefreshIndicator(
       onRefresh: _refresh,
-      child: ListView.builder(
+      child: GridView.builder(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
         physics: const AlwaysScrollableScrollPhysics(),
+        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: crossAxisCount,
+          mainAxisSpacing: 12,
+          crossAxisSpacing: 12,
+          childAspectRatio: 2.9, // wide card look
+        ),
         itemCount: filtered.length,
-        itemBuilder: (_, i) {
-          final r = filtered[i];
-          final u = r['user'] as Map<String, dynamic>?;
-          final profileUrl = (u?['profile_url'] as String?)?.trim();
-          final status = (r['status'] ?? '').toString();
-          final dayungId = r['dayung_unit_id'] as int?;
-          final dayungName = dayungId != null
-              ? (_dayungNames[dayungId] ?? 'Dayung')
-              : 'Dayung';
+        itemBuilder: (_, i) => _memberTileCard(filtered[i], mode: mode),
+      ),
+    );
+  }
 
-          Color chipColor;
-          if (status == 'approved') {
-            chipColor = Colors.green;
-          } else if (status == 'pending') {
-            chipColor = Colors.orange;
-          } else {
-            chipColor = Colors.grey;
-          }
+  Widget _memberTileCard(Map<String, dynamic> r, {required String mode}) {
+    final u = r['user'] as Map<String, dynamic>?;
+    final profileUrl = (u?['profile_url'] as String?)?.trim();
+    final dayungId = r['dayung_unit_id'] as int?;
+    final dayungName = dayungId != null
+        ? (_dayungNames[dayungId] ?? 'Dayung')
+        : 'Dayung';
 
-          return Card(
-            margin: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-            elevation: 2,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(16),
-            ),
-            child: ListTile(
-              leading: CircleAvatar(
-                backgroundImage: (profileUrl != null && profileUrl.isNotEmpty)
-                    ? NetworkImage(profileUrl)
-                    : null,
-                child: (profileUrl == null || profileUrl.isEmpty)
-                    ? Text(
-                        _initialOf(u?['full_name']),
-                        style: const TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 22,
-                          color: kPrimaryDark,
-                        ),
-                      )
-                    : null,
-                backgroundColor: kBg,
-                radius: 26,
-              ),
-              title: Text(
-                (u?['full_name'] as String?)?.trim().isNotEmpty == true
-                    ? (u?['full_name'] as String).trim()
-                    : 'Member',
-                style: const TextStyle(
-                  fontWeight: FontWeight.w700,
-                  fontSize: 18,
-                  color: kPrimaryDark,
-                  fontFamily: 'Montserrat',
-                ),
-              ),
-              subtitle: Text(
-                dayungName,
-                style: const TextStyle(
-                  fontSize: 15,
-                  color: kSubtleText,
-                  fontFamily: 'OpenSans',
-                ),
-              ),
-              trailing: Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 10,
-                  vertical: 4,
-                ),
-                decoration: BoxDecoration(
-                  color: chipColor.withOpacity(.15),
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(color: chipColor),
-                ),
-                child: Text(
-                  status,
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                    color: chipColor,
+    // Chip
+    String chipText;
+    Color chipColor;
+    if (mode == 'deceased') {
+      chipText = 'deceased';
+      chipColor = Colors.red;
+    } else {
+      final status = (r['status'] ?? '').toString();
+      chipText = status;
+      chipColor = status == 'approved'
+          ? Colors.green
+          : status == 'pending'
+          ? Colors.orange
+          : Colors.grey;
+    }
+
+    final title = (u?['full_name'] as String?)?.trim().isNotEmpty == true
+        ? (u?['full_name'] as String).trim()
+        : 'Member';
+
+    return Card(
+      margin: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+      elevation: 2,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      child: ListTile(
+        leading: CircleAvatar(
+          backgroundImage: (profileUrl != null && profileUrl.isNotEmpty)
+              ? NetworkImage(profileUrl)
+              : null,
+          child: (profileUrl == null || profileUrl.isEmpty)
+              ? Text(
+                  _initialOf(u?['full_name']),
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 22,
+                    color: kPrimaryDark,
                   ),
-                ),
-              ),
-              onTap: isActive
-                  ? () {
-                      // Ensure we pass a valid UUID string
-                      final u = r['user'] as Map<String, dynamic>?;
-                      final uuid =
-                          (u?['id'] as String?)?.trim().isNotEmpty == true
-                          ? (u?['id'] as String).trim()
-                          : (r['user_id']?.toString().trim());
-                      _showBeneficiariesModal(context, uuid, u?['full_name']);
-                    }
-                  : null,
+                )
+              : null,
+          backgroundColor: kBg,
+          radius: 26,
+        ),
+        title: Text(
+          title,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: const TextStyle(
+            fontWeight: FontWeight.w700,
+            fontSize: 18,
+            color: kPrimaryDark,
+            fontFamily: 'Montserrat',
+          ),
+        ),
+        subtitle: Text(
+          dayungName,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: const TextStyle(
+            fontSize: 15,
+            color: kSubtleText,
+            fontFamily: 'OpenSans',
+          ),
+        ),
+        trailing: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+          decoration: BoxDecoration(
+            color: chipColor.withOpacity(.15),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: chipColor),
+          ),
+          child: Text(
+            chipText,
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              color: chipColor,
             ),
-          );
-        },
+          ),
+        ),
+        onTap: mode == 'active'
+            ? () {
+                final uuid = (u?['id'] as String?)?.trim().isNotEmpty == true
+                    ? (u?['id'] as String).trim()
+                    : (r['user_id']?.toString().trim());
+                _showBeneficiariesModal(context, uuid, u?['full_name']);
+              }
+            : null,
       ),
     );
   }
@@ -383,7 +478,7 @@ Future<void> _showBeneficiariesModal(
       borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
     ),
     builder: (ctx) {
-      // BENEFICIARIES: keep the exact working pattern
+      // BENEFICIARIES
       final futureBeneficiaries = Supabase.instance.client
           .from('beneficiaries')
           .select(
@@ -391,6 +486,9 @@ Future<void> _showBeneficiariesModal(
           )
           .eq('user_id', uuid)
           .order('full_name', ascending: true);
+
+      // NEW: last contributions (limit 5)
+      final futureContribs = _fetchLastContributionsForUser(uuid, max: 5);
 
       return FutureBuilder<dynamic>(
         future: futureBeneficiaries,
@@ -414,7 +512,7 @@ Future<void> _showBeneficiariesModal(
               )
               .toList();
 
-          // USER HEADER: load separately so it never blocks beneficiaries
+          // USER HEADER future above
           final userFuture = Supabase.instance.client
               .from('users')
               .select(
@@ -428,243 +526,472 @@ Future<void> _showBeneficiariesModal(
                 return Map<String, dynamic>.from(l.first as Map);
               });
 
-          return Padding(
-            padding: EdgeInsets.only(
-              left: 18,
-              right: 18,
-              top: 18,
-              bottom: MediaQuery.of(ctx).viewInsets.bottom + 18,
-            ),
-            child: SingleChildScrollView(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  // Header card (non-blocking)
-                  FutureBuilder<Map<String, dynamic>?>(
-                    future: userFuture,
-                    builder: (ctx, uSnap) {
-                      final u = uSnap.data ?? const {};
-                      final phone = (u['mobile_number'] ?? '').toString();
-                      final hasBirth = (u['birth_certificate_url'] ?? '')
-                          .toString()
-                          .isNotEmpty;
-                      final hasMarriage = (u['marriage_certificate_url'] ?? '')
-                          .toString()
-                          .isNotEmpty;
-                      final hasDeath = (u['death_certificate_url'] ?? '')
-                          .toString()
-                          .isNotEmpty;
+          return LayoutBuilder(
+            builder: (context, constraints) {
+              final width = constraints.maxWidth;
+              final padH = width >= 700 ? 24.0 : 18.0;
+              final heightFactor = width >= 1100
+                  ? 0.75
+                  : width >= 700
+                  ? 0.85
+                  : 0.92;
 
-                      Widget docItem(String label, bool ok) => Row(
-                        children: [
-                          Icon(
-                            ok
-                                ? Icons.check_circle
-                                : Icons.radio_button_unchecked,
-                            color: ok ? kAccent : kSubtleText,
-                            size: 20,
-                          ),
-                          const SizedBox(width: 8),
-                          Text(
-                            label,
-                            style: const TextStyle(
-                              fontSize: 16,
-                              color: kNeutralText,
-                            ),
-                          ),
-                        ],
-                      );
+              String fmtDate(String iso) =>
+                  iso.isEmpty ? '—' : (iso.split('T').first);
 
-                      return Container(
-                        width: double.infinity,
-                        padding: const EdgeInsets.all(16),
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(16),
-                          border: Border.all(color: const Color(0xFFE1E4E8)),
-                          boxShadow: const [
-                            BoxShadow(
-                              color: Color(0x0F000000),
-                              blurRadius: 6,
-                              offset: Offset(0, 2),
-                            ),
-                          ],
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
-                              children: [
-                                const CircleAvatar(
-                                  radius: 22,
-                                  backgroundColor: Color(0xFF3B82F6),
-                                  child: Icon(
-                                    Icons.person,
-                                    color: Colors.white,
-                                  ),
-                                ),
-                                const SizedBox(width: 12),
-                                Expanded(
-                                  child: Column(
+              return SafeArea(
+                top: false,
+                child: FractionallySizedBox(
+                  heightFactor: heightFactor,
+                  child: Padding(
+                    padding: EdgeInsets.only(
+                      left: padH,
+                      right: padH,
+                      top: 18,
+                      bottom: MediaQuery.of(ctx).viewInsets.bottom + 18,
+                    ),
+                    child: Center(
+                      child: ConstrainedBox(
+                        constraints: const BoxConstraints(maxWidth: 820),
+                        child: SingleChildScrollView(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              // Header card (non-blocking)
+                              FutureBuilder<Map<String, dynamic>?>(
+                                future: userFuture,
+                                builder: (ctx, uSnap) {
+                                  final u = uSnap.data ?? const {};
+                                  final phone = (u['mobile_number'] ?? '')
+                                      .toString();
+                                  final hasBirth =
+                                      (u['birth_certificate_url'] ?? '')
+                                          .toString()
+                                          .isNotEmpty;
+                                  final hasMarriage =
+                                      (u['marriage_certificate_url'] ?? '')
+                                          .toString()
+                                          .isNotEmpty;
+                                  final hasDeath =
+                                      (u['death_certificate_url'] ?? '')
+                                          .toString()
+                                          .isNotEmpty;
+
+                                  Widget docItem(String label, bool ok) => Row(
+                                    children: [
+                                      Icon(
+                                        ok
+                                            ? Icons.check_circle
+                                            : Icons.radio_button_unchecked,
+                                        color: ok ? kAccent : kSubtleText,
+                                        size: 20,
+                                      ),
+                                      const SizedBox(width: 8),
+                                      Text(
+                                        label,
+                                        style: const TextStyle(
+                                          fontSize: 16,
+                                          color: kNeutralText,
+                                        ),
+                                      ),
+                                    ],
+                                  );
+
+                                  return Container(
+                                    width: double.infinity,
+                                    padding: const EdgeInsets.all(16),
+                                    decoration: BoxDecoration(
+                                      color: Colors.white,
+                                      borderRadius: BorderRadius.circular(16),
+                                      border: Border.all(
+                                        color: const Color(0xFFE1E4E8),
+                                      ),
+                                      boxShadow: const [
+                                        BoxShadow(
+                                          color: Color(0x0F000000),
+                                          blurRadius: 6,
+                                          offset: Offset(0, 2),
+                                        ),
+                                      ],
+                                    ),
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Row(
+                                          children: [
+                                            const CircleAvatar(
+                                              radius: 22,
+                                              backgroundColor: Color(
+                                                0xFF3B82F6,
+                                              ),
+                                              child: Icon(
+                                                Icons.person,
+                                                color: Colors.white,
+                                              ),
+                                            ),
+                                            const SizedBox(width: 12),
+                                            Expanded(
+                                              child: Column(
+                                                crossAxisAlignment:
+                                                    CrossAxisAlignment.start,
+                                                children: [
+                                                  Text(
+                                                    (userName ?? 'Member'),
+                                                    style: const TextStyle(
+                                                      fontWeight:
+                                                          FontWeight.w800,
+                                                      fontSize: 18,
+                                                      color: kNeutralText,
+                                                      fontFamily: 'Montserrat',
+                                                    ),
+                                                  ),
+                                                  if (phone.isNotEmpty)
+                                                    Text(
+                                                      phone,
+                                                      style: const TextStyle(
+                                                        fontSize: 14,
+                                                        color: kSubtleText,
+                                                        fontFamily: 'OpenSans',
+                                                      ),
+                                                    ),
+                                                ],
+                                              ),
+                                            ),
+                                            IconButton(
+                                              tooltip: 'Close',
+                                              icon: const Icon(Icons.close),
+                                              onPressed: () =>
+                                                  Navigator.of(context).pop(),
+                                            ),
+                                          ],
+                                        ),
+                                        const SizedBox(height: 14),
+
+                                        // Last Contribution (now real)
+                                        const Text(
+                                          'Last Contribution:',
+                                          style: TextStyle(
+                                            fontWeight: FontWeight.w800,
+                                            fontSize: 18,
+                                            color: kNeutralText,
+                                            fontFamily: 'Montserrat',
+                                          ),
+                                        ),
+                                        const SizedBox(height: 6),
+                                        FutureBuilder<
+                                          List<Map<String, dynamic>>
+                                        >(
+                                          future: futureContribs,
+                                          builder: (ctx, cSnap) {
+                                            if (cSnap.connectionState !=
+                                                ConnectionState.done) {
+                                              return Container(
+                                                height: 18,
+                                                width: 180,
+                                                decoration: BoxDecoration(
+                                                  color: Colors.grey.shade200,
+                                                  borderRadius:
+                                                      BorderRadius.circular(6),
+                                                ),
+                                              );
+                                            }
+                                            final data = cSnap.data ?? const [];
+                                            if (data.isEmpty) {
+                                              return const Text(
+                                                '—',
+                                                style: TextStyle(
+                                                  fontSize: 15,
+                                                  color: kNeutralText,
+                                                  fontFamily: 'OpenSans',
+                                                ),
+                                              );
+                                            }
+                                            final last = data.first;
+                                            final amt =
+                                                (last['amount'] as double?) ??
+                                                0.0;
+                                            final date = (last['date'] ?? '')
+                                                .toString();
+                                            return Text(
+                                              '₱ ${amt.toStringAsFixed(0)} on ${fmtDate(date)}',
+                                              style: const TextStyle(
+                                                fontSize: 15,
+                                                color: kNeutralText,
+                                                fontFamily: 'OpenSans',
+                                                fontWeight: FontWeight.w700,
+                                              ),
+                                            );
+                                          },
+                                        ),
+
+                                        const SizedBox(height: 18),
+                                        const Text(
+                                          'Required Documents',
+                                          style: TextStyle(
+                                            fontWeight: FontWeight.w800,
+                                            fontSize: 18,
+                                            color: kNeutralText,
+                                            fontFamily: 'Montserrat',
+                                          ),
+                                        ),
+                                        const SizedBox(height: 10),
+                                        docItem('Birth Certificate', hasBirth),
+                                        const SizedBox(height: 10),
+                                        docItem(
+                                          'Marriage Certificate',
+                                          hasMarriage,
+                                        ),
+                                        const SizedBox(height: 10),
+                                        docItem('Death Certificate', hasDeath),
+                                      ],
+                                    ),
+                                  );
+                                },
+                              ),
+
+                              const SizedBox(height: 18),
+
+                              // NEW: Last Contributions section (top 5)
+                              FutureBuilder<List<Map<String, dynamic>>>(
+                                future: futureContribs,
+                                builder: (ctx, cSnap) {
+                                  if (cSnap.connectionState !=
+                                      ConnectionState.done) {
+                                    return const SizedBox.shrink();
+                                  }
+                                  final contribs = cSnap.data ?? const [];
+                                  return Column(
                                     crossAxisAlignment:
                                         CrossAxisAlignment.start,
                                     children: [
-                                      Text(
-                                        (userName ?? 'Member'),
-                                        style: const TextStyle(
-                                          fontWeight: FontWeight.w800,
-                                          fontSize: 18,
-                                          color: kNeutralText,
-                                          fontFamily: 'Montserrat',
+                                      const Text(
+                                        'Last Contributions',
+                                        style: TextStyle(
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 20,
+                                          color: kPrimaryDark,
                                         ),
                                       ),
-                                      if (phone.isNotEmpty)
-                                        Text(
-                                          phone,
-                                          style: const TextStyle(
-                                            fontSize: 14,
+                                      const SizedBox(height: 10),
+                                      if (contribs.isEmpty)
+                                        const Text(
+                                          'No paid contributions yet.',
+                                          style: TextStyle(
                                             color: kSubtleText,
-                                            fontFamily: 'OpenSans',
+                                            fontSize: 16,
                                           ),
-                                        ),
+                                        )
+                                      else
+                                        ...contribs.map((c) {
+                                          final amt =
+                                              (c['amount'] as double? ?? 0.0)
+                                                  .toStringAsFixed(0);
+                                          final date = (c['date'] ?? '')
+                                              .toString();
+                                          final name =
+                                              (c['notice_name'] ??
+                                                      'Death Notice')
+                                                  .toString();
+                                          final dod = (c['date_of_death'] ?? '')
+                                              .toString();
+                                          return Card(
+                                            margin: const EdgeInsets.symmetric(
+                                              vertical: 6,
+                                            ),
+                                            child: ListTile(
+                                              leading: const CircleAvatar(
+                                                backgroundColor: Color(
+                                                  0xFFE3F2FD,
+                                                ),
+                                                child: Icon(
+                                                  Icons.receipt_long,
+                                                  color: Color(0xFF1976D2),
+                                                ),
+                                              ),
+                                              title: Text(
+                                                name,
+                                                maxLines: 1,
+                                                overflow: TextOverflow.ellipsis,
+                                                style: const TextStyle(
+                                                  fontWeight: FontWeight.w700,
+                                                ),
+                                              ),
+                                              subtitle: Column(
+                                                crossAxisAlignment:
+                                                    CrossAxisAlignment.start,
+                                                children: [
+                                                  Text(
+                                                    'Paid on ${fmtDate(date)}',
+                                                    style: const TextStyle(
+                                                      fontSize: 12,
+                                                      color: kSubtleText,
+                                                    ),
+                                                  ),
+                                                  if (dod.isNotEmpty)
+                                                    Text(
+                                                      'Date of Death: $dod',
+                                                      style: const TextStyle(
+                                                        fontSize: 12,
+                                                        color: kSubtleText,
+                                                      ),
+                                                    ),
+                                                ],
+                                              ),
+                                              trailing: Text(
+                                                '₱ $amt',
+                                                style: const TextStyle(
+                                                  fontWeight: FontWeight.w800,
+                                                  color: kPrimaryDark,
+                                                ),
+                                              ),
+                                            ),
+                                          );
+                                        }),
                                     ],
+                                  );
+                                },
+                              ),
+
+                              const SizedBox(height: 22),
+                              const Text(
+                                'Beneficiaries',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 20,
+                                  color: kPrimaryDark,
+                                ),
+                              ),
+                              const SizedBox(height: 12),
+
+                              if (list.isEmpty)
+                                const Text(
+                                  'No beneficiaries found.',
+                                  style: TextStyle(
+                                    color: kSubtleText,
+                                    fontSize: 16,
                                   ),
                                 ),
-                              ],
-                            ),
-                            const SizedBox(height: 14),
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 10,
-                                vertical: 6,
-                              ),
-                              decoration: BoxDecoration(
-                                color: const Color(0xFFE8F5E9),
-                                borderRadius: BorderRadius.circular(10),
-                              ),
-                              child: const Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Icon(
-                                    Icons.check_circle,
-                                    color: Colors.green,
-                                    size: 18,
+
+                              ...list.map(
+                                (b) => Card(
+                                  margin: const EdgeInsets.symmetric(
+                                    vertical: 6,
                                   ),
-                                  SizedBox(width: 6),
-                                  Text(
-                                    'Eligible',
-                                    style: TextStyle(
-                                      color: Colors.green,
-                                      fontWeight: FontWeight.w700,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            const SizedBox(height: 16),
-                            const Text(
-                              'Last Contribution:',
-                              style: TextStyle(
-                                fontWeight: FontWeight.w800,
-                                fontSize: 18,
-                                color: kNeutralText,
-                                fontFamily: 'Montserrat',
-                              ),
-                            ),
-                            const SizedBox(height: 4),
-                            const Text(
-                              '—',
-                              style: TextStyle(
-                                fontSize: 15,
-                                color: kNeutralText,
-                                fontFamily: 'OpenSans',
-                              ),
-                            ),
-                            const SizedBox(height: 18),
-                            const Text(
-                              'Required Documents',
-                              style: TextStyle(
-                                fontWeight: FontWeight.w800,
-                                fontSize: 18,
-                                color: kNeutralText,
-                                fontFamily: 'Montserrat',
-                              ),
-                            ),
-                            const SizedBox(height: 10),
-                            docItem('Birth Certificate', hasBirth),
-                            const SizedBox(height: 10),
-                            docItem('Marriage Certificate', hasMarriage),
-                            const SizedBox(height: 10),
-                            docItem('Death Certificate', hasDeath),
-                          ],
-                        ),
-                      );
-                    },
-                  ),
-
-                  const SizedBox(height: 22),
-                  const Text(
-                    'Beneficiaries',
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 20,
-                      color: kPrimaryDark,
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-
-                  if (list.isEmpty)
-                    const Text(
-                      'No beneficiaries found.',
-                      style: TextStyle(color: kSubtleText, fontSize: 16),
-                    ),
-
-                  ...list.map(
-                    (b) => Card(
-                      margin: const EdgeInsets.symmetric(vertical: 6),
-                      child: ListTile(
-                        leading: const Icon(Icons.person, color: Colors.blue),
-                        title: Text(
-                          b['full_name'] ?? '',
-                          style: const TextStyle(fontWeight: FontWeight.bold),
-                        ),
-                        subtitle: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text('Relationship: ${b['relationship'] ?? ''}'),
-                            Text('DOB: ${b['dob'] ?? ''}'),
-                            Text('Status: ${b['status'] ?? ''}'),
-                            if ((b['birth_certificate'] ?? '')
-                                .toString()
-                                .isNotEmpty)
-                              InkWell(
-                                onTap: () => launchUrl(
-                                  Uri.parse(b['birth_certificate']),
-                                ),
-                                child: const Padding(
-                                  padding: EdgeInsets.only(top: 4.0),
-                                  child: Text(
-                                    'View Birth Certificate',
-                                    style: TextStyle(
+                                  child: ListTile(
+                                    leading: const Icon(
+                                      Icons.person,
                                       color: Colors.blue,
-                                      decoration: TextDecoration.underline,
+                                    ),
+                                    title: Text(
+                                      b['full_name'] ?? '',
+                                      style: const TextStyle(
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                    subtitle: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          'Relationship: ${b['relationship'] ?? ''}',
+                                        ),
+                                        Text('DOB: ${b['dob'] ?? ''}'),
+                                        Text('Status: ${b['status'] ?? ''}'),
+                                        if ((b['birth_certificate'] ?? '')
+                                            .toString()
+                                            .isNotEmpty)
+                                          InkWell(
+                                            onTap: () => launchUrl(
+                                              Uri.parse(b['birth_certificate']),
+                                            ),
+                                            child: const Padding(
+                                              padding: EdgeInsets.only(
+                                                top: 4.0,
+                                              ),
+                                              child: Text(
+                                                'View Birth Certificate',
+                                                style: TextStyle(
+                                                  color: Colors.blue,
+                                                  decoration:
+                                                      TextDecoration.underline,
+                                                ),
+                                              ),
+                                            ),
+                                          ),
+                                      ],
                                     ),
                                   ),
                                 ),
                               ),
-                          ],
+                              const SizedBox(height: 8),
+                            ],
+                          ),
                         ),
                       ),
                     ),
                   ),
-                  const SizedBox(height: 8),
-                ],
-              ),
-            ),
+                ),
+              );
+            },
           );
         },
       );
     },
   );
-} 
+}
+
+// NEW: shared helper using the same logic as contributionhistory.dart
+Future<List<Map<String, dynamic>>> _fetchLastContributionsForUser(
+  String uid, {
+  int max = 5,
+}) async {
+  final supabase = Supabase.instance.client;
+
+  final payments = List<Map<String, dynamic>>.from(
+    await supabase
+        .from('payments')
+        .select(
+          'id, amount, status, created_at, dayung_unit_id, death_notice_id',
+        )
+        .eq('user_id', uid)
+        .eq('status', 'paid')
+        .order('created_at', ascending: false)
+        .limit(max),
+  );
+
+  if (payments.isEmpty) return const [];
+
+  final noticeIds = payments
+      .map((p) => p['death_notice_id'])
+      .where((id) => id != null)
+      .cast<int>()
+      .toSet()
+      .toList();
+
+  Map<int, Map<String, dynamic>> noticeById = {};
+  if (noticeIds.isNotEmpty) {
+    final notices = List<Map<String, dynamic>>.from(
+      await supabase
+          .from('death_notices')
+          .select('id, name, date_of_death')
+          .inFilter('id', noticeIds),
+    );
+    noticeById = {for (final n in notices) (n['id'] as int): n};
+  }
+
+  return payments.map((p) {
+    final nid = p['death_notice_id'] as int?;
+    final n = nid != null ? noticeById[nid] : null;
+    final amount = (p['amount'] is num)
+        ? (p['amount'] as num).toDouble()
+        : double.tryParse('${p['amount']}') ?? 0.0;
+    return {
+      'date': (p['created_at'] ?? '').toString(),
+      'amount': amount,
+      'notice_name': (n?['name'] ?? 'Death Notice #$nid').toString(),
+      'date_of_death': n?['date_of_death'],
+    };
+  }).toList();
+}

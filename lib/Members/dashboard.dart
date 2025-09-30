@@ -35,6 +35,7 @@ class _MemberDashboardPageState extends State<MemberDashboardPage> {
   final supabase = Supabase.instance.client;
   final ScrollController _scrollController = ScrollController();
 
+  // ignore: unused_field
   User? _user;
   String _fullName = 'Member';
   String? _profileUrl;
@@ -43,6 +44,7 @@ class _MemberDashboardPageState extends State<MemberDashboardPage> {
   String? selectedDayungUnit;
 
   bool _showNavBar = true;
+  // ignore: unused_field
   bool _loadingUser = true;
   int _selectedIndex = 0;
 
@@ -58,6 +60,9 @@ class _MemberDashboardPageState extends State<MemberDashboardPage> {
   double _pendingPaymentsAmount = 0;
   int _pendingPaymentCount = 0;
   bool _loadingPending = true;
+
+  bool _loadingActivity = true;
+  List<Map<String, dynamic>> _latestActivities = [];
 
   int? _asInt(dynamic v) {
     if (v == null) return null;
@@ -98,7 +103,160 @@ class _MemberDashboardPageState extends State<MemberDashboardPage> {
       _fetchActiveMembers(),
       _fetchRecentDeaths(),
       _fetchPendingPayments(),
+      _fetchRecentActivity(),
     ]);
+  }
+
+  Future<void> _fetchRecentActivity() async {
+    setState(() => _loadingActivity = true);
+    try {
+      final supabase = Supabase.instance.client;
+      final uid = supabase.auth.currentUser?.id;
+      final dayungId = _asInt(_selectedDayungUnitObj?['id']);
+
+      // Debug prints
+      debugPrint('DEBUG: User ID: $uid, Dayung ID: $dayungId');
+
+      if (uid == null || dayungId == null) {
+        setState(() {
+          _latestActivities = [];
+          _loadingActivity = false;
+        });
+        return;
+      }
+
+      // 1. Get most recent paid contribution
+      final contribResult = await supabase
+          .from('payments')
+          .select('amount, created_at, death_notice_id')
+          .eq('user_id', uid)
+          .eq('status', 'paid')
+          .order('created_at', ascending: false)
+          .limit(1);
+
+      // Debug
+      debugPrint('DEBUG: Contributions result: $contribResult');
+      final recentContributions = contribResult as List? ?? [];
+
+      // 2. Get most recent claim update
+      final claimResult = await supabase
+          .from('claims')
+          .select('status, title, date_submitted')
+          .eq('user_id', uid)
+          .order('date_submitted', ascending: false)
+          .limit(1);
+
+      // Debug
+      debugPrint('DEBUG: Claims result: $claimResult');
+      final recentClaims = claimResult as List? ?? [];
+
+      List<Map<String, dynamic>> activities = [];
+
+      // Always add today's date
+      activities.add({
+        'icon': Icons.calendar_today,
+        'color': kPrimary,
+        'text': _formatTodayDate(),
+        'date': DateTime.now().toIso8601String(),
+        'type': 'date',
+      });
+
+      // Add contribution if exists
+      if (recentContributions.isNotEmpty && recentContributions is List) {
+        final contrib = recentContributions[0];
+        final amount = (contrib['amount'] is num)
+            ? (contrib['amount'] as num).toDouble()
+            : double.tryParse('${contrib['amount']}') ?? 0.0;
+
+        activities.add({
+          'icon': Icons.attach_money,
+          'color': kAccent,
+          'text': 'Paid ₱${amount.toStringAsFixed(0)} contribution',
+          'date': contrib['created_at'],
+          'type': 'payment',
+        });
+      }
+
+      // Add claim if exists
+      if (recentClaims.isNotEmpty && recentClaims is List) {
+        final claim = recentClaims[0];
+        final status = (claim['status'] ?? '').toString();
+
+        String statusText = 'Claim ';
+        IconData icon = Icons.circle;
+        Color color = kAccent;
+
+        switch (status.toLowerCase()) {
+          case 'approved':
+            statusText += 'approved';
+            icon = Icons.check_circle;
+            color = kAccent;
+            break;
+          case 'rejected':
+            statusText += 'rejected';
+            icon = Icons.cancel_outlined;
+            color = Colors.red;
+            break;
+          case 'pending':
+            statusText += 'pending';
+            icon = Icons.pending_actions;
+            color = Colors.orange;
+            break;
+          default:
+            statusText += status;
+        }
+
+        activities.add({
+          'icon': icon,
+          'color': color,
+          'text': statusText,
+          'date': claim['date_submitted'],
+          'type': 'claim',
+        });
+      }
+
+      // Sort by date (most recent first)
+      activities.sort((a, b) {
+        final aDate =
+            DateTime.tryParse(a['date']?.toString() ?? '') ?? DateTime.now();
+        final bDate =
+            DateTime.tryParse(b['date']?.toString() ?? '') ?? DateTime.now();
+        return bDate.compareTo(aDate);
+      });
+
+      // Limit to 3 most recent activities
+      activities = activities.take(3).toList();
+
+      setState(() {
+        _latestActivities = activities;
+        _loadingActivity = false;
+      });
+    } catch (e) {
+      setState(() {
+        _latestActivities = [];
+        _loadingActivity = false;
+      });
+    }
+  }
+
+  // Helper to format today's date
+  String _formatTodayDate() {
+    final now = DateTime.now();
+    const months = [
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
+    ];
+    return '${months[now.month - 1]} ${now.day}, ${now.year}';
   }
 
   Future<void> _reloadDayungFromPrefs() async {
@@ -412,6 +570,8 @@ class _MemberDashboardPageState extends State<MemberDashboardPage> {
     const ContributionHistory(),
     const ClaimsPage(),
   ];
+
+  get _dayungUnitId => null;
 
   @override
   Widget build(BuildContext context) {
@@ -1018,9 +1178,13 @@ class _MemberDashboardPageState extends State<MemberDashboardPage> {
                       Navigator.push(
                         context,
                         MaterialPageRoute(
-                          builder: (context) => const PaymentMethodPage(),
+                          builder: (context) => PaymentMethodPage(
+                            dayungUnitId: _asInt(_selectedDayungUnitObj?['id']),
+                          ),
                         ),
-                      );
+                      ).then((_) {
+                        _refreshDashboard();
+                      });
                     },
               icon: loading
                   ? const SizedBox(
@@ -1089,27 +1253,38 @@ class _MemberDashboardPageState extends State<MemberDashboardPage> {
               ),
             ],
           ),
-          child: Column(
-            children: const [
-              _ActivityRow(
-                icon: Icons.calendar_today,
-                color: kPrimary,
-                text: 'Jun 15, 2025',
-              ),
-              SizedBox(height: 12),
-              _ActivityRow(
-                icon: Icons.attach_money,
-                color: kAccent,
-                text: 'Paid ₱200 contribution',
-              ),
-              SizedBox(height: 12),
-              _ActivityRow(
-                icon: Icons.check_circle,
-                color: kAccent,
-                text: 'Claim approved',
-              ),
-            ],
-          ),
+          child: _loadingActivity
+              ? const Center(child: CircularProgressIndicator())
+              : _latestActivities.isEmpty ||
+                    _latestActivities.length <=
+                        1 // Updated condition
+              ? const Center(
+                  child: Padding(
+                    padding: EdgeInsets.symmetric(vertical: 20),
+                    child: Text(
+                      'No recent activity',
+                      style: TextStyle(
+                        fontSize: 16,
+                        color: kSubtleText,
+                        fontWeight: FontWeight.w600,
+                        fontFamily: 'OpenSans',
+                      ),
+                    ),
+                  ),
+                )
+              : Column(
+                  children: [
+                    for (int i = 0; i < _latestActivities.length; i++) ...[
+                      _ActivityRow(
+                        icon: _latestActivities[i]['icon'],
+                        color: _latestActivities[i]['color'],
+                        text: _latestActivities[i]['text'],
+                      ),
+                      if (i < _latestActivities.length - 1)
+                        const SizedBox(height: 12),
+                    ],
+                  ],
+                ),
         ),
       ],
     );
