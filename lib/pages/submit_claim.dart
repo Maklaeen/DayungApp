@@ -22,7 +22,7 @@ class _SubmitClaimFormState extends State<SubmitClaimForm> {
   final _desc = TextEditingController();
   bool _submitting = false;
   File? _deathCertFile;
-  String? _deathCertUrl;
+  // String? _deathCertUrl;
 
   @override
   void dispose() {

@@ -1,7 +1,14 @@
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:auto_size_text/auto_size_text.dart';
+
+// Palette (matching register.dart vibe)
+const Color kPrimary = Color(0xFF0D47A1);
+const Color kPrimaryDark = Color(0xFF083366);
+const Color kDanger = Color(0xFFC62828);
+const Color kNeutralText = Color(0xFF1F2937);
+const Color kSubtleText = Color(0xFF4B5563);
+const double kEdge = 18;
 
 class AddBeneficiaryPage extends StatefulWidget {
   const AddBeneficiaryPage({super.key});
@@ -11,251 +18,168 @@ class AddBeneficiaryPage extends StatefulWidget {
 }
 
 class _AddBeneficiaryPageState extends State<AddBeneficiaryPage> {
+  // Controllers
   final TextEditingController fullNameController = TextEditingController();
   final TextEditingController maritalController = TextEditingController();
-  final TextEditingController relationshipController = TextEditingController();
+
+  // State
   final user = Supabase.instance.client.auth.currentUser;
+  final _formKey = GlobalKey<FormState>();
+  bool _isSubmitting = false;
+  bool _isUploadingFile = false;
 
-  String? birthCertificateFile;
-  String? selectedMonth;
-  String? selectedDay;
-  String? selectedYear;
+  String? selectedRelationship;
+  DateTime? _selectedDob;
+  String? birthCertificateFile; // public URL
+  String? selectedMaritalStatus;
 
-  final List<String> _months = const [
-    'January',
-    'February',
-    'March',
-    'April',
-    'May',
-    'June',
-    'July',
-    'August',
-    'September',
-    'October',
-    'November',
-    'December',
+  // Relationship options
+  final List<String> _relationships = const [
+    'Spouse',
+    'Child',
+    'Parent',
+    'Sibling',
+    'Grandparent',
+    'Grandchild',
+    'Aunt/Uncle',
+    'Niece/Nephew',
+    'Cousin',
+    'Other',
+  ];
+
+  final List<String> _maritalStatuses = const [
+    'Single',
+    'Married',
+    'Widowed',
+    'Separated',
   ];
 
   @override
-  Widget build(BuildContext context) {
-    final width = MediaQuery.of(context).size.width;
-    final isWide = width > 700;
+  void dispose() {
+    fullNameController.dispose();
+    super.dispose();
+  }
 
-    return Scaffold(
-      backgroundColor: const Color(0xFFFEFFFF),
-      body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(horizontal: 24),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const SizedBox(height: 16),
-              // HEADER
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  AutoSizeText(
-                    'Add Beneficiary',
-                    style: TextStyle(
-                      fontSize: isWide ? 28 : 22,
-                      fontWeight: FontWeight.bold,
-                      fontFamily: 'Montserrat',
-                    ),
-                    maxLines: 1,
-                    minFontSize: 16,
-                  ),
-                ],
-              ),
-              const Divider(thickness: 1.2),
-              Row(children: [const SizedBox(width: 4)]),
+  InputDecoration _dec(String label, {String? hint, IconData? icon}) {
+    return InputDecoration(
+      labelText: label,
+      hintText: hint,
+      labelStyle: const TextStyle(color: kSubtleText, fontSize: 16),
+      prefixIcon: icon != null ? Icon(icon, color: kSubtleText) : null,
+      filled: true,
+      fillColor: Colors.white,
+      contentPadding: const EdgeInsets.symmetric(vertical: 18, horizontal: 16),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(kEdge),
+        borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(kEdge),
+        borderSide: const BorderSide(color: kPrimary, width: 2),
+      ),
+      errorBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(kEdge),
+        borderSide: const BorderSide(color: kDanger, width: 2),
+      ),
+      focusedErrorBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(kEdge),
+        borderSide: const BorderSide(color: kDanger, width: 2),
+      ),
+    );
+  }
 
-              _overlapLabelField(
-                label: 'Full Name',
-                child: _customTextField(controller: fullNameController),
-                isWide: isWide,
-              ),
+  InputDecoration _dropdownDec(String label) => _dec(label).copyWith(
+    contentPadding: const EdgeInsets.symmetric(vertical: 4, horizontal: 12),
+  );
 
-              _overlapLabelField(
-                label: 'Date of Birth',
-                child: Row(
-                  children: [
-                    Flexible(
-                      flex: 3,
-                      child: _customDropdown(
-                        hint: 'Month',
-                        items: _months,
-                        value: selectedMonth,
-                        onChanged: (val) => setState(() => selectedMonth = val),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Flexible(
-                      flex: 2,
-                      child: _customDropdown(
-                        hint: 'Day',
-                        items: List.generate(31, (i) => '${i + 1}'),
-                        value: selectedDay,
-                        onChanged: (val) => setState(() => selectedDay = val),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Flexible(
-                      flex: 3,
-                      child: _customDropdown(
-                        hint: 'Year',
-                        items: List.generate(
-                          100,
-                          (i) => '${DateTime.now().year - i}',
-                        ),
-                        value: selectedYear,
-                        onChanged: (val) => setState(() => selectedYear = val),
-                      ),
-                    ),
-                  ],
-                ),
-                isWide: isWide,
-              ),
-
-              _overlapLabelField(
-                label: 'Marital Status',
-                child: _customTextField(controller: maritalController),
-                isWide: isWide,
-              ),
-              _overlapLabelField(
-                label: 'Relationship',
-                child: _customTextField(controller: relationshipController),
-                isWide: isWide,
-              ),
-              _overlapLabelField(
-                label: 'Birth Certificate',
-                child: _filePickerField(),
-                isWide: isWide,
-              ),
-
-              const SizedBox(height: 30),
-              SizedBox(
-                width: double.infinity,
-                height: 48,
-                child: ElevatedButton(
-                  onPressed: _submitBeneficiary,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF1565B3),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    elevation: 0,
-                  ),
-                  child: const AutoSizeText(
-                    'Submit Beneficiary',
-                    style: TextStyle(
-                      fontSize: 20,
-                      color: Colors.white,
-                      fontWeight: FontWeight.normal,
-                      letterSpacing: 1,
-                      fontFamily: 'Montserrat',
-                    ),
-                    maxLines: 1,
-                    minFontSize: 14,
-                  ),
-                ),
-              ),
-              const SizedBox(height: 16),
-
-              SizedBox(
-                width: double.infinity,
-                height: 48,
-                child: OutlinedButton(
-                  style: OutlinedButton.styleFrom(
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    side: const BorderSide(
-                      color: Color.fromARGB(255, 179, 21, 21),
-                    ),
-                  ),
-                  onPressed: () async {
-                    Navigator.of(context).pop();
-                  },
-                  child: const AutoSizeText(
-                    'Cancel',
-                    style: TextStyle(
-                      fontSize: 20,
-                      color: Color.fromARGB(255, 179, 21, 21),
-                      fontWeight: FontWeight.w600,
-                      fontFamily: 'Montserrat',
-                    ),
-                    maxLines: 1,
-                    minFontSize: 14,
-                  ),
-                ),
-              ),
-            ],
+  Widget _dobField(BuildContext context) {
+    return GestureDetector(
+      onTap: () async {
+        final now = DateTime.now();
+        final picked = await showDatePicker(
+          context: context,
+          initialDate: _selectedDob ?? DateTime(now.year - 18, 1, 1),
+          firstDate: DateTime(now.year - 120),
+          lastDate: now,
+          helpText: 'Select Date of Birth',
+        );
+        if (picked != null) setState(() => _selectedDob = picked);
+      },
+      child: AbsorbPointer(
+        child: TextFormField(
+          decoration: _dec(
+            'Date of Birth',
+            icon: Icons.cake,
+          ).copyWith(hintText: 'Select birth date'),
+          controller: TextEditingController(
+            text: _selectedDob == null
+                ? ''
+                : '${_selectedDob!.year}-${_selectedDob!.month.toString().padLeft(2, '0')}-${_selectedDob!.day.toString().padLeft(2, '0')}',
           ),
+          validator: (v) =>
+              _selectedDob == null ? 'Date of birth is required' : null,
         ),
       ),
     );
   }
 
+  // ...existing code...
+
   Future<void> _pickAndUploadFile() async {
-    final result = await FilePicker.platform.pickFiles(
-      type: FileType.custom,
-      allowedExtensions: ['jpg', 'jpeg', 'png', 'pdf'],
-    );
-    if (result != null && result.files.single.bytes != null) {
+    setState(() => _isUploadingFile = true);
+    try {
+      final result = await FilePicker.platform.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: ['jpg', 'jpeg', 'png', 'pdf'],
+        withData: true, // Ensure bytes are available for uploadBinary
+      );
+
+      if (result == null || result.files.single.bytes == null) {
+        setState(() => _isUploadingFile = false);
+        return;
+      }
+
       final file = result.files.single;
-      final ext = file.extension ?? 'jpg';
+      final ext = (file.extension ?? 'jpg').toLowerCase();
       final fileName =
           '${user?.id}-${DateTime.now().millisecondsSinceEpoch}.$ext';
       final filePath = 'birth_certificates/$fileName';
 
-      try {
-        await Supabase.instance.client.storage
-            .from('birth_certificates')
-            .uploadBinary(
-              filePath,
-              file.bytes!,
-              fileOptions: const FileOptions(upsert: true),
-            );
+      await Supabase.instance.client.storage
+          .from('birth_certificates')
+          .uploadBinary(
+            filePath,
+            file.bytes!,
+            fileOptions: const FileOptions(upsert: true),
+          );
 
-        final publicUrl = Supabase.instance.client.storage
-            .from('birth_certificates')
-            .getPublicUrl(filePath);
+      final publicUrl = Supabase.instance.client.storage
+          .from('birth_certificates')
+          .getPublicUrl(filePath);
 
-        setState(() {
-          birthCertificateFile = publicUrl;
-        });
+      setState(() {
+        birthCertificateFile = publicUrl;
+      });
 
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('File uploaded successfully!')),
-        );
-      } catch (e) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('File upload failed: $e')));
-      }
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('File uploaded successfully')),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('File upload failed: $e')));
+    } finally {
+      if (mounted) setState(() => _isUploadingFile = false);
     }
   }
 
+  String _formatDob(DateTime d) =>
+      '${d.year.toString().padLeft(4, '0')}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+
   Future<void> _submitBeneficiary() async {
-    final fullName = fullNameController.text.trim();
-    final maritalStatus = maritalController.text.trim();
-    final relationship = relationshipController.text.trim();
-    final birthCertificate = birthCertificateFile;
-
-    if (fullName.isEmpty ||
-        selectedMonth == null ||
-        selectedDay == null ||
-        selectedYear == null ||
-        maritalStatus.isEmpty ||
-        relationship.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please complete all fields')),
-      );
-      return;
-    }
-
-    final dob =
-        '$selectedYear-${_months.indexOf(selectedMonth!) + 1}-$selectedDay';
+    if (!_formKey.currentState!.validate()) return;
     if (user == null) {
       ScaffoldMessenger.of(
         context,
@@ -263,167 +187,390 @@ class _AddBeneficiaryPageState extends State<AddBeneficiaryPage> {
       return;
     }
 
-    final response = await Supabase.instance.client
-        .from('beneficiaries')
-        .insert([
-          {
-            'user_id': user!.id,
-            'full_name': fullName,
-            'dob': dob,
-            'marital_status': maritalStatus,
-            'relationship': relationship,
-            'birth_certificate': birthCertificate,
-            'status': 'Pending',
-          },
-        ])
-        .select()
-        .single();
+    setState(() => _isSubmitting = true);
 
-    // ignore: unnecessary_null_comparison
-    if (response == null || response['id'] == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Failed to add beneficiary')),
-      );
-    } else {
+    final fullName = fullNameController.text.trim();
+    final maritalStatus = maritalController.text.trim();
+    final relationship = selectedRelationship!.trim();
+    final dob = _formatDob(_selectedDob!);
+    final birthCertificate = birthCertificateFile;
+
+    try {
+      final response = await Supabase.instance.client
+          .from('beneficiaries')
+          .insert([
+            {
+              'user_id': user!.id,
+              'full_name': fullName,
+              'dob': dob,
+              'marital_status': maritalStatus,
+              'relationship': relationship,
+              'birth_certificate': birthCertificate,
+              'status': 'Pending',
+            },
+          ])
+          .select()
+          .single();
+
+      // ...existing code...
+
+      if (response == null || response['id'] == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Failed to add beneficiary')),
+        );
+      } else {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('Beneficiary added')));
+        fullNameController.clear();
+        setState(() {
+          selectedRelationship = null;
+          selectedMaritalStatus = null;
+          _selectedDob = null;
+          birthCertificateFile = null;
+        });
+        Navigator.pop(context);
+      }
+    } catch (e) {
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(const SnackBar(content: Text('Beneficiary added')));
-      fullNameController.clear();
-      maritalController.clear();
-      relationshipController.clear();
-      setState(() {
-        selectedMonth = null;
-        selectedDay = null;
-        selectedYear = null;
-        birthCertificateFile = null;
-      });
-      Navigator.pop(context);
+      ).showSnackBar(SnackBar(content: Text('Error: $e')));
+    } finally {
+      if (mounted) setState(() => _isSubmitting = false);
     }
   }
 
-  Widget _overlapLabelField({
-    required String label,
-    required Widget child,
-    required bool isWide,
-  }) {
-    return Container(
-      margin: const EdgeInsets.only(top: 25, bottom: 8),
-      height: 72,
-      child: Stack(
-        clipBehavior: Clip.none,
-        children: [
-          Positioned(
-            left: 0,
-            top: 0,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
-              decoration: BoxDecoration(
-                color: const Color(0xFF3F86BF),
-                borderRadius: BorderRadius.circular(16),
-              ),
-              child: AutoSizeText(
-                label,
-                style: TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.w400,
-                  fontSize: isWide ? 18 : 15,
-                  fontFamily: 'Montserrat',
-                ),
-                maxLines: 1,
-                minFontSize: 10,
+  // UI
+  @override
+  Widget build(BuildContext context) {
+    final width = MediaQuery.of(context).size.width;
+    final isWide = width > 720;
+    final isSmall = width < 350;
+
+    return Scaffold(
+      backgroundColor: const Color.fromARGB(255, 255, 255, 255),
+      body: SafeArea(
+        child: Center(
+          child: SingleChildScrollView(
+            padding: EdgeInsets.symmetric(
+              horizontal: isSmall ? 8 : 24,
+              vertical: isSmall ? 8 : 16,
+            ),
+            child: ConstrainedBox(
+              constraints: BoxConstraints(maxWidth: isWide ? 640 : 420),
+              child: Column(
+                children: [
+                  // Header
+                  Padding(
+                    padding: EdgeInsets.only(bottom: isSmall ? 8 : 16),
+                    child: Column(
+                      children: const [
+                        Text(
+                          'Add Beneficiary',
+                          style: TextStyle(
+                            fontSize: 24,
+                            fontWeight: FontWeight.w800,
+                            color: kNeutralText,
+                          ),
+                        ),
+                        SizedBox(height: 4),
+                        Text(
+                          'Provide beneficiary details below',
+                          style: TextStyle(color: kSubtleText),
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  Card(
+                    elevation: 2,
+                    shadowColor: Colors.black12,
+                    color: const Color.fromARGB(255, 232, 232, 232),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(kEdge),
+                    ),
+                    child: Padding(
+                      padding: EdgeInsets.all(isSmall ? 10 : 20),
+                      child: Form(
+                        key: _formKey,
+                        child: Column(
+                          children: [
+                            if (_isSubmitting)
+                              const Padding(
+                                padding: EdgeInsets.only(bottom: 12),
+                                child: LinearProgressIndicator(
+                                  color: kPrimary,
+                                  backgroundColor: Color(0xFFEFF2F7),
+                                  minHeight: 3,
+                                ),
+                              ),
+
+                            // Section: Personal Information
+                            Row(
+                              children: const [
+                                Icon(Icons.person_outline, color: kPrimary),
+                                SizedBox(width: 8),
+                                Text(
+                                  'Personal Information',
+                                  style: TextStyle(
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.w700,
+                                    color: kNeutralText,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 14),
+
+                            // Full Name
+                            TextFormField(
+                              controller: fullNameController,
+                              textInputAction: TextInputAction.next,
+                              style: TextStyle(
+                                fontSize: isWide ? 18 : 16,
+                                color: kNeutralText,
+                              ),
+                              decoration: _dec(
+                                'Full Name',
+                                hint: 'e.g., Jane Doe',
+                                icon: Icons.badge_outlined,
+                              ),
+                              validator: (v) => (v == null || v.trim().isEmpty)
+                                  ? 'Full Name is required'
+                                  : null,
+                            ),
+                            const SizedBox(height: 14),
+
+                            // Date of Birth
+                            _dobField(context),
+                            const SizedBox(height: 14),
+
+                            // Relationship
+                            DropdownButtonFormField<String>(
+                              value: selectedRelationship,
+                              decoration: _dropdownDec('Relationship'),
+                              items: _relationships
+                                  .map(
+                                    (s) => DropdownMenuItem(
+                                      value: s,
+                                      child: Text(s),
+                                    ),
+                                  )
+                                  .toList(),
+                              onChanged: (v) =>
+                                  setState(() => selectedRelationship = v),
+                              validator: (v) =>
+                                  v == null ? 'Relationship is required' : null,
+                            ),
+                            const SizedBox(height: 14),
+
+                            // Marital Status
+                            DropdownButtonFormField<String>(
+                              value: selectedMaritalStatus,
+                              decoration: _dropdownDec('Marital Status'),
+                              items: _maritalStatuses
+                                  .map(
+                                    (s) => DropdownMenuItem(
+                                      value: s,
+                                      child: Text(s),
+                                    ),
+                                  )
+                                  .toList(),
+                              onChanged: (v) =>
+                                  setState(() => selectedMaritalStatus = v),
+                              validator: (v) => v == null
+                                  ? 'Marital status is required'
+                                  : null,
+                            ),
+                            const SizedBox(height: 24),
+                            // ...existing code...
+
+                            // Section: Documents
+                            Row(
+                              children: const [
+                                Icon(
+                                  Icons.insert_drive_file_outlined,
+                                  color: kPrimary,
+                                ),
+                                SizedBox(width: 8),
+                                Text(
+                                  'Documents',
+                                  style: TextStyle(
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.w700,
+                                    color: kNeutralText,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 14),
+
+                            // Birth Certificate Picker
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: TextFormField(
+                                    enabled: false,
+                                    decoration: _dec(
+                                      'Birth Certificate',
+                                      hint: 'Upload JPG/PNG/PDF',
+                                      icon: Icons.upload_file,
+                                    ),
+                                    controller: TextEditingController(
+                                      text: birthCertificateFile == null
+                                          ? ''
+                                          : 'Uploaded',
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                Tooltip(
+                                  message: _isUploadingFile
+                                      ? 'Uploading...'
+                                      : 'Upload',
+                                  child: ElevatedButton.icon(
+                                    onPressed: _isUploadingFile
+                                        ? null
+                                        : _pickAndUploadFile,
+                                    icon: _isUploadingFile
+                                        ? const SizedBox(
+                                            width: 16,
+                                            height: 16,
+                                            child: CircularProgressIndicator(
+                                              strokeWidth: 2,
+                                              color: Colors.white,
+                                            ),
+                                          )
+                                        : const Icon(Icons.upload_outlined),
+                                    label: const Text('Upload'),
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: kPrimary,
+                                      foregroundColor: Colors.white,
+                                      elevation: 0,
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(10),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                                if (birthCertificateFile != null) ...[
+                                  const SizedBox(width: 8),
+                                  Tooltip(
+                                    message: 'Remove',
+                                    child: OutlinedButton.icon(
+                                      onPressed: () => setState(
+                                        () => birthCertificateFile = null,
+                                      ),
+                                      icon: const Icon(
+                                        Icons.close,
+                                        size: 18,
+                                        color: kDanger,
+                                      ),
+                                      label: const Text(
+                                        'Clear',
+                                        style: TextStyle(color: kDanger),
+                                      ),
+                                      style: OutlinedButton.styleFrom(
+                                        side: const BorderSide(color: kDanger),
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius: BorderRadius.circular(
+                                            10,
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ],
+                            ),
+                            const SizedBox(height: 4),
+                            const Align(
+                              alignment: Alignment.centerLeft,
+                              child: Text(
+                                'Accepted: JPG, PNG, PDF',
+                                style: TextStyle(
+                                  color: kSubtleText,
+                                  fontSize: 12,
+                                ),
+                              ),
+                            ),
+
+                            const SizedBox(height: 24),
+
+                            // Actions
+                            SizedBox(
+                              width: double.infinity,
+                              height: 56,
+                              child: ElevatedButton(
+                                onPressed: _isSubmitting
+                                    ? null
+                                    : _submitBeneficiary,
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: kPrimary,
+                                  disabledBackgroundColor: kPrimaryDark
+                                      .withOpacity(0.5),
+                                  foregroundColor: Colors.white,
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(kEdge),
+                                  ),
+                                  elevation: 0,
+                                ),
+                                child: _isSubmitting
+                                    ? const SizedBox(
+                                        width: 26,
+                                        height: 26,
+                                        child: CircularProgressIndicator(
+                                          color: Colors.white,
+                                          strokeWidth: 3,
+                                        ),
+                                      )
+                                    : const Text(
+                                        'Submit Beneficiary',
+                                        style: TextStyle(
+                                          fontSize: 18,
+                                          fontWeight: FontWeight.w700,
+                                        ),
+                                      ),
+                              ),
+                            ),
+                            const SizedBox(height: 12),
+                            SizedBox(
+                              width: double.infinity,
+                              height: 56,
+                              child: OutlinedButton(
+                                onPressed: _isSubmitting
+                                    ? null
+                                    : () => Navigator.of(context).pop(),
+                                style: OutlinedButton.styleFrom(
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(kEdge),
+                                  ),
+                                  side: const BorderSide(
+                                    color: kDanger,
+                                    width: 1.5,
+                                  ),
+                                  foregroundColor: kDanger,
+                                ),
+                                child: const Text(
+                                  'Cancel',
+                                  style: TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
           ),
-          Positioned(left: 0, right: 0, top: 32, child: child),
-        ],
-      ),
-    );
-  }
-
-  Widget _customTextField({required TextEditingController controller}) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 4),
-      child: TextFormField(
-        controller: controller,
-        decoration: InputDecoration(
-          hintText: 'Enter here',
-          hintStyle: const TextStyle(color: Colors.black54),
-          filled: true,
-          fillColor: Colors.grey[100],
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(8),
-            borderSide: BorderSide.none,
-          ),
-          contentPadding: const EdgeInsets.symmetric(
-            vertical: 16,
-            horizontal: 16,
-          ),
-        ),
-        style: const TextStyle(fontSize: 16, fontFamily: 'OpenSans'),
-      ),
-    );
-  }
-
-  Widget _filePickerField() {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 4),
-      child: Row(
-        children: [
-          Expanded(
-            child: TextFormField(
-              enabled: false,
-              decoration: InputDecoration(
-                hintText: birthCertificateFile ?? 'Choose file',
-                hintStyle: const TextStyle(color: Colors.black54),
-                filled: true,
-                fillColor: Colors.grey[100],
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8),
-                  borderSide: BorderSide.none,
-                ),
-                contentPadding: const EdgeInsets.symmetric(
-                  vertical: 16,
-                  horizontal: 16,
-                ),
-              ),
-              style: const TextStyle(fontSize: 16, fontFamily: 'OpenSans'),
-            ),
-          ),
-          const SizedBox(width: 8),
-          IconButton(
-            onPressed: _pickAndUploadFile,
-            icon: const Icon(Icons.upload_outlined, color: Colors.black54),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _customDropdown({
-    required String hint,
-    required List<String> items,
-    required void Function(String?) onChanged,
-    String? value,
-  }) {
-    return DropdownButtonFormField<String>(
-      decoration: InputDecoration(
-        hintText: hint,
-        filled: true,
-        fillColor: Colors.grey[100],
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(8),
-          borderSide: BorderSide.none,
-        ),
-        contentPadding: const EdgeInsets.symmetric(
-          vertical: 13,
-          horizontal: 13,
         ),
       ),
-      value: value,
-      items: items
-          .map((item) => DropdownMenuItem(value: item, child: Text(item)))
-          .toList(),
-      onChanged: onChanged,
     );
   }
 }

@@ -50,6 +50,7 @@ class _CertificatesPageState extends State<CertificatesPage>
     }
   }
 
+  // ignore: unused_element
   String _formatDate(dynamic ds) {
     if (ds == null) return '';
     try {

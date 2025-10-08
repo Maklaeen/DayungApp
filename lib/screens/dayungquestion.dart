@@ -38,34 +38,65 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
   });
 }
 
+  Future<List<double>> _embedText(String text) async {
+    final fn = Supabase.instance.client.functions;
+    final res = await fn.invoke('embed', body: {'input': text});
+    final data = res.data as Map<String, dynamic>;
+    final emb = (data['embedding'] as List).map((e) => (e as num).toDouble()).toList();
+    return emb;
+  }
+
+  List<String> _deriveTags() {
+    final tags = <String>[];
+    if (feeRange != null) tags.add(feeRange!);
+    if (paymentMethod != null) tags.add(paymentMethod!);
+    if (fundSupportRange != null) tags.add(fundSupportRange!);
+    if (location != null) tags.add(location!);
+    if (openForAll != null) tags.add(openForAll!);
+    return tags;
+  }
+
+  String _preferenceSummary() {
+    return [
+      if (feeRange != null) 'Fee: $feeRange',
+      if (paymentMethod != null) 'Payment: $paymentMethod',
+      if (openForAll != null) 'OpenForAll: $openForAll',
+      if (fundSupportRange != null) 'FundSupport: $fundSupportRange',
+      if (location != null) 'Location: $location',
+    ].join(', ');
+  }
+
   Future<void> _fetchSuggestions() async {
     if (!_formKey.currentState!.validate()) return;
 
-    setState(() {
-      isLoading = true;
-    });
-
+    setState(() => isLoading = true);
     try {
-      final response = await Supabase.instance.client
-          .from('dayung_units')
-          .select()
-          .ilike('fee_range', '%$feeRange%')
-          .ilike('payment_method', '%$paymentMethod%')
-          .eq('open_for_all', openForAll == 'Yes')
-          .ilike('fund_support_range', '%$fundSupportRange%')
-          .ilike('location', '%$location%');
+      final summary = _preferenceSummary().isEmpty
+          ? 'Find the best Dayung unit for me'
+          : _preferenceSummary();
+      final embedding = await _embedText(summary);
+      final tags = _deriveTags();
+
+      final rpc = await Supabase.instance.client.rpc('dayung_search', params: {
+        'query_embedding': embedding,
+        'in_tags': tags.isEmpty ? null : tags,
+        'in_fee_range': feeRange,
+        'in_payment_method': paymentMethod,
+        'in_open_for_all': openForAll == null ? null : (openForAll == 'Yes'),
+        'in_fund_support_range': fundSupportRange,
+        'in_location': location == null ? null : '%$location%',
+        'in_limit': 20,
+      });
 
       setState(() {
-        suggestedUnits = response;
+        suggestedUnits = rpc as List<dynamic>;
       });
     } catch (e) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Error fetching suggestions: $e')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error fetching suggestions: $e')),
+      );
     } finally {
-      setState(() {
-        isLoading = false;
-      });
+      setState(() => isLoading = false);
     }
   }
 

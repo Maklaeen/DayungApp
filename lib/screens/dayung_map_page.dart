@@ -1,4 +1,4 @@
-import 'package:capstone_app/screens/locationservice.dart';
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:geolocator/geolocator.dart';
@@ -12,6 +12,35 @@ const Color kDanger = Color(0xFFC62828);
 const Color kNeutralText = Color(0xFF1F2937);
 const Color kSubtleText = Color(0xFF4B5563);
 const Color kPanelBg = Colors.white;
+
+class LocationService {
+  static Future<bool> ensurePermission() async {
+    final serviceEnabled = await Geolocator.isLocationServiceEnabled();
+    if (!serviceEnabled) return false;
+    var perm = await Geolocator.checkPermission();
+    if (perm == LocationPermission.denied) {
+      perm = await Geolocator.requestPermission();
+    }
+    if (perm == LocationPermission.denied ||
+        perm == LocationPermission.deniedForever) {
+      return false;
+    }
+    return true;
+  }
+
+  static Future<Position?> currentPosition() async {
+    try {
+      final ok = await ensurePermission();
+      if (!ok) return null;
+      return Geolocator.getCurrentPosition(
+        desiredAccuracy: LocationAccuracy.high,
+      );
+    } catch (e) {
+      print("Error getting location: $e");
+      return null;
+    }
+  }
+}
 
 class DayungMapPage extends StatefulWidget {
   final Map<String, dynamic> dayung;
@@ -38,6 +67,7 @@ class _DayungMapPageState extends State<DayungMapPage> {
   Position? _pos;
   bool _loadingLoc = true;
   bool _permissionDenied = false;
+  StreamSubscription<Position>? positionStream;
 
   double? get dayungLat {
     final v = widget.dayung['latitude'];
@@ -57,6 +87,23 @@ class _DayungMapPageState extends State<DayungMapPage> {
   void initState() {
     super.initState();
     _initLocation();
+    positionStream =
+        Geolocator.getPositionStream(
+          locationSettings: LocationSettings(
+            accuracy: LocationAccuracy.high, // Set desired accuracy
+            distanceFilter: 10, // Update location every 10 meters
+          ),
+        ).listen((Position position) {
+          setState(() {
+            _pos = position;
+          });
+        });
+  }
+
+  @override
+  void dispose() {
+    positionStream?.cancel();
+    super.dispose();
   }
 
   Future<void> _initLocation() async {
@@ -86,12 +133,16 @@ class _DayungMapPageState extends State<DayungMapPage> {
 
   double? _distanceToDayung() {
     if (_pos == null || dayungLat == null || dayungLng == null) return null;
-    return Geolocator.distanceBetween(
-      _pos!.latitude,
-      _pos!.longitude,
-      dayungLat!,
-      dayungLng!,
-    );
+    try {
+      return Geolocator.distanceBetween(
+        _pos!.latitude,
+        _pos!.longitude,
+        dayungLat!,
+        dayungLng!,
+      );
+    } catch (e) {
+      return null;
+    }
   }
 
   Set<Marker> _buildMarkers() {

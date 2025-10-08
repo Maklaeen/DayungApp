@@ -1097,7 +1097,7 @@ class _ProfilePageState extends State<ProfilePage> {
             tooltip: 'Settings',
             onPressed: () => Navigator.push(
               context,
-              MaterialPageRoute(builder: (_) => const SettingsPage()),
+              MaterialPageRoute(builder: (_) => const DayungSettingsPage()),
             ),
             icon: const Icon(Icons.settings, color: Colors.white),
           ),
@@ -1128,7 +1128,7 @@ class _ProfilePageState extends State<ProfilePage> {
                                 tag: 'profilePhotoHero',
                                 child: CircleAvatar(
                                   radius: isWide ? 56 : 48,
-                                  backgroundColor: Colors.grey.shade300,
+                                  backgroundColor: const Color(0xFFE0E0E0),
                                   backgroundImage:
                                       (profileUrl != null &&
                                           profileUrl!.isNotEmpty)
@@ -1430,7 +1430,9 @@ class _ProfilePageState extends State<ProfilePage> {
                     trailing: const Icon(Icons.chevron_right),
                     onTap: () => Navigator.push(
                       context,
-                      MaterialPageRoute(builder: (_) => const SettingsPage()),
+                      MaterialPageRoute(
+                        builder: (_) => const DayungSettingsPage(),
+                      ),
                     ),
                   ),
                 ),

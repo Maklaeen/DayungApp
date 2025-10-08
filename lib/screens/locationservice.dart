@@ -22,7 +22,8 @@ class LocationService {
       return Geolocator.getCurrentPosition(
         desiredAccuracy: LocationAccuracy.high,
       );
-    } catch (_) {
+    } catch (e) {
+      print("Error getting location: $e");
       return null;
     }
   }

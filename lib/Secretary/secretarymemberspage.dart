@@ -44,6 +44,7 @@ class _SecretaryMembersPageState extends State<SecretaryMembersPage>
   // Raw fetched members (approved + pending) for secretary’s dayungs
   List<Map<String, dynamic>> _rows = [];
   final Map<int, String> _dayungNames = {};
+  // ignore: unused_field
   List<int> _managedDayungIds = [];
 
   @override

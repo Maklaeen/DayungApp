@@ -8,14 +8,14 @@ import 'package:auto_size_text/auto_size_text.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:capstone_app/President/manage_rules.dart';
 
-class SettingsPage extends StatefulWidget {
-  const SettingsPage({super.key});
+class DayungSettingsPage extends StatefulWidget {
+  const DayungSettingsPage({super.key});
 
   @override
-  State<SettingsPage> createState() => _SettingsPageState();
+  State<DayungSettingsPage> createState() => _DayungSettingsPageState();
 }
 
-class _SettingsPageState extends State<SettingsPage> {
+class _DayungSettingsPageState extends State<DayungSettingsPage> {
   int? _currentDayungId;
   String? _currentDayungName;
   Map<String, dynamic>? _currentDayungData;
@@ -158,7 +158,7 @@ class _SettingsPageState extends State<SettingsPage> {
                     onPressed: () => Navigator.pop(context, true),
                   ),
                   AutoSizeText(
-                    'Profile settings',
+                    'Dayung settings',
                     style: headerStyle,
                     maxLines: 1,
                     minFontSize: 16,
