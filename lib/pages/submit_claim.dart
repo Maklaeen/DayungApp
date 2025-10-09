@@ -22,13 +22,37 @@ class _SubmitClaimFormState extends State<SubmitClaimForm> {
   final _desc = TextEditingController();
   bool _submitting = false;
   File? _deathCertFile;
-  // String? _deathCertUrl;
+  String? _selectedDeceasedType; // 'member' or 'beneficiary'
+  int? _selectedBeneficiaryId;
+  DateTime? _dateOfDeath;
+  List<Map<String, dynamic>> _beneficiaries = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchBeneficiaries();
+  }
 
   @override
   void dispose() {
     _title.dispose();
     _desc.dispose();
     super.dispose();
+  }
+
+  Future<void> _fetchBeneficiaries() async {
+    final sb = Supabase.instance.client;
+    final user = sb.auth.currentUser;
+    if (user == null) return;
+    final res = await sb
+        .from('beneficiaries')
+        .select('id, full_name')
+        .eq('user_id', user.id)
+        .eq('eligible_to_claim', true)
+        .eq('status', 'Approved');
+    setState(() {
+      _beneficiaries = List<Map<String, dynamic>>.from(res);
+    });
   }
 
   Future<void> _pickDeathCert() async {
@@ -48,7 +72,7 @@ class _SubmitClaimFormState extends State<SubmitClaimForm> {
     final storage = Supabase.instance.client.storage;
     final fileName =
         'death_cert_${claimId}_${DateTime.now().millisecondsSinceEpoch}.${_deathCertFile!.path.split('.').last}';
-    final bucket = 'death_certificates'; // <-- This is the correct place!
+    final bucket = 'death_certificates';
     final res = await storage.from(bucket).upload(fileName, _deathCertFile!);
     if (res.error != null) throw Exception(res.error!.message);
     return storage.from(bucket).getPublicUrl(fileName);
@@ -63,18 +87,34 @@ class _SubmitClaimFormState extends State<SubmitClaimForm> {
       ).showSnackBar(const SnackBar(content: Text('Not logged in.')));
       return;
     }
+    if (_selectedDeceasedType == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please select who passed away.')),
+      );
+      return;
+    }
+    if (_dateOfDeath == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please select date of death.')),
+      );
+      return;
+    }
     setState(() => _submitting = true);
     try {
       // 1. Insert claim (without file URL yet)
+      final claimData = {
+        'user_id': user.id,
+        'title': _title.text.trim(),
+        'description': _desc.text.trim(),
+        'status': 'Pending',
+        'date_submitted': DateTime.now().toIso8601String(),
+        'date_of_death': _dateOfDeath?.toIso8601String(),
+        if (_selectedBeneficiaryId != null)
+          'beneficiary_id': _selectedBeneficiaryId,
+      };
       final insertRes = await Supabase.instance.client
           .from('claims')
-          .insert({
-            'user_id': user.id,
-            'title': _title.text.trim(),
-            'description': _desc.text.trim(),
-            'status': 'Pending',
-            'date_submitted': DateTime.now().toIso8601String(),
-          })
+          .insert(claimData)
           .select()
           .single();
       final claimId = insertRes['id'].toString();
@@ -145,14 +185,11 @@ class _SubmitClaimFormState extends State<SubmitClaimForm> {
       child: AnimatedPadding(
         duration: const Duration(milliseconds: 200),
         curve: Curves.easeOutCubic,
-        // Lift above the keyboard when typing
         padding: EdgeInsets.only(bottom: mq.viewInsets.bottom),
         child: Center(
           child: ConstrainedBox(
-            // Keep a nice readable width on desktop/tablet
             constraints: BoxConstraints(
               maxWidth: 640,
-              // Ensure the modal never exceeds the viewport height
               maxHeight: mq.size.height - 40,
             ),
             child: Material(
@@ -236,8 +273,111 @@ class _SubmitClaimFormState extends State<SubmitClaimForm> {
                             lines: 4,
                           ),
                         ),
-                        const SizedBox(height: 30),
+                        const SizedBox(height: 18),
 
+                        // Who passed away?
+                        Align(
+                          alignment: Alignment.centerLeft,
+                          child: Text(
+                            'Who passed away?',
+                            style: TextStyle(
+                              fontWeight: FontWeight.w700,
+                              fontFamily: 'Montserrat',
+                              fontSize: 15,
+                              color: kNeutralText,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        DropdownButtonFormField<String>(
+                          value: _selectedDeceasedType,
+                          items: [
+                            const DropdownMenuItem(
+                              value: 'member',
+                              child: Text('I am the deceased'),
+                            ),
+                            if (_beneficiaries.isNotEmpty)
+                              ..._beneficiaries.map(
+                                (b) => DropdownMenuItem(
+                                  value: 'beneficiary_${b['id']}',
+                                  child: Text(b['full_name']),
+                                ),
+                              ),
+                          ],
+                          onChanged: (v) {
+                            setState(() {
+                              _selectedDeceasedType = v;
+                              if (v != null && v.startsWith('beneficiary_')) {
+                                _selectedBeneficiaryId = int.tryParse(
+                                  v.split('_').last,
+                                );
+                              } else {
+                                _selectedBeneficiaryId = null;
+                              }
+                            });
+                          },
+                          decoration: const InputDecoration(
+                            border: OutlineInputBorder(),
+                            hintText: 'Select deceased',
+                          ),
+                          validator: (v) {
+                            if (v == null || v.isEmpty) {
+                              return 'Please select who passed away';
+                            }
+                            return null;
+                          },
+                        ),
+                        const SizedBox(height: 18),
+
+                        // Date of Death
+                        Align(
+                          alignment: Alignment.centerLeft,
+                          child: Text(
+                            'Date of Death',
+                            style: TextStyle(
+                              fontWeight: FontWeight.w700,
+                              fontFamily: 'Montserrat',
+                              fontSize: 15,
+                              color: kNeutralText,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        InkWell(
+                          onTap: _submitting
+                              ? null
+                              : () async {
+                                  final picked = await showDatePicker(
+                                    context: context,
+                                    initialDate: DateTime.now(),
+                                    firstDate: DateTime(1900),
+                                    lastDate: DateTime.now(),
+                                  );
+                                  if (picked != null) {
+                                    setState(() => _dateOfDeath = picked);
+                                  }
+                                },
+                          child: InputDecorator(
+                            decoration: const InputDecoration(
+                              border: OutlineInputBorder(),
+                              hintText: 'Select date',
+                            ),
+                            child: Text(
+                              _dateOfDeath == null
+                                  ? 'Select date'
+                                  : '${_dateOfDeath!.year}-${_dateOfDeath!.month.toString().padLeft(2, '0')}-${_dateOfDeath!.day.toString().padLeft(2, '0')}',
+                              style: TextStyle(
+                                fontSize: 15,
+                                color: _dateOfDeath == null
+                                    ? Colors.grey
+                                    : kNeutralText,
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 26),
+
+                        // Death Certificate
                         Align(
                           alignment: Alignment.centerLeft,
                           child: Text(

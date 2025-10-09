@@ -3,9 +3,11 @@ import 'package:capstone_app/Secretary/beneficiaries_tab.dart'
     show SecretaryBeneficiariesTab;
 import 'package:capstone_app/Secretary/certificates.dart';
 import 'package:capstone_app/Secretary/claims.dart';
+import 'package:capstone_app/Secretary/contributions.dart';
 import 'package:capstone_app/Secretary/deathnotice.dart';
 import 'package:capstone_app/Secretary/manage_applications.dart';
 import 'package:capstone_app/Secretary/secretarymemberspage.dart';
+import 'package:capstone_app/Secretary/service_tracker.dart';
 import 'package:capstone_app/pages/dayung_profile.dart';
 import 'package:capstone_app/pages/notification.dart';
 import 'package:capstone_app/pages/recentdeathnotices.dart';
@@ -323,7 +325,7 @@ class _SecretaryDashboardPageState extends State<SecretaryDashboardPage> {
 
   List<Widget> get _pages => [
     _buildHomePage(context),
-    const Placeholder(child: Center(child: Text("Contributions"))),
+    SecretaryContributionsPage(dayungUnitId: _dayungUnitId ?? 1),
     const SecretaryClaimsPage(),
   ];
 
@@ -554,9 +556,16 @@ class _SecretaryDashboardPageState extends State<SecretaryDashboardPage> {
                   Expanded(
                     child: _actionTile(
                       icon: Icons.volunteer_activism,
-                      label: "Assign vigil\nassistants",
+                      label: "Service\nTracking",
                       color: kAccent,
-                      onTap: () {},
+                      onTap: () {
+  Navigator.push(
+    context,
+    MaterialPageRoute(
+      builder: (_) => ServiceTrackerPage(dayungUnitId: _dayungUnitId ?? 1),
+    ),
+  );
+},
                     ),
                   ),
                 ],

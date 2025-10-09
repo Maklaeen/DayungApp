@@ -37,17 +37,66 @@ class _CreateDeathNoticePageState extends State<CreateDeathNoticePage> {
   Future<void> _fetchMembers() async {
     setState(() => _loading = true);
     try {
-      final rows = await supabase
+      final sb = Supabase.instance.client;
+
+      // 1. Get all approved claims for this dayung unit
+      final claims = await sb
+          .from('claims')
+          .select('user_id')
+          .eq('status', 'Approved')
+          .eq('dayung_unit_id', widget.dayungUnitId);
+
+      final claimedUserIds = claims
+          .map((c) => c['user_id']?.toString())
+          .where((id) => id != null)
+          .toSet()
+          .toList();
+
+      if (claimedUserIds.isEmpty) {
+        setState(() {
+          _members = [];
+          _filtered = [];
+          _loading = false;
+        });
+        return;
+      }
+
+      // 2. Exclude users na may death notice na
+      final notices = await sb
+          .from('death_notices')
+          .select('user_id')
+          .eq('dayung_unit_id', widget.dayungUnitId);
+
+      final noticedUserIds = notices
+          .map((n) => n['user_id']?.toString())
+          .where((id) => id != null)
+          .toSet();
+
+      final availableUserIds = claimedUserIds
+          .where((id) => !noticedUserIds.contains(id))
+          .toList();
+
+      if (availableUserIds.isEmpty) {
+        setState(() {
+          _members = [];
+          _filtered = [];
+          _loading = false;
+        });
+        return;
+      }
+
+      // 3. Fetch user details for availableUserIds
+      final users = await sb
           .from('users')
           .select('id, full_name, is_deceased, dayung_unit_id')
-          .eq('is_deceased', false)
-          .eq('dayung_unit_id', widget.dayungUnitId) // ALWAYS filter by dayung
-          .order('full_name');
+          .inFilter('id', availableUserIds)
+          .eq('dayung_unit_id', widget.dayungUnitId);
 
-      final list = List<Map<String, dynamic>>.from(rows);
+      final list = List<Map<String, dynamic>>.from(users);
       setState(() {
         _members = list;
         _filtered = list;
+        _loading = false;
       });
     } catch (e) {
       debugPrint('CreateDeathNoticePage _fetchMembers error: $e');
@@ -56,8 +105,7 @@ class _CreateDeathNoticePageState extends State<CreateDeathNoticePage> {
           context,
         ).showSnackBar(SnackBar(content: Text('Failed to load members: $e')));
       }
-    } finally {
-      if (mounted) setState(() => _loading = false);
+      setState(() => _loading = false);
     }
   }
 
@@ -289,18 +337,35 @@ class _MarkDeceasedModalState extends State<MarkDeceasedModal> {
           .eq('id', _selectedBeneficiaryId as Object);
 
       // Insert death notice with all details
-      await Supabase.instance.client.from('death_notices').insert({
-        'user_id': widget.memberId,
-        'name': widget.memberName,
-        'date_of_death': _dateOfDeath!.toIso8601String(),
-        'barangay': _barangay,
-        'latitude': _latitude,
-        'longitude': _longitude,
-        if (fileUrl != null) 'death_certificate_url': fileUrl,
-        'dayung_unit_id': await _getDayungUnitId(
-          widget.memberId,
-        ), // <-- Add this line
-      });
+      final insertRes = await Supabase.instance.client
+          .from('death_notices')
+          .insert({
+            'user_id': widget.memberId,
+            'name': widget.memberName,
+            'date_of_death': _dateOfDeath!.toIso8601String(),
+            'barangay': _barangay,
+            'latitude': _latitude,
+            'longitude': _longitude,
+            if (fileUrl != null) 'death_certificate_url': fileUrl,
+            'dayung_unit_id': await _getDayungUnitId(widget.memberId),
+          })
+          .select()
+          .single();
+
+      final deathNoticeId = insertRes['id'];
+      final defaultServices = [
+        'Prayers',
+        'Cleaning',
+        'Cooking',
+        'Funeral Procession',
+      ];
+      for (final service in defaultServices) {
+        await Supabase.instance.client.from('service_checklists').insert({
+          'death_notice_id': deathNoticeId,
+          'service_name': service,
+          'is_done': false,
+        });
+      }
 
       if (mounted) {
         Navigator.pop(context);

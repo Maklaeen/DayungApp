@@ -230,25 +230,40 @@ class _ContributionHistoryState extends State<ContributionHistory> {
           child: NestedScrollView(
             headerSliverBuilder: (context, innerBoxIsScrolled) => [
               SliverToBoxAdapter(
-                child: MemberHeader(
-                  title: (providerName ?? 'Dayung'),
-                  subtitle: (addr ?? ''),
-                  profileUrl: _profileUrl,
-                  onNotificationTap: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (_) => const NotificationPage()),
-                  ),
-                  onProfileTap: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(builder: (_) => const ProfilePage()),
-                    ).then((_) => _loadProfileImage());
-                  },
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 0,
+                      ),
+                      child: MemberHeader(
+                        title: (providerName ?? 'Dayung'),
+                        subtitle: (addr ?? ''),
+                        profileUrl: _profileUrl,
+                        onNotificationTap: () => Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => const NotificationPage(),
+                          ),
+                        ),
+                        onProfileTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => const ProfilePage(),
+                            ),
+                          ).then((_) => _loadProfileImage());
+                        },
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    const Divider(thickness: 1, height: 24, color: Colors.grey),
+                  ],
                 ),
               ),
-              const SliverToBoxAdapter(
-                child: Divider(thickness: 1, height: 24, color: Colors.grey),
-              ),
+
               const SliverToBoxAdapter(
                 child: Padding(
                   padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),

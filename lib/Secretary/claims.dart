@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:capstone_app/pages/claims.dart';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:intl/intl.dart';
@@ -183,6 +184,35 @@ class _SecretaryClaimsPageState extends State<SecretaryClaimsPage>
     }
   }
 
+  Future<Map<String, dynamic>> getDeceasedInfo(
+    Map<String, dynamic> claim,
+  ) async {
+    final sb = Supabase.instance.client;
+    if (claim['beneficiary_id'] != null) {
+      final b = await sb
+          .from('beneficiaries')
+          .select('full_name, dob')
+          .eq('id', claim['beneficiary_id'])
+          .maybeSingle();
+      return {
+        'name': b?['full_name'] ?? 'Beneficiary',
+        'date_of_death': b?['dob'] ?? '',
+        'type': 'beneficiary',
+      };
+    } else {
+      final u = await sb
+          .from('users')
+          .select('full_name, date_of_death')
+          .eq('id', claim['user_id'])
+          .maybeSingle();
+      return {
+        'name': u?['full_name'] ?? 'Member',
+        'date_of_death': u?['date_of_death'] ?? '',
+        'type': 'member',
+      };
+    }
+  }
+
   Future<void> _updateStatus(String claimId, String newStatusTitleCase) async {
     if (_updating) return;
     setState(() => _updating = true);
@@ -263,7 +293,6 @@ class _SecretaryClaimsPageState extends State<SecretaryClaimsPage>
   Widget build(BuildContext context) {
     final currentStatus = _tabs[_tabController.index];
     final claims = _filteredClaims;
-
     return Scaffold(
       backgroundColor: const Color(0xFFFAFAF7),
       appBar: AppBar(
@@ -525,29 +554,18 @@ class _SecretaryClaimsPageState extends State<SecretaryClaimsPage>
   Widget _claimCard(Map<String, dynamic> claim) {
     final status = (claim['status'] ?? '').toString();
     final color = _statusColor(status);
-    final id = (claim['id'] ?? '').toString();
     final title = (claim['title'] ?? 'Untitled').toString();
-    final desc = (claim['description'] ?? '').toString();
     final date = _formatDate(claim['date_submitted']);
-
-    final userId = (claim['user_id'] ?? '').toString();
-    final userInfo = _userMap[userId];
-    final submitter = (userInfo?['full_name'] ?? 'Member').toString();
-    final profileUrl = (userInfo?['profile_url'] ?? '').toString();
-    final dayungUnitId = userInfo?['dayung_unit_id'];
-    final dayungName = (dayungUnitId is int)
-        ? (_dayungNameMap[dayungUnitId] ?? 'Dayung')
-        : 'Dayung';
+    final desc = (claim['description'] ?? '').toString().trim();
 
     return InkWell(
       onTap: () => _showDetail(claim),
-      borderRadius: BorderRadius.circular(kRadius),
+      borderRadius: BorderRadius.circular(kCardRadius),
       child: Container(
-        // ...existing decoration...
         decoration: BoxDecoration(
           color: Colors.white,
-          borderRadius: BorderRadius.circular(kRadius),
-          border: Border.all(color: color.withOpacity(.35), width: 1.4),
+          borderRadius: BorderRadius.circular(kCardRadius),
+          border: Border.all(color: color.withOpacity(.35), width: 1.2),
           boxShadow: [
             BoxShadow(
               color: Colors.black.withOpacity(.05),
@@ -560,13 +578,13 @@ class _SecretaryClaimsPageState extends State<SecretaryClaimsPage>
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Status + ID
+            // ...status, title, desc, etc...
             Row(
               children: [
                 Container(
                   padding: const EdgeInsets.symmetric(
                     horizontal: 10,
-                    vertical: 4,
+                    vertical: 5,
                   ),
                   decoration: BoxDecoration(
                     color: color.withOpacity(.12),
@@ -582,8 +600,8 @@ class _SecretaryClaimsPageState extends State<SecretaryClaimsPage>
                         style: TextStyle(
                           fontSize: 12,
                           fontWeight: FontWeight.w700,
-                          color: color,
                           fontFamily: 'Montserrat',
+                          color: color,
                         ),
                       ),
                     ],
@@ -591,12 +609,12 @@ class _SecretaryClaimsPageState extends State<SecretaryClaimsPage>
                 ),
                 const Spacer(),
                 Text(
-                  "#$id",
+                  '#${claim['id']}',
                   style: TextStyle(
                     fontSize: 11,
-                    color: kSubtleText.withOpacity(.7),
                     fontFamily: 'OpenSans',
                     fontWeight: FontWeight.w600,
+                    color: kSubtleText.withOpacity(.65),
                   ),
                 ),
               ],
@@ -611,41 +629,110 @@ class _SecretaryClaimsPageState extends State<SecretaryClaimsPage>
                 height: 1.15,
                 color: kNeutralText,
               ),
-            ),
-            const SizedBox(height: 6),
-            Row(
-              children: [
-                _avatar(profileUrl, submitter, size: 30),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    '$submitter • $dayungName',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      fontSize: 12.5,
-                      fontFamily: 'OpenSans',
-                      fontWeight: FontWeight.w600,
-                      color: kSubtleText.withOpacity(.9),
-                    ),
-                  ),
-                ),
-              ],
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
             ),
             if (desc.isNotEmpty) ...[
-              const SizedBox(height: 8),
+              const SizedBox(height: 6),
               Text(
                 desc,
-                maxLines: 3,
+                maxLines: 2,
                 overflow: TextOverflow.ellipsis,
                 style: const TextStyle(
-                  fontSize: 13.2,
-                  height: 1.3,
+                  fontSize: 13,
                   fontFamily: 'OpenSans',
+                  height: 1.3,
                   color: kSubtleText,
                 ),
               ),
             ],
+            // --- INSERT THE FUTUREBUILDER HERE ---
+            const SizedBox(height: 10),
+            FutureBuilder<Map<String, dynamic>>(
+              future: getDeceasedInfo(claim),
+              builder: (context, snapshot) {
+                if (!snapshot.hasData) return const SizedBox.shrink();
+                final deceased = snapshot.data!;
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Deceased: ${deceased['name']}',
+                      style: const TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: kNeutralText,
+                      ),
+                    ),
+                    if ((deceased['date_of_death'] ?? '').toString().isNotEmpty)
+                      Text(
+                        'Date of Death: ${deceased['date_of_death']}',
+                        style: const TextStyle(
+                          fontSize: 13,
+                          color: kSubtleText,
+                        ),
+                      ),
+                    if ((claim['death_certificate_url'] ?? '')
+                        .toString()
+                        .isNotEmpty)
+                      TextButton.icon(
+                        icon: const Icon(Icons.visibility),
+                        label: const Text('View Death Certificate'),
+                        onPressed: () async {
+                          final url = claim['death_certificate_url'].toString();
+                          // --- Image/PDF viewer logic here ---
+                          if (url.endsWith('.jpg') ||
+                              url.endsWith('.jpeg') ||
+                              url.endsWith('.png')) {
+                            showDialog(
+                              context: context,
+                              builder: (ctx) => Dialog(
+                                backgroundColor: Colors.black,
+                                insetPadding: const EdgeInsets.all(12),
+                                child: PhotoView(
+                                  imageProvider: NetworkImage(url),
+                                  backgroundDecoration: const BoxDecoration(
+                                    color: Colors.black,
+                                  ),
+                                  minScale: PhotoViewComputedScale.contained,
+                                  maxScale: PhotoViewComputedScale.covered * 3,
+                                ),
+                              ),
+                            );
+                          } else if (url.endsWith('.pdf')) {
+                            if (await canLaunchUrl(Uri.parse(url))) {
+                              await launchUrl(
+                                Uri.parse(url),
+                                mode: LaunchMode.externalApplication,
+                              );
+                            } else {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text('Could not open PDF file.'),
+                                ),
+                              );
+                            }
+                          } else {
+                            if (await canLaunchUrl(Uri.parse(url))) {
+                              await launchUrl(
+                                Uri.parse(url),
+                                mode: LaunchMode.externalApplication,
+                              );
+                            } else {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text('Could not open file.'),
+                                ),
+                              );
+                            }
+                          }
+                        },
+                      ),
+                  ],
+                );
+              },
+            ),
+            // --- END FUTUREBUILDER ---
             const SizedBox(height: 10),
             Row(
               children: [
@@ -657,12 +744,16 @@ class _SecretaryClaimsPageState extends State<SecretaryClaimsPage>
                     style: const TextStyle(
                       fontSize: 12,
                       fontFamily: 'OpenSans',
-                      color: kSubtleText,
                       fontWeight: FontWeight.w600,
+                      color: kSubtleText,
                     ),
                   ),
                 ),
-                _actionButtons(status, claim),
+                const Icon(
+                  Icons.chevron_right,
+                  size: 20,
+                  color: Colors.black38,
+                ),
               ],
             ),
           ],
@@ -919,7 +1010,39 @@ class _SecretaryClaimsPageState extends State<SecretaryClaimsPage>
                   _detailChip(icon: Icons.apartment, label: dayungName),
                 ],
               ),
-              const SizedBox(height: 22),
+              const SizedBox(height: 18), // <-- Insert here
+              FutureBuilder<Map<String, dynamic>>(
+                future: getDeceasedInfo(claim),
+                builder: (context, snapshot) {
+                  if (!snapshot.hasData) return const SizedBox.shrink();
+                  final deceased = snapshot.data!;
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Deceased: ${deceased['name']}',
+                        style: const TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          color: kNeutralText,
+                        ),
+                      ),
+                      if ((deceased['date_of_death'] ?? '')
+                          .toString()
+                          .isNotEmpty)
+                        Text(
+                          'Date of Death: ${deceased['date_of_death']}',
+                          style: const TextStyle(
+                            fontSize: 13,
+                            color: kSubtleText,
+                          ),
+                        ),
+                    ],
+                  );
+                },
+              ),
+              const SizedBox(height: 18),
+
               if ((claim['death_certificate_url'] ?? '').toString().isNotEmpty)
                 Padding(
                   padding: const EdgeInsets.only(bottom: 18),

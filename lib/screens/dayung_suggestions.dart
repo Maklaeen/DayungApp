@@ -1,3 +1,4 @@
+import 'package:capstone_app/screens/dayung_map_page.dart';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -14,95 +15,43 @@ class _DayungSuggestionsPageState extends State<DayungSuggestionsPage> {
   List<Map<String, dynamic>> _allDayungs = [];
   bool _loading = false;
   String _query = '';
-  List<String> _selectedTags = [];
-
-  // Example tag options (customize as needed)
-  final List<String> _feeRanges = ['Free', '₱1 - ₱100', '₱101 - ₱500', '₱501+'];
-  final List<String> _paymentMethods = [
-    'GCash',
-    'Bank Transfer',
-    'Cash',
-    'Any',
-  ];
-  final List<String> _locations = ['Cebu', 'Davao', 'Manila', 'Anywhere'];
-  final List<String> _fundSupports = ['₱0 - ₱500', '₱501 - ₱1000', '₱1001+'];
 
   @override
   void initState() {
     super.initState();
-    _fetchSuggestions();
+    _fetchDayungs();
   }
 
-  Future<void> _fetchSuggestions() async {
+  Future<void> _fetchDayungs() async {
     setState(() => _loading = true);
-
     try {
-      final query = _query.isEmpty
-          ? 'Find the best Dayung unit for me'
-          : _query;
-
-      // 1. Get embedding for user query
-      final embedRes = await _sb.functions.invoke(
-        'embed',
-        body: {'input': query},
-      );
-      final embedding = (embedRes.data['embedding'] as List)
-          .map((e) => (e as num).toDouble())
-          .toList();
-
-      // 2. Call the dayung_search RPC with embedding and tags
-      final rpcRes = await _sb.rpc(
-        'dayung_search',
-        params: {
-          'query_embedding': embedding,
-          'in_tags': _selectedTags.isEmpty ? null : _selectedTags,
-          'in_limit': 20,
-        },
-      );
-
+      final res = await _sb
+          .from('dayung_units')
+          .select(
+            'id, name, barangay, city, province, description, rules, tags',
+          )
+          .order('name');
       setState(() {
-        _allDayungs = List<Map<String, dynamic>>.from(rpcRes);
+        _allDayungs = List<Map<String, dynamic>>.from(res);
         _loading = false;
       });
     } catch (e) {
       setState(() => _loading = false);
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(SnackBar(content: Text('Error fetching suggestions: $e')));
+      ).showSnackBar(SnackBar(content: Text('Error loading dayung units: $e')));
     }
   }
 
-  void _toggleTag(String tag) {
-    setState(() {
-      if (_selectedTags.contains(tag)) {
-        _selectedTags.remove(tag);
-      } else {
-        _selectedTags.add(tag);
-      }
-    });
-    _fetchSuggestions();
-  }
-
-  Widget _buildTagChips(List<String> tags, String label) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(label, style: const TextStyle(fontWeight: FontWeight.bold)),
-        Wrap(
-          spacing: 8,
-          children: tags.map((tag) {
-            final selected = _selectedTags.contains(tag);
-            return ChoiceChip(
-              label: Text(tag),
-              selected: selected,
-              onSelected: (_) => _toggleTag(tag),
-              selectedColor: Colors.blue.shade100,
-            );
-          }).toList(),
-        ),
-        const SizedBox(height: 8),
-      ],
-    );
+  List<Map<String, dynamic>> get _filteredDayungs {
+    if (_query.trim().isEmpty) return _allDayungs;
+    final q = _query.toLowerCase();
+    return _allDayungs.where((d) {
+      return (d['name'] ?? '').toString().toLowerCase().contains(q) ||
+          (d['barangay'] ?? '').toString().toLowerCase().contains(q) ||
+          (d['city'] ?? '').toString().toLowerCase().contains(q) ||
+          (d['province'] ?? '').toString().toLowerCase().contains(q);
+    }).toList();
   }
 
   @override
@@ -112,15 +61,13 @@ class _DayungSuggestionsPageState extends State<DayungSuggestionsPage> {
       body: _loading
           ? const Center(child: CircularProgressIndicator())
           : RefreshIndicator(
-              onRefresh: _fetchSuggestions,
+              onRefresh: _fetchDayungs,
               child: ListView(
                 padding: const EdgeInsets.all(16),
                 children: [
-                  // Search box
                   TextField(
                     decoration: InputDecoration(
-                      hintText:
-                          'Describe your ideal Dayung or search by name/location',
+                      hintText: 'Search by name, barangay, city, or province',
                       prefixIcon: const Icon(Icons.search),
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(12),
@@ -129,31 +76,21 @@ class _DayungSuggestionsPageState extends State<DayungSuggestionsPage> {
                     ),
                     onChanged: (v) {
                       setState(() => _query = v);
-                      _fetchSuggestions();
                     },
                   ),
                   const SizedBox(height: 16),
-
-                  // Tag filters
-                  _buildTagChips(_feeRanges, 'Fee Range'),
-                  _buildTagChips(_paymentMethods, 'Payment Method'),
-                  _buildTagChips(_locations, 'Location'),
-                  _buildTagChips(_fundSupports, 'Fund Support'),
-
-                  const SizedBox(height: 12),
-
-                  if (_allDayungs.isEmpty)
+                  if (_filteredDayungs.isEmpty)
                     Padding(
                       padding: const EdgeInsets.only(top: 40),
                       child: Center(
                         child: Text(
-                          'No dayung units found.\nTry changing your search or filters.',
+                          'No dayung units found.',
                           textAlign: TextAlign.center,
                           style: const TextStyle(color: Colors.grey),
                         ),
                       ),
                     ),
-                  ..._allDayungs.map((d) {
+                  ..._filteredDayungs.map((d) {
                     return Card(
                       margin: const EdgeInsets.symmetric(vertical: 8),
                       shape: RoundedRectangleBorder(
@@ -172,59 +109,25 @@ class _DayungSuggestionsPageState extends State<DayungSuggestionsPage> {
                               )
                               .join(', '),
                         ),
-                        trailing: d['tags'] != null
-                            ? Wrap(
-                                spacing: 4,
-                                children: (d['tags'] as List)
-                                    .map(
-                                      (tag) => Chip(
-                                        label: Text(tag.toString()),
-                                        backgroundColor: Colors.grey.shade200,
-                                        visualDensity: VisualDensity.compact,
-                                      ),
-                                    )
-                                    .toList(),
-                              )
-                            : null,
-                        onTap: () {
-                          showDialog(
-                            context: context,
-                            builder: (_) => AlertDialog(
-                              title: Text(d['name'] ?? 'Dayung Unit'),
-                              content: Column(
-                                mainAxisSize: MainAxisSize.min,
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  if (d['description'] != null)
-                                    Text(d['description']),
-                                  const SizedBox(height: 8),
-                                  if (d['rules'] != null)
-                                    Text('Rules: ${d['rules']}'),
-                                  if (d['tags'] != null)
-                                    Wrap(
-                                      spacing: 4,
-                                      children: (d['tags'] as List)
-                                          .map(
-                                            (tag) => Chip(
-                                              label: Text(tag.toString()),
-                                              backgroundColor:
-                                                  Colors.blue.shade50,
-                                              visualDensity:
-                                                  VisualDensity.compact,
-                                            ),
-                                          )
-                                          .toList(),
-                                    ),
-                                ],
+                        onTap: () async {
+                          // fallback sample lat/lng for demo
+                          final dayungWithLoc = Map<String, dynamic>.from(d);
+                          dayungWithLoc['latitude'] ??= 7.123; // sample lat
+                          dayungWithLoc['longitude'] ??= 125.612; // sample lng
+
+                          final result = await Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => DayungMapPage(
+                                dayung: dayungWithLoc,
+                                isApplied: false,
+                                isMember: false,
                               ),
-                              actions: [
-                                TextButton(
-                                  onPressed: () => Navigator.pop(context),
-                                  child: const Text('Close'),
-                                ),
-                              ],
                             ),
                           );
+                          if (result != null && mounted) {
+                            Navigator.pop(context, result);
+                          }
                         },
                       ),
                     );

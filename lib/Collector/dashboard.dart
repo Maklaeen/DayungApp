@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:capstone_app/Collector/collect_cash.dart';
 import 'package:capstone_app/pages/claims.dart';
 import 'package:capstone_app/pages/notification.dart';
 import 'package:capstone_app/profile/profile.dart';
@@ -778,9 +779,17 @@ class _CollectorDashboardPageState extends State<CollectorDashboardPage> {
   }
 
   void _recordCashPayment() {
-    // TODO: open record payment flow
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Record Cash Payment (coming soon)')),
+    if (_dayungUnitId == null) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('No dayung selected.')));
+      return;
+    }
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => CollectCashPage(dayungUnitId: _dayungUnitId!),
+      ),
     );
   }
 

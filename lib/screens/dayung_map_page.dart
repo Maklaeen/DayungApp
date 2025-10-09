@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 // Shared palette (aligned with Secretary dashboard / Claims)
 const Color kPrimary = Color(0xFF0D47A1);
@@ -68,6 +69,8 @@ class _DayungMapPageState extends State<DayungMapPage> {
   bool _loadingLoc = true;
   bool _permissionDenied = false;
   StreamSubscription<Position>? positionStream;
+  Map<String, dynamic>? _rules;
+  bool _loadingRules = true;
 
   double? get dayungLat {
     final v = widget.dayung['latitude'];
@@ -87,6 +90,7 @@ class _DayungMapPageState extends State<DayungMapPage> {
   void initState() {
     super.initState();
     _initLocation();
+    _fetchRules();
     positionStream =
         Geolocator.getPositionStream(
           locationSettings: LocationSettings(
@@ -104,6 +108,25 @@ class _DayungMapPageState extends State<DayungMapPage> {
   void dispose() {
     positionStream?.cancel();
     super.dispose();
+  }
+
+  Future<void> _fetchRules() async {
+    setState(() => _loadingRules = true);
+    try {
+      final supabase = Supabase.instance.client;
+      final id = widget.dayung['id'];
+      final res = await supabase
+          .from('dayung_rules')
+          .select()
+          .eq('dayung_unit_id', id)
+          .maybeSingle();
+      setState(() {
+        _rules = res;
+        _loadingRules = false;
+      });
+    } catch (e) {
+      setState(() => _loadingRules = false);
+    }
   }
 
   Future<void> _initLocation() async {
@@ -395,62 +418,153 @@ class _DayungMapPageState extends State<DayungMapPage> {
           ),
         ],
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Center(
-            child: Container(
-              width: 48,
-              height: 5,
-              margin: const EdgeInsets.only(bottom: 16),
-              decoration: BoxDecoration(
-                color: Colors.grey.shade300,
-                borderRadius: BorderRadius.circular(30),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          return SingleChildScrollView(
+            // This makes the panel scrollable if content is too long
+            child: ConstrainedBox(
+              constraints: BoxConstraints(minHeight: constraints.maxHeight),
+              child: IntrinsicHeight(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Center(
+                      child: Container(
+                        width: 48,
+                        height: 5,
+                        margin: const EdgeInsets.only(bottom: 16),
+                        decoration: BoxDecoration(
+                          color: Colors.grey.shade300,
+                          borderRadius: BorderRadius.circular(30),
+                        ),
+                      ),
+                    ),
+                    Text(
+                      name,
+                      style: const TextStyle(
+                        fontSize: 22,
+                        fontWeight: FontWeight.w800,
+                        fontFamily: 'Montserrat',
+                        color: kPrimaryDark,
+                        height: 1.1,
+                      ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    if (address.isNotEmpty) ...[
+                      const SizedBox(height: 8),
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Icon(
+                            Icons.location_on,
+                            size: 18,
+                            color: kPrimary.withOpacity(.85),
+                          ),
+                          const SizedBox(width: 6),
+                          Expanded(
+                            child: Text(
+                              address,
+                              style: const TextStyle(
+                                fontSize: 13.5,
+                                fontFamily: 'OpenSans',
+                                color: kSubtleText,
+                                height: 1.25,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                    const SizedBox(height: 16),
+                    if (widget.allDayungs != null &&
+                        widget.allDayungs!.isNotEmpty)
+                      _nearbyScroller(),
+                    if (_loadingRules)
+                      const Padding(
+                        padding: EdgeInsets.symmetric(vertical: 12),
+                        child: Center(child: CircularProgressIndicator()),
+                      )
+                    else if (_rules != null)
+                      _rulesSection(_rules!),
+                    const Spacer(),
+                    _actionSection(dist),
+                  ],
+                ),
               ),
             ),
-          ),
-          Text(
-            name,
-            style: const TextStyle(
-              fontSize: 22,
-              fontWeight: FontWeight.w800,
-              fontFamily: 'Montserrat',
-              color: kPrimaryDark,
-              height: 1.1,
-            ),
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-          ),
-          if (address.isNotEmpty) ...[
-            const SizedBox(height: 8),
-            Row(
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _rulesSection(Map<String, dynamic> rules) {
+    final items = <Widget>[];
+    void addRule(String label, String? value) {
+      if (value != null && value.trim().isNotEmpty) {
+        items.add(
+          Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Icon(
-                  Icons.location_on,
-                  size: 18,
-                  color: kPrimary.withOpacity(.85),
+                Text(
+                  label,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 14,
+                    color: kPrimaryDark,
+                  ),
                 ),
-                const SizedBox(width: 6),
-                Expanded(
-                  child: Text(
-                    address,
-                    style: const TextStyle(
-                      fontSize: 13.5,
-                      fontFamily: 'OpenSans',
-                      color: kSubtleText,
-                      height: 1.25,
-                    ),
+                const SizedBox(height: 2),
+                Text(
+                  value,
+                  style: const TextStyle(
+                    fontSize: 13.5,
+                    color: kSubtleText,
+                    fontFamily: 'OpenSans',
                   ),
                 ),
               ],
             ),
-          ],
-          const SizedBox(height: 16),
-          if (widget.allDayungs != null && widget.allDayungs!.isNotEmpty)
-            _nearbyScroller(),
-          const Spacer(),
-          _actionSection(dist),
+          ),
+        );
+      }
+    }
+
+    addRule('Contribution Rules', rules['contribution_rules']);
+    addRule('Payout Rules', rules['payout_rules']);
+    addRule('Membership Rules', rules['membership_rules']);
+    addRule('Meeting Rules', rules['meeting_rules']);
+    addRule('Service Rules', rules['service_rules']);
+
+    if (items.isEmpty) {
+      return const Padding(
+        padding: EdgeInsets.symmetric(vertical: 10),
+        child: Text(
+          'No rules set for this Dayung unit.',
+          style: TextStyle(color: kSubtleText, fontSize: 13),
+        ),
+      );
+    }
+
+    return Padding(
+      padding: const EdgeInsets.only(top: 10, bottom: 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Dayung Rules',
+            style: TextStyle(
+              fontSize: 15.5,
+              fontWeight: FontWeight.w700,
+              color: kPrimary,
+              fontFamily: 'Montserrat',
+            ),
+          ),
+          const SizedBox(height: 6),
+          ...items,
         ],
       ),
     );
@@ -618,20 +732,8 @@ class _DayungMapPageState extends State<DayungMapPage> {
             onTap: () => Navigator.pop(context, widget.dayung),
           ),
         ],
-        const SizedBox(height: 8),
-        if (dist != null)
-          Align(
-            alignment: Alignment.center,
-            child: Text(
-              'Approx. distance: ${_formatDistance(dist)}',
-              style: TextStyle(
-                fontSize: 11.5,
-                fontFamily: 'OpenSans',
-                color: kSubtleText.withOpacity(.75),
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ),
+        const SizedBox(height: 10),
+        if (dist != null) Align(alignment: Alignment.center),
       ],
     );
   }

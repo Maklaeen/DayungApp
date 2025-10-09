@@ -993,11 +993,99 @@ class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
     final ids = await _selectedDayungIds();
     if (ids.isEmpty) return;
 
+    // 1. Fetch all death notices for this dayung
+    final notices = await sb
+        .from('death_notices')
+        .select('id, name, date_of_death')
+        .inFilter('dayung_unit_id', ids)
+        .order('date_of_death', ascending: false);
+
+    if (!mounted) return;
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (ctx) {
+        return Padding(
+          padding: EdgeInsets.only(
+            left: 16,
+            right: 16,
+            top: 12,
+            bottom: MediaQuery.of(ctx).viewInsets.bottom + 16,
+          ),
+          child: SizedBox(
+            height: MediaQuery.of(context).size.height * 0.75,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _modalBackButton(ctx, label: "Close"),
+                Text(
+                  paid
+                      ? 'Paid Members per Deceased'
+                      : 'Unpaid Members per Deceased',
+                  style: const TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w800,
+                    color: kPrimaryDark,
+                  ),
+                ),
+                const SizedBox(height: 10),
+                Expanded(
+                  child: notices.isEmpty
+                      ? const Center(child: Text('No death notices found'))
+                      : ListView.separated(
+                          itemCount: notices.length,
+                          separatorBuilder: (_, __) => const Divider(height: 1),
+                          itemBuilder: (_, i) {
+                            final n = notices[i];
+                            final deceasedName = (n['name'] ?? 'Deceased')
+                                .toString();
+                            final date = (n['date_of_death'] ?? '').toString();
+                            return ListTile(
+                              leading: const Icon(
+                                Icons.person_off,
+                                color: kDanger,
+                              ),
+                              title: Text(deceasedName),
+                              subtitle: Text(date),
+                              trailing: const Icon(Icons.chevron_right),
+                              onTap: () {
+                                Navigator.pop(ctx);
+                                _showMembersPerDeathNotice(
+                                  deathNoticeId: n['id'],
+                                  deceasedName: deceasedName,
+                                  paid: paid,
+                                );
+                              },
+                            );
+                          },
+                        ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _showMembersPerDeathNotice({
+    required int deathNoticeId,
+    required String deceasedName,
+    required bool paid,
+  }) async {
+    final ids = await _selectedDayungIds();
+    if (ids.isEmpty) return;
+
     try {
       final rows = await sb
           .from('payments')
           .select('user_id,status')
-          .inFilter('dayung_unit_id', ids)
+          .eq('death_notice_id', deathNoticeId)
+          .eq('dayung_unit_id', ids.first)
           .eq('status', paid ? 'paid' : 'pending');
 
       final userIds = <String>{
@@ -1024,7 +1112,6 @@ class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
           borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
         ),
         builder: (ctx) {
-          final controller = TextEditingController();
           return Padding(
             padding: EdgeInsets.only(
               left: 16,
@@ -1032,133 +1119,78 @@ class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
               top: 12,
               bottom: MediaQuery.of(ctx).viewInsets.bottom + 16,
             ),
-            child: StatefulBuilder(
-              builder: (ctx, setModalState) {
-                String q = controller.text.trim().toLowerCase();
-                final filtered = q.isEmpty
-                    ? users
-                    : users.where((u) {
-                        final name = (u['full_name'] ?? '')
-                            .toString()
-                            .toLowerCase();
-                        final id = (u['id'] ?? '').toString().toLowerCase();
-                        return name.contains(q) || id.contains(q);
-                      }).toList();
-
-                return SizedBox(
-                  height: MediaQuery.of(context).size.height * 0.75,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      // Header
-                      Row(
-                        children: [
-                          Text(
-                            paid ? 'Paid Members' : 'Unpaid Members',
-                            style: const TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.w800,
-                              color: kPrimaryDark,
-                            ),
-                          ),
-                          const Spacer(),
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 10,
-                              vertical: 4,
-                            ),
-                            decoration: BoxDecoration(
-                              color: (paid ? Colors.green : Colors.red)
-                                  .withOpacity(.1),
-                              borderRadius: BorderRadius.circular(20),
-                              border: Border.all(
-                                color: paid ? Colors.green : Colors.red,
-                              ),
-                            ),
-                            child: Text(
-                              '${filtered.length}',
-                              style: TextStyle(
-                                color: paid
-                                    ? Colors.green[800]
-                                    : Colors.red[800],
-                                fontWeight: FontWeight.w800,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 10),
-                      // Search
-                      TextField(
-                        controller: controller,
-                        decoration: InputDecoration(
-                          hintText: 'Search member...',
-                          prefixIcon: const Icon(Icons.search),
-                          filled: true,
-                          fillColor: Colors.white,
-                          contentPadding: const EdgeInsets.symmetric(
-                            vertical: 12,
-                            horizontal: 14,
-                          ),
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(14),
-                            borderSide: BorderSide(color: Colors.grey.shade300),
-                          ),
-                          focusedBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(14),
-                            borderSide: const BorderSide(color: kPrimary),
-                          ),
-                        ),
-                        onChanged: (_) => setModalState(() {}),
-                      ),
-                      const SizedBox(height: 10),
-                      // List
-                      Expanded(
-                        child: filtered.isEmpty
-                            ? const Center(child: Text('No members found'))
-                            : ListView.separated(
-                                itemCount: filtered.length,
-                                separatorBuilder: (_, __) =>
-                                    const Divider(height: 1),
-                                itemBuilder: (_, i) {
-                                  final u = filtered[i];
-                                  return ListTile(
-                                    leading: CircleAvatar(
-                                      radius: 20,
-                                      backgroundColor: paid
-                                          ? Colors.green.withOpacity(.12)
-                                          : Colors.red.withOpacity(.12),
-                                      child: Icon(
-                                        paid
-                                            ? Icons.verified_rounded
-                                            : Icons.pending_actions_rounded,
-                                        color: paid
-                                            ? Colors.green[700]
-                                            : Colors.red[700],
-                                      ),
-                                    ),
-                                    title: Text(
-                                      (u['full_name'] ?? 'Member').toString(),
-                                      overflow: TextOverflow.ellipsis,
-                                      style: const TextStyle(
-                                        fontWeight: FontWeight.w700,
-                                      ),
-                                    ),
-                                    subtitle: Text(
-                                      (u['id'] ?? '').toString(),
-                                      style: const TextStyle(
-                                        fontSize: 12,
-                                        color: kSubtleText,
-                                      ),
-                                    ),
-                                  );
-                                },
-                              ),
-                      ),
-                    ],
+            child: SizedBox(
+              height: MediaQuery.of(context).size.height * 0.75,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _modalBackButton(
+                    ctx,
+                    onBack: () {
+                      _showMembersModal(paid: paid);
+                    },
                   ),
-                );
-              },
+                  Text(
+                    '${paid ? "Paid" : "Unpaid"} Members for',
+                    style: const TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w700,
+                      color: kPrimaryDark,
+                    ),
+                  ),
+                  Text(
+                    deceasedName,
+                    style: const TextStyle(
+                      fontSize: 17,
+                      fontWeight: FontWeight.w800,
+                      color: kDanger,
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  Expanded(
+                    child: users.isEmpty
+                        ? const Center(child: Text('No members found'))
+                        : ListView.separated(
+                            itemCount: users.length,
+                            separatorBuilder: (_, __) =>
+                                const Divider(height: 1),
+                            itemBuilder: (_, i) {
+                              final u = users[i];
+                              return ListTile(
+                                leading: CircleAvatar(
+                                  radius: 20,
+                                  backgroundColor: paid
+                                      ? Colors.green.withOpacity(.12)
+                                      : Colors.red.withOpacity(.12),
+                                  child: Icon(
+                                    paid
+                                        ? Icons.verified_rounded
+                                        : Icons.pending_actions_rounded,
+                                    color: paid
+                                        ? Colors.green[700]
+                                        : Colors.red[700],
+                                  ),
+                                ),
+                                title: Text(
+                                  (u['full_name'] ?? 'Member').toString(),
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                                subtitle: Text(
+                                  (u['id'] ?? '').toString(),
+                                  style: const TextStyle(
+                                    fontSize: 12,
+                                    color: kSubtleText,
+                                  ),
+                                ),
+                              );
+                            },
+                          ),
+                  ),
+                ],
+              ),
             ),
           );
         },
@@ -1169,6 +1201,36 @@ class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
         context,
       ).showSnackBar(SnackBar(content: Text('Failed to load members: $e')));
     }
+  }
+
+  Widget _modalBackButton(
+    BuildContext context, {
+    String label = "Back",
+    VoidCallback? onBack,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Row(
+        children: [
+          IconButton(
+            icon: const Icon(Icons.arrow_back),
+            onPressed: () {
+              Navigator.of(context).pop();
+              if (onBack != null) onBack();
+            },
+            tooltip: label,
+          ),
+          Text(
+            label,
+            style: const TextStyle(
+              fontWeight: FontWeight.w700,
+              fontSize: 16,
+              color: kPrimaryDark,
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   Widget _tripleCards() {
@@ -1442,7 +1504,9 @@ class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
                 Navigator.push(
                   context,
                   MaterialPageRoute(
-                    builder: (_) => const CollectedFromCollectorsPage(),
+                    builder: (_) => CollectedFromCollectorsPage(
+                      dayungUnitId: _dayungUnitId!,
+                    ),
                   ),
                 );
               },

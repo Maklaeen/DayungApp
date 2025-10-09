@@ -23,13 +23,11 @@ class _ManageFundPageState extends State<ManageFundPage> {
   bool _loading = true;
   String? _error;
 
-  // Aggregated rows per death notice
   List<Map<String, dynamic>> _funds = [];
 
-  // UI state
   String _search = '';
-  String _statusFilter = 'all'; // all | collecting | completed
-  String _sort = 'date_desc'; // date_desc | date_asc | progress_desc
+  String _statusFilter = 'all';
+  String _sort = 'date_desc';
 
   double _totalPaid = 0.0;
   double _totalGoal = 0.0;
@@ -117,6 +115,42 @@ class _ManageFundPageState extends State<ManageFundPage> {
         if (bd == null) return -1;
         return bd.compareTo(ad);
       });
+
+      // --- ADVANCE FUND LOGIC ---
+      if (list.isEmpty) {
+        // No deceased/death notice, show advance fund
+        final advanceRes = await sb
+            .from('payments')
+            .select('amount, status')
+            .eq('dayung_unit_id', widget.dayungUnitId)
+            .filter('death_notice_id', 'is', null);
+
+        double advancePaid = 0.0;
+        double advanceGoal = 0.0;
+        for (final r in List<Map<String, dynamic>>.from(advanceRes)) {
+          final amt = (r['amount'] is num)
+              ? (r['amount'] as num).toDouble()
+              : double.tryParse('${r['amount']}') ?? 0.0;
+          final status = (r['status'] ?? '').toString().toLowerCase();
+          advanceGoal += amt;
+          if (status == 'paid') advancePaid += amt;
+        }
+
+        list.add({
+          'id': 0,
+          'name': 'Advance Fund',
+          'paid': advancePaid,
+          'goal': advanceGoal,
+          'deadline': '',
+          'status': (advancePaid >= advanceGoal && advanceGoal > 0)
+              ? 'Completed'
+              : 'Still Collecting...',
+          'progress': advanceGoal <= 0
+              ? 0.0
+              : (advancePaid / advanceGoal).clamp(0.0, 1.0),
+        });
+      }
+      // --- END ADVANCE FUND LOGIC ---
 
       if (!mounted) return;
       setState(() {

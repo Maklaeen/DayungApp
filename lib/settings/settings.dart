@@ -23,7 +23,7 @@ class _DayungSettingsPageState extends State<DayungSettingsPage> {
   bool _isPresident = false;
 
   final List<String> selectedFilters = const [
-    'Low fee',
+    '100',
     'Within Davao',
     'Open for all',
     '₱25,000',
@@ -476,48 +476,84 @@ class _DayungSettingsPageState extends State<DayungSettingsPage> {
                     final key = recommended.keys.elementAt(idx);
                     final tags = recommended[key]!;
 
-                    return Card(
-                      elevation: 2,
-                      margin: const EdgeInsets.only(bottom: 16),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Padding(
-                        padding: const EdgeInsets.all(16),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            AutoSizeText(
-                              key,
-                              style: TextStyle(
-                                fontSize: isWide ? 18 : 15,
-                                fontWeight: FontWeight.bold,
-                                fontFamily: 'Montserrat',
+                    // Dummy data for demo, dapat kunin mo ang buong dayung object sa production
+                    final dayungData = {
+                      'name': key,
+                      'barangay': 'Sample Barangay',
+                      'city': 'Sample City',
+                      'province': 'Sample Province',
+                      'latitude':
+                          7.123, // Palitan ng totoong lat/lng kung meron
+                      'longitude': 125.612,
+                    };
+
+                    return GestureDetector(
+                      onTap: () async {
+                        final result = await Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => DayungMapPage(
+                              dayung: dayungData,
+                              isApplied: false,
+                              isMember: false,
+                            ),
+                          ),
+                        );
+                        if (result != null && mounted) {
+                          // Optional: handle result (e.g., show snackbar)
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text(
+                                'Application sent to ${result['name']}!',
                               ),
-                              maxLines: 1,
-                              minFontSize: 12,
                             ),
-                            const SizedBox(height: 10),
-                            Wrap(
-                              spacing: 12,
-                              runSpacing: 12,
-                              children: tags.map((t) {
-                                return Chip(
-                                  labelPadding: const EdgeInsets.symmetric(
-                                    horizontal: 12,
-                                    vertical: 6,
-                                  ),
-                                  label: Text(
-                                    t,
-                                    style: TextStyle(
-                                      fontSize: isWide ? 16 : 13,
+                          );
+                          await _loadCurrentDayung();
+                        }
+                      },
+                      child: Card(
+                        elevation: 2,
+                        margin: const EdgeInsets.only(bottom: 16),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Padding(
+                          padding: const EdgeInsets.all(16),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              AutoSizeText(
+                                key,
+                                style: TextStyle(
+                                  fontSize: isWide ? 18 : 15,
+                                  fontWeight: FontWeight.bold,
+                                  fontFamily: 'Montserrat',
+                                ),
+                                maxLines: 1,
+                                minFontSize: 12,
+                              ),
+                              const SizedBox(height: 10),
+                              Wrap(
+                                spacing: 12,
+                                runSpacing: 12,
+                                children: tags.map((t) {
+                                  return Chip(
+                                    labelPadding: const EdgeInsets.symmetric(
+                                      horizontal: 12,
+                                      vertical: 6,
                                     ),
-                                  ),
-                                  backgroundColor: Colors.blue.shade50,
-                                );
-                              }).toList(),
-                            ),
-                          ],
+                                    label: Text(
+                                      t,
+                                      style: TextStyle(
+                                        fontSize: isWide ? 16 : 13,
+                                      ),
+                                    ),
+                                    backgroundColor: Colors.blue.shade50,
+                                  );
+                                }).toList(),
+                              ),
+                            ],
+                          ),
                         ),
                       ),
                     );

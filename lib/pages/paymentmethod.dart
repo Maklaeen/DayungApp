@@ -1,6 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+const kBg = Color(0xFFFAFAF7);
+const kText = Color(0xFF1F2937);
+const kSubText = Color(0xFF4B5563);
+const kAccent = Color(0xFF0D47A1);
+
 class PaymentMethodPage extends StatefulWidget {
   final int? dayungUnitId; // selected dayung
   const PaymentMethodPage({super.key, this.dayungUnitId});
@@ -11,7 +16,7 @@ class PaymentMethodPage extends StatefulWidget {
 
 class _PaymentMethodPageState extends State<PaymentMethodPage> {
   final sb = Supabase.instance.client;
-
+  Map<int, String> _deceasedNames = {};
   bool _loading = true;
   String? _error;
 
@@ -53,7 +58,9 @@ class _PaymentMethodPageState extends State<PaymentMethodPage> {
       final rows = List<Map<String, dynamic>>.from(res);
       final total = rows.fold<double>(
         0,
-        (sum, r) => sum + ((r['amount'] is num) ? (r['amount'] as num).toDouble() : 0.0),
+        (sum, r) =>
+            sum +
+            ((r['amount'] is num) ? (r['amount'] as num).toDouble() : 0.0),
       );
 
       // 2) Fetch collectors in this dayung (role = 'collector')
@@ -69,11 +76,27 @@ class _PaymentMethodPageState extends State<PaymentMethodPage> {
         collectors = [];
       }
 
+      // 3) Fetch deceased names for all death_notice_id in rows
+      final noticeIds = rows.map((r) => r['death_notice_id']).toSet().toList();
+      Map<int, String> deceasedNames = {};
+      if (noticeIds.isNotEmpty) {
+        final notices = await sb
+            .from('death_notices')
+            .select('id, name')
+            .inFilter('id', noticeIds);
+        for (final n in notices) {
+          deceasedNames[n['id'] as int] = n['name']?.toString() ?? '';
+        }
+      }
+
       setState(() {
         _pendingRows = rows;
         _totalPending = total;
         _collectors = collectors;
-        _selectedCollectorId = collectors.isNotEmpty ? (collectors.first['id']?.toString()) : null;
+        _selectedCollectorId = collectors.isNotEmpty
+            ? (collectors.first['id']?.toString())
+            : null;
+        _deceasedNames = deceasedNames; // <-- add this
         _loading = false;
       });
     } catch (e) {
@@ -91,7 +114,9 @@ class _PaymentMethodPageState extends State<PaymentMethodPage> {
       );
       return;
     }
-    final amountCtrl = TextEditingController(text: _totalPending.toStringAsFixed(2));
+    final amountCtrl = TextEditingController(
+      text: _totalPending.toStringAsFixed(2),
+    );
     String? collectorId = _selectedCollectorId;
 
     await showModalBottomSheet(
@@ -109,10 +134,7 @@ class _PaymentMethodPageState extends State<PaymentMethodPage> {
             children: [
               const Text(
                 'Cash Payment',
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w800,
-                ),
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
               ),
               const SizedBox(height: 12),
               DropdownButtonFormField<String>(
@@ -137,7 +159,9 @@ class _PaymentMethodPageState extends State<PaymentMethodPage> {
               const SizedBox(height: 12),
               TextFormField(
                 controller: amountCtrl,
-                keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                keyboardType: const TextInputType.numberWithOptions(
+                  decimal: true,
+                ),
                 decoration: const InputDecoration(
                   labelText: 'Amount',
                   hintText: 'Enter amount received',
@@ -151,7 +175,9 @@ class _PaymentMethodPageState extends State<PaymentMethodPage> {
                   icon: const Icon(Icons.check_circle),
                   label: const Text('Confirm Cash Payment'),
                   onPressed: () async {
-                    final entered = double.tryParse(amountCtrl.text.replaceAll(',', '')) ?? 0;
+                    final entered =
+                        double.tryParse(amountCtrl.text.replaceAll(',', '')) ??
+                        0;
                     final due = _totalPending;
 
                     if (entered <= 0) {
@@ -164,7 +190,9 @@ class _PaymentMethodPageState extends State<PaymentMethodPage> {
                     if ((entered - due).abs() > 0.009) {
                       ScaffoldMessenger.of(context).showSnackBar(
                         SnackBar(
-                          content: Text('Amount must equal total due (₱ ${due.toStringAsFixed(2)}).'),
+                          content: Text(
+                            'Amount must equal total due (₱ ${due.toStringAsFixed(2)}).',
+                          ),
                         ),
                       );
                       return;
@@ -205,8 +233,205 @@ class _PaymentMethodPageState extends State<PaymentMethodPage> {
       );
     } catch (e) {
       if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Failed to update payments: $e')));
+    }
+  }
+
+  Future<void> _openCashModalForPayment(Map<String, dynamic> paymentRow) async {
+    final amount = (paymentRow['amount'] is num)
+        ? (paymentRow['amount'] as num).toDouble()
+        : double.tryParse('${paymentRow['amount']}') ?? 0.0;
+    final amountCtrl = TextEditingController(text: amount.toStringAsFixed(2));
+    String? collectorId = _selectedCollectorId;
+
+    await showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (_) {
+        final viewInsets = MediaQuery.of(context).viewInsets.bottom;
+        return Padding(
+          padding: EdgeInsets.fromLTRB(16, 16, 16, viewInsets + 16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text(
+                'Cash Payment',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
+              ),
+              const SizedBox(height: 12),
+              DropdownButtonFormField<String>(
+                value: collectorId,
+                items: _collectors
+                    .map(
+                      (c) => DropdownMenuItem<String>(
+                        value: (c['id'] ?? '').toString(),
+                        child: Text(
+                          (c['full_name'] ?? 'Collector').toString(),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    )
+                    .toList(),
+                onChanged: (v) => collectorId = v,
+                decoration: const InputDecoration(
+                  labelText: 'Collector',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+              const SizedBox(height: 12),
+              TextFormField(
+                controller: amountCtrl,
+                keyboardType: const TextInputType.numberWithOptions(
+                  decimal: true,
+                ),
+                decoration: const InputDecoration(
+                  labelText: 'Amount',
+                  hintText: 'Enter amount received',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+              const SizedBox(height: 16),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  icon: const Icon(Icons.check_circle),
+                  label: const Text('Confirm Cash Payment'),
+                  onPressed: () async {
+                    final entered =
+                        double.tryParse(amountCtrl.text.replaceAll(',', '')) ??
+                        0;
+                    if ((entered - amount).abs() > 0.009) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text(
+                            'Amount must equal ₱ ${amount.toStringAsFixed(2)}.',
+                          ),
+                        ),
+                      );
+                      return;
+                    }
+                    Navigator.of(context).pop(); // close sheet
+                    await _markPaymentAsPaid(paymentRow['id']);
+                  },
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _markPaymentAsPaid(dynamic paymentId) async {
+    try {
+      final now = DateTime.now().toUtc().toIso8601String();
+      await sb
+          .from('payments')
+          .update({'status': 'paid', 'paid_at': now})
+          .eq('id', paymentId);
+
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to update payments: $e')),
+        const SnackBar(content: Text('Payment recorded. Thank you!')),
+      );
+      _load(); // reload payments
+    } on PostgrestException catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to update payment: ${e.message}')),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Failed to update payment: $e')));
+    }
+  }
+
+  Future<void> _openGCashModalForPayment(
+    Map<String, dynamic> paymentRow,
+  ) async {
+    final amount = (paymentRow['amount'] is num)
+        ? (paymentRow['amount'] as num).toDouble()
+        : double.tryParse('${paymentRow['amount']}') ?? 0.0;
+    final receiptCtrl = TextEditingController();
+
+    await showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (_) {
+        final viewInsets = MediaQuery.of(context).viewInsets.bottom;
+        return Padding(
+          padding: EdgeInsets.fromLTRB(16, 16, 16, viewInsets + 16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text(
+                'GCash Payment',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
+              ),
+              const SizedBox(height: 12),
+              Text('Amount: ₱ ${amount.toStringAsFixed(2)}'),
+              const SizedBox(height: 12),
+              // Show GCash QR or instructions here
+              const Text('Send payment to GCash number: 09XXXXXXXXX'),
+              const SizedBox(height: 12),
+              TextFormField(
+                controller: receiptCtrl,
+                decoration: const InputDecoration(
+                  labelText: 'GCash Reference No. or Upload Screenshot',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+              const SizedBox(height: 16),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  icon: const Icon(Icons.upload),
+                  label: const Text('Submit Proof'),
+                  onPressed: () async {
+                    // Save as pending_verification
+                    Navigator.of(context).pop();
+                    await _markPaymentAsGCashPending(
+                      paymentRow['id'],
+                      receiptCtrl.text,
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _markPaymentAsGCashPending(dynamic paymentId, String ref) async {
+    try {
+      await sb
+          .from('payments')
+          .update({'status': 'pending_verification', 'gcash_ref': ref})
+          .eq('id', paymentId);
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('GCash payment submitted for verification.'),
+        ),
+      );
+      _load();
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to submit GCash payment: $e')),
       );
     }
   }
@@ -214,34 +439,42 @@ class _PaymentMethodPageState extends State<PaymentMethodPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFFEFFFF),
+      backgroundColor: kBg,
       body: SafeArea(
         child: Column(
           children: [
             // Header
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   const Text(
                     'Dayung',
                     style: TextStyle(
-                      fontSize: 28,
+                      fontSize: 32,
                       fontWeight: FontWeight.bold,
                       letterSpacing: 1,
                       fontFamily: 'Montserrat',
-                      color: Colors.black,
+                      color: kAccent,
                     ),
                   ),
                   Row(
                     children: const [
-                      Icon(Icons.notifications_none, color: Colors.orange, size: 32),
-                      SizedBox(width: 16),
+                      Icon(
+                        Icons.notifications_none,
+                        color: Colors.orange,
+                        size: 36,
+                      ),
+                      SizedBox(width: 20),
                       CircleAvatar(
-                        backgroundColor: Colors.blue,
-                        radius: 16,
-                        child: Icon(Icons.account_circle, color: Colors.white),
+                        backgroundColor: kAccent,
+                        radius: 20,
+                        child: Icon(
+                          Icons.account_circle,
+                          color: Colors.white,
+                          size: 28,
+                        ),
                       ),
                     ],
                   ),
@@ -251,55 +484,64 @@ class _PaymentMethodPageState extends State<PaymentMethodPage> {
             const Divider(thickness: 1.5, color: Colors.grey),
             // Back + Title
             Padding(
-              padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+              padding: const EdgeInsets.fromLTRB(20, 16, 20, 10),
               child: Row(
                 children: [
                   IconButton(
-                    icon: const Icon(Icons.arrow_back, size: 32),
+                    icon: const Icon(
+                      Icons.arrow_back,
+                      size: 36,
+                      color: kAccent,
+                    ),
                     onPressed: () => Navigator.pop(context),
                   ),
-                  const SizedBox(width: 8),
+                  const SizedBox(width: 10),
                   const Text(
                     'Payment Method',
                     style: TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.w600,
+                      fontSize: 24,
+                      fontWeight: FontWeight.w700,
                       fontFamily: 'Montserrat',
+                      color: kText,
                     ),
                   ),
                 ],
               ),
             ),
-
             if (_loading)
-              const Expanded(
-                child: Center(child: CircularProgressIndicator()),
-              )
+              const Expanded(child: Center(child: CircularProgressIndicator()))
             else if (_error != null)
               Expanded(
                 child: Center(
                   child: Text(
                     _error!,
                     textAlign: TextAlign.center,
-                    style: const TextStyle(color: Colors.red),
+                    style: const TextStyle(color: Colors.red, fontSize: 20),
                   ),
                 ),
               )
             else
               Expanded(
                 child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  padding: const EdgeInsets.symmetric(horizontal: 20),
                   child: Column(
                     children: [
                       // Amount due summary
                       Container(
                         width: double.infinity,
-                        margin: const EdgeInsets.only(bottom: 16),
-                        padding: const EdgeInsets.all(16),
+                        margin: const EdgeInsets.only(bottom: 20),
+                        padding: const EdgeInsets.all(22),
                         decoration: BoxDecoration(
-                          color: const Color(0xFFF4F7FF),
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: Colors.blue.shade100),
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(18),
+                          border: Border.all(color: kAccent.withOpacity(0.15)),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withOpacity(.04),
+                              blurRadius: 8,
+                              offset: const Offset(0, 2),
+                            ),
+                          ],
                         ),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
@@ -308,82 +550,163 @@ class _PaymentMethodPageState extends State<PaymentMethodPage> {
                               'Total Due',
                               style: TextStyle(
                                 fontWeight: FontWeight.w700,
-                                fontSize: 16,
+                                fontSize: 20,
                                 fontFamily: 'Montserrat',
+                                color: kSubText,
                               ),
                             ),
-                            const SizedBox(height: 6),
+                            const SizedBox(height: 8),
                             Text(
                               '₱ ${_totalPending.toStringAsFixed(2)}',
                               style: const TextStyle(
-                                fontWeight: FontWeight.w800,
-                                fontSize: 26,
+                                fontWeight: FontWeight.w900,
+                                fontSize: 36,
                                 fontFamily: 'Montserrat',
+                                color: kAccent,
+                                letterSpacing: 1.2,
                               ),
                             ),
                           ],
                         ),
                       ),
-
-                      // Cash
-                      GestureDetector(
-                        onTap: _openCashModal,
-                        child: Container(
-                          padding: const EdgeInsets.all(16),
-                          margin: const EdgeInsets.only(bottom: 16),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFF5EEDC),
-                            borderRadius: BorderRadius.circular(16),
-                            border: Border.all(color: Colors.brown.shade300),
-                          ),
-                          child: Row(
-                            children: const [
-                              Icon(Icons.money, color: Colors.brown, size: 36),
-                              SizedBox(width: 16),
-                              Text(
-                                'Cash',
-                                style: TextStyle(
-                                  fontSize: 20,
-                                  fontWeight: FontWeight.w600,
-                                  fontFamily: 'Montserrat',
-                                  color: Colors.black87,
+                      Expanded(
+                        child: _pendingRows.isEmpty
+                            ? Center(
+                                child: Text(
+                                  'Wala kang dapat bayaran ngayon.',
+                                  style: TextStyle(
+                                    fontSize: 22,
+                                    color: kSubText,
+                                    fontWeight: FontWeight.w600,
+                                  ),
                                 ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
+                              )
+                            : ListView.separated(
+                                itemCount: _pendingRows.length,
+                                separatorBuilder: (_, __) =>
+                                    const SizedBox(height: 16),
+                                itemBuilder: (context, i) {
+                                  final row = _pendingRows[i];
+                                  final amount = (row['amount'] is num)
+                                      ? (row['amount'] as num).toDouble()
+                                      : double.tryParse('${row['amount']}') ??
+                                            0.0;
+                                  final deathNoticeId = row['death_notice_id'];
+                                  final deceasedLabel =
+                                      _deceasedNames[deathNoticeId] != null &&
+                                          _deceasedNames[deathNoticeId]!
+                                              .isNotEmpty
+                                      ? 'Para kay ${_deceasedNames[deathNoticeId]}'
+                                      : 'Para kay Deceased #$deathNoticeId'; // Replace with actual name if available
 
-                      // GCash placeholder
-                      GestureDetector(
-                        onTap: () {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(content: Text('GCash integration coming soon')),
-                          );
-                        },
-                        child: Container(
-                          padding: const EdgeInsets.all(16),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFE3F3FF),
-                            borderRadius: BorderRadius.circular(16),
-                            border: Border.all(color: Colors.blue.shade300),
-                          ),
-                          child: Row(
-                            children: const [
-                              Icon(Icons.account_balance_wallet, color: Colors.blue, size: 36),
-                              SizedBox(width: 16),
-                              Text(
-                                'GCash',
-                                style: TextStyle(
-                                  fontSize: 20,
-                                  fontWeight: FontWeight.w600,
-                                  fontFamily: 'Montserrat',
-                                  color: Colors.black87,
-                                ),
+                                  return Container(
+                                    padding: const EdgeInsets.all(18),
+                                    decoration: BoxDecoration(
+                                      color: Colors.white,
+                                      borderRadius: BorderRadius.circular(16),
+                                      border: Border.all(
+                                        color: kAccent.withOpacity(0.10),
+                                      ),
+                                      boxShadow: [
+                                        BoxShadow(
+                                          color: Colors.black.withOpacity(.03),
+                                          blurRadius: 6,
+                                          offset: const Offset(0, 2),
+                                        ),
+                                      ],
+                                    ),
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          deceasedLabel,
+                                          style: const TextStyle(
+                                            fontSize: 20,
+                                            fontWeight: FontWeight.w800,
+                                            color: kText,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 8),
+                                        Text(
+                                          'Halaga: ₱ ${amount.toStringAsFixed(2)}',
+                                          style: const TextStyle(
+                                            fontSize: 18,
+                                            fontWeight: FontWeight.w600,
+                                            color: kAccent,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 14),
+                                        Row(
+                                          mainAxisAlignment:
+                                              MainAxisAlignment.end,
+                                          children: [
+                                            ElevatedButton.icon(
+                                              icon: const Icon(
+                                                Icons.payments,
+                                                size: 22,
+                                              ),
+                                              label: const Text(
+                                                'Bayad Cash',
+                                                style: TextStyle(
+                                                  fontSize: 18,
+                                                  fontWeight: FontWeight.w700,
+                                                ),
+                                              ),
+                                              style: ElevatedButton.styleFrom(
+                                                backgroundColor: kAccent,
+                                                foregroundColor: Colors.white,
+                                                padding:
+                                                    const EdgeInsets.symmetric(
+                                                      horizontal: 18,
+                                                      vertical: 12,
+                                                    ),
+                                                shape: RoundedRectangleBorder(
+                                                  borderRadius:
+                                                      BorderRadius.circular(12),
+                                                ),
+                                              ),
+                                              onPressed: () =>
+                                                  _openCashModalForPayment(row),
+                                            ),
+                                            const SizedBox(width: 12),
+                                            ElevatedButton.icon(
+                                              icon: const Icon(
+                                                Icons.qr_code,
+                                                size: 22,
+                                              ),
+                                              label: const Text(
+                                                'Bayad GCash',
+                                                style: TextStyle(
+                                                  fontSize: 18,
+                                                  fontWeight: FontWeight.w700,
+                                                ),
+                                              ),
+                                              style: ElevatedButton.styleFrom(
+                                                backgroundColor: Colors.purple,
+                                                foregroundColor: Colors.white,
+                                                padding:
+                                                    const EdgeInsets.symmetric(
+                                                      horizontal: 18,
+                                                      vertical: 12,
+                                                    ),
+                                                shape: RoundedRectangleBorder(
+                                                  borderRadius:
+                                                      BorderRadius.circular(12),
+                                                ),
+                                              ),
+                                              onPressed: () =>
+                                                  _openGCashModalForPayment(
+                                                    row,
+                                                  ),
+                                            ),
+                                          ],
+                                        ),
+                                      ],
+                                    ),
+                                  );
+                                },
                               ),
-                            ],
-                          ),
-                        ),
                       ),
                     ],
                   ),

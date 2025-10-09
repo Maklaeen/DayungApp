@@ -27,11 +27,34 @@ class _AddBeneficiaryPageState extends State<AddBeneficiaryPage> {
   final _formKey = GlobalKey<FormState>();
   bool _isSubmitting = false;
   bool _isUploadingFile = false;
+  int? _selectedYear;
+  int? _selectedMonth;
+  int? _selectedDay;
 
   String? selectedRelationship;
-  DateTime? _selectedDob;
+
   String? birthCertificateFile; // public URL
   String? selectedMaritalStatus;
+
+  List<int> get _years {
+    final now = DateTime.now();
+    return List.generate(120, (i) => now.year - i);
+  }
+
+  List<int> get _months => List.generate(12, (i) => i + 1);
+
+  List<int> get _days {
+    if (_selectedYear != null && _selectedMonth != null) {
+      final lastDay = DateTime(_selectedYear!, _selectedMonth! + 1, 0).day;
+      return List.generate(lastDay, (i) => i + 1);
+    }
+    return List.generate(31, (i) => i + 1);
+  }
+
+  DateTime? _selectedDob;
+
+  // Optionally, remove the old getter if you want to use only the field.
+  // If you want to keep the getter logic, rename it or merge logic as needed.
 
   // Relationship options
   final List<String> _relationships = const [
@@ -92,6 +115,89 @@ class _AddBeneficiaryPageState extends State<AddBeneficiaryPage> {
     contentPadding: const EdgeInsets.symmetric(vertical: 4, horizontal: 12),
   );
 
+  Widget _dobDropdowns() {
+    return Row(
+      children: [
+        // Month
+        Expanded(
+          child: DropdownButtonFormField<int>(
+            value: _selectedMonth,
+            decoration: _dropdownDec('Month'),
+            items: _months
+                .map(
+                  (m) => DropdownMenuItem(
+                    value: m,
+                    child: Text(m.toString().padLeft(2, '0')),
+                  ),
+                )
+                .toList(),
+            onChanged: (v) => setState(() {
+              _selectedMonth = v;
+              // Check if current day is still valid for new month/year
+              if (_selectedYear != null) {
+                final lastDay = DateTime(
+                  _selectedYear!,
+                  _selectedMonth! + 1,
+                  0,
+                ).day;
+                if (_selectedDay != null && _selectedDay! > lastDay) {
+                  _selectedDay = null;
+                }
+              }
+            }),
+            validator: (v) => v == null ? 'Month' : null,
+          ),
+        ),
+        const SizedBox(width: 8),
+        // Day
+        Expanded(
+          child: DropdownButtonFormField<int>(
+            value: _selectedDay,
+            decoration: _dropdownDec('Day'),
+            items: _days
+                .map(
+                  (d) => DropdownMenuItem(
+                    value: d,
+                    child: Text(d.toString().padLeft(2, '0')),
+                  ),
+                )
+                .toList(),
+            onChanged: (v) => setState(() => _selectedDay = v),
+            validator: (v) => v == null ? 'Day' : null,
+          ),
+        ),
+        const SizedBox(width: 8),
+        // Year
+        Expanded(
+          child: DropdownButtonFormField<int>(
+            value: _selectedYear,
+            decoration: _dropdownDec('Year'),
+            items: _years
+                .map(
+                  (y) => DropdownMenuItem(value: y, child: Text(y.toString())),
+                )
+                .toList(),
+            onChanged: (v) => setState(() {
+              _selectedYear = v;
+              // Check if current day is still valid for new year/month
+              if (_selectedMonth != null) {
+                final lastDay = DateTime(
+                  _selectedYear!,
+                  _selectedMonth! + 1,
+                  0,
+                ).day;
+                if (_selectedDay != null && _selectedDay! > lastDay) {
+                  _selectedDay = null;
+                }
+              }
+            }),
+            validator: (v) => v == null ? 'Year' : null,
+          ),
+        ),
+      ],
+    );
+  }
+
   Widget _dobField(BuildContext context) {
     return GestureDetector(
       onTap: () async {
@@ -122,8 +228,6 @@ class _AddBeneficiaryPageState extends State<AddBeneficiaryPage> {
       ),
     );
   }
-
-  // ...existing code...
 
   Future<void> _pickAndUploadFile() async {
     setState(() => _isUploadingFile = true);
@@ -179,11 +283,26 @@ class _AddBeneficiaryPageState extends State<AddBeneficiaryPage> {
       '${d.year.toString().padLeft(4, '0')}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
 
   Future<void> _submitBeneficiary() async {
+    // Compute DOB from dropdowns
+    if (_selectedYear != null &&
+        _selectedMonth != null &&
+        _selectedDay != null) {
+      _selectedDob = DateTime(_selectedYear!, _selectedMonth!, _selectedDay!);
+    } else {
+      _selectedDob = null;
+    }
+
     if (!_formKey.currentState!.validate()) return;
     if (user == null) {
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(const SnackBar(content: Text('You must be logged in')));
+      return;
+    }
+    if (_selectedDob == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Date of birth is required')),
+      );
       return;
     }
 
@@ -342,7 +461,7 @@ class _AddBeneficiaryPageState extends State<AddBeneficiaryPage> {
                             const SizedBox(height: 14),
 
                             // Date of Birth
-                            _dobField(context),
+                            _dobDropdowns(),
                             const SizedBox(height: 14),
 
                             // Relationship

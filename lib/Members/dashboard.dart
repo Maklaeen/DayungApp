@@ -939,8 +939,6 @@ class _MemberDashboardPageState extends State<MemberDashboardPage> {
     const ClaimsPage(),
   ];
 
-  get _dayungUnitId => null;
-
   @override
   Widget build(BuildContext context) {
     final width = MediaQuery.of(context).size.width;
@@ -1037,7 +1035,6 @@ class _MemberDashboardPageState extends State<MemberDashboardPage> {
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Icon(icon, color: selected ? kPrimary : kNeutralText, size: 32),
-            const SizedBox(height: 2),
             Text(
               label,
               style: TextStyle(
@@ -1070,7 +1067,6 @@ class _MemberDashboardPageState extends State<MemberDashboardPage> {
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 0),
               child: _buildHeader(),
             ),
-            const SizedBox(height: 16),
             const Divider(thickness: 1, height: 24, color: Colors.grey),
             const SizedBox(height: 13),
             Padding(

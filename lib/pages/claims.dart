@@ -18,9 +18,11 @@ import 'package:capstone_app/pages/submit_claim.dart'
     hide kSubtleText, kNeutralText, kPrimaryDark, kPrimary;
 import 'package:capstone_app/Members/member_header.dart';
 import 'package:flutter/material.dart';
+import 'package:photo_view/photo_view.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 const double kCardRadius = 18;
 
@@ -220,6 +222,37 @@ class _ClaimsPageState extends State<ClaimsPage>
     }
   }
 
+  Future<Map<String, dynamic>> getDeceasedInfo(
+    Map<String, dynamic> claim,
+  ) async {
+    final sb = Supabase.instance.client;
+    if (claim['beneficiary_id'] != null) {
+      // Fetch beneficiary info
+      final b = await sb
+          .from('beneficiaries')
+          .select('full_name, dob')
+          .eq('id', claim['beneficiary_id'])
+          .maybeSingle();
+      return {
+        'name': b?['full_name'] ?? 'Beneficiary',
+        'date_of_death': b?['dob'] ?? '',
+        'type': 'beneficiary',
+      };
+    } else {
+      // Fetch user info
+      final u = await sb
+          .from('users')
+          .select('full_name, date_of_death')
+          .eq('id', claim['user_id'])
+          .maybeSingle();
+      return {
+        'name': u?['full_name'] ?? 'Member',
+        'date_of_death': u?['date_of_death'] ?? '',
+        'type': 'member',
+      };
+    }
+  }
+
   Future<void> _loadProfileImage() async {
     final supabase = Supabase.instance.client;
     final currentUser = supabase.auth.currentUser;
@@ -264,7 +297,7 @@ class _ClaimsPageState extends State<ClaimsPage>
       final data = await Supabase.instance.client
           .from('claims')
           .select(
-            'id, title, description, status, date_submitted, dayung_unit_id',
+            'id, title, description, status, date_submitted, dayung_unit_id, user_id, beneficiary_id, death_certificate_url',
           )
           .eq('user_id', user.id)
           .eq('dayung_unit_id', _dayungId as Object)
@@ -499,7 +532,39 @@ class _ClaimsPageState extends State<ClaimsPage>
                     color: kSubtleText.withOpacity(.8),
                   ),
                 ),
-              const SizedBox(height: 26),
+              const SizedBox(height: 18),
+              FutureBuilder<Map<String, dynamic>>(
+                future: getDeceasedInfo(claim),
+                builder: (context, snapshot) {
+                  if (!snapshot.hasData) return const SizedBox.shrink();
+                  final deceased = snapshot.data!;
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Deceased: ${deceased['name']}',
+                        style: const TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          color: kNeutralText,
+                        ),
+                      ),
+                      if ((deceased['date_of_death'] ?? '')
+                          .toString()
+                          .isNotEmpty)
+                        Text(
+                          'Date of Death: ${deceased['date_of_death']}',
+                          style: const TextStyle(
+                            fontSize: 13,
+                            color: kSubtleText,
+                          ),
+                        ),
+                    ],
+                  );
+                },
+              ),
+              const SizedBox(height: 18),
+
               SizedBox(
                 width: double.infinity,
                 child: OutlinedButton.icon(
@@ -570,27 +635,40 @@ class _ClaimsPageState extends State<ClaimsPage>
       body: NestedScrollView(
         headerSliverBuilder: (_, __) => [
           SliverToBoxAdapter(
-            child: MemberHeader(
-              title: _dayungName,
-              subtitle: _barangay != null
-                  ? '${_barangay!}${_city != null ? ', $_city' : ''}'
-                  : null,
-              profileUrl: _profileUrl,
-              onNotificationTap: () => Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => const NotificationPage()),
-              ),
-              onProfileTap: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (_) => const ProfilePage()),
-                ).then((_) => _loadProfileImage());
-              },
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 0,
+                  ),
+                  child: MemberHeader(
+                    title: _dayungName,
+                    subtitle: _barangay != null
+                        ? '${_barangay!}${_city != null ? ', $_city' : ''}'
+                        : null,
+                    profileUrl: _profileUrl,
+                    onNotificationTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => const NotificationPage(),
+                      ),
+                    ),
+                    onProfileTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (_) => const ProfilePage()),
+                      ).then((_) => _loadProfileImage());
+                    },
+                  ),
+                ),
+                const SizedBox(height: 16),
+                const Divider(thickness: 1, height: 24, color: Colors.grey),
+              ],
             ),
           ),
-          const SliverToBoxAdapter(
-            child: Divider(thickness: 1, height: 24, color: Colors.grey),
-          ),
+
           SliverToBoxAdapter(
             child: Padding(
               padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
@@ -801,6 +879,7 @@ class _ClaimsPageState extends State<ClaimsPage>
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            // ...status, title, desc, etc...
             Row(
               children: [
                 Container(
@@ -868,6 +947,93 @@ class _ClaimsPageState extends State<ClaimsPage>
                 ),
               ),
             ],
+            // --- INSERT THE FUTUREBUILDER HERE ---
+            const SizedBox(height: 10),
+            FutureBuilder<Map<String, dynamic>>(
+              future: getDeceasedInfo(claim),
+              builder: (context, snapshot) {
+                if (!snapshot.hasData) return const SizedBox.shrink();
+                final deceased = snapshot.data!;
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Deceased: ${deceased['name']}',
+                      style: const TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: kNeutralText,
+                      ),
+                    ),
+                    if ((deceased['date_of_death'] ?? '').toString().isNotEmpty)
+                      Text(
+                        'Date of Death: ${deceased['date_of_death']}',
+                        style: const TextStyle(
+                          fontSize: 13,
+                          color: kSubtleText,
+                        ),
+                      ),
+                    if ((claim['death_certificate_url'] ?? '')
+                        .toString()
+                        .isNotEmpty)
+                      TextButton.icon(
+                        icon: const Icon(Icons.visibility),
+                        label: const Text('View Death Certificate'),
+                        onPressed: () async {
+                          final url = claim['death_certificate_url'].toString();
+                          // --- Image/PDF viewer logic here ---
+                          if (url.endsWith('.jpg') ||
+                              url.endsWith('.jpeg') ||
+                              url.endsWith('.png')) {
+                            showDialog(
+                              context: context,
+                              builder: (ctx) => Dialog(
+                                backgroundColor: Colors.black,
+                                insetPadding: const EdgeInsets.all(12),
+                                child: PhotoView(
+                                  imageProvider: NetworkImage(url),
+                                  backgroundDecoration: const BoxDecoration(
+                                    color: Colors.black,
+                                  ),
+                                  minScale: PhotoViewComputedScale.contained,
+                                  maxScale: PhotoViewComputedScale.covered * 3,
+                                ),
+                              ),
+                            );
+                          } else if (url.endsWith('.pdf')) {
+                            if (await canLaunchUrl(Uri.parse(url))) {
+                              await launchUrl(
+                                Uri.parse(url),
+                                mode: LaunchMode.externalApplication,
+                              );
+                            } else {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text('Could not open PDF file.'),
+                                ),
+                              );
+                            }
+                          } else {
+                            if (await canLaunchUrl(Uri.parse(url))) {
+                              await launchUrl(
+                                Uri.parse(url),
+                                mode: LaunchMode.externalApplication,
+                              );
+                            } else {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text('Could not open file.'),
+                                ),
+                              );
+                            }
+                          }
+                        },
+                      ),
+                  ],
+                );
+              },
+            ),
+            // --- END FUTUREBUILDER ---
             const SizedBox(height: 10),
             Row(
               children: [

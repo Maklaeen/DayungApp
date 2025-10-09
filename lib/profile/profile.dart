@@ -11,6 +11,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 // Senior-friendly color palette (high contrast, softer tones)
 const kBg = Color(0xFFFAFAF7); // warm off-white
@@ -50,6 +51,8 @@ class _ProfilePageState extends State<ProfilePage> {
   String address = '';
   String sex = '';
   String? profileUrl;
+  String? birthCertificateUrl;
+  String? marriageCertificateUrl;
 
   bool isLoading = true;
   bool _editing = false;
@@ -72,6 +75,77 @@ class _ProfilePageState extends State<ProfilePage> {
     _newPwController.dispose();
     _confirmPwController.dispose();
     super.dispose();
+  }
+
+  void _openCertificate(String url) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Certificate'),
+        content: url.endsWith('.pdf')
+            ? Text('Open this PDF in browser?')
+            : Image.network(url, fit: BoxFit.contain, height: 300),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Close'),
+          ),
+          if (url.endsWith('.pdf'))
+            TextButton(
+              onPressed: () {
+                Navigator.pop(ctx);
+                launchUrl(Uri.parse(url));
+              },
+              child: const Text('Open PDF'),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _certificateRow({
+    required String label,
+    required String? url,
+    required VoidCallback onUpload,
+    required VoidCallback onView,
+  }) {
+    return Row(
+      children: [
+        Icon(
+          url != null && url.isNotEmpty
+              ? Icons.check_circle
+              : Icons.warning_amber_rounded,
+          color: url != null && url.isNotEmpty ? Colors.green : Colors.red,
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Text(
+            label,
+            style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+          ),
+        ),
+        if (url != null && url.isNotEmpty)
+          IconButton(
+            icon: const Icon(Icons.open_in_new, color: kAccent),
+            tooltip: 'View',
+            onPressed: () => _openCertificate(url),
+          )
+        else
+          ElevatedButton.icon(
+            icon: const Icon(Icons.upload_file),
+            label: const Text('Add'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: kAccent,
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
+            ),
+            onPressed: onUpload,
+          ),
+      ],
+    );
   }
 
   Future<void> _openChangePasswordDialog() async {
@@ -844,7 +918,9 @@ class _ProfilePageState extends State<ProfilePage> {
     try {
       final response = await supabase
           .from('users')
-          .select('full_name, mobile_number, address, sex, profile_url')
+          .select(
+            'full_name, mobile_number, address, sex, profile_url, birth_certificate_url, marriage_certificate_url',
+          )
           .eq('id', currentUser.id)
           .maybeSingle();
 
@@ -865,6 +941,9 @@ class _ProfilePageState extends State<ProfilePage> {
           address = (response['address'] as String?)?.trim() ?? '';
           sex = (response['sex'] as String?)?.trim() ?? '';
           profileUrl = response['profile_url'] as String?;
+          birthCertificateUrl = response['birth_certificate_url'] as String?;
+          marriageCertificateUrl =
+              response['marriage_certificate_url'] as String?;
           _fullNameController.text = fullName;
           _mobileController.text = mobileNumber;
           _addressController.text = address;
@@ -997,6 +1076,71 @@ class _ProfilePageState extends State<ProfilePage> {
       },
       transitionDuration: const Duration(milliseconds: 260),
     );
+  }
+
+  Future<void> _uploadCertificate({
+    required String type, // 'birth' or 'marriage'
+  }) async {
+    final result = await FilePicker.platform.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: ['pdf', 'png', 'jpg', 'jpeg'],
+      allowMultiple: false,
+      withData: true,
+    );
+    if (result == null) return;
+
+    final file = result.files.first;
+    final bytes = file.bytes;
+    final ext = file.extension ?? 'pdf';
+    if (bytes == null) return;
+
+    setState(() => _uploadingImage = true);
+    try {
+      final userId = supabase.auth.currentUser!.id;
+      final fileName = '$userId-${type}_certificate.${ext.toLowerCase()}';
+
+      await supabase.storage
+          .from('certificates')
+          .uploadBinary(
+            fileName,
+            bytes,
+            fileOptions: const FileOptions(upsert: true),
+          );
+
+      final publicUrl = supabase.storage
+          .from('certificates')
+          .getPublicUrl(fileName);
+
+      final update = await supabase
+          .from('users')
+          .update({
+            if (type == 'birth') 'birth_certificate_url': publicUrl,
+            if (type == 'marriage') 'marriage_certificate_url': publicUrl,
+          })
+          .eq('id', userId)
+          .select()
+          .maybeSingle();
+
+      if (!mounted) return;
+      setState(() {
+        if (type == 'birth') birthCertificateUrl = publicUrl;
+        if (type == 'marriage') marriageCertificateUrl = publicUrl;
+        _uploadingImage = false;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            '${type[0].toUpperCase()}${type.substring(1)} certificate uploaded!',
+          ),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _uploadingImage = false);
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Upload error: $e')));
+    }
   }
 
   Future<void> _saveProfile() async {
@@ -1386,7 +1530,51 @@ class _ProfilePageState extends State<ProfilePage> {
                     ),
                   ),
                   const SizedBox(height: 12),
-
+                  Card(
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    margin: const EdgeInsets.symmetric(vertical: 8),
+                    child: Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              const Icon(Icons.description, color: kPrimary),
+                              const SizedBox(width: 10),
+                              const Text(
+                                'Certificates',
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w700,
+                                  color: kText,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 14),
+                          _certificateRow(
+                            label: 'Birth Certificate',
+                            url: birthCertificateUrl,
+                            onUpload: () => _uploadCertificate(type: 'birth'),
+                            onView: () =>
+                                _openCertificate(birthCertificateUrl ?? ''),
+                          ),
+                          const SizedBox(height: 10),
+                          _certificateRow(
+                            label: 'Marriage Certificate',
+                            url: marriageCertificateUrl,
+                            onUpload: () =>
+                                _uploadCertificate(type: 'marriage'),
+                            onView: () =>
+                                _openCertificate(marriageCertificateUrl ?? ''),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
                   SizedBox(
                     height: 52,
                     child: OutlinedButton.icon(

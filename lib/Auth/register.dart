@@ -238,6 +238,23 @@ class _RegisterState extends State<Register> {
           firstDate: DateTime(now.year - 100),
           lastDate: now,
           helpText: 'Select Date of Birth',
+          builder: (context, child) {
+            return Theme(
+              data: Theme.of(context).copyWith(
+                colorScheme: ColorScheme.light(
+                  primary: kPrimary, 
+                  onPrimary: Colors.white,
+                  onSurface: kNeutralText,
+                ),
+                textButtonTheme: TextButtonThemeData(
+                  style: TextButton.styleFrom(
+                    foregroundColor: kPrimary,
+                  ),
+                ),
+              ),
+              child: child!,
+            );
+          },
         );
         if (picked != null) {
           setState(() => _selectedDob = picked);
