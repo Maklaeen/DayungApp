@@ -1,4 +1,10 @@
+import 'dart:convert';
+
+import 'package:capstone_app/Providers/dayung_provider.dart';
+import 'package:capstone_app/Providers/dayung_role_provider.dart';
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:capstone_app/screens/dayung_suggestions.dart';
 
@@ -22,6 +28,20 @@ class _SelectDayungPageState extends State<SelectDayungPage> {
     _fetchJoinedDayung();
   }
 
+  Future<void> _persistSelectionAndNotify(Map<String, dynamic> d) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('selectedDayungUnit', jsonEncode(d));
+    await prefs.setString('selectedDayungUnitData', jsonEncode(d));
+    if (!mounted) return;
+    final id = d['id'] is int ? d['id'] as int : int.tryParse('${d['id']}');
+    await context.read<DayungRoleProvider>().refreshRoles(id);
+    // CHANGED: also update the provider with the full object so currentUnitId is correct
+    context.read<DayungUnitProvider>().setDayungUnit(
+      '${d['name'] ?? 'Dayung'}',
+      obj: d,
+    );
+  }
+
   Future<void> _fetchJoinedDayung() async {
     setState(() {
       _loading = true;
@@ -39,7 +59,7 @@ class _SelectDayungPageState extends State<SelectDayungPage> {
     }
 
     try {
-      // Fetch all approved applications for this user (newest first)
+      // Approved memberships (newest first)
       final apps = await _sb
           .from('applications')
           .select('dayung_unit_id, approved_at')
@@ -48,10 +68,39 @@ class _SelectDayungPageState extends State<SelectDayungPage> {
           .order('approved_at', ascending: false);
 
       final List<dynamic> appsList = apps as List<dynamic>;
-      final ids = appsList
+      final approvedIds = appsList
           .map((r) => (r as Map)['dayung_unit_id'] as int)
-          .toSet()
           .toList();
+
+      // Officer-managed units (secretary/president/treasurer)
+      final officerRows = await _sb
+          .from('dayung_units')
+          .select('id, secretary_id, treasurer_id, president_id')
+          .or(
+            'secretary_id.eq.${user.id},treasurer_id.eq.${user.id},president_id.eq.${user.id}',
+          );
+      final officerIds = (officerRows as List<dynamic>)
+          .map((e) => (e as Map)['id'] as int)
+          .toList();
+
+      // Collector units
+      List<int> collectorIds = [];
+      try {
+        final dc = await _sb
+            .from('dayung_collectors')
+            .select('dayung_unit_id')
+            .eq('user_id', user.id);
+        collectorIds = (dc as List<dynamic>)
+            .map((e) => (e as Map)['dayung_unit_id'] as int)
+            .toList();
+      } catch (_) {}
+
+      // Combine all unique ids
+      final ids = <int>{
+        ...approvedIds,
+        ...officerIds,
+        ...collectorIds,
+      }.toList();
 
       if (ids.isEmpty) {
         setState(() {
@@ -61,26 +110,31 @@ class _SelectDayungPageState extends State<SelectDayungPage> {
         return;
       }
 
-      // Get dayung details for those ids
+      // Get dayung details
       final dayungs = await _sb
           .from('dayung_units')
           .select('id, name, barangay, city, province, latitude, longitude')
           .inFilter('id', ids);
 
-      final List<Map<String, dynamic>> joined =
-          (dayungs as List<dynamic>).map((e) => Map<String, dynamic>.from(e)).toList();
+      final List<Map<String, dynamic>> joined = (dayungs as List<dynamic>)
+          .map((e) => Map<String, dynamic>.from(e))
+          .toList();
 
-      // Keep the order by approved_at (using the apps list order)
+      // Keep membership order first; officer-only units (no approved_at) go after
       final approvedOrder = <int, DateTime?>{};
       for (final a in appsList) {
         final m = a as Map<String, dynamic>;
-        approvedOrder[m['dayung_unit_id'] as int] =
-            m['approved_at'] != null ? DateTime.tryParse(m['approved_at'].toString()) : null;
+        approvedOrder[m['dayung_unit_id'] as int] = m['approved_at'] != null
+            ? DateTime.tryParse(m['approved_at'].toString())
+            : null;
       }
       joined.sort((a, b) {
         final da = approvedOrder[a['id'] as int];
         final db = approvedOrder[b['id'] as int];
-        if (da == null && db == null) return 0;
+        if (da == null && db == null)
+          return (a['name'] ?? '').toString().compareTo(
+            (b['name'] ?? '').toString(),
+          );
         if (da == null) return 1;
         if (db == null) return -1;
         return db.compareTo(da);
@@ -93,7 +147,9 @@ class _SelectDayungPageState extends State<SelectDayungPage> {
     } on PostgrestException catch (e) {
       setState(() {
         _loading = false;
-        _error = e.message.isEmpty ? 'Failed to load dayung (RLS/policy?)' : e.message;
+        _error = e.message.isEmpty
+            ? 'Failed to load dayung (RLS/policy?)'
+            : e.message;
       });
     } catch (_) {
       setState(() {
@@ -120,108 +176,119 @@ class _SelectDayungPageState extends State<SelectDayungPage> {
         child: _loading
             ? const Center(child: CircularProgressIndicator())
             : _error != null
-                ? _ErrorState(message: _error!, onRetry: _fetchJoinedDayung)
-                : RefreshIndicator(
-                    onRefresh: _fetchJoinedDayung,
-                    child: _joined.isEmpty
-                        ? _EmptyState(
-                            onFind: () async {
-                              final selected = await Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (_) => const DayungSuggestionsPage(),
+            ? _ErrorState(message: _error!, onRetry: _fetchJoinedDayung)
+            : RefreshIndicator(
+                onRefresh: _fetchJoinedDayung,
+                child: _joined.isEmpty
+                    ? _EmptyState(
+                        onFind: () async {
+                          final selected = await Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => const DayungSuggestionsPage(),
+                            ),
+                          );
+                          await _fetchJoinedDayung();
+                          if (selected != null) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text(
+                                  'Application submitted. Awaiting approval.',
                                 ),
-                              );
-                              await _fetchJoinedDayung();
-                              if (selected != null) {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(
-                                    content: Text(
-                                      'Application submitted. Awaiting approval.',
-                                    ),
-                                  ),
-                                );
-                              }
-                            },
-                          )
-                        : ListView.builder(
-                            padding: const EdgeInsets.all(16),
-                            itemCount: _joined.length,
-                            itemBuilder: (ctx, i) {
-                              final d = _joined[i];
-                              return Card(
-                                elevation: 1,
-                                margin: const EdgeInsets.only(bottom: 12),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(12),
-                                ),
-                                child: Padding(
-                                  padding: const EdgeInsets.all(16.0),
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
+                              ),
+                            );
+                          }
+                        },
+                      )
+                    : ListView.builder(
+                        padding: const EdgeInsets.all(16),
+                        itemCount: _joined.length,
+                        itemBuilder: (ctx, i) {
+                          final d = _joined[i];
+                          return Card(
+                            elevation: 1,
+                            margin: const EdgeInsets.only(bottom: 12),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Padding(
+                              padding: const EdgeInsets.all(16.0),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Row(
                                     children: [
-                                      Row(
-                                        children: [
-                                          const CircleAvatar(child: Icon(Icons.home)),
-                                          const SizedBox(width: 12),
-                                          Expanded(
-                                            child: Text(
-                                              d['name'] ?? 'Dayung',
-                                              style: const TextStyle(
-                                                fontSize: 18,
-                                                fontWeight: FontWeight.w700,
-                                              ),
-                                            ),
-                                          ),
-                                        ],
+                                      const CircleAvatar(
+                                        child: Icon(Icons.home),
                                       ),
-                                      const SizedBox(height: 8),
-                                      Text(
-                                        _address(d),
-                                        style: const TextStyle(color: Colors.black54),
-                                      ),
-                                      const SizedBox(height: 12),
-                                      Row(
-                                        children: [
-                                          OutlinedButton.icon(
-                                            icon: const Icon(Icons.check_circle),
-                                            label: const Text('Use this Dayung'),
-                                            onPressed: () {
-                                              Navigator.pop(context, d); // return selection
-                                            },
+                                      const SizedBox(width: 12),
+                                      Expanded(
+                                        child: Text(
+                                          d['name'] ?? 'Dayung',
+                                          style: const TextStyle(
+                                            fontSize: 18,
+                                            fontWeight: FontWeight.w700,
                                           ),
-                                          const SizedBox(width: 12),
-                                          TextButton.icon(
-                                            icon: const Icon(Icons.find_in_page),
-                                            label: const Text('Find another'),
-                                            onPressed: () async {
-                                              final selected = await Navigator.push(
-                                                context,
-                                                MaterialPageRoute(
-                                                  builder: (_) => const DayungSuggestionsPage(),
-                                                ),
-                                              );
-                                              await _fetchJoinedDayung();
-                                              if (selected != null) {
-                                                ScaffoldMessenger.of(context).showSnackBar(
-                                                  const SnackBar(
-                                                    content: Text(
-                                                      'Application submitted. Awaiting approval.',
-                                                    ),
-                                                  ),
-                                                );
-                                              }
-                                            },
-                                          ),
-                                        ],
+                                        ),
                                       ),
                                     ],
                                   ),
-                                ),
-                              );
-                            },
-                          ),
-                  ),
+                                  const SizedBox(height: 8),
+                                  Text(
+                                    _address(d),
+                                    style: const TextStyle(
+                                      color: Colors.black54,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 12),
+                                  Row(
+                                    children: [
+                                      OutlinedButton.icon(
+                                        icon: const Icon(Icons.check_circle),
+                                        label: const Text('Use this Dayung'),
+                                        onPressed: () async {
+                                          await _persistSelectionAndNotify(
+                                            d,
+                                          ); // NEW
+                                          if (!mounted) return;
+                                          Navigator.pop(context, d);
+                                        },
+                                      ),
+                                      const SizedBox(width: 12),
+                                      TextButton.icon(
+                                        icon: const Icon(Icons.find_in_page),
+                                        label: const Text('Find another'),
+                                        onPressed: () async {
+                                          final selected = await Navigator.push(
+                                            context,
+                                            MaterialPageRoute(
+                                              builder: (_) =>
+                                                  const DayungSuggestionsPage(),
+                                            ),
+                                          );
+                                          await _fetchJoinedDayung();
+                                          if (selected != null) {
+                                            ScaffoldMessenger.of(
+                                              context,
+                                            ).showSnackBar(
+                                              const SnackBar(
+                                                content: Text(
+                                                  'Application submitted. Awaiting approval.',
+                                                ),
+                                              ),
+                                            );
+                                          }
+                                        },
+                                      ),
+                                    ],
+                                  ),
+                                ],
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+              ),
       ),
     );
   }
@@ -237,7 +304,11 @@ class _EmptyState extends StatelessWidget {
       physics: const AlwaysScrollableScrollPhysics(),
       children: [
         const SizedBox(height: 40),
-        Icon(Icons.search, size: 64, color: Theme.of(context).colorScheme.primary),
+        Icon(
+          Icons.search,
+          size: 64,
+          color: Theme.of(context).colorScheme.primary,
+        ),
         const SizedBox(height: 12),
         const Center(
           child: Text(

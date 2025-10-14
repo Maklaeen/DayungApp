@@ -1,9 +1,11 @@
 import 'dart:convert';
 import 'package:capstone_app/Collector/collect_cash.dart';
+import 'package:capstone_app/Providers/dayung_role_provider.dart';
 import 'package:capstone_app/pages/claims.dart';
 import 'package:capstone_app/pages/notification.dart';
 import 'package:capstone_app/profile/profile.dart';
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
@@ -31,7 +33,7 @@ class _CollectorDashboardPageState extends State<CollectorDashboardPage> {
 
   String _dayungLabel = 'Dayung';
   int? _dayungUnitId;
-
+  int? _lastRoleUnitId;
   bool _loading = true;
   int _activeMembers = 0;
   double _pendingAmount = 0;
@@ -45,6 +47,7 @@ class _CollectorDashboardPageState extends State<CollectorDashboardPage> {
   void initState() {
     super.initState();
     _init();
+    
     _scrollController.addListener(() {
       if (!_scrollController.hasClients) return;
       final maxScroll = _scrollController.position.maxScrollExtent;
@@ -54,7 +57,21 @@ class _CollectorDashboardPageState extends State<CollectorDashboardPage> {
       } else if (current < maxScroll && !_showNavBar) {
         setState(() => _showNavBar = true);
       }
+      
     });
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final provUnit = context.read<DayungRoleProvider>().unitId;
+      _maybeOnProviderUnitChanged(provUnit);
+    });
+  }
+
+  void _maybeOnProviderUnitChanged(int? newUnitId) {
+    if (newUnitId == null || newUnitId == _lastRoleUnitId) return;
+    _lastRoleUnitId = newUnitId;
+    setState(() => _dayungUnitId = newUnitId);
+    // also refresh label from prefs (SelectDayung writes it)
+    _loadDayungFromPrefs();
+    _fetchAll();
   }
 
   @override
@@ -235,16 +252,15 @@ class _CollectorDashboardPageState extends State<CollectorDashboardPage> {
         _recentDeaths = [];
         return;
       }
-      final rows = await sb
-          .from('users')
-          .select('full_name')
+      final dn = await sb
+          .from('death_notices')
+          .select('name,date_of_death')
           .inFilter('dayung_unit_id', ids)
-          .eq('is_deceased', true)
           .order('date_of_death', ascending: false)
           .limit(2);
-      _recentDeaths = List<Map<String, dynamic>>.from(
-        rows,
-      ).map((e) => (e['full_name'] ?? 'Member') as String).toList();
+      _recentDeaths = List<Map<String, dynamic>>.from(dn)
+          .map((e) => (e['name'] ?? 'Member') as String)
+          .toList();
     } catch (_) {
       _recentDeaths = [];
     }
@@ -260,7 +276,12 @@ class _CollectorDashboardPageState extends State<CollectorDashboardPage> {
   Widget build(BuildContext context) {
     final width = MediaQuery.of(context).size.width;
     final wide = width > 820;
-
+    final provUnit = context.watch<DayungRoleProvider>().unitId;
+    if (provUnit != _lastRoleUnitId) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _maybeOnProviderUnitChanged(provUnit);
+      });
+    }
     return Scaffold(
       backgroundColor: kBg,
       body: Stack(

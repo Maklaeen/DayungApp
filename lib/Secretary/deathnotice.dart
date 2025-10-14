@@ -89,72 +89,87 @@ class _CreateDeathNoticePageState extends State<CreateDeathNoticePage> {
   Future<void> _fetchApprovedClaims() async {
     setState(() => _loading = true);
     try {
-      // Fetch approved claims (no join)
-      final claims = await supabase
-          .from('claims')
-          .select('*')
-          .eq('status', 'Approved')
-          .eq('dayung_unit_id', widget.dayungUnitId);
+      // 1) Fetch Approved claims for this unit via RPC (RLS-safe)
+      final res = await supabase.rpc(
+        'sec_list_approved_claims',
+        params: {'p_unit_id': widget.dayungUnitId},
+      );
+      final claims = List<Map<String, dynamic>>.from(res);
 
-      // Fetch death notices to filter out already set deceased
-      final deathNotices = await supabase
+      // 2) Filter out already in death_notices (unit-limited)
+      final notices = await supabase
           .from('death_notices')
-          .select('user_id, beneficiary_id')
+          .select('user_id, beneficiary_id, deceased_type') // CHANGED
           .eq('dayung_unit_id', widget.dayungUnitId);
 
-      final deceasedUserIds = deathNotices
-          .where((n) => n['user_id'] != null)
-          .map((n) => n['user_id'].toString())
-          .toSet();
-      final deceasedBeneficiaryIds = deathNotices
-          .where((n) => n['beneficiary_id'] != null)
-          .map((n) => n['beneficiary_id'].toString())
-          .toSet();
+      // Separate sets by type to avoid hiding member claims when a beneficiary has a notice
+      final deceasedMemberUserIds = {
+        for (final n in List<Map<String, dynamic>>.from(notices))
+          if ((n['deceased_type'] ?? '') == 'member' && n['user_id'] != null)
+            n['user_id'].toString(),
+      };
+      final deceasedBenIds = {
+        for (final n in List<Map<String, dynamic>>.from(notices))
+          if ((n['deceased_type'] ?? '') == 'beneficiary' &&
+              n['beneficiary_id'] != null)
+            n['beneficiary_id'].toString(),
+      };
 
-      // For each claim, fetch user and beneficiary info
-      List<Map<String, dynamic>> claimsWithDetails = [];
-      for (final claim in claims) {
-        Map<String, dynamic>? user;
-        if (claim['user_id'] != null) {
-          user = await supabase
-              .from('users')
-              .select('full_name, dob, is_deceased, date_of_death')
-              .eq('id', claim['user_id'])
-              .maybeSingle();
+      // 3) Bulk fetch user/beneficiary details for display
+      final userIds = <String>{
+        for (final c in claims)
+          if (c['user_id'] != null) c['user_id'].toString(),
+      }.toList();
+      final benIds = <String>{
+        for (final c in claims)
+          if (c['beneficiary_id'] != null) c['beneficiary_id'].toString(),
+      }.toList();
+
+      final userMap = <String, Map<String, dynamic>>{};
+      if (userIds.isNotEmpty) {
+        final uRows = await supabase
+            .from('users')
+            .select('id, full_name, dob, is_deceased, date_of_death')
+            .inFilter('id', userIds);
+        for (final u in List<Map<String, dynamic>>.from(uRows)) {
+          userMap[(u['id'] ?? '').toString()] = u;
         }
-        Map<String, dynamic>? beneficiary;
-        if (claim['beneficiary_id'] != null) {
-          beneficiary = await supabase
-              .from('beneficiaries')
-              .select('full_name, dob, status, user_id')
-              .eq('id', claim['beneficiary_id'])
-              .maybeSingle();
+      }
+
+      final benMap = <String, Map<String, dynamic>>{};
+      if (benIds.isNotEmpty) {
+        final bRows = await supabase
+            .from('beneficiaries')
+            .select('id, full_name, dob, status, user_id')
+            .inFilter('id', benIds);
+        for (final b in List<Map<String, dynamic>>.from(bRows)) {
+          benMap[(b['id'] ?? '').toString()] = b;
         }
-        // Filter out already set deceased
-        final isBeneficiary = claim['beneficiary_id'] != null;
-        if (isBeneficiary) {
-          if (!deceasedBeneficiaryIds.contains(
-            claim['beneficiary_id'].toString(),
-          )) {
-            claimsWithDetails.add({
-              ...claim,
-              'users': user,
-              'beneficiaries': beneficiary,
-            });
-          }
+      }
+
+      // 4) Assemble list with corrected skip logic
+      final out = <Map<String, dynamic>>[];
+      for (final c in claims) {
+        final isBen = c['beneficiary_id'] != null;
+        if (isBen) {
+          final id = c['beneficiary_id']?.toString();
+          if (id != null && deceasedBenIds.contains(id))
+            continue; // only skip if that beneficiary already has a notice
+          out.add({
+            ...c,
+            'users': userMap[c['user_id']?.toString()],
+            'beneficiaries': benMap[id],
+          });
         } else {
-          if (!deceasedUserIds.contains(claim['user_id'].toString())) {
-            claimsWithDetails.add({
-              ...claim,
-              'users': user,
-              'beneficiaries': beneficiary,
-            });
-          }
+          final uid = c['user_id']?.toString();
+          if (uid != null && deceasedMemberUserIds.contains(uid))
+            continue; // only skip if the MEMBER already has a member-type notice
+          out.add({...c, 'users': userMap[uid], 'beneficiaries': null});
         }
       }
 
       setState(() {
-        _approvedClaims = claimsWithDetails;
+        _approvedClaims = out;
         _loading = false;
       });
     } catch (e) {
@@ -222,140 +237,149 @@ class _CreateDeathNoticePageState extends State<CreateDeathNoticePage> {
                   ),
                 ),
                 Expanded(
-                  child: filteredClaims.isEmpty
-                      ? const Center(
-                          child: Text(
-                            "No approved claims to process.",
-                            style: TextStyle(
-                              fontSize: 16,
-                              color: kSubtleText,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        )
-                      : ListView.builder(
-                          itemCount: filteredClaims.length,
-                          itemBuilder: (_, i) {
-                            final c = filteredClaims[i];
-                            final isBeneficiary = c['beneficiary_id'] != null;
-                            final deceased = isBeneficiary
-                                ? c['beneficiaries']
-                                : c['users'];
-                            final name = deceased?['full_name'] ?? '';
-                            final dob = deceased?['dob'];
-                            final dod = c['date_of_death'];
-                            final deathCert = c['death_certificate_url'];
-                            final age = (dob != null && dod != null)
-                                ? _calculateAge(
-                                    DateTime.parse(dob),
-                                    DateTime.parse(dod),
-                                  )
-                                : null;
-
-                            return Card(
-                              margin: const EdgeInsets.symmetric(
-                                horizontal: 16,
-                                vertical: 8,
-                              ),
-                              child: ListTile(
-                                leading: CircleAvatar(
-                                  backgroundColor: isBeneficiary
-                                      ? Colors.purple
-                                      : kPrimary,
-                                  child: Icon(
-                                    Icons.person,
-                                    color: Colors.white,
-                                  ),
-                                ),
-                                title: Text(
-                                  name,
-                                  style: const TextStyle(
+                  child: RefreshIndicator(
+                    onRefresh: _fetchApprovedClaims,
+                    child: filteredClaims.isEmpty
+                        ? ListView(
+                            children: const [
+                              SizedBox(height: 120),
+                              Center(
+                                child: Text(
+                                  "No approved claims to process.",
+                                  style: TextStyle(
+                                    fontSize: 16,
+                                    color: kSubtleText,
                                     fontWeight: FontWeight.w600,
-                                    fontSize: 17,
-                                    color: kNeutralText,
                                   ),
-                                ),
-                                subtitle: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      'Type: ${isBeneficiary ? "Beneficiary" : "Member"}',
-                                      style: const TextStyle(
-                                        fontSize: 14,
-                                        color: kSubtleText,
-                                      ),
-                                    ),
-                                    if (dob != null)
-                                      Text(
-                                        'Date of Birth: ${_formatDate(dob)}',
-                                        style: const TextStyle(
-                                          fontSize: 14,
-                                          color: kSubtleText,
-                                        ),
-                                      ),
-                                    if (dod != null)
-                                      Text(
-                                        'Date of Death: ${_formatDate(dod)}',
-                                        style: const TextStyle(
-                                          fontSize: 14,
-                                          color: kSubtleText,
-                                        ),
-                                      ),
-                                    if (age != null)
-                                      Text(
-                                        'Age: $age',
-                                        style: const TextStyle(
-                                          fontSize: 14,
-                                          color: kSubtleText,
-                                        ),
-                                      ),
-                                    if (deathCert != null &&
-                                        deathCert.toString().isNotEmpty)
-                                      TextButton.icon(
-                                        icon: const Icon(
-                                          Icons.picture_as_pdf,
-                                          color: kPrimaryDark,
-                                        ),
-                                        label: const Text(
-                                          'View Death Certificate',
-                                        ),
-                                        onPressed: () async {
-                                          final url = deathCert.toString();
-                                          if (await canLaunchUrl(
-                                            Uri.parse(url),
-                                          )) {
-                                            await launchUrl(
-                                              Uri.parse(url),
-                                              mode: LaunchMode
-                                                  .externalApplication,
-                                            );
-                                          } else {
-                                            ScaffoldMessenger.of(
-                                              context,
-                                            ).showSnackBar(
-                                              const SnackBar(
-                                                content: Text(
-                                                  'Could not open file.',
-                                                ),
-                                              ),
-                                            );
-                                          }
-                                        },
-                                      ),
-                                  ],
-                                ),
-                                trailing: ElevatedButton(
-                                  onPressed: () => _setDeceased(c),
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: kPrimary,
-                                    foregroundColor: Colors.white,
-                                  ),
-                                  child: const Text('Set Deceased'),
                                 ),
                               ),
-                            );
-                          },
-                        ),
+                            ],
+                          )
+                        : ListView.builder(
+                            itemCount: filteredClaims.length,
+                            itemBuilder: (_, i) {
+                              final c = filteredClaims[i];
+                              final isBeneficiary = c['beneficiary_id'] != null;
+                              final deceased = isBeneficiary
+                                  ? c['beneficiaries']
+                                  : c['users'];
+                              final name = deceased?['full_name'] ?? '';
+                              final dob = deceased?['dob'];
+                              final dod = c['date_of_death'];
+                              final deathCert = c['death_certificate_url'];
+                              final age = (dob != null && dod != null)
+                                  ? _calculateAge(
+                                      DateTime.parse(dob),
+                                      DateTime.parse(dod),
+                                    )
+                                  : null;
+
+                              return Card(
+                                margin: const EdgeInsets.symmetric(
+                                  horizontal: 16,
+                                  vertical: 8,
+                                ),
+                                child: ListTile(
+                                  leading: CircleAvatar(
+                                    backgroundColor: isBeneficiary
+                                        ? Colors.purple
+                                        : kPrimary,
+                                    child: Icon(
+                                      Icons.person,
+                                      color: Colors.white,
+                                    ),
+                                  ),
+                                  title: Text(
+                                    name,
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.w600,
+                                      fontSize: 17,
+                                      color: kNeutralText,
+                                    ),
+                                  ),
+                                  subtitle: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        'Type: ${isBeneficiary ? "Beneficiary" : "Member"}',
+                                        style: const TextStyle(
+                                          fontSize: 14,
+                                          color: kSubtleText,
+                                        ),
+                                      ),
+                                      if (dob != null)
+                                        Text(
+                                          'Date of Birth: ${_formatDate(dob)}',
+                                          style: const TextStyle(
+                                            fontSize: 14,
+                                            color: kSubtleText,
+                                          ),
+                                        ),
+                                      if (dod != null)
+                                        Text(
+                                          'Date of Death: ${_formatDate(dod)}',
+                                          style: const TextStyle(
+                                            fontSize: 14,
+                                            color: kSubtleText,
+                                          ),
+                                        ),
+                                      if (age != null)
+                                        Text(
+                                          'Age: $age',
+                                          style: const TextStyle(
+                                            fontSize: 14,
+                                            color: kSubtleText,
+                                          ),
+                                        ),
+                                      if (deathCert != null &&
+                                          deathCert.toString().isNotEmpty)
+                                        TextButton.icon(
+                                          icon: const Icon(
+                                            Icons.picture_as_pdf,
+                                            color: kPrimaryDark,
+                                          ),
+                                          label: const Text(
+                                            'View Death Certificate',
+                                          ),
+                                          onPressed: () async {
+                                            final url = deathCert.toString();
+                                            if (await canLaunchUrl(
+                                              Uri.parse(url),
+                                            )) {
+                                              await launchUrl(
+                                                Uri.parse(url),
+                                                mode: LaunchMode
+                                                    .externalApplication,
+                                              );
+                                            } else {
+                                              ScaffoldMessenger.of(
+                                                context,
+                                              ).showSnackBar(
+                                                const SnackBar(
+                                                  content: Text(
+                                                    'Could not open file.',
+                                                  ),
+                                                ),
+                                              );
+                                            }
+                                          },
+                                        ),
+                                    ],
+                                  ),
+                                  trailing: ElevatedButton(
+                                    onPressed: () => _setDeceased(c),
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: kPrimary,
+                                      foregroundColor: Colors.white,
+                                    ),
+                                    child: const Text('Set Deceased'),
+                                  ),
+                                ),
+                              );
+                            },
+                          ),
+                  ),
                 ),
               ],
             ),
@@ -429,7 +453,6 @@ class _CreateDeathNoticePageState extends State<CreateDeathNoticePage> {
 
       if (isBeneficiary) {
         final bId = claim['beneficiary_id'];
-
         await supabase
             .from('beneficiaries')
             .update({'status': 'Deceased', 'eligible_to_claim': false})
@@ -446,12 +469,11 @@ class _CreateDeathNoticePageState extends State<CreateDeathNoticePage> {
           'barangay': barangay,
           'latitude': latitude,
           'longitude': longitude,
-          'dob': _dateOnly(dob), // store DOB snapshot
-          'deceased_age': computedAge, // store computed age
+          'dob': _dateOnly(dob),
+          'deceased_age': computedAge,
         });
       } else {
         final uId = claim['user_id'];
-
         await supabase
             .from('users')
             .update({'is_deceased': true, 'date_of_death': _dateOnly(dod)})
@@ -467,10 +489,18 @@ class _CreateDeathNoticePageState extends State<CreateDeathNoticePage> {
           'barangay': barangay,
           'latitude': latitude,
           'longitude': longitude,
-          'dob': _dateOnly(dob), // store DOB snapshot
-          'deceased_age': computedAge, // store computed age
+          'dob': _dateOnly(dob),
+          'deceased_age': computedAge,
         });
       }
+
+      // NEW: mark this claim as Done
+      try {
+        await supabase
+            .from('claims')
+            .update({'status': 'Done'})
+            .eq('id', (claim['id'] ?? '').toString());
+      } catch (_) {}
 
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(

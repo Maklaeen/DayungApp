@@ -1,67 +1,103 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 class DayungProfilePage extends StatefulWidget {
-  const DayungProfilePage({super.key, required int dayungUnitId});
+  // CHANGED: keep the passed unit id
+  final int? dayungUnitId;
+  const DayungProfilePage({super.key, this.dayungUnitId});
 
   @override
   State<DayungProfilePage> createState() => _DayungProfilePageState();
 }
 
 class _DayungProfilePageState extends State<DayungProfilePage> {
+  final supabase = Supabase.instance.client;
+
   Map<String, dynamic>? dayung;
   List<Map<String, dynamic>> members = [];
   bool _loading = true;
-  int? dayungUnitId;
+  int? _unitId;
+
+  void _setStateSafe(VoidCallback fn) {
+    if (!mounted) return;
+    setState(fn);
+  }
 
   @override
   void initState() {
     super.initState();
-    _fetchUserDayungAndProfile();
+    _load();
   }
 
-  Future<void> _fetchUserDayungAndProfile() async {
-    setState(() => _loading = true);
-    final supabase = Supabase.instance.client;
-    final user = supabase.auth.currentUser;
-    if (user == null) {
-      setState(() {
-        _loading = false;
-        dayung = null;
-      });
-      return;
-    }
-    // Fetch the user's assigned dayung_unit_id
-    final userData = await supabase
-        .from('users')
-        .select('dayung_unit_id')
-        .eq('id', user.id)
-        .single();
+  Future<void> _load() async {
+    _setStateSafe(() => _loading = true);
 
-    dayungUnitId = userData['dayung_unit_id'];
-    if (dayungUnitId == null) {
-      setState(() {
-        _loading = false;
+    // 1) Resolve unit id: prop -> prefs
+    int? unitId = widget.dayungUnitId;
+    if (unitId == null) {
+      final prefs = await SharedPreferences.getInstance();
+      final raw =
+          prefs.getString('selectedDayungUnitData') ??
+          prefs.getString('selectedDayungUnit');
+      if (raw != null) {
+        try {
+          final obj = Map<String, dynamic>.from(jsonDecode(raw));
+          final v = obj['id'];
+          unitId = v is int ? v : int.tryParse('$v');
+        } catch (_) {}
+      }
+    }
+    if (unitId == null) {
+      _setStateSafe(() {
+        _unitId = null;
         dayung = null;
+        members = [];
+        _loading = false;
       });
       return;
     }
-    // Fetch dayung info
-    final d = await supabase
-        .from('dayung_units')
-        .select()
-        .eq('id', dayungUnitId as Object)
-        .single();
-    // Fetch users assigned to this dayung unit
-    final m = await supabase
-        .from('users')
-        .select('id, full_name, email, role')
-        .eq('dayung_unit_id', dayungUnitId as Object);
-    setState(() {
-      dayung = d;
-      members = List<Map<String, dynamic>>.from(m);
-      _loading = false;
-    });
+    _unitId = unitId;
+
+    try {
+      // 2) Fetch dayung info
+      final d = await supabase
+          .from('dayung_units')
+          .select('id,name,barangay,city,province,description')
+          .eq('id', unitId)
+          .maybeSingle();
+
+      // 3) Fetch approved members by applications join (NOT users.dayung_unit_id)
+      final m = await supabase
+          .from('applications')
+          .select('user:users(id, full_name, email, role, profile_url)')
+          .eq('dayung_unit_id', unitId)
+          .eq('status', 'approved');
+
+      if (!mounted) return;
+      _setStateSafe(() {
+        dayung = d != null ? Map<String, dynamic>.from(d) : null;
+        members = List<Map<String, dynamic>>.from(
+          (m as List).map((r) => (r['user'] as Map?) ?? const {}),
+        ).where((u) => u.isNotEmpty).toList();
+        _loading = false;
+      });
+    } on PostgrestException catch (_) {
+      if (!mounted) return;
+      _setStateSafe(() {
+        dayung = null;
+        members = [];
+        _loading = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      _setStateSafe(() {
+        dayung = null;
+        members = [];
+        _loading = false;
+      });
+    }
   }
 
   @override
@@ -70,11 +106,7 @@ class _DayungProfilePageState extends State<DayungProfilePage> {
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
     if (dayung == null) {
-      return const Scaffold(
-        body: Center(
-          child: Text('No dayung assigned to your account.'),
-        ),
-      );
+      return const Scaffold(body: Center(child: Text('No Dayung selected.')));
     }
     return Scaffold(
       appBar: AppBar(title: Text(dayung!['name'] ?? 'Dayung Profile')),
@@ -86,21 +118,25 @@ class _DayungProfilePageState extends State<DayungProfilePage> {
             style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
           ),
           Text(
-            '${dayung!['barangay'] ?? ''}${dayung!['city'] != null ? ', ${dayung!['city']}' : ''}${dayung!['province'] != null ? ', ${dayung!['province']}' : ''}',
+            '${dayung!['barangay'] ?? ''}'
+            '${dayung!['city'] != null ? ', ${dayung!['city']}' : ''}'
+            '${dayung!['province'] != null ? ', ${dayung!['province']}' : ''}',
             style: const TextStyle(fontSize: 16, color: Colors.black54),
           ),
           const SizedBox(height: 16),
           const Text(
-            'Members:',
+            'Members',
             style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
           ),
-          ...members.map(
-            (m) => ListTile(
+          const SizedBox(height: 8),
+          for (final m in members)
+            ListTile(
               leading: const Icon(Icons.person),
-              title: Text(m['full_name'] ?? ''),
-              subtitle: Text('${m['role'] ?? ''} • ${m['email'] ?? ''}'),
+              title: Text(m['full_name'] ?? 'Member'),
+              subtitle: Text(
+                '${m['role'] ?? ''}${m['email'] != null ? ' • ${m['email']}' : ''}',
+              ),
             ),
-          ),
         ],
       ),
     );

@@ -1,8 +1,11 @@
 import 'dart:convert';
+import 'package:capstone_app/Providers/dayung_provider.dart';
+import 'package:capstone_app/Providers/dayung_role_provider.dart';
 import 'package:capstone_app/screens/dayung_suggestions.dart';
 import 'package:capstone_app/screens/selectdayung.dart';
 import 'package:capstone_app/screens/dayung_map_page.dart';
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:auto_size_text/auto_size_text.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -42,53 +45,43 @@ class _DayungSettingsPageState extends State<DayungSettingsPage> {
   void initState() {
     super.initState();
     _loadCurrentDayung();
-    _checkPresident();
   }
 
   Future<void> _loadCurrentDayung() async {
     setState(() => _loadingDayung = true);
-    final supabase = Supabase.instance.client;
-    final user = supabase.auth.currentUser;
-    if (user == null) {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final raw =
+          prefs.getString('selectedDayungUnitData') ??
+          prefs.getString('selectedDayungUnit');
+
+      if (raw == null) {
+        setState(() {
+          _currentDayungId = null;
+          _currentDayungName = null;
+          _currentDayungData = null;
+          _loadingDayung = false;
+        });
+        return;
+      }
+
+      final obj = Map<String, dynamic>.from(jsonDecode(raw) as Map);
+      setState(() {
+        _currentDayungId = obj['id'] as int?;
+        _currentDayungName = (obj['name'] ?? 'Dayung').toString();
+        _currentDayungData = obj;
+        _loadingDayung = false;
+      });
+
+      // IMPORTANT: Do NOT refresh DayungRoleProvider here.
+      // Role refresh only when user explicitly changes Dayung.
+    } catch (_) {
       setState(() {
         _currentDayungId = null;
         _currentDayungName = null;
         _currentDayungData = null;
         _loadingDayung = false;
       });
-      return;
-    }
-    try {
-      final userData = await supabase
-          .from('users')
-          .select('dayung_unit_id')
-          .eq('id', user.id)
-          .maybeSingle();
-
-      _currentDayungId = userData?['dayung_unit_id'];
-      if (_currentDayungId != null) {
-        final dayung = await supabase
-            .from('dayung_units')
-            .select('id, name, barangay, city, province, latitude, longitude')
-            .eq('id', _currentDayungId as Object)
-            .maybeSingle();
-
-        setState(() {
-          _currentDayungData = dayung != null
-              ? Map<String, dynamic>.from(dayung)
-              : null;
-          _currentDayungName = dayung?['name'];
-          _loadingDayung = false;
-        });
-      } else {
-        setState(() {
-          _currentDayungData = null;
-          _currentDayungName = null;
-          _loadingDayung = false;
-        });
-      }
-    } on PostgrestException catch (_) {
-      setState(() => _loadingDayung = false);
     }
   }
 
@@ -255,8 +248,6 @@ class _DayungSettingsPageState extends State<DayungSettingsPage> {
                                     builder: (_) => const SelectDayungPage(),
                                   ),
                                 );
-
-                                // If user picked a Dayung, update users.dayung_unit_id
                                 if (!mounted) return;
                                 if (selected != null &&
                                     selected is Map<String, dynamic>) {
@@ -271,7 +262,7 @@ class _DayungSettingsPageState extends State<DayungSettingsPage> {
                                           })
                                           .eq('id', user.id);
 
-                                      // Persist the new selection to SharedPreferences so ClaimsPage picks it up
+                                      // Persist both keys so all pages read the same source
                                       final prefs =
                                           await SharedPreferences.getInstance();
                                       await prefs.setString(
@@ -281,11 +272,29 @@ class _DayungSettingsPageState extends State<DayungSettingsPage> {
                                           'name': selected['name'],
                                           'barangay': selected['barangay'],
                                           'city': selected['city'],
+                                          'province': selected['province'],
                                         }),
                                       );
+                                      await prefs.setString(
+                                        'selectedDayungUnitData',
+                                        jsonEncode(selected),
+                                      );
 
-                                      // (Optional) notify a provider if you use one
-                                      // context.read<DayungUnitProvider>().setDayungName(selected['name']);
+                                      // Refresh role + broadcast name/object so headers/pages rebuild consistently
+                                      final id = selected['id'] as int?;
+                                      if (mounted) {
+                                        await context.read<DayungRoleProvider>().refreshRoles(id);
+                                        context.read<DayungUnitProvider>().setDayungUnit(
+                                          '${selected['name'] ?? 'Dayung'}',
+                                          obj: {
+                                            'id': selected['id'],
+                                            'name': selected['name'],
+                                            'barangay': selected['barangay'],
+                                            'city': selected['city'],
+                                            'province': selected['province'],
+                                          },
+                                        );
+                                      }
 
                                       if (!mounted) return;
                                       ScaffoldMessenger.of(
@@ -372,7 +381,7 @@ class _DayungSettingsPageState extends State<DayungSettingsPage> {
                 ),
               ),
 
-              if (_isPresident) ...[
+              if (context.watch<DayungRoleProvider>().isPresident) ...[
                 const SizedBox(height: 12),
                 SizedBox(
                   width: double.infinity,

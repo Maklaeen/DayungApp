@@ -1,5 +1,17 @@
+import 'dart:convert';
+
 import 'package:capstone_app/Auth/utils_file.dart';
+import 'package:capstone_app/Collector/dashboard.dart';
+import 'package:capstone_app/Members/dashboard.dart';
+import 'package:capstone_app/President/dashboard.dart';
+import 'package:capstone_app/Providers/dayung_provider.dart';
+import 'package:capstone_app/Providers/dayung_role_provider.dart';
+import 'package:capstone_app/Secretary/dashboard.dart';
+import 'package:capstone_app/Treasurer/dashboard.dart';
+import 'package:capstone_app/screens/selectdayung.dart';
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:auto_size_text/auto_size_text.dart';
 import 'dart:io' show SocketException;
@@ -254,35 +266,7 @@ class _LoginState extends State<Login> {
       if (userData != null && (userData['role'] ?? '') == 'admin') {
         Navigator.pushReplacementNamed(context, '/admin-dashboard');
       } else {
-        final home = await pickHome();
-        // if (userData != null) {
-        //   final role = userData['role'];
-        //   if (role == 'member') {
-        //     Navigator.pushReplacementNamed(context, '/dashboard');
-        //   } else if (role == 'president') {
-        //     Navigator.pushReplacementNamed(context, '/president-dashboard');
-        //   } else if (role == 'secretary') {
-        //     Navigator.pushReplacementNamed(context, '/secretary-dashboard');
-        //   } else if (role == 'treasurer') {
-        //     Navigator.pushReplacementNamed(context, '/treasurer-dashboard');
-        //   } else if (role == 'collector') {
-        //     Navigator.pushReplacementNamed(context, '/collector-dashboard');
-        //   } else if (role == 'admin') {
-        //     Navigator.pushReplacementNamed(context, '/admin-dashboard');
-        //   } else {
-        //     await _showErrorDialog('Access Error', 'Unknown user role.');
-        //   }
-        // } else {
-        //   await _showErrorDialog(
-        //     'Profile Error',
-        //     'User not found in users table.',
-        //   );
-        // }
-        // }
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (_) => home),
-        );
+        await _routeAfterLogin(); // NEW
       }
     } catch (e) {
       setState(() => _isLoading = false);
@@ -335,6 +319,184 @@ class _LoginState extends State<Login> {
         borderSide: const BorderSide(color: kDanger, width: 2),
       ),
     );
+  }
+
+  Future<void> _routeAfterLogin() async {
+    final sb = Supabase.instance.client;
+    final uid = sb.auth.currentUser?.id;
+    if (uid == null) {
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (_) => const MemberDashboardPage()),
+      );
+      return;
+    }
+
+    // Gather all accessible units: approved membership + officer roles + collector
+    final approvedApps = await sb
+        .from('applications')
+        .select('dayung_unit_id, approved_at')
+        .eq('user_id', uid)
+        .eq('status', 'approved')
+        .order('approved_at', ascending: false);
+    final appList = List<Map<String, dynamic>>.from(approvedApps);
+
+    final officers = await sb
+        .from('dayung_units')
+        .select(
+          'id, name, barangay, city, province, secretary_id, treasurer_id, president_id, collector_id',
+        )
+        .or(
+          'secretary_id.eq.$uid,treasurer_id.eq.$uid,president_id.eq.$uid,collector_id.eq.$uid',
+        );
+    final officerUnits = List<Map<String, dynamic>>.from(officers);
+
+    List<Map<String, dynamic>> collectorUnits = [];
+    try {
+      final cu = await sb
+          .from('dayung_collectors')
+          .select('dayung_unit_id')
+          .eq('user_id', uid);
+      final cuIds = List<Map<String, dynamic>>.from(
+        cu,
+      ).map((e) => e['dayung_unit_id'] as int).toList();
+      if (cuIds.isNotEmpty) {
+        final rows = await sb
+            .from('dayung_units')
+            .select(
+              'id, name, barangay, city, province, secretary_id, treasurer_id, president_id, collector_id',
+            )
+            .inFilter('id', cuIds);
+        collectorUnits = List<Map<String, dynamic>>.from(rows);
+      }
+    } catch (_) {}
+
+    final approvedIds = appList.map((a) => a['dayung_unit_id'] as int).toSet();
+    final officerIds = officerUnits.map((o) => o['id'] as int).toSet();
+    final collectorIds = collectorUnits.map((o) => o['id'] as int).toSet();
+    final allIds = <int>{
+      ...approvedIds,
+      ...officerIds,
+      ...collectorIds,
+    }.toList();
+
+    Map<String, dynamic>? selected;
+
+    final prefs = await SharedPreferences.getInstance();
+    final savedRaw = prefs.getString('selectedDayungUnit');
+    if (allIds.length > 1) {
+      final picked = await Navigator.push<Map<String, dynamic>?>(
+        context,
+        MaterialPageRoute(builder: (_) => const SelectDayungPage()),
+      );
+      if (picked == null) {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (_) => const MemberDashboardPage()),
+        );
+        return;
+      }
+      selected = picked;
+    } else {
+      // Try saved selection only when 0 or 1 unit
+      final prefs = await SharedPreferences.getInstance();
+      final savedRaw = prefs.getString('selectedDayungUnit');
+      int? savedId;
+      if (savedRaw != null) {
+        try {
+          savedId = (jsonDecode(savedRaw) as Map)['id'] as int?;
+        } catch (_) {}
+      }
+
+      if (savedId != null && allIds.contains(savedId)) {
+        final u = await sb
+            .from('dayung_units')
+            .select('id, name, barangay, city, province, secretary_id, treasurer_id, president_id, collector_id')
+            .eq('id', savedId)
+            .maybeSingle();
+        if (u != null) selected = Map<String, dynamic>.from(u);
+      }
+
+      if (selected == null) {
+        if (allIds.isEmpty) {
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(builder: (_) => const MemberDashboardPage()),
+          );
+          return;
+        }
+        final onlyId = allIds.first;
+        final u = await sb
+            .from('dayung_units')
+            .select('id, name, barangay, city, province, secretary_id, treasurer_id, president_id, collector_id')
+            .eq('id', onlyId)
+            .maybeSingle();
+        if (u != null) selected = Map<String, dynamic>.from(u);
+      }
+    }
+
+    if (selected == null) {
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (_) => const MemberDashboardPage()),
+      );
+      return;
+    }
+
+    // Persist and refresh roles
+    await prefs.setString('selectedDayungUnit', jsonEncode(selected));
+    await prefs.setString('selectedDayungUnitData', jsonEncode(selected));
+    final unitId = selected['id'] as int?;
+    if (unitId != null && mounted) {
+      await context.read<DayungRoleProvider>().refreshRoles(unitId);
+      // NEW: broadcast name/object so all headers/pages sync immediately
+      context.read<DayungUnitProvider>().setDayungUnit(
+        '${selected['name'] ?? 'Dayung'}',
+        obj: {
+          'id': selected['id'],
+          'name': selected['name'],
+          'barangay': selected['barangay'],
+          'city': selected['city'],
+          'province': selected['province'],
+        },
+      );
+    }
+
+    // Route to dashboard based on role in this selected unit (priority: President > Secretary > Treasurer > Collector > Member)
+    final urow = await sb
+        .from('dayung_units')
+        .select('id, secretary_id, treasurer_id, president_id, collector_id')
+        .eq('id', selected['id'] as Object)
+        .maybeSingle();
+
+    final isPresident = (urow?['president_id']?.toString() ?? '') == uid;
+    final isSecretary = (urow?['secretary_id']?.toString() ?? '') == uid;
+    final isTreasurer = (urow?['treasurer_id']?.toString() ?? '') == uid;
+    bool isCollector = (urow?['collector_id']?.toString() ?? '') == uid;
+    if (!isCollector) {
+      try {
+        final dc = await sb
+            .from('dayung_collectors')
+            .select('user_id')
+            .eq('dayung_unit_id', selected['id'])
+            .eq('user_id', uid)
+            .limit(1);
+        isCollector = (dc as List).isNotEmpty;
+      } catch (_) {}
+    }
+
+    final Widget home = isPresident
+        ? const PresidentDashboardPage()
+        : isSecretary
+        ? const SecretaryDashboardPage()
+        : isTreasurer
+        ? const TreasurerDashboardPage()
+        : isCollector
+        ? const CollectorDashboardPage()
+        : const MemberDashboardPage();
+
+    if (!mounted) return;
+    Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => home));
   }
 
   @override

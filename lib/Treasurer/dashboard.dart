@@ -1,10 +1,12 @@
 import 'dart:convert';
+import 'package:capstone_app/Providers/dayung_role_provider.dart';
 import 'package:capstone_app/Treasurer/collected.dart';
 import 'package:capstone_app/Treasurer/manage_fund.dart';
 import 'package:capstone_app/pages/claims.dart';
 import 'package:capstone_app/pages/notification.dart';
 import 'package:capstone_app/profile/profile.dart';
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
@@ -37,7 +39,7 @@ class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
 
   String _dayungLabel = 'Dayung';
   int? _dayungUnitId;
-
+  int? _lastRoleUnitId;
   bool _loading = true;
   int _activeMembers = 0;
   double _pendingAmount = 0;
@@ -64,12 +66,26 @@ class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
         setState(() => _showNavBar = true);
       }
     });
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final provUnit = context.read<DayungRoleProvider>().unitId;
+      _maybeOnProviderUnitChanged(provUnit);
+    });
   }
 
   @override
   void dispose() {
     _scrollController.dispose();
     super.dispose();
+  }
+
+  void _maybeOnProviderUnitChanged(int? newUnitId) {
+    if (newUnitId == null || newUnitId == _lastRoleUnitId) return;
+    _lastRoleUnitId = newUnitId;
+    setState(() => _dayungUnitId = newUnitId);
+    _deathNoticesFutureCached = _deathNoticesFuture(); // reset caches
+    _paymentStatsFutureCached = null;
+    _loadDayungFromPrefs(); // refresh label
+    _fetchAll();
   }
 
   Future<void> _init() async {
@@ -329,16 +345,15 @@ class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
         _recentDeaths = [];
         return;
       }
-      final rows = await sb
-          .from('users')
-          .select('full_name')
+      final dn = await sb
+          .from('death_notices')
+          .select('name,date_of_death')
           .inFilter('dayung_unit_id', ids)
-          .eq('is_deceased', true)
           .order('date_of_death', ascending: false)
           .limit(2);
       _recentDeaths = List<Map<String, dynamic>>.from(
-        rows,
-      ).map((e) => (e['full_name'] ?? 'Member') as String).toList();
+        dn,
+      ).map((e) => (e['name'] ?? 'Member') as String).toList();
     } catch (_) {
       _recentDeaths = [];
     }
@@ -377,12 +392,12 @@ class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
     }
 
     // Get active members for the dayung
-    final usersRes = await sb
-        .from('users')
-        .select('id')
+    final appsRes = await sb
+        .from('applications')
+        .select('user_id')
         .eq('dayung_unit_id', dayungUnitId)
-        .eq('is_deceased', false);
-    final members = List<Map<String, dynamic>>.from(usersRes);
+        .eq('status', 'approved');
+    final members = List<Map<String, dynamic>>.from(appsRes);
 
     if (members.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -405,7 +420,7 @@ class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
     // Prepare new rows (skip duplicates and excluded user)
     final rows = <Map<String, dynamic>>[];
     for (final u in members) {
-      final uid = (u['id'] ?? '').toString();
+      final uid = (u['user_id'] ?? '').toString(); // CHANGED from u['id']
       if (uid.isEmpty) continue;
       if (excludedUserId != null && uid == excludedUserId) continue;
       if (existingIds.contains(uid)) continue;
@@ -497,6 +512,12 @@ class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
   Widget build(BuildContext context) {
     final width = MediaQuery.of(context).size.width;
     final wide = width > 820;
+    final provUnit = context.watch<DayungRoleProvider>().unitId;
+    if (provUnit != _lastRoleUnitId) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _maybeOnProviderUnitChanged(provUnit);
+      });
+    }
 
     return Scaffold(
       backgroundColor: kBg,
@@ -1341,7 +1362,7 @@ class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
         color: const Color(0xFFD8EEFF),
         icon: Icons.groups,
         iconColor: Colors.blue[700],
-        title: "Total Active",
+        title: "Total Members",
         bigText: _loading ? '—' : _activeMembers.toString(),
       ),
       _recentDeathsCard(),

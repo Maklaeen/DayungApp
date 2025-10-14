@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:capstone_app/Providers/dayung_provider.dart';
+import 'package:capstone_app/Providers/dayung_role_provider.dart';
 import 'package:capstone_app/pages/claims.dart';
 import 'package:capstone_app/pages/notification.dart'
     hide kPrimary, kNeutralText, kPrimaryDark, kSubtleText;
@@ -348,6 +349,8 @@ class _MemberDashboardPageState extends State<MemberDashboardPage> {
             selectedDayungUnit = unit['name']?.toString();
             _selectedDayungUnitObj = unit;
           });
+          // NEW: refresh roles for this selected unit
+          await context.read<DayungRoleProvider>().refreshRoles(id);
         } else {
           await prefs.remove('selectedDayungUnit');
           setState(() {
@@ -383,11 +386,23 @@ class _MemberDashboardPageState extends State<MemberDashboardPage> {
             selectedDayungUnit = unit['name'];
             _selectedDayungUnitObj = Map<String, dynamic>.from(unit);
           });
-          await _fetchAllStats(); // ...existing code...
+          // NEW: refresh roles for this unit
+          await context.read<DayungRoleProvider>().refreshRoles(id);
+          await _fetchAllStats();
           await _subscribeAnnouncementsRealtime();
           return;
         } else {
-          await prefs.remove('selectedDayungUnit');
+          await prefs.setString('selectedDayungUnit', jsonEncode(unit));
+          setState(() {
+            _selectedDayungUnitObj = Map<String, dynamic>.from(unit);
+            selectedDayungUnit = unit['name']?.toString();
+          });
+          // NEW: refresh roles for this unit
+          await context.read<DayungRoleProvider>().refreshRoles(
+            _asInt(unit['id']),
+          );
+          await _fetchAllStats();
+          return;
         }
       } catch (_) {
         await prefs.remove('selectedDayungUnit');
@@ -820,6 +835,10 @@ class _MemberDashboardPageState extends State<MemberDashboardPage> {
         selectedDayungUnit = result['name'];
         _selectedDayungUnitObj = Map<String, dynamic>.from(result);
       });
+      // NEW: refresh roles for this unit
+      await context.read<DayungRoleProvider>().refreshRoles(
+        _asInt(result['id']),
+      );
       context.read<DayungUnitProvider>().setDayungUnit(result['name']);
       await _fetchAllStats();
       await _subscribeAnnouncementsRealtime();
@@ -988,8 +1007,8 @@ class _MemberDashboardPageState extends State<MemberDashboardPage> {
 
   List<Widget> get _pages => [
     _buildHomePage(context),
-    const ContributionHistory(),
-    const ClaimsPage(),
+    ContributionHistory(),
+    ClaimsPage(),
   ];
 
   @override

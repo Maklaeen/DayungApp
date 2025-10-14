@@ -1,6 +1,8 @@
 import 'package:capstone_app/President/manage_roles.dart';
 import 'package:capstone_app/President/post_announcement.dart';
+import 'package:capstone_app/Providers/dayung_role_provider.dart';
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:capstone_app/pages/notification.dart';
 import 'package:capstone_app/profile/profile.dart';
@@ -28,7 +30,7 @@ class _PresidentDashboardPageState extends State<PresidentDashboardPage> {
   bool _loading = true;
   int _activeMembersCount = 0;
   List<String> _recentDeaths = [];
-
+  int? _lastRoleUnitId;
   int _pendingMembers = 0;
   num _pendingAmount = 0;
 
@@ -39,6 +41,10 @@ class _PresidentDashboardPageState extends State<PresidentDashboardPage> {
   void initState() {
     super.initState();
     _load();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final provUnit = context.read<DayungRoleProvider>().unitId;
+      _maybeOnProviderUnitChanged(provUnit);
+    });
   }
 
   Future<void> _load() async {
@@ -53,6 +59,12 @@ class _PresidentDashboardPageState extends State<PresidentDashboardPage> {
     } finally {
       if (mounted) setState(() => _loading = false);
     }
+  }
+
+  void _maybeOnProviderUnitChanged(int? newUnitId) {
+    if (newUnitId == _lastRoleUnitId) return;
+    _lastRoleUnitId = newUnitId;
+    _load(); // reload all stats (managed dayungs list may differ visually)
   }
 
   Future<List<int>> _managedDayungIds() async {
@@ -144,15 +156,14 @@ class _PresidentDashboardPageState extends State<PresidentDashboardPage> {
       return;
     }
     final rows = await _sb
-        .from('users')
-        .select('full_name')
+        .from('death_notices')
+        .select('name')
         .inFilter('dayung_unit_id', ids)
-        .eq('is_deceased', true)
         .order('date_of_death', ascending: false)
         .limit(2);
-    _recentDeaths = List<Map<String, dynamic>>.from(
-      rows,
-    ).map((e) => (e['full_name'] ?? 'Member') as String).toList();
+    _recentDeaths = List<Map<String, dynamic>>.from(rows)
+        .map((e) => (e['name'] ?? 'Member') as String)
+        .toList();
   }
 
   Future<void> _fetchPendingPayments(List<int> ids) async {
@@ -171,6 +182,12 @@ class _PresidentDashboardPageState extends State<PresidentDashboardPage> {
   Widget build(BuildContext context) {
     final width = MediaQuery.of(context).size.width;
     final bool wide = width > 820;
+    final provUnit = context.watch<DayungRoleProvider>().unitId;
+    if (provUnit != _lastRoleUnitId) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _maybeOnProviderUnitChanged(provUnit);
+      });
+    }
 
     return Scaffold(
       backgroundColor: kBg,

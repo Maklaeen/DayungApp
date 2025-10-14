@@ -59,12 +59,16 @@ class _ManageRolesPageState extends State<ManageRolesPagePres> {
 
   Future<void> _loadUnitData(int unitId) async {
     // load members of this unit
-    final usersRes = await sb
-        .from('users')
-        .select('id, full_name, mobile_number')
+    final apps = await sb
+        .from('applications')
+        .select('user:users(id, full_name, mobile_number)')
         .eq('dayung_unit_id', unitId)
-        .order('full_name', ascending: true);
-    _members = List<Map<String, dynamic>>.from(usersRes);
+        .eq('status', 'approved')
+        .order('approved_at', ascending: true);
+
+    _members = List<Map<String, dynamic>>.from(
+      (apps as List).map((r) => (r['user'] as Map?) ?? const {}),
+    ).where((u) => u.isNotEmpty).toList();
 
     // load secretary/treasurer
     final du = await sb

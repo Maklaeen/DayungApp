@@ -12,7 +12,8 @@ const Color kNeutralText = Color(0xFF1F2937);
 const Color kSubtleText = Color(0xFF4B5563);
 
 class SecretaryMembersPage extends StatefulWidget {
-  const SecretaryMembersPage({super.key});
+  final int dayungUnitId; // NEW
+  const SecretaryMembersPage({super.key, required this.dayungUnitId});
 
   @override
   State<SecretaryMembersPage> createState() => _SecretaryMembersPageState();
@@ -33,7 +34,7 @@ class _SecretaryMembersPageState extends State<SecretaryMembersPage>
   static const double _kDesktop = 1100; // >= desktop
   static const double _kMaxContentWidth = 1000;
 
-  final _sb = Supabase.instance.client;
+  final supabase = Supabase.instance.client;
   bool _loading = true;
   String? _infoMsg;
   final TextEditingController _searchController = TextEditingController();
@@ -44,8 +45,8 @@ class _SecretaryMembersPageState extends State<SecretaryMembersPage>
   // Raw fetched members (approved + pending) for secretary’s dayungs
   List<Map<String, dynamic>> _rows = [];
   final Map<int, String> _dayungNames = {};
-  // ignore: unused_field
   List<int> _managedDayungIds = [];
+  List<Map<String, dynamic>> _members = [];
 
   @override
   void initState() {
@@ -59,132 +60,67 @@ class _SecretaryMembersPageState extends State<SecretaryMembersPage>
       _loading = true;
       _infoMsg = null;
     });
+
     try {
-      final uid = _sb.auth.currentUser?.id;
-      if (uid == null) {
-        setState(() {
-          _loading = false;
-          _infoMsg = 'Please log in.';
-          _rows = [];
-          _managedDayungIds = [];
-          _dayungNames.clear();
-        });
-        return;
-      }
+      final unitId = widget.dayungUnitId;
 
-      final dayungs = await _sb
-          .from('dayung_units')
-          .select('id,name')
-          .eq('secretary_id', uid);
-
-      final ids = List<Map<String, dynamic>>.from(
-        dayungs,
-      ).map<int>((e) => e['id'] as int).toList();
-
-      if (ids.isEmpty) {
-        setState(() {
-          _loading = false;
-          _infoMsg = 'You are not assigned to any Dayung.';
-          _rows = [];
-          _managedDayungIds = [];
-          _dayungNames.clear();
-        });
-        return;
-      }
-
-      _dayungNames
-        ..clear()
-        ..addEntries(
-          List<Map<String, dynamic>>.from(dayungs).map(
-            (e) => MapEntry(e['id'] as int, (e['name'] ?? 'Dayung') as String),
-          ),
-        );
-
-      // Fetch users with status approved OR pending in those dayungs
-      final apps = await _sb
+      // Fetch approved + pending applications for this unit with embedded user
+      final apps = await supabase
           .from('applications')
           .select(
-            'user_id, status, dayung_unit_id, approved_at, '
-            'user:users(id, full_name, email, profile_url, is_deceased, date_of_death)',
+            'id, status, dayung_unit_id, user:users(id, full_name, email, profile_url, is_deceased)',
           )
-          .inFilter('dayung_unit_id', ids)
+          .eq('dayung_unit_id', unitId)
           .inFilter('status', ['approved', 'pending'])
-          .order('approved_at', ascending: false);
+          .order('approved_at', ascending: true);
 
-      final list = List<Map<String, dynamic>>.from(apps);
+      final list = List<Map<String, dynamic>>.from(
+        apps,
+      ).where((r) => r['user'] != null).toList();
 
-      final byKey = <String, Map<String, dynamic>>{};
-      for (final r in list) {
-        final u = r['user'] as Map<String, dynamic>?;
-        final userId = (u?['id'] ?? r['user_id']).toString();
-        final dayungId = r['dayung_unit_id'] as int;
-        final key = '$userId-$dayungId';
-        if (!byKey.containsKey(key)) {
-          byKey[key] = r;
-        } else {
-          final prev = byKey[key]!;
-          final prevAt = prev['approved_at']?.toString();
-          final currAt = r['approved_at']?.toString();
-          if (currAt != null &&
-              (prevAt == null ||
-                  DateTime.tryParse(
-                        currAt,
-                      )?.isAfter(DateTime.tryParse(prevAt) ?? DateTime(0)) ==
-                      true)) {
-            byKey[key] = r;
-          }
-        }
-      }
-
+      if (!mounted) return;
       setState(() {
-        _managedDayungIds = ids;
-        _rows = byKey.values.toList()
-          ..sort((a, b) {
-            // Sort: approved first, then by approved_at desc
-            final sa = (a['status'] ?? '').toString();
-            final sb = (b['status'] ?? '').toString();
-            if (sa != sb) {
-              return sa == 'approved' ? -1 : 1;
-            }
-            final ta = DateTime.tryParse(a['approved_at']?.toString() ?? '');
-            final tb = DateTime.tryParse(b['approved_at']?.toString() ?? '');
-            if (ta == null && tb == null) return 0;
-            if (ta == null) return 1;
-            if (tb == null) return -1;
-            return tb.compareTo(ta);
-          });
+        _rows = list;
+        if (_rows.isEmpty) {
+          _infoMsg = 'No members found for this Dayung.';
+        }
         _loading = false;
       });
     } on PostgrestException catch (e) {
+      if (!mounted) return;
       setState(() {
+        _rows = [];
+        _infoMsg = 'Failed to load members: ${e.message}';
         _loading = false;
-        _infoMsg = e.message.isEmpty ? 'Load failed (policies?)' : e.message;
       });
-    } catch (_) {
+    } catch (e) {
+      if (!mounted) return;
       setState(() {
+        _rows = [];
+        _infoMsg = 'Unexpected error: $e';
         _loading = false;
-        _infoMsg = 'Unexpected error loading members';
       });
     }
   }
 
+  Future<void> _refresh() => _load();
+
+  // Derived lists
   List<Map<String, dynamic>> get _approved => _rows.where((r) {
     final status = (r['status'] ?? '').toString();
     final u = r['user'] as Map<String, dynamic>?;
-    final deceased = (u?['is_deceased'] == true);
-    return status == 'approved' && !deceased;
+    return status == 'approved' && (u?['is_deceased'] != true);
   }).toList();
 
   List<Map<String, dynamic>> get _pending => _rows.where((r) {
     final status = (r['status'] ?? '').toString();
     final u = r['user'] as Map<String, dynamic>?;
-    final deceased = (u?['is_deceased'] == true);
-    return status == 'pending' && !deceased;
+    return status == 'pending' && (u?['is_deceased'] != true);
   }).toList();
 
   List<Map<String, dynamic>> get _deceased => _rows.where((r) {
     final u = r['user'] as Map<String, dynamic>?;
-    return (u?['is_deceased'] == true);
+    return u?['is_deceased'] == true;
   }).toList();
 
   @override
@@ -194,102 +130,91 @@ class _SecretaryMembersPageState extends State<SecretaryMembersPage>
     super.dispose();
   }
 
-  Future<void> _refresh() => _load();
-
   @override
   Widget build(BuildContext context) {
+    final activeCount = _approved.length;
+    final pendingCount = _pending.length;
+    final deceasedCount = _deceased.length;
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Members'),
         bottom: TabBar(
           controller: _tabController,
-          isScrollable: true, // better on small screens
+          isScrollable: true,
           tabs: [
-            Tab(text: 'Active (${_approved.length})'),
-            Tab(text: 'Pending (${_pending.length})'),
-            Tab(text: 'Deceased (${_deceased.length})'),
+            Tab(text: 'Active ($activeCount)'),
+            Tab(text: 'Pending ($pendingCount)'),
+            Tab(text: 'Deceased ($deceasedCount)'),
           ],
         ),
       ),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
           : (_infoMsg != null)
-          ? Center(child: Text(_infoMsg!))
+          ? RefreshIndicator(
+              onRefresh: _refresh,
+              child: ListView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                children: [
+                  const SizedBox(height: 120),
+                  Center(child: Text(_infoMsg!)),
+                ],
+              ),
+            )
           : LayoutBuilder(
               builder: (context, constraints) {
                 final width = constraints.maxWidth;
-                final padH = width >= _kTablet ? 24.0 : 12.0;
-
+                final padH = width >= 700 ? 24.0 : 12.0;
                 return Column(
                   children: [
-                    // Centered search on wide screens
                     Padding(
                       padding: EdgeInsets.fromLTRB(padH, 12, padH, 0),
-                      child: Center(
-                        child: ConstrainedBox(
-                          constraints: const BoxConstraints(
-                            maxWidth: _kMaxContentWidth,
+                      child: TextField(
+                        controller: _searchController,
+                        decoration: InputDecoration(
+                          hintText: 'Search member...',
+                          prefixIcon: const Icon(
+                            Icons.search,
+                            color: kPrimaryDark,
                           ),
-                          child: TextField(
-                            controller: _searchController,
-                            decoration: InputDecoration(
-                              hintText: 'Search member...',
-                              prefixIcon: const Icon(
-                                Icons.search,
-                                color: kPrimaryDark,
-                              ),
-                              filled: true,
-                              fillColor: Colors.white,
-                              contentPadding: const EdgeInsets.symmetric(
-                                vertical: 14,
-                              ),
-                              border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(16),
-                                borderSide: BorderSide(
-                                  color: kPrimary.withOpacity(.2),
-                                ),
-                              ),
+                          filled: true,
+                          fillColor: Colors.white,
+                          contentPadding: const EdgeInsets.symmetric(
+                            vertical: 14,
+                          ),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(16),
+                            borderSide: BorderSide(
+                              color: kPrimary.withOpacity(.2),
                             ),
-                            style: const TextStyle(
-                              fontSize: 18,
-                              color: kNeutralText,
-                            ),
-                            onChanged: (q) {
-                              setState(
-                                () => _searchQuery = q.trim().toLowerCase(),
-                              );
-                            },
                           ),
                         ),
+                        onChanged: (q) => setState(() {
+                          _searchQuery = q.trim().toLowerCase();
+                        }),
                       ),
                     ),
                     Expanded(
-                      child: Center(
-                        child: ConstrainedBox(
-                          constraints: const BoxConstraints(
-                            maxWidth: _kMaxContentWidth,
+                      child: TabBarView(
+                        controller: _tabController,
+                        children: [
+                          _memberList(
+                            _approved,
+                            mode: 'active',
+                            constraints: constraints,
                           ),
-                          child: TabBarView(
-                            controller: _tabController,
-                            children: [
-                              _memberList(
-                                _approved,
-                                mode: 'active',
-                                constraints: constraints,
-                              ),
-                              _memberList(
-                                _pending,
-                                mode: 'pending',
-                                constraints: constraints,
-                              ),
-                              _memberList(
-                                _deceased,
-                                mode: 'deceased',
-                                constraints: constraints,
-                              ),
-                            ],
+                          _memberList(
+                            _pending,
+                            mode: 'pending',
+                            constraints: constraints,
                           ),
-                        ),
+                          _memberList(
+                            _deceased,
+                            mode: 'deceased',
+                            constraints: constraints,
+                          ),
+                        ],
                       ),
                     ),
                   ],
@@ -301,10 +226,9 @@ class _SecretaryMembersPageState extends State<SecretaryMembersPage>
 
   Widget _memberList(
     List<Map<String, dynamic>> list, {
-    String mode = 'active',
+    required String mode,
     required BoxConstraints constraints,
   }) {
-    // search filter
     List<Map<String, dynamic>> filtered = list;
     if (_searchQuery.isNotEmpty) {
       filtered = list.where((r) {
@@ -330,11 +254,10 @@ class _SecretaryMembersPageState extends State<SecretaryMembersPage>
     }
 
     final width = constraints.maxWidth;
-    final useGrid = width >= _kTablet;
-    final crossAxisCount = width >= _kDesktop ? 3 : 2;
+    final useGrid = width >= 700;
+    final crossAxisCount = width >= 1100 ? 3 : 2;
 
     if (!useGrid) {
-      // Phone: ListView
       return RefreshIndicator(
         onRefresh: _refresh,
         child: ListView.builder(
@@ -345,17 +268,16 @@ class _SecretaryMembersPageState extends State<SecretaryMembersPage>
       );
     }
 
-    // Tablet/Desktop: GridView
     return RefreshIndicator(
       onRefresh: _refresh,
       child: GridView.builder(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
         physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.all(12),
         gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
           crossAxisCount: crossAxisCount,
           mainAxisSpacing: 12,
           crossAxisSpacing: 12,
-          childAspectRatio: 2.9, // wide card look
+          childAspectRatio: 2.9,
         ),
         itemCount: filtered.length,
         itemBuilder: (_, i) => _memberTileCard(filtered[i], mode: mode),
@@ -366,19 +288,14 @@ class _SecretaryMembersPageState extends State<SecretaryMembersPage>
   Widget _memberTileCard(Map<String, dynamic> r, {required String mode}) {
     final u = r['user'] as Map<String, dynamic>?;
     final profileUrl = (u?['profile_url'] as String?)?.trim();
-    final dayungId = r['dayung_unit_id'] as int?;
-    final dayungName = dayungId != null
-        ? (_dayungNames[dayungId] ?? 'Dayung')
-        : 'Dayung';
+    final status = (r['status'] ?? '').toString();
 
-    // Chip
     String chipText;
     Color chipColor;
     if (mode == 'deceased') {
       chipText = 'deceased';
       chipColor = Colors.red;
     } else {
-      final status = (r['status'] ?? '').toString();
       chipText = status;
       chipColor = status == 'approved'
           ? Colors.green
@@ -387,9 +304,7 @@ class _SecretaryMembersPageState extends State<SecretaryMembersPage>
           : Colors.grey;
     }
 
-    final title = (u?['full_name'] as String?)?.trim().isNotEmpty == true
-        ? (u?['full_name'] as String).trim()
-        : 'Member';
+    final title = (u?['full_name'] ?? 'Member').toString();
 
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
@@ -425,14 +340,8 @@ class _SecretaryMembersPageState extends State<SecretaryMembersPage>
           ),
         ),
         subtitle: Text(
-          dayungName,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: const TextStyle(
-            fontSize: 15,
-            color: kSubtleText,
-            fontFamily: 'OpenSans',
-          ),
+          status == 'approved' ? 'Active Member' : status.capitalize(),
+          style: const TextStyle(fontSize: 14, color: kSubtleText),
         ),
         trailing: Container(
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
@@ -452,10 +361,10 @@ class _SecretaryMembersPageState extends State<SecretaryMembersPage>
         ),
         onTap: mode == 'active'
             ? () {
-                final uuid = (u?['id'] as String?)?.trim().isNotEmpty == true
-                    ? (u?['id'] as String).trim()
-                    : (r['user_id']?.toString().trim());
-                _showBeneficiariesModal(context, uuid, u?['full_name']);
+                final uuid = (u?['id'] as String?)?.trim();
+                if (uuid != null && uuid.isNotEmpty) {
+                  _showBeneficiariesModal(context, uuid, u?['full_name']);
+                }
               }
             : null,
       ),
@@ -995,4 +904,9 @@ Future<List<Map<String, dynamic>>> _fetchLastContributionsForUser(
       'date_of_death': n?['date_of_death'],
     };
   }).toList();
+}
+
+extension on String {
+  String capitalize() =>
+      isEmpty ? this : '${this[0].toUpperCase()}${substring(1)}';
 }

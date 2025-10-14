@@ -3,6 +3,8 @@ import 'package:capstone_app/Collector/dashboard.dart';
 import 'package:capstone_app/Members/dashboard.dart';
 import 'package:capstone_app/President/dashboard.dart';
 import 'package:capstone_app/Providers/dayung_provider.dart';
+import 'package:capstone_app/Providers/dayung_role_provider.dart';
+import 'package:capstone_app/Providers/route_observer.dart';
 import 'package:capstone_app/Providers/user_provider.dart';
 import 'package:capstone_app/Secretary/dashboard.dart';
 import 'package:capstone_app/Treasurer/dashboard.dart';
@@ -36,18 +38,30 @@ class MyApp extends StatelessWidget {
         ChangeNotifierProvider(
           create: (_) => DayungUnitProvider()..loadDayungUnit(),
         ),
+        ChangeNotifierProxyProvider<DayungUnitProvider, DayungRoleProvider>(
+          create: (_) => DayungRoleProvider(),
+          update: (context, unitProv, roleProv) {
+            roleProv ??= DayungRoleProvider();
+            final newId = unitProv.currentUnitId; // uses getter added above
+            if (newId != roleProv.unitId) {       // avoid redundant refreshes
+              roleProv.refreshRoles(newId);
+            }
+            return roleProv;
+          },
+        ),
       ],
       child: MaterialApp(
         debugShowCheckedModeBanner: false,
         scrollBehavior: NoGlowScrollBehavior(),
         title: 'Dayung',
+        navigatorObservers: [appRouteObserver],
         initialRoute: '/',
         routes: {
           '/': (context) => SplashScreen(),
           '/login': (context) => Login(),
           '/register': (context) => Register(),
           '/reapply': (context) => Reapply(),
-          '/dashboard': (context) => const MemberDashboardPage(),
+          '/dashboard': (context) => MemberDashboardPage(),
           '/president-dashboard': (context) => PresidentDashboardPage(),
           '/secretary-dashboard': (context) => SecretaryDashboardPage(),
           '/treasurer-dashboard': (context) => TreasurerDashboardPage(),

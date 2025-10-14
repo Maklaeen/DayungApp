@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:capstone_app/Providers/dayung_role_provider.dart';
 import 'package:capstone_app/Secretary/beneficiaries_tab.dart'
     show SecretaryBeneficiariesTab;
 import 'package:capstone_app/Secretary/certificates.dart';
@@ -13,6 +14,7 @@ import 'package:capstone_app/pages/notification.dart';
 import 'package:capstone_app/pages/recentdeathnotices.dart';
 import 'package:capstone_app/profile/profile.dart';
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
@@ -46,7 +48,7 @@ class _SecretaryDashboardPageState extends State<SecretaryDashboardPage> {
   int _activeMembersCount = 0;
   bool _loadingActiveMembers = true;
   int? _dayungUnitId;
-
+  int? _lastRoleUnitId;
   List<Map<String, dynamic>> _recentCertificates = [];
 
   double _pendingPaymentsAmount = 0;
@@ -66,7 +68,10 @@ class _SecretaryDashboardPageState extends State<SecretaryDashboardPage> {
         setState(() => _showNavBar = true);
       }
     });
-
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final provUnit = context.read<DayungRoleProvider>().unitId;
+      _maybeOnProviderUnitChanged(provUnit);
+    });
     // Load secretary info + recent deaths/pending on start
     _initLoad();
   }
@@ -84,6 +89,14 @@ class _SecretaryDashboardPageState extends State<SecretaryDashboardPage> {
       _fetchRecentCertificates(),
       _fetchPendingPayments(),
     ]);
+  }
+
+  void _maybeOnProviderUnitChanged(int? newUnitId) async {
+    if (newUnitId == null || newUnitId == _lastRoleUnitId) return;
+    _lastRoleUnitId = newUnitId;
+    setState(() => _dayungUnitId = newUnitId);
+    await _loadSecretaryInfo(); // updates label from prefs if changed
+    await _refreshAll(); // reload counts/panels
   }
 
   Future<void> _loadSecretaryInfo() async {
@@ -125,55 +138,35 @@ class _SecretaryDashboardPageState extends State<SecretaryDashboardPage> {
   Future<void> _fetchActiveMembersCount() async {
     setState(() => _loadingActiveMembers = true);
     try {
-      final uid = supabase.auth.currentUser?.id;
-      if (uid == null) {
+      final unitId = _dayungUnitId;
+      if (unitId == null) {
         _activeMembersCount = 0;
       } else {
-        // Dayungs managed by this secretary
-        final dayungs = await supabase
-            .from('dayung_units')
-            .select('id')
-            .eq('secretary_id', uid);
+        // Approved members for the selected unit only
+        final apps = await supabase
+            .from('applications')
+            .select('user_id')
+            .eq('dayung_unit_id', unitId)
+            .eq('status', 'approved');
 
-        final ids = (dayungs as List)
-            .map((e) => (e as Map)['id'])
-            .whereType<int>()
-            .toList();
+        final ids = (apps as List)
+            .map((e) => (e as Map)['user_id'])
+            .whereType<String>()
+            .toSet();
 
         if (ids.isEmpty) {
           _activeMembersCount = 0;
         } else {
-          // Distinct members with an approved application to those dayungs
-          final apps = await supabase
-              .from('applications')
-              .select('user_id, dayung_unit_id')
-              .inFilter('dayung_unit_id', ids)
-              .eq('status', 'approved');
-
-          final distinctUserIds = <String>{};
-          for (final row in (apps as List)) {
-            final m = row as Map<String, dynamic>;
-            final uidStr = (m['user_id'] ?? '').toString();
-            if (uidStr.isNotEmpty) distinctUserIds.add(uidStr);
-          }
-
-          if (distinctUserIds.isEmpty) {
-            _activeMembersCount = 0;
-          } else {
-            // Optional: exclude deceased
-            final usersRows = await supabase
-                .from('users')
-                .select('id, is_deceased')
-                .inFilter('id', distinctUserIds.toList());
-
-            final aliveIds = (usersRows as List)
-                .map((e) => Map<String, dynamic>.from(e as Map))
-                .where((u) => (u['is_deceased'] ?? false) == false)
-                .map((u) => u['id'].toString())
-                .toSet();
-
-            _activeMembersCount = aliveIds.length;
-          }
+          // Optional: exclude deceased
+          final usersRows = await supabase
+              .from('users')
+              .select('id, is_deceased')
+              .inFilter('id', ids.toList());
+          final alive = (usersRows as List)
+              .map((e) => (e as Map)['id']?.toString())
+              .whereType<String>()
+              .toSet();
+          _activeMembersCount = alive.length;
         }
       }
     } catch (_) {
@@ -191,25 +184,28 @@ class _SecretaryDashboardPageState extends State<SecretaryDashboardPage> {
         return;
       }
 
-      // Fetch death notices for this dayung, including those where dayung_unit_id is null but user's dayung matches
-      final noticesDirect = await supabase
+      // Direct notices for this unit
+      final direct = await supabase
           .from('death_notices')
-          .select('id, name, date_of_death, dayung_unit_id, user_id')
+          .select('id, name, date_of_death, dayung_unit_id')
           .eq('dayung_unit_id', unitId)
           .order('date_of_death', ascending: false)
           .limit(5);
+      final directList = List<Map<String, dynamic>>.from(direct);
 
-      // Also fetch notices where dayung_unit_id is null but user's dayung matches
-      final usersRes = await supabase
-          .from('users')
-          .select('id')
-          .eq('dayung_unit_id', unitId);
-      final userIds = (usersRes as List)
-          .map((e) => (e as Map)['id'].toString())
+      // Members of this unit via approved applications
+      final apps = await supabase
+          .from('applications')
+          .select('user_id')
+          .eq('dayung_unit_id', unitId)
+          .eq('status', 'approved');
+      final userIds = List<Map<String, dynamic>>.from(apps)
+          .map((e) => (e['user_id'] ?? '').toString())
           .where((s) => s.isNotEmpty)
           .toList();
 
-      List<Map<String, dynamic>> noticesViaUser = [];
+      // Notices linked to those users where dayung_unit_id is null
+      List<Map<String, dynamic>> viaUserList = [];
       if (userIds.isNotEmpty) {
         final viaUser = await supabase
             .from('death_notices')
@@ -218,25 +214,22 @@ class _SecretaryDashboardPageState extends State<SecretaryDashboardPage> {
             .inFilter('user_id', userIds)
             .order('date_of_death', ascending: false)
             .limit(5);
-        noticesViaUser = (viaUser as List)
-            .map((e) => Map<String, dynamic>.from(e as Map))
-            .toList();
+        viaUserList = List<Map<String, dynamic>>.from(viaUser);
       }
 
-      // Merge and deduplicate by id
-      final allNotices = <int, Map<String, dynamic>>{};
-      for (final n in [...noticesDirect, ...noticesViaUser]) {
-        final id = n['id'] as int?;
-        if (id != null) allNotices[id] = n;
+      // Merge unique by id and sort desc
+      final all = <int, Map<String, dynamic>>{};
+      for (final n in [...directList, ...viaUserList]) {
+        final id = int.tryParse('${n['id']}');
+        if (id != null) all[id] = n;
       }
-      final list = allNotices.values.toList();
-      list.sort(
-        (a, b) => DateTime.parse(
-          b['date_of_death'].toString(),
-        ).compareTo(DateTime.parse(a['date_of_death'].toString())),
-      );
+      final list = all.values.toList()
+        ..sort(
+          (a, b) => DateTime.parse(
+            '${b['date_of_death']}',
+          ).compareTo(DateTime.parse('${a['date_of_death']}')),
+        );
 
-      // Normalize keys for UI
       final normalized = list
           .map(
             (e) => {
@@ -256,55 +249,27 @@ class _SecretaryDashboardPageState extends State<SecretaryDashboardPage> {
   Future<void> _fetchPendingPayments() async {
     setState(() => _loadingPendingPayments = true);
     try {
-      // Try RPC first
-      final uid = supabase.auth.currentUser?.id;
-      if (uid != null) {
-        bool done = false;
-        try {
-          final rpc = await supabase.rpc(
-            'secretary_pending_payments',
-            params: {'p_secretary_id': uid},
-          );
-          if (rpc is Map && rpc['total_amount'] != null) {
-            _pendingPaymentsAmount =
-                double.tryParse(rpc['total_amount'].toString()) ?? 0;
-            _pendingPaymentsMembers =
-                int.tryParse(rpc['member_count'].toString()) ?? 0;
-            done = true;
-          }
-        } catch (_) {}
-        if (!done) {
-          // Fallback: naive table approach
-          final rows = await supabase
-              .from('payments')
-              .select('amount, user_id, status, dayung_unit_id');
-          // Filter manually for dayungs managed by secretary (reduce risk of missing col)
-          final managed = await supabase
-              .from('dayung_units')
-              .select('id')
-              .eq('secretary_id', uid);
-          final managedIds = (managed as List)
-              .map((e) => (e as Map)['id'])
-              .whereType<int>()
-              .toSet();
-          double total = 0;
-          final memberSet = <String>{};
-          for (final r in rows as List) {
-            final m = r as Map;
-            if ((m['status'] ?? '').toString().toLowerCase() == 'pending') {
-              final dId = m['dayung_unit_id'];
-              if (dId is int && managedIds.contains(dId)) {
-                total += (m['amount'] is num)
-                    ? (m['amount'] as num).toDouble()
-                    : 0;
-                if (m['user_id'] != null)
-                  memberSet.add(m['user_id'].toString());
-              }
-            }
-          }
-          _pendingPaymentsAmount = total;
-          _pendingPaymentsMembers = memberSet.length;
+      final unitId = _dayungUnitId;
+      if (unitId == null) {
+        _pendingPaymentsAmount = 0;
+        _pendingPaymentsMembers = 0;
+      } else {
+        // Unit-scoped pending totals
+        final rows = await supabase
+            .from('payments')
+            .select('amount, user_id, status')
+            .eq('dayung_unit_id', unitId)
+            .eq('status', 'pending');
+
+        double total = 0;
+        final memberSet = <String>{};
+        for (final r in rows as List) {
+          final m = r as Map;
+          total += (m['amount'] is num) ? (m['amount'] as num).toDouble() : 0;
+          if (m['user_id'] != null) memberSet.add(m['user_id'].toString());
         }
+        _pendingPaymentsAmount = total;
+        _pendingPaymentsMembers = memberSet.length;
       }
     } catch (_) {
       _pendingPaymentsAmount = 0;
@@ -333,6 +298,13 @@ class _SecretaryDashboardPageState extends State<SecretaryDashboardPage> {
   Widget build(BuildContext context) {
     final width = MediaQuery.of(context).size.width;
     final bool wide = width > 820;
+    final provUnit = context.watch<DayungRoleProvider>().unitId;
+    if (provUnit != _lastRoleUnitId) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _maybeOnProviderUnitChanged(provUnit);
+      });
+    }
+
     return Scaffold(
       backgroundColor: kBg,
       body: RefreshIndicator(
@@ -559,13 +531,15 @@ class _SecretaryDashboardPageState extends State<SecretaryDashboardPage> {
                       label: "Service\nTracking",
                       color: kAccent,
                       onTap: () {
-  Navigator.push(
-    context,
-    MaterialPageRoute(
-      builder: (_) => ServiceTrackerPage(dayungUnitId: _dayungUnitId ?? 1),
-    ),
-  );
-},
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => ServiceTrackerPage(
+                              dayungUnitId: _dayungUnitId ?? 1,
+                            ),
+                          ),
+                        );
+                      },
                     ),
                   ),
                 ],
@@ -635,7 +609,9 @@ class _SecretaryDashboardPageState extends State<SecretaryDashboardPage> {
         value: _loadingActiveMembers ? "…" : _activeMembersCount.toString(),
         onTap: () => Navigator.push(
           context,
-          MaterialPageRoute(builder: (_) => const SecretaryMembersPage()),
+          MaterialPageRoute(
+            builder: (_) => SecretaryMembersPage(dayungUnitId: _dayungUnitId ?? 1), // CHANGED
+          ),
         ),
       ),
       _recentDeathsCard(recentNames),

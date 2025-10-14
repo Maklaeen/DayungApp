@@ -724,19 +724,12 @@ class _ManageFundPageState extends State<ManageFundPage> {
     }
 
     // Get active members for the dayung
-    final usersRes = await sb
-        .from('users')
-        .select('id')
+    final appsRes = await sb
+        .from('applications')
+        .select('user_id')
         .eq('dayung_unit_id', dayungUnitId)
-        .eq('is_deceased', false);
-    final members = List<Map<String, dynamic>>.from(usersRes);
-
-    if (members.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('No active members to charge.')),
-      );
-      return;
-    }
+        .eq('status', 'approved');
+    final members = List<Map<String, dynamic>>.from(appsRes);
 
     // Already generated payments for this notice/dayung
     final existingRes = await sb
@@ -749,16 +742,16 @@ class _ManageFundPageState extends State<ManageFundPage> {
         (r['user_id'] ?? '').toString(),
     };
 
-    // Prepare new rows (skip duplicates and excluded user)
+    // Prepare new rows
     final rows = <Map<String, dynamic>>[];
     for (final u in members) {
-      final uid = (u['id'] ?? '').toString();
+      final uid = (u['user_id'] ?? '').toString(); // CHANGED from u['id']
       if (uid.isEmpty) continue;
       if (excludedUserId != null && uid == excludedUserId) continue;
       if (existingIds.contains(uid)) continue;
       rows.add({
         'user_id': uid,
-        'amount': 1, // adjust as needed
+        'amount': 1,
         'status': 'pending',
         'death_notice_id': deathNoticeId,
         'dayung_unit_id': dayungUnitId,
@@ -825,7 +818,9 @@ class _ManageFundPageState extends State<ManageFundPage> {
       final missingCollectorIds = <String>{
         for (final r in items)
           if ((r['collected_by'] ?? '').toString().isNotEmpty &&
-              ((((r['collector'] as Map?)?['full_name']) ?? '').toString().isEmpty))
+              ((((r['collector'] as Map?)?['full_name']) ?? '')
+                  .toString()
+                  .isEmpty))
             (r['collected_by']).toString(),
       }.toList();
 
@@ -845,8 +840,12 @@ class _ManageFundPageState extends State<ManageFundPage> {
 
       // Sort by payer name
       items.sort((a, b) {
-        final an = (((a['user'] as Map?)?['full_name']) ?? '').toString().toLowerCase();
-        final bn = (((b['user'] as Map?)?['full_name']) ?? '').toString().toLowerCase();
+        final an = (((a['user'] as Map?)?['full_name']) ?? '')
+            .toString()
+            .toLowerCase();
+        final bn = (((b['user'] as Map?)?['full_name']) ?? '')
+            .toString()
+            .toLowerCase();
         if (an.isEmpty && bn.isEmpty) return 0;
         if (an.isEmpty) return 1;
         if (bn.isEmpty) return -1;
@@ -893,28 +892,36 @@ class _ManageFundPageState extends State<ManageFundPage> {
                             Divider(height: 1, color: Colors.grey.shade300),
                         itemBuilder: (_, i) {
                           final r = items[i];
-                          final s = (r['status'] ?? '').toString().toLowerCase();
+                          final s = (r['status'] ?? '')
+                              .toString()
+                              .toLowerCase();
                           final amt = (r['amount'] is num)
                               ? (r['amount'] as num).toDouble()
                               : double.tryParse('${r['amount']}') ?? 0.0;
 
                           final payerName =
-                              (((r['user'] as Map?)?['full_name']) ?? '').toString();
-                          final title = payerName.isNotEmpty ? payerName : 'Payment #${r['id']}';
+                              (((r['user'] as Map?)?['full_name']) ?? '')
+                                  .toString();
+                          final title = payerName.isNotEmpty
+                              ? payerName
+                              : 'Payment #${r['id']}';
 
                           final paidAtStr = _fmtDateTime(r['paid_at']);
                           String collectorName =
-                              (((r['collector'] as Map?)?['full_name']) ?? '').toString();
+                              (((r['collector'] as Map?)?['full_name']) ?? '')
+                                  .toString();
                           if (collectorName.isEmpty &&
                               (r['collected_by'] ?? '').toString().isNotEmpty) {
                             collectorName =
-                                collectorLookup[(r['collected_by']).toString()] ?? '';
+                                collectorLookup[(r['collected_by'])
+                                    .toString()] ??
+                                '';
                           }
 
                           final subtitleText = s == 'paid'
                               ? 'Collected'
-                                  '${paidAtStr.isNotEmpty ? ' on: $paidAtStr' : ''}'
-                                  '${collectorName.isNotEmpty ? '\nCollected by: $collectorName' : ''}'
+                                    '${paidAtStr.isNotEmpty ? ' on: $paidAtStr' : ''}'
+                                    '${collectorName.isNotEmpty ? '\nCollected by: $collectorName' : ''}'
                               : 'Pending';
 
                           return ListTile(
@@ -923,8 +930,12 @@ class _ManageFundPageState extends State<ManageFundPage> {
                                   ? Colors.green.withOpacity(.15)
                                   : Colors.orange.withOpacity(.15),
                               child: Icon(
-                                s == 'paid' ? Icons.check : Icons.hourglass_empty,
-                                color: s == 'paid' ? Colors.green[800] : Colors.orange[800],
+                                s == 'paid'
+                                    ? Icons.check
+                                    : Icons.hourglass_empty,
+                                color: s == 'paid'
+                                    ? Colors.green[800]
+                                    : Colors.orange[800],
                               ),
                             ),
                             title: Text(
@@ -959,8 +970,9 @@ class _ManageFundPageState extends State<ManageFundPage> {
       );
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text('Failed to load payments: $e')));
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Failed to load payments: $e')));
     }
   }
 

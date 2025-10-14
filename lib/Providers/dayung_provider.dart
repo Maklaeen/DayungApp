@@ -26,11 +26,18 @@ class DayungUnitProvider extends ChangeNotifier {
 
   List<Map<String, dynamic>> get nearbyDayungs => _nearbyDayungs;
   double get lastRadius => _lastRadius;
+  int? get currentUnitId {
+    final v = _dayungUnitObj?['id'];
+    if (v is int) return v;
+    return int.tryParse('$v');
+  }
 
   // ---------------- Existing persistence ----------------
   Future<void> loadDayungUnit() async {
     final prefs = await SharedPreferences.getInstance();
-    final unitJson = prefs.getString('selectedDayungUnit');
+    // CHANGED: prefer the full object, fallback to minimal
+    final unitJson = prefs.getString('selectedDayungUnitData') ??
+        prefs.getString('selectedDayungUnit');
     if (unitJson == null) {
       _dayungUnit = null;
       _dayungUnitObj = null;
@@ -45,6 +52,7 @@ class DayungUnitProvider extends ChangeNotifier {
       _dayungUnit = null;
       _dayungUnitObj = null;
       await prefs.remove('selectedDayungUnit');
+      await prefs.remove('selectedDayungUnitData'); // NEW
     }
     notifyListeners();
   }
@@ -57,6 +65,16 @@ class DayungUnitProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  Future<void> persistSelection(Map<String, dynamic> unit) async {
+    _dayungUnitObj = Map<String, dynamic>.from(unit);
+    _dayungUnit = unit['name']?.toString();
+    final prefs = await SharedPreferences.getInstance();
+    // Save both keys so all pages stay in sync
+    await prefs.setString('selectedDayungUnit', jsonEncode(_dayungUnitObj));
+    await prefs.setString('selectedDayungUnitData', jsonEncode(_dayungUnitObj));
+    notifyListeners();
+  }
+
   Future<void> setDayungUnitAndSave(
     String? name,
     Map<String, dynamic>? obj,
@@ -66,8 +84,11 @@ class DayungUnitProvider extends ChangeNotifier {
     final prefs = await SharedPreferences.getInstance();
     if (_dayungUnitObj == null) {
       await prefs.remove('selectedDayungUnit');
+      await prefs.remove('selectedDayungUnitData'); // NEW
     } else {
-      await prefs.setString('selectedDayungUnit', jsonEncode(_dayungUnitObj));
+      final json = jsonEncode(_dayungUnitObj);
+      await prefs.setString('selectedDayungUnit', json);
+      await prefs.setString('selectedDayungUnitData', json); // NEW
     }
     notifyListeners();
   }
@@ -83,6 +104,7 @@ class DayungUnitProvider extends ChangeNotifier {
     _dayungUnitObj = null;
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove('selectedDayungUnit');
+    await prefs.remove('selectedDayungUnitData'); // NEW
     notifyListeners();
   }
 
@@ -106,7 +128,7 @@ class DayungUnitProvider extends ChangeNotifier {
     _locationError = null;
     return true;
   }
-
+  
   Future<void> updateUserLocation({bool force = false}) async {
     if (_gettingLocation) return;
     if (!force && _lastPosition != null) return;

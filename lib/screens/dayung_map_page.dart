@@ -75,6 +75,8 @@ class _DayungMapPageState extends State<DayungMapPage> {
   BitmapDescriptor? _arrowIcon;
   double? _compassHeading;
   StreamSubscription<CompassEvent>? compassStream;
+  bool _applied = false;
+  bool _submitting = false;
 
   double? get dayungLat {
     final v = widget.dayung['latitude'];
@@ -93,23 +95,26 @@ class _DayungMapPageState extends State<DayungMapPage> {
   @override
   void initState() {
     super.initState();
+    _applied = widget.isApplied;
     _loadArrowIcon();
     _initLocation();
     _fetchRules();
 
-    FlutterCompass.events?.listen((event) {
+    compassStream = FlutterCompass.events?.listen((event) {
+      if (!mounted) return;
       setState(() {
-        _compassHeading = event.heading; // degrees, 0 = north
+        _compassHeading = event.heading;
       });
     });
 
     positionStream =
         Geolocator.getPositionStream(
-          locationSettings: LocationSettings(
-            accuracy: LocationAccuracy.high, // Set desired accuracy
-            distanceFilter: 10, // Update location every 10 meters
+          locationSettings: const LocationSettings(
+            accuracy: LocationAccuracy.high,
+            distanceFilter: 10,
           ),
         ).listen((Position position) {
+          if (!mounted) return;
           setState(() {
             _pos = position;
           });
@@ -744,12 +749,10 @@ class _DayungMapPageState extends State<DayungMapPage> {
 
   Widget _actionSection(double? dist) {
     Widget status() {
-      if (widget.isMember) {
+      if (widget.isMember)
         return _infoRow(Icons.verified, 'This is your Dayung', kAccent);
-      }
-      if (widget.isApplied) {
-        return _infoRow(Icons.check_circle, 'You already applied', kWarn);
-      }
+      if (_applied)
+        return _infoRow(Icons.check_circle, 'Application submitted', kWarn);
       return const SizedBox.shrink();
     }
 
@@ -757,18 +760,109 @@ class _DayungMapPageState extends State<DayungMapPage> {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         status(),
-        if (!widget.isMember && !widget.isApplied) ...[
+        if (!widget.isMember && !_applied) ...[
           const SizedBox(height: 10),
           _primaryButton(
-            label: 'Apply to this Dayung',
-            icon: Icons.how_to_reg,
-            onTap: () => Navigator.pop(context, widget.dayung),
+            label: _submitting ? 'Submitting...' : 'Apply to this Dayung',
+            icon: _submitting ? Icons.hourglass_top : Icons.how_to_reg,
+            onTap: _submitting ? () {} : _applyToDayung, // NEW
           ),
         ],
         const SizedBox(height: 10),
         if (dist != null) Align(alignment: Alignment.center),
       ],
     );
+  }
+
+  Future<void> _applyToDayung() async {
+    final sb = Supabase.instance.client;
+    final uid = sb.auth.currentUser?.id;
+    final rawId = widget.dayung['id'];
+    final dayungId = rawId is int ? rawId : int.tryParse('$rawId');
+
+    if (uid == null || dayungId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Cannot apply: missing user or unit.')),
+      );
+      return;
+    }
+
+    setState(() => _submitting = true);
+    try {
+      // Optional pre-check (may be blocked by RLS)
+      Map<String, dynamic>? existing;
+      try {
+        existing = await sb
+            .from('applications')
+            .select('id, status')
+            .eq('user_id', uid)
+            .eq('dayung_unit_id', dayungId)
+            .maybeSingle();
+      } catch (_) {
+        existing = null;
+      }
+      if (existing != null) {
+        setState(() => _applied = true);
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Already ${existing['status'] ?? 'pending'}')),
+        );
+        Navigator.pop(context, {'applied': true, 'dayung_id': dayungId});
+        return;
+      }
+
+      // Insert without SELECT to avoid RLS returning issues
+      await sb.from('applications').insert({
+        'user_id': uid,
+        'dayung_unit_id': dayungId,
+        'status': 'pending',
+      });
+
+      if (!mounted) return;
+      setState(() => _applied = true);
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Application submitted.')));
+      Navigator.pop(context, {'applied': true, 'dayung_id': dayungId});
+    } on PostgrestException catch (e) {
+      final code = e.code ?? '';
+      final msg = (e.message ?? '').toLowerCase();
+      if (code == '23505' ||
+          msg.contains('unique') ||
+          msg.contains('duplicate')) {
+        if (mounted) {
+          setState(() => _applied = true);
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('You already applied to this Dayung.'),
+            ),
+          );
+          Navigator.pop(context, {'applied': true, 'dayung_id': dayungId});
+        }
+      } else if (code == '23503' || msg.contains('foreign key')) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Profile not found. Complete registration first.'),
+            ),
+          );
+        }
+      } else {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Failed to apply: ${e.message}')),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Failed to apply: $e')));
+      }
+    } finally {
+      if (mounted) setState(() => _submitting = false);
+    }
   }
 
   // UI helpers

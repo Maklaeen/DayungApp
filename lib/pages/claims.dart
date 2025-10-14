@@ -143,7 +143,7 @@ class _ClaimsPageState extends State<ClaimsPage>
   Future<void> _refresh() async {
     // Force server sync on pull-to-refresh
     setState(() => _loading = true);
-    await _loadDayungFromServerAndCache();
+    await _loadDayungUnit();
     await _fetchClaims();
     await _loadProfileImage();
   }
@@ -175,24 +175,7 @@ class _ClaimsPageState extends State<ClaimsPage>
           _barangay = map['barangay'];
           _city = map['city'];
         });
-
-        // Verify prefs against server; if different, replace cache with server value
-        final sb = Supabase.instance.client;
-        final u = sb.auth.currentUser;
-        if (u != null) {
-          final me = await sb
-              .from('users')
-              .select('dayung_unit_id')
-              .eq('id', u.id)
-              .maybeSingle();
-          final int? serverId = me != null
-              ? (me['dayung_unit_id'] as int?)
-              : null;
-          if (serverId != null && serverId != _dayungId) {
-            await _loadDayungFromServerAndCache();
-          }
-        }
-        return;
+        return; // CHANGED: do not fall back to users.dayung_unit_id
       } catch (_) {
         setState(() {
           _dayungObj = null;
@@ -200,67 +183,6 @@ class _ClaimsPageState extends State<ClaimsPage>
         });
       }
     } else {
-      setState(() {
-        _dayungObj = null;
-        _dayungId = null;
-      });
-    }
-    await _loadDayungFromServerAndCache();
-  }
-
-  Future<void> _loadDayungFromServerAndCache() async {
-    final sb = Supabase.instance.client;
-    final u = sb.auth.currentUser;
-    if (u == null) {
-      setState(() {
-        _dayungObj = null;
-        _dayungId = null;
-      });
-      return;
-    }
-    try {
-      final me = await sb
-          .from('users')
-          .select('dayung_unit_id')
-          .eq('id', u.id)
-          .maybeSingle();
-
-      final int? id = me != null ? (me['dayung_unit_id'] as int?) : null;
-      if (id == null) {
-        setState(() {
-          _dayungObj = null;
-          _dayungId = null;
-          _dayungName = 'Dayung';
-          _barangay = null;
-          _city = null;
-        });
-        return;
-      }
-
-      final d = await sb
-          .from('dayung_units')
-          .select('id, name, barangay, city')
-          .eq('id', id)
-          .maybeSingle();
-
-      final map = {
-        'id': id,
-        'name': d?['name'] ?? 'Dayung',
-        'barangay': d?['barangay'],
-        'city': d?['city'],
-      };
-
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setString('selectedDayungUnit', jsonEncode(map));
-
-      setState(() {
-        _dayungObj = map;
-        _dayungId = id;
-        _dayungName = map['name'] as String;
-        _barangay = map['barangay'] as String?;
-        _city = map['city'] as String?;
-      });
-    } catch (_) {
       setState(() {
         _dayungObj = null;
         _dayungId = null;

@@ -31,6 +31,11 @@ class _ContributionHistoryState extends State<ContributionHistory> {
   List<Map<String, dynamic>> _paidContributions = [];
   bool _loadingPaid = true;
 
+  void _setStateSafe(VoidCallback fn) {
+    if (!mounted) return;
+    setState(fn);
+  }
+
   @override
   void initState() {
     super.initState();
@@ -43,8 +48,20 @@ class _ContributionHistoryState extends State<ContributionHistory> {
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    _notifChannel?.unsubscribe();
     _loadDayungUnit();
+  }
+
+  @override
+  void dispose() {
+    // Properly clean up the realtime channel to stop callbacks after dispose
+    try {
+      _notifChannel?.unsubscribe();
+      if (_notifChannel != null) {
+        Supabase.instance.client.removeChannel(_notifChannel!);
+      }
+    } catch (_) {}
+    _notifChannel = null;
+    super.dispose();
   }
 
   void _subscribeToNotifications() {
@@ -65,6 +82,7 @@ class _ContributionHistoryState extends State<ContributionHistory> {
         value: userId,
       ),
       callback: (payload) {
+        if (!mounted) return; // guard callback after dispose
         final newNotif = payload.newRecord as Map<String, dynamic>;
         _showNotificationModal(
           newNotif['title'] ?? 'Notification',
@@ -99,35 +117,38 @@ class _ContributionHistoryState extends State<ContributionHistory> {
     if (unitJson != null) {
       try {
         final unit = jsonDecode(unitJson);
-        setState(() {
+        _setStateSafe(() {
           selectedDayungUnit = unit['name'];
           _selectedDayungUnitObj = Map<String, dynamic>.from(unit as Map);
         });
+        if (mounted && (unit['name']?.toString().isNotEmpty ?? false)) {
+          context.read<DayungUnitProvider>().setDayungUnit(unit['name']);
+        }
       } catch (_) {
         await prefs.remove('selectedDayungUnit');
-        setState(() {
+        _setStateSafe(() {
           selectedDayungUnit = 'Dayung';
           _selectedDayungUnitObj = null;
         });
       }
     } else {
-      setState(() {
+      _setStateSafe(() {
         selectedDayungUnit = 'Dayung';
         _selectedDayungUnitObj = null;
       });
     }
-    // Refresh data when dayung selection changes
+    if (!mounted) return;
     await _fetchPaidContributions();
   }
 
   Future<void> _refresh() async {
-    setState(() => _loading = true);
+    _setStateSafe(() => _loading = true);
     await Future.wait([
       _loadDayungUnit(),
       _loadProfileImage(),
       _fetchPaidContributions(),
     ]);
-    if (mounted) setState(() => _loading = false);
+    _setStateSafe(() => _loading = false);
   }
 
   Future<void> _loadProfileImage() async {
@@ -139,19 +160,19 @@ class _ContributionHistoryState extends State<ContributionHistory> {
           .select('profile_url')
           .eq('id', currentUser.id)
           .maybeSingle();
-      setState(() {
+      _setStateSafe(() {
         _profileUrl = response?['profile_url'] as String?;
       });
     }
   }
 
   Future<void> _fetchPaidContributions() async {
-    setState(() => _loadingPaid = true);
+    _setStateSafe(() => _loadingPaid = true);
     final supabase = Supabase.instance.client;
     try {
       final uid = supabase.auth.currentUser?.id;
       if (uid == null) {
-        setState(() {
+        _setStateSafe(() {
           _paidContributions = [];
           _loadingPaid = false;
         });
@@ -176,14 +197,13 @@ class _ContributionHistoryState extends State<ContributionHistory> {
       );
 
       if (payments.isEmpty) {
-        setState(() {
+        _setStateSafe(() {
           _paidContributions = [];
           _loadingPaid = false;
         });
         return;
       }
 
-      // Fetch notice details
       final noticeIds = payments
           .map((p) => p['death_notice_id'])
           .where((id) => id != null)
@@ -202,12 +222,11 @@ class _ContributionHistoryState extends State<ContributionHistory> {
         noticeById = {for (final n in notices) (n['id'] as int): n};
       }
 
-      // Merge and normalize for UI
       final merged = payments.map((p) {
         final nid = p['death_notice_id'] as int?;
         final n = nid != null ? noticeById[nid] : null;
         return {
-          'date': (p['created_at'] ?? '').toString(), // fallback to created_at
+          'date': (p['created_at'] ?? '').toString(),
           'amount': (p['amount'] is num)
               ? (p['amount'] as num).toDouble()
               : double.tryParse('${p['amount']}') ?? 0.0,
@@ -216,12 +235,12 @@ class _ContributionHistoryState extends State<ContributionHistory> {
         };
       }).toList();
 
-      setState(() {
+      _setStateSafe(() {
         _paidContributions = merged;
         _loadingPaid = false;
       });
     } catch (_) {
-      setState(() {
+      _setStateSafe(() {
         _paidContributions = [];
         _loadingPaid = false;
       });
@@ -247,8 +266,6 @@ class _ContributionHistoryState extends State<ContributionHistory> {
   Widget build(BuildContext context) {
     final width = MediaQuery.of(context).size.width;
     final isWide = width > 700;
-
-    // Update header immediately when provider changes
     final providerName = context.watch<DayungUnitProvider>().dayungUnit;
     if (providerName != null && providerName != selectedDayungUnit) {
       WidgetsBinding.instance.addPostFrameCallback((_) async {
@@ -259,23 +276,18 @@ class _ContributionHistoryState extends State<ContributionHistory> {
     }
 
     final dayungName =
-        providerName ?? _selectedDayungUnitObj?['name'] ?? 'Dayung';
+        providerName ??
+        _selectedDayungUnitObj?['name'] ??
+        'Dayung'; // NEW unified source
     final addr = _selectedDayungUnitObj != null
         ? _address(_selectedDayungUnitObj!)
         : null;
-
-    // Demo data; replace with backend data when ready
-    final contributions = [
-      {'date': 'February 17, 2025', 'amount': '₱ 200'},
-      {'date': 'March 20, 2024', 'amount': '₱ 200'},
-      {'date': 'June 30, 2023', 'amount': '₱ 200'},
-    ];
 
     return Scaffold(
       backgroundColor: kBg,
       body: SafeArea(
         child: RefreshIndicator(
-          onRefresh: _refresh, // pull-to-refresh from header area
+          onRefresh: _refresh,
           child: NestedScrollView(
             headerSliverBuilder: (context, innerBoxIsScrolled) => [
               SliverToBoxAdapter(
@@ -288,7 +300,7 @@ class _ContributionHistoryState extends State<ContributionHistory> {
                         vertical: 0,
                       ),
                       child: MemberHeader(
-                        title: (providerName ?? 'Dayung'),
+                        title: dayungName, // CHANGED: use unified title
                         subtitle: (addr ?? ''),
                         profileUrl: _profileUrl,
                         onNotificationTap: () => Navigator.push(
