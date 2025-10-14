@@ -65,15 +65,26 @@ class _PaymentMethodPageState extends State<PaymentMethodPage> {
             ((r['amount'] is num) ? (r['amount'] as num).toDouble() : 0.0),
       );
 
-      // 2) Collectors in this dayung
+      // 2) Collectors for this dayung (via dayung_collectors, not users.role)
       List<Map<String, dynamic>> collectors = [];
       try {
-        final coll = await sb
-            .from('users')
-            .select('id, full_name, role')
-            .eq('dayung_unit_id', dId)
-            .eq('role', 'collector');
-        collectors = List<Map<String, dynamic>>.from(coll);
+        final dc = await sb
+            .from('dayung_collectors')
+            .select('user_id')
+            .eq('dayung_unit_id', dId);
+        final dcRows = List<Map<String, dynamic>>.from(dc);
+        final ids = dcRows
+            .map((r) => r['user_id'])
+            .where((v) => v != null)
+            .toSet()
+            .toList();
+        if (ids.isNotEmpty) {
+          final usersRes = await sb
+              .from('users')
+              .select('id, full_name')
+              .inFilter('id', ids);
+          collectors = List<Map<String, dynamic>>.from(usersRes);
+        }
       } catch (_) {
         collectors = [];
       }
@@ -204,18 +215,24 @@ class _PaymentMethodPageState extends State<PaymentMethodPage> {
                   icon: const Icon(Icons.check_circle),
                   label: const Text('Confirm Cash Payment'),
                   onPressed: () async {
+                    if (collectorId == null || collectorId!.isEmpty) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Please select a collector.'),
+                        ),
+                      );
+                      return;
+                    }
                     final entered =
                         double.tryParse(amountCtrl.text.replaceAll(',', '')) ??
                         0;
                     final due = _totalPending;
-
                     if (entered <= 0) {
                       ScaffoldMessenger.of(context).showSnackBar(
                         const SnackBar(content: Text('Enter a valid amount.')),
                       );
                       return;
                     }
-                    // For now, require full payment of pending balance
                     if ((entered - due).abs() > 0.009) {
                       ScaffoldMessenger.of(context).showSnackBar(
                         SnackBar(
@@ -226,9 +243,8 @@ class _PaymentMethodPageState extends State<PaymentMethodPage> {
                       );
                       return;
                     }
-
-                    Navigator.of(context).pop(); // close sheet
-                    await _markAllPendingAsPaid();
+                    Navigator.of(context).pop();
+                    await _markAllPendingAsPaid(collectorId);
                   },
                 ),
               ),
@@ -239,22 +255,26 @@ class _PaymentMethodPageState extends State<PaymentMethodPage> {
     );
   }
 
-  Future<void> _markAllPendingAsPaid() async {
+  Future<void> _markAllPendingAsPaid(String? collectorId) async {
     final ids = _pendingRows.map<String>((r) => (r['id']).toString()).toList();
     if (ids.isEmpty) return;
 
     try {
       final now = DateTime.now().toUtc().toIso8601String();
-      await sb
-          .from('payments')
-          .update({'status': 'paid', 'paid_at': now})
-          .inFilter('id', ids);
+      final update = <String, dynamic>{
+        'status': 'paid',
+        'paid_at': now,
+        if (collectorId != null && collectorId.isNotEmpty)
+          'collected_by': collectorId,
+      };
+
+      await sb.from('payments').update(update).inFilter('id', ids);
 
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Payment recorded. Thank you!')),
       );
-      Navigator.pop(context); // back to Member Dashboard
+      Navigator.pop(context);
     } on PostgrestException catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -331,6 +351,14 @@ class _PaymentMethodPageState extends State<PaymentMethodPage> {
                   icon: const Icon(Icons.check_circle),
                   label: const Text('Confirm Cash Payment'),
                   onPressed: () async {
+                    if (collectorId == null || collectorId!.isEmpty) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Please select a collector.'),
+                        ),
+                      );
+                      return;
+                    }
                     final entered =
                         double.tryParse(amountCtrl.text.replaceAll(',', '')) ??
                         0;
@@ -344,8 +372,8 @@ class _PaymentMethodPageState extends State<PaymentMethodPage> {
                       );
                       return;
                     }
-                    Navigator.of(context).pop(); // close sheet
-                    await _markPaymentAsPaid(paymentRow['id']);
+                    Navigator.of(context).pop();
+                    await _markPaymentAsPaid(paymentRow['id'], collectorId);
                   },
                 ),
               ),
@@ -356,19 +384,26 @@ class _PaymentMethodPageState extends State<PaymentMethodPage> {
     );
   }
 
-  Future<void> _markPaymentAsPaid(dynamic paymentId) async {
+  Future<void> _markPaymentAsPaid(
+    dynamic paymentId, [
+    String? collectorId,
+  ]) async {
     try {
       final now = DateTime.now().toUtc().toIso8601String();
-      await sb
-          .from('payments')
-          .update({'status': 'paid', 'paid_at': now})
-          .eq('id', paymentId);
+      final update = <String, dynamic>{
+        'status': 'paid',
+        'paid_at': now,
+        if (collectorId != null && collectorId.isNotEmpty)
+          'collected_by': collectorId,
+      };
+
+      await sb.from('payments').update(update).eq('id', paymentId);
 
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Payment recorded. Thank you!')),
       );
-      _load(); // reload payments
+      _load();
     } on PostgrestException catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(

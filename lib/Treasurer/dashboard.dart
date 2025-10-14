@@ -971,8 +971,10 @@ class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
                                   ),
                                   const SizedBox(width: 8),
                                   TextButton.icon(
-                                    onPressed: () =>
-                                        _showPaymentStatusSheet(sid, dId),
+                                    onPressed: () => _showPaymentStatusSheet(
+                                      sid,
+                                      dId, // pass dayungUnitId from the card
+                                    ),
                                     icon: const Icon(Icons.list_alt),
                                     label: const Text('Status'),
                                   ),
@@ -1670,25 +1672,46 @@ class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
     );
   }
 
-  Future<void> _showPaymentStatusSheet(
-    int deathNoticeId,
-    int dayungUnitId,
-  ) async {
+  Future<void> _showPaymentStatusSheet(int noticeId, int dayungUnitId) async {
+    final sb = Supabase.instance.client;
     try {
       final rows = await sb
           .from('payments')
           .select(
-            // Disambiguate both FKs to users
-            'id, amount, status, paid_at, '
+            'id, amount, status, paid_at, collected_by, '
             'user:users!payments_user_id_fkey(full_name), '
             'collector:users!payments_collected_by_fkey(full_name)',
           )
-          .eq('death_notice_id', deathNoticeId)
+          .eq('death_notice_id', noticeId)
           .eq('dayung_unit_id', dayungUnitId);
 
       final items = List<Map<String, dynamic>>.from(rows);
 
-      // Sort by payer's name client-side
+      // Fallback: if some collector names are missing from the embed, fetch them by ID
+      final missingCollectorIds = <String>{
+        for (final r in items)
+          if ((r['collected_by'] ?? '').toString().isNotEmpty &&
+              ((((r['collector'] as Map?)?['full_name']) ?? '')
+                  .toString()
+                  .isEmpty))
+            (r['collected_by']).toString(),
+      }.toList();
+
+      final collectorLookup = <String, String>{};
+      if (missingCollectorIds.isNotEmpty) {
+        try {
+          final u = await sb
+              .from('users')
+              .select('id, full_name')
+              .inFilter('id', missingCollectorIds);
+          for (final m in List<Map<String, dynamic>>.from(u)) {
+            collectorLookup[(m['id'] ?? '').toString()] =
+                (m['full_name'] ?? 'Collector').toString();
+          }
+        } catch (_) {}
+      }
+
+      // Sort client-side by payer full_name
       items.sort((a, b) {
         final an = (((a['user'] as Map?)?['full_name']) ?? '')
             .toString()
@@ -1732,48 +1755,7 @@ class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Container(
-                    width: 46,
-                    height: 5,
-                    decoration: BoxDecoration(
-                      color: Colors.black26,
-                      borderRadius: BorderRadius.circular(3),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  Row(
-                    children: [
-                      const Text(
-                        'Payment Status',
-                        style: TextStyle(
-                          fontWeight: FontWeight.w800,
-                          fontSize: 18,
-                          color: kNeutralText,
-                        ),
-                      ),
-                      const Spacer(),
-                      Text(
-                        '₱${paidAmt.toStringAsFixed(0)} / ₱${totalAmt.toStringAsFixed(0)}',
-                        style: const TextStyle(
-                          fontWeight: FontWeight.w800,
-                          color: kNeutralText,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 6),
-                  Row(
-                    children: [
-                      _chip(Icons.verified, 'Paid $paid', Colors.green),
-                      const SizedBox(width: 8),
-                      _chip(
-                        Icons.pending_actions,
-                        'Unpaid $unpaid',
-                        Colors.red,
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 10),
+                  // ...existing code...
                   Flexible(
                     child: ConstrainedBox(
                       constraints: const BoxConstraints(maxHeight: 460),
@@ -1797,11 +1779,18 @@ class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
                               ? payerName
                               : 'Payment #${r['id']}';
 
-                          // NEW: build subtitle with paid_at and collector
                           final paidAtStr = _fmtDateTime(r['paid_at']);
-                          final collectorName =
+                          // Prefer embed; fallback to lookup by collected_by
+                          String collectorName =
                               (((r['collector'] as Map?)?['full_name']) ?? '')
                                   .toString();
+                          if (collectorName.isEmpty &&
+                              (r['collected_by'] ?? '').toString().isNotEmpty) {
+                            collectorName =
+                                collectorLookup[(r['collected_by'])
+                                    .toString()] ??
+                                '';
+                          }
                           final subtitleText = s == 'paid'
                               ? 'Collected'
                                     '${paidAtStr.isNotEmpty ? ' on: $paidAtStr' : ''}'
