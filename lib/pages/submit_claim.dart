@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:geolocator/geolocator.dart';
+import 'package:geocoding/geocoding.dart';
 import 'dart:io';
 
 // Shared palette (aligned with claims page)
@@ -20,6 +22,9 @@ class _SubmitClaimFormState extends State<SubmitClaimForm> {
   final _formKey = GlobalKey<FormState>();
   final _title = TextEditingController();
   final _desc = TextEditingController();
+  Position? _vigilPos;
+  String? _vigilAddress;
+  String? _vigilBarangay;
   bool _submitting = false;
   File? _deathCertFile;
   String? _selectedDeceasedType; // 'member' or 'beneficiary'
@@ -67,6 +72,55 @@ class _SubmitClaimFormState extends State<SubmitClaimForm> {
     }
   }
 
+  Future<void> _pickVigilLocation() async {
+    try {
+      LocationPermission perm = await Geolocator.checkPermission();
+      if (perm == LocationPermission.denied) {
+        perm = await Geolocator.requestPermission();
+      }
+      if (perm == LocationPermission.denied ||
+          perm == LocationPermission.deniedForever) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Location permission denied.')),
+        );
+        return;
+      }
+      final pos = await Geolocator.getCurrentPosition(
+        desiredAccuracy: LocationAccuracy.high,
+      );
+
+      String? addr;
+      String? brgy;
+      final placemarks = await placemarkFromCoordinates(
+        pos.latitude,
+        pos.longitude,
+      );
+      if (placemarks.isNotEmpty) {
+        final p = placemarks.first;
+        addr = [
+          p.street,
+          p.subLocality,
+          p.locality,
+          p.administrativeArea,
+          p.postalCode,
+        ].where((e) => (e ?? '').toString().trim().isNotEmpty).join(', ');
+        brgy = (p.subLocality?.isNotEmpty ?? false)
+            ? p.subLocality
+            : p.locality;
+      }
+
+      setState(() {
+        _vigilPos = pos;
+        _vigilAddress = addr;
+        _vigilBarangay = brgy;
+      });
+    } catch (e) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Failed to get location: $e')));
+    }
+  }
+
   Future<String?> _uploadDeathCert(String claimId) async {
     if (_deathCertFile == null) return null;
     final storage = Supabase.instance.client.storage;
@@ -93,37 +147,44 @@ class _SubmitClaimFormState extends State<SubmitClaimForm> {
       );
       return;
     }
+    // Require date of death for both member or beneficiary claims
     if (_dateOfDeath == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Please select date of death.')),
       );
       return;
     }
+
+    String _fmtDate(DateTime d) =>
+        '${d.year.toString().padLeft(4, '0')}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+
     setState(() => _submitting = true);
     try {
-      // 1. Insert claim (without file URL yet)
+      // 1. Insert claim (now includes date_of_death)
       final claimData = {
-        'user_id': user.id,
-        'title': _title.text.trim(),
-        'description': _desc.text.trim(),
-        'status': 'Pending',
-        'date_submitted': DateTime.now().toIso8601String(),
-        'date_of_death': _dateOfDeath?.toIso8601String(),
-        if (_selectedBeneficiaryId != null)
-          'beneficiary_id': _selectedBeneficiaryId,
-      };
-      final insertRes = await Supabase.instance.client
-          .from('claims')
-          .insert(claimData)
-          .select()
-          .single();
-      final claimId = insertRes['id'].toString();
+      'user_id': user.id,
+      'title': _title.text.trim(),
+      'description': _desc.text.trim(),
+      'status': 'Pending',
+      if (_selectedBeneficiaryId != null) 'beneficiary_id': _selectedBeneficiaryId,
+      'date_of_death': _fmtDate(_dateOfDeath!),
+      // vigil fields
+      'vigil_latitude': _vigilPos?.latitude,
+      'vigil_longitude': _vigilPos?.longitude,
+      'vigil_address': _vigilAddress,
+      'vigil_barangay': _vigilBarangay,
+    };
+    final insertRes = await Supabase.instance.client
+        .from('claims')
+        .insert(claimData)
+        .select()
+        .maybeSingle();
+      final claimId = insertRes!['id'].toString();
 
       // 2. Upload file if picked
       String? fileUrl;
       if (_deathCertFile != null) {
         fileUrl = await _uploadDeathCert(claimId);
-        // 3. Update claim with file URL
         await Supabase.instance.client
             .from('claims')
             .update({'death_certificate_url': fileUrl})
@@ -135,7 +196,8 @@ class _SubmitClaimFormState extends State<SubmitClaimForm> {
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(const SnackBar(content: Text('Claim submitted.')));
-    } catch (e) {
+    } catch (e, st) {
+      print('CLAIM SUBMIT ERROR: $e\n$st');
       if (!mounted) return;
       ScaffoldMessenger.of(
         context,
@@ -424,6 +486,55 @@ class _SubmitClaimFormState extends State<SubmitClaimForm> {
                               ),
                           ],
                         ),
+                        const SizedBox(height: 18),
+
+                        // Vigil location picker
+                        Align(
+                          alignment: Alignment.centerLeft,
+                          child: Text(
+                            'Vigil Location',
+                            style: TextStyle(
+                              fontWeight: FontWeight.w700,
+                              fontFamily: 'Montserrat',
+                              fontSize: 15,
+                              color: kNeutralText,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Row(
+                          children: [
+                            ElevatedButton.icon(
+                              onPressed: _submitting
+                                  ? null
+                                  : _pickVigilLocation,
+                              icon: const Icon(Icons.my_location),
+                              label: const Text('Use Current Location'),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: kPrimary,
+                                foregroundColor: Colors.white,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Text(
+                                _vigilAddress == null
+                                    ? 'No location selected'
+                                    : 'Barangay: ${_vigilBarangay ?? '-'}\n$_vigilAddress',
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  fontSize: 12.5,
+                                  color: kSubtleText,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+
                         const SizedBox(height: 26),
 
                         // Submit

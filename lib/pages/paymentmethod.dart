@@ -17,6 +17,8 @@ class PaymentMethodPage extends StatefulWidget {
 class _PaymentMethodPageState extends State<PaymentMethodPage> {
   final sb = Supabase.instance.client;
   Map<int, String> _deceasedNames = {};
+  Map<int, Map<String, dynamic>> _noticeMeta = {};
+  Map<String, String> _memberNames = {};
   bool _loading = true;
   String? _error;
 
@@ -47,7 +49,7 @@ class _PaymentMethodPageState extends State<PaymentMethodPage> {
         return;
       }
 
-      // 1) Fetch pending payments for this user in this dayung
+      // 1) Pending payments for this user and dayung
       final res = await sb
           .from('payments')
           .select('id, amount, death_notice_id, status')
@@ -63,7 +65,7 @@ class _PaymentMethodPageState extends State<PaymentMethodPage> {
             ((r['amount'] is num) ? (r['amount'] as num).toDouble() : 0.0),
       );
 
-      // 2) Fetch collectors in this dayung (role = 'collector')
+      // 2) Collectors in this dayung
       List<Map<String, dynamic>> collectors = [];
       try {
         final coll = await sb
@@ -76,16 +78,41 @@ class _PaymentMethodPageState extends State<PaymentMethodPage> {
         collectors = [];
       }
 
-      // 3) Fetch deceased names for all death_notice_id in rows
+      // 3) Death notice meta (name, deceased_type, user_id)
       final noticeIds = rows.map((r) => r['death_notice_id']).toSet().toList();
       Map<int, String> deceasedNames = {};
+      Map<int, Map<String, dynamic>> noticeMeta = {};
+      Map<String, String> memberNames = {};
       if (noticeIds.isNotEmpty) {
         final notices = await sb
             .from('death_notices')
-            .select('id, name')
+            .select('id, name, deceased_type, user_id')
             .inFilter('id', noticeIds);
-        for (final n in notices) {
-          deceasedNames[n['id'] as int] = n['name']?.toString() ?? '';
+
+        final noticeList = List<Map<String, dynamic>>.from(notices);
+        final memberIds = <String>{
+          for (final n in noticeList)
+            if (n['user_id'] != null) n['user_id'].toString(),
+        }.toList();
+
+        for (final n in noticeList) {
+          final id = int.parse(n['id'].toString());
+          deceasedNames[id] = (n['name'] ?? '').toString();
+          noticeMeta[id] = {
+            'name': (n['name'] ?? '').toString(),
+            'deceased_type': (n['deceased_type'] ?? '').toString(),
+            'user_id': n['user_id']?.toString(),
+          };
+        }
+
+        if (memberIds.isNotEmpty) {
+          final usersRes = await sb
+              .from('users')
+              .select('id, full_name')
+              .inFilter('id', memberIds);
+          for (final u in List<Map<String, dynamic>>.from(usersRes)) {
+            memberNames[u['id'].toString()] = (u['full_name'] ?? '').toString();
+          }
         }
       }
 
@@ -96,7 +123,9 @@ class _PaymentMethodPageState extends State<PaymentMethodPage> {
         _selectedCollectorId = collectors.isNotEmpty
             ? (collectors.first['id']?.toString())
             : null;
-        _deceasedNames = deceasedNames; // <-- add this
+        _deceasedNames = deceasedNames;
+        _noticeMeta = noticeMeta;
+        _memberNames = memberNames;
         _loading = false;
       });
     } catch (e) {
@@ -592,12 +621,25 @@ class _PaymentMethodPageState extends State<PaymentMethodPage> {
                                       : double.tryParse('${row['amount']}') ??
                                             0.0;
                                   final deathNoticeId = row['death_notice_id'];
-                                  final deceasedLabel =
-                                      _deceasedNames[deathNoticeId] != null &&
-                                          _deceasedNames[deathNoticeId]!
-                                              .isNotEmpty
-                                      ? 'Para kay ${_deceasedNames[deathNoticeId]}'
-                                      : 'Para kay Deceased #$deathNoticeId'; // Replace with actual name if available
+                                  String deceasedLabel;
+                                  final meta = _noticeMeta[deathNoticeId];
+                                  if (meta != null &&
+                                      (meta['deceased_type'] ==
+                                          'beneficiary')) {
+                                    final ben = (meta['name'] ?? '').toString();
+                                    final mid = (meta['user_id'] ?? '')
+                                        .toString();
+                                    final memberName =
+                                        _memberNames[mid] ?? 'Member';
+                                    deceasedLabel =
+                                        'Para kay $ben, beneficiary ni $memberName';
+                                  } else {
+                                    final name =
+                                        _deceasedNames[deathNoticeId] ?? '';
+                                    deceasedLabel = name.isNotEmpty
+                                        ? 'Para kay $name'
+                                        : 'Para kay Deceased #$deathNoticeId';
+                                  }
 
                                   return Container(
                                     padding: const EdgeInsets.all(18),

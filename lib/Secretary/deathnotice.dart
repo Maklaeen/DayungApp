@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:file_picker/file_picker.dart';
-import 'dart:io';
+import 'package:intl/intl.dart';
+import 'package:url_launcher/url_launcher.dart';
+import 'package:geocoding/geocoding.dart';
 
 const Color kBg = Color(0xFFFAFAF7);
 const Color kPrimary = Color(0xFF0D47A1);
 const Color kPrimaryDark = Color(0xFF083366);
-const Color kAccent = Color(0xFF2E7D32);
 const Color kNeutralText = Color(0xFF1F2937);
 const Color kSubtleText = Color(0xFF4B5563);
 
@@ -20,107 +20,169 @@ class CreateDeathNoticePage extends StatefulWidget {
 
 class _CreateDeathNoticePageState extends State<CreateDeathNoticePage> {
   final supabase = Supabase.instance.client;
-  List<Map<String, dynamic>> _members = [];
-  List<Map<String, dynamic>> _filtered = [];
+  List<Map<String, dynamic>> _approvedClaims = [];
   bool _loading = true;
   String _search = '';
-  String? _barangay;
-  double? _latitude;
-  double? _longitude;
 
   @override
   void initState() {
     super.initState();
-    _fetchMembers();
+    _fetchApprovedClaims();
   }
 
-  Future<void> _fetchMembers() async {
+  Future<Map<String, dynamic>> _resolveVigilLocation(
+    Map<String, dynamic> claim,
+  ) async {
+    // Prefer submitter-provided vigil location
+    final lat = claim['vigil_latitude'];
+    final lng = claim['vigil_longitude'];
+    final brgy = claim['vigil_barangay'];
+    if (lat != null && lng != null) {
+      return {
+        'latitude': (lat is num) ? lat.toDouble() : double.tryParse('$lat'),
+        'longitude': (lng is num) ? lng.toDouble() : double.tryParse('$lng'),
+        'barangay': brgy,
+      };
+    }
+
+    // Fallback: geocode the member address
+    String? memberId = claim['user_id']?.toString();
+    if (claim['beneficiary_id'] != null && memberId == null) {
+      final ben = await supabase
+          .from('beneficiaries')
+          .select('user_id')
+          .eq('id', claim['beneficiary_id'])
+          .maybeSingle();
+      memberId = ben?['user_id']?.toString();
+    }
+    if (memberId != null) {
+      final u = await supabase
+          .from('users')
+          .select('address')
+          .eq('id', memberId)
+          .maybeSingle();
+      final addr = (u?['address'] ?? '').toString().trim();
+      if (addr.isNotEmpty) {
+        try {
+          final locs = await locationFromAddress(addr);
+          if (locs.isNotEmpty) {
+            final pms = await placemarkFromCoordinates(
+              locs.first.latitude,
+              locs.first.longitude,
+            );
+            final barangay =
+                (pms.isNotEmpty && (pms.first.subLocality?.isNotEmpty ?? false))
+                ? pms.first.subLocality
+                : null;
+            return {
+              'latitude': locs.first.latitude,
+              'longitude': locs.first.longitude,
+              'barangay': brgy ?? barangay,
+            };
+          }
+        } catch (_) {}
+      }
+    }
+    return {'latitude': null, 'longitude': null, 'barangay': brgy};
+  }
+
+  Future<void> _fetchApprovedClaims() async {
     setState(() => _loading = true);
     try {
-      final sb = Supabase.instance.client;
-
-      // 1. Get all approved claims for this dayung unit
-      final claims = await sb
+      // Fetch approved claims (no join)
+      final claims = await supabase
           .from('claims')
-          .select('user_id')
+          .select('*')
           .eq('status', 'Approved')
           .eq('dayung_unit_id', widget.dayungUnitId);
 
-      final claimedUserIds = claims
-          .map((c) => c['user_id']?.toString())
-          .where((id) => id != null)
-          .toSet()
-          .toList();
-
-      if (claimedUserIds.isEmpty) {
-        setState(() {
-          _members = [];
-          _filtered = [];
-          _loading = false;
-        });
-        return;
-      }
-
-      // 2. Exclude users na may death notice na
-      final notices = await sb
+      // Fetch death notices to filter out already set deceased
+      final deathNotices = await supabase
           .from('death_notices')
-          .select('user_id')
+          .select('user_id, beneficiary_id')
           .eq('dayung_unit_id', widget.dayungUnitId);
 
-      final noticedUserIds = notices
-          .map((n) => n['user_id']?.toString())
-          .where((id) => id != null)
+      final deceasedUserIds = deathNotices
+          .where((n) => n['user_id'] != null)
+          .map((n) => n['user_id'].toString())
+          .toSet();
+      final deceasedBeneficiaryIds = deathNotices
+          .where((n) => n['beneficiary_id'] != null)
+          .map((n) => n['beneficiary_id'].toString())
           .toSet();
 
-      final availableUserIds = claimedUserIds
-          .where((id) => !noticedUserIds.contains(id))
-          .toList();
-
-      if (availableUserIds.isEmpty) {
-        setState(() {
-          _members = [];
-          _filtered = [];
-          _loading = false;
-        });
-        return;
+      // For each claim, fetch user and beneficiary info
+      List<Map<String, dynamic>> claimsWithDetails = [];
+      for (final claim in claims) {
+        Map<String, dynamic>? user;
+        if (claim['user_id'] != null) {
+          user = await supabase
+              .from('users')
+              .select('full_name, dob, is_deceased, date_of_death')
+              .eq('id', claim['user_id'])
+              .maybeSingle();
+        }
+        Map<String, dynamic>? beneficiary;
+        if (claim['beneficiary_id'] != null) {
+          beneficiary = await supabase
+              .from('beneficiaries')
+              .select('full_name, dob, status, user_id')
+              .eq('id', claim['beneficiary_id'])
+              .maybeSingle();
+        }
+        // Filter out already set deceased
+        final isBeneficiary = claim['beneficiary_id'] != null;
+        if (isBeneficiary) {
+          if (!deceasedBeneficiaryIds.contains(
+            claim['beneficiary_id'].toString(),
+          )) {
+            claimsWithDetails.add({
+              ...claim,
+              'users': user,
+              'beneficiaries': beneficiary,
+            });
+          }
+        } else {
+          if (!deceasedUserIds.contains(claim['user_id'].toString())) {
+            claimsWithDetails.add({
+              ...claim,
+              'users': user,
+              'beneficiaries': beneficiary,
+            });
+          }
+        }
       }
 
-      // 3. Fetch user details for availableUserIds
-      final users = await sb
-          .from('users')
-          .select('id, full_name, is_deceased, dayung_unit_id')
-          .inFilter('id', availableUserIds)
-          .eq('dayung_unit_id', widget.dayungUnitId);
-
-      final list = List<Map<String, dynamic>>.from(users);
       setState(() {
-        _members = list;
-        _filtered = list;
+        _approvedClaims = claimsWithDetails;
         _loading = false;
       });
     } catch (e) {
-      debugPrint('CreateDeathNoticePage _fetchMembers error: $e');
-      if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Failed to load members: $e')));
-      }
       setState(() => _loading = false);
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Failed to load claims: $e')));
     }
   }
 
   void _filter(String q) {
     setState(() {
       _search = q;
-      _filtered = _members.where((m) {
-        final name = (m['full_name'] ?? '').toString().toLowerCase();
-        return name.contains(q.toLowerCase());
-      }).toList();
     });
   }
 
   @override
   Widget build(BuildContext context) {
+    final filteredClaims = _search.isEmpty
+        ? _approvedClaims
+        : _approvedClaims.where((c) {
+            final isBeneficiary = c['beneficiary_id'] != null;
+            final name = isBeneficiary
+                ? (c['beneficiaries']?['full_name'] ?? '')
+                : (c['users']?['full_name'] ?? '');
+            return name.toLowerCase().contains(_search.toLowerCase());
+          }).toList();
+
     return Scaffold(
       backgroundColor: kBg,
       appBar: AppBar(
@@ -128,7 +190,7 @@ class _CreateDeathNoticePageState extends State<CreateDeathNoticePage> {
         elevation: 0,
         leading: BackButton(color: kPrimaryDark),
         title: const Text(
-          '+ Death Notice',
+          'Set Deceased',
           style: TextStyle(
             color: kPrimaryDark,
             fontWeight: FontWeight.w800,
@@ -145,7 +207,7 @@ class _CreateDeathNoticePageState extends State<CreateDeathNoticePage> {
                   padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
                   child: TextField(
                     decoration: InputDecoration(
-                      hintText: 'Find member',
+                      hintText: 'Search member or beneficiary',
                       prefixIcon: const Icon(Icons.search, color: kPrimaryDark),
                       filled: true,
                       fillColor: Colors.white,
@@ -160,532 +222,266 @@ class _CreateDeathNoticePageState extends State<CreateDeathNoticePage> {
                   ),
                 ),
                 Expanded(
-                  child: ListView.builder(
-                    itemCount: _filtered.length,
-                    itemBuilder: (_, i) {
-                      final m = _filtered[i];
-                      return ListTile(
-                        leading: const CircleAvatar(
-                          backgroundColor: Colors.blueAccent,
-                          child: Icon(Icons.person, color: Colors.white),
-                        ),
-                        title: Text(
-                          m['full_name'] ?? '',
-                          style: const TextStyle(
-                            fontWeight: FontWeight.w600,
-                            fontSize: 17,
-                            color: kNeutralText,
+                  child: filteredClaims.isEmpty
+                      ? const Center(
+                          child: Text(
+                            "No approved claims to process.",
+                            style: TextStyle(
+                              fontSize: 16,
+                              color: kSubtleText,
+                              fontWeight: FontWeight.w600,
+                            ),
                           ),
-                        ),
-                        onTap: () {
-                          showModalBottomSheet(
-                            context: context,
-                            isScrollControlled: true,
-                            backgroundColor: kBg,
-                            shape: const RoundedRectangleBorder(
-                              borderRadius: BorderRadius.vertical(
-                                top: Radius.circular(24),
+                        )
+                      : ListView.builder(
+                          itemCount: filteredClaims.length,
+                          itemBuilder: (_, i) {
+                            final c = filteredClaims[i];
+                            final isBeneficiary = c['beneficiary_id'] != null;
+                            final deceased = isBeneficiary
+                                ? c['beneficiaries']
+                                : c['users'];
+                            final name = deceased?['full_name'] ?? '';
+                            final dob = deceased?['dob'];
+                            final dod = c['date_of_death'];
+                            final deathCert = c['death_certificate_url'];
+                            final age = (dob != null && dod != null)
+                                ? _calculateAge(
+                                    DateTime.parse(dob),
+                                    DateTime.parse(dod),
+                                  )
+                                : null;
+
+                            return Card(
+                              margin: const EdgeInsets.symmetric(
+                                horizontal: 16,
+                                vertical: 8,
                               ),
-                            ),
-                            builder: (ctx) => MarkDeceasedModal(
-                              memberId: m['id'].toString(),
-                              memberName: m['full_name'],
-                            ),
-                          );
-                        },
-                      );
-                    },
-                  ),
+                              child: ListTile(
+                                leading: CircleAvatar(
+                                  backgroundColor: isBeneficiary
+                                      ? Colors.purple
+                                      : kPrimary,
+                                  child: Icon(
+                                    Icons.person,
+                                    color: Colors.white,
+                                  ),
+                                ),
+                                title: Text(
+                                  name,
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.w600,
+                                    fontSize: 17,
+                                    color: kNeutralText,
+                                  ),
+                                ),
+                                subtitle: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      'Type: ${isBeneficiary ? "Beneficiary" : "Member"}',
+                                      style: const TextStyle(
+                                        fontSize: 14,
+                                        color: kSubtleText,
+                                      ),
+                                    ),
+                                    if (dob != null)
+                                      Text(
+                                        'Date of Birth: ${_formatDate(dob)}',
+                                        style: const TextStyle(
+                                          fontSize: 14,
+                                          color: kSubtleText,
+                                        ),
+                                      ),
+                                    if (dod != null)
+                                      Text(
+                                        'Date of Death: ${_formatDate(dod)}',
+                                        style: const TextStyle(
+                                          fontSize: 14,
+                                          color: kSubtleText,
+                                        ),
+                                      ),
+                                    if (age != null)
+                                      Text(
+                                        'Age: $age',
+                                        style: const TextStyle(
+                                          fontSize: 14,
+                                          color: kSubtleText,
+                                        ),
+                                      ),
+                                    if (deathCert != null &&
+                                        deathCert.toString().isNotEmpty)
+                                      TextButton.icon(
+                                        icon: const Icon(
+                                          Icons.picture_as_pdf,
+                                          color: kPrimaryDark,
+                                        ),
+                                        label: const Text(
+                                          'View Death Certificate',
+                                        ),
+                                        onPressed: () async {
+                                          final url = deathCert.toString();
+                                          if (await canLaunchUrl(
+                                            Uri.parse(url),
+                                          )) {
+                                            await launchUrl(
+                                              Uri.parse(url),
+                                              mode: LaunchMode
+                                                  .externalApplication,
+                                            );
+                                          } else {
+                                            ScaffoldMessenger.of(
+                                              context,
+                                            ).showSnackBar(
+                                              const SnackBar(
+                                                content: Text(
+                                                  'Could not open file.',
+                                                ),
+                                              ),
+                                            );
+                                          }
+                                        },
+                                      ),
+                                  ],
+                                ),
+                                trailing: ElevatedButton(
+                                  onPressed: () => _setDeceased(c),
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: kPrimary,
+                                    foregroundColor: Colors.white,
+                                  ),
+                                  child: const Text('Set Deceased'),
+                                ),
+                              ),
+                            );
+                          },
+                        ),
                 ),
               ],
             ),
     );
   }
-}
 
-class MarkDeceasedModal extends StatefulWidget {
-  final String memberId;
-  final String memberName;
-  const MarkDeceasedModal({
-    super.key,
-    required this.memberId,
-    required this.memberName,
-  });
-
-  @override
-  State<MarkDeceasedModal> createState() => _MarkDeceasedModalState();
-}
-
-class _MarkDeceasedModalState extends State<MarkDeceasedModal> {
-  DateTime? _dateOfDeath;
-  DateTime? _dateOfBirth;
-  bool _submitting = false;
-  bool _loadingUser = true;
-  List<Map<String, dynamic>> _beneficiaries = [];
-  String? _selectedBeneficiaryId;
-  File? _deathCertFile;
-  String? _barangay;
-  double? _latitude;
-  double? _longitude;
-
-  @override
-  void initState() {
-    super.initState();
-    _fetchUserDetails();
-    _fetchBeneficiaries();
+  String _formatDate(dynamic date) {
+    if (date == null) return '';
+    final d = date is DateTime ? date : DateTime.parse(date.toString());
+    return DateFormat('yyyy-MM-dd').format(d);
   }
 
-  Future<void> _fetchUserDetails() async {
-    try {
-      final response = await Supabase.instance.client
-          .from('users')
-          .select('dob, address')
-          .eq('id', widget.memberId)
-          .single();
+  String? _dateOnly(dynamic v) {
+    if (v == null) return null;
+    if (v is DateTime) return DateFormat('yyyy-MM-dd').format(v);
+    final s = v.toString();
+    return s.contains('T') ? s.split('T').first : s;
+  }
 
-      // Parse the DOB if available
-      if (response != null && response['dob'] != null) {
-        final dobStr = response['dob'].toString();
-        _dateOfBirth = DateTime.tryParse(dobStr);
-      }
-
-      // Use address as barangay default if available
-      if (response != null && response['address'] != null) {
-        _barangay = response['address'];
-      }
-    } catch (e) {
-      debugPrint('Error fetching user details: $e');
-    } finally {
-      if (mounted) {
-        setState(() => _loadingUser = false);
-      }
+  int _calculateAge(DateTime dob, DateTime dod) {
+    int age = dod.year - dob.year;
+    if (dod.month < dob.month ||
+        (dod.month == dob.month && dod.day < dob.day)) {
+      age--;
     }
+    return age;
   }
 
-  Future<void> _fetchBeneficiaries() async {
-    final rows = await Supabase.instance.client
-        .from('beneficiaries')
-        .select('id, full_name, status')
-        .eq('user_id', widget.memberId);
-    setState(() {
-      _beneficiaries = List<Map<String, dynamic>>.from(rows);
-    });
+  int? _ageFromDobDod(dynamic dob, dynamic dod) {
+    if (dob == null || dod == null) return null;
+    final b = DateTime.tryParse(dob.toString());
+    final d = DateTime.tryParse(dod.toString());
+    if (b == null || d == null) return null;
+    var age = d.year - b.year;
+    if (d.month < b.month || (d.month == b.month && d.day < b.day)) age--;
+    return age;
   }
 
-  Future<void> _pickDeathCert() async {
-    final result = await FilePicker.platform.pickFiles(
-      type: FileType.custom,
-      allowedExtensions: ['pdf', 'jpg', 'jpeg', 'png'],
-    );
-    if (result != null && result.files.single.path != null) {
-      setState(() {
-        _deathCertFile = File(result.files.single.path!);
-      });
-    }
-  }
+  Future<void> _setDeceased(Map<String, dynamic> claim) async {
+    final isBeneficiary = claim['beneficiary_id'] != null;
+    final dod = claim['date_of_death'];
+    final deathCert = claim['death_certificate_url'];
+    final dayungId = claim['dayung_unit_id'];
 
-  Future<String?> _uploadDeathCert() async {
-    if (_deathCertFile == null) return null;
-    final storage = Supabase.instance.client.storage;
-    final fileName =
-        'death_cert_${widget.memberId}_${DateTime.now().millisecondsSinceEpoch}.${_deathCertFile!.path.split('.').last}';
-    final bucket = 'death_certificates'; // Make sure this bucket exists
-    final res = await storage.from(bucket).upload(fileName, _deathCertFile!);
-    if (res.error != null) throw Exception(res.error!.message);
-    return storage.from(bucket).getPublicUrl(fileName);
-  }
+    final Map<String, dynamic>? user = claim['users'] as Map<String, dynamic>?;
+    final Map<String, dynamic>? ben =
+        claim['beneficiaries'] as Map<String, dynamic>?;
 
-  Future<int?> _getDayungUnitId(String userId) async {
-    final res = await Supabase.instance.client
-        .from('users')
-        .select('dayung_unit_id')
-        .eq('id', userId)
-        .single();
-    return res?['dayung_unit_id'] as int?;
-  }
+    final String name = isBeneficiary
+        ? (ben?['full_name'] ?? '')
+        : (user?['full_name'] ?? '');
+    final dynamic dob = isBeneficiary
+        ? (ben != null ? ben['dob'] : null)
+        : user?['dob'];
+    final int? computedAge = _ageFromDobDod(dob, dod);
 
-  Future<void> _submit() async {
-    if (_dateOfDeath == null || _selectedBeneficiaryId == null) {
+    if (name.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please fill all required fields.')),
+        const SnackBar(
+          content: Text('Missing full name. Please check the record.'),
+        ),
       );
       return;
     }
-    setState(() => _submitting = true);
 
     try {
-      // Upload death certificate if picked
-      String? fileUrl;
-      if (_deathCertFile != null) {
-        fileUrl = await _uploadDeathCert();
-      }
+      final vigil = await _resolveVigilLocation(claim);
+      final barangay = vigil['barangay'];
+      final latitude = vigil['latitude'];
+      final longitude = vigil['longitude'];
 
-      // Update user as deceased and store death certificate URL
-      await Supabase.instance.client
-          .from('users')
-          .update({
-            'is_deceased': true,
-            'date_of_death': _dateOfDeath!.toIso8601String(),
-            if (fileUrl != null) 'death_certificate_url': fileUrl,
-          })
-          .eq('id', widget.memberId);
+      if (isBeneficiary) {
+        final bId = claim['beneficiary_id'];
 
-      // Mark beneficiary as eligible to claim
-      await Supabase.instance.client
-          .from('beneficiaries')
-          .update({'eligible_to_claim': true})
-          .eq('id', _selectedBeneficiaryId as Object);
+        await supabase
+            .from('beneficiaries')
+            .update({'status': 'Deceased', 'eligible_to_claim': false})
+            .eq('id', bId);
 
-      // Insert death notice with all details
-      final insertRes = await Supabase.instance.client
-          .from('death_notices')
-          .insert({
-            'user_id': widget.memberId,
-            'name': widget.memberName,
-            'date_of_death': _dateOfDeath!.toIso8601String(),
-            'barangay': _barangay,
-            'latitude': _latitude,
-            'longitude': _longitude,
-            if (fileUrl != null) 'death_certificate_url': fileUrl,
-            'dayung_unit_id': await _getDayungUnitId(widget.memberId),
-          })
-          .select()
-          .single();
+        await supabase.from('death_notices').insert({
+          'beneficiary_id': bId,
+          'user_id': ben?['user_id'] ?? claim['user_id'],
+          'name': name,
+          'date_of_death': _dateOnly(dod),
+          'death_certificate_url': deathCert,
+          'dayung_unit_id': dayungId,
+          'deceased_type': 'beneficiary',
+          'barangay': barangay,
+          'latitude': latitude,
+          'longitude': longitude,
+          'dob': _dateOnly(dob), // store DOB snapshot
+          'deceased_age': computedAge, // store computed age
+        });
+      } else {
+        final uId = claim['user_id'];
 
-      final deathNoticeId = insertRes['id'];
-      final defaultServices = [
-        'Prayers',
-        'Cleaning',
-        'Cooking',
-        'Funeral Procession',
-      ];
-      for (final service in defaultServices) {
-        await Supabase.instance.client.from('service_checklists').insert({
-          'death_notice_id': deathNoticeId,
-          'service_name': service,
-          'is_done': false,
+        await supabase
+            .from('users')
+            .update({'is_deceased': true, 'date_of_death': _dateOnly(dod)})
+            .eq('id', uId);
+
+        await supabase.from('death_notices').insert({
+          'user_id': uId,
+          'name': name,
+          'date_of_death': _dateOnly(dod),
+          'death_certificate_url': deathCert,
+          'dayung_unit_id': dayungId,
+          'deceased_type': 'member',
+          'barangay': barangay,
+          'latitude': latitude,
+          'longitude': longitude,
+          'dob': _dateOnly(dob), // store DOB snapshot
+          'deceased_age': computedAge, // store computed age
         });
       }
 
-      if (mounted) {
-        Navigator.pop(context);
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Member marked as deceased.')),
-        );
-      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Deceased status set and death notice created.'),
+        ),
+      );
+      _fetchApprovedClaims();
     } catch (e) {
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(SnackBar(content: Text('Error: ${e.toString()}')));
-    } finally {
-      setState(() => _submitting = false);
+      ).showSnackBar(SnackBar(content: Text('Error: $e')));
     }
   }
-
-  @override
-  Widget build(BuildContext context) {
-    String formatDate(DateTime? date) {
-      if (date == null) return 'Not available';
-      return '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
-    }
-
-    return Padding(
-      padding: EdgeInsets.only(
-        left: 18,
-        right: 18,
-        top: 18,
-        bottom: MediaQuery.of(context).viewInsets.bottom + 18,
-      ),
-      child: SingleChildScrollView(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Center(
-              child: Container(
-                padding: const EdgeInsets.symmetric(
-                  vertical: 12,
-                  horizontal: 12,
-                ),
-                decoration: BoxDecoration(
-                  color: Colors.grey[100],
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: Colors.grey.shade300),
-                ),
-                child: Text(
-                  widget.memberName,
-                  style: const TextStyle(fontSize: 17, color: kNeutralText),
-                ),
-              ),
-            ),
-            const SizedBox(height: 18),
-            Text(
-              'Date of birth',
-              style: const TextStyle(
-                fontWeight: FontWeight.w600,
-                fontSize: 16,
-                color: kNeutralText,
-              ),
-            ),
-            const SizedBox(height: 6),
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 12),
-              decoration: BoxDecoration(
-                color: Colors.grey[100],
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: Colors.grey.shade300),
-              ),
-              child: Row(
-                children: [
-                  _loadingUser
-                      ? const SizedBox(
-                          height: 16,
-                          width: 16,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : Text(
-                          formatDate(_dateOfBirth),
-                          style: const TextStyle(
-                            fontSize: 17,
-                            color: kNeutralText,
-                          ),
-                        ),
-                  const Spacer(),
-                  Icon(Icons.calendar_today, color: Colors.grey.shade400),
-                ],
-              ),
-            ),
-
-            const SizedBox(height: 18),
-            Text(
-              'Date of death',
-              style: const TextStyle(
-                fontWeight: FontWeight.w600,
-                fontSize: 16,
-                color: kNeutralText,
-              ),
-            ),
-            const SizedBox(height: 6),
-            InkWell(
-              onTap: () async {
-                final picked = await showDatePicker(
-                  context: context,
-                  initialDate: DateTime.now(),
-                  firstDate: DateTime(2000),
-                  lastDate: DateTime.now(),
-                );
-                if (picked != null) setState(() => _dateOfDeath = picked);
-              },
-              child: Container(
-                width: double.infinity,
-                padding: const EdgeInsets.symmetric(
-                  vertical: 12,
-                  horizontal: 12,
-                ),
-                decoration: BoxDecoration(
-                  color: Colors.grey[100],
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: Colors.grey.shade300),
-                ),
-                child: Row(
-                  children: [
-                    Text(
-                      _dateOfDeath == null
-                          ? 'Select date'
-                          : '${_dateOfDeath!.year}-${_dateOfDeath!.month.toString().padLeft(2, '0')}-${_dateOfDeath!.day.toString().padLeft(2, '0')}',
-                      style: const TextStyle(fontSize: 17, color: kNeutralText),
-                    ),
-                    const Spacer(),
-                    const Icon(Icons.calendar_today, color: kPrimaryDark),
-                  ],
-                ),
-              ),
-            ),
-            const SizedBox(height: 18),
-            Text(
-              'Barangay',
-              style: const TextStyle(
-                fontWeight: FontWeight.w600,
-                fontSize: 16,
-                color: kNeutralText,
-              ),
-            ),
-            const SizedBox(height: 6),
-            TextField(
-              decoration: const InputDecoration(
-                hintText: 'Enter barangay',
-                border: OutlineInputBorder(),
-                contentPadding: EdgeInsets.symmetric(
-                  vertical: 10,
-                  horizontal: 12,
-                ),
-              ),
-              onChanged: (v) => setState(() => _barangay = v),
-            ),
-            const SizedBox(height: 18),
-            Text(
-              'Latitude',
-              style: const TextStyle(
-                fontWeight: FontWeight.w600,
-                fontSize: 16,
-                color: kNeutralText,
-              ),
-            ),
-            const SizedBox(height: 6),
-            TextField(
-              decoration: const InputDecoration(
-                hintText: 'Enter latitude',
-                border: OutlineInputBorder(),
-                contentPadding: EdgeInsets.symmetric(
-                  vertical: 10,
-                  horizontal: 12,
-                ),
-              ),
-              keyboardType: TextInputType.number,
-              onChanged: (v) => setState(() => _latitude = double.tryParse(v)),
-            ),
-            const SizedBox(height: 18),
-            Text(
-              'Longitude',
-              style: const TextStyle(
-                fontWeight: FontWeight.w600,
-                fontSize: 16,
-                color: kNeutralText,
-              ),
-            ),
-            const SizedBox(height: 6),
-            TextField(
-              decoration: const InputDecoration(
-                hintText: 'Enter longitude',
-                border: OutlineInputBorder(),
-                contentPadding: EdgeInsets.symmetric(
-                  vertical: 10,
-                  horizontal: 12,
-                ),
-              ),
-              keyboardType: TextInputType.number,
-              onChanged: (v) => setState(() => _longitude = double.tryParse(v)),
-            ),
-            const SizedBox(height: 18),
-            Text(
-              'Death Certificate',
-              style: const TextStyle(
-                fontWeight: FontWeight.w600,
-                fontSize: 16,
-                color: kNeutralText,
-              ),
-            ),
-            const SizedBox(height: 6),
-            Row(
-              children: [
-                ElevatedButton.icon(
-                  onPressed: _submitting ? null : _pickDeathCert,
-                  icon: const Icon(Icons.attach_file),
-                  label: Text(
-                    _deathCertFile == null ? 'Choose file' : 'Change file',
-                  ),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: kPrimary,
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                if (_deathCertFile != null)
-                  Expanded(
-                    child: Text(
-                      _deathCertFile!.path.split('/').last,
-                      style: const TextStyle(
-                        fontSize: 13,
-                        fontFamily: 'OpenSans',
-                        color: kSubtleText,
-                      ),
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-              ],
-            ),
-            const SizedBox(height: 18),
-            Text(
-              'Beneficiary who can claim:',
-              style: const TextStyle(
-                fontWeight: FontWeight.w600,
-                fontSize: 16,
-                color: kNeutralText,
-              ),
-            ),
-            const SizedBox(height: 8),
-            ..._beneficiaries.map(
-              (b) => Row(
-                children: [
-                  Radio<String>(
-                    value: b['id'].toString(),
-                    groupValue: _selectedBeneficiaryId,
-                    onChanged: (v) =>
-                        setState(() => _selectedBeneficiaryId = v),
-                  ),
-                  Expanded(
-                    child: Text(
-                      b['full_name'] ?? '',
-                      style: const TextStyle(fontSize: 16, color: kNeutralText),
-                    ),
-                  ),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 10,
-                      vertical: 4,
-                    ),
-                    decoration: BoxDecoration(
-                      color: kAccent.withOpacity(.15),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Text(
-                      (b['status'] ?? '').toString().toLowerCase() == 'approved'
-                          ? 'Eligible'
-                          : (b['status'] ?? ''),
-                      style: const TextStyle(
-                        color: kAccent,
-                        fontWeight: FontWeight.w600,
-                        fontSize: 13,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 18),
-            Row(
-              children: [
-                Expanded(
-                  child: OutlinedButton(
-                    onPressed: _submitting
-                        ? null
-                        : () => Navigator.pop(context),
-                    child: const Text('Cancel'),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: ElevatedButton(
-                    onPressed: _submitting ? null : _submit,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: kPrimary,
-                      foregroundColor: Colors.white,
-                    ),
-                    child: const Text('Submit'),
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-extension on String {
-  get error => null;
 }

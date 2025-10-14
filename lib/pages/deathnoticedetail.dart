@@ -8,7 +8,7 @@ class DeathNoticeDetail extends StatefulWidget {
   final int? noticeId;
   final int? dayungUnitId;
 
-  // Optional prefilled values (used as optimistic UI or for legacy usage)
+  // Optional prefilled values (legacy/direct)
   final String? name;
   final String? date; // date_of_death
   final String? birthDate;
@@ -16,7 +16,6 @@ class DeathNoticeDetail extends StatefulWidget {
   final double? longitude;
   final String? barangay;
 
-  // Legacy usage: pass name/date directly (no fetch)
   const DeathNoticeDetail({
     Key? key,
     required String name,
@@ -31,7 +30,6 @@ class DeathNoticeDetail extends StatefulWidget {
        date = date,
        super(key: key);
 
-  // Preferred: fetch by noticeId
   const DeathNoticeDetail.byNoticeId({
     Key? key,
     required this.noticeId,
@@ -58,6 +56,7 @@ class _DeathNoticeDetailState extends State<DeathNoticeDetail> {
   double? _fLat;
   double? _fLng;
   String? _fBarangay;
+  int? _fStoredAge; // snapshot age from death_notices if present
 
   String? _locationName;
   GoogleMapController? _mapController;
@@ -94,18 +93,16 @@ class _DeathNoticeDetailState extends State<DeathNoticeDetail> {
     });
 
     try {
-      final res = await _sb
+      // 1) Read from death_notices (no joins -> avoids RLS issues)
+      final notice = await _sb
           .from('death_notices')
           .select(
-            // Use explicit FK join alias to ensure users.* is fetched
-            'id, name, date_of_death, barangay, latitude, longitude, user_id, '
-            'user:users!death_notices_user_id_fkey(dob, date_of_death, full_name, address)',
+            'id, name, dob, deceased_age, date_of_death, barangay, latitude, longitude, deceased_type, user_id, beneficiary_id',
           )
-          .eq('id', widget.noticeId as Object)
-          .limit(1);
+          .eq('id', widget.noticeId!)
+          .maybeSingle();
 
-      final rows = (res as List?)?.cast<Map<String, dynamic>>() ?? const [];
-      if (rows.isEmpty) {
+      if (notice == null) {
         setState(() {
           _error = 'Notice not found';
           _loading = false;
@@ -113,53 +110,72 @@ class _DeathNoticeDetailState extends State<DeathNoticeDetail> {
         return;
       }
 
-      final row = rows.first;
-      final user = (row['user'] as Map?)?.cast<String, dynamic>();
-      final userId = (row['user_id'] ?? '').toString();
+      _fName = (notice['name'] ?? _fName)?.toString();
+      _fBirthDate = (notice['dob'] ?? _fBirthDate)?.toString();
+      _fDateOfDeath = (notice['date_of_death'] ?? _fDateOfDeath)?.toString();
+      _fBarangay = (notice['barangay'] ?? _fBarangay)?.toString();
+      _fLat = _toDouble(notice['latitude']) ?? _fLat;
+      _fLng = _toDouble(notice['longitude']) ?? _fLng;
+      _fStoredAge = _toInt(notice['deceased_age']);
 
-      // Name: prefer notice name, then user full_name
-      final noticeName = (row['name'] ?? '').toString();
-      final userName = (user?['full_name'] ?? '').toString();
-      _fName = noticeName.isNotEmpty
-          ? noticeName
-          : (userName.isNotEmpty ? userName : _fName);
+      final benId = notice['beneficiary_id'];
+      final userId = (notice['user_id'] ?? '').toString();
 
-      // Dates: prefer users.date_of_death, then notice.date_of_death
-      final userDod = (user?['date_of_death'] ?? '').toString();
-      final noticeDod = (row['date_of_death'] ?? '').toString();
-      _fDateOfDeath = userDod.isNotEmpty
-          ? userDod
-          : (noticeDod.isNotEmpty ? noticeDod : _fDateOfDeath);
-
-      // DOB from users.dob
-      final userDob = (user?['dob'] ?? '').toString();
-      _fBirthDate = userDob.isNotEmpty ? userDob : _fBirthDate;
+      // 2) Fallbacks: if DOB (or DOD/Name) is missing, fetch from related tables
+      if ((_fBirthDate == null || _fBirthDate!.isEmpty) && benId != null) {
+        try {
+          final ben = await _sb
+              .from('beneficiaries')
+              .select('full_name, dob')
+              .eq('id', benId)
+              .maybeSingle();
+          final benDob = (ben?['dob'] ?? '').toString();
+          final benName = (ben?['full_name'] ?? '').toString();
+          if ((_fBirthDate == null || _fBirthDate!.isEmpty) &&
+              benDob.isNotEmpty) {
+            _fBirthDate = benDob;
+          }
+          if ((_fName == null || _fName!.isEmpty) && benName.isNotEmpty) {
+            _fName = benName;
+          }
+        } catch (_) {
+          // ignore; RLS or not found
+        }
+      }
 
       if ((_fBirthDate == null || _fBirthDate!.isEmpty) && userId.isNotEmpty) {
-        await _hydrateFromUser(userId);
+        try {
+          final u = await _sb
+              .from('users')
+              .select('full_name, dob, date_of_death, address')
+              .eq('id', userId)
+              .maybeSingle();
+          final uDob = (u?['dob'] ?? '').toString();
+          final uDod = (u?['date_of_death'] ?? '').toString();
+          final uName = (u?['full_name'] ?? '').toString();
+          final addr = (u?['address'] ?? '').toString();
+          if ((_fBirthDate == null || _fBirthDate!.isEmpty) &&
+              uDob.isNotEmpty) {
+            _fBirthDate = uDob;
+          }
+          if ((_fDateOfDeath == null || _fDateOfDeath!.isEmpty) &&
+              uDod.isNotEmpty) {
+            _fDateOfDeath = uDod;
+          }
+          if ((_fName == null || _fName!.isEmpty) && uName.isNotEmpty) {
+            _fName = uName;
+          }
+          if ((_fBarangay == null || _fBarangay!.isEmpty) && addr.isNotEmpty) {
+            _fBarangay = addr;
+          }
+        } catch (_) {
+          // ignore; RLS or not found
+        }
       }
 
-      // Location fields
-      _fBarangay = (row['barangay'] ?? _fBarangay)?.toString();
-      // If user's address exists and barangay empty, use it as fallback text
-      final userAddress = (user?['address'] ?? '').toString();
-      if ((_fBarangay == null || _fBarangay!.isEmpty) &&
-          userAddress.isNotEmpty) {
-        _fBarangay = userAddress;
-      }
-
-      _fLat = _toDouble(row['latitude']) ?? _fLat;
-      _fLng = _toDouble(row['longitude']) ?? _fLng;
-
-      // Fallback fetch if nested join failed due to RLS or missing relation
-      if ((userDob.isEmpty ||
-              _fDateOfDeath == null ||
-              _fDateOfDeath!.isEmpty) &&
-          userId.isNotEmpty) {
-        await _hydrateFromUser(userId);
-      }
-
+      // 3) Resolve location label/coords if needed
       await _resolveLocation();
+
       if (!mounted) return;
       setState(() => _loading = false);
     } catch (e) {
@@ -171,44 +187,17 @@ class _DeathNoticeDetailState extends State<DeathNoticeDetail> {
     }
   }
 
-  Future<void> _hydrateFromUser(String userId) async {
-    try {
-      final res = await _sb
-          .from('users')
-          .select('dob, date_of_death, full_name, address')
-          .eq('id', userId)
-          .limit(1);
-
-      final rows = (res as List?)?.cast<Map<String, dynamic>>() ?? const [];
-      if (rows.isEmpty) return;
-
-      final u = rows.first;
-      final dob = (u['dob'] ?? '').toString();
-      final dod = (u['date_of_death'] ?? '').toString();
-      final name = (u['full_name'] ?? '').toString();
-      final addr = (u['address'] ?? '').toString();
-
-      if ((_fBirthDate == null || _fBirthDate!.isEmpty) && dob.isNotEmpty) {
-        _fBirthDate = dob;
-      }
-      if ((_fDateOfDeath == null || _fDateOfDeath!.isEmpty) && dod.isNotEmpty) {
-        _fDateOfDeath = dod;
-      }
-      if ((_fName == null || _fName!.isEmpty) && name.isNotEmpty) {
-        _fName = name;
-      }
-      if ((_fBarangay == null || _fBarangay!.isEmpty) && addr.isNotEmpty) {
-        _fBarangay = addr;
-      }
-    } catch (_) {
-      // ignore; best-effort fallback
-    }
-  }
-
   double? _toDouble(dynamic v) {
     if (v == null) return null;
     if (v is num) return v.toDouble();
     return double.tryParse('$v');
+  }
+
+  int? _toInt(dynamic v) {
+    if (v == null) return null;
+    if (v is int) return v;
+    if (v is num) return v.toInt();
+    return int.tryParse('$v');
   }
 
   Future<void> _resolveLocation() async {
@@ -243,7 +232,6 @@ class _DeathNoticeDetailState extends State<DeathNoticeDetail> {
     if ((_fBarangay ?? '').toString().isNotEmpty) {
       _locationName = _fBarangay; // show text immediately
       try {
-        // Forward geocode to get coords so map can render
         final results = await locationFromAddress(
           _fBarangay!,
         ).timeout(const Duration(seconds: 10), onTimeout: () => []);
@@ -261,18 +249,11 @@ class _DeathNoticeDetailState extends State<DeathNoticeDetail> {
     _locationName = 'Location unavailable';
   }
 
-  String _fmtDate(String? isoOrHuman) {
-    if (isoOrHuman == null || isoOrHuman.isEmpty) return '—';
-    DateTime? dt = DateTime.tryParse(isoOrHuman);
-    dt ??= DateTime.tryParse('${isoOrHuman}T00:00:00');
-
-    // If not parseable, hide non-ISO human strings instead of echoing them
-    if (dt == null) {
-      final s = isoOrHuman.trim();
-      final looksIso = RegExp(r'^\d{4}-\d{2}-\d{2}').hasMatch(s);
-      return looksIso ? s : '—';
-    }
-
+  String _fmtDate(String? iso) {
+    if (iso == null || iso.isEmpty) return '—';
+    DateTime? dt =
+        DateTime.tryParse(iso) ?? DateTime.tryParse('${iso}T00:00:00');
+    if (dt == null) return '—';
     const months = [
       '',
       'Jan',
@@ -303,8 +284,9 @@ class _DeathNoticeDetailState extends State<DeathNoticeDetail> {
     int age = d.year - b.year;
     final hadBirthday =
         (d.month > b.month) || (d.month == b.month && d.day >= b.day);
-    if (!hadBirthday) age -= 1;
-    return age.clamp(0, 150);
+    if (!hadBirthday) age--;
+    if (age < 0 || age > 150) return null;
+    return age;
   }
 
   Future<void> _openInMaps() async {
@@ -329,7 +311,7 @@ class _DeathNoticeDetailState extends State<DeathNoticeDetail> {
     final name = _fName ?? 'Death Notice';
     final dDate = _fDateOfDeath;
     final bDate = _fBirthDate;
-    final age = _computeAge(bDate, dDate);
+    final age = _fStoredAge ?? _computeAge(bDate, dDate);
 
     return Scaffold(
       backgroundColor: Colors.grey.shade100,
@@ -382,28 +364,27 @@ class _DeathNoticeDetailState extends State<DeathNoticeDetail> {
                           InkWell(
                             borderRadius: BorderRadius.circular(24),
                             onTap: () => Navigator.pop(context),
-                            child: Padding(
-                              padding: const EdgeInsets.all(8),
+                            child: const Padding(
+                              padding: EdgeInsets.all(8),
                               child: Icon(
                                 Icons.arrow_back,
-                                size: 28 * scale,
+                                size: 28,
                                 color: Colors.black87,
                               ),
                             ),
                           ),
                           const SizedBox(width: 8),
-                          // Replace with your asset or use an icon
-                          Icon(
+                          const Icon(
                             Icons.inventory_2_rounded,
-                            size: 36 * scale,
+                            size: 36,
                             color: Colors.black54,
                           ),
                           const SizedBox(width: 8),
-                          Expanded(
+                          const Expanded(
                             child: Text(
                               'In loving\nmemory of:',
                               style: TextStyle(
-                                fontSize: 28 * scale,
+                                fontSize: 28,
                                 fontWeight: FontWeight.bold,
                                 color: Colors.black87,
                                 height: 1.1,
@@ -439,8 +420,8 @@ class _DeathNoticeDetailState extends State<DeathNoticeDetail> {
                             child: Text(
                               name,
                               textAlign: TextAlign.center,
-                              style: TextStyle(
-                                fontSize: 34 * scale,
+                              style: const TextStyle(
+                                fontSize: 34,
                                 fontWeight: FontWeight.bold,
                                 color: Colors.white,
                                 letterSpacing: 1.2,
@@ -460,8 +441,8 @@ class _DeathNoticeDetailState extends State<DeathNoticeDetail> {
                           children: [
                             Text(
                               '${_fmtDate(bDate)} – ${_fmtDate(dDate)}',
-                              style: TextStyle(
-                                fontSize: 20 * scale,
+                              style: const TextStyle(
+                                fontSize: 20,
                                 fontWeight: FontWeight.w600,
                                 color: Colors.black87,
                                 height: 1.4,
@@ -471,8 +452,8 @@ class _DeathNoticeDetailState extends State<DeathNoticeDetail> {
                             if (age != null)
                               Text(
                                 'Aged $age years',
-                                style: TextStyle(
-                                  fontSize: 18 * scale,
+                                style: const TextStyle(
+                                  fontSize: 18,
                                   fontWeight: FontWeight.w400,
                                   color: Colors.black54,
                                   height: 1.3,
@@ -490,10 +471,10 @@ class _DeathNoticeDetailState extends State<DeathNoticeDetail> {
                       padding: const EdgeInsets.symmetric(horizontal: 16),
                       child: Row(
                         children: [
-                          Text(
+                          const Text(
                             'Location of Vigil:',
                             style: TextStyle(
-                              fontSize: 22 * scale,
+                              fontSize: 22,
                               fontWeight: FontWeight.bold,
                               color: Colors.black87,
                             ),
@@ -521,12 +502,12 @@ class _DeathNoticeDetailState extends State<DeathNoticeDetail> {
                             child: (_fBarangay ?? '').isNotEmpty
                                 ? Text(
                                     _fBarangay!,
-                                    style: TextStyle(
-                                      fontSize: 20 * scale,
+                                    textAlign: TextAlign.center,
+                                    style: const TextStyle(
+                                      fontSize: 20,
                                       fontWeight: FontWeight.bold,
                                       color: Colors.black87,
                                     ),
-                                    textAlign: TextAlign.center,
                                   )
                                 : (_fLat == null || _fLng == null)
                                 ? const Text("Location unavailable")
@@ -534,13 +515,13 @@ class _DeathNoticeDetailState extends State<DeathNoticeDetail> {
                                     _locationName ??
                                         'Lat: ${_fLat!.toStringAsFixed(4)}\n'
                                             'Lng: ${_fLng!.toStringAsFixed(4)}',
-                                    style: TextStyle(
-                                      fontSize: 18 * scale,
+                                    textAlign: TextAlign.center,
+                                    style: const TextStyle(
+                                      fontSize: 18,
                                       fontWeight: FontWeight.bold,
                                       color: Colors.black87,
                                       height: 1.3,
                                     ),
-                                    textAlign: TextAlign.center,
                                   ),
                           ),
                         ),
@@ -582,16 +563,16 @@ class _DeathNoticeDetailState extends State<DeathNoticeDetail> {
                     ],
 
                     const SizedBox(height: 28),
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                    const Padding(
+                      padding: EdgeInsets.symmetric(horizontal: 16),
                       child: Text(
                         'With deepest respect and remembrance.',
+                        textAlign: TextAlign.center,
                         style: TextStyle(
-                          fontSize: 26 * scale,
+                          fontSize: 26,
                           fontStyle: FontStyle.italic,
                           color: Colors.black87,
                         ),
-                        textAlign: TextAlign.center,
                       ),
                     ),
                     const SizedBox(height: 24),

@@ -1099,8 +1099,11 @@ class _ProfilePageState extends State<ProfilePage> {
       final userId = supabase.auth.currentUser!.id;
       final fileName = '$userId-${type}_certificate.${ext.toLowerCase()}';
 
+      // Use the correct bucket for each type
+      final bucket = type == 'birth' ? 'birth_certificates' : 'marriage_certificates';
+
       await supabase.storage
-          .from('certificates')
+          .from(bucket)
           .uploadBinary(
             fileName,
             bytes,
@@ -1108,7 +1111,7 @@ class _ProfilePageState extends State<ProfilePage> {
           );
 
       final publicUrl = supabase.storage
-          .from('certificates')
+          .from(bucket)
           .getPublicUrl(fileName);
 
       final update = await supabase

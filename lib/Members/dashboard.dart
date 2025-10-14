@@ -534,23 +534,76 @@ class _MemberDashboardPageState extends State<MemberDashboardPage> {
             callback: (payload) async {
               final row = payload.newRecord;
               // Pop top banner
-              TopNotificationBanner.show(
-                context,
-                title: (row['title'] ?? 'Announcement').toString(),
-                message: (row['body'] ?? '').toString(),
-                icon: Icons.campaign,
-                onTap: () async {
-                  // Mark as read FOR THIS USER using announcement_reads
-                  try {
-                    await sb.from('announcement_reads').upsert([
-                      {
-                        'announcement_id': row['id'],
-                        'user_id': uid,
-                        'read_at': DateTime.now().toIso8601String(),
-                      },
-                    ], onConflict: 'announcement_id,user_id');
-                  } catch (_) {}
-                  await _fetchUnreadNotifCount();
+              showDialog(
+                context: context,
+                barrierDismissible: false,
+                builder: (_) {
+                  return Dialog(
+                    backgroundColor: const Color(0xFF8CA6C7),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(28),
+                    ),
+                    child: Padding(
+                      padding: const EdgeInsets.all(32),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Text(
+                            'Announcement',
+                            style: TextStyle(
+                              fontFamily: 'Montserrat',
+                              fontWeight: FontWeight.w800,
+                              fontSize: 28,
+                              color: Colors.white,
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+                          const Icon(
+                            Icons.campaign,
+                            color: Colors.amber,
+                            size: 64,
+                          ),
+                          const SizedBox(height: 16),
+                          Text(
+                            (row['body'] ?? '').toString(),
+                            textAlign: TextAlign.center,
+                            style: const TextStyle(
+                              fontFamily: 'Montserrat',
+                              fontWeight: FontWeight.w800,
+                              fontSize: 24,
+                              color: Colors.white,
+                            ),
+                          ),
+                          const SizedBox(height: 24),
+                          TextButton(
+                            onPressed: () async {
+                              try {
+                                await sb.from('announcement_reads').upsert([
+                                  {
+                                    'announcement_id': row['id'],
+                                    'user_id': uid,
+                                    'read_at': DateTime.now().toIso8601String(),
+                                  },
+                                ], onConflict: 'announcement_id,user_id');
+                              } catch (_) {}
+                              if (!context.mounted) return;
+                              Navigator.of(context).pop();
+                              await _fetchUnreadNotifCount();
+                            },
+                            child: const Text(
+                              'Continue',
+                              style: TextStyle(
+                                fontFamily: 'Montserrat',
+                                fontWeight: FontWeight.w800,
+                                fontSize: 22,
+                                color: Color(0xFFDDE3EA),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
                 },
               );
               await _fetchUnreadNotifCount();

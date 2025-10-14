@@ -48,7 +48,8 @@ class _ManageFundPageState extends State<ManageFundPage> {
       final res = await sb
           .from('payments')
           .select(
-            'death_notice_id, amount, status, paid_at, notice:death_notices(id,name,date_of_death)',
+            // include deceased_type so we can separate Members vs Beneficiaries
+            'death_notice_id, amount, status, paid_at, notice:death_notices(id,name,date_of_death,deceased_type)',
           )
           .eq('dayung_unit_id', widget.dayungUnitId);
 
@@ -62,6 +63,9 @@ class _ManageFundPageState extends State<ManageFundPage> {
         final notice = (r['notice'] as Map?)?.cast<String, dynamic>();
         final name = (notice?['name'] ?? 'Death Notice').toString();
         final dateStr = (notice?['date_of_death'] ?? '').toString();
+        final dtype = (notice?['deceased_type'] ?? '').toString().isEmpty
+            ? 'member'
+            : (notice?['deceased_type']).toString();
 
         final amt = (r['amount'] is num)
             ? (r['amount'] as num).toDouble()
@@ -77,6 +81,7 @@ class _ManageFundPageState extends State<ManageFundPage> {
             'deadline': dateStr,
             'status': '', // computed later
             'progress': 0.0, // computed later
+            'type': dtype, // NEW: member | beneficiary
           };
         });
 
@@ -88,6 +93,7 @@ class _ManageFundPageState extends State<ManageFundPage> {
         // Keep latest label fields
         bucket['name'] = name;
         bucket['deadline'] = dateStr;
+        bucket['type'] = dtype;
       }
 
       final list = byNotice.values.toList();
@@ -118,7 +124,6 @@ class _ManageFundPageState extends State<ManageFundPage> {
 
       // --- ADVANCE FUND LOGIC ---
       if (list.isEmpty) {
-        // No deceased/death notice, show advance fund
         final advanceRes = await sb
             .from('payments')
             .select('amount, status')
@@ -148,6 +153,7 @@ class _ManageFundPageState extends State<ManageFundPage> {
           'progress': advanceGoal <= 0
               ? 0.0
               : (advancePaid / advanceGoal).clamp(0.0, 1.0),
+          'type': 'member', // default bucket
         });
       }
       // --- END ADVANCE FUND LOGIC ---
@@ -160,17 +166,9 @@ class _ManageFundPageState extends State<ManageFundPage> {
         _loading = false;
       });
     } on PostgrestException catch (e) {
-      if (!mounted) return;
-      setState(() {
-        _error = e.message.isEmpty ? 'Failed to load funds.' : e.message;
-        _loading = false;
-      });
+      // ...existing code...
     } catch (e) {
-      if (!mounted) return;
-      setState(() {
-        _error = 'Failed to load funds: $e';
-        _loading = false;
-      });
+      // ...existing code...
     }
   }
 
@@ -281,29 +279,120 @@ class _ManageFundPageState extends State<ManageFundPage> {
                   const SizedBox(height: 12),
                   _filtersBar(),
                   const SizedBox(height: 8),
-                  if (_visibleFunds.isEmpty)
-                    Padding(
-                      padding: const EdgeInsets.only(top: 80),
-                      child: Column(
-                        children: const [
-                          Icon(
-                            Icons.inbox_outlined,
-                            size: 48,
-                            color: Colors.grey,
+
+                  // Split into Members / Beneficiaries sections
+                  Builder(
+                    builder: (_) {
+                      final visible = _visibleFunds;
+                      final members = visible
+                          .where((f) => (f['type'] ?? 'member') == 'member')
+                          .toList();
+                      final beneficiaries = visible
+                          .where((f) => (f['type'] ?? '') == 'beneficiary')
+                          .toList();
+
+                      Widget section(
+                        String title,
+                        List<Map<String, dynamic>> list,
+                      ) {
+                        if (list.isEmpty) {
+                          return Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                            child: Row(
+                              children: [
+                                Text(
+                                  '$title',
+                                  style: const TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w800,
+                                    color: kPrimaryDark,
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                const Text(
+                                  '— No records',
+                                  style: TextStyle(color: kSubtleText),
+                                ),
+                              ],
+                            ),
+                          );
+                        }
+                        return Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Text(
+                                  '$title',
+                                  style: const TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w800,
+                                    color: kPrimaryDark,
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 8,
+                                    vertical: 2,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: kPrimary.withOpacity(.08),
+                                    borderRadius: BorderRadius.circular(10),
+                                    border: Border.all(color: kPrimary),
+                                  ),
+                                  child: Text(
+                                    '${list.length}',
+                                    style: const TextStyle(
+                                      color: kPrimaryDark,
+                                      fontWeight: FontWeight.w800,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 8),
+                            ...List.generate(
+                              list.length,
+                              (i) => Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 8,
+                                ),
+                                child: _fundCard(list[i]),
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                          ],
+                        );
+                      }
+
+                      if (visible.isEmpty) {
+                        return Padding(
+                          padding: const EdgeInsets.only(top: 80),
+                          child: Column(
+                            children: const [
+                              Icon(
+                                Icons.inbox_outlined,
+                                size: 48,
+                                color: Colors.grey,
+                              ),
+                              SizedBox(height: 10),
+                              Text('No matching funds.'),
+                            ],
                           ),
-                          SizedBox(height: 10),
-                          Text('No matching funds. Try a different filter.'),
+                        );
+                      }
+
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          section('Members', members),
+                          const SizedBox(height: 8),
+                          section('Beneficiaries', beneficiaries),
                         ],
-                      ),
-                    )
-                  else
-                    ...List.generate(
-                      _visibleFunds.length,
-                      (i) => Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 8),
-                        child: _fundCard(_visibleFunds[i]),
-                      ),
-                    ),
+                      );
+                    },
+                  ),
                 ],
               ),
             ),
@@ -443,6 +532,7 @@ class _ManageFundPageState extends State<ManageFundPage> {
     final progress = (fund['progress'] as double?)?.clamp(0.0, 1.0) ?? 0.0;
     final deadline = (fund['deadline'] ?? '').toString();
     final completed = (fund['status'] ?? '').toString() == 'Completed';
+    final noticeId = (fund['id'] as int?) ?? 0;
 
     return InkWell(
       borderRadius: BorderRadius.circular(16),
@@ -563,11 +653,331 @@ class _ManageFundPageState extends State<ManageFundPage> {
                       ),
                     ],
                   ),
+                  const SizedBox(height: 10),
+                  // ACTIONS: Collect + Status
+                  Row(
+                    children: [
+                      OutlinedButton.icon(
+                        onPressed: noticeId == 0
+                            ? null
+                            : () => _triggerPaymentCollection(
+                                noticeId,
+                                widget.dayungUnitId, // pass second arg
+                              ),
+                        icon: const Icon(Icons.playlist_add_check),
+                        label: const Text('Collect'),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: kPrimaryDark,
+                          side: const BorderSide(color: kPrimaryDark),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      TextButton.icon(
+                        onPressed: () => _showPaymentStatusSheet(noticeId),
+                        icon: const Icon(Icons.list_alt),
+                        label: const Text('Status'),
+                      ),
+                    ],
+                  ),
                 ],
               ),
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  Future<void> _triggerPaymentCollection(
+    int deathNoticeId,
+    int dayungUnitId,
+  ) async {
+    // Fetch notice meta (always contains the member/parent user_id snapshot)
+    Map<String, dynamic>? dn;
+    try {
+      final res = await sb
+          .from('death_notices')
+          .select('id,deceased_type,user_id,beneficiary_id')
+          .eq('id', deathNoticeId)
+          .single();
+      dn = Map<String, dynamic>.from(res);
+    } catch (_) {}
+
+    // Exclude this user from billing (self for member, parent for beneficiary)
+    final String? excludedUserId = (dn?['user_id'] ?? '').toString().isNotEmpty
+        ? (dn!['user_id']).toString()
+        : null;
+
+    // Cleanup: remove any existing payment row for the excluded user (if any)
+    if (excludedUserId != null && excludedUserId.isNotEmpty) {
+      try {
+        await sb
+            .from('payments')
+            .delete()
+            .eq('death_notice_id', deathNoticeId)
+            .eq('dayung_unit_id', dayungUnitId)
+            .eq('user_id', excludedUserId);
+      } catch (_) {}
+    }
+
+    // Get active members for the dayung
+    final usersRes = await sb
+        .from('users')
+        .select('id')
+        .eq('dayung_unit_id', dayungUnitId)
+        .eq('is_deceased', false);
+    final members = List<Map<String, dynamic>>.from(usersRes);
+
+    if (members.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No active members to charge.')),
+      );
+      return;
+    }
+
+    // Already generated payments for this notice/dayung
+    final existingRes = await sb
+        .from('payments')
+        .select('user_id')
+        .eq('death_notice_id', deathNoticeId)
+        .eq('dayung_unit_id', dayungUnitId);
+    final existingIds = {
+      for (final r in List<Map<String, dynamic>>.from(existingRes))
+        (r['user_id'] ?? '').toString(),
+    };
+
+    // Prepare new rows (skip duplicates and excluded user)
+    final rows = <Map<String, dynamic>>[];
+    for (final u in members) {
+      final uid = (u['id'] ?? '').toString();
+      if (uid.isEmpty) continue;
+      if (excludedUserId != null && uid == excludedUserId) continue;
+      if (existingIds.contains(uid)) continue;
+      rows.add({
+        'user_id': uid,
+        'amount': 1, // adjust as needed
+        'status': 'pending',
+        'death_notice_id': deathNoticeId,
+        'dayung_unit_id': dayungUnitId,
+      });
+    }
+
+    if (rows.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No new payments to create.')),
+      );
+      await _fetchAll();
+      return;
+    }
+
+    try {
+      await sb.from('payments').insert(rows);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Created ${rows.length} payment(s).')),
+      );
+    } on PostgrestException catch (e) {
+      if (e.code == '23505') {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Some payments already existed. New ones added.'),
+          ),
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to create payments: ${e.message}')),
+        );
+      }
+    }
+
+    await _fetchAll();
+  }
+
+  Future<void> _fetchAll() async {
+    if (!mounted) return;
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    await _load();
+  }
+
+  Future<void> _showPaymentStatusSheet(int noticeId) async {
+    final sb = Supabase.instance.client;
+    try {
+      final rows = await sb
+          .from('payments')
+          .select(
+            'id, amount, status, paid_at, '
+            'user:users!payments_user_id_fkey(full_name), '
+            'collector:users!payments_collected_by_fkey(full_name)',
+          )
+          .eq('death_notice_id', noticeId)
+          .eq('dayung_unit_id', widget.dayungUnitId);
+      // .order('full_name', foreignTable: 'user'); // remove: not supported
+
+      final items = List<Map<String, dynamic>>.from(rows);
+
+      // Sort client-side by payer full_name (fallback to Payment #id)
+      items.sort((a, b) {
+        final an = (((a['user'] as Map?)?['full_name']) ?? '')
+            .toString()
+            .toLowerCase();
+        final bn = (((b['user'] as Map?)?['full_name']) ?? '')
+            .toString()
+            .toLowerCase();
+        if (an.isEmpty && bn.isEmpty) return 0;
+        if (an.isEmpty) return 1;
+        if (bn.isEmpty) return -1;
+        return an.compareTo(bn);
+      });
+
+      int paid = 0, unpaid = 0;
+      double paidAmt = 0, totalAmt = 0;
+      for (final r in items) {
+        final s = (r['status'] ?? '').toString().toLowerCase();
+        final amt = (r['amount'] is num)
+            ? (r['amount'] as num).toDouble()
+            : double.tryParse('${r['amount']}') ?? 0.0;
+        totalAmt += amt;
+        if (s == 'paid') {
+          paid++;
+          paidAmt += amt;
+        } else {
+          unpaid++;
+        }
+      }
+
+      if (!mounted) return;
+      await showModalBottomSheet(
+        context: context,
+        isScrollControlled: true,
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+        ),
+        builder: (context) {
+          return SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // ...existing header...
+                  Flexible(
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(maxHeight: 460),
+                      child: ListView.separated(
+                        itemCount: items.length,
+                        separatorBuilder: (_, __) =>
+                            Divider(height: 1, color: Colors.grey.shade300),
+                        itemBuilder: (_, i) {
+                          final r = items[i];
+                          final s = (r['status'] ?? '')
+                              .toString()
+                              .toLowerCase();
+                          final amt = (r['amount'] is num)
+                              ? (r['amount'] as num).toDouble()
+                              : double.tryParse('${r['amount']}') ?? 0.0;
+
+                          final payerName =
+                              (((r['user'] as Map?)?['full_name']) ?? '')
+                                  .toString();
+                          final title = payerName.isNotEmpty
+                              ? payerName
+                              : 'Payment #${r['id']}';
+
+                          // NEW: build subtitle with paid_at and collector
+                          final paidAtStr = _fmtDateTime(r['paid_at']);
+                          final collectorName =
+                              (((r['collector'] as Map?)?['full_name']) ?? '')
+                                  .toString();
+                          final subtitleText = s == 'paid'
+                              ? 'Collected'
+                                    '${paidAtStr.isNotEmpty ? ' on: $paidAtStr' : ''}'
+                                    '${collectorName.isNotEmpty ? '\nCollected by: $collectorName' : ''}'
+                              : 'Pending';
+
+                          return ListTile(
+                            leading: CircleAvatar(
+                              backgroundColor: s == 'paid'
+                                  ? Colors.green.withOpacity(.15)
+                                  : Colors.orange.withOpacity(.15),
+                              child: Icon(
+                                s == 'paid'
+                                    ? Icons.check
+                                    : Icons.hourglass_empty,
+                                color: s == 'paid'
+                                    ? Colors.green[800]
+                                    : Colors.orange[800],
+                              ),
+                            ),
+                            title: Text(
+                              title,
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w700,
+                                color: kNeutralText,
+                              ),
+                            ),
+                            subtitle: Text(
+                              subtitleText,
+                              style: const TextStyle(color: kSubtleText),
+                            ),
+                            trailing: Text(
+                              '₱${amt.toStringAsFixed(0)}',
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w800,
+                                color: kNeutralText,
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Failed to load payments: $e')));
+    }
+  }
+
+  String _fmtDateTime(dynamic v) {
+    if (v == null) return '';
+    final s = v.toString();
+    DateTime? dt = DateTime.tryParse(s);
+    if (dt == null) return '';
+    dt = dt.toLocal();
+    String two(int n) => n.toString().padLeft(2, '0');
+    return '${dt.year}-${two(dt.month)}-${two(dt.day)} ${two(dt.hour)}:${two(dt.minute)}';
+  }
+
+  Widget _chip(IconData icon, String label, Color color) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: color.withOpacity(.06),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: color.withOpacity(.25)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 16, color: color),
+          const SizedBox(width: 6),
+          Text(
+            label,
+            style: TextStyle(
+              color: color.withOpacity(.95),
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+        ],
       ),
     );
   }

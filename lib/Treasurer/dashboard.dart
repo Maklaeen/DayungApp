@@ -111,7 +111,9 @@ class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
       // A) direct matches on death_notices.dayung_unit_id
       final dnDirect = await sb
           .from('death_notices')
-          .select('id,name,date_of_death,dayung_unit_id,user_id')
+          .select(
+            'id,name,date_of_death,dayung_unit_id,user_id,beneficiary_id,deceased_type',
+          )
           .inFilter('dayung_unit_id', ids)
           .order('date_of_death', ascending: false);
 
@@ -131,7 +133,9 @@ class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
       if (userIds.isNotEmpty) {
         final dnViaUser = await sb
             .from('death_notices')
-            .select('id,name,date_of_death,dayung_unit_id,user_id')
+            .select(
+              'id,name,date_of_death,dayung_unit_id,user_id,beneficiary_id,deceased_type',
+            )
             .isFilter('dayung_unit_id', null)
             .inFilter('user_id', userIds);
         viaUser = List<Map<String, dynamic>>.from(dnViaUser);
@@ -141,7 +145,16 @@ class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
       final map = <int, Map<String, dynamic>>{};
       for (final m in [...direct, ...viaUser]) {
         final id = int.tryParse((m['id']).toString());
-        if (id != null) map[id] = m;
+        if (id == null) continue;
+
+        // Ensure deceased_type populated for older rows
+        final dtype = (m['deceased_type'] ?? '').toString();
+        if (dtype.isEmpty) {
+          m['deceased_type'] = (m['beneficiary_id'] != null)
+              ? 'beneficiary'
+              : 'member';
+        }
+        map[id] = m;
       }
       final list = map.values.toList();
       list.sort(
@@ -335,6 +348,34 @@ class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
     int deathNoticeId,
     int dayungUnitId,
   ) async {
+    // Fetch notice meta (always contains the member/parent user_id snapshot)
+    Map<String, dynamic>? dn;
+    try {
+      final res = await sb
+          .from('death_notices')
+          .select('id,deceased_type,user_id,beneficiary_id')
+          .eq('id', deathNoticeId)
+          .single();
+      dn = Map<String, dynamic>.from(res);
+    } catch (_) {}
+
+    // Exclude this user from billing (self for member, parent for beneficiary)
+    final String? excludedUserId = (dn?['user_id'] ?? '').toString().isNotEmpty
+        ? (dn!['user_id']).toString()
+        : null;
+
+    // Cleanup: remove any existing payment row for the excluded user (if any)
+    if (excludedUserId != null && excludedUserId.isNotEmpty) {
+      try {
+        await sb
+            .from('payments')
+            .delete()
+            .eq('death_notice_id', deathNoticeId)
+            .eq('dayung_unit_id', dayungUnitId)
+            .eq('user_id', excludedUserId);
+      } catch (_) {}
+    }
+
     // Get active members for the dayung
     final usersRes = await sb
         .from('users')
@@ -350,7 +391,7 @@ class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
       return;
     }
 
-    // Fetch already generated payments for this notice/dayung
+    // Already generated payments for this notice/dayung
     final existingRes = await sb
         .from('payments')
         .select('user_id')
@@ -361,11 +402,13 @@ class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
         (r['user_id'] ?? '').toString(),
     };
 
-    // Prepare only new rows (skip duplicates)
+    // Prepare new rows (skip duplicates and excluded user)
     final rows = <Map<String, dynamic>>[];
     for (final u in members) {
       final uid = (u['id'] ?? '').toString();
-      if (uid.isEmpty || existingIds.contains(uid)) continue;
+      if (uid.isEmpty) continue;
+      if (excludedUserId != null && uid == excludedUserId) continue;
+      if (existingIds.contains(uid)) continue;
       rows.add({
         'user_id': uid,
         'amount': 1, // adjust as needed
@@ -377,9 +420,7 @@ class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
 
     if (rows.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Payments already generated for all members.'),
-        ),
+        const SnackBar(content: Text('No new payments to create.')),
       );
       await _fetchAll();
       return;
@@ -392,7 +433,6 @@ class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
       );
     } on PostgrestException catch (e) {
       if (e.code == '23505') {
-        // Unique conflict due to race; safe to ignore
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('Some payments already existed. New ones added.'),
@@ -573,7 +613,6 @@ class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
       edgeOffset: 68,
       child: SingleChildScrollView(
         controller: _scrollController,
-        // Remove AlwaysScrollableScrollPhysics to prevent refresh at bottom
         padding: const EdgeInsets.fromLTRB(20, 8, 20, 120),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -616,6 +655,8 @@ class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
             }),
             const SizedBox(height: 14),
             _collectedPanel(),
+
+            // ------------ Death Notices (split by Members/Beneficiaries) ------------
             FutureBuilder<List<Map<String, dynamic>>>(
               future: _deathNoticesFutureCached,
               builder: (context, snap) {
@@ -649,278 +690,343 @@ class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
                   );
                 }
 
-                final noticeIds = notices
-                    .map<int>((e) => e['id'] as int)
-                    .toList();
                 final dayungId =
                     _dayungUnitId ??
                     (notices.isNotEmpty
                         ? (notices.first['dayung_unit_id'] ?? 0)
                         : 0);
 
-                _ensureStatsFuture(noticeIds, dayungId);
+                final members = notices
+                    .where((n) => (n['deceased_type'] ?? 'member') == 'member')
+                    .toList();
+                final beneficiaries = notices
+                    .where((n) => (n['deceased_type'] ?? '') == 'beneficiary')
+                    .toList();
 
-                return FutureBuilder<Map<int, Map<String, dynamic>>>(
-                  future: _paymentStatsByNotice(noticeIds, dayungId),
-                  builder: (context, statSnap) {
-                    final stats =
-                        statSnap.data ?? const <int, Map<String, dynamic>>{};
-
-                    Widget statusPill(String text, Color color) => Container(
+                Widget sectionHeader(String title, int count) => Row(
+                  children: [
+                    Text(
+                      title,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 18,
+                        color: kPrimaryDark,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Container(
                       padding: const EdgeInsets.symmetric(
-                        horizontal: 10,
-                        vertical: 4,
+                        horizontal: 8,
+                        vertical: 2,
                       ),
                       decoration: BoxDecoration(
-                        color: color.withOpacity(.12),
-                        borderRadius: BorderRadius.circular(20),
-                        border: Border.all(color: color),
+                        color: kPrimary.withOpacity(.08),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: kPrimary),
                       ),
                       child: Text(
-                        text,
-                        style: TextStyle(
-                          color: color,
+                        '$count',
+                        style: const TextStyle(
+                          color: kPrimaryDark,
                           fontWeight: FontWeight.w800,
                         ),
                       ),
-                    );
+                    ),
+                  ],
+                );
 
-                    Widget countChip(
-                      IconData icon,
-                      String label,
-                      int count,
-                      Color color,
-                    ) => Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 10,
-                        vertical: 6,
-                      ),
-                      decoration: BoxDecoration(
-                        color: color.withOpacity(.06),
-                        borderRadius: BorderRadius.circular(10),
-                        border: Border.all(color: color.withOpacity(.25)),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(icon, size: 16, color: color),
-                          const SizedBox(width: 6),
-                          Text(
-                            '$label $count',
-                            style: TextStyle(
-                              color: color.withOpacity(.95),
-                              fontWeight: FontWeight.w800,
-                            ),
-                          ),
-                        ],
+                Widget noticeList(List<Map<String, dynamic>> list) {
+                  if (list.isEmpty) {
+                    return const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 12),
+                      child: Text(
+                        'No notices found in this category.',
+                        style: TextStyle(color: kSubtleText),
                       ),
                     );
+                  }
 
-                    Widget noticeCard(Map<String, dynamic> n) {
-                      final sid = n['id'] as int;
-                      final dId =
-                          int.tryParse(
-                            (n['dayung_unit_id'] ?? dayungId ?? 0).toString(),
-                          ) ??
-                          0;
-                      final st =
-                          stats[sid] ??
-                          const {
-                            'paidCount': 0,
-                            'unpaidCount': 0,
-                            'paidAmount': 0.0,
-                            'pendingAmount': 0.0,
-                            'totalCount': 0,
-                          };
+                  final noticeIds = list
+                      .map<int>((e) => int.tryParse('${e['id']}') ?? 0)
+                      .toList();
 
-                      final paid = (st['paidCount'] ?? 0) as int;
-                      final unpaid = (st['unpaidCount'] ?? 0) as int;
-                      final totalCount =
-                          (st['totalCount'] ?? (paid + unpaid)) as int;
-                      final paidAmt = (st['paidAmount'] ?? 0.0) as double;
-                      final pendingAmt = (st['pendingAmount'] ?? 0.0) as double;
+                  return FutureBuilder<Map<int, Map<String, dynamic>>>(
+                    future: _paymentStatsByNotice(noticeIds, dayungId),
+                    builder: (context, statSnap) {
+                      final stats =
+                          statSnap.data ?? const <int, Map<String, dynamic>>{};
 
-                      final completed = unpaid == 0 && totalCount > 0;
-                      final progress = totalCount == 0
-                          ? 0.0
-                          : (paid / totalCount).clamp(0.0, 1.0);
-
-                      return Container(
-                        padding: const EdgeInsets.all(14),
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(16),
-                          border: Border.all(color: Colors.grey.shade300),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withOpacity(.06),
-                              blurRadius: 10,
-                              offset: const Offset(0, 3),
-                            ),
-                          ],
+                      Widget statusPill(String text, Color color) => Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 4,
                         ),
-                        child: Column(
+                        decoration: BoxDecoration(
+                          color: color.withOpacity(.12),
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(color: color),
+                        ),
+                        child: Text(
+                          text,
+                          style: TextStyle(
+                            color: color,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                      );
+
+                      Widget countChip(
+                        IconData icon,
+                        String label,
+                        int count,
+                        Color color,
+                      ) => Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 6,
+                        ),
+                        decoration: BoxDecoration(
+                          color: color.withOpacity(.06),
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(color: color.withOpacity(.25)),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
                           children: [
-                            // Title + status
-                            Row(
-                              children: [
-                                Expanded(
-                                  child: Text(
-                                    (n['name'] ?? 'Death Notice').toString(),
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: const TextStyle(
-                                      fontWeight: FontWeight.w800,
-                                      fontSize: 16,
-                                      color: kNeutralText,
-                                      fontFamily: 'Montserrat',
-                                    ),
-                                  ),
-                                ),
-                                statusPill(
-                                  completed ? 'Completed' : 'Collecting',
-                                  completed ? Colors.teal : Colors.orange,
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 6),
-                            // Date row
-                            Row(
-                              children: [
-                                const Icon(
-                                  Icons.event,
-                                  size: 16,
-                                  color: kSubtleText,
-                                ),
-                                const SizedBox(width: 6),
-                                Text(
-                                  (n['date_of_death'] ?? '').toString().isEmpty
-                                      ? '—'
-                                      : (n['date_of_death']).toString(),
-                                  style: const TextStyle(
-                                    color: kSubtleText,
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 10),
-                            // Counts + amount
-                            Row(
-                              children: [
-                                countChip(
-                                  Icons.verified_rounded,
-                                  'Paid',
-                                  paid,
-                                  Colors.green,
-                                ),
-                                const SizedBox(width: 8),
-                                countChip(
-                                  Icons.pending_actions_rounded,
-                                  'Unpaid',
-                                  unpaid,
-                                  Colors.red,
-                                ),
-                                const Spacer(),
-                                Text(
-                                  '₱${paidAmt.toStringAsFixed(0)} / ₱${(paidAmt + pendingAmt).toStringAsFixed(0)}',
-                                  style: const TextStyle(
-                                    fontWeight: FontWeight.w800,
-                                    color: kNeutralText,
-                                  ),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 10),
-                            // Progress
-                            Row(
-                              children: [
-                                Expanded(
-                                  child: ClipRRect(
-                                    borderRadius: BorderRadius.circular(8),
-                                    child: LinearProgressIndicator(
-                                      value: progress,
-                                      minHeight: 10,
-                                      backgroundColor: Colors.grey.shade200,
-                                      valueColor: AlwaysStoppedAnimation(
-                                        completed ? Colors.teal : Colors.indigo,
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                                const SizedBox(width: 10),
-                                Text(
-                                  '${(progress * 100).round()}%',
-                                  style: const TextStyle(
-                                    fontWeight: FontWeight.w800,
-                                  ),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 12),
-                            // Actions
-                            Row(
-                              children: [
-                                OutlinedButton.icon(
-                                  onPressed: () =>
-                                      _showPaymentStatusSheet(sid, dId),
-                                  icon: const Icon(
-                                    Icons.info_outline,
-                                    size: 18,
-                                  ),
-                                  label: const Text('Status'),
-                                  style: OutlinedButton.styleFrom(
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 12,
-                                      vertical: 10,
-                                    ),
-                                  ),
-                                ),
-                                const SizedBox(width: 10),
-                                Expanded(
-                                  child: ElevatedButton.icon(
-                                    onPressed: completed
-                                        ? null
-                                        : () => _triggerPaymentCollection(
-                                            sid,
-                                            dId,
-                                          ),
-                                    icon: const Icon(
-                                      Icons.campaign_rounded,
-                                      size: 18,
-                                    ),
-                                    label: const Text('Collect'),
-                                    style: ElevatedButton.styleFrom(
-                                      backgroundColor: kPrimary,
-                                      foregroundColor: Colors.white,
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 12,
-                                        vertical: 12,
-                                      ),
-                                      shape: RoundedRectangleBorder(
-                                        borderRadius: BorderRadius.circular(10),
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              ],
+                            Icon(icon, size: 16, color: color),
+                            const SizedBox(width: 6),
+                            Text(
+                              '$label $count',
+                              style: TextStyle(
+                                color: color.withOpacity(.95),
+                                fontWeight: FontWeight.w800,
+                              ),
                             ),
                           ],
                         ),
                       );
-                    }
 
-                    return LayoutBuilder(
-                      builder: (context, c) {
-                        final isGrid = c.maxWidth >= 720;
-                        final cards = notices.map(noticeCard).toList();
+                      Widget noticeCard(Map<String, dynamic> n) {
+                        final sid = int.tryParse('${n['id']}') ?? 0;
+                        final dId =
+                            int.tryParse(
+                              '${n['dayung_unit_id'] ?? dayungId ?? 0}',
+                            ) ??
+                            0;
+                        final st =
+                            stats[sid] ??
+                            const {
+                              'paidCount': 0,
+                              'unpaidCount': 0,
+                              'paidAmount': 0.0,
+                              'pendingAmount': 0.0,
+                              'totalCount': 0,
+                            };
 
+                        final paid = (st['paidCount'] ?? 0) as int;
+                        final unpaid = (st['unpaidCount'] ?? 0) as int;
+                        final totalCount =
+                            (st['totalCount'] ?? (paid + unpaid)) as int;
+                        final paidAmt = (st['paidAmount'] ?? 0.0) as double;
+                        final pendingAmt =
+                            (st['pendingAmount'] ?? 0.0) as double;
+
+                        final completed = unpaid == 0 && totalCount > 0;
+                        final progress = totalCount == 0
+                            ? 0.0
+                            : (paid / totalCount).clamp(0.0, 1.0);
+
+                        return Container(
+                          margin: const EdgeInsets.only(bottom: 12),
+                          padding: const EdgeInsets.all(14),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(color: Colors.grey.shade300),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withOpacity(.06),
+                                blurRadius: 10,
+                                offset: const Offset(0, 3),
+                              ),
+                            ],
+                          ),
+                          child: Column(
+                            children: [
+                              // Title + status
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: Text(
+                                      (n['name'] ?? 'Death Notice').toString(),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: const TextStyle(
+                                        fontWeight: FontWeight.w800,
+                                        fontSize: 16,
+                                        color: kNeutralText,
+                                        fontFamily: 'Montserrat',
+                                      ),
+                                    ),
+                                  ),
+                                  statusPill(
+                                    completed ? 'Completed' : 'Collecting',
+                                    completed ? Colors.teal : Colors.orange,
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 6),
+                              // Date row
+                              Row(
+                                children: [
+                                  const Icon(
+                                    Icons.event,
+                                    size: 16,
+                                    color: kSubtleText,
+                                  ),
+                                  const SizedBox(width: 6),
+                                  Text(
+                                    (n['date_of_death'] ?? '')
+                                            .toString()
+                                            .isEmpty
+                                        ? '—'
+                                        : (n['date_of_death']).toString(),
+                                    style: const TextStyle(
+                                      color: kSubtleText,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 10),
+                              // Counts + amount
+                              Row(
+                                children: [
+                                  countChip(
+                                    Icons.verified_rounded,
+                                    'Paid',
+                                    paid,
+                                    Colors.green,
+                                  ),
+                                  const SizedBox(width: 8),
+                                  countChip(
+                                    Icons.pending_actions_rounded,
+                                    'Unpaid',
+                                    unpaid,
+                                    Colors.red,
+                                  ),
+                                  const Spacer(),
+                                  Text(
+                                    '₱${paidAmt.toStringAsFixed(0)} / ₱${(paidAmt + pendingAmt).toStringAsFixed(0)}',
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.w800,
+                                      color: kNeutralText,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 10),
+                              // Progress
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: ClipRRect(
+                                      borderRadius: BorderRadius.circular(8),
+                                      child: LinearProgressIndicator(
+                                        value: progress,
+                                        minHeight: 10,
+                                        backgroundColor: Colors.grey.shade200,
+                                        valueColor: AlwaysStoppedAnimation(
+                                          completed
+                                              ? Colors.teal
+                                              : Colors.indigo,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 10),
+                                  Text(
+                                    '${(progress * 100).round()}%',
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.w800,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 10),
+                              // ACTIONS: Collect + Status
+                              Row(
+                                children: [
+                                  OutlinedButton.icon(
+                                    onPressed: () =>
+                                        _triggerPaymentCollection(sid, dId),
+                                    icon: const Icon(Icons.playlist_add_check),
+                                    label: const Text('Collect'),
+                                    style: OutlinedButton.styleFrom(
+                                      foregroundColor: kPrimaryDark,
+                                      side: const BorderSide(
+                                        color: kPrimaryDark,
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  TextButton.icon(
+                                    onPressed: () =>
+                                        _showPaymentStatusSheet(sid, dId),
+                                    icon: const Icon(Icons.list_alt),
+                                    label: const Text('Status'),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        );
+                      }
+
+                      final width = MediaQuery.of(context).size.width;
+                      final isGrid = width >= 720;
+                      final cards = list.map(noticeCard).toList();
+
+                      if (!isGrid) {
                         return Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Row(
-                              children: [
-                                const Text(
+                            for (int i = 0; i < cards.length; i++) cards[i],
+                          ],
+                        );
+                      }
+                      return GridView.builder(
+                        shrinkWrap: true,
+                        physics: const NeverScrollableScrollPhysics(),
+                        itemCount: cards.length,
+                        gridDelegate:
+                            const SliverGridDelegateWithFixedCrossAxisCount(
+                              crossAxisCount: 2,
+                              crossAxisSpacing: 12,
+                              mainAxisSpacing: 12,
+                              childAspectRatio: 2.6,
+                            ),
+                        itemBuilder: (_, i) => cards[i],
+                      );
+                    },
+                  );
+                }
+
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Local tab controller for splitting
+                    const SizedBox(height: 14),
+                    DefaultTabController(
+                      length: 2,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          // Header + tabs
+                          Row(
+                            children: [
+                              const Expanded(
+                                child: Text(
                                   'Death Notices',
                                   style: TextStyle(
                                     fontWeight: FontWeight.bold,
@@ -928,61 +1034,55 @@ class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
                                     color: kPrimaryDark,
                                   ),
                                 ),
-                                const SizedBox(width: 8),
-                                Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 8,
-                                    vertical: 2,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color: kPrimary.withOpacity(.08),
-                                    borderRadius: BorderRadius.circular(10),
-                                    border: Border.all(color: kPrimary),
-                                  ),
-                                  child: Text(
-                                    '${notices.length}',
-                                    style: const TextStyle(
-                                      color: kPrimaryDark,
-                                      fontWeight: FontWeight.w800,
+                              ),
+                              const SizedBox(width: 12),
+                              SizedBox(
+                                width: 280,
+                                child: TabBar(
+                                  labelColor: kPrimaryDark,
+                                  unselectedLabelColor: kSubtleText,
+                                  indicatorColor: kPrimaryDark,
+                                  tabs: [
+                                    Tab(
+                                      child: sectionHeader(
+                                        'Members',
+                                        members.length,
+                                      ),
                                     ),
-                                  ),
+                                    Tab(
+                                      child: sectionHeader(
+                                        'Beneficiaries',
+                                        beneficiaries.length,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 10),
+                          // Tab content
+                          SizedBox(
+                            height: 420, // enough to show grid/list comfortably
+                            child: TabBarView(
+                              children: [
+                                SingleChildScrollView(
+                                  child: noticeList(members),
+                                ),
+                                SingleChildScrollView(
+                                  child: noticeList(beneficiaries),
                                 ),
                               ],
                             ),
-                            const SizedBox(height: 8),
-
-                            if (!isGrid)
-                              Column(
-                                children: [
-                                  for (int i = 0; i < cards.length; i++) ...[
-                                    cards[i],
-                                    if (i != cards.length - 1)
-                                      const SizedBox(height: 10),
-                                  ],
-                                ],
-                              )
-                            else
-                              GridView.builder(
-                                shrinkWrap: true,
-                                physics: const NeverScrollableScrollPhysics(),
-                                itemCount: cards.length,
-                                gridDelegate:
-                                    const SliverGridDelegateWithFixedCrossAxisCount(
-                                      crossAxisCount: 2,
-                                      crossAxisSpacing: 12,
-                                      mainAxisSpacing: 12,
-                                      childAspectRatio: 2.6,
-                                    ),
-                                itemBuilder: (_, i) => cards[i],
-                              ),
-                          ],
-                        );
-                      },
-                    );
-                  },
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                 );
               },
             ),
+            // ------------ End split section ------------
           ],
         ),
       ),
@@ -1574,145 +1674,220 @@ class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
     int deathNoticeId,
     int dayungUnitId,
   ) async {
-    final rows = await sb
-        .from('payments')
-        .select('user_id,status')
-        .eq('death_notice_id', deathNoticeId)
-        .eq('dayung_unit_id', dayungUnitId);
+    try {
+      final rows = await sb
+          .from('payments')
+          .select(
+            // Disambiguate both FKs to users
+            'id, amount, status, paid_at, '
+            'user:users!payments_user_id_fkey(full_name), '
+            'collector:users!payments_collected_by_fkey(full_name)',
+          )
+          .eq('death_notice_id', deathNoticeId)
+          .eq('dayung_unit_id', dayungUnitId);
 
-    final paidIds = <String>[];
-    final unpaidIds = <String>[];
-    for (final r in List<Map<String, dynamic>>.from(rows)) {
-      final uid = (r['user_id'] ?? '').toString();
-      if (uid.isEmpty) continue;
-      final s = (r['status'] ?? '').toString().toLowerCase();
-      if (s == 'paid') {
-        paidIds.add(uid);
-      } else {
-        unpaidIds.add(uid);
+      final items = List<Map<String, dynamic>>.from(rows);
+
+      // Sort by payer's name client-side
+      items.sort((a, b) {
+        final an = (((a['user'] as Map?)?['full_name']) ?? '')
+            .toString()
+            .toLowerCase();
+        final bn = (((b['user'] as Map?)?['full_name']) ?? '')
+            .toString()
+            .toLowerCase();
+        if (an.isEmpty && bn.isEmpty) return 0;
+        if (an.isEmpty) return 1;
+        if (bn.isEmpty) return -1;
+        return an.compareTo(bn);
+      });
+
+      int paid = 0, unpaid = 0;
+      double paidAmt = 0, totalAmt = 0;
+      for (final r in items) {
+        final s = (r['status'] ?? '').toString().toLowerCase();
+        final amt = (r['amount'] is num)
+            ? (r['amount'] as num).toDouble()
+            : double.tryParse('${r['amount']}') ?? 0.0;
+        totalAmt += amt;
+        if (s == 'paid') {
+          paid++;
+          paidAmt += amt;
+        } else {
+          unpaid++;
+        }
       }
-    }
 
-    Future<List<Map<String, dynamic>>> fetchUsers(List<String> ids) async {
-      if (ids.isEmpty) return [];
-      final res = await sb
-          .from('users')
-          .select('id, full_name')
-          .inFilter('id', ids);
-      return List<Map<String, dynamic>>.from(res);
-    }
-
-    final paidUsers = await fetchUsers(paidIds);
-    final unpaidUsers = await fetchUsers(unpaidIds);
-
-    if (!mounted) return;
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-      ),
-      builder: (_) {
-        return Padding(
-          padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
-          child: SizedBox(
-            height: MediaQuery.of(context).size.height * 0.7,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'Payment Status',
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w800,
-                    color: kPrimaryDark,
+      if (!mounted) return;
+      await showModalBottomSheet(
+        context: context,
+        isScrollControlled: true,
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+        ),
+        builder: (context) {
+          return SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    width: 46,
+                    height: 5,
+                    decoration: BoxDecoration(
+                      color: Colors.black26,
+                      borderRadius: BorderRadius.circular(3),
+                    ),
                   ),
-                ),
-                const SizedBox(height: 12),
-                Expanded(
-                  child: Row(
+                  const SizedBox(height: 12),
+                  Row(
                     children: [
-                      Expanded(
-                        child: _memberListSection(
-                          title: 'Paid',
-                          color: Colors.green[700]!,
-                          users: paidUsers,
+                      const Text(
+                        'Payment Status',
+                        style: TextStyle(
+                          fontWeight: FontWeight.w800,
+                          fontSize: 18,
+                          color: kNeutralText,
                         ),
                       ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: _memberListSection(
-                          title: 'Unpaid',
-                          color: Colors.red[700]!,
-                          users: unpaidUsers,
+                      const Spacer(),
+                      Text(
+                        '₱${paidAmt.toStringAsFixed(0)} / ₱${totalAmt.toStringAsFixed(0)}',
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w800,
+                          color: kNeutralText,
                         ),
                       ),
                     ],
                   ),
-                ),
-              ],
+                  const SizedBox(height: 6),
+                  Row(
+                    children: [
+                      _chip(Icons.verified, 'Paid $paid', Colors.green),
+                      const SizedBox(width: 8),
+                      _chip(
+                        Icons.pending_actions,
+                        'Unpaid $unpaid',
+                        Colors.red,
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                  Flexible(
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(maxHeight: 460),
+                      child: ListView.separated(
+                        itemCount: items.length,
+                        separatorBuilder: (_, __) =>
+                            Divider(height: 1, color: Colors.grey.shade300),
+                        itemBuilder: (_, i) {
+                          final r = items[i];
+                          final s = (r['status'] ?? '')
+                              .toString()
+                              .toLowerCase();
+                          final amt = (r['amount'] is num)
+                              ? (r['amount'] as num).toDouble()
+                              : double.tryParse('${r['amount']}') ?? 0.0;
+
+                          final payerName =
+                              (((r['user'] as Map?)?['full_name']) ?? '')
+                                  .toString();
+                          final title = payerName.isNotEmpty
+                              ? payerName
+                              : 'Payment #${r['id']}';
+
+                          // NEW: build subtitle with paid_at and collector
+                          final paidAtStr = _fmtDateTime(r['paid_at']);
+                          final collectorName =
+                              (((r['collector'] as Map?)?['full_name']) ?? '')
+                                  .toString();
+                          final subtitleText = s == 'paid'
+                              ? 'Collected'
+                                    '${paidAtStr.isNotEmpty ? ' on: $paidAtStr' : ''}'
+                                    '${collectorName.isNotEmpty ? '\nCollected by: $collectorName' : ''}'
+                              : 'Pending';
+
+                          return ListTile(
+                            leading: CircleAvatar(
+                              backgroundColor: s == 'paid'
+                                  ? Colors.green.withOpacity(.15)
+                                  : Colors.orange.withOpacity(.15),
+                              child: Icon(
+                                s == 'paid'
+                                    ? Icons.check
+                                    : Icons.hourglass_empty,
+                                color: s == 'paid'
+                                    ? Colors.green[800]
+                                    : Colors.orange[800],
+                              ),
+                            ),
+                            title: Text(
+                              title,
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w700,
+                                color: kNeutralText,
+                              ),
+                            ),
+                            subtitle: Text(
+                              subtitleText,
+                              style: const TextStyle(color: kSubtleText),
+                            ),
+                            trailing: Text(
+                              '₱${amt.toStringAsFixed(0)}',
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w800,
+                                color: kNeutralText,
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
-          ),
-        );
-      },
-    );
+          );
+        },
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Failed to load payments: $e')));
+    }
   }
 
-  Widget _memberListSection({
-    required String title,
-    required Color color,
-    required List<Map<String, dynamic>> users,
-  }) {
+  String _fmtDateTime(dynamic v) {
+    if (v == null) return '';
+    final s = v.toString();
+    DateTime? dt = DateTime.tryParse(s);
+    if (dt == null) return '';
+    dt = dt.toLocal();
+    String two(int n) => n.toString().padLeft(2, '0');
+    return '${dt.year}-${two(dt.month)}-${two(dt.day)} ${two(dt.hour)}:${two(dt.minute)}';
+  }
+
+  Widget _chip(IconData icon, String label, Color color) {
     return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
-        color: Colors.white,
-        border: Border.all(color: Colors.grey.shade300),
-        borderRadius: BorderRadius.circular(12),
+        color: color.withOpacity(.06),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: color.withOpacity(.25)),
       ),
-      child: Column(
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
         children: [
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            decoration: BoxDecoration(
-              color: color.withOpacity(.08),
-              borderRadius: const BorderRadius.vertical(
-                top: Radius.circular(12),
-              ),
+          Icon(icon, size: 16, color: color),
+          const SizedBox(width: 6),
+          Text(
+            label,
+            style: TextStyle(
+              color: color.withOpacity(.95),
+              fontWeight: FontWeight.w800,
             ),
-            child: Text(
-              '$title (${users.length})',
-              style: TextStyle(
-                color: color,
-                fontWeight: FontWeight.w800,
-                fontFamily: 'Montserrat',
-              ),
-            ),
-          ),
-          Expanded(
-            child: users.isEmpty
-                ? const Center(child: Text('None'))
-                : ListView.builder(
-                    itemCount: users.length,
-                    itemBuilder: (_, i) {
-                      final u = users[i];
-                      return ListTile(
-                        dense: true,
-                        leading: const Icon(Icons.person),
-                        title: Text(
-                          (u['full_name'] ?? 'Member').toString(),
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        subtitle: Text(
-                          (u['id'] ?? '').toString(),
-                          style: const TextStyle(
-                            fontSize: 12,
-                            color: kSubtleText,
-                          ),
-                        ),
-                      );
-                    },
-                  ),
           ),
         ],
       ),

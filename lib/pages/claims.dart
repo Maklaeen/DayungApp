@@ -39,7 +39,7 @@ class ClaimsPage extends StatefulWidget {
 class _ClaimsPageState extends State<ClaimsPage>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
-
+  RealtimeChannel? _notifChannel;
   bool _loading = true;
   bool _submittingModalOpen = false;
   bool _bottomRefreshing = false;
@@ -64,7 +64,7 @@ class _ClaimsPageState extends State<ClaimsPage>
   @override
   void initState() {
     super.initState();
-    // Ensure navbar visible when page opens
+    _subscribeToNotifications();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       widget.onNavBarVisible?.call(true);
     });
@@ -80,11 +80,57 @@ class _ClaimsPageState extends State<ClaimsPage>
 
   @override
   void dispose() {
-    // Ensure navbar visible when leaving
+    _notifChannel?.unsubscribe();
     widget.onNavBarVisible?.call(true);
     _tabController.dispose();
     _searchCtrl.dispose();
     super.dispose();
+  }
+  
+  void _subscribeToNotifications() {
+    final userId = Supabase.instance.client.auth.currentUser?.id;
+    if (userId == null) return;
+
+    _notifChannel = Supabase.instance.client.channel('member_claims_notifications_$userId');
+
+    _notifChannel!.onPostgresChanges(
+      event: PostgresChangeEvent.insert,
+      schema: 'public',
+      table: 'notifications',
+      filter: PostgresChangeFilter(
+        type: PostgresChangeFilterType.eq,
+        column: 'recipient_id',
+        value: userId,
+      ),
+      callback: (payload) {
+        final newNotif = payload.newRecord as Map<String, dynamic>?;
+        if (newNotif != null) {
+          _showNotificationModal(
+            newNotif['title'] ?? 'Notification',
+            newNotif['body'] ?? '',
+          );
+        }
+      },
+    );
+
+    _notifChannel!.subscribe();
+  }
+
+  void _showNotificationModal(String title, String body) {
+    if (!mounted) return;
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(title),
+        content: Text(body),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('OK'),
+          ),
+        ],
+      ),
+    );
   }
 
   Future<void> _init() async {
@@ -222,12 +268,12 @@ class _ClaimsPageState extends State<ClaimsPage>
     }
   }
 
-  Future<Map<String, dynamic>> getDeceasedInfo(
-    Map<String, dynamic> claim,
-  ) async {
+  Future<Map<String, dynamic>> getDeceasedInfo(Map<String, dynamic> claim) async {
     final sb = Supabase.instance.client;
+    // Prefer the date stored on the claim
+    final claimDod = (claim['date_of_death'] ?? '').toString();
+
     if (claim['beneficiary_id'] != null) {
-      // Fetch beneficiary info
       final b = await sb
           .from('beneficiaries')
           .select('full_name, dob')
@@ -235,22 +281,34 @@ class _ClaimsPageState extends State<ClaimsPage>
           .maybeSingle();
       return {
         'name': b?['full_name'] ?? 'Beneficiary',
-        'date_of_death': b?['dob'] ?? '',
+        'dob': b?['dob'] ?? '',                  // <--- DOB
+        'date_of_death': claimDod,               // <--- DOD from claim
         'type': 'beneficiary',
       };
     } else {
-      // Fetch user info
       final u = await sb
           .from('users')
-          .select('full_name, date_of_death')
+          .select('full_name, date_of_death, dob')
           .eq('id', claim['user_id'])
           .maybeSingle();
       return {
         'name': u?['full_name'] ?? 'Member',
-        'date_of_death': u?['date_of_death'] ?? '',
+        'dob': u?['dob'] ?? '',                  // optional for member
+        'date_of_death': claimDod.isNotEmpty ? claimDod : (u?['date_of_death'] ?? ''),
         'type': 'member',
       };
     }
+  }
+
+  // Helper to compute age
+  int? _computeAge(String? birthIso, String? deathIso) {
+    if (birthIso == null || birthIso.isEmpty || deathIso == null || deathIso.isEmpty) return null;
+    final b = DateTime.tryParse(birthIso) ?? DateTime.tryParse('${birthIso}T00:00:00');
+    final d = DateTime.tryParse(deathIso) ?? DateTime.tryParse('${deathIso}T00:00:00');
+    if (b == null || d == null) return null;
+    int age = d.year - b.year;
+    final hadBirthday = (d.month > b.month) || (d.month == b.month && d.day >= b.day);
+    return hadBirthday ? age : age - 1;
   }
 
   Future<void> _loadProfileImage() async {
@@ -297,7 +355,7 @@ class _ClaimsPageState extends State<ClaimsPage>
       final data = await Supabase.instance.client
           .from('claims')
           .select(
-            'id, title, description, status, date_submitted, dayung_unit_id, user_id, beneficiary_id, death_certificate_url',
+            'id, title, description, status, date_submitted, dayung_unit_id, user_id, beneficiary_id, death_certificate_url, date_of_death',
           )
           .eq('user_id', user.id)
           .eq('dayung_unit_id', _dayungId as Object)
@@ -538,6 +596,9 @@ class _ClaimsPageState extends State<ClaimsPage>
                 builder: (context, snapshot) {
                   if (!snapshot.hasData) return const SizedBox.shrink();
                   final deceased = snapshot.data!;
+                  final dob = (deceased['dob'] ?? '').toString();
+                  final dod = (deceased['date_of_death'] ?? '').toString();
+                  final age = _computeAge(dob, dod);
                   return Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -549,15 +610,20 @@ class _ClaimsPageState extends State<ClaimsPage>
                           color: kNeutralText,
                         ),
                       ),
-                      if ((deceased['date_of_death'] ?? '')
-                          .toString()
-                          .isNotEmpty)
+                      if (dob.isNotEmpty)
                         Text(
-                          'Date of Death: ${deceased['date_of_death']}',
-                          style: const TextStyle(
-                            fontSize: 13,
-                            color: kSubtleText,
-                          ),
+                          'Date of Birth: $dob',
+                          style: const TextStyle(fontSize: 13, color: kSubtleText),
+                        ),
+                      if (dod.isNotEmpty)
+                        Text(
+                          'Date of Death: $dod',
+                          style: const TextStyle(fontSize: 13, color: kSubtleText),
+                        ),
+                      if (age != null)
+                        Text(
+                          'Age at death: $age years',
+                          style: const TextStyle(fontSize: 13, color: kSubtleText),
                         ),
                     ],
                   );
@@ -954,6 +1020,9 @@ class _ClaimsPageState extends State<ClaimsPage>
               builder: (context, snapshot) {
                 if (!snapshot.hasData) return const SizedBox.shrink();
                 final deceased = snapshot.data!;
+                final dob = (deceased['dob'] ?? '').toString();
+                final dod = (deceased['date_of_death'] ?? '').toString();
+                final age = _computeAge(dob, dod);
                 return Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -965,69 +1034,20 @@ class _ClaimsPageState extends State<ClaimsPage>
                         color: kNeutralText,
                       ),
                     ),
-                    if ((deceased['date_of_death'] ?? '').toString().isNotEmpty)
+                    if (dob.isNotEmpty)
                       Text(
-                        'Date of Death: ${deceased['date_of_death']}',
-                        style: const TextStyle(
-                          fontSize: 13,
-                          color: kSubtleText,
-                        ),
+                        'Date of Birth: $dob',
+                        style: const TextStyle(fontSize: 13, color: kSubtleText),
                       ),
-                    if ((claim['death_certificate_url'] ?? '')
-                        .toString()
-                        .isNotEmpty)
-                      TextButton.icon(
-                        icon: const Icon(Icons.visibility),
-                        label: const Text('View Death Certificate'),
-                        onPressed: () async {
-                          final url = claim['death_certificate_url'].toString();
-                          // --- Image/PDF viewer logic here ---
-                          if (url.endsWith('.jpg') ||
-                              url.endsWith('.jpeg') ||
-                              url.endsWith('.png')) {
-                            showDialog(
-                              context: context,
-                              builder: (ctx) => Dialog(
-                                backgroundColor: Colors.black,
-                                insetPadding: const EdgeInsets.all(12),
-                                child: PhotoView(
-                                  imageProvider: NetworkImage(url),
-                                  backgroundDecoration: const BoxDecoration(
-                                    color: Colors.black,
-                                  ),
-                                  minScale: PhotoViewComputedScale.contained,
-                                  maxScale: PhotoViewComputedScale.covered * 3,
-                                ),
-                              ),
-                            );
-                          } else if (url.endsWith('.pdf')) {
-                            if (await canLaunchUrl(Uri.parse(url))) {
-                              await launchUrl(
-                                Uri.parse(url),
-                                mode: LaunchMode.externalApplication,
-                              );
-                            } else {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content: Text('Could not open PDF file.'),
-                                ),
-                              );
-                            }
-                          } else {
-                            if (await canLaunchUrl(Uri.parse(url))) {
-                              await launchUrl(
-                                Uri.parse(url),
-                                mode: LaunchMode.externalApplication,
-                              );
-                            } else {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content: Text('Could not open file.'),
-                                ),
-                              );
-                            }
-                          }
-                        },
+                    if (dod.isNotEmpty)
+                      Text(
+                        'Date of Death: $dod',
+                        style: const TextStyle(fontSize: 13, color: kSubtleText),
+                      ),
+                    if (age != null)
+                      Text(
+                        'Age at death: $age years',
+                        style: const TextStyle(fontSize: 13, color: kSubtleText),
                       ),
                   ],
                 );

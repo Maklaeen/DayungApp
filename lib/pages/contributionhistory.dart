@@ -23,6 +23,7 @@ class ContributionHistory extends StatefulWidget {
 
 class _ContributionHistoryState extends State<ContributionHistory> {
   Map<String, dynamic>? _selectedDayungUnitObj;
+  RealtimeChannel? _notifChannel;
   String? selectedDayungUnit;
   String? _profileUrl;
 
@@ -33,6 +34,7 @@ class _ContributionHistoryState extends State<ContributionHistory> {
   @override
   void initState() {
     super.initState();
+    _subscribeToNotifications();
     _loadDayungUnit();
     _loadProfileImage();
     _fetchPaidContributions();
@@ -41,7 +43,54 @@ class _ContributionHistoryState extends State<ContributionHistory> {
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
+    _notifChannel?.unsubscribe();
     _loadDayungUnit();
+  }
+
+  void _subscribeToNotifications() {
+    final userId = Supabase.instance.client.auth.currentUser?.id;
+    if (userId == null) return;
+
+    _notifChannel = Supabase.instance.client.channel(
+      'member_contrib_notifications_$userId',
+    );
+
+    _notifChannel!.onPostgresChanges(
+      event: PostgresChangeEvent.insert,
+      schema: 'public',
+      table: 'notifications',
+      filter: PostgresChangeFilter(
+        type: PostgresChangeFilterType.eq,
+        column: 'recipient_id',
+        value: userId,
+      ),
+      callback: (payload) {
+        final newNotif = payload.newRecord as Map<String, dynamic>;
+        _showNotificationModal(
+          newNotif['title'] ?? 'Notification',
+          newNotif['body'] ?? '',
+        );
+      },
+    );
+
+    _notifChannel!.subscribe();
+  }
+
+  void _showNotificationModal(String title, String body) {
+    if (!mounted) return;
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(title),
+        content: Text(body),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('OK'),
+          ),
+        ],
+      ),
+    );
   }
 
   Future<void> _loadDayungUnit() async {

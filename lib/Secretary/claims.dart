@@ -106,13 +106,10 @@ class _SecretaryClaimsPageState extends State<SecretaryClaimsPage>
       if (_loadingDayungs) {
         await _loadManagedDayungs();
       }
-
-      // Managed dayung ids
       final managedIds = _dayungUnits
           .map((e) => e['id'])
           .whereType<int>()
           .toList();
-
       if (managedIds.isEmpty) {
         setState(() {
           _claims = [];
@@ -121,14 +118,10 @@ class _SecretaryClaimsPageState extends State<SecretaryClaimsPage>
         });
         return;
       }
-
-      // Limit to a specific dayung if selected
       final targetIds = _selectedDayungId != null
           ? <int>[_selectedDayungId!]
           : managedIds;
 
-      // 1. Fetch members (no join needed)
-      // Using inFilter; if your SDK lacks it, replace with .filter('dayung_unit_id', 'in', '(1,2,3)')
       final memberRows = await supabase
           .from('users')
           .select('id, full_name, profile_url, dayung_unit_id')
@@ -137,7 +130,6 @@ class _SecretaryClaimsPageState extends State<SecretaryClaimsPage>
       final membersList = List<Map<String, dynamic>>.from(memberRows);
       final allowedUserIds = <String>[];
       final userMap = <String, Map<String, dynamic>>{};
-
       for (final m in membersList) {
         final uid = (m['id'] ?? '').toString();
         if (uid.isEmpty) continue;
@@ -148,7 +140,6 @@ class _SecretaryClaimsPageState extends State<SecretaryClaimsPage>
           'dayung_unit_id': m['dayung_unit_id'],
         };
       }
-
       if (allowedUserIds.isEmpty) {
         setState(() {
           _claims = [];
@@ -158,21 +149,18 @@ class _SecretaryClaimsPageState extends State<SecretaryClaimsPage>
         return;
       }
 
-      final statusTitle = _tabs[_tabController.index]; // "Pending" etc.
+      final statusTitle = _tabs[_tabController.index];
 
-      // 2. Fetch claims for those user_ids (no join)
-      var claimQuery = supabase
+      final data = await supabase
           .from('claims')
           .select(
-            'id, user_id, title, description, status, date_submitted, death_certificate_url',
-          )
+            'id, user_id, title, description, status, date_submitted, death_certificate_url, beneficiary_id, date_of_death',
+          ) // <--- add
           .eq('status', statusTitle)
           .inFilter('user_id', allowedUserIds)
           .order('date_submitted', ascending: false);
 
-      final data = await claimQuery;
       final claimList = List<Map<String, dynamic>>.from(data);
-
       setState(() {
         _claims = claimList;
         _userMap = userMap;
@@ -188,6 +176,8 @@ class _SecretaryClaimsPageState extends State<SecretaryClaimsPage>
     Map<String, dynamic> claim,
   ) async {
     final sb = Supabase.instance.client;
+    final claimDod = (claim['date_of_death'] ?? '').toString();
+
     if (claim['beneficiary_id'] != null) {
       final b = await sb
           .from('beneficiaries')
@@ -196,32 +186,58 @@ class _SecretaryClaimsPageState extends State<SecretaryClaimsPage>
           .maybeSingle();
       return {
         'name': b?['full_name'] ?? 'Beneficiary',
-        'date_of_death': b?['dob'] ?? '',
+        'dob': b?['dob'] ?? '',
+        'date_of_death': claimDod,
         'type': 'beneficiary',
       };
     } else {
       final u = await sb
           .from('users')
-          .select('full_name, date_of_death')
+          .select('full_name, dob, date_of_death')
           .eq('id', claim['user_id'])
           .maybeSingle();
       return {
         'name': u?['full_name'] ?? 'Member',
-        'date_of_death': u?['date_of_death'] ?? '',
+        'dob': u?['dob'] ?? '',
+        'date_of_death': claimDod.isNotEmpty
+            ? claimDod
+            : (u?['date_of_death'] ?? ''),
         'type': 'member',
       };
     }
+  }
+
+  int? _computeAge(String? birthIso, String? deathIso) {
+    if (birthIso == null ||
+        birthIso.isEmpty ||
+        deathIso == null ||
+        deathIso.isEmpty)
+      return null;
+    final b =
+        DateTime.tryParse(birthIso) ??
+        DateTime.tryParse('${birthIso}T00:00:00');
+    final d =
+        DateTime.tryParse(deathIso) ??
+        DateTime.tryParse('${deathIso}T00:00:00');
+    if (b == null || d == null) return null;
+    int age = d.year - b.year;
+    final hadBirthday =
+        (d.month > b.month) || (d.month == b.month && d.day >= b.day);
+    return hadBirthday ? age : age - 1;
   }
 
   Future<void> _updateStatus(String claimId, String newStatusTitleCase) async {
     if (_updating) return;
     setState(() => _updating = true);
     try {
-      // Use match() instead of eq()
       await supabase
           .from('claims')
           .update({'status': newStatusTitleCase})
-          .match({'id': claimId});
+          .eq('id', claimId);
+
+      // If approved, stop here. Finalize in deathnotice.dart via "Set Deceased".
+      // Remove automatic users/beneficiaries update and death_notices insert here.
+
       await _fetchClaims();
     } catch (e) {
       debugPrint("Error updating status: $e");
@@ -560,11 +576,13 @@ class _SecretaryClaimsPageState extends State<SecretaryClaimsPage>
 
     return InkWell(
       onTap: () => _showDetail(claim),
-      borderRadius: BorderRadius.circular(kCardRadius),
+      borderRadius: BorderRadius.circular(kRadius), // kCardRadius -> kRadius
       child: Container(
         decoration: BoxDecoration(
           color: Colors.white,
-          borderRadius: BorderRadius.circular(kCardRadius),
+          borderRadius: BorderRadius.circular(
+            kRadius,
+          ), // kCardRadius -> kRadius
           border: Border.all(color: color.withOpacity(.35), width: 1.2),
           boxShadow: [
             BoxShadow(
@@ -653,6 +671,9 @@ class _SecretaryClaimsPageState extends State<SecretaryClaimsPage>
               builder: (context, snapshot) {
                 if (!snapshot.hasData) return const SizedBox.shrink();
                 final deceased = snapshot.data!;
+                final dob = (deceased['dob'] ?? '').toString();
+                final dod = (deceased['date_of_death'] ?? '').toString();
+                final age = _computeAge(dob, dod);
                 return Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -664,14 +685,32 @@ class _SecretaryClaimsPageState extends State<SecretaryClaimsPage>
                         color: kNeutralText,
                       ),
                     ),
-                    if ((deceased['date_of_death'] ?? '').toString().isNotEmpty)
+                    if (dob.isNotEmpty)
                       Text(
-                        'Date of Death: ${deceased['date_of_death']}',
+                        'Date of Birth: $dob',
                         style: const TextStyle(
                           fontSize: 13,
                           color: kSubtleText,
                         ),
                       ),
+                    if (dod.isNotEmpty)
+                      Text(
+                        'Date of Death: $dod',
+                        style: const TextStyle(
+                          fontSize: 13,
+                          color: kSubtleText,
+                        ),
+                      ),
+                    if (age != null)
+                      Text(
+                        'Age at death: $age years',
+                        style: const TextStyle(
+                          fontSize: 13,
+                          color: kSubtleText,
+                        ),
+                      ),
+
+                    const SizedBox(height: 18),
                     if ((claim['death_certificate_url'] ?? '')
                         .toString()
                         .isNotEmpty)
@@ -1016,6 +1055,9 @@ class _SecretaryClaimsPageState extends State<SecretaryClaimsPage>
                 builder: (context, snapshot) {
                   if (!snapshot.hasData) return const SizedBox.shrink();
                   final deceased = snapshot.data!;
+                  final dob = (deceased['dob'] ?? '').toString();
+                  final dod = (deceased['date_of_death'] ?? '').toString();
+                  final age = _computeAge(dob, dod);
                   return Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -1027,11 +1069,26 @@ class _SecretaryClaimsPageState extends State<SecretaryClaimsPage>
                           color: kNeutralText,
                         ),
                       ),
-                      if ((deceased['date_of_death'] ?? '')
-                          .toString()
-                          .isNotEmpty)
+                      if (dob.isNotEmpty) const SizedBox(height: 4),
+                      if (dob.isNotEmpty)
                         Text(
-                          'Date of Death: ${deceased['date_of_death']}',
+                          'Date of Birth: $dob',
+                          style: const TextStyle(
+                            fontSize: 13,
+                            color: kSubtleText,
+                          ),
+                        ),
+                      if (dod.isNotEmpty)
+                        Text(
+                          'Date of Death: $dod',
+                          style: const TextStyle(
+                            fontSize: 13,
+                            color: kSubtleText,
+                          ),
+                        ),
+                      if (age != null)
+                        Text(
+                          'Age at death: $age years',
                           style: const TextStyle(
                             fontSize: 13,
                             color: kSubtleText,

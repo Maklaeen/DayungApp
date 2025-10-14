@@ -26,6 +26,16 @@ class _SecretaryContributionsPageState
   Map<String, dynamic> _users = {};
   Map<int, dynamic> _deathNotices = {};
 
+  String _fmtDateTime(dynamic v) {
+    if (v == null) return '';
+    final s = v.toString();
+    DateTime? dt = DateTime.tryParse(s);
+    if (dt == null) return '';
+    dt = dt.toLocal();
+    String two(int n) => n.toString().padLeft(2, '0');
+    return '${dt.year}-${two(dt.month)}-${two(dt.day)} ${two(dt.hour)}:${two(dt.minute)}';
+  }
+
   @override
   void initState() {
     super.initState();
@@ -36,19 +46,35 @@ class _SecretaryContributionsPageState
     setState(() => _loading = true);
     final sb = Supabase.instance.client;
     try {
-      // Fetch all payments for this dayung unit
+      // Fetch all payments for this dayung unit, include collector embed + collected_by for fallback
       final payments = await sb
           .from('payments')
-          .select('id, user_id, amount, status, death_notice_id, paid_at')
+          .select(
+            'id, user_id, amount, status, death_notice_id, paid_at, collected_by, '
+            'collector:users!payments_collected_by_fkey(full_name)',
+          )
           .eq('dayung_unit_id', widget.dayungUnitId)
           .order('paid_at', ascending: false);
 
-      // Fetch users
-      final userIds = payments.map((p) => p['user_id']).toSet().toList();
-      final usersRes = await sb
-          .from('users')
-          .select('id, full_name')
-          .inFilter('id', userIds);
+      // Fetch users for payer names + fallback for collector names (if embed not returned)
+      final payerIds = payments
+          .map((p) => p['user_id'])
+          .where((v) => v != null);
+      final collectorIds = payments
+          .map((p) => p['collected_by'])
+          .where((v) => v != null);
+      final userIds = {
+        ...payerIds,
+        ...collectorIds,
+      }.map((e) => e.toString()).toList();
+
+      final usersRes = userIds.isEmpty
+          ? <dynamic>[]
+          : await sb
+                .from('users')
+                .select('id, full_name')
+                .inFilter('id', userIds);
+
       final usersMap = <String, dynamic>{
         for (var u in usersRes) u['id'].toString(): u['full_name'] ?? 'Unknown',
       };
@@ -56,12 +82,16 @@ class _SecretaryContributionsPageState
       // Fetch death notices
       final noticeIds = payments
           .map((p) => p['death_notice_id'])
+          .where((v) => v != null)
           .toSet()
           .toList();
-      final noticesRes = await sb
-          .from('death_notices')
-          .select('id, name, date_of_death')
-          .inFilter('id', noticeIds);
+      final noticesRes = noticeIds.isEmpty
+          ? <dynamic>[]
+          : await sb
+                .from('death_notices')
+                .select('id, name, date_of_death')
+                .inFilter('id', noticeIds);
+
       final noticesMap = <int, dynamic>{
         for (var n in noticesRes) int.parse(n['id'].toString()): n,
       };
@@ -110,7 +140,16 @@ class _SecretaryContributionsPageState
                       final userName = _users[p['user_id']] ?? 'Unknown';
                       final notice = _deathNotices[p['death_notice_id']];
                       final deceased = notice?['name'] ?? 'Unknown';
-                      final date = notice?['date_of_death'] ?? '';
+                      final paidAtStr = _fmtDateTime(p['paid_at']);
+
+                      // Collector name: prefer embed, fallback to lookup by collected_by
+                      String collectorName =
+                          (((p['collector'] as Map?)?['full_name']) ?? '')
+                              .toString();
+                      if (collectorName.isEmpty && p['collected_by'] != null) {
+                        collectorName = (_users[p['collected_by']] ?? '')
+                            .toString();
+                      }
                       final paid =
                           (p['status']?.toString().toLowerCase() == 'paid');
                       return Container(
@@ -171,9 +210,17 @@ class _SecretaryContributionsPageState
                                     fontFamily: 'OpenSans',
                                   ),
                                 ),
-                                if (date != null && date.toString().isNotEmpty)
+                                if (paidAtStr.isNotEmpty)
                                   Text(
-                                    'Date of Death: $date',
+                                    'Paid at: $paidAtStr',
+                                    style: const TextStyle(
+                                      fontSize: 14,
+                                      color: kSubtle,
+                                    ),
+                                  ),
+                                if (collectorName.isNotEmpty)
+                                  Text(
+                                    'Collected by: $collectorName',
                                     style: const TextStyle(
                                       fontSize: 14,
                                       color: kSubtle,

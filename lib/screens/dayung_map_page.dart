@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:flutter_compass/flutter_compass.dart';
 
 // Shared palette (aligned with Secretary dashboard / Claims)
 const Color kPrimary = Color(0xFF0D47A1);
@@ -71,6 +72,9 @@ class _DayungMapPageState extends State<DayungMapPage> {
   StreamSubscription<Position>? positionStream;
   Map<String, dynamic>? _rules;
   bool _loadingRules = true;
+  BitmapDescriptor? _arrowIcon;
+  double? _compassHeading;
+  StreamSubscription<CompassEvent>? compassStream;
 
   double? get dayungLat {
     final v = widget.dayung['latitude'];
@@ -89,8 +93,16 @@ class _DayungMapPageState extends State<DayungMapPage> {
   @override
   void initState() {
     super.initState();
+    _loadArrowIcon();
     _initLocation();
     _fetchRules();
+
+    FlutterCompass.events?.listen((event) {
+      setState(() {
+        _compassHeading = event.heading; // degrees, 0 = north
+      });
+    });
+
     positionStream =
         Geolocator.getPositionStream(
           locationSettings: LocationSettings(
@@ -104,9 +116,20 @@ class _DayungMapPageState extends State<DayungMapPage> {
         });
   }
 
+  Future<void> _loadArrowIcon() async {
+    final icon = await BitmapDescriptor.fromAssetImage(
+      const ImageConfiguration(size: Size(48, 48)),
+      'assets/images/arrow.jpg',
+    );
+    setState(() {
+      _arrowIcon = icon;
+    });
+  }
+
   @override
   void dispose() {
     positionStream?.cancel();
+    compassStream?.cancel();
     super.dispose();
   }
 
@@ -171,6 +194,28 @@ class _DayungMapPageState extends State<DayungMapPage> {
   Set<Marker> _buildMarkers() {
     final markers = <Marker>{};
 
+    if (_pos != null && _arrowIcon != null) {
+      markers.add(
+        Marker(
+          markerId: const MarkerId('me'),
+          position: LatLng(_pos!.latitude, _pos!.longitude),
+          infoWindow: const InfoWindow(title: 'You'),
+          icon: _arrowIcon!,
+          rotation: _compassHeading ?? 0.0, // <-- gamitin ang compass heading
+          anchor: const Offset(0.5, 0.5),
+        ),
+      );
+    } else if (_pos != null) {
+      markers.add(
+        Marker(
+          markerId: const MarkerId('me'),
+          position: LatLng(_pos!.latitude, _pos!.longitude),
+          infoWindow: const InfoWindow(title: 'You'),
+          icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueBlue),
+        ),
+      );
+    }
+
     // Selected dayung marker
     if (dayungLat != null && dayungLng != null) {
       markers.add(
@@ -224,18 +269,6 @@ class _DayungMapPageState extends State<DayungMapPage> {
           );
         }
       }
-    }
-
-    // User marker
-    if (_pos != null) {
-      markers.add(
-        Marker(
-          markerId: const MarkerId('me'),
-          position: LatLng(_pos!.latitude, _pos!.longitude),
-          infoWindow: const InfoWindow(title: 'You'),
-          icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueBlue),
-        ),
-      );
     }
     return markers;
   }
