@@ -1,11 +1,13 @@
+// filepath: lib/screens/dayung_map_page.dart
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter_compass/flutter_compass.dart';
+import 'package:url_launcher/url_launcher.dart';
 
-// Shared palette (aligned with Secretary dashboard / Claims)
+// Shared palette
 const Color kPrimary = Color(0xFF0D47A1);
 const Color kPrimaryDark = Color(0xFF083366);
 const Color kAccent = Color(0xFF2E7D32);
@@ -14,6 +16,49 @@ const Color kDanger = Color(0xFFC62828);
 const Color kNeutralText = Color(0xFF1F2937);
 const Color kSubtleText = Color(0xFF4B5563);
 const Color kPanelBg = Colors.white;
+
+enum NavMode { driving, motorcycle, transit, walking }
+
+extension NavModeX on NavMode {
+  String get label {
+    switch (this) {
+      case NavMode.driving:
+        return 'Car';
+      case NavMode.motorcycle:
+        return 'Motorcycle';
+      case NavMode.transit:
+        return 'Commute';
+      case NavMode.walking:
+        return 'Walk';
+    }
+  }
+
+  String get apiValue {
+    switch (this) {
+      case NavMode.driving:
+        return 'driving';
+      case NavMode.motorcycle:
+        return 'driving';
+      case NavMode.transit:
+        return 'transit';
+      case NavMode.walking:
+        return 'walking';
+    }
+  }
+
+  IconData get icon {
+    switch (this) {
+      case NavMode.driving:
+        return Icons.directions_car;
+      case NavMode.motorcycle:
+        return Icons.two_wheeler;
+      case NavMode.transit:
+        return Icons.directions_transit;
+      case NavMode.walking:
+        return Icons.directions_walk;
+    }
+  }
+}
 
 class LocationService {
   static Future<bool> ensurePermission() async {
@@ -37,8 +82,7 @@ class LocationService {
       return Geolocator.getCurrentPosition(
         desiredAccuracy: LocationAccuracy.high,
       );
-    } catch (e) {
-      print("Error getting location: $e");
+    } catch (_) {
       return null;
     }
   }
@@ -48,8 +92,8 @@ class DayungMapPage extends StatefulWidget {
   final Map<String, dynamic> dayung;
   final bool isApplied;
   final bool isMember;
-  final List<Map<String, dynamic>>? allDayungs; // optional: for nearby display
-  final double nearbyRadiusMeters; // meters radius for highlighting others
+  final List<Map<String, dynamic>>? allDayungs;
+  final double nearbyRadiusMeters;
 
   const DayungMapPage({
     super.key,
@@ -65,6 +109,8 @@ class DayungMapPage extends StatefulWidget {
 }
 
 class _DayungMapPageState extends State<DayungMapPage> {
+  Set<Marker> _cachedMarkers = {};
+  int _lastMarkerHash = 0;
   GoogleMapController? _map;
   Position? _pos;
   bool _loadingLoc = true;
@@ -77,6 +123,8 @@ class _DayungMapPageState extends State<DayungMapPage> {
   StreamSubscription<CompassEvent>? compassStream;
   bool _applied = false;
   bool _submitting = false;
+
+  NavMode _selectedMode = NavMode.driving;
 
   double? get dayungLat {
     final v = widget.dayung['latitude'];
@@ -102,9 +150,7 @@ class _DayungMapPageState extends State<DayungMapPage> {
 
     compassStream = FlutterCompass.events?.listen((event) {
       if (!mounted) return;
-      setState(() {
-        _compassHeading = event.heading;
-      });
+      setState(() => _compassHeading = event.heading);
     });
 
     positionStream =
@@ -113,22 +159,110 @@ class _DayungMapPageState extends State<DayungMapPage> {
             accuracy: LocationAccuracy.high,
             distanceFilter: 10,
           ),
-        ).listen((Position position) {
+        ).listen((position) {
           if (!mounted) return;
-          setState(() {
-            _pos = position;
-          });
+          setState(() => _pos = position);
         });
   }
 
-  Future<void> _loadArrowIcon() async {
-    final icon = await BitmapDescriptor.fromAssetImage(
-      const ImageConfiguration(size: Size(48, 48)),
-      'assets/images/arrow.jpg',
+  Future<void> _openExternalMaps(NavMode mode) async {
+    if (dayungLat == null || dayungLng == null) return;
+    final dLat = dayungLat!;
+    final dLng = dayungLng!;
+    final travel = mode.apiValue;
+    final url =
+        'https://www.google.com/maps/dir/?api=1&destination=$dLat,$dLng&travelmode=$travel';
+    if (await canLaunchUrl(Uri.parse(url))) {
+      await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
+    } else {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Cannot open Maps')));
+    }
+  }
+
+  void _showDirectionModeSheet() {
+    showModalBottomSheet(
+      context: context,
+      showDragHandle: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+      ),
+      builder: (ctx) {
+        NavMode temp = _selectedMode;
+        return StatefulBuilder(
+          builder: (ctx, setM) {
+            return Padding(
+              padding: const EdgeInsets.fromLTRB(18, 10, 18, 24),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Text(
+                    'Open in Google Maps',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w700,
+                      fontFamily: 'Montserrat',
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+                  Wrap(
+                    spacing: 12,
+                    children: NavMode.values.map((m) {
+                      final active = m == temp;
+                      return ChoiceChip(
+                        label: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(m.icon, size: 16),
+                            const SizedBox(width: 6),
+                            Text(m.label),
+                          ],
+                        ),
+                        selected: active,
+                        onSelected: (_) => setM(() => temp = m),
+                      );
+                    }).toList(),
+                  ),
+                  const SizedBox(height: 20),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton.icon(
+                      icon: const Icon(Icons.open_in_new),
+                      label: const Text('Open Google Maps'),
+                      onPressed: () {
+                        setState(() => _selectedMode = temp);
+                        Navigator.pop(ctx);
+                        _openExternalMaps(temp);
+                      },
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Select a travel mode then open external navigation. '
+                    'In‑app polyline preview was removed for performance.',
+                    style: const TextStyle(fontSize: 11, color: kSubtleText),
+                    textAlign: TextAlign.center,
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
     );
-    setState(() {
-      _arrowIcon = icon;
-    });
+  }
+
+  Future<void> _loadArrowIcon() async {
+    try {
+      final icon = await BitmapDescriptor.fromAssetImage(
+        const ImageConfiguration(size: Size(48, 48)),
+        'assets/images/arrow.jpg',
+      );
+      if (mounted) setState(() => _arrowIcon = icon);
+    } catch (_) {}
   }
 
   @override
@@ -148,12 +282,14 @@ class _DayungMapPageState extends State<DayungMapPage> {
           .select()
           .eq('dayung_unit_id', id)
           .maybeSingle();
-      setState(() {
-        _rules = res;
-        _loadingRules = false;
-      });
-    } catch (e) {
-      setState(() => _loadingRules = false);
+      if (mounted) {
+        setState(() {
+          _rules = res;
+          _loadingRules = false;
+        });
+      }
+    } catch (_) {
+      if (mounted) setState(() => _loadingRules = false);
     }
   }
 
@@ -167,10 +303,12 @@ class _DayungMapPageState extends State<DayungMapPage> {
       return;
     }
     final p = await LocationService.currentPosition();
-    setState(() {
-      _pos = p;
-      _loadingLoc = false;
-    });
+    if (mounted) {
+      setState(() {
+        _pos = p;
+        _loadingLoc = false;
+      });
+    }
   }
 
   String _address(Map<String, dynamic> d) {
@@ -191,9 +329,19 @@ class _DayungMapPageState extends State<DayungMapPage> {
         dayungLat!,
         dayungLng!,
       );
-    } catch (e) {
+    } catch (_) {
       return null;
     }
+  }
+
+  Set<Marker> _optimizedMarkers() {
+    final current = _buildMarkers();
+    final hash = current.fold<int>(0, (p, m) => p ^ m.markerId.value.hashCode);
+    if (hash != _lastMarkerHash) {
+      _cachedMarkers = current;
+      _lastMarkerHash = hash;
+    }
+    return _cachedMarkers;
   }
 
   Set<Marker> _buildMarkers() {
@@ -206,7 +354,7 @@ class _DayungMapPageState extends State<DayungMapPage> {
           position: LatLng(_pos!.latitude, _pos!.longitude),
           infoWindow: const InfoWindow(title: 'You'),
           icon: _arrowIcon!,
-          rotation: _compassHeading ?? 0.0, // <-- gamitin ang compass heading
+          rotation: _compassHeading ?? 0.0,
           anchor: const Offset(0.5, 0.5),
         ),
       );
@@ -221,7 +369,6 @@ class _DayungMapPageState extends State<DayungMapPage> {
       );
     }
 
-    // Selected dayung marker
     if (dayungLat != null && dayungLng != null) {
       markers.add(
         Marker(
@@ -239,21 +386,16 @@ class _DayungMapPageState extends State<DayungMapPage> {
       );
     }
 
-    // Nearby other dayungs
     if (widget.allDayungs != null && _pos != null) {
       for (final d in widget.allDayungs!) {
         if (identical(d, widget.dayung)) continue;
         final rawLat = d['latitude'];
         final rawLng = d['longitude'];
         double? lat, lng;
-        if (rawLat is num)
-          lat = rawLat.toDouble();
-        else if (rawLat is String)
-          lat = double.tryParse(rawLat);
-        if (rawLng is num)
-          lng = rawLng.toDouble();
-        else if (rawLng is String)
-          lng = double.tryParse(rawLng);
+        if (rawLat is num) lat = rawLat.toDouble();
+        if (rawLat is String) lat = double.tryParse(rawLat);
+        if (rawLng is num) lng = rawLng.toDouble();
+        if (rawLng is String) lng = double.tryParse(rawLng);
         if (lat == null || lng == null) continue;
         final dist = Geolocator.distanceBetween(
           _pos!.latitude,
@@ -324,9 +466,15 @@ class _DayungMapPageState extends State<DayungMapPage> {
           overflow: TextOverflow.ellipsis,
         ),
       ),
+      floatingActionButton: FloatingActionButton.extended(
+        heroTag: 'directionsFab',
+        backgroundColor: const Color.fromARGB(255, 239, 239, 239),
+        icon: const Icon(Icons.directions),
+        label: const Text('Open Maps'),
+        onPressed: _showDirectionModeSheet,
+      ),
       body: Stack(
         children: [
-          // Map + top gradient + chips
           Positioned.fill(
             child: Column(
               children: [
@@ -343,7 +491,7 @@ class _DayungMapPageState extends State<DayungMapPage> {
                             target: LatLng(dayungLat!, dayungLng!),
                             zoom: 15,
                           ),
-                          markers: _buildMarkers(),
+                          markers: _optimizedMarkers(),
                           circles: {
                             if (_nearbyCircle() != null) _nearbyCircle()!,
                           },
@@ -351,7 +499,6 @@ class _DayungMapPageState extends State<DayungMapPage> {
                           zoomControlsEnabled: false,
                           onMapCreated: (c) => _map = c,
                         ),
-                        // Gradient overlay for contrast
                         Container(
                           height: 140,
                           decoration: const BoxDecoration(
@@ -362,7 +509,6 @@ class _DayungMapPageState extends State<DayungMapPage> {
                             ),
                           ),
                         ),
-                        // Chips overlay
                         Positioned(
                           left: 16,
                           bottom: 16,
@@ -415,8 +561,6 @@ class _DayungMapPageState extends State<DayungMapPage> {
               ],
             ),
           ),
-
-          // Floating recenter
           if (!_loadingLoc && !_permissionDenied && _pos != null)
             Positioned(
               right: 18,
@@ -459,7 +603,6 @@ class _DayungMapPageState extends State<DayungMapPage> {
       child: LayoutBuilder(
         builder: (context, constraints) {
           return SingleChildScrollView(
-            // This makes the panel scrollable if content is too long
             child: ConstrainedBox(
               constraints: BoxConstraints(minHeight: constraints.maxHeight),
               child: IntrinsicHeight(
@@ -749,10 +892,12 @@ class _DayungMapPageState extends State<DayungMapPage> {
 
   Widget _actionSection(double? dist) {
     Widget status() {
-      if (widget.isMember)
+      if (widget.isMember) {
         return _infoRow(Icons.verified, 'This is your Dayung', kAccent);
-      if (_applied)
+      }
+      if (_applied) {
         return _infoRow(Icons.check_circle, 'Application submitted', kWarn);
+      }
       return const SizedBox.shrink();
     }
 
@@ -765,7 +910,7 @@ class _DayungMapPageState extends State<DayungMapPage> {
           _primaryButton(
             label: _submitting ? 'Submitting...' : 'Apply to this Dayung',
             icon: _submitting ? Icons.hourglass_top : Icons.how_to_reg,
-            onTap: _submitting ? () {} : _applyToDayung, // NEW
+            onTap: _submitting ? () {} : _applyToDayung,
           ),
         ],
         const SizedBox(height: 10),
@@ -789,7 +934,6 @@ class _DayungMapPageState extends State<DayungMapPage> {
 
     setState(() => _submitting = true);
     try {
-      // Optional pre-check (may be blocked by RLS)
       Map<String, dynamic>? existing;
       try {
         existing = await sb
@@ -811,7 +955,6 @@ class _DayungMapPageState extends State<DayungMapPage> {
         return;
       }
 
-      // Insert without SELECT to avoid RLS returning issues
       await sb.from('applications').insert({
         'user_id': uid,
         'dayung_unit_id': dayungId,
