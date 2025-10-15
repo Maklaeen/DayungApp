@@ -44,17 +44,23 @@ class _ClaimsPageState extends State<ClaimsPage>
   int? _dayungId;
   int _unreadNotifCount = 0;
 
+  void _safeSetState(VoidCallback fn) {
+    if (!mounted) return;
+    setState(fn);
+  }
+
   @override
   void initState() {
     super.initState();
     _subscribeToNotifications();
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
       widget.onNavBarVisible?.call(true);
     });
 
     _tabController = TabController(length: 2, vsync: this)
       ..addListener(() {
-        if (_tabController.indexIsChanging) return; // wait until settled
+        if (_tabController.indexIsChanging) return;
         _fetchClaims();
       });
 
@@ -64,6 +70,8 @@ class _ClaimsPageState extends State<ClaimsPage>
   @override
   void dispose() {
     _notifChannel?.unsubscribe();
+    _notifChannel = null;
+
     widget.onNavBarVisible?.call(true);
     _tabController.dispose();
     _searchCtrl.dispose();
@@ -88,6 +96,7 @@ class _ClaimsPageState extends State<ClaimsPage>
         value: userId,
       ),
       callback: (payload) {
+        if (!mounted) return;
         final newNotif = payload.newRecord as Map<String, dynamic>?;
         if (newNotif != null) {
           _showNotificationModal(
@@ -119,18 +128,21 @@ class _ClaimsPageState extends State<ClaimsPage>
   }
 
   Future<void> _init() async {
-    setState(() => _loading = true);
+    _safeSetState(() => _loading = true);
     await _loadDayungUnit();
     await _loadProfileImage();
     await _fetchClaims();
+    if (!mounted) return;
+    _safeSetState(() => _loading = false);
   }
 
   Future<void> _refresh() async {
-    // Force server sync on pull-to-refresh
-    setState(() => _loading = true);
+    _safeSetState(() => _loading = true);
     await _loadDayungUnit();
     await _fetchClaims();
     await _loadProfileImage();
+    if (!mounted) return;
+    _safeSetState(() => _loading = false);
   }
 
   Future<void> _triggerBottomRefresh() async {
@@ -149,7 +161,7 @@ class _ClaimsPageState extends State<ClaimsPage>
     if (unitJson != null) {
       try {
         final map = Map<String, dynamic>.from(jsonDecode(unitJson));
-        setState(() {
+        _safeSetState(() {
           _dayungId = map['id'] is int
               ? map['id'] as int
               : int.tryParse('${map['id']}');
@@ -157,17 +169,17 @@ class _ClaimsPageState extends State<ClaimsPage>
           _barangay = map['barangay'];
           _city = map['city'];
         });
-        await _fetchUnreadNotifCount(); // NEW
+        await _fetchUnreadNotifCount();
       } catch (_) {
-        setState(() {
+        _safeSetState(() {
           _dayungId = null;
-          _unreadNotifCount = 0; // NEW
+          _unreadNotifCount = 0;
         });
       }
     } else {
-      setState(() {
+      _safeSetState(() {
         _dayungId = null;
-        _unreadNotifCount = 0; // NEW
+        _unreadNotifCount = 0;
       });
     }
   }
@@ -281,18 +293,18 @@ class _ClaimsPageState extends State<ClaimsPage>
           .select('profile_url')
           .eq('id', currentUser.id)
           .maybeSingle();
-      setState(() {
+      _safeSetState(() {
         _profileUrl = (row?['profile_url'] ?? '').toString().trim();
       });
     } catch (_) {}
   }
 
   Future<void> _fetchClaims() async {
-    setState(() => _loading = true);
+    _safeSetState(() => _loading = true);
     try {
       final user = Supabase.instance.client.auth.currentUser;
       if (user == null) {
-        setState(() {
+        _safeSetState(() {
           _allClaims = [];
           _pending = [];
           _history = [];
@@ -301,9 +313,8 @@ class _ClaimsPageState extends State<ClaimsPage>
         return;
       }
 
-      // Require a selected Dayung; show per Dayung only
       if (_dayungId == null) {
-        setState(() {
+        _safeSetState(() {
           _allClaims = [];
           _pending = [];
           _history = [];
@@ -336,14 +347,14 @@ class _ClaimsPageState extends State<ClaimsPage>
           )
           .toList();
 
-      setState(() {
+      _safeSetState(() {
         _allClaims = claims;
         _pending = pending;
         _history = history;
         _loading = false;
       });
     } catch (_) {
-      setState(() {
+      _safeSetState(() {
         _allClaims = [];
         _pending = [];
         _history = [];
@@ -629,10 +640,10 @@ class _ClaimsPageState extends State<ClaimsPage>
 
   @override
   Widget build(BuildContext context) {
-    // If provider changes the Dayung name, reload dayung info
     final providerName = context.watch<DayungUnitProvider>().dayungUnit;
     if (providerName != null && providerName != _dayungName) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
         _loadDayungUnit();
       });
     }
@@ -647,6 +658,7 @@ class _ClaimsPageState extends State<ClaimsPage>
         (_navBarVisible ? 90.0 : 24.0) + bottomSafeInset; // tweak 76 as needed
 
     return Scaffold(
+      backgroundColor: kBg,
       floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
       floatingActionButton: SafeArea(
         top: false,

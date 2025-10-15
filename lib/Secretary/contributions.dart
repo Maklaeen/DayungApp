@@ -114,14 +114,6 @@ class _SecretaryContributionsPageState
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: kBg,
-      appBar: AppBar(
-        backgroundColor: kPrimary,
-        title: const Text(
-          'Contributions Monitor',
-          style: TextStyle(fontWeight: FontWeight.bold),
-        ),
-        centerTitle: true,
-      ),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
           : (_payments.isEmpty

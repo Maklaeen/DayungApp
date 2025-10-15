@@ -834,28 +834,13 @@ class _MemberDashboardPageState extends State<MemberDashboardPage> {
       if (id == null) {
         _activeMembersCount = 0;
       } else {
-        // Get approved application user_ids in this dayung
-        final appRows = await supabase
-            .from('applications')
-            .select('user_id')
-            .eq('dayung_unit_id', id)
-            .eq('status', 'approved');
-
-        final userIds = <String>[
-          for (final r in (appRows as List))
-            if ((r as Map)['user_id'] != null) (r['user_id']).toString(),
-        ];
-        if (userIds.isEmpty) {
-          _activeMembersCount = 0;
-        } else {
-          final users = await supabase
-              .from('users')
-              .select('id, is_deceased')
-              .inFilter('id', userIds);
-          _activeMembersCount = (users as List)
-              .where((u) => ((u as Map)['is_deceased'] ?? false) == false)
-              .length;
-        }
+        final result = await supabase.rpc(
+          'get_active_members_count',
+          params: {'p_dayung_unit_id': id},
+        );
+        _activeMembersCount = (result is int)
+            ? result
+            : int.tryParse('$result') ?? 0;
       }
     } catch (_) {
       _activeMembersCount = 0;
