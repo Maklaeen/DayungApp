@@ -18,6 +18,7 @@ class _DayungProfilePageState extends State<DayungProfilePage> {
   Map<String, dynamic>? dayung;
   List<Map<String, dynamic>> members = [];
   bool _loading = true;
+  // ignore: unused_field
   int? _unitId;
 
   void _setStateSafe(VoidCallback fn) {

@@ -276,7 +276,7 @@ class _ManageRolesPageState extends State<ManageRolesPagePres> {
                   child: Text(
                     currentUserId == null
                         ? 'Not assigned'
-                        : '${current['full_name'] ?? currentUserId} (${currentUserId!.substring(0, 6)}...)',
+                        : '${current['full_name'] ?? currentUserId} (${currentUserId.substring(0, 6)}...)',
                     style: const TextStyle(fontWeight: FontWeight.w600),
                     overflow: TextOverflow.ellipsis,
                   ),

@@ -1,5 +1,7 @@
+import 'package:capstone_app/Providers/dayung_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:auto_size_text/auto_size_text.dart';
+import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 // Palette
@@ -17,75 +19,6 @@ class NotificationPage extends StatefulWidget {
 
   @override
   State<NotificationPage> createState() => _NotificationPageState();
-
-  static Widget _deathNoticeCard({
-    required String name,
-    required String date,
-    required bool isWide,
-  }) {
-    return Semantics(
-      label: '$name. Date: $date.',
-      child: Container(
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: const Color(0xFFE6E8EF)),
-          boxShadow: const [
-            BoxShadow(
-              color: Colors.black12,
-              blurRadius: 12,
-              offset: Offset(0, 6),
-            ),
-          ],
-        ),
-        padding: const EdgeInsets.all(18),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Container(
-              width: isWide ? 48 : 44,
-              height: isWide ? 48 : 44,
-              decoration: BoxDecoration(
-                color: kDanger.withOpacity(0.10),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: const Center(
-                child: Text('🕊️', style: TextStyle(fontSize: 22)),
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  AutoSizeText(
-                    name,
-                    style: TextStyle(
-                      fontSize: isWide ? 20 : 18,
-                      fontWeight: FontWeight.w800,
-                      color: kNeutralText,
-                      fontFamily: 'Montserrat',
-                    ),
-                    maxLines: 2,
-                    minFontSize: 14,
-                  ),
-                  const SizedBox(height: 6),
-                  Text(
-                    date,
-                    style: TextStyle(
-                      fontSize: isWide ? 16 : 15,
-                      color: kSubtleText,
-                      fontFamily: 'OpenSans',
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
 
   static Widget _emptyState({required bool isWide}) {
     return Container(
@@ -243,17 +176,34 @@ class NotificationPage extends StatefulWidget {
 class _NotificationPageState extends State<NotificationPage> {
   List<Map<String, dynamic>> _items = [];
   bool _loading = true;
+  int? _currentUnitId;
 
   @override
   void initState() {
     super.initState();
-    _fetchAll();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _currentUnitId = context.read<DayungUnitProvider>().currentUnitId;
+      _fetchAll(unitId: _currentUnitId);
+    });
   }
 
-  Future<void> _fetchAll() async {
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final newId = context.watch<DayungUnitProvider>().currentUnitId;
+    if (newId != _currentUnitId) {
+      _currentUnitId = newId;
+      if (mounted) setState(() => _items = []); // clear stale
+      _fetchAll(unitId: _currentUnitId);
+    }
+  }
+
+  Future<void> _fetchAll({int? unitId}) async {
     setState(() => _loading = true);
     final sb = Supabase.instance.client;
     final uid = sb.auth.currentUser?.id;
+    final scopedUnitId = unitId ?? _currentUnitId; // NEW
+
     if (uid == null) {
       setState(() {
         _items = [];
@@ -262,64 +212,83 @@ class _NotificationPageState extends State<NotificationPage> {
       return;
     }
 
-    // 1. Fetch notifications
-    final notifData = await sb
-        .from('notifications')
-        .select('id, type, title, body, created_at, read_at')
-        .eq('recipient_id', uid)
-        .order('created_at', ascending: false);
+    try {
+      // Notifications addressed to the user, scoped to current unit
+      var notifQuery = sb
+          .from('notifications')
+          .select('id, type, title, body, created_at, read_at, dayung_unit_id')
+          .eq('recipient_id', uid);
 
-    // 2. Fetch announcements for user's dayung memberships
-    final apps = await sb
-        .from('applications')
-        .select('dayung_unit_id')
-        .eq('user_id', uid)
-        .eq('status', 'approved');
-    final unitIds = List<Map<String, dynamic>>.from(apps)
-        .map((a) => a['dayung_unit_id'])
-        .where((id) => id != null)
-        .toSet()
-        .toList();
+      if (scopedUnitId != null) {
+        notifQuery = notifQuery.eq('dayung_unit_id', scopedUnitId);
+      }
 
-    List<Map<String, dynamic>> annData = [];
-    Set readIds = {};
-    if (unitIds.isNotEmpty) {
-      annData = await sb
-          .from('announcements')
-          .select('id, title, body, created_at, dayung_unit_id')
-          .inFilter('dayung_unit_id', unitIds)
-          .order('created_at', ascending: false);
+      final notifData = List<Map<String, dynamic>>.from(
+        await notifQuery.order('created_at', ascending: false),
+      );
 
-      // Fetch which announcements this user has read
-      final reads = await sb
-          .from('announcement_reads')
-          .select('announcement_id')
-          .eq('user_id', uid);
-      readIds = Set.from((reads as List).map((r) => r['announcement_id']));
+      // Announcements only for current unit
+      List<Map<String, dynamic>> annData = [];
+      if (scopedUnitId != null) {
+        final results = await Future.wait([
+          sb
+              .from('announcements')
+              .select('id, title, body, created_at, dayung_unit_id')
+              .eq('dayung_unit_id', scopedUnitId)
+              .order('created_at', ascending: false),
+          sb
+              .from('announcement_reads')
+              .select('announcement_id')
+              .eq('user_id', uid),
+        ]);
 
-      annData = List<Map<String, dynamic>>.from(annData)
-          .map(
-            (a) => {
-              ...a,
-              'type': 'announcement_direct',
-              'is_read': readIds.contains(a['id']),
-            },
-          )
-          .toList();
+        final anns = List<Map<String, dynamic>>.from(results[0] as List);
+        final reads = Set.from(
+          (results[1] as List)
+              .map((r) => r['announcement_id'])
+              .where((v) => v != null),
+        );
+
+        annData = anns
+            .map(
+              (a) => {
+                ...a,
+                'type': 'announcement_direct',
+                'is_read': reads.contains(a['id']),
+              },
+            )
+            .toList();
+      }
+
+      // Extra safety: drop any row not matching scoped unit
+      final filteredNotif = scopedUnitId == null
+          ? notifData
+          : notifData
+                .where((n) => n['dayung_unit_id'] == scopedUnitId)
+                .toList();
+
+      final all = [...filteredNotif, ...annData]
+        ..sort(
+          (a, b) => DateTime.parse(
+            b['created_at'].toString(),
+          ).compareTo(DateTime.parse(a['created_at'].toString())),
+        );
+
+      if (!mounted) return;
+      setState(() {
+        _items = all;
+        _loading = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _items = [];
+        _loading = false;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Failed to load notifications')),
+      );
     }
-
-    // 3. Merge and sort
-    final all = [...List<Map<String, dynamic>>.from(notifData), ...annData];
-    all.sort(
-      (a, b) => DateTime.parse(
-        b['created_at'].toString(),
-      ).compareTo(DateTime.parse(a['created_at'].toString())),
-    );
-
-    setState(() {
-      _items = all;
-      _loading = false;
-    });
   }
 
   @override
@@ -356,18 +325,24 @@ class _NotificationPageState extends State<NotificationPage> {
               final sb = Supabase.instance.client;
               final uid = sb.auth.currentUser?.id;
               if (uid != null) {
-                // Notifications -> set read_at
-                await sb
+                // Only mark current unit's notifications as read
+                var upd = sb
                     .from('notifications')
                     .update({'read_at': DateTime.now().toIso8601String()})
                     .eq('recipient_id', uid)
                     .isFilter('read_at', null);
+                if (_currentUnitId != null) {
+                  upd = upd.eq('dayung_unit_id', _currentUnitId as Object);
+                }
+                await upd;
 
-                // Announcements -> per-user reads via upsert
+                // Announcements: only current unit’s
                 final unreadAnn = _items.where(
                   (n) =>
                       n['type'] == 'announcement_direct' &&
-                      !(n['is_read'] ?? false),
+                      !(n['is_read'] ?? false) &&
+                      (_currentUnitId == null ||
+                          n['dayung_unit_id'] == _currentUnitId),
                 );
                 if (unreadAnn.isNotEmpty) {
                   await sb
@@ -385,12 +360,10 @@ class _NotificationPageState extends State<NotificationPage> {
                         onConflict: 'announcement_id,user_id',
                       );
                 }
-                await _fetchAll();
+                await _fetchAll(unitId: _currentUnitId);
               }
               ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('All notifications marked as read'),
-                ),
+                const SnackBar(content: Text('Marked current unit as read')),
               );
             },
             icon: const Icon(Icons.done_all, color: Colors.white),
@@ -441,6 +414,7 @@ class _NotificationPageState extends State<NotificationPage> {
                         ], onConflict: 'announcement_id,user_id');
                       }
                       await _fetchAll();
+                      await _fetchAll(unitId: _currentUnitId); // keep scoped
                     },
                     child: NotificationPage._notificationCard(
                       title:

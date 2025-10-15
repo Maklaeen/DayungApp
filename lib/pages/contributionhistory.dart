@@ -26,7 +26,9 @@ class _ContributionHistoryState extends State<ContributionHistory> {
   RealtimeChannel? _notifChannel;
   String? selectedDayungUnit;
   String? _profileUrl;
-
+  int _unreadNotifCount = 0;
+  int? _dayungId;
+  // ignore: unused_field
   bool _loading = false;
   List<Map<String, dynamic>> _paidContributions = [];
   bool _loadingPaid = true;
@@ -43,12 +45,6 @@ class _ContributionHistoryState extends State<ContributionHistory> {
     _loadDayungUnit();
     _loadProfileImage();
     _fetchPaidContributions();
-  }
-
-  @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    _loadDayungUnit();
   }
 
   @override
@@ -83,10 +79,10 @@ class _ContributionHistoryState extends State<ContributionHistory> {
       ),
       callback: (payload) {
         if (!mounted) return; // guard callback after dispose
-        final newNotif = payload.newRecord as Map<String, dynamic>;
+        final newNotif = payload.newRecord as Map<String, dynamic>?;
         _showNotificationModal(
-          newNotif['title'] ?? 'Notification',
-          newNotif['body'] ?? '',
+          newNotif?['title'] ?? 'Notification',
+          newNotif?['body'] ?? '',
         );
       },
     );
@@ -111,6 +107,47 @@ class _ContributionHistoryState extends State<ContributionHistory> {
     );
   }
 
+  Future<void> _fetchUnreadNotifCount() async {
+    final sb = Supabase.instance.client;
+    final uid = sb.auth.currentUser?.id;
+    final unitId = _dayungId;
+    if (uid == null || unitId == null) {
+      if (mounted) setState(() => _unreadNotifCount = 0);
+      return;
+    }
+    try {
+      final notifRows = await sb
+          .from('notifications')
+          .select('id')
+          .eq('recipient_id', uid)
+          .eq('dayung_unit_id', unitId)
+          .isFilter('read_at', null);
+      final notifCount = (notifRows as List).length;
+
+      final annRows = await sb
+          .from('announcements')
+          .select('id')
+          .eq('dayung_unit_id', unitId);
+      final annIds = (annRows as List).map((r) => (r as Map)['id']).toList();
+
+      int annCount = 0;
+      if (annIds.isNotEmpty) {
+        final reads = await sb
+            .from('announcement_reads')
+            .select('announcement_id')
+            .eq('user_id', uid)
+            .inFilter('announcement_id', annIds);
+        final readIds = Set.from(
+          (reads as List).map((r) => (r as Map)['announcement_id']),
+        );
+        annCount = annIds.where((id) => !readIds.contains(id)).length;
+      }
+      if (mounted) setState(() => _unreadNotifCount = notifCount + annCount);
+    } catch (_) {
+      if (mounted) setState(() => _unreadNotifCount = 0);
+    }
+  }
+
   Future<void> _loadDayungUnit() async {
     final prefs = await SharedPreferences.getInstance();
     final unitJson = prefs.getString('selectedDayungUnit');
@@ -120,6 +157,8 @@ class _ContributionHistoryState extends State<ContributionHistory> {
         _setStateSafe(() {
           selectedDayungUnit = unit['name'];
           _selectedDayungUnitObj = Map<String, dynamic>.from(unit as Map);
+          final rawId = _selectedDayungUnitObj?['id'];
+          _dayungId = rawId is int ? rawId : int.tryParse('$rawId'); // NEW
         });
         if (mounted && (unit['name']?.toString().isNotEmpty ?? false)) {
           context.read<DayungUnitProvider>().setDayungUnit(unit['name']);
@@ -129,16 +168,19 @@ class _ContributionHistoryState extends State<ContributionHistory> {
         _setStateSafe(() {
           selectedDayungUnit = 'Dayung';
           _selectedDayungUnitObj = null;
+          _dayungId = null; // NEW
         });
       }
     } else {
       _setStateSafe(() {
         selectedDayungUnit = 'Dayung';
         _selectedDayungUnitObj = null;
+        _dayungId = null; // NEW
       });
     }
     if (!mounted) return;
     await _fetchPaidContributions();
+    await _fetchUnreadNotifCount(); // NEW: compute badge after unit is set
   }
 
   Future<void> _refresh() async {
@@ -264,21 +306,9 @@ class _ContributionHistoryState extends State<ContributionHistory> {
 
   @override
   Widget build(BuildContext context) {
-    final width = MediaQuery.of(context).size.width;
-    final isWide = width > 700;
     final providerName = context.watch<DayungUnitProvider>().dayungUnit;
-    if (providerName != null && providerName != selectedDayungUnit) {
-      WidgetsBinding.instance.addPostFrameCallback((_) async {
-        if (!mounted) return;
-        setState(() => selectedDayungUnit = providerName);
-        await _loadDayungUnit(); // reload full object for address/coords
-      });
-    }
-
     final dayungName =
-        providerName ??
-        _selectedDayungUnitObj?['name'] ??
-        'Dayung'; // NEW unified source
+        providerName ?? _selectedDayungUnitObj?['name'] ?? 'Dayung';
     final addr = _selectedDayungUnitObj != null
         ? _address(_selectedDayungUnitObj!)
         : null;
@@ -293,35 +323,7 @@ class _ContributionHistoryState extends State<ContributionHistory> {
               SliverToBoxAdapter(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Padding(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 0,
-                      ),
-                      child: MemberHeader(
-                        title: dayungName, // CHANGED: use unified title
-                        subtitle: (addr ?? ''),
-                        profileUrl: _profileUrl,
-                        onNotificationTap: () => Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => const NotificationPage(),
-                          ),
-                        ),
-                        onProfileTap: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) => const ProfilePage(),
-                            ),
-                          ).then((_) => _loadProfileImage());
-                        },
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    const Divider(thickness: 1, height: 24, color: Colors.grey),
-                  ],
+                  children: [const SizedBox(height: 16)],
                 ),
               ),
 
@@ -452,40 +454,6 @@ class _ContributionHistoryState extends State<ContributionHistory> {
             ),
           ),
         ),
-      ),
-    );
-  }
-
-  // Unused but kept for compatibility
-  Widget _navBarItem({
-    required IconData icon,
-    required String label,
-    required bool selected,
-    required VoidCallback onTap,
-  }) {
-    return TextButton(
-      onPressed: onTap,
-      style: TextButton.styleFrom(
-        foregroundColor: selected ? kAccent : kText,
-        padding: const EdgeInsets.symmetric(horizontal: 12),
-        shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.all(Radius.circular(12)),
-        ),
-      ),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(icon, color: selected ? kAccent : kText, size: 30),
-          const SizedBox(height: 2),
-          Text(
-            label,
-            style: TextStyle(
-              color: selected ? kAccent : kText,
-              fontWeight: selected ? FontWeight.bold : FontWeight.normal,
-              fontSize: 16,
-            ),
-          ),
-        ],
       ),
     );
   }

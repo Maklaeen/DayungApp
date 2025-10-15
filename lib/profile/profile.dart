@@ -1171,7 +1171,7 @@ class _ProfilePageState extends State<ProfilePage> {
 
       final publicUrl = supabase.storage.from(bucket).getPublicUrl(fileName);
 
-      final update = await supabase
+      await supabase
           .from('users')
           .update({
             if (type == 'birth') 'birth_certificate_url': publicUrl,

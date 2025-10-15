@@ -54,6 +54,11 @@ class _SecretaryDashboardPageState extends State<SecretaryDashboardPage> {
   double _pendingPaymentsAmount = 0;
   int _pendingPaymentsMembers = 0;
   bool _loadingPendingPayments = true;
+  int _unreadNotifCount = 0; // NEW
+  RealtimeChannel? _notifBadgeChannel; // NEW
+  RealtimeChannel? _annBadgeChannel; // NEW
+  String? _unitBarangay; // NEW
+  String? _unitCity;
 
   @override
   void initState() {
@@ -71,6 +76,8 @@ class _SecretaryDashboardPageState extends State<SecretaryDashboardPage> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final provUnit = context.read<DayungRoleProvider>().unitId;
       _maybeOnProviderUnitChanged(provUnit);
+      _fetchUnreadNotifCount();
+      _subscribeNotifBadgeRealtime();
     });
     // Load secretary info + recent deaths/pending on start
     _initLoad();
@@ -79,6 +86,12 @@ class _SecretaryDashboardPageState extends State<SecretaryDashboardPage> {
   @override
   void dispose() {
     _scrollController.dispose();
+    try {
+      _notifBadgeChannel?.unsubscribe();
+    } catch (_) {}
+    try {
+      _annBadgeChannel?.unsubscribe();
+    } catch (_) {}
     super.dispose();
   }
 
@@ -97,6 +110,113 @@ class _SecretaryDashboardPageState extends State<SecretaryDashboardPage> {
     setState(() => _dayungUnitId = newUnitId);
     await _loadSecretaryInfo(); // updates label from prefs if changed
     await _refreshAll(); // reload counts/panels
+    await _fetchUnreadNotifCount(); // NEW: refresh badge for new unit
+    _subscribeNotifBadgeRealtime();
+  }
+
+  Future<void> _fetchUnreadNotifCount() async {
+    // NEW
+    final sb = Supabase.instance.client;
+    final uid = sb.auth.currentUser?.id;
+    final unitId = _dayungUnitId;
+    if (uid == null || unitId == null) {
+      if (mounted) setState(() => _unreadNotifCount = 0);
+      return;
+    }
+    try {
+      // Unread notifications addressed to the secretary for this unit
+      final notifRows = await sb
+          .from('notifications')
+          .select('id')
+          .eq('recipient_id', uid)
+          .eq('dayung_unit_id', unitId)
+          .isFilter('read_at', null);
+      final notifCount = (notifRows as List).length;
+
+      // Unread announcements for this unit (not yet marked read by this user)
+      final annRows = await sb
+          .from('announcements')
+          .select('id')
+          .eq('dayung_unit_id', unitId);
+      final annIds = (annRows as List)
+          .map((r) => (r as Map)['id'])
+          .where((v) => v != null)
+          .toList();
+
+      int annCount = 0;
+      if (annIds.isNotEmpty) {
+        final reads = await sb
+            .from('announcement_reads')
+            .select('announcement_id')
+            .eq('user_id', uid)
+            .inFilter('announcement_id', annIds);
+        final readIds = Set.from(
+          (reads as List).map((r) => (r as Map)['announcement_id']),
+        );
+        annCount = annIds.where((id) => !readIds.contains(id)).length;
+      }
+
+      if (mounted) setState(() => _unreadNotifCount = notifCount + annCount);
+    } catch (_) {
+      if (mounted) setState(() => _unreadNotifCount = 0);
+    }
+  }
+
+  void _subscribeNotifBadgeRealtime() {
+    // NEW
+    final sb = Supabase.instance.client;
+    final uid = sb.auth.currentUser?.id;
+    final unitId = _dayungUnitId;
+    if (uid == null || unitId == null) return;
+
+    // Cleanup old channels
+    try {
+      _notifBadgeChannel?.unsubscribe();
+    } catch (_) {}
+    try {
+      _annBadgeChannel?.unsubscribe();
+    } catch (_) {}
+    _notifBadgeChannel = null;
+    _annBadgeChannel = null;
+
+    // Notifications inserts to this recipient; guard by unit in callback
+    final ch1 = sb.channel('sec_badge_notifications_$uid');
+    ch1.onPostgresChanges(
+      event: PostgresChangeEvent.insert,
+      schema: 'public',
+      table: 'notifications',
+      filter: PostgresChangeFilter(
+        type: PostgresChangeFilterType.eq,
+        column: 'recipient_id',
+        value: uid,
+      ),
+      callback: (payload) async {
+        final rec = payload.newRecord as Map<String, dynamic>;
+        if (rec['dayung_unit_id'] == unitId) {
+          await _fetchUnreadNotifCount();
+        }
+      },
+    );
+    ch1.subscribe();
+    _notifBadgeChannel = ch1;
+
+    // Announcements inserts for current unit
+    final ch2 = sb.channel('sec_badge_announcements_$unitId');
+    ch2.onPostgresChanges(
+      event: PostgresChangeEvent.insert,
+      schema: 'public',
+      table: 'announcements',
+      filter: PostgresChangeFilter(
+        type: PostgresChangeFilterType.eq,
+        column: 'dayung_unit_id',
+        value: unitId,
+      ),
+      callback: (_) async {
+        await _fetchUnreadNotifCount();
+      },
+    );
+    ch2.subscribe();
+    _annBadgeChannel = ch2;
   }
 
   Future<void> _loadSecretaryInfo() async {
@@ -127,6 +247,12 @@ class _SecretaryDashboardPageState extends State<SecretaryDashboardPage> {
       if ((parsed['name'] ?? '').toString().trim().isNotEmpty) {
         resolvedLabel = parsed['name'].toString();
       }
+      _unitBarangay = (parsed['barangay'] ?? '').toString().trim().isEmpty
+          ? null
+          : parsed['barangay'].toString();
+      _unitCity = (parsed['city'] ?? '').toString().trim().isEmpty
+          ? null
+          : parsed['city'].toString();
     }
     setState(() {
       _fullName = name;
@@ -347,17 +473,54 @@ class _SecretaryDashboardPageState extends State<SecretaryDashboardPage> {
       padding: const EdgeInsets.fromLTRB(20, 12, 16, 8),
       child: Row(
         children: [
+          // NEW: Styled dayung title + subtitle
           Expanded(
-            child: Text(
-              _selectedDayungUnit,
-              style: TextStyle(
-                fontSize: wide ? 34 : 30,
-                fontWeight: FontWeight.w800,
-                letterSpacing: .4,
-                color: kPrimaryDark,
-                fontFamily: 'Montserrat',
-              ),
-              overflow: TextOverflow.ellipsis,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  _selectedDayungUnit,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 22,
+                    fontWeight: FontWeight.w800,
+                    fontFamily: 'Montserrat',
+                    color: kNeutralText,
+                    height: 1.1,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                if (_unitBarangay != null || _unitCity != null)
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(
+                        Icons.location_on_outlined,
+                        size: 14,
+                        color: kSubtleText,
+                      ),
+                      const SizedBox(width: 4),
+                      Flexible(
+                        child: Text(
+                          [
+                            if (_unitBarangay != null) _unitBarangay!,
+                            if (_unitCity != null) _unitCity!,
+                          ].join(', '),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontSize: 12.5,
+                            fontWeight: FontWeight.w600,
+                            fontFamily: 'OpenSans',
+                            color: kSubtleText,
+                            height: 1.1,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+              ],
             ),
           ),
           _iconBtn(
@@ -378,12 +541,13 @@ class _SecretaryDashboardPageState extends State<SecretaryDashboardPage> {
             tooltip: 'Notifications',
             icon: Icons.notifications,
             color: kWarn,
-            badge: '1',
-            onTap: () {
-              Navigator.push(
+            badge: _unreadNotifCount > 0 ? '$_unreadNotifCount' : null, // NEW
+            onTap: () async {
+              await Navigator.push(
                 context,
                 MaterialPageRoute(builder: (_) => const NotificationPage()),
               );
+              await _fetchUnreadNotifCount();
             },
           ),
         ],
@@ -610,7 +774,9 @@ class _SecretaryDashboardPageState extends State<SecretaryDashboardPage> {
         onTap: () => Navigator.push(
           context,
           MaterialPageRoute(
-            builder: (_) => SecretaryMembersPage(dayungUnitId: _dayungUnitId ?? 1), // CHANGED
+            builder: (_) => SecretaryMembersPage(
+              dayungUnitId: _dayungUnitId ?? 1,
+            ), // CHANGED
           ),
         ),
       ),

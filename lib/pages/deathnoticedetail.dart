@@ -59,6 +59,7 @@ class _DeathNoticeDetailState extends State<DeathNoticeDetail> {
   int? _fStoredAge; // snapshot age from death_notices if present
 
   String? _locationName;
+  // ignore: unused_field
   GoogleMapController? _mapController;
 
   bool _loading = false;

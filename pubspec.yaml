@@ -52,6 +52,7 @@ dependencies:
   flutter_pdfview: ^1.4.3
   flutter_compass: ^0.8.1
   http: ^1.5.0
+  pdfx: ^2.9.2
 
 # maps
   geolocator: ^14.0.2

@@ -18,11 +18,9 @@ import 'package:capstone_app/pages/submit_claim.dart'
     hide kSubtleText, kNeutralText, kPrimaryDark, kPrimary;
 import 'package:capstone_app/Members/member_header.dart';
 import 'package:flutter/material.dart';
-import 'package:photo_view/photo_view.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:url_launcher/url_launcher.dart';
 
 const double kCardRadius = 18;
 
@@ -45,8 +43,7 @@ class _ClaimsPageState extends State<ClaimsPage>
   bool _bottomRefreshing = false;
   bool _navBarVisible = true;
 
-  final double _fabBottomOffset = 16.0;
-
+  // ignore: unused_field
   List<Map<String, dynamic>> _allClaims = [];
   List<Map<String, dynamic>> _pending = [];
   List<Map<String, dynamic>> _history = [];
@@ -54,12 +51,12 @@ class _ClaimsPageState extends State<ClaimsPage>
   String _search = '';
   final _searchCtrl = TextEditingController();
 
-  Map<String, dynamic>? _dayungObj;
   String? _profileUrl;
   String _dayungName = 'Dayung';
   String? _barangay;
   String? _city;
   int? _dayungId;
+  int _unreadNotifCount = 0;
 
   @override
   void initState() {
@@ -86,12 +83,14 @@ class _ClaimsPageState extends State<ClaimsPage>
     _searchCtrl.dispose();
     super.dispose();
   }
-  
+
   void _subscribeToNotifications() {
     final userId = Supabase.instance.client.auth.currentUser?.id;
     if (userId == null) return;
 
-    _notifChannel = Supabase.instance.client.channel('member_claims_notifications_$userId');
+    _notifChannel = Supabase.instance.client.channel(
+      'member_claims_notifications_$userId',
+    );
 
     _notifChannel!.onPostgresChanges(
       event: PostgresChangeEvent.insert,
@@ -161,36 +160,78 @@ class _ClaimsPageState extends State<ClaimsPage>
   Future<void> _loadDayungUnit() async {
     final prefs = await SharedPreferences.getInstance();
     final unitJson = prefs.getString('selectedDayungUnit');
-
     if (unitJson != null) {
       try {
-        final raw = jsonDecode(unitJson);
-        final map = Map<String, dynamic>.from(raw as Map);
+        final map = Map<String, dynamic>.from(jsonDecode(unitJson));
         setState(() {
-          _dayungObj = map;
-          _dayungId = (map['id'] is int)
+          _dayungId = map['id'] is int
               ? map['id'] as int
               : int.tryParse('${map['id']}');
           _dayungName = (map['name'] ?? 'Dayung').toString();
           _barangay = map['barangay'];
           _city = map['city'];
         });
-        return; // CHANGED: do not fall back to users.dayung_unit_id
+        await _fetchUnreadNotifCount(); // NEW
       } catch (_) {
         setState(() {
-          _dayungObj = null;
           _dayungId = null;
+          _unreadNotifCount = 0; // NEW
         });
       }
     } else {
       setState(() {
-        _dayungObj = null;
         _dayungId = null;
+        _unreadNotifCount = 0; // NEW
       });
     }
   }
 
-  Future<Map<String, dynamic>> getDeceasedInfo(Map<String, dynamic> claim) async {
+  Future<void> _fetchUnreadNotifCount() async {
+    // NEW
+    final sb = Supabase.instance.client;
+    final uid = sb.auth.currentUser?.id;
+    final unitId = _dayungId;
+    if (uid == null || unitId == null) {
+      if (mounted) setState(() => _unreadNotifCount = 0);
+      return;
+    }
+    try {
+      final notifRows = await sb
+          .from('notifications')
+          .select('id')
+          .eq('recipient_id', uid)
+          .eq('dayung_unit_id', unitId)
+          .isFilter('read_at', null);
+      final notifCount = (notifRows as List).length;
+
+      final annRows = await sb
+          .from('announcements')
+          .select('id')
+          .eq('dayung_unit_id', unitId);
+      final annIds = (annRows as List).map((r) => (r as Map)['id']).toList();
+
+      int annCount = 0;
+      if (annIds.isNotEmpty) {
+        final reads = await sb
+            .from('announcement_reads')
+            .select('announcement_id')
+            .eq('user_id', uid)
+            .inFilter('announcement_id', annIds);
+        final readIds = Set.from(
+          (reads as List).map((r) => (r as Map)['announcement_id']),
+        );
+        annCount = annIds.where((id) => !readIds.contains(id)).length;
+      }
+
+      if (mounted) setState(() => _unreadNotifCount = notifCount + annCount);
+    } catch (_) {
+      if (mounted) setState(() => _unreadNotifCount = 0);
+    }
+  }
+
+  Future<Map<String, dynamic>> getDeceasedInfo(
+    Map<String, dynamic> claim,
+  ) async {
     final sb = Supabase.instance.client;
     // Prefer the date stored on the claim
     final claimDod = (claim['date_of_death'] ?? '').toString();
@@ -203,8 +244,8 @@ class _ClaimsPageState extends State<ClaimsPage>
           .maybeSingle();
       return {
         'name': b?['full_name'] ?? 'Beneficiary',
-        'dob': b?['dob'] ?? '',                  // <--- DOB
-        'date_of_death': claimDod,               // <--- DOD from claim
+        'dob': b?['dob'] ?? '', // <--- DOB
+        'date_of_death': claimDod, // <--- DOD from claim
         'type': 'beneficiary',
       };
     } else {
@@ -215,8 +256,10 @@ class _ClaimsPageState extends State<ClaimsPage>
           .maybeSingle();
       return {
         'name': u?['full_name'] ?? 'Member',
-        'dob': u?['dob'] ?? '',                  // optional for member
-        'date_of_death': claimDod.isNotEmpty ? claimDod : (u?['date_of_death'] ?? ''),
+        'dob': u?['dob'] ?? '', // optional for member
+        'date_of_death': claimDod.isNotEmpty
+            ? claimDod
+            : (u?['date_of_death'] ?? ''),
         'type': 'member',
       };
     }
@@ -224,12 +267,21 @@ class _ClaimsPageState extends State<ClaimsPage>
 
   // Helper to compute age
   int? _computeAge(String? birthIso, String? deathIso) {
-    if (birthIso == null || birthIso.isEmpty || deathIso == null || deathIso.isEmpty) return null;
-    final b = DateTime.tryParse(birthIso) ?? DateTime.tryParse('${birthIso}T00:00:00');
-    final d = DateTime.tryParse(deathIso) ?? DateTime.tryParse('${deathIso}T00:00:00');
+    if (birthIso == null ||
+        birthIso.isEmpty ||
+        deathIso == null ||
+        deathIso.isEmpty)
+      return null;
+    final b =
+        DateTime.tryParse(birthIso) ??
+        DateTime.tryParse('${birthIso}T00:00:00');
+    final d =
+        DateTime.tryParse(deathIso) ??
+        DateTime.tryParse('${deathIso}T00:00:00');
     if (b == null || d == null) return null;
     int age = d.year - b.year;
-    final hadBirthday = (d.month > b.month) || (d.month == b.month && d.day >= b.day);
+    final hadBirthday =
+        (d.month > b.month) || (d.month == b.month && d.day >= b.day);
     return hadBirthday ? age : age - 1;
   }
 
@@ -535,17 +587,26 @@ class _ClaimsPageState extends State<ClaimsPage>
                       if (dob.isNotEmpty)
                         Text(
                           'Date of Birth: $dob',
-                          style: const TextStyle(fontSize: 13, color: kSubtleText),
+                          style: const TextStyle(
+                            fontSize: 13,
+                            color: kSubtleText,
+                          ),
                         ),
                       if (dod.isNotEmpty)
                         Text(
                           'Date of Death: $dod',
-                          style: const TextStyle(fontSize: 13, color: kSubtleText),
+                          style: const TextStyle(
+                            fontSize: 13,
+                            color: kSubtleText,
+                          ),
                         ),
                       if (age != null)
                         Text(
                           'Age at death: $age years',
-                          style: const TextStyle(fontSize: 13, color: kSubtleText),
+                          style: const TextStyle(
+                            fontSize: 13,
+                            color: kSubtleText,
+                          ),
                         ),
                     ],
                   );
@@ -620,102 +681,82 @@ class _ClaimsPageState extends State<ClaimsPage>
           ),
         ),
       ),
-      body: NestedScrollView(
-        headerSliverBuilder: (_, __) => [
-          SliverToBoxAdapter(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 0,
-                  ),
-                  child: MemberHeader(
-                    title: _dayungName,
-                    subtitle: _barangay != null
-                        ? '${_barangay!}${_city != null ? ', $_city' : ''}'
-                        : null,
-                    profileUrl: _profileUrl,
-                    onNotificationTap: () => Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => const NotificationPage(),
+      body: SafeArea(
+        // ensure header not under status bar
+        child: NestedScrollView(
+          headerSliverBuilder: (_, __) => [
+            SliverToBoxAdapter(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [const SizedBox(height: 16)],
+              ),
+            ),
+
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
+                child: _searchField(),
+              ),
+            ),
+            SliverAppBar(
+              pinned: true,
+              backgroundColor: kBg,
+              elevation: 0,
+              toolbarHeight: 0,
+              bottom: PreferredSize(
+                preferredSize: const Size.fromHeight(52),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  child: TabBar(
+                    controller: _tabController,
+                    labelColor: kPrimaryDark,
+                    unselectedLabelColor: kSubtleText,
+                    indicator: UnderlineTabIndicator(
+                      borderSide: const BorderSide(
+                        color: kPrimaryDark,
+                        width: 3,
+                      ),
+                      insets: EdgeInsets.symmetric(
+                        horizontal: isWide ? 120 : 40,
                       ),
                     ),
-                    onProfileTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(builder: (_) => const ProfilePage()),
-                      ).then((_) => _loadProfileImage());
-                    },
+                    labelStyle: const TextStyle(
+                      fontWeight: FontWeight.w700,
+                      fontSize: 16,
+                      fontFamily: 'Montserrat',
+                    ),
+                    unselectedLabelStyle: const TextStyle(
+                      fontWeight: FontWeight.w500,
+                      fontSize: 16,
+                      fontFamily: 'Montserrat',
+                    ),
+                    tabs: const [
+                      Tab(text: 'Ongoing'),
+                      Tab(text: 'History'),
+                    ],
                   ),
                 ),
-                const SizedBox(height: 16),
-                const Divider(thickness: 1, height: 24, color: Colors.grey),
-              ],
+              ),
             ),
-          ),
-
-          SliverToBoxAdapter(
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
-              child: _searchField(),
-            ),
-          ),
-          SliverAppBar(
-            pinned: true,
-            backgroundColor: kBg,
-            elevation: 0,
-            toolbarHeight: 0,
-            bottom: PreferredSize(
-              preferredSize: const Size.fromHeight(52),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 12),
-                child: TabBar(
+          ],
+          body: _loading
+              ? _wrapWithRefreshAndNav(
+                  ListView(
+                    physics: const AlwaysScrollableScrollPhysics(
+                      parent: BouncingScrollPhysics(),
+                    ),
+                    padding: const EdgeInsets.fromLTRB(16, 12, 16, 90),
+                    children: List.generate(4, (_) => _skeletonCard()),
+                  ),
+                )
+              : TabBarView(
                   controller: _tabController,
-                  labelColor: kPrimaryDark,
-                  unselectedLabelColor: kSubtleText,
-                  indicator: UnderlineTabIndicator(
-                    borderSide: const BorderSide(color: kPrimaryDark, width: 3),
-                    insets: EdgeInsets.symmetric(horizontal: isWide ? 120 : 40),
-                  ),
-                  labelStyle: const TextStyle(
-                    fontWeight: FontWeight.w700,
-                    fontSize: 16,
-                    fontFamily: 'Montserrat',
-                  ),
-                  unselectedLabelStyle: const TextStyle(
-                    fontWeight: FontWeight.w500,
-                    fontSize: 16,
-                    fontFamily: 'Montserrat',
-                  ),
-                  tabs: const [
-                    Tab(text: 'Ongoing'),
-                    Tab(text: 'History'),
+                  children: [
+                    _claimListView(ongoingList, true),
+                    _claimListView(historyList, false),
                   ],
                 ),
-              ),
-            ),
-          ),
-        ],
-        body: _loading
-            ? _wrapWithRefreshAndNav(
-                ListView(
-                  physics: const AlwaysScrollableScrollPhysics(
-                    parent: BouncingScrollPhysics(),
-                  ),
-                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 90),
-                  children: List.generate(4, (_) => _skeletonCard()),
-                ),
-              )
-            : TabBarView(
-                controller: _tabController,
-                children: [
-                  _claimListView(ongoingList, true),
-                  _claimListView(historyList, false),
-                ],
-              ),
+        ),
       ),
     );
   }
@@ -959,17 +1000,26 @@ class _ClaimsPageState extends State<ClaimsPage>
                     if (dob.isNotEmpty)
                       Text(
                         'Date of Birth: $dob',
-                        style: const TextStyle(fontSize: 13, color: kSubtleText),
+                        style: const TextStyle(
+                          fontSize: 13,
+                          color: kSubtleText,
+                        ),
                       ),
                     if (dod.isNotEmpty)
                       Text(
                         'Date of Death: $dod',
-                        style: const TextStyle(fontSize: 13, color: kSubtleText),
+                        style: const TextStyle(
+                          fontSize: 13,
+                          color: kSubtleText,
+                        ),
                       ),
                     if (age != null)
                       Text(
                         'Age at death: $age years',
-                        style: const TextStyle(fontSize: 13, color: kSubtleText),
+                        style: const TextStyle(
+                          fontSize: 13,
+                          color: kSubtleText,
+                        ),
                       ),
                   ],
                 );

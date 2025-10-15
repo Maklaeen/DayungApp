@@ -1,5 +1,11 @@
+import 'dart:typed_data';
+import 'package:pdfx/pdfx.dart';
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:provider/provider.dart';
+import 'package:capstone_app/Providers/dayung_provider.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class SecretaryApplicationsPage extends StatefulWidget {
   const SecretaryApplicationsPage({super.key});
@@ -15,66 +21,505 @@ class _SecretaryApplicationsPageState extends State<SecretaryApplicationsPage> {
   String _filter = 'pending'; // pending | approved | rejected
   bool _loading = true;
   List<Map<String, dynamic>> _apps = [];
+  Set<String> _deceasedUserIds = {};
 
   RealtimeChannel? _channel;
+  int? _currentUnitId;
+  String _inferType(String url) {
+    final lower = url.toLowerCase();
+    if (lower.endsWith('.pdf')) return 'pdf';
+    if (lower.endsWith('.png')) return 'png';
+    if (lower.endsWith('.jpg') || lower.endsWith('.jpeg')) return 'jpg';
+    return 'unknown';
+  }
 
   @override
   void initState() {
     super.initState();
-    _fetchApplications();
-    _subscribeRealtime();
+    // Delay to let Provider be available
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _currentUnitId = context.read<DayungUnitProvider>().currentUnitId;
+      _fetchApplications(forUnitId: _currentUnitId);
+      if (_currentUnitId != null) _subscribeRealtime(unitId: _currentUnitId!);
+    });
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final newId = context.watch<DayungUnitProvider>().currentUnitId;
+    if (newId != _currentUnitId) {
+      _currentUnitId = newId;
+      if (mounted) setState(() => _apps = []); // clear stale
+      _fetchApplications(forUnitId: newId);
+      _resubscribe(unitId: newId);
+    }
   }
 
   @override
   void dispose() {
-    _channel?.unsubscribe();
+    try {
+      _channel?.unsubscribe();
+      if (_channel != null) {
+        Supabase.instance.client.removeChannel(_channel!); // ensure detached
+      }
+    } catch (_) {}
+    _channel = null;
     super.dispose();
   }
 
-  void _subscribeRealtime() {
-    // ...existing code...
+  void _resubscribe({int? unitId}) {
+    try {
+      _channel?.unsubscribe();
+      if (_channel != null) {
+        Supabase.instance.client.removeChannel(_channel!);
+      }
+    } catch (_) {}
+    _channel = null;
+    if (unitId != null) _subscribeRealtime(unitId: unitId);
+  }
+
+  void _subscribeRealtime({required int unitId}) {
     _channel?.unsubscribe();
-    _channel = _supabase.channel('secretary_apps');
+    _channel = _supabase.channel('secretary_apps_$unitId');
 
     _channel!.onPostgresChanges(
-      event: PostgresChangeEvent.all, // INSERT/UPDATE/DELETE
+      event: PostgresChangeEvent.all,
       schema: 'public',
       table: 'applications',
+      filter: PostgresChangeFilter(
+        type: PostgresChangeFilterType.eq,
+        column: 'dayung_unit_id',
+        value: unitId,
+      ),
       callback: (payload) {
-        _fetchApplications();
+        // Ignore events for other units (extra safety)
+        final rec =
+            (payload.newRecord.isNotEmpty
+                    ? payload.newRecord
+                    : payload.oldRecord)
+                as Map<String, dynamic>?;
+
+        final recUnitId = rec?['dayung_unit_id'];
+        final recId = recUnitId is int ? recUnitId : int.tryParse('$recUnitId');
+        if (recId != unitId) return;
+
+        _fetchApplications(forUnitId: unitId);
       },
     );
 
     _channel!.subscribe();
   }
 
-  Future<void> _fetchApplications() async {
+  Future<Uri?> _resolveCertificateUri(String raw) async {
+    if (raw.trim().isEmpty) return null;
+
+    // If it's already a valid absolute URL, use it
+    try {
+      final u = Uri.parse(raw);
+      if (u.hasScheme && (u.isScheme('https') || u.isScheme('http'))) {
+        return u;
+      }
+    } catch (_) {}
+
+    // Treat as Supabase Storage path: "bucket/path/to/file.pdf" (or with leading slash)
+    final path = raw.replaceFirst(RegExp(r'^/+'), '');
+    final parts = path.split('/');
+    if (parts.length < 2) return null;
+
+    final bucket = parts.first;
+    final objectPath = parts.sublist(1).join('/');
+
+    try {
+      // Prefer a short-lived signed URL (works for private buckets)
+      final signed = await _supabase.storage
+          .from(bucket)
+          .createSignedUrl(objectPath, 3600); // 1 hour
+
+      return Uri.parse(signed);
+    } catch (_) {
+      // Fallback to public URL if bucket is public
+      try {
+        final pub = _supabase.storage.from(bucket).getPublicUrl(objectPath);
+        return Uri.parse(pub);
+      } catch (_) {
+        return null;
+      }
+    }
+  }
+
+  Future<void> _openCertificateViewer(String raw) async {
+    final uri = await _resolveCertificateUri(raw);
+    if (uri == null) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Invalid certificate link')));
+      return;
+    }
+
+    final kind = _inferType(uri.toString());
+    if (!mounted) return;
+
+    await showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) {
+        final height = MediaQuery.of(ctx).size.height * 0.92;
+        return SizedBox(
+          height: height,
+          child: Column(
+            children: [
+              // Header with Back/Close
+              Padding(
+                padding: const EdgeInsets.fromLTRB(8, 8, 8, 0),
+                child: Row(
+                  children: [
+                    IconButton(
+                      tooltip: 'Back',
+                      icon: const Icon(Icons.arrow_downward),
+                      onPressed: () => Navigator.pop(ctx),
+                    ),
+                    const SizedBox(width: 4),
+                    const Expanded(
+                      child: Text(
+                        'Death certificate',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          fontWeight: FontWeight.w700,
+                          fontSize: 16,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 48), // balance the back button space
+                  ],
+                ),
+              ),
+              const Divider(height: 1),
+              Expanded(
+                child: Builder(
+                  builder: (_) {
+                    if (kind == 'png' || kind == 'jpg') {
+                      // Show image with pinch-zoom
+                      return InteractiveViewer(
+                        child: Image.network(
+                          uri.toString(),
+                          fit: BoxFit.contain,
+                          errorBuilder: (_, __, ___) =>
+                              const Center(child: Text('Failed to load image')),
+                        ),
+                      );
+                    }
+                    if (kind == 'pdf') {
+                      // Load PDF bytes then render with Pdfx
+                      return FutureBuilder<Uint8List>(
+                        future: () async {
+                          final resp = await http.get(uri);
+                          if (resp.statusCode != 200) {
+                            throw Exception('HTTP ${resp.statusCode}');
+                          }
+                          return resp.bodyBytes;
+                        }(),
+                        builder: (context, snap) {
+                          if (snap.connectionState != ConnectionState.done) {
+                            return const Center(
+                              child: CircularProgressIndicator(),
+                            );
+                          }
+                          if (snap.hasError || snap.data == null) {
+                            return const Center(
+                              child: Text('Failed to load PDF'),
+                            );
+                          }
+                          final bytes = snap.data!;
+                          return _PdfViewer(bytes: bytes);
+                        },
+                      );
+                    }
+                    // Unknown type -> suggest external
+                    return Center(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Text('Unsupported file type. Open in browser?'),
+                          const SizedBox(height: 12),
+                          ElevatedButton.icon(
+                            icon: const Icon(Icons.open_in_new),
+                            label: const Text('Open'),
+                            onPressed: () async {
+                              await launchUrl(
+                                uri,
+                                mode: LaunchMode.externalApplication,
+                              );
+                            },
+                          ),
+                        ],
+                      ),
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _openDeceasedDetails(String userId) async {
+    final unitId = _currentUnitId;
+    if (unitId == null) return;
+    try {
+      List<dynamic> res;
+      try {
+        res = await _supabase.rpc(
+          'sec_get_deceased_details',
+          params: {'p_user_id': userId, 'p_exclude_unit_id': unitId},
+        );
+      } catch (_) {
+        res = await _supabase
+            .from('death_notices')
+            .select(
+              'id, name, date_of_death, deceased_age, dob, dayung_unit_id, deceased_type, death_certificate_url, barangay',
+            )
+            .eq('user_id', userId)
+            .neq('dayung_unit_id', unitId)
+            .or('deceased_type.is.null,deceased_type.eq.member')
+            .order('date_of_death', ascending: false);
+      }
+
+      final items = List<Map<String, dynamic>>.from(res);
+
+      final unitIds = items
+          .map((e) => e['dayung_unit_id'])
+          .where((v) => v != null)
+          .toSet()
+          .toList();
+      Map<int, String> unitNames = {};
+      Map<int, String> unitCities = {};
+      if (unitIds.isNotEmpty) {
+        final urows = await _supabase
+            .from('dayung_units')
+            .select('id, name, city')
+            .inFilter('id', unitIds);
+        for (final r in urows as List) {
+          final m = Map<String, dynamic>.from(r as Map);
+          final id = m['id'] is int
+              ? m['id'] as int
+              : int.tryParse('${m['id']}');
+          if (id != null) {
+            unitNames[id] = (m['name'] ?? 'Dayung').toString();
+            unitCities[id] = (m['city'] ?? '').toString();
+          }
+        }
+      }
+
+      if (!mounted) return;
+      if (items.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('No deceased details found.')),
+        );
+        return;
+      }
+      _showDeceasedDetailsSheet(items, unitNames, unitCities);
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Failed to load deceased details')),
+      );
+    }
+  }
+
+  void _showDeceasedDetailsSheet(
+    List<Map<String, dynamic>> items,
+    Map<int, String> unitNames,
+    Map<int, String> unitCities,
+  ) {
+    showModalBottomSheet(
+      context: context,
+      showDragHandle: true,
+      isScrollControlled: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) {
+        final height = MediaQuery.of(ctx).size.height * 0.92;
+        return SizedBox(
+          height: height,
+          child: Column(
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(8, 8, 8, 0),
+                child: Row(
+                  children: [
+                    IconButton(
+                      tooltip: 'Back',
+                      icon: const Icon(Icons.arrow_downward),
+                      onPressed: () => Navigator.pop(ctx),
+                    ),
+                    const SizedBox(width: 4),
+                    const Expanded(
+                      child: Text(
+                        'Deceased details',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          fontWeight: FontWeight.w700,
+                          fontSize: 16,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 48),
+                  ],
+                ),
+              ),
+              const Divider(height: 1),
+              Expanded(
+                child: ListView.separated(
+                  itemCount: items.length,
+                  separatorBuilder: (_, __) => const Divider(),
+                  itemBuilder: (_, i) {
+                    final n = items[i];
+                    final unitId = (n['dayung_unit_id'] is int)
+                        ? n['dayung_unit_id'] as int
+                        : int.tryParse('${n['dayung_unit_id']}');
+                    final unitName = unitId != null
+                        ? (unitNames[unitId] ?? 'Dayung')
+                        : 'Dayung';
+                    final dod = n['date_of_death']?.toString();
+                    final age = n['deceased_age']?.toString();
+                    final dob = n['dob']?.toString();
+                    final type = (n['deceased_type'] ?? 'member').toString();
+                    final cert = (n['death_certificate_url'] ?? '').toString();
+                    final name = (n['name'] ?? '').toString();
+                    final cityTop = (n['city'] ?? '').toString();
+                    final cityFromUnit = unitId != null
+                        ? (unitCities[unitId] ?? '')
+                        : '';
+                    final loc =
+                        [
+                              n['barangay'],
+                              (cityTop.isNotEmpty ? cityTop : cityFromUnit),
+                            ]
+                            .where(
+                              (e) => (e ?? '').toString().trim().isNotEmpty,
+                            )
+                            .join(', ');
+
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          unitName,
+                          style: const TextStyle(
+                            fontWeight: FontWeight.w700,
+                            fontSize: 16,
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        if (name.isNotEmpty) Text('Name: $name'),
+                        if (type.isNotEmpty) Text('Type: $type'),
+                        if (dob != null && dob.isNotEmpty)
+                          Text('Birthday: $dob'),
+                        if (age != null && age.isNotEmpty) Text('Age: $age'),
+                        if (dod != null && dod.isNotEmpty)
+                          Text('Date of death: $dod'),
+                        if (loc.isNotEmpty) Text('Location: $loc'),
+                        if (cert.isNotEmpty)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 8),
+                            child: OutlinedButton.icon(
+                              icon: const Icon(Icons.picture_as_pdf),
+                              label: const Text('Open death certificate'),
+                              onPressed: () => _openCertificateViewer(cert),
+                            ),
+                          ),
+                      ],
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _fetchApplications({int? forUnitId}) async {
+    final unitId =
+        forUnitId ??
+        _currentUnitId ??
+        context.read<DayungUnitProvider>().currentUnitId;
+
+    if (unitId == null) {
+      if (!mounted) return;
+      setState(() {
+        _apps = [];
+        _loading = false;
+        _deceasedUserIds = {};
+      });
+      return;
+    }
+
     setState(() => _loading = true);
     try {
-      // Requires a SELECT policy like:
-      // Secretaries can read applications where dayung_units.secretary_id = auth.uid()
       final data = await _supabase
           .from('applications')
           .select(
-            'id, status, applied_at, dayung_units(name), users(full_name, email, profile_url)',
+            // Include user_id so we can flag per user.
+            'id, user_id, status, applied_at, dayung_unit_id, users(id, full_name, email, profile_url)',
           )
+          .eq('dayung_unit_id', unitId) // single authoritative filter
           .eq('status', _filter)
           .order('applied_at', ascending: false);
 
+      final list = List<Map<String, dynamic>>.from(data).where((r) {
+        final v = r['dayung_unit_id'];
+        final rid = v is int ? v : int.tryParse('$v');
+        return rid == unitId;
+      }).toList();
+      // Build deceased flags (any death_notice for the user in a different unit)
+      final userIds = list
+          .map((r) => r['user_id'])
+          .where((id) => id != null)
+          .map((id) => id.toString())
+          .toSet()
+          .toList();
+      Set<String> deceased = {};
+      if (userIds.isNotEmpty) {
+        final dnRows = await _supabase
+            .from('death_notices')
+            .select('user_id, dayung_unit_id, deceased_type')
+            .inFilter('user_id', userIds)
+            .neq('dayung_unit_id', unitId) // deceased in other unit(s)
+            .or(
+              'deceased_type.is.null,deceased_type.eq.member',
+            ); // treat null/member as member
+        deceased = Set<String>.from(
+          (dnRows as List)
+              .map((r) => (r as Map)['user_id'])
+              .where((v) => v != null)
+              .map((v) => v.toString()),
+        );
+      }
+
+      if (!mounted) return;
       setState(() {
-        _apps = List<Map<String, dynamic>>.from(data);
+        _apps = list;
         _loading = false;
+        _deceasedUserIds = deceased;
       });
     } on PostgrestException catch (e) {
       if (!mounted) return;
       setState(() => _loading = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            'Load failed: ${e.message.isEmpty ? 'RLS or policy issue' : e.message}',
-          ),
-        ),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Load failed: ${e.message}')));
     } catch (_) {
       if (!mounted) return;
       setState(() => _loading = false);
@@ -84,7 +529,32 @@ class _SecretaryApplicationsPageState extends State<SecretaryApplicationsPage> {
     }
   }
 
-  Future<void> _approve(int applicationId) async {
+  Future<void> _approve(
+    int applicationId, {
+    required bool deceasedElsewhere,
+  }) async {
+    if (deceasedElsewhere) {
+      final proceed = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('Applicant flagged'),
+          content: const Text(
+            'This user is marked as deceased in other dayung. Proceed to approve?',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('Approve'),
+            ),
+          ],
+        ),
+      );
+      if (proceed != true) return;
+    }
     try {
       await _supabase.rpc(
         'approve_application',
@@ -94,7 +564,7 @@ class _SecretaryApplicationsPageState extends State<SecretaryApplicationsPage> {
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(const SnackBar(content: Text('Application approved')));
-      _fetchApplications();
+      _fetchApplications(forUnitId: _currentUnitId);
     } on PostgrestException catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -122,7 +592,7 @@ class _SecretaryApplicationsPageState extends State<SecretaryApplicationsPage> {
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(const SnackBar(content: Text('Application rejected')));
-      _fetchApplications();
+      _fetchApplications(forUnitId: _currentUnitId);
     } on PostgrestException catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -142,8 +612,10 @@ class _SecretaryApplicationsPageState extends State<SecretaryApplicationsPage> {
 
   @override
   Widget build(BuildContext context) {
+    final dayungName =
+        context.watch<DayungUnitProvider>().dayungUnit ?? 'Dayung';
     return Scaffold(
-      appBar: AppBar(title: const Text('Applications Inbox')),
+      appBar: AppBar(title: Text('$dayungName Applications')),
       body: Column(
         children: [
           const SizedBox(height: 8),
@@ -155,8 +627,11 @@ class _SecretaryApplicationsPageState extends State<SecretaryApplicationsPage> {
                 selected: _filter == 'pending',
                 onSelected: (v) {
                   if (!v) return;
-                  setState(() => _filter = 'pending');
-                  _fetchApplications();
+                  setState(() {
+                    _filter = 'pending';
+                    _apps = [];
+                  });
+                  _fetchApplications(forUnitId: _currentUnitId);
                 },
               ),
               ChoiceChip(
@@ -164,8 +639,11 @@ class _SecretaryApplicationsPageState extends State<SecretaryApplicationsPage> {
                 selected: _filter == 'approved',
                 onSelected: (v) {
                   if (!v) return;
-                  setState(() => _filter = 'approved');
-                  _fetchApplications();
+                  setState(() {
+                    _filter = 'approved';
+                    _apps = [];
+                  });
+                  _fetchApplications(forUnitId: _currentUnitId);
                 },
               ),
               ChoiceChip(
@@ -173,8 +651,11 @@ class _SecretaryApplicationsPageState extends State<SecretaryApplicationsPage> {
                 selected: _filter == 'rejected',
                 onSelected: (v) {
                   if (!v) return;
-                  setState(() => _filter = 'rejected');
-                  _fetchApplications();
+                  setState(() {
+                    _filter = 'rejected';
+                    _apps = [];
+                  });
+                  _fetchApplications(forUnitId: _currentUnitId);
                 },
               ),
             ],
@@ -182,7 +663,7 @@ class _SecretaryApplicationsPageState extends State<SecretaryApplicationsPage> {
           const Divider(height: 16),
           Expanded(
             child: RefreshIndicator(
-              onRefresh: _fetchApplications,
+              onRefresh: () => _fetchApplications(forUnitId: _currentUnitId),
               child: _loading
                   ? const Center(child: CircularProgressIndicator())
                   : _apps.isEmpty
@@ -193,11 +674,13 @@ class _SecretaryApplicationsPageState extends State<SecretaryApplicationsPage> {
                       itemBuilder: (context, i) {
                         final app = _apps[i];
                         final user = app['users'] as Map<String, dynamic>?;
-                        final dayung =
-                            app['dayung_units'] as Map<String, dynamic>?;
                         final status = (app['status'] ?? '').toString();
                         final appliedAt = DateTime.tryParse(
                           app['applied_at']?.toString() ?? '',
+                        );
+                        final userIdStr = (app['user_id'] ?? '').toString();
+                        final deceasedElsewhere = _deceasedUserIds.contains(
+                          userIdStr,
                         );
 
                         return Card(
@@ -208,17 +691,61 @@ class _SecretaryApplicationsPageState extends State<SecretaryApplicationsPage> {
                           child: ListTile(
                             leading: CircleAvatar(
                               child: Text(
-                                (user?['full_name'] ?? 'M')[0]
+                                (user?['full_name'] ?? 'M')
                                     .toString()
+                                    .characters
+                                    .first
                                     .toUpperCase(),
                               ),
                             ),
                             title: Text(user?['full_name'] ?? 'Member'),
-                            subtitle: Text(
-                              '${dayung?['name'] ?? 'Dayung'}'
-                              '${appliedAt != null ? '\nApplied: ${appliedAt.toLocal()}' : ''}',
+                            subtitle: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                if (appliedAt != null)
+                                  Text('Applied: ${appliedAt.toLocal()}'),
+                                if (deceasedElsewhere)
+                                  Padding(
+                                    padding: const EdgeInsets.only(top: 4),
+                                    child: Row(
+                                      children: const [
+                                        Icon(
+                                          Icons.warning_amber_rounded,
+                                          size: 16,
+                                          color: Colors.red,
+                                        ),
+                                        SizedBox(width: 6),
+                                        Expanded(
+                                          child: Text(
+                                            'This user is marked as deceased in other dayung.',
+                                            style: TextStyle(
+                                              color: Colors.red,
+                                              fontWeight: FontWeight.w600,
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                if (deceasedElsewhere)
+                                  Padding(
+                                    padding: const EdgeInsets.only(top: 8),
+                                    child: OutlinedButton.icon(
+                                      icon: const Icon(Icons.info_outline),
+                                      label: const Text(
+                                        'View deceased details',
+                                      ),
+                                      onPressed: () =>
+                                          _openDeceasedDetails(userIdStr),
+                                    ),
+                                  ),
+                              ],
                             ),
-                            trailing: _buildActions(status, app['id'] as int),
+                            trailing: _buildActions(
+                              status,
+                              app['id'] as int,
+                              deceasedElsewhere,
+                            ),
                           ),
                         );
                       },
@@ -230,7 +757,11 @@ class _SecretaryApplicationsPageState extends State<SecretaryApplicationsPage> {
     );
   }
 
-  Widget _buildActions(String status, int applicationId) {
+  Widget _buildActions(
+    String status,
+    int applicationId,
+    bool deceasedElsewhere,
+  ) {
     if (status == 'pending') {
       return Row(
         mainAxisSize: MainAxisSize.min,
@@ -243,7 +774,8 @@ class _SecretaryApplicationsPageState extends State<SecretaryApplicationsPage> {
           IconButton(
             tooltip: 'Approve',
             icon: const Icon(Icons.check_circle, color: Colors.green),
-            onPressed: () => _approve(applicationId),
+            onPressed: () =>
+                _approve(applicationId, deceasedElsewhere: deceasedElsewhere),
           ),
         ],
       );
@@ -255,5 +787,56 @@ class _SecretaryApplicationsPageState extends State<SecretaryApplicationsPage> {
       return const Icon(Icons.cancel, color: Colors.redAccent);
     }
     return Text(status);
+  }
+}
+
+class _PdfViewer extends StatelessWidget {
+  final Uint8List bytes;
+  const _PdfViewer({super.key, required this.bytes});
+
+  @override
+  Widget build(BuildContext context) {
+    return _PdfViewerInner(bytes: bytes);
+  }
+}
+
+class _PdfViewerInner extends StatefulWidget {
+  final Uint8List bytes;
+  const _PdfViewerInner({super.key, required this.bytes});
+
+  @override
+  State<_PdfViewerInner> createState() => _PdfViewerInnerState();
+}
+
+class _PdfViewerInnerState extends State<_PdfViewerInner> {
+  late final PdfControllerPinch _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = PdfControllerPinch(
+      document: PdfDocument.openData(widget.bytes),
+    );
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return PdfViewPinch(
+      controller: _controller,
+      builders: PdfViewPinchBuilders<DefaultBuilderOptions>(
+        options: const DefaultBuilderOptions(),
+        documentLoaderBuilder: (_) =>
+            const Center(child: CircularProgressIndicator()),
+        pageLoaderBuilder: (_) =>
+            const Center(child: CircularProgressIndicator()),
+        errorBuilder: (_, err) => Center(child: Text('PDF error: $err')),
+      ),
+    );
   }
 }

@@ -969,7 +969,7 @@ class _DayungMapPageState extends State<DayungMapPage> {
       Navigator.pop(context, {'applied': true, 'dayung_id': dayungId});
     } on PostgrestException catch (e) {
       final code = e.code ?? '';
-      final msg = (e.message ?? '').toLowerCase();
+      final msg = (e.message).toLowerCase();
       if (code == '23505' ||
           msg.contains('unique') ||
           msg.contains('duplicate')) {

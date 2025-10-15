@@ -3,17 +3,16 @@ import 'package:capstone_app/Providers/dayung_provider.dart';
 import 'package:capstone_app/Providers/dayung_role_provider.dart';
 import 'package:capstone_app/pages/claims.dart';
 import 'package:capstone_app/pages/notification.dart'
-    hide kPrimary, kNeutralText, kPrimaryDark, kSubtleText;
+    hide kPrimary, kNeutralText, kPrimaryDark, kSubtleText, kWarn, kDanger;
 import 'package:capstone_app/pages/paymentmethod.dart';
 import 'package:capstone_app/pages/contributionhistory.dart';
 import 'package:capstone_app/pages/recentdeathnotices.dart';
 import 'package:capstone_app/profile/profile.dart' hide kPrimary, kWarn;
 import 'package:capstone_app/screens/selectdayung.dart';
 import 'package:capstone_app/Auth/login.dart'
-    hide kPrimary, kNeutralText, kSubtleText, kPrimaryDark;
+    hide kPrimary, kNeutralText, kSubtleText, kPrimaryDark, kWarn, kDanger;
 import 'package:auto_size_text/auto_size_text.dart';
 import 'package:capstone_app/ui/theme/branding.dart';
-import 'package:capstone_app/Members/member_header.dart';
 import 'package:flutter/material.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:provider/provider.dart';
@@ -41,7 +40,10 @@ class _MemberDashboardPageState extends State<MemberDashboardPage> {
   int _unreadNotifCount = 0;
 
   Map<String, dynamic>? _selectedDayungUnitObj;
-  String? selectedDayungUnit;
+  String _selectedDayungUnit = 'Dayung Unit'; // align with Secretary
+  String? _unitBarangay; // align with Secretary
+  String? _unitCity; // align with Secretary
+  int? _dayungUnitId;
 
   // ignore: unused_field
   User? _user;
@@ -51,7 +53,7 @@ class _MemberDashboardPageState extends State<MemberDashboardPage> {
   bool _showNavBar = true;
   // ignore: unused_field
   bool _loadingUser = true;
-  int _selectedIndex = 0;
+  int _currentIndex = 0;
 
   // Dynamic stats
   int _activeMembersCount = 0;
@@ -93,57 +95,54 @@ class _MemberDashboardPageState extends State<MemberDashboardPage> {
   Future<void> _fetchUnreadNotifCount() async {
     final sb = Supabase.instance.client;
     final uid = sb.auth.currentUser?.id;
-    if (uid == null) {
+    final unitId = _asInt(_selectedDayungUnitObj?['id']);
+
+    if (uid == null || unitId == null) {
       if (mounted) setState(() => _unreadNotifCount = 0);
       return;
     }
 
-    // 1. Unread notifications
-    final notifData = await sb
-        .from('notifications')
-        .select('id')
-        .eq('recipient_id', uid)
-        .isFilter('read_at', null);
+    try {
+      // Unread notifications for current unit only
+      final notifRows = await sb
+          .from('notifications')
+          .select('id')
+          .eq('recipient_id', uid)
+          .eq('dayung_unit_id', unitId)
+          .isFilter('read_at', null);
 
-    int notifCount = (notifData as List).length;
+      final notifCount = (notifRows as List).length;
 
-    // 2. Unread announcements (for all user's approved dayung units)
-    final apps = await sb
-        .from('applications')
-        .select('dayung_unit_id')
-        .eq('user_id', uid)
-        .eq('status', 'approved');
-    final unitIds = List<Map<String, dynamic>>.from(apps)
-        .map((a) => a['dayung_unit_id'])
-        .where((id) => id != null)
-        .toSet()
-        .toList();
-
-    int annCount = 0;
-    if (unitIds.isNotEmpty) {
-      // Get all announcements for user's units
-      final annData = await sb
+      // Unread announcements for current unit only
+      final annRows = await sb
           .from('announcements')
           .select('id')
-          .inFilter('dayung_unit_id', unitIds);
+          .eq('dayung_unit_id', unitId);
 
-      final allAnnIds = (annData as List).map((a) => a['id']).toList();
+      final annIds = (annRows as List)
+          .map((r) => (r as Map)['id'])
+          .where((v) => v != null)
+          .toList();
 
-      // Get which announcements the user has read
-      final reads = await sb
-          .from('announcement_reads')
-          .select('announcement_id')
-          .eq('user_id', uid);
+      int annCount = 0;
+      if (annIds.isNotEmpty) {
+        final reads = await sb
+            .from('announcement_reads')
+            .select('announcement_id')
+            .eq('user_id', uid)
+            .inFilter('announcement_id', annIds);
 
-      final readIds = Set.from(
-        (reads as List).map((r) => r['announcement_id']),
-      );
+        final readIds = Set.from(
+          (reads as List).map((r) => (r as Map)['announcement_id']),
+        );
 
-      // Count only announcements the user has NOT read
-      annCount = allAnnIds.where((id) => !readIds.contains(id)).length;
+        annCount = annIds.where((id) => !readIds.contains(id)).length;
+      }
+
+      if (mounted) setState(() => _unreadNotifCount = notifCount + annCount);
+    } catch (_) {
+      if (mounted) setState(() => _unreadNotifCount = 0);
     }
-
-    if (mounted) setState(() => _unreadNotifCount = notifCount + annCount);
   }
 
   Future<bool> _isApprovedForUnit(int unitId) async {
@@ -161,41 +160,6 @@ class _MemberDashboardPageState extends State<MemberDashboardPage> {
     } catch (_) {
       return false;
     }
-  }
-
-  void _subscribeMembershipApproved() {
-    final sb = Supabase.instance.client;
-    final uid = sb.auth.currentUser?.id;
-    if (uid == null) return;
-
-    _notifChannel?.unsubscribe();
-    _notifChannel = sb.channel('member_notifications_${uid}');
-
-    _notifChannel!
-        .onPostgresChanges(
-          event: PostgresChangeEvent.insert,
-          schema: 'public',
-          table: 'notifications',
-          filter: PostgresChangeFilter(
-            type: PostgresChangeFilterType.eq,
-            column: 'recipient_id',
-            value: uid,
-          ),
-          callback: (payload) async {
-            final row = payload.newRecord;
-            if ((row['type'] ?? '') == 'membership_approved' &&
-                row['read_at'] == null) {
-              _showAnnouncementDialog(row);
-            }
-            if ((row['type'] ?? '') == 'announcement' &&
-                row['read_at'] == null) {
-              _showAnnouncementDialog(row);
-            }
-          },
-        )
-        .subscribe();
-
-    _checkUnreadNotifications();
   }
 
   Future<void> _checkUnreadNotifications() async {
@@ -294,82 +258,69 @@ class _MemberDashboardPageState extends State<MemberDashboardPage> {
     );
   }
 
-  void _showApprovedDialog(Map<String, dynamic> notif) {
-    if (!mounted) return;
-    showDialog<void>(
-      context: context,
-      barrierDismissible: false,
-      builder: (_) {
-        return AlertDialog(
-          title: Text(notif['title']?.toString() ?? 'Approved'),
-          content: Text(
-            notif['body']?.toString() ??
-                'You are now a member. Congratulations!',
-          ),
-          actions: [
-            TextButton(
-              onPressed: () async {
-                final sb = Supabase.instance.client;
-                try {
-                  await sb
-                      .from('notifications')
-                      .update({'read_at': DateTime.now().toIso8601String()})
-                      .eq('id', notif['id']);
-                } catch (_) {}
-                if (!mounted) return;
-                Navigator.of(context).pop();
-                // Refresh member dashboard data and unit selection
-                await _loadOrAskDayung(); // uses approved applications
-              },
-              child: const Text('Continue'),
-            ),
-          ],
-        );
-      },
-    );
+  Future<void> _refreshAll() async {
+    await _loadUserData();
+    await _reloadDayungFromPrefs();
+    await _fetchAllStats();
+    await _fetchUnreadNotifCount();
   }
 
   Future<void> _reloadDayungFromPrefs() async {
     final prefs = await SharedPreferences.getInstance();
     final unitJson = prefs.getString('selectedDayungUnit');
+
     if (unitJson == null) {
       setState(() {
-        selectedDayungUnit = null;
+        _selectedDayungUnit = 'Dayung Unit';
         _selectedDayungUnitObj = null;
+        _unitBarangay = null;
+        _unitCity = null;
+        _dayungUnitId = null;
+        _unreadNotifCount = 0;
       });
       return;
     }
+
     try {
       final decoded = jsonDecode(unitJson);
-      if (decoded is Map) {
-        final unit = Map<String, dynamic>.from(decoded);
-        final id = _asInt(unit['id']);
-        if (id != null && await _isApprovedForUnit(id)) {
-          setState(() {
-            selectedDayungUnit = unit['name']?.toString();
-            _selectedDayungUnitObj = unit;
-          });
-          // NEW: refresh roles for this selected unit
-          await context.read<DayungRoleProvider>().refreshRoles(id);
-        } else {
-          await prefs.remove('selectedDayungUnit');
-          setState(() {
-            selectedDayungUnit = null;
-            _selectedDayungUnitObj = null;
-          });
-        }
+      if (decoded is! Map) throw 'bad_json';
+      final unit = Map<String, dynamic>.from(decoded);
+      final id = _asInt(unit['id']);
+
+      if (id != null && await _isApprovedForUnit(id)) {
+        setState(() {
+          _selectedDayungUnit = (unit['name'] ?? 'Dayung Unit').toString();
+          _selectedDayungUnitObj = unit;
+          _unitBarangay = (unit['barangay'] ?? '').toString().trim().isEmpty
+              ? null
+              : unit['barangay'].toString();
+          _unitCity = (unit['city'] ?? '').toString().trim().isEmpty
+              ? null
+              : unit['city'].toString();
+          _dayungUnitId = id;
+        });
+        await context.read<DayungRoleProvider>().refreshRoles(id);
+        await _fetchUnreadNotifCount();
       } else {
         await prefs.remove('selectedDayungUnit');
         setState(() {
-          selectedDayungUnit = null;
+          _selectedDayungUnit = 'Dayung Unit';
           _selectedDayungUnitObj = null;
+          _unitBarangay = null;
+          _unitCity = null;
+          _dayungUnitId = null;
+          _unreadNotifCount = 0;
         });
       }
     } catch (_) {
       await prefs.remove('selectedDayungUnit');
       setState(() {
-        selectedDayungUnit = null;
+        _selectedDayungUnit = 'Dayung Unit';
         _selectedDayungUnitObj = null;
+        _unitBarangay = null;
+        _unitCity = null;
+        _dayungUnitId = null;
+        _unreadNotifCount = 0;
       });
     }
   }
@@ -383,11 +334,18 @@ class _MemberDashboardPageState extends State<MemberDashboardPage> {
         final id = _asInt((unit as Map)['id']);
         if (id != null && await _isApprovedForUnit(id)) {
           setState(() {
-            selectedDayungUnit = unit['name'];
+            _selectedDayungUnit = (unit['name'] ?? 'Dayung Unit').toString();
             _selectedDayungUnitObj = Map<String, dynamic>.from(unit);
+            _unitBarangay = (unit['barangay'] ?? '').toString().trim().isEmpty
+                ? null
+                : unit['barangay'].toString();
+            _unitCity = (unit['city'] ?? '').toString().trim().isEmpty
+                ? null
+                : unit['city'].toString();
+            _dayungUnitId = id;
           });
-          // NEW: refresh roles for this unit
           await context.read<DayungRoleProvider>().refreshRoles(id);
+          await _fetchUnreadNotifCount();
           await _fetchAllStats();
           await _subscribeAnnouncementsRealtime();
           return;
@@ -395,12 +353,20 @@ class _MemberDashboardPageState extends State<MemberDashboardPage> {
           await prefs.setString('selectedDayungUnit', jsonEncode(unit));
           setState(() {
             _selectedDayungUnitObj = Map<String, dynamic>.from(unit);
-            selectedDayungUnit = unit['name']?.toString();
+            _selectedDayungUnit = (unit['name'] ?? 'Dayung Unit').toString();
+            final idx = _asInt(unit['id']);
+            _dayungUnitId = idx;
+            _unitBarangay = (unit['barangay'] ?? '').toString().trim().isEmpty
+                ? null
+                : unit['barangay'].toString();
+            _unitCity = (unit['city'] ?? '').toString().trim().isEmpty
+                ? null
+                : unit['city'].toString();
           });
-          // NEW: refresh roles for this unit
           await context.read<DayungRoleProvider>().refreshRoles(
             _asInt(unit['id']),
           );
+          await _fetchUnreadNotifCount();
           await _fetchAllStats();
           return;
         }
@@ -408,8 +374,6 @@ class _MemberDashboardPageState extends State<MemberDashboardPage> {
         await prefs.remove('selectedDayungUnit');
       }
     }
-
-    // Auto-pick latest APPROVED application (do NOT use users.dayung_unit_id)
     try {
       final uid = supabase.auth.currentUser?.id;
       if (uid != null) {
@@ -434,20 +398,28 @@ class _MemberDashboardPageState extends State<MemberDashboardPage> {
               await prefs.setString('selectedDayungUnit', jsonEncode(unit));
               setState(() {
                 _selectedDayungUnitObj = Map<String, dynamic>.from(unit);
-                selectedDayungUnit = unit['name']?.toString();
+
+                _selectedDayungUnit = (unit['name'] ?? 'Dayung Unit')
+                    .toString();
+                _unitBarangay =
+                    (unit['barangay'] ?? '').toString().trim().isEmpty
+                    ? null
+                    : unit['barangay'].toString();
+                _unitCity = (unit['city'] ?? '').toString().trim().isEmpty
+                    ? null
+                    : unit['city'].toString();
+                _dayungUnitId = dId;
               });
-              await _fetchAllStats(); // ...existing code...
+              await _fetchUnreadNotifCount();
+              await _fetchAllStats();
               return;
             }
           }
         }
       }
-    } catch (_) {
-      // ignore and fallback to manual pick
-    }
+    } catch (_) {}
 
-    // No approved membership -> open selection flow (may show none)
-    await _navigateAndPickUnit(); // ...existing code...
+    await _navigateAndPickUnit();
   }
 
   Future<void> _fetchAllStats() async {
@@ -601,7 +573,7 @@ class _MemberDashboardPageState extends State<MemberDashboardPage> {
                                   },
                                 ], onConflict: 'announcement_id,user_id');
                               } catch (_) {}
-                              if (!context.mounted) return;
+                              if (!mounted) return;
                               Navigator.of(context).pop();
                               await _fetchUnreadNotifCount();
                             },
@@ -683,7 +655,7 @@ class _MemberDashboardPageState extends State<MemberDashboardPage> {
         'type': 'date',
       });
 
-      // Add contribution if exists
+      // ignore: unnecessary_type_check
       if (recentContributions.isNotEmpty && recentContributions is List) {
         final contrib = recentContributions[0];
         final amount = (contrib['amount'] is num)
@@ -699,7 +671,7 @@ class _MemberDashboardPageState extends State<MemberDashboardPage> {
         });
       }
 
-      // Add claim if exists
+      // ignore: unnecessary_type_check
       if (recentClaims.isNotEmpty && recentClaims is List) {
         final claim = recentClaims[0];
         final status = (claim['status'] ?? '').toString();
@@ -832,14 +804,21 @@ class _MemberDashboardPageState extends State<MemberDashboardPage> {
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString('selectedDayungUnit', jsonEncode(result));
       setState(() {
-        selectedDayungUnit = result['name'];
+        _selectedDayungUnit = (result['name'] ?? 'Dayung Unit').toString();
         _selectedDayungUnitObj = Map<String, dynamic>.from(result);
+        _unitBarangay = (result['barangay'] ?? '').toString().trim().isEmpty
+            ? null
+            : result['barangay'].toString();
+        _unitCity = (result['city'] ?? '').toString().trim().isEmpty
+            ? null
+            : result['city'].toString();
+        _dayungUnitId = _asInt(result['id']);
       });
-      // NEW: refresh roles for this unit
       await context.read<DayungRoleProvider>().refreshRoles(
         _asInt(result['id']),
       );
       context.read<DayungUnitProvider>().setDayungUnit(result['name']);
+      await _fetchUnreadNotifCount();
       await _fetchAllStats();
       await _subscribeAnnouncementsRealtime();
       return;
@@ -1014,70 +993,109 @@ class _MemberDashboardPageState extends State<MemberDashboardPage> {
   @override
   Widget build(BuildContext context) {
     final width = MediaQuery.of(context).size.width;
-    final isWide = width > 700;
+    final wide = width > 700;
     return Scaffold(
       backgroundColor: kBg,
-      body: Stack(
-        children: [
-          SafeArea(
-            child: IndexedStack(index: _selectedIndex, children: _pages),
-          ),
-          Positioned(
-            left: 0,
-            right: 0,
-            bottom: 16,
-            child: Center(
-              child: IgnorePointer(
-                ignoring: !_showNavBar,
-                child: AnimatedOpacity(
-                  duration: const Duration(milliseconds: 300),
-                  opacity: _showNavBar ? 1.0 : 0.0,
-                  child: Container(
-                    height: 76,
-                    margin: EdgeInsets.symmetric(
-                      horizontal: isWide ? width * 0.15 : 16,
-                    ),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(36),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withOpacity(0.08),
-                          blurRadius: 16,
-                          offset: const Offset(0, 4),
-                        ),
-                      ],
-                      border: Border.all(
-                        color: Colors.grey.shade300,
-                        width: 1.5,
+      body: RefreshIndicator(
+        onRefresh: _refreshAll,
+        edgeOffset: 68,
+        child: Stack(
+          children: [
+            SafeArea(
+              child: Column(
+                children: [
+                  _topHeader(wide),
+                  const Divider(
+                    height: 1,
+                    thickness: 1,
+                    color: Color(0xFFE1E4E8),
+                  ),
+                  if (_currentIndex == 0) _greetingSection(),
+                  Expanded(
+                    child: AnimatedSwitcher(
+                      duration: const Duration(milliseconds: 250),
+                      child: IndexedStack(
+                        key: ValueKey(_currentIndex),
+                        index: _currentIndex,
+                        children: _pages,
                       ),
                     ),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                      children: [
-                        _navBarItem(
-                          icon: Icons.home,
-                          label: 'Home',
-                          selected: _selectedIndex == 0,
-                          onTap: () => setState(() => _selectedIndex = 0),
-                        ),
-                        _navBarItem(
-                          icon: FontAwesomeIcons.globe,
-                          label: 'Contributions',
-                          selected: _selectedIndex == 1,
-                          onTap: () => setState(() => _selectedIndex = 1),
-                        ),
-                        _navBarItem(
-                          icon: Icons.receipt_long,
-                          label: 'Claims',
-                          selected: _selectedIndex == 2,
-                          onTap: () => setState(() => _selectedIndex = 2),
-                        ),
-                      ],
-                    ),
                   ),
-                ),
+                ],
               ),
+            ),
+            _bottomNav(wide),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _bottomNav(bool wide) {
+    return Positioned(
+      left: 0,
+      right: 0,
+      bottom: 16,
+      child: Center(
+        child: IgnorePointer(
+          ignoring: !_showNavBar,
+          child: AnimatedOpacity(
+            duration: const Duration(milliseconds: 250),
+            opacity: _showNavBar ? 1 : 0,
+            child: Container(
+              height: 86,
+              margin: EdgeInsets.symmetric(horizontal: wide ? 170 : 20),
+              padding: const EdgeInsets.symmetric(horizontal: 14),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(44),
+                border: Border.all(color: Colors.grey.shade300),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(.08),
+                    blurRadius: 18,
+                    offset: const Offset(0, 6),
+                  ),
+                ],
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                children: [
+                  _navItem(Icons.home_rounded, "Home", 0),
+                  _navItem(Icons.public, "Contributions", 1),
+                  _navItem(Icons.description, "Claims", 2),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _navItem(IconData icon, String label, int index) {
+    final selected = _currentIndex == index;
+    return TextButton(
+      onPressed: () => setState(() => _currentIndex = index),
+      style: TextButton.styleFrom(
+        foregroundColor: selected ? kPrimary : kNeutralText,
+        padding: const EdgeInsets.symmetric(horizontal: 12),
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.all(Radius.circular(18)),
+        ),
+      ),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(icon, size: 30, color: selected ? kPrimary : kNeutralText),
+          const SizedBox(height: 4),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+              fontFamily: 'OpenSans',
+              letterSpacing: .3,
             ),
           ),
         ],
@@ -1085,47 +1103,16 @@ class _MemberDashboardPageState extends State<MemberDashboardPage> {
     );
   }
 
-  Widget _navBarItem({
-    required IconData icon,
-    required String label,
-    required bool selected,
-    required VoidCallback onTap,
-  }) {
-    return Semantics(
-      button: true,
-      label: label,
-      child: TextButton(
-        onPressed: onTap,
-        style: TextButton.styleFrom(
-          foregroundColor: selected ? kPrimary : kNeutralText,
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-          shape: const RoundedRectangleBorder(
-            borderRadius: BorderRadius.all(Radius.circular(12)),
-          ),
-        ),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(icon, color: selected ? kPrimary : kNeutralText, size: 32),
-            Text(
-              label,
-              style: TextStyle(
-                color: selected ? kPrimary : kNeutralText,
-                fontWeight: selected ? FontWeight.bold : FontWeight.w600,
-                fontSize: 14,
-                letterSpacing: 0.2,
-                fontFamily: 'OpenSans',
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
   Widget _buildHomePage(BuildContext context) {
     final width = MediaQuery.of(context).size.width;
-    final isWide = width > 700;
+    final bool wide = width > 820;
+    final dayungName = _selectedDayungUnitObj?['name'] ?? 'Dayung';
+    final barangay = _selectedDayungUnitObj?['barangay'];
+    final city = _selectedDayungUnitObj?['city'];
+    final subtitle = (barangay != null)
+        ? '$barangay${city != null ? ', $city' : ''}'
+        : null;
+
     return RefreshIndicator(
       onRefresh: _refreshDashboard,
       child: SingleChildScrollView(
@@ -1135,30 +1122,20 @@ class _MemberDashboardPageState extends State<MemberDashboardPage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 0),
-              child: _buildHeader(),
-            ),
-            const Divider(thickness: 1, height: 24, color: Colors.grey),
-            const SizedBox(height: 13),
+            const SizedBox(height: 12),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: _buildWelcomeMessage(),
+              child: _buildCards(wide),
             ),
             const SizedBox(height: 24),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: _buildCards(isWide),
-            ),
-            const SizedBox(height: 24),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: _buildNextPaymentCard(isWide),
+              child: _buildNextPaymentCard(wide),
             ),
             const SizedBox(height: 32),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: _buildRecentActivity(isWide),
+              child: _buildRecentActivity(wide),
             ),
           ],
         ),
@@ -1166,61 +1143,33 @@ class _MemberDashboardPageState extends State<MemberDashboardPage> {
     );
   }
 
-  Widget _buildHeader() {
-    final dayungName = _selectedDayungUnitObj?['name'] ?? 'Dayung';
-    final barangay = _selectedDayungUnitObj?['barangay'];
-    final city = _selectedDayungUnitObj?['city'];
-    final subtitle = (barangay != null)
-        ? '$barangay${city != null ? ', $city' : ''}'
-        : null;
-
-    return MemberHeader(
-      title: dayungName,
-      subtitle: subtitle,
-      profileUrl: _profileUrl,
-      onNotificationTap: () async {
-        await Navigator.push(
-          context,
-          MaterialPageRoute(builder: (_) => const NotificationPage()),
-        );
-        await _fetchUnreadNotifCount(); // Refresh badge after returning
-      },
-      onProfileTap: () {
-        Navigator.push(
-          context,
-          MaterialPageRoute(builder: (_) => const ProfilePage()),
-        );
-      },
-      notificationBadge: _unreadNotifCount > 0 ? _unreadNotifCount : null,
+  Widget _greetingSection() {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 12, 20, 6),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              'Maayung buntag, $_fullName!',
+              style: const TextStyle(
+                fontSize: 22,
+                fontWeight: FontWeight.w700,
+                fontFamily: 'Montserrat',
+                color: kNeutralText,
+                height: 1.15,
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 
-  Widget _buildWelcomeMessage() => Row(
-    crossAxisAlignment: CrossAxisAlignment.start,
-    children: [
-      Expanded(
-        child: Text(
-          'Maayung buntag,\n$_fullName!',
-          style: TextStyle(
-            fontSize: 30,
-            fontWeight: FontWeight.w700,
-            color: kPrimaryDark, // CHANGED to match secretary header tone
-            fontFamily: 'Montserrat',
-            letterSpacing: .6,
-            height: 1.1,
-          ),
-        ),
-      ),
-    ],
-  );
-
   Widget _buildCards(bool isWide) {
-    // Active Members card value
     final activeValue = _loadingActiveMembers
         ? '…'
         : _activeMembersCount.toString();
 
-    // Recent deaths card lines
     String recentDeathsValue;
     if (_loadingCertificates) {
       recentDeathsValue = 'Loading…';
@@ -1504,6 +1453,91 @@ class _MemberDashboardPageState extends State<MemberDashboardPage> {
     );
   }
 
+  Widget _topHeader(bool wide) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 12, 16, 8),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  _selectedDayungUnit, // same as Secretary header
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 22,
+                    fontWeight: FontWeight.w800,
+                    fontFamily: 'Montserrat',
+                    color: kNeutralText,
+                    height: 1.1,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                if (_unitBarangay != null || _unitCity != null)
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(
+                        Icons.location_on_outlined,
+                        size: 14,
+                        color: kSubtleText,
+                      ),
+                      const SizedBox(width: 4),
+                      Flexible(
+                        child: Text(
+                          [
+                            if (_unitBarangay != null) _unitBarangay!,
+                            if (_unitCity != null) _unitCity!,
+                          ].join(', '),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontSize: 12.5,
+                            fontWeight: FontWeight.w600,
+                            fontFamily: 'OpenSans',
+                            color: kSubtleText,
+                            height: 1.1,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+              ],
+            ),
+          ),
+          // Replace settings with Profile icon
+          _iconBtn(
+            tooltip: 'Profile',
+            icon: Icons.person,
+            color: kPrimary,
+            onTap: () async {
+              await Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const ProfilePage()),
+              );
+              await _loadUserData(); // refresh name/avatar after returning
+            },
+          ),
+          _iconBtn(
+            tooltip: 'Notifications',
+            icon: Icons.notifications,
+            color: kWarn,
+            badge: _unreadNotifCount > 0 ? '$_unreadNotifCount' : null,
+            onTap: () async {
+              await Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const NotificationPage()),
+              );
+              await _fetchUnreadNotifCount();
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildNextPaymentCard(bool isWide) {
     final loading = _loadingPending;
     final amount = loading
@@ -1757,4 +1791,67 @@ class _ActivityRow extends StatelessWidget {
       ],
     );
   }
+}
+
+Widget _iconBtn({
+  required IconData icon,
+  required Color color,
+  required VoidCallback onTap,
+  String? tooltip,
+  String? badge,
+}) {
+  return Semantics(
+    button: true,
+    label: tooltip,
+    child: Padding(
+      padding: const EdgeInsets.only(left: 6),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(16),
+        onTap: onTap,
+        child: Stack(
+          clipBehavior: Clip.none,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: color.withOpacity(.10),
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: Icon(icon, size: 28, color: color),
+            ),
+            if (badge != null)
+              Positioned(
+                right: -2,
+                top: -2,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 6,
+                    vertical: 2,
+                  ),
+                  decoration: BoxDecoration(
+                    color: kDanger,
+                    borderRadius: BorderRadius.circular(12),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(.25),
+                        blurRadius: 4,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
+                  ),
+                  child: Text(
+                    badge,
+                    style: const TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w700,
+                      color: Colors.white,
+                    ),
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ),
+    ),
+  );
 }
