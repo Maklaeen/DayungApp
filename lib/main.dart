@@ -43,7 +43,8 @@ class MyApp extends StatelessWidget {
           update: (context, unitProv, roleProv) {
             roleProv ??= DayungRoleProvider();
             final newId = unitProv.currentUnitId; // uses getter added above
-            if (newId != roleProv.unitId) {       // avoid redundant refreshes
+            if (newId != roleProv.unitId) {
+              // avoid redundant refreshes
               roleProv.refreshRoles(newId);
             }
             return roleProv;

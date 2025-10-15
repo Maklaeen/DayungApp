@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:capstone_app/Providers/dayung_provider.dart';
 import 'package:capstone_app/Providers/dayung_role_provider.dart';
+import 'package:capstone_app/screens/dayung_map_page.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -28,18 +29,35 @@ class _SelectDayungPageState extends State<SelectDayungPage> {
     _fetchJoinedDayung();
   }
 
-  Future<void> _persistSelectionAndNotify(Map<String, dynamic> d) async {
+  double? _toDouble(dynamic v) {
+    if (v == null) return null;
+    if (v is num) return v.toDouble();
+    return double.tryParse('$v');
+  }
+
+  Future<Map<String, dynamic>> _persistSelectionAndNotify(
+    Map<String, dynamic> d,
+  ) async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('selectedDayungUnit', jsonEncode(d));
-    await prefs.setString('selectedDayungUnitData', jsonEncode(d));
-    if (!mounted) return;
-    final id = d['id'] is int ? d['id'] as int : int.tryParse('${d['id']}');
+    final normalized = _normalizeDayung(d);
+    await prefs.setString('selectedDayungUnit', jsonEncode(normalized));
+    await prefs.setString('selectedDayungUnitData', jsonEncode(normalized));
+    if (!mounted) return normalized;
+    final id = normalized['id'] is int
+        ? normalized['id'] as int
+        : int.tryParse('${normalized['id']}');
     await context.read<DayungRoleProvider>().refreshRoles(id);
-    // CHANGED: also update the provider with the full object so currentUnitId is correct
     context.read<DayungUnitProvider>().setDayungUnit(
-      '${d['name'] ?? 'Dayung'}',
-      obj: d,
+      '${normalized['name'] ?? 'Dayung'}',
+      obj: normalized,
     );
+    return normalized;
+  }
+
+  Map<String, dynamic> _normalizeDayung(Map<String, dynamic> d) {
+    final lat = _toDouble(d['latitude'] ?? d['lat'] ?? d['latitute']);
+    final lng = _toDouble(d['longitude'] ?? d['lng'] ?? d['long'] ?? d['lon']);
+    return {...d, 'latitude': lat, 'longitude': lng, 'lat': lat, 'lng': lng};
   }
 
   Future<void> _fetchJoinedDayung() async {
@@ -59,7 +77,6 @@ class _SelectDayungPageState extends State<SelectDayungPage> {
     }
 
     try {
-      // Approved memberships (newest first)
       final apps = await _sb
           .from('applications')
           .select('dayung_unit_id, approved_at')
@@ -71,8 +88,6 @@ class _SelectDayungPageState extends State<SelectDayungPage> {
       final approvedIds = appsList
           .map((r) => (r as Map)['dayung_unit_id'] as int)
           .toList();
-
-      // Officer-managed units (secretary/president/treasurer)
       final officerRows = await _sb
           .from('dayung_units')
           .select('id, secretary_id, treasurer_id, president_id')
@@ -83,7 +98,6 @@ class _SelectDayungPageState extends State<SelectDayungPage> {
           .map((e) => (e as Map)['id'] as int)
           .toList();
 
-      // Collector units
       List<int> collectorIds = [];
       try {
         final dc = await _sb
@@ -95,7 +109,6 @@ class _SelectDayungPageState extends State<SelectDayungPage> {
             .toList();
       } catch (_) {}
 
-      // Combine all unique ids
       final ids = <int>{
         ...approvedIds,
         ...officerIds,
@@ -110,17 +123,26 @@ class _SelectDayungPageState extends State<SelectDayungPage> {
         return;
       }
 
-      // Get dayung details
+      // Get dayung details (include latitude/longitude)
       final dayungs = await _sb
           .from('dayung_units')
           .select('id, name, barangay, city, province, latitude, longitude')
           .inFilter('id', ids);
 
       final List<Map<String, dynamic>> joined = (dayungs as List<dynamic>)
-          .map((e) => Map<String, dynamic>.from(e))
+          .map((e) => _normalizeDayung(Map<String, dynamic>.from(e)))
           .toList();
 
-      // Keep membership order first; officer-only units (no approved_at) go after
+      // NEW: tag each as member if in approved list
+      final approvedSet = approvedIds.toSet();
+      for (final j in joined) {
+        final jid = j['id'] is int
+            ? j['id'] as int
+            : int.tryParse('${j['id']}');
+        j['is_member'] = jid != null && approvedSet.contains(jid);
+      }
+
+      // Keep membership order first; officer-only units go after
       final approvedOrder = <int, DateTime?>{};
       for (final a in appsList) {
         final m = a as Map<String, dynamic>;
@@ -131,10 +153,11 @@ class _SelectDayungPageState extends State<SelectDayungPage> {
       joined.sort((a, b) {
         final da = approvedOrder[a['id'] as int];
         final db = approvedOrder[b['id'] as int];
-        if (da == null && db == null)
+        if (da == null && db == null) {
           return (a['name'] ?? '').toString().compareTo(
             (b['name'] ?? '').toString(),
           );
+        }
         if (da == null) return 1;
         if (db == null) return -1;
         return db.compareTo(da);
@@ -247,39 +270,38 @@ class _SelectDayungPageState extends State<SelectDayungPage> {
                                         icon: const Icon(Icons.check_circle),
                                         label: const Text('Use this Dayung'),
                                         onPressed: () async {
-                                          await _persistSelectionAndNotify(
-                                            d,
-                                          ); // NEW
+                                          final normalized =
+                                              await _persistSelectionAndNotify(
+                                                d,
+                                              );
                                           if (!mounted) return;
-                                          Navigator.pop(context, d);
+                                          Navigator.pop(
+                                            context,
+                                            normalized,
+                                          ); // pop normalized, not raw d
                                         },
                                       ),
                                       const SizedBox(width: 12),
                                       TextButton.icon(
-                                        icon: const Icon(Icons.find_in_page),
-                                        label: const Text('Find another'),
-                                        onPressed: () async {
-                                          final selected = await Navigator.push(
+                                        icon: const Icon(Icons.map), // NEW
+                                        label: const Text('View on Map'),
+                                        onPressed: () {
+                                          final normalized = _normalizeDayung(
+                                            d,
+                                          );
+                                          Navigator.push(
                                             context,
                                             MaterialPageRoute(
-                                              builder: (_) =>
-                                                  const DayungSuggestionsPage(),
+                                              builder: (_) => DayungMapPage(
+                                                dayung: normalized,
+                                                isMember:
+                                                    (d['is_member'] == true),
+                                              ),
                                             ),
                                           );
-                                          await _fetchJoinedDayung();
-                                          if (selected != null) {
-                                            ScaffoldMessenger.of(
-                                              context,
-                                            ).showSnackBar(
-                                              const SnackBar(
-                                                content: Text(
-                                                  'Application submitted. Awaiting approval.',
-                                                ),
-                                              ),
-                                            );
-                                          }
                                         },
                                       ),
+                                      const SizedBox(width: 12),
                                     ],
                                   ),
                                 ],

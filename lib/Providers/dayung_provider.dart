@@ -32,11 +32,31 @@ class DayungUnitProvider extends ChangeNotifier {
     return int.tryParse('$v');
   }
 
+  double? _toDouble(dynamic v) {
+    if (v == null) return null;
+    if (v is num) return v.toDouble();
+    return double.tryParse('$v');
+  }
+
+  Map<String, dynamic> _normalizeUnit(Map<String, dynamic> u) {
+    final lat = _toDouble(u['latitude'] ?? u['lat'] ?? u['latitute']);
+    final lng = _toDouble(u['longitude'] ?? u['lng'] ?? u['long'] ?? u['lon']);
+    return {
+      ...u,
+      'latitude': lat,
+      'longitude': lng,
+      // aliases to satisfy any old code paths
+      'lat': lat,
+      'lng': lng,
+    };
+  }
+
   // ---------------- Existing persistence ----------------
   Future<void> loadDayungUnit() async {
     final prefs = await SharedPreferences.getInstance();
     // CHANGED: prefer the full object, fallback to minimal
-    final unitJson = prefs.getString('selectedDayungUnitData') ??
+    final unitJson =
+        prefs.getString('selectedDayungUnitData') ??
         prefs.getString('selectedDayungUnit');
     if (unitJson == null) {
       _dayungUnit = null;
@@ -46,8 +66,9 @@ class DayungUnitProvider extends ChangeNotifier {
     }
     try {
       final obj = Map<String, dynamic>.from(jsonDecode(unitJson) as Map);
-      _dayungUnitObj = obj;
-      _dayungUnit = obj['name']?.toString();
+      final normalized = _normalizeUnit(obj); // NEW
+      _dayungUnitObj = normalized;
+      _dayungUnit = normalized['name']?.toString();
     } catch (_) {
       _dayungUnit = null;
       _dayungUnitObj = null;
@@ -60,18 +81,19 @@ class DayungUnitProvider extends ChangeNotifier {
   void setDayungUnit(String? name, {Map<String, dynamic>? obj}) {
     _dayungUnit = name;
     if (obj != null) {
-      _dayungUnitObj = Map<String, dynamic>.from(obj);
+      _dayungUnitObj = _normalizeUnit(Map<String, dynamic>.from(obj)); // NEW
     }
     notifyListeners();
   }
 
   Future<void> persistSelection(Map<String, dynamic> unit) async {
-    _dayungUnitObj = Map<String, dynamic>.from(unit);
-    _dayungUnit = unit['name']?.toString();
+    _dayungUnitObj = _normalizeUnit(Map<String, dynamic>.from(unit)); // NEW
+    _dayungUnit = _dayungUnitObj!['name']?.toString();
     final prefs = await SharedPreferences.getInstance();
     // Save both keys so all pages stay in sync
-    await prefs.setString('selectedDayungUnit', jsonEncode(_dayungUnitObj));
-    await prefs.setString('selectedDayungUnitData', jsonEncode(_dayungUnitObj));
+    final json = jsonEncode(_dayungUnitObj);
+    await prefs.setString('selectedDayungUnit', json);
+    await prefs.setString('selectedDayungUnitData', json);
     notifyListeners();
   }
 
@@ -80,7 +102,9 @@ class DayungUnitProvider extends ChangeNotifier {
     Map<String, dynamic>? obj,
   ) async {
     _dayungUnit = name;
-    _dayungUnitObj = obj != null ? Map<String, dynamic>.from(obj) : null;
+    _dayungUnitObj = obj != null
+        ? _normalizeUnit(Map<String, dynamic>.from(obj))
+        : null; // NEW
     final prefs = await SharedPreferences.getInstance();
     if (_dayungUnitObj == null) {
       await prefs.remove('selectedDayungUnit');
@@ -94,8 +118,45 @@ class DayungUnitProvider extends ChangeNotifier {
   }
 
   void setDayungUnitObj(Map<String, dynamic>? obj) {
-    _dayungUnitObj = obj != null ? Map<String, dynamic>.from(obj) : null;
+    _dayungUnitObj = obj != null
+        ? _normalizeUnit(Map<String, dynamic>.from(obj))
+        : null; // NEW
     _dayungUnit = _dayungUnitObj?['name']?.toString();
+    notifyListeners();
+  }
+
+  void computeNearby(
+    List<Map<String, dynamic>> allDayungs, {
+    double radiusMeters = 5000,
+  }) {
+    if (_lastPosition == null) {
+      _nearbyDayungs = [];
+      _lastRadius = radiusMeters;
+      notifyListeners();
+      return;
+    }
+    final userLat = _lastPosition!.latitude;
+    final userLng = _lastPosition!.longitude;
+
+    final results = <Map<String, dynamic>>[];
+    for (final d in allDayungs) {
+      final nd = _normalizeUnit(d); // NEW: ensure doubles
+      final lat = nd['latitude'] as double?;
+      final lng = nd['longitude'] as double?;
+      if (lat == null || lng == null) continue;
+      final dist = Geolocator.distanceBetween(userLat, userLng, lat, lng);
+      if (radiusMeters > 0 && dist > radiusMeters) continue;
+      final enriched = Map<String, dynamic>.from(nd);
+      enriched['distanceMeters'] = dist;
+      results.add(enriched);
+    }
+    results.sort(
+      (a, b) => (a['distanceMeters'] as double).compareTo(
+        b['distanceMeters'] as double,
+      ),
+    );
+    _nearbyDayungs = results;
+    _lastRadius = radiusMeters;
     notifyListeners();
   }
 
@@ -128,7 +189,7 @@ class DayungUnitProvider extends ChangeNotifier {
     _locationError = null;
     return true;
   }
-  
+
   Future<void> updateUserLocation({bool force = false}) async {
     if (_gettingLocation) return;
     if (!force && _lastPosition != null) return;
@@ -152,43 +213,6 @@ class DayungUnitProvider extends ChangeNotifier {
       _gettingLocation = false;
       notifyListeners();
     }
-  }
-
-  // Provide distances for given dayung units (list of maps each containing latitude/longitude)
-  // radiusMeters: if > 0 filters by radius, else returns all with distances
-  void computeNearby(
-    List<Map<String, dynamic>> allDayungs, {
-    double radiusMeters = 5000,
-  }) {
-    if (_lastPosition == null) {
-      _nearbyDayungs = [];
-      _lastRadius = radiusMeters;
-      notifyListeners();
-      return;
-    }
-    final userLat = _lastPosition!.latitude;
-    final userLng = _lastPosition!.longitude;
-
-    final results = <Map<String, dynamic>>[];
-    for (final d in allDayungs) {
-      final latRaw = d['latitude'];
-      final lngRaw = d['longitude'];
-      if (latRaw is! num || lngRaw is! num) continue;
-      final lat = latRaw.toDouble();
-      final lng = lngRaw.toDouble();
-      final dist = Geolocator.distanceBetween(userLat, userLng, lat, lng);
-      if (radiusMeters > 0 && dist > radiusMeters) continue;
-      final enriched = Map<String, dynamic>.from(d);
-      enriched['distanceMeters'] = dist;
-      results.add(enriched);
-    }
-    results.sort(
-      (a, b) =>
-          (a['distanceMeters'] as double).compareTo(b['distanceMeters'] as double),
-    );
-    _nearbyDayungs = results;
-    _lastRadius = radiusMeters;
-    notifyListeners();
   }
 
   // Convenience formatting

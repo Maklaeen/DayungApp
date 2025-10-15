@@ -109,8 +109,6 @@ class DayungMapPage extends StatefulWidget {
 }
 
 class _DayungMapPageState extends State<DayungMapPage> {
-  Set<Marker> _cachedMarkers = {};
-  int _lastMarkerHash = 0;
   GoogleMapController? _map;
   Position? _pos;
   bool _loadingLoc = true;
@@ -140,6 +138,21 @@ class _DayungMapPageState extends State<DayungMapPage> {
     return null;
   }
 
+  double _wrapHeading(double? h) {
+    if (h == null || h.isNaN || !h.isFinite) return 0.0;
+    final n = h % 360.0;
+    return n < 0 ? n + 360.0 : n;
+  }
+
+  bool _isValidLatLng(double lat, double lng) {
+    return lat.isFinite &&
+        lng.isFinite &&
+        lat >= -90 &&
+        lat <= 90 &&
+        lng >= -180 &&
+        lng <= 180;
+  }
+
   @override
   void initState() {
     super.initState();
@@ -149,15 +162,18 @@ class _DayungMapPageState extends State<DayungMapPage> {
     _fetchRules();
 
     compassStream = FlutterCompass.events?.listen((event) {
-      if (!mounted) return;
-      setState(() => _compassHeading = event.heading);
+      final heading = event.heading;
+      if (!mounted || heading == null || heading.isNaN) return;
+      if (_compassHeading == null || (heading - _compassHeading!).abs() > 1.5) {
+        setState(() => _compassHeading = heading);
+      }
     });
 
     positionStream =
         Geolocator.getPositionStream(
           locationSettings: const LocationSettings(
             accuracy: LocationAccuracy.high,
-            distanceFilter: 10,
+            distanceFilter: 5,
           ),
         ).listen((position) {
           if (!mounted) return;
@@ -259,7 +275,7 @@ class _DayungMapPageState extends State<DayungMapPage> {
     try {
       final icon = await BitmapDescriptor.fromAssetImage(
         const ImageConfiguration(size: Size(48, 48)),
-        'assets/images/arrow.jpg',
+        'assets/images/wew.png',
       );
       if (mounted) setState(() => _arrowIcon = icon);
     } catch (_) {}
@@ -269,6 +285,8 @@ class _DayungMapPageState extends State<DayungMapPage> {
   void dispose() {
     positionStream?.cancel();
     compassStream?.cancel();
+    positionStream = null;
+    compassStream = null;
     super.dispose();
   }
 
@@ -296,6 +314,7 @@ class _DayungMapPageState extends State<DayungMapPage> {
   Future<void> _initLocation() async {
     final ok = await LocationService.ensurePermission();
     if (!ok) {
+      if (!mounted) return;
       setState(() {
         _permissionDenied = true;
         _loadingLoc = false;
@@ -303,12 +322,11 @@ class _DayungMapPageState extends State<DayungMapPage> {
       return;
     }
     final p = await LocationService.currentPosition();
-    if (mounted) {
-      setState(() {
-        _pos = p;
-        _loadingLoc = false;
-      });
-    }
+    if (!mounted) return;
+    setState(() {
+      _pos = p;
+      _loadingLoc = false;
+    });
   }
 
   String _address(Map<String, dynamic> d) {
@@ -334,42 +352,45 @@ class _DayungMapPageState extends State<DayungMapPage> {
     }
   }
 
-  Set<Marker> _optimizedMarkers() {
-    final current = _buildMarkers();
-    final hash = current.fold<int>(0, (p, m) => p ^ m.markerId.value.hashCode);
-    if (hash != _lastMarkerHash) {
-      _cachedMarkers = current;
-      _lastMarkerHash = hash;
-    }
-    return _cachedMarkers;
-  }
-
   Set<Marker> _buildMarkers() {
     final markers = <Marker>{};
+    final rot = _wrapHeading(_compassHeading);
 
-    if (_pos != null && _arrowIcon != null) {
-      markers.add(
-        Marker(
-          markerId: const MarkerId('me'),
-          position: LatLng(_pos!.latitude, _pos!.longitude),
-          infoWindow: const InfoWindow(title: 'You'),
-          icon: _arrowIcon!,
-          rotation: _compassHeading ?? 0.0,
-          anchor: const Offset(0.5, 0.5),
-        ),
-      );
-    } else if (_pos != null) {
-      markers.add(
-        Marker(
-          markerId: const MarkerId('me'),
-          position: LatLng(_pos!.latitude, _pos!.longitude),
-          infoWindow: const InfoWindow(title: 'You'),
-          icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueBlue),
-        ),
-      );
+    if (_pos != null && _isValidLatLng(_pos!.latitude, _pos!.longitude)) {
+      if (_arrowIcon != null) {
+        markers.add(
+          Marker(
+            markerId: const MarkerId('me'),
+            position: LatLng(_pos!.latitude, _pos!.longitude),
+            infoWindow: const InfoWindow(title: 'You'),
+            icon: _arrowIcon!,
+            rotation: rot,
+            flat: true,
+            anchor: const Offset(0.5, 0.5),
+            zIndex: 999,
+          ),
+        );
+      } else {
+        // Safe fallback if asset icon failed to load
+        markers.add(
+          Marker(
+            markerId: const MarkerId('me'),
+            position: LatLng(_pos!.latitude, _pos!.longitude),
+            infoWindow: const InfoWindow(title: 'You'),
+            icon: BitmapDescriptor.defaultMarkerWithHue(
+              BitmapDescriptor.hueBlue,
+            ),
+            rotation: rot,
+            flat: true,
+            zIndex: 999,
+          ),
+        );
+      }
     }
 
-    if (dayungLat != null && dayungLng != null) {
+    if (dayungLat != null &&
+        dayungLng != null &&
+        _isValidLatLng(dayungLat!, dayungLng!)) {
       markers.add(
         Marker(
           markerId: const MarkerId('selected_dayung'),
@@ -389,14 +410,10 @@ class _DayungMapPageState extends State<DayungMapPage> {
     if (widget.allDayungs != null && _pos != null) {
       for (final d in widget.allDayungs!) {
         if (identical(d, widget.dayung)) continue;
-        final rawLat = d['latitude'];
-        final rawLng = d['longitude'];
-        double? lat, lng;
-        if (rawLat is num) lat = rawLat.toDouble();
-        if (rawLat is String) lat = double.tryParse(rawLat);
-        if (rawLng is num) lng = rawLng.toDouble();
-        if (rawLng is String) lng = double.tryParse(rawLng);
-        if (lat == null || lng == null) continue;
+        final rl = d['latitude'], rg = d['longitude'];
+        final lat = rl is num ? rl.toDouble() : double.tryParse('$rl');
+        final lng = rg is num ? rg.toDouble() : double.tryParse('$rg');
+        if (lat == null || lng == null || !_isValidLatLng(lat, lng)) continue;
         final dist = Geolocator.distanceBetween(
           _pos!.latitude,
           _pos!.longitude,
@@ -438,6 +455,12 @@ class _DayungMapPageState extends State<DayungMapPage> {
     return km < 10
         ? '${km.toStringAsFixed(2)} km'
         : '${km.toStringAsFixed(1)} km';
+  }
+
+  void _centerOnDayung() {
+    final lat = dayungLat, lng = dayungLng;
+    if (_map == null || lat == null || lng == null) return;
+    _map!.animateCamera(CameraUpdate.newLatLngZoom(LatLng(lat, lng), 15));
   }
 
   @override
@@ -491,13 +514,25 @@ class _DayungMapPageState extends State<DayungMapPage> {
                             target: LatLng(dayungLat!, dayungLng!),
                             zoom: 15,
                           ),
-                          markers: _optimizedMarkers(),
+                          markers: _buildMarkers(),
                           circles: {
                             if (_nearbyCircle() != null) _nearbyCircle()!,
                           },
                           myLocationEnabled: false,
                           zoomControlsEnabled: false,
-                          onMapCreated: (c) => _map = c,
+                          onMapCreated: (c) {
+                            _map = c;
+                            final lat = dayungLat, lng = dayungLng;
+                            if (lat != null && lng != null) {
+                              // Recenter to the selected Dayung to avoid any stale camera state
+                              _map!.moveCamera(
+                                CameraUpdate.newLatLngZoom(
+                                  LatLng(lat, lng),
+                                  15,
+                                ),
+                              );
+                            }
+                          },
                         ),
                         Container(
                           height: 140,
@@ -565,17 +600,30 @@ class _DayungMapPageState extends State<DayungMapPage> {
             Positioned(
               right: 18,
               top: MediaQuery.of(context).padding.top + 82,
-              child: _fabIcon(
-                icon: Icons.my_location,
-                onTap: () {
-                  if (_map != null && _pos != null) {
-                    _map!.animateCamera(
-                      CameraUpdate.newLatLng(
-                        LatLng(_pos!.latitude, _pos!.longitude),
-                      ),
-                    );
-                  }
-                },
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // NEW: Center to Dayung button (always available if map/coords exist)
+                  _fabIcon(
+                    icon: Icons.flag_outlined, // or Icons.location_on_outlined
+                    onTap: _centerOnDayung,
+                  ),
+                  const SizedBox(height: 12),
+                  // Existing: Center to Me button (only when we have a user location)
+                  if (!_loadingLoc && !_permissionDenied && _pos != null)
+                    _fabIcon(
+                      icon: Icons.my_location,
+                      onTap: () {
+                        if (_map != null && _pos != null) {
+                          _map!.animateCamera(
+                            CameraUpdate.newLatLng(
+                              LatLng(_pos!.latitude, _pos!.longitude),
+                            ),
+                          );
+                        }
+                      },
+                    ),
+                ],
               ),
             ),
         ],

@@ -22,7 +22,6 @@ class TopNotificationModal extends StatefulWidget {
   State<TopNotificationModal> createState() => _TopNotificationModalState();
 }
 
-// ...existing code...
 class _TopNotificationModalState extends State<TopNotificationModal> with SingleTickerProviderStateMixin {
   late AnimationController _controller;
   late Animation<Offset> _offsetAnimation;
