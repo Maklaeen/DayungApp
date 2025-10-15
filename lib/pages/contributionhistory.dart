@@ -1,7 +1,4 @@
 import 'package:capstone_app/Providers/dayung_provider.dart';
-import 'package:capstone_app/pages/notification.dart';
-import 'package:capstone_app/profile/profile.dart';
-import 'package:capstone_app/Members/member_header.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:provider/provider.dart';
@@ -25,7 +22,9 @@ class _ContributionHistoryState extends State<ContributionHistory> {
   Map<String, dynamic>? _selectedDayungUnitObj;
   RealtimeChannel? _notifChannel;
   String? selectedDayungUnit;
+  // ignore: unused_field
   String? _profileUrl;
+  // ignore: unused_field
   int _unreadNotifCount = 0;
   int? _dayungId;
   // ignore: unused_field

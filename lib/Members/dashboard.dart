@@ -43,11 +43,13 @@ class _MemberDashboardPageState extends State<MemberDashboardPage> {
   String _selectedDayungUnit = 'Dayung Unit'; // align with Secretary
   String? _unitBarangay; // align with Secretary
   String? _unitCity; // align with Secretary
+  // ignore: unused_field
   int? _dayungUnitId;
 
   // ignore: unused_field
   User? _user;
   String _fullName = 'Member';
+  // ignore: unused_field
   String? _profileUrl;
 
   bool _showNavBar = true;
@@ -472,7 +474,7 @@ class _MemberDashboardPageState extends State<MemberDashboardPage> {
                   await _fetchUnreadNotifCount();
                 },
               );
-              await _fetchUnreadNotifCount(); // update badge immediately
+              await _fetchUnreadNotifCount();
             }
           },
         )
