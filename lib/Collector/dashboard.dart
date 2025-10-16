@@ -8,17 +8,16 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
-// Palette
-const Color kBg = Color(0xFFFAFAF7);
-const Color kPrimary = Color(0xFF0D47A1);
-const Color kPrimaryDark = Color(0xFF083366);
-const Color kAccent = Color(0xFF2E7D32);
-const Color kWarn = Color(0xFFF57C00);
-const Color kDanger = Color(0xFFC62828);
-const Color kNeutralText = Color(0xFF1F2937);
-const Color kSubtleText = Color(0xFF4B5563);
+// Additional colors for collector-specific styling
+const kText = Color(0xFF111827);
+const kSubText = Color(0xFF6B7280);
+const kPrimaryLight = Color(0xFF3B82F6);
+const kAccentDark = Color(0xFF059669);
+const kCardBg = Color(0xFFFFFFFF);
+const kBorderColor = Color(0xFFE5E7EB);
+const kSuccess = Color(0xFF10B981);
+const double kEdge = 16;
 
 class CollectorDashboardPage extends StatefulWidget {
   const CollectorDashboardPage({super.key});
@@ -47,7 +46,6 @@ class _CollectorDashboardPageState extends State<CollectorDashboardPage> {
   void initState() {
     super.initState();
     _init();
-    
     _scrollController.addListener(() {
       if (!_scrollController.hasClients) return;
       final maxScroll = _scrollController.position.maxScrollExtent;
@@ -57,7 +55,6 @@ class _CollectorDashboardPageState extends State<CollectorDashboardPage> {
       } else if (current < maxScroll && !_showNavBar) {
         setState(() => _showNavBar = true);
       }
-      
     });
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final provUnit = context.read<DayungRoleProvider>().unitId;
@@ -258,9 +255,9 @@ class _CollectorDashboardPageState extends State<CollectorDashboardPage> {
           .inFilter('dayung_unit_id', ids)
           .order('date_of_death', ascending: false)
           .limit(2);
-      _recentDeaths = List<Map<String, dynamic>>.from(dn)
-          .map((e) => (e['name'] ?? 'Member') as String)
-          .toList();
+      _recentDeaths = List<Map<String, dynamic>>.from(
+        dn,
+      ).map((e) => (e['name'] ?? 'Member') as String).toList();
     } catch (_) {
       _recentDeaths = [];
     }
@@ -275,7 +272,7 @@ class _CollectorDashboardPageState extends State<CollectorDashboardPage> {
   @override
   Widget build(BuildContext context) {
     final width = MediaQuery.of(context).size.width;
-    final wide = width > 820;
+    final bool wide = width > 820;
     final provUnit = context.watch<DayungRoleProvider>().unitId;
     if (provUnit != _lastRoleUnitId) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -283,26 +280,24 @@ class _CollectorDashboardPageState extends State<CollectorDashboardPage> {
       });
     }
     return Scaffold(
-      backgroundColor: kBg,
-      body: Stack(
-        children: [
-          SafeArea(
-            child: Column(
-              children: [
-                _topBar(),
-                const Divider(height: 1, color: Color(0xFFE1E4E8)),
-                _greeting(),
-                Expanded(
-                  child: AnimatedSwitcher(
-                    duration: const Duration(milliseconds: 250),
-                    child: IndexedStack(index: _tab, children: _pages),
-                  ),
-                ),
-              ],
-            ),
+      backgroundColor: const Color(0xFFF8FAFC),
+      body: Container(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [Color(0xFF1E40AF), Color(0xFF3B82F6), Color(0xFFF8FAFC)],
+            stops: [0.0, 0.3, 0.3],
           ),
-          _bottomNav(wide),
-        ],
+        ),
+        child: Stack(
+          children: [
+            SafeArea(
+              child: Column(children: [_topBar(), _buildContentArea(wide)]),
+            ),
+            _bottomNav(wide),
+          ],
+        ),
       ),
     );
   }
@@ -311,415 +306,147 @@ class _CollectorDashboardPageState extends State<CollectorDashboardPage> {
 
   Widget _topBar() {
     return Container(
-      padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
-      color: Colors.white,
-      child: Row(
+      padding: const EdgeInsets.fromLTRB(20, 20, 20, 40),
+      child: Column(
         children: [
-          Expanded(
-            child: Text(
-              _dayungLabel,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
-                fontFamily: 'Montserrat',
-                fontSize: 28,
-                fontWeight: FontWeight.w800,
-                color: kPrimaryDark,
-                letterSpacing: .4,
-              ),
-            ),
-          ),
-          _iconBtn(
-            icon: Icons.notifications_active_rounded,
-            color: kWarn,
-            tooltip: 'Notifications',
-            onTap: () => Navigator.push(
-              context,
-              MaterialPageRoute(builder: (_) => const NotificationPage()),
-            ),
-            badge: '1',
-          ),
-          const SizedBox(width: 6),
-          _iconBtn(
-            icon: Icons.settings_rounded,
-            color: kPrimary,
-            tooltip: 'Profile & Settings',
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => const ProfilePage()),
-              );
-            },
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _greeting() {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 12, 20, 8),
-      child: Row(
-        children: [
-          const Expanded(
-            child: Text(
-              'Maayung buntag,\nCollector!', // or Treasurer!
-              style: TextStyle(
-                fontFamily: 'Montserrat',
-                fontSize: 26,
-                fontWeight: FontWeight.w800,
-                height: 1.05,
-                color: kNeutralText,
-              ),
-            ),
-          ),
-          InkWell(
-            borderRadius: BorderRadius.circular(28),
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => const ProfilePage()),
-              );
-            },
-            child: const CircleAvatar(
-              radius: 28,
-              backgroundColor: kPrimary,
-              child: Icon(Icons.person, size: 34, color: Colors.white),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _homePage() {
-    return RefreshIndicator(
-      onRefresh: _fetchAll,
-      edgeOffset: 68,
-      child: SingleChildScrollView(
-        controller: _scrollController,
-        physics: const AlwaysScrollableScrollPhysics(),
-        padding: const EdgeInsets.fromLTRB(20, 8, 20, 120),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _tripleCards(),
-            const SizedBox(height: 18),
-            _primaryAction('Open Gcash QR', Icons.qr_code_2, _openGcashQr),
-            const SizedBox(height: 12),
-            _primaryAction(
-              'Record Cash Payment',
-              Icons.receipt_long,
-              _recordCashPayment,
-            ),
-            const SizedBox(height: 12),
-            _primaryAction('Show Receipts', Icons.sticky_note_2, _showReceipts),
-            const SizedBox(height: 18),
-            _recentActivity(),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _tripleCards() {
-    final cards = <Widget>[
-      _statCard(
-        color: const Color(0xFFD8EEFF),
-        icon: Icons.groups,
-        iconColor: Colors.blue[700],
-        title: "Total Active\nMembers",
-        bigText: _loading ? '—' : _activeMembers.toString(),
-      ),
-      _recentDeathsCard(),
-      _statCard(
-        color: const Color(0xFFFEFBDC),
-        icon: Icons.account_balance_wallet,
-        iconColor: Colors.orange[700],
-        title: "Pending\nPayments",
-        bigText: _loading ? '—' : '₱ ${_pendingAmount.toStringAsFixed(0)}',
-        smallSubtitle: _loading
-            ? ''
-            : (_pendingMembers > 0
-                  ? 'From $_pendingMembers members'
-                  : 'No pending'),
-      ),
-    ];
-
-    return LayoutBuilder(
-      builder: (context, c) {
-        if (c.maxWidth < 360) {
-          return Column(
+          // Top bar
+          Row(
             children: [
-              for (int i = 0; i < cards.length; i++) ...[
-                cards[i],
-                if (i != cards.length - 1) const SizedBox(height: 12),
-              ],
-            ],
-          );
-        }
-        return Row(
-          children: [
-            Expanded(child: cards[0]),
-            const SizedBox(width: 12),
-            Expanded(child: cards[1]),
-            const SizedBox(width: 12),
-            Expanded(child: cards[2]),
-          ],
-        );
-      },
-    );
-  }
-
-  Widget _recentDeathsCard() {
-    final names = _recentDeaths;
-    final display = names.take(2).toList();
-    final extra = names.length - display.length;
-
-    return _statShell(
-      color: const Color(0xFFFFDAF6),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Icon(FontAwesomeIcons.dove, size: 30, color: Colors.purple[400]),
-          const SizedBox(height: 8),
-          const Text(
-            "Recent Death Notices",
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              fontWeight: FontWeight.w800,
-              fontSize: 16,
-              fontFamily: 'Montserrat',
-              color: kNeutralText,
-              height: 1.15,
-            ),
-          ),
-          const SizedBox(height: 6),
-          Expanded(
-            child: names.isEmpty
-                ? const Center(
-                    child: Text(
-                      "None",
-                      style: TextStyle(
-                        fontWeight: FontWeight.w600,
-                        fontSize: 14,
-                        fontFamily: 'Montserrat',
-                        color: kNeutralText,
-                      ),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.2),
+                  borderRadius: BorderRadius.circular(16),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.1),
+                      blurRadius: 8,
+                      offset: const Offset(0, 2),
                     ),
-                  )
-                : Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      for (final n in display)
-                        Padding(
-                          padding: const EdgeInsets.only(bottom: 4),
-                          child: Row(
-                            children: [
-                              const Icon(
-                                FontAwesomeIcons.dove,
-                                size: 14,
-                                color: Colors.black87,
-                              ),
-                              const SizedBox(width: 6),
-                              Expanded(
-                                child: Text(
-                                  n,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: const TextStyle(
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 14,
-                                    fontFamily: 'Montserrat',
-                                    color: Colors.black,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      if (extra > 0)
-                        const Text(
-                          'View All',
-                          style: TextStyle(
-                            fontSize: 13.5,
-                            fontWeight: FontWeight.w800,
-                            fontFamily: 'OpenSans',
-                            color: kPrimary,
-                          ),
-                        ),
-                    ],
-                  ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _statCard({
-    required Color color,
-    required IconData icon,
-    required Color? iconColor,
-    required String title,
-    required String bigText,
-    String smallSubtitle = '',
-  }) {
-    return _statShell(
-      color: color,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Icon(icon, size: 32, color: iconColor),
-          const SizedBox(height: 8),
-          Text(
-            title,
-            textAlign: TextAlign.center,
-            style: const TextStyle(
-              fontWeight: FontWeight.w800,
-              fontSize: 16,
-              fontFamily: 'Montserrat',
-              color: kNeutralText,
-              height: 1.15,
-            ),
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-          ),
-          const SizedBox(height: 6),
-          Expanded(
-            child: Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  FittedBox(
-                    fit: BoxFit.scaleDown,
-                    child: Text(
-                      bigText,
-                      style: const TextStyle(
-                        fontWeight: FontWeight.w800,
-                        fontSize: 32,
-                        fontFamily: 'Montserrat',
-                        color: kNeutralText,
-                      ),
-                    ),
-                  ),
-                  if (smallSubtitle.isNotEmpty) ...[
-                    const SizedBox(height: 4),
+                  ],
+                ),
+                child: const Icon(
+                  Icons.account_balance_wallet_rounded,
+                  color: Colors.white,
+                  size: 24,
+                ),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
                     Text(
-                      smallSubtitle,
+                      _dayungLabel,
                       style: const TextStyle(
-                        fontSize: 12.5,
-                        fontWeight: FontWeight.w600,
-                        fontFamily: 'OpenSans',
-                        color: kSubtleText,
+                        fontFamily: 'Montserrat',
+                        fontSize: 24,
+                        fontWeight: FontWeight.w900,
+                        color: Colors.white,
+                        letterSpacing: 0.5,
                       ),
                     ),
                   ],
-                ],
+                ),
               ),
-            ),
+              _iconBtn(
+                icon: Icons.notifications_rounded,
+                onTap: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const NotificationPage()),
+                ),
+                badge: '1',
+              ),
+            ],
+          ),
+          const SizedBox(height: 24),
+          // Greeting section
+          Row(
+            children: [
+              const Expanded(
+                child: Text(
+                  'Maayung buntag,\nCollector!',
+                  style: TextStyle(
+                    fontFamily: 'Montserrat',
+                    fontSize: 28,
+                    fontWeight: FontWeight.w900,
+                    height: 1.1,
+                    color: Colors.white,
+                    letterSpacing: 0.5,
+                  ),
+                ),
+              ),
+              GestureDetector(
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const ProfilePage()),
+                  );
+                },
+                child: Container(
+                  padding: const EdgeInsets.all(4),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.2),
+                    borderRadius: BorderRadius.circular(32),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.1),
+                        blurRadius: 8,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
+                  ),
+                  child: const CircleAvatar(
+                    radius: 28,
+                    backgroundColor: Colors.white,
+                    child: Icon(
+                      Icons.person,
+                      size: 34,
+                      color: Color(0xFF1E40AF),
+                    ),
+                  ),
+                ),
+              ),
+            ],
           ),
         ],
       ),
     );
   }
 
-  Widget _statShell({required Color color, required Widget child}) {
-    return Container(
-      height: 220,
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: color,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: Colors.grey.shade300, width: 2),
-      ),
-      child: child,
-    );
-  }
-
-  Widget _primaryAction(String label, IconData icon, VoidCallback onTap) {
-    return SizedBox(
-      width: double.infinity,
-      child: OutlinedButton.icon(
-        onPressed: onTap,
-        icon: Icon(icon, size: 26, color: kPrimary),
-        label: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 8),
-          child: Text(
-            label,
-            style: const TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.w700,
-              fontFamily: 'Montserrat',
-              color: kPrimaryDark,
+  // --- Modern Content Area ---
+  Widget _buildContentArea(bool wide) {
+    return Expanded(
+      child: Container(
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.only(
+            topLeft: Radius.circular(24),
+            topRight: Radius.circular(24),
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: Color(0x1A000000),
+              blurRadius: 20,
+              offset: Offset(0, -4),
             ),
-          ),
+          ],
         ),
-        style: OutlinedButton.styleFrom(
-          padding: const EdgeInsets.symmetric(vertical: 16),
-          minimumSize: const Size.fromHeight(60),
-          side: const BorderSide(color: kPrimary, width: 1.8),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
+        child: ClipRRect(
+          borderRadius: const BorderRadius.only(
+            topLeft: Radius.circular(24),
+            topRight: Radius.circular(24),
           ),
-          backgroundColor: Colors.white,
+          child: AnimatedSwitcher(
+            duration: const Duration(milliseconds: 300),
+            child: IndexedStack(index: _tab, children: _pages),
+          ),
         ),
       ),
     );
   }
 
-  Widget _recentActivity() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Text(
-          'Recent Activity',
-          style: TextStyle(
-            fontSize: 20,
-            fontWeight: FontWeight.w800,
-            color: kPrimaryDark,
-            fontFamily: 'Montserrat',
-            letterSpacing: .2,
-          ),
-        ),
-        const SizedBox(height: 12),
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: Colors.grey.shade300, width: 1.3),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(.04),
-                blurRadius: 10,
-                offset: const Offset(0, 4),
-              ),
-            ],
-          ),
-          child: Column(
-            children: const [
-              _ActivityRow(
-                icon: Icons.calendar_today,
-                color: kPrimary,
-                text: 'Jun 15    Contribution received     +₱ 23,000',
-              ),
-              SizedBox(height: 12),
-              _ActivityRow(
-                icon: Icons.handshake,
-                color: kAccent,
-                text: 'May 15   Assistance Received',
-              ),
-              SizedBox(height: 12),
-              _ActivityRow(
-                icon: Icons.calendar_today,
-                color: kPrimary,
-                text: 'Apr 15    Contribution received     +₱ 23,000',
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-
+  // --- Modern Floating NavBar ---
   Widget _bottomNav(bool wide) {
     return Positioned(
       left: 0,
@@ -729,30 +456,203 @@ class _CollectorDashboardPageState extends State<CollectorDashboardPage> {
         child: IgnorePointer(
           ignoring: !_showNavBar,
           child: AnimatedOpacity(
-            duration: const Duration(milliseconds: 250),
-            opacity: _showNavBar ? 1 : 0,
+            duration: const Duration(milliseconds: 300),
+            opacity: _showNavBar ? 1.0 : 0.0,
             child: Container(
-              height: 86,
-              margin: EdgeInsets.symmetric(horizontal: wide ? 170 : 20),
-              padding: const EdgeInsets.symmetric(horizontal: 14),
+              constraints: const BoxConstraints(minHeight: 80, maxHeight: 90),
+              margin: EdgeInsets.symmetric(
+                horizontal: wide
+                    ? MediaQuery.of(context).size.width * 0.15
+                    : 16,
+              ),
               decoration: BoxDecoration(
                 color: Colors.white,
-                borderRadius: BorderRadius.circular(44),
-                border: Border.all(color: Colors.grey.shade300),
+                borderRadius: BorderRadius.circular(40),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withOpacity(.08),
-                    blurRadius: 18,
-                    offset: const Offset(0, 6),
+                    color: Colors.black.withValues(alpha: 0.08),
+                    blurRadius: 20,
+                    offset: const Offset(0, 8),
+                  ),
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.02),
+                    blurRadius: 6,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
+                border: Border.all(color: Colors.grey.shade300, width: 1),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                  children: [
+                    _navBarItem(
+                      icon: Icons.dashboard_rounded,
+                      label: 'Dashboard',
+                      selected: _tab == 0,
+                      onTap: () => setState(() => _tab = 0),
+                    ),
+                    _navBarItem(
+                      icon: Icons.trending_up_rounded,
+                      label: 'Contributions',
+                      selected: _tab == 1,
+                      onTap: () => setState(() => _tab = 1),
+                    ),
+                    _navBarItem(
+                      icon: Icons.assignment_rounded,
+                      label: 'Claims',
+                      selected: _tab == 2,
+                      onTap: () => setState(() => _tab = 2),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  // --- Modern Icon Button ---
+  Widget _iconBtn({
+    required IconData icon,
+    required VoidCallback onTap,
+    String? badge,
+  }) {
+    return Stack(
+      clipBehavior: Clip.none,
+      children: [
+        Container(
+          width: 44,
+          height: 44,
+          decoration: BoxDecoration(
+            color: Colors.white.withOpacity(0.2),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: Colors.white.withOpacity(0.3), width: 1),
+          ),
+          child: Material(
+            color: Colors.transparent,
+            child: InkWell(
+              borderRadius: BorderRadius.circular(12),
+              onTap: onTap,
+              child: Icon(icon, color: Colors.white, size: 20),
+            ),
+          ),
+        ),
+        if (badge != null)
+          Positioned(
+            right: -2,
+            top: -2,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  colors: [Color(0xFFEF4444), Color(0xFFDC2626)],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+                borderRadius: BorderRadius.circular(10),
+                boxShadow: [
+                  BoxShadow(
+                    color: const Color(0xFFEF4444).withOpacity(0.3),
+                    blurRadius: 8,
+                    offset: const Offset(0, 2),
                   ),
                 ],
               ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              child: Text(
+                badge,
+                style: const TextStyle(
+                  fontFamily: 'OpenSans',
+                  fontSize: 10,
+                  fontWeight: FontWeight.w700,
+                  color: Colors.white,
+                ),
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+
+  // --- Modern Nav Item ---
+  Widget _navBarItem({
+    required IconData icon,
+    required String label,
+    required bool selected,
+    required VoidCallback onTap,
+  }) {
+    return Semantics(
+      button: true,
+      label: label,
+      child: Container(
+        margin: const EdgeInsets.symmetric(horizontal: 2),
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: onTap,
+            borderRadius: BorderRadius.circular(20),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              constraints: const BoxConstraints(minHeight: 60, maxHeight: 70),
+              decoration: BoxDecoration(
+                color: selected
+                    ? const Color(0xFF1E40AF).withValues(alpha: 0.12)
+                    : Colors.transparent,
+                borderRadius: BorderRadius.circular(20),
+                border: selected
+                    ? Border.all(
+                        color: const Color(0xFF1E40AF).withValues(alpha: 0.3),
+                        width: 1,
+                      )
+                    : null,
+              ),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                mainAxisSize: MainAxisSize.min,
                 children: [
-                  _navItem(Icons.home_rounded, "Home", 0),
-                  _navItem(Icons.public, "Contributions", 1),
-                  _navItem(Icons.description, "Claims", 2),
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: selected
+                          ? const Color(0xFF1E40AF)
+                          : Colors.grey.shade400,
+                      borderRadius: BorderRadius.circular(16),
+                      boxShadow: selected
+                          ? [
+                              BoxShadow(
+                                color: const Color(
+                                  0xFF1E40AF,
+                                ).withValues(alpha: 0.4),
+                                blurRadius: 12,
+                                offset: const Offset(0, 3),
+                              ),
+                            ]
+                          : null,
+                    ),
+                    child: Icon(
+                      icon,
+                      color: selected ? Colors.white : Colors.grey[700],
+                      size: 20,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    label,
+                    style: TextStyle(
+                      color: selected
+                          ? const Color(0xFF1E40AF)
+                          : Colors.grey[700],
+                      fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
+                      fontSize: 12,
+                      letterSpacing: 0.2,
+                      fontFamily: 'Montserrat',
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
                 ],
               ),
             ),
@@ -762,32 +662,488 @@ class _CollectorDashboardPageState extends State<CollectorDashboardPage> {
     );
   }
 
-  Widget _navItem(IconData icon, String label, int index) {
-    final selected = _tab == index;
-    return TextButton(
-      onPressed: () => setState(() => _tab = index),
-      style: TextButton.styleFrom(
-        foregroundColor: selected ? kPrimary : kNeutralText,
-        padding: const EdgeInsets.symmetric(horizontal: 12),
-        shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.all(Radius.circular(18)),
+  Widget _homePage() {
+    return SingleChildScrollView(
+      controller: _scrollController,
+      padding: const EdgeInsets.all(20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _modernStatsGrid(MediaQuery.of(context).size.width),
+          const SizedBox(height: 24),
+          _modernActionCards(),
+          const SizedBox(height: 24),
+          _modernRecentActivity(),
+          const SizedBox(height: 24),
+          _modernQuickActions(),
+          const SizedBox(height: 100), // Space for bottom nav
+        ],
+      ),
+    );
+  }
+
+  Widget _modernStatsGrid(double maxWidth) {
+    return Row(
+      children: [
+        Expanded(
+          child: _modernStatCard(
+            icon: Icons.people_rounded,
+            title: "Active Members",
+            value: _loading ? "..." : _activeMembers.toString(),
+            color: const Color(0xFF10B981),
+            onTap: () => setState(() => _tab = 2),
+          ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: _modernStatCard(
+            icon: Icons.payment_rounded,
+            title: "Pending Payments",
+            value: _loading ? "..." : "₱${_pendingAmount.toStringAsFixed(0)}",
+            color: const Color(0xFFF59E0B),
+            onTap: () => setState(() => _tab = 1),
+          ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: _modernStatCard(
+            icon: Icons.family_restroom_rounded,
+            title: "Recent Deaths",
+            value: _recentDeaths.isEmpty ? "None" : _recentDeaths.first,
+            color: const Color(0xFF8B5CF6),
+            onTap: () {
+              // Navigate to deaths page if needed
+            },
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _modernStatCard({
+    required IconData icon,
+    required String title,
+    required String value,
+    required Color color,
+    VoidCallback? onTap,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(16),
+      child: Container(
+        height: 120,
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.05),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(6),
+              decoration: BoxDecoration(
+                color: color.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Icon(icon, color: color, size: 20),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              title,
+              style: const TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+                color: Color(0xFF6B7280),
+                fontFamily: 'OpenSans',
+              ),
+              textAlign: TextAlign.center,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+            ),
+            const SizedBox(height: 3),
+            Text(
+              value,
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w800,
+                color: color,
+                fontFamily: 'Montserrat',
+              ),
+              textAlign: TextAlign.center,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ],
         ),
       ),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
+    );
+  }
+
+  Widget _overviewStatCard({
+    required Color color,
+    required IconData icon,
+    required Color iconColor,
+    required String title,
+    required String value,
+    String subtitle = '',
+    bool isFullWidth = false,
+  }) {
+    return Container(
+      constraints: BoxConstraints(
+        minHeight: isFullWidth ? 60 : 120,
+        maxHeight: isFullWidth ? 80 : 140,
+      ),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: color,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.grey.shade200, width: 1.5),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon, size: 30, color: selected ? kPrimary : kNeutralText),
-          const SizedBox(height: 4),
-          Text(
-            label,
-            style: TextStyle(
-              fontSize: 13,
-              fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
-              fontFamily: 'OpenSans',
-              letterSpacing: .3,
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: iconColor.withOpacity(0.12),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Icon(icon, color: iconColor, size: 28),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text(
+                  title,
+                  style: TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                    color: iconColor,
+                    fontFamily: 'Montserrat',
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Flexible(
+                  child: Text(
+                    value,
+                    style: const TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w900,
+                      fontFamily: 'Montserrat',
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                if (subtitle.isNotEmpty)
+                  Flexible(
+                    child: Text(
+                      subtitle,
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: Color(0xFF6B7280),
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+              ],
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _modernActionCards() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          "Quick Actions",
+          style: TextStyle(
+            fontSize: 18,
+            fontWeight: FontWeight.w800,
+            color: Color(0xFF111827),
+            fontFamily: 'Montserrat',
+          ),
+        ),
+        const SizedBox(height: 16),
+        // Grid layout - 2x2 with one centered below
+        Column(
+          children: [
+            // First row - 2 cards
+            Row(
+              children: [
+                Expanded(
+                  child: _modernActionCard(
+                    icon: Icons.qr_code_2_rounded,
+                    title: "Open GCash QR",
+                    subtitle: "Show payment QR",
+                    color: const Color(0xFF3B82F6),
+                    onTap: _openGcashQr,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: _modernActionCard(
+                    icon: Icons.receipt_long_rounded,
+                    title: "Record Payment",
+                    subtitle: "Record cash payment",
+                    color: const Color(0xFF10B981),
+                    onTap: _recordCashPayment,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            // Second row - 2 cards
+            Row(
+              children: [
+                Expanded(
+                  child: _modernActionCard(
+                    icon: Icons.sticky_note_2_rounded,
+                    title: "Show Receipts",
+                    subtitle: "View payment receipts",
+                    color: const Color(0xFF8B5CF6),
+                    onTap: _showReceipts,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: _modernActionCard(
+                    icon: Icons.analytics_rounded,
+                    title: "View Reports",
+                    subtitle: "Collection reports",
+                    color: const Color(0xFFF59E0B),
+                    onTap: () {
+                      // TODO: Add reports functionality
+                    },
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _modernActionCard({
+    required IconData icon,
+    required String title,
+    required String subtitle,
+    required Color color,
+    VoidCallback? onTap,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(16),
+      child: Container(
+        height: 120, // Fixed height for consistent sizing
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.05),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(icon, color: color, size: 20),
+            const SizedBox(height: 12),
+            Text(
+              title,
+              style: const TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w700,
+                color: Color(0xFF111827),
+                fontFamily: 'Montserrat',
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              subtitle,
+              style: const TextStyle(
+                fontSize: 12,
+                color: Color(0xFF6B7280),
+                fontFamily: 'OpenSans',
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _modernRecentActivity() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          "Recent Activity",
+          style: TextStyle(
+            fontSize: 18,
+            fontWeight: FontWeight.w800,
+            color: Color(0xFF111827),
+            fontFamily: 'Montserrat',
+          ),
+        ),
+        const SizedBox(height: 16),
+        Container(
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.05),
+                blurRadius: 10,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: Column(
+            children: [
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF3B82F6).withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Icon(
+                      Icons.payment_rounded,
+                      color: Color(0xFF3B82F6),
+                      size: 20,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  const Expanded(
+                    child: Text(
+                      "Collection Activity",
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
+                        color: Color(0xFF111827),
+                        fontFamily: 'Montserrat',
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              const _ActivityRow(
+                icon: Icons.calendar_today,
+                color: Color(0xFF3B82F6),
+                text: 'Jun 15    Contribution received     +₱ 23,000',
+              ),
+              const SizedBox(height: 12),
+              const _ActivityRow(
+                icon: Icons.handshake,
+                color: Color(0xFF10B981),
+                text: 'May 15   Assistance Received',
+              ),
+              const SizedBox(height: 12),
+              const _ActivityRow(
+                icon: Icons.calendar_today,
+                color: Color(0xFF3B82F6),
+                text: 'Apr 15    Contribution received     +₱ 23,000',
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _modernQuickActions() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          "Quick Access",
+          style: TextStyle(
+            fontSize: 18,
+            fontWeight: FontWeight.w800,
+            color: Color(0xFF111827),
+            fontFamily: 'Montserrat',
+          ),
+        ),
+        const SizedBox(height: 16),
+        Row(
+          children: [
+            Expanded(
+              child: _modernQuickActionCard(
+                icon: Icons.info_outline_rounded,
+                title: "Collection Tips",
+                color: const Color(0xFF3B82F6),
+                onTap: () {
+                  // Keep existing functionality
+                },
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Container(), // Empty container to maintain layout
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _modernQuickActionCard({
+    required IconData icon,
+    required String title,
+    required Color color,
+    VoidCallback? onTap,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: color.withValues(alpha: 0.1),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: color.withValues(alpha: 0.2)),
+        ),
+        child: Row(
+          children: [
+            Icon(icon, color: color, size: 20),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                title,
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: color,
+                  fontFamily: 'Montserrat',
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -818,59 +1174,6 @@ class _CollectorDashboardPageState extends State<CollectorDashboardPage> {
     // TODO: open receipts page
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('Show Receipts (coming soon)')),
-    );
-  }
-
-  Widget _iconBtn({
-    required IconData icon,
-    required Color color,
-    required VoidCallback onTap,
-    String? tooltip,
-    String? badge,
-  }) {
-    return Semantics(
-      label: tooltip,
-      button: true,
-      child: Stack(
-        clipBehavior: Clip.none,
-        children: [
-          InkWell(
-            borderRadius: BorderRadius.circular(12),
-            onTap: onTap,
-            child: Container(
-              width: 40,
-              height: 40,
-              alignment: Alignment.center,
-              decoration: BoxDecoration(
-                color: color.withOpacity(.10),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Icon(icon, color: color, size: 22),
-            ),
-          ),
-          if (badge != null)
-            Positioned(
-              right: -2,
-              top: -2,
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                decoration: BoxDecoration(
-                  color: kDanger,
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Text(
-                  badge,
-                  style: const TextStyle(
-                    fontFamily: 'OpenSans',
-                    fontSize: 10,
-                    fontWeight: FontWeight.w700,
-                    color: Colors.white,
-                  ),
-                ),
-              ),
-            ),
-        ],
-      ),
     );
   }
 }

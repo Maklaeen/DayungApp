@@ -1,6 +1,7 @@
 import 'package:capstone_app/President/manage_roles.dart';
 import 'package:capstone_app/President/post_announcement.dart';
 import 'package:capstone_app/Providers/dayung_role_provider.dart';
+import 'package:capstone_app/ui/theme/branding.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -8,14 +9,14 @@ import 'package:capstone_app/pages/notification.dart';
 import 'package:capstone_app/profile/profile.dart';
 
 // Palette aligned with Secretary
-const Color kBg = Color(0xFFFAFAF7);
-const Color kPrimary = Color(0xFF0D47A1);
-const Color kPrimaryDark = Color(0xFF083366);
-const Color kAccent = Color(0xFF2E7D32);
-const Color kWarn = Color(0xFFF57C00);
-const Color kDanger = Color(0xFFC62828);
-const Color kNeutralText = Color(0xFF1F2937);
-const Color kSubtleText = Color(0xFF4B5563);
+const kText = Color(0xFF111827);
+const kSubText = Color(0xFF6B7280);
+const kPrimaryLight = Color(0xFF3B82F6);
+const kAccentDark = Color(0xFF059669);
+const kCardBg = Color(0xFFFFFFFF);
+const kBorderColor = Color(0xFFE5E7EB);
+const kSuccess = Color(0xFF10B981);
+const double kEdge = 16;
 
 class PresidentDashboardPage extends StatefulWidget {
   const PresidentDashboardPage({super.key});
@@ -161,9 +162,9 @@ class _PresidentDashboardPageState extends State<PresidentDashboardPage> {
         .inFilter('dayung_unit_id', ids)
         .order('date_of_death', ascending: false)
         .limit(2);
-    _recentDeaths = List<Map<String, dynamic>>.from(rows)
-        .map((e) => (e['name'] ?? 'Member') as String)
-        .toList();
+    _recentDeaths = List<Map<String, dynamic>>.from(
+      rows,
+    ).map((e) => (e['name'] ?? 'Member') as String).toList();
   }
 
   Future<void> _fetchPendingPayments(List<int> ids) async {
@@ -181,185 +182,217 @@ class _PresidentDashboardPageState extends State<PresidentDashboardPage> {
   @override
   Widget build(BuildContext context) {
     final width = MediaQuery.of(context).size.width;
-    final bool wide = width > 820;
-    final provUnit = context.watch<DayungRoleProvider>().unitId;
-    if (provUnit != _lastRoleUnitId) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        _maybeOnProviderUnitChanged(provUnit);
-      });
-    }
+    final wide = width > 820;
 
     return Scaffold(
-      backgroundColor: kBg,
-      body: Stack(
+      backgroundColor: const Color(0xFFF8FAFC),
+      body: Container(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [Color(0xFF1E40AF), Color(0xFF3B82F6), Color(0xFFF8FAFC)],
+            stops: [0.0, 0.3, 0.3],
+          ),
+        ),
+        child: Stack(
+          children: [
+            SafeArea(
+              child: Column(
+                children: [_buildModernHeader(), _buildContentArea(wide)],
+              ),
+            ),
+            _buildFloatingNavBar(wide),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /* ------------------------------- Modern UI Components ------------------------------- */
+
+  Widget _buildModernHeader() {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(20, 20, 20, 40),
+      child: Column(
         children: [
-          SafeArea(
-            child: Column(
-              children: [
-                const _TopBar(),
-                const Divider(height: 1, color: Color(0xFFE1E4E8)),
-                if (_currentIndex == 0) const _GreetingRow(),
-                Expanded(
-                  child: AnimatedSwitcher(
-                    duration: const Duration(milliseconds: 250),
-                    child: IndexedStack(
-                      key: ValueKey(_currentIndex),
-                      index: _currentIndex,
-                      children: _pages,
+          // Top bar with notifications and settings
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF1E40AF).withOpacity(0.8),
+                  borderRadius: BorderRadius.circular(16),
+                  boxShadow: [
+                    BoxShadow(
+                      color: const Color(0xFF1E40AF).withOpacity(0.3),
+                      blurRadius: 8,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
+                ),
+                child: const Icon(
+                  Icons.admin_panel_settings_rounded,
+                  color: Colors.white,
+                  size: 24,
+                ),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Dayung',
+                      style: TextStyle(
+                        fontFamily: 'Montserrat',
+                        fontSize: 24,
+                        fontWeight: FontWeight.w900,
+                        color: Colors.white,
+                        letterSpacing: 0.5,
+                      ),
+                    ),
+                    const Text(
+                      'President Dashboard',
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: Colors.white,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              _buildModernIconButton(
+                icon: Icons.notifications_active_rounded,
+                onTap: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const NotificationPage()),
+                ),
+                badge: '1',
+              ),
+            ],
+          ),
+          const SizedBox(height: 24),
+          // Greeting section
+          Row(
+            children: [
+              const Expanded(
+                child: Text(
+                  'Maayung buntag,\nPresident!',
+                  style: TextStyle(
+                    fontFamily: 'Montserrat',
+                    fontSize: 28,
+                    fontWeight: FontWeight.w900,
+                    height: 1.1,
+                    color: Colors.white,
+                    letterSpacing: 0.5,
+                  ),
+                ),
+              ),
+              GestureDetector(
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const ProfilePage()),
+                  );
+                },
+                child: Container(
+                  padding: const EdgeInsets.all(4),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.2),
+                    borderRadius: BorderRadius.circular(32),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.1),
+                        blurRadius: 8,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
+                  ),
+                  child: const CircleAvatar(
+                    radius: 28,
+                    backgroundColor: Colors.white,
+                    child: Icon(
+                      Icons.person,
+                      size: 34,
+                      color: Color(0xFF1E40AF),
                     ),
                   ),
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
-          _bottomNav(wide),
         ],
       ),
     );
   }
 
-  /* ------------------------------- Home page ------------------------------- */
-  Widget _buildHomePage(BuildContext context) {
-    return LayoutBuilder(
-      builder: (ctx, constraints) {
-        return RefreshIndicator(
-          onRefresh: _load,
-          edgeOffset: 68,
-          child: SingleChildScrollView(
-            physics: const AlwaysScrollableScrollPhysics(),
-            padding: const EdgeInsets.fromLTRB(20, 8, 20, 120),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _overviewFourCards(constraints.maxWidth),
-                const SizedBox(height: 16),
-                const _PostAnnouncementButton(),
-                const SizedBox(height: 18),
-                const _UpcomingText(),
-                const SizedBox(height: 12),
-                const _ContributionBarChartCard(),
-                const SizedBox(height: 12),
-              ],
-            ),
+  Widget _buildContentArea(bool wide) {
+    return Expanded(
+      child: Container(
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.only(
+            topLeft: Radius.circular(24),
+            topRight: Radius.circular(24),
           ),
-        );
-      },
+          boxShadow: [
+            BoxShadow(
+              color: Color(0x1A000000),
+              blurRadius: 20,
+              offset: Offset(0, -4),
+            ),
+          ],
+        ),
+        child: ClipRRect(
+          borderRadius: const BorderRadius.only(
+            topLeft: Radius.circular(24),
+            topRight: Radius.circular(24),
+          ),
+          child: AnimatedSwitcher(
+            duration: const Duration(milliseconds: 300),
+            child: IndexedStack(index: _currentIndex, children: _pages),
+          ),
+        ),
+      ),
     );
   }
 
-  Widget _overviewFourCards(double maxWidth) {
-    const gap = 12.0;
-
-    // Target equal height for all cards
-    final targetHeight = _cardHeightFor(maxWidth);
-    final isTight = maxWidth < 360;
-    final crossAxisCount = isTight ? 1 : 2;
-
-    // Compute aspect ratio so Grid gives each tile the same size
-    final itemWidth =
-        (maxWidth - (gap * (crossAxisCount - 1))) / crossAxisCount;
-    final childAspectRatio = itemWidth / targetHeight;
-
-    final cards = <Widget>[
-      StatCard(
-        bg: const Color(0xFFD8EEFF),
-        title: 'Total Active\nMembers',
-        bigText: _loading ? '—' : _activeMembersCount.toString(),
-        footerText: 'View All',
-        leading: Icons.groups_rounded,
-      ),
-      StatCard(
-        bg: const Color(0xFFFFDAF6),
-        title: 'Recent Death\nNotices',
-        customListBullets: _loading
-            ? const []
-            : (_recentDeaths.isEmpty
-                  ? const ['No recent notices']
-                  : _recentDeaths.take(2).toList()),
-        footerText: 'View All',
-        leading: Icons.local_florist_rounded,
-      ),
-      StatCard(
-        bg: const Color(0xFFFEFBDC),
-        title: 'Pending Payments',
-        bigText: _loading ? '—' : '₱ ${_pendingAmount.toStringAsFixed(0)}',
-        subText: _loading
-            ? ''
-            : (_pendingMembers > 0
-                  ? 'From $_pendingMembers members'
-                  : 'All settled'),
-        footerText: '',
-        leading: Icons.account_balance_wallet_rounded,
-      ),
-      StatCard(
-        bg: const Color(0xFFE6F0FF),
-        title: 'Manage Roles',
-        leading: Icons.manage_accounts_rounded,
-        footerText: 'Manage',
-        onTap: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(builder: (_) => const ManageRolesPagePres()),
-          );
-        },
-      ),
-    ];
-
-    return GridView.builder(
-      itemCount: cards.length,
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: crossAxisCount,
-        crossAxisSpacing: gap,
-        mainAxisSpacing: gap,
-        childAspectRatio: childAspectRatio, // forces equal visual size
-      ),
-      itemBuilder: (context, index) => cards[index],
-    );
-  }
-
-  double _cardHeightFor(double maxWidth) {
-    if (maxWidth < 360) return 200; // small phones (when single column)
-    if (maxWidth < 500) return 220; // typical phones
-    if (maxWidth < 800) return 220; // large phones / small tablets
-    return 230; // tablets
-  }
-
-  /* ------------------------- Bottom nav (responsive) ------------------------- */
-  Widget _bottomNav(bool wide) {
+  Widget _buildFloatingNavBar(bool wide) {
     return Positioned(
       left: 0,
       right: 0,
-      bottom: 16,
+      bottom: 20,
       child: Center(
         child: IgnorePointer(
           ignoring: !_showNavBar,
           child: AnimatedOpacity(
-            duration: const Duration(milliseconds: 250),
+            duration: const Duration(milliseconds: 300),
             opacity: _showNavBar ? 1 : 0,
             child: Container(
-              height: 86,
-              margin: EdgeInsets.symmetric(horizontal: wide ? 170 : 20),
-              padding: const EdgeInsets.symmetric(horizontal: 14),
+              height: 80,
+              margin: EdgeInsets.symmetric(horizontal: wide ? 200 : 20),
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
               decoration: BoxDecoration(
                 color: Colors.white,
-                borderRadius: BorderRadius.circular(44),
-                border: Border.all(color: Colors.grey.shade300),
+                borderRadius: BorderRadius.circular(40),
+                border: Border.all(color: const Color(0xFFE5E7EB)),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withOpacity(.08),
-                    blurRadius: 18,
-                    offset: const Offset(0, 6),
+                    color: Colors.black.withOpacity(0.08),
+                    blurRadius: 20,
+                    offset: const Offset(0, 8),
                   ),
                 ],
               ),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                 children: [
-                  _navItem(Icons.home_rounded, "Home", 0),
-                  _navItem(Icons.public, "Contributions", 1),
-                  _navItem(Icons.description, "Claims", 2),
+                  _buildNavItem(Icons.home_rounded, "Home", 0),
+                  _buildNavItem(Icons.public, "Contributions", 1),
+                  _buildNavItem(Icons.description, "Claims", 2),
                 ],
               ),
             ),
@@ -369,352 +402,412 @@ class _PresidentDashboardPageState extends State<PresidentDashboardPage> {
     );
   }
 
-  Widget _navItem(IconData icon, String label, int index) {
-    final selected = _currentIndex == index;
-    return TextButton(
-      onPressed: () => setState(() => _currentIndex = index),
-      style: TextButton.styleFrom(
-        foregroundColor: selected ? kPrimary : kNeutralText,
-        padding: const EdgeInsets.symmetric(horizontal: 12),
-        shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.all(Radius.circular(18)),
-        ),
-      ),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(icon, size: 30, color: selected ? kPrimary : kNeutralText),
-          const SizedBox(height: 4),
-          Text(
-            label,
-            style: TextStyle(
-              fontSize: 13,
-              fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
-              fontFamily: 'OpenSans',
-              letterSpacing: .3,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-/* ------------------------------- TOP BAR -------------------------------- */
-
-class _TopBar extends StatelessWidget {
-  const _TopBar();
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
-      color: Colors.white,
-      child: Row(
-        children: [
-          Text(
-            'Dayung',
-            style: TextStyle(
-              fontFamily: 'Montserrat',
-              fontSize: 28,
-              fontWeight: FontWeight.w800,
-              color: kPrimaryDark,
-              letterSpacing: 0.4,
-            ),
-          ),
-          const Spacer(),
-          _iconBtn(
-            icon: Icons.notifications_active_rounded,
-            color: kWarn,
-            tooltip: 'Notifications',
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => const NotificationPage()),
-              );
-            },
-            badge: '1',
-          ),
-          const SizedBox(width: 6),
-          _iconBtn(
-            icon: Icons.settings_rounded,
-            color: kPrimary,
-            tooltip: 'Profile & Settings',
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => const ProfilePage()),
-              );
-            },
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _iconBtn({
+  Widget _buildModernIconButton({
     required IconData icon,
-    required Color color,
     required VoidCallback onTap,
-    String? tooltip,
     String? badge,
   }) {
-    return Semantics(
-      label: tooltip,
-      button: true,
-      child: Stack(
-        clipBehavior: Clip.none,
-        children: [
-          InkWell(
+    return Stack(
+      clipBehavior: Clip.none,
+      children: [
+        Container(
+          width: 44,
+          height: 44,
+          decoration: BoxDecoration(
+            color: Colors.white.withOpacity(0.2),
             borderRadius: BorderRadius.circular(12),
-            onTap: onTap,
-            child: Container(
-              width: 40,
-              height: 40,
-              alignment: Alignment.center,
-              decoration: BoxDecoration(
-                color: color.withOpacity(.10),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Icon(icon, color: color, size: 22),
+            border: Border.all(color: Colors.white.withOpacity(0.3), width: 1),
+          ),
+          child: Material(
+            color: Colors.transparent,
+            child: InkWell(
+              borderRadius: BorderRadius.circular(12),
+              onTap: onTap,
+              child: Icon(icon, color: Colors.white, size: 20),
             ),
           ),
-          if (badge != null)
-            Positioned(
-              right: -2,
-              top: -2,
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                decoration: BoxDecoration(
-                  color: kDanger,
-                  borderRadius: BorderRadius.circular(10),
+        ),
+        if (badge != null)
+          Positioned(
+            right: -2,
+            top: -2,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  colors: [Color(0xFFEF4444), Color(0xFFDC2626)],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
                 ),
-                child: Text(
-                  badge,
-                  style: const TextStyle(
-                    fontFamily: 'OpenSans',
-                    fontSize: 10,
-                    fontWeight: FontWeight.w700,
-                    color: Colors.white,
+                borderRadius: BorderRadius.circular(10),
+                boxShadow: [
+                  BoxShadow(
+                    color: const Color(0xFFEF4444).withOpacity(0.3),
+                    blurRadius: 8,
+                    offset: const Offset(0, 2),
                   ),
+                ],
+              ),
+              child: Text(
+                badge,
+                style: const TextStyle(
+                  fontFamily: 'OpenSans',
+                  fontSize: 10,
+                  fontWeight: FontWeight.w700,
+                  color: Colors.white,
                 ),
               ),
             ),
+          ),
+      ],
+    );
+  }
+
+  Widget _buildNavItem(IconData icon, String label, int index) {
+    final selected = _currentIndex == index;
+    return GestureDetector(
+      onTap: () => setState(() => _currentIndex = index),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        decoration: BoxDecoration(
+          color: selected
+              ? const Color(0xFF1E40AF).withOpacity(0.1)
+              : Colors.transparent,
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              icon,
+              size: 22,
+              color: selected
+                  ? const Color(0xFF1E40AF)
+                  : const Color(0xFF6B7280),
+            ),
+            const SizedBox(height: 3),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+                color: selected
+                    ? const Color(0xFF1E40AF)
+                    : const Color(0xFF6B7280),
+                height: 1.0,
+              ),
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /* ------------------------------- Home page ------------------------------- */
+  Widget _buildHomePage(BuildContext context) {
+    return RefreshIndicator(
+      onRefresh: _load,
+      edgeOffset: 68,
+      child: SingleChildScrollView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.fromLTRB(20, 20, 20, 100),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _buildModernStatsCards(),
+            const SizedBox(height: 24),
+            _buildQuickActions(),
+            const SizedBox(height: 24),
+            const _PostAnnouncementButton(),
+            const SizedBox(height: 18),
+            const _UpcomingText(),
+            const SizedBox(height: 12),
+            const _ContributionBarChartCard(),
+            const SizedBox(height: 12),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildModernStatsCards() {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 15,
+            offset: const Offset(0, 5),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Overview',
+            style: TextStyle(
+              fontSize: 20,
+              fontWeight: FontWeight.w800,
+              color: Color(0xFF1E40AF),
+              fontFamily: 'Montserrat',
+            ),
+          ),
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              Expanded(
+                child: _buildModernStatCard(
+                  icon: Icons.groups_rounded,
+                  title: 'Active Members',
+                  value: _loading ? '—' : _activeMembersCount.toString(),
+                  color: const Color(0xFF3B82F6),
+                  bgColor: const Color(0xFFEFF6FF),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: _buildModernStatCard(
+                  icon: Icons.account_balance_wallet_rounded,
+                  title: 'Pending Amount',
+                  value: _loading
+                      ? '—'
+                      : '₱${_pendingAmount.toStringAsFixed(0)}',
+                  subtitle: _loading ? '' : 'From $_pendingMembers members',
+                  color: const Color(0xFFF59E0B),
+                  bgColor: const Color(0xFFFEF3C7),
+                ),
+              ),
+            ],
+          ),
+          if (_recentDeaths.isNotEmpty) ...[
+            const SizedBox(height: 16),
+            _buildRecentDeathsCard(),
+          ],
         ],
       ),
     );
   }
-}
 
-/* ------------------------------ GREETING ROW ----------------------------- */
-
-class _GreetingRow extends StatelessWidget {
-  const _GreetingRow();
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 12, 20, 8), // more breathing room
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.center,
+  Widget _buildModernStatCard({
+    required IconData icon,
+    required String title,
+    required String value,
+    String subtitle = '',
+    required Color color,
+    required Color bgColor,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: bgColor,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: color.withOpacity(0.2)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: color.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Icon(icon, color: color, size: 20),
+          ),
+          const SizedBox(height: 12),
+          Text(
+            title,
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              color: color.withOpacity(0.8),
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            value,
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.w800,
+              color: color,
+            ),
+          ),
+          if (subtitle.isNotEmpty) ...[
+            const SizedBox(height: 2),
+            Text(
+              subtitle,
+              style: TextStyle(
+                fontSize: 10,
+                fontWeight: FontWeight.w500,
+                color: color.withOpacity(0.6),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildRecentDeathsCard() {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFDF2F8),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFEC4899).withOpacity(0.2)),
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: const Color(0xFFEC4899).withOpacity(0.1),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: const Icon(
+              Icons.local_florist_rounded,
+              color: Color(0xFFEC4899),
+              size: 20,
+            ),
+          ),
+          const SizedBox(width: 12),
           Expanded(
             child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start, // left-align title
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  'Maayung buntag,',
+                const Text(
+                  'Recent Deaths',
                   style: TextStyle(
-                    fontFamily: 'Montserrat',
-                    fontSize: 22,
-                    color: kNeutralText.withOpacity(0.85),
+                    fontSize: 14,
                     fontWeight: FontWeight.w700,
+                    color: Color(0xFFEC4899),
                   ),
                 ),
                 const SizedBox(height: 4),
-                const Text(
-                  'President!',
-                  style: TextStyle(
-                    fontFamily: 'Montserrat',
-                    fontSize: 26,
-                    height: 1.05,
-                    color: kNeutralText,
-                    fontWeight: FontWeight.w800,
+                Text(
+                  _recentDeaths.take(2).join(', '),
+                  style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: Color(0xFF9F1239),
                   ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
               ],
             ),
           ),
-          const SizedBox(width: 14), // add gap from the avatar
-          InkWell(
-            borderRadius: BorderRadius.circular(28),
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => const ProfilePage()),
-              );
-            },
-            child: const CircleAvatar(
-              radius: 28,
-              backgroundColor: kPrimary,
-              child: Icon(Icons.person, size: 34, color: Colors.white),
-            ),
-          ),
         ],
       ),
     );
   }
-}
 
-/* -------------------------------- CARDS --------------------------------- */
-
-class StatCard extends StatelessWidget {
-  final Color bg;
-  final String title;
-  final String bigText;
-  final String subText;
-  final String footerText;
-  final IconData leading;
-  final List<String>? customListBullets;
-  final VoidCallback? onTap; // NEW
-
-  const StatCard({
-    super.key,
-    required this.bg,
-    required this.title,
-    required this.leading,
-    this.bigText = '',
-    this.subText = '',
-    this.footerText = '',
-    this.customListBullets,
-    this.onTap, // NEW
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final isListCard =
-        customListBullets != null && customListBullets!.isNotEmpty;
-
-    return Material(
-      color: bg,
-      elevation: 0,
-      borderRadius: BorderRadius.circular(16),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(16),
-        onTap: onTap, // use per-card handler
-        child: Container(
-          decoration: BoxDecoration(
-            border: Border.all(color: Colors.grey.shade300, width: 1.8),
-            borderRadius: BorderRadius.circular(16),
+  Widget _buildQuickActions() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'Quick Actions',
+          style: TextStyle(
+            fontSize: 18,
+            fontWeight: FontWeight.w800,
+            color: Color(0xFF1E40AF),
+            fontFamily: 'Montserrat',
           ),
-          padding: const EdgeInsets.fromLTRB(12, 16, 12, 14),
-          child: Column(
-            mainAxisSize: MainAxisSize.max, // fill given height
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              // header
-              Column(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(10),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.92),
-                      shape: BoxShape.circle,
-                    ),
-                    child: Icon(leading, size: 30, color: kPrimary),
-                  ),
-                  const SizedBox(height: 10),
-                  Text(
-                    title,
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      fontFamily: 'Montserrat',
-                      fontSize: 15.5,
-                      height: 1.25,
-                      fontWeight: FontWeight.w800,
-                      color: kNeutralText,
-                    ),
-                  ),
-                ],
-              ),
+        ),
+        const SizedBox(height: 12),
+        _buildModernActionCard(
+          icon: Icons.manage_accounts_rounded,
+          title: 'Manage Roles',
+          subtitle: 'Manage member roles and permissions',
+          color: const Color(0xFF3B82F6),
+          onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const ManageRolesPagePres()),
+            );
+          },
+        ),
+      ],
+    );
+  }
 
-              // body
-              if (isListCard)
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: customListBullets!
-                      .take(2)
-                      .map(
-                        (item) => Padding(
-                          padding: const EdgeInsets.symmetric(vertical: 2),
-                          child: Row(
-                            children: [
-                              const Icon(
-                                Icons.local_florist_rounded,
-                                size: 16,
-                                color: Color(0xFFEC4899),
-                              ),
-                              const SizedBox(width: 6),
-                              Expanded(
-                                child: Text(
-                                  item,
-                                  style: const TextStyle(
-                                    fontFamily: 'OpenSans',
-                                    fontSize: 14.5,
-                                    fontWeight: FontWeight.w600,
-                                    color: kNeutralText,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      )
-                      .toList(),
-                )
-              else
-                Column(
-                  children: [
-                    if (bigText.isNotEmpty)
+  Widget _buildModernActionCard({
+    required IconData icon,
+    required String title,
+    required String subtitle,
+    required Color color,
+    required VoidCallback onTap,
+  }) {
+    return Container(
+      width: double.infinity,
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: color.withOpacity(0.2)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.03),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(16),
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: color.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Icon(icon, color: color, size: 24),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
                       Text(
-                        bigText,
+                        title,
                         style: const TextStyle(
-                          fontFamily: 'Montserrat',
-                          fontSize: 26,
-                          fontWeight: FontWeight.w900,
-                          color: kNeutralText,
-                        ),
-                        textAlign: TextAlign.center,
-                      ),
-                    if (subText.isNotEmpty) ...[
-                      const SizedBox(height: 4),
-                      Text(
-                        subText,
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          fontFamily: 'OpenSans',
-                          fontSize: 13,
-                          color: kSubtleText,
+                          fontSize: 16,
                           fontWeight: FontWeight.w700,
+                          color: Color(0xFF1F2937),
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        subtitle,
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: const Color(0xFF6B7280),
+                          fontWeight: FontWeight.w500,
                         ),
                       ),
                     ],
-                  ],
-                ),
-
-              // footer
-              if (footerText.isNotEmpty)
-                Text(
-                  footerText,
-                  style: const TextStyle(
-                    fontFamily: 'OpenSans',
-                    fontSize: 14,
-                    color: Color(0xFF2D63D6),
-                    fontWeight: FontWeight.w800,
                   ),
                 ),
-            ],
+                Icon(
+                  Icons.arrow_forward_ios_rounded,
+                  color: color.withOpacity(0.6),
+                  size: 16,
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -731,7 +824,7 @@ class _PostAnnouncementButton extends StatelessWidget {
   Widget build(BuildContext context) {
     return Material(
       color: kPrimary,
-      borderRadius: BorderRadius.circular(18),
+      borderRadius: BorderRadius.circular(20),
       elevation: 0,
       child: InkWell(
         onTap: () {
@@ -740,16 +833,31 @@ class _PostAnnouncementButton extends StatelessWidget {
             MaterialPageRoute(builder: (_) => const PostAnnouncementPage()),
           );
         },
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(20),
         child: Container(
           width: double.infinity,
-          padding: const EdgeInsets.symmetric(vertical: 18),
+          padding: const EdgeInsets.symmetric(vertical: 20),
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: [kPrimary, kPrimaryLight],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+            borderRadius: BorderRadius.circular(20),
+            boxShadow: [
+              BoxShadow(
+                color: kPrimary.withOpacity(0.4),
+                blurRadius: 15,
+                offset: const Offset(0, 6),
+              ),
+            ],
+          ),
           alignment: Alignment.center,
           child: const Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(Icons.add_circle_outline, color: Colors.white),
-              SizedBox(width: 10),
+              Icon(Icons.add_circle_rounded, color: Colors.white, size: 24),
+              SizedBox(width: 12),
               Text(
                 'Post Announcement',
                 style: TextStyle(
@@ -757,6 +865,7 @@ class _PostAnnouncementButton extends StatelessWidget {
                   color: Colors.white,
                   fontSize: 18.5,
                   fontWeight: FontWeight.w800,
+                  letterSpacing: 0.3,
                 ),
               ),
             ],
@@ -774,18 +883,46 @@ class _UpcomingText extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Center(
-      child: Text(
-        'Upcoming:  July 16 - Monthly\nMeeting @ 3PM',
-        textAlign: TextAlign.center,
-        style: TextStyle(
-          fontFamily: 'Montserrat',
-          fontSize: 18,
-          height: 1.25,
-          color: kNeutralText,
-          fontWeight: FontWeight.w700,
-          letterSpacing: 0.2,
-        ),
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 20),
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+      decoration: BoxDecoration(
+        color: kCardBg,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: kBorderColor.withOpacity(0.3), width: 1),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: kPrimary.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: const Icon(Icons.event_rounded, color: kPrimary, size: 20),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              'Upcoming: July 16 - Monthly Meeting @ 3PM',
+              style: TextStyle(
+                fontFamily: 'Montserrat',
+                fontSize: 16,
+                height: 1.3,
+                color: kNeutralText,
+                fontWeight: FontWeight.w700,
+                letterSpacing: 0.2,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -798,30 +935,55 @@ class _ContributionBarChartCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      elevation: 0,
-      color: Colors.white,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-        side: BorderSide(color: Colors.black.withOpacity(0.06)),
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 20),
+      decoration: BoxDecoration(
+        color: kCardBg,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: kBorderColor.withOpacity(0.3), width: 1),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 15,
+            offset: const Offset(0, 6),
+          ),
+        ],
       ),
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(12, 10, 12, 14),
+        padding: const EdgeInsets.fromLTRB(20, 18, 20, 20),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
-              'Contribution Records by Year',
-              style: TextStyle(
-                fontFamily: 'Montserrat',
-                fontSize: 16,
-                fontWeight: FontWeight.w800,
-                color: kNeutralText,
-              ),
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: kPrimary.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: const Icon(
+                    Icons.bar_chart_rounded,
+                    color: kPrimary,
+                    size: 20,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                const Text(
+                  'Contribution Records by Year',
+                  style: TextStyle(
+                    fontFamily: 'Montserrat',
+                    fontSize: 18,
+                    fontWeight: FontWeight.w800,
+                    color: kNeutralText,
+                    letterSpacing: 0.3,
+                  ),
+                ),
+              ],
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 16),
             SizedBox(
-              height: 160,
+              height: 180,
               child: _MiniBarChart(
                 values: const [14, 20, 13],
                 maxY: 25,
@@ -883,7 +1045,7 @@ class _MiniBarChart extends StatelessWidget {
                           style: TextStyle(
                             fontFamily: 'OpenSans',
                             fontSize: 12,
-                            color: kSubtleText,
+                            color: kSubText,
                           ),
                         ),
                       ],
@@ -950,7 +1112,7 @@ class _MiniLegendRow extends StatelessWidget {
           style: TextStyle(
             fontFamily: 'OpenSans',
             fontSize: 12,
-            color: kSubtleText,
+            color: kSubText,
           ),
         ),
       ],

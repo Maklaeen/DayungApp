@@ -1,13 +1,16 @@
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:capstone_app/ui/theme/branding.dart';
 
-// Palette (matching register.dart vibe)
-const Color kPrimary = Color(0xFF0D47A1);
-const Color kPrimaryDark = Color(0xFF083366);
-const Color kDanger = Color(0xFFC62828);
-const Color kNeutralText = Color(0xFF1F2937);
-const Color kSubtleText = Color(0xFF4B5563);
+// Additional colors for add beneficiary specific styling
+const kText = Color(0xFF111827);
+const kSubText = Color(0xFF6B7280);
+const kPrimaryLight = Color(0xFF3B82F6);
+const kAccentDark = Color(0xFF059669);
+const kCardBg = Color(0xFFFFFFFF);
+const kBorderColor = Color(0xFFE5E7EB);
+const kSuccess = Color(0xFF10B981);
 const double kEdge = 18;
 
 class AddBeneficiaryPage extends StatefulWidget {
@@ -87,32 +90,32 @@ class _AddBeneficiaryPageState extends State<AddBeneficiaryPage> {
     return InputDecoration(
       labelText: label,
       hintText: hint,
-      labelStyle: const TextStyle(color: kSubtleText, fontSize: 16),
-      prefixIcon: icon != null ? Icon(icon, color: kSubtleText) : null,
+      labelStyle: const TextStyle(color: kSubText, fontSize: 14),
+      prefixIcon: icon != null ? Icon(icon, color: kSubText, size: 18) : null,
       filled: true,
       fillColor: Colors.white,
-      contentPadding: const EdgeInsets.symmetric(vertical: 18, horizontal: 16),
+      contentPadding: const EdgeInsets.symmetric(vertical: 14, horizontal: 12),
       enabledBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(kEdge),
-        borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
+        borderRadius: BorderRadius.circular(8),
+        borderSide: const BorderSide(color: kBorderColor, width: 1),
       ),
       focusedBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(kEdge),
-        borderSide: const BorderSide(color: kPrimary, width: 2),
+        borderRadius: BorderRadius.circular(8),
+        borderSide: const BorderSide(color: kPrimary, width: 1.5),
       ),
       errorBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(kEdge),
-        borderSide: const BorderSide(color: kDanger, width: 2),
+        borderRadius: BorderRadius.circular(8),
+        borderSide: const BorderSide(color: kDanger, width: 1.5),
       ),
       focusedErrorBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(kEdge),
-        borderSide: const BorderSide(color: kDanger, width: 2),
+        borderRadius: BorderRadius.circular(8),
+        borderSide: const BorderSide(color: kDanger, width: 1.5),
       ),
     );
   }
 
   InputDecoration _dropdownDec(String label) => _dec(label).copyWith(
-    contentPadding: const EdgeInsets.symmetric(vertical: 4, horizontal: 12),
+    contentPadding: const EdgeInsets.symmetric(vertical: 6, horizontal: 8),
   );
 
   Widget _dobDropdowns() {
@@ -120,14 +123,18 @@ class _AddBeneficiaryPageState extends State<AddBeneficiaryPage> {
       children: [
         // Month
         Expanded(
+          flex: 1,
           child: DropdownButtonFormField<int>(
-            value: _selectedMonth,
+            initialValue: _selectedMonth,
             decoration: _dropdownDec('Month'),
             items: _months
                 .map(
                   (m) => DropdownMenuItem(
                     value: m,
-                    child: Text(m.toString().padLeft(2, '0')),
+                    child: Text(
+                      m.toString().padLeft(2, '0'),
+                      style: const TextStyle(fontSize: 10),
+                    ),
                   ),
                 )
                 .toList(),
@@ -148,17 +155,21 @@ class _AddBeneficiaryPageState extends State<AddBeneficiaryPage> {
             validator: (v) => v == null ? 'Month' : null,
           ),
         ),
-        const SizedBox(width: 8),
+        const SizedBox(width: 2),
         // Day
         Expanded(
+          flex: 1,
           child: DropdownButtonFormField<int>(
-            value: _selectedDay,
+            initialValue: _selectedDay,
             decoration: _dropdownDec('Day'),
             items: _days
                 .map(
                   (d) => DropdownMenuItem(
                     value: d,
-                    child: Text(d.toString().padLeft(2, '0')),
+                    child: Text(
+                      d.toString().padLeft(2, '0'),
+                      style: const TextStyle(fontSize: 10),
+                    ),
                   ),
                 )
                 .toList(),
@@ -166,15 +177,22 @@ class _AddBeneficiaryPageState extends State<AddBeneficiaryPage> {
             validator: (v) => v == null ? 'Day' : null,
           ),
         ),
-        const SizedBox(width: 8),
+        const SizedBox(width: 2),
         // Year
         Expanded(
+          flex: 2,
           child: DropdownButtonFormField<int>(
-            value: _selectedYear,
+            initialValue: _selectedYear,
             decoration: _dropdownDec('Year'),
             items: _years
                 .map(
-                  (y) => DropdownMenuItem(value: y, child: Text(y.toString())),
+                  (y) => DropdownMenuItem(
+                    value: y,
+                    child: Text(
+                      y.toString(),
+                      style: const TextStyle(fontSize: 10),
+                    ),
+                  ),
                 )
                 .toList(),
             onChanged: (v) => setState(() {
@@ -195,37 +213,6 @@ class _AddBeneficiaryPageState extends State<AddBeneficiaryPage> {
           ),
         ),
       ],
-    );
-  }
-
-  Widget _dobField(BuildContext context) {
-    return GestureDetector(
-      onTap: () async {
-        final now = DateTime.now();
-        final picked = await showDatePicker(
-          context: context,
-          initialDate: _selectedDob ?? DateTime(now.year - 18, 1, 1),
-          firstDate: DateTime(now.year - 120),
-          lastDate: now,
-          helpText: 'Select Date of Birth',
-        );
-        if (picked != null) setState(() => _selectedDob = picked);
-      },
-      child: AbsorbPointer(
-        child: TextFormField(
-          decoration: _dec(
-            'Date of Birth',
-            icon: Icons.cake,
-          ).copyWith(hintText: 'Select birth date'),
-          controller: TextEditingController(
-            text: _selectedDob == null
-                ? ''
-                : '${_selectedDob!.year}-${_selectedDob!.month.toString().padLeft(2, '0')}-${_selectedDob!.day.toString().padLeft(2, '0')}',
-          ),
-          validator: (v) =>
-              _selectedDob == null ? 'Date of birth is required' : null,
-        ),
-      ),
     );
   }
 
@@ -333,7 +320,7 @@ class _AddBeneficiaryPageState extends State<AddBeneficiaryPage> {
 
       // ...existing code...
 
-      if (response == null || response['id'] == null) {
+      if (response['id'] == null) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Failed to add beneficiary')),
         );
@@ -367,87 +354,119 @@ class _AddBeneficiaryPageState extends State<AddBeneficiaryPage> {
     final isSmall = width < 350;
 
     return Scaffold(
-      backgroundColor: const Color.fromARGB(255, 255, 255, 255),
-      body: SafeArea(
-        child: Center(
-          child: SingleChildScrollView(
-            padding: EdgeInsets.symmetric(
-              horizontal: isSmall ? 8 : 24,
-              vertical: isSmall ? 8 : 16,
-            ),
-            child: ConstrainedBox(
-              constraints: BoxConstraints(maxWidth: isWide ? 640 : 420),
-              child: Column(
-                children: [
-                  // Header
-                  Padding(
-                    padding: EdgeInsets.only(bottom: isSmall ? 8 : 16),
-                    child: Column(
-                      children: const [
-                        Text(
-                          'Add Beneficiary',
-                          style: TextStyle(
-                            fontSize: 24,
-                            fontWeight: FontWeight.w800,
-                            color: kNeutralText,
+      backgroundColor: kBg,
+      body: Container(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [Color(0xFFF8FAFC), Color(0xFFF1F5F9)],
+          ),
+        ),
+        child: SafeArea(
+          child: Center(
+            child: SingleChildScrollView(
+              padding: EdgeInsets.symmetric(
+                horizontal: isSmall ? 16 : 24,
+                vertical: isSmall ? 16 : 24,
+              ),
+              child: ConstrainedBox(
+                constraints: BoxConstraints(maxWidth: isWide ? 640 : 420),
+                child: Column(
+                  children: [
+                    // Header
+                    Container(
+                      padding: const EdgeInsets.all(16),
+                      child: Column(
+                        children: [
+                          const Icon(
+                            Icons.person_add_rounded,
+                            color: kPrimary,
+                            size: 32,
                           ),
-                        ),
-                        SizedBox(height: 4),
-                        Text(
-                          'Provide beneficiary details below',
-                          style: TextStyle(color: kSubtleText),
-                        ),
-                      ],
+                          const SizedBox(height: 12),
+                          const Text(
+                            'Add Beneficiary',
+                            style: TextStyle(
+                              fontSize: 24,
+                              fontWeight: FontWeight.w800,
+                              color: kText,
+                              fontFamily: 'Montserrat',
+                              letterSpacing: 0.3,
+                            ),
+                          ),
+                          const SizedBox(height: 6),
+                          const Text(
+                            'Provide beneficiary details below',
+                            style: TextStyle(
+                              color: kSubText,
+                              fontSize: 16,
+                              fontFamily: 'OpenSans',
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
-                  ),
+                    const SizedBox(height: 24),
 
-                  Card(
-                    elevation: 2,
-                    shadowColor: Colors.black12,
-                    color: const Color.fromARGB(255, 232, 232, 232),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(kEdge),
-                    ),
-                    child: Padding(
-                      padding: EdgeInsets.all(isSmall ? 10 : 20),
+                    // Form Card
+                    Container(
+                      padding: EdgeInsets.all(isSmall ? 16 : 20),
+                      decoration: BoxDecoration(
+                        color: kCardBg,
+                        borderRadius: BorderRadius.circular(12),
+                      ),
                       child: Form(
                         key: _formKey,
                         child: Column(
                           children: [
                             if (_isSubmitting)
-                              const Padding(
-                                padding: EdgeInsets.only(bottom: 12),
-                                child: LinearProgressIndicator(
+                              Container(
+                                margin: const EdgeInsets.only(bottom: 20),
+                                padding: const EdgeInsets.all(16),
+                                decoration: BoxDecoration(
+                                  color: kPrimary.withOpacity(0.1),
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                child: const LinearProgressIndicator(
                                   color: kPrimary,
                                   backgroundColor: Color(0xFFEFF2F7),
-                                  minHeight: 3,
+                                  minHeight: 4,
                                 ),
                               ),
 
                             // Section: Personal Information
                             Row(
-                              children: const [
-                                Icon(Icons.person_outline, color: kPrimary),
-                                SizedBox(width: 8),
-                                Text(
+                              children: [
+                                const Icon(
+                                  Icons.person_rounded,
+                                  color: kPrimary,
+                                  size: 20,
+                                ),
+                                const SizedBox(width: 10),
+                                const Text(
                                   'Personal Information',
                                   style: TextStyle(
                                     fontSize: 18,
                                     fontWeight: FontWeight.w700,
-                                    color: kNeutralText,
+                                    color: kText,
+                                    fontFamily: 'Montserrat',
+                                    letterSpacing: 0.3,
                                   ),
                                 ),
                               ],
                             ),
-                            const SizedBox(height: 14),
+                            const SizedBox(height: 20),
 
                             // Full Name
                             TextFormField(
                               controller: fullNameController,
                               textInputAction: TextInputAction.next,
-                              style: TextStyle(
-                                fontSize: isWide ? 18 : 16,
-                                color: kNeutralText,
+                              style: const TextStyle(
+                                fontSize: 14,
+                                color: kText,
+                                fontWeight: FontWeight.w500,
                               ),
                               decoration: _dec(
                                 'Full Name',
@@ -458,21 +477,24 @@ class _AddBeneficiaryPageState extends State<AddBeneficiaryPage> {
                                   ? 'Full Name is required'
                                   : null,
                             ),
-                            const SizedBox(height: 14),
+                            const SizedBox(height: 12),
 
                             // Date of Birth
                             _dobDropdowns(),
-                            const SizedBox(height: 14),
+                            const SizedBox(height: 12),
 
                             // Relationship
                             DropdownButtonFormField<String>(
-                              value: selectedRelationship,
+                              initialValue: selectedRelationship,
                               decoration: _dropdownDec('Relationship'),
                               items: _relationships
                                   .map(
                                     (s) => DropdownMenuItem(
                                       value: s,
-                                      child: Text(s),
+                                      child: Text(
+                                        s,
+                                        style: const TextStyle(fontSize: 14),
+                                      ),
                                     ),
                                   )
                                   .toList(),
@@ -481,17 +503,20 @@ class _AddBeneficiaryPageState extends State<AddBeneficiaryPage> {
                               validator: (v) =>
                                   v == null ? 'Relationship is required' : null,
                             ),
-                            const SizedBox(height: 14),
+                            const SizedBox(height: 12),
 
                             // Marital Status
                             DropdownButtonFormField<String>(
-                              value: selectedMaritalStatus,
+                              initialValue: selectedMaritalStatus,
                               decoration: _dropdownDec('Marital Status'),
                               items: _maritalStatuses
                                   .map(
                                     (s) => DropdownMenuItem(
                                       value: s,
-                                      child: Text(s),
+                                      child: Text(
+                                        s,
+                                        style: const TextStyle(fontSize: 14),
+                                      ),
                                     ),
                                   )
                                   .toList(),
@@ -502,104 +527,165 @@ class _AddBeneficiaryPageState extends State<AddBeneficiaryPage> {
                                   : null,
                             ),
                             const SizedBox(height: 24),
-                            // ...existing code...
 
                             // Section: Documents
                             Row(
-                              children: const [
-                                Icon(
-                                  Icons.insert_drive_file_outlined,
+                              children: [
+                                const Icon(
+                                  Icons.description_rounded,
                                   color: kPrimary,
+                                  size: 20,
                                 ),
-                                SizedBox(width: 8),
-                                Text(
+                                const SizedBox(width: 10),
+                                const Text(
                                   'Documents',
                                   style: TextStyle(
                                     fontSize: 18,
                                     fontWeight: FontWeight.w700,
-                                    color: kNeutralText,
+                                    color: kText,
+                                    fontFamily: 'Montserrat',
+                                    letterSpacing: 0.3,
                                   ),
                                 ),
                               ],
                             ),
-                            const SizedBox(height: 14),
+                            const SizedBox(height: 20),
 
                             // Birth Certificate Picker
-                            Row(
+                            Column(
                               children: [
-                                Expanded(
-                                  child: TextFormField(
-                                    enabled: false,
-                                    decoration: _dec(
+                                Row(
+                                  children: [
+                                    const Icon(
+                                      Icons.upload_file_rounded,
+                                      color: kPrimary,
+                                      size: 20,
+                                    ),
+                                    const SizedBox(width: 10),
+                                    const Text(
                                       'Birth Certificate',
-                                      hint: 'Upload JPG/PNG/PDF',
-                                      icon: Icons.upload_file,
+                                      style: TextStyle(
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.w600,
+                                        color: kText,
+                                        fontFamily: 'Montserrat',
+                                      ),
                                     ),
-                                    controller: TextEditingController(
-                                      text: birthCertificateFile == null
-                                          ? ''
-                                          : 'Uploaded',
-                                    ),
-                                  ),
+                                  ],
                                 ),
-                                const SizedBox(width: 8),
-                                Tooltip(
-                                  message: _isUploadingFile
-                                      ? 'Uploading...'
-                                      : 'Upload',
-                                  child: ElevatedButton.icon(
-                                    onPressed: _isUploadingFile
-                                        ? null
-                                        : _pickAndUploadFile,
-                                    icon: _isUploadingFile
-                                        ? const SizedBox(
-                                            width: 16,
-                                            height: 16,
-                                            child: CircularProgressIndicator(
-                                              strokeWidth: 2,
-                                              color: Colors.white,
-                                            ),
-                                          )
-                                        : const Icon(Icons.upload_outlined),
-                                    label: const Text('Upload'),
-                                    style: ElevatedButton.styleFrom(
-                                      backgroundColor: kPrimary,
-                                      foregroundColor: Colors.white,
-                                      elevation: 0,
-                                      shape: RoundedRectangleBorder(
-                                        borderRadius: BorderRadius.circular(10),
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                                if (birthCertificateFile != null) ...[
-                                  const SizedBox(width: 8),
-                                  Tooltip(
-                                    message: 'Remove',
-                                    child: OutlinedButton.icon(
-                                      onPressed: () => setState(
-                                        () => birthCertificateFile = null,
-                                      ),
-                                      icon: const Icon(
-                                        Icons.close,
-                                        size: 18,
-                                        color: kDanger,
-                                      ),
-                                      label: const Text(
-                                        'Clear',
-                                        style: TextStyle(color: kDanger),
-                                      ),
-                                      style: OutlinedButton.styleFrom(
-                                        side: const BorderSide(color: kDanger),
-                                        shape: RoundedRectangleBorder(
+                                const SizedBox(height: 12),
+                                Row(
+                                  children: [
+                                    Expanded(
+                                      child: Container(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 12,
+                                          vertical: 12,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          color: Colors.white,
                                           borderRadius: BorderRadius.circular(
-                                            10,
+                                            8,
+                                          ),
+                                          border: Border.all(
+                                            color: kBorderColor,
+                                            width: 1,
+                                          ),
+                                        ),
+                                        child: Text(
+                                          birthCertificateFile == null
+                                              ? 'No file selected'
+                                              : 'File uploaded successfully',
+                                          style: TextStyle(
+                                            color: birthCertificateFile == null
+                                                ? kSubText
+                                                : kSuccess,
+                                            fontWeight: FontWeight.w500,
+                                            fontFamily: 'OpenSans',
+                                            fontSize: 14,
                                           ),
                                         ),
                                       ),
                                     ),
-                                  ),
-                                ],
+                                    const SizedBox(width: 8),
+                                    ElevatedButton.icon(
+                                      onPressed: _isUploadingFile
+                                          ? null
+                                          : _pickAndUploadFile,
+                                      icon: _isUploadingFile
+                                          ? const SizedBox(
+                                              width: 18,
+                                              height: 18,
+                                              child: CircularProgressIndicator(
+                                                strokeWidth: 2,
+                                                color: Colors.white,
+                                              ),
+                                            )
+                                          : const Icon(
+                                              Icons.upload_rounded,
+                                              size: 18,
+                                            ),
+                                      label: Text(
+                                        _isUploadingFile
+                                            ? 'Uploading...'
+                                            : 'Upload',
+                                        style: const TextStyle(
+                                          fontSize: 16,
+                                          fontWeight: FontWeight.w700,
+                                        ),
+                                      ),
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor: kPrimary,
+                                        foregroundColor: Colors.white,
+                                        elevation: 2,
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 20,
+                                          vertical: 14,
+                                        ),
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius: BorderRadius.circular(
+                                            8,
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                    if (birthCertificateFile != null) ...[
+                                      const SizedBox(width: 8),
+                                      ElevatedButton.icon(
+                                        onPressed: () => setState(
+                                          () => birthCertificateFile = null,
+                                        ),
+                                        icon: const Icon(
+                                          Icons.close_rounded,
+                                          size: 18,
+                                          color: Colors.white,
+                                        ),
+                                        label: const Text(
+                                          'Clear',
+                                          style: TextStyle(
+                                            color: Colors.white,
+                                            fontSize: 16,
+                                            fontWeight: FontWeight.w700,
+                                          ),
+                                        ),
+                                        style: ElevatedButton.styleFrom(
+                                          backgroundColor: kDanger,
+                                          foregroundColor: Colors.white,
+                                          elevation: 2,
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 16,
+                                            vertical: 14,
+                                          ),
+                                          shape: RoundedRectangleBorder(
+                                            borderRadius: BorderRadius.circular(
+                                              8,
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ],
+                                ),
                               ],
                             ),
                             const SizedBox(height: 4),
@@ -607,84 +693,104 @@ class _AddBeneficiaryPageState extends State<AddBeneficiaryPage> {
                               alignment: Alignment.centerLeft,
                               child: Text(
                                 'Accepted: JPG, PNG, PDF',
-                                style: TextStyle(
-                                  color: kSubtleText,
-                                  fontSize: 12,
-                                ),
+                                style: TextStyle(color: kSubText, fontSize: 11),
                               ),
                             ),
 
                             const SizedBox(height: 24),
 
                             // Actions
-                            SizedBox(
-                              width: double.infinity,
-                              height: 56,
-                              child: ElevatedButton(
-                                onPressed: _isSubmitting
-                                    ? null
-                                    : _submitBeneficiary,
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: kPrimary,
-                                  disabledBackgroundColor: kPrimaryDark
-                                      .withOpacity(0.5),
-                                  foregroundColor: Colors.white,
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(kEdge),
-                                  ),
-                                  elevation: 0,
-                                ),
-                                child: _isSubmitting
-                                    ? const SizedBox(
-                                        width: 26,
-                                        height: 26,
-                                        child: CircularProgressIndicator(
-                                          color: Colors.white,
-                                          strokeWidth: 3,
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: SizedBox(
+                                    height: 56,
+                                    child: ElevatedButton(
+                                      onPressed: _isSubmitting
+                                          ? null
+                                          : () => Navigator.of(context).pop(),
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor: kDanger,
+                                        foregroundColor: Colors.white,
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius: BorderRadius.circular(
+                                            8,
+                                          ),
                                         ),
-                                      )
-                                    : const Text(
-                                        'Submit Beneficiary',
-                                        style: TextStyle(
-                                          fontSize: 18,
-                                          fontWeight: FontWeight.w700,
+                                        elevation: 2,
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 20,
+                                          vertical: 16,
                                         ),
                                       ),
-                              ),
-                            ),
-                            const SizedBox(height: 12),
-                            SizedBox(
-                              width: double.infinity,
-                              height: 56,
-                              child: OutlinedButton(
-                                onPressed: _isSubmitting
-                                    ? null
-                                    : () => Navigator.of(context).pop(),
-                                style: OutlinedButton.styleFrom(
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(kEdge),
-                                  ),
-                                  side: const BorderSide(
-                                    color: kDanger,
-                                    width: 1.5,
-                                  ),
-                                  foregroundColor: kDanger,
-                                ),
-                                child: const Text(
-                                  'Cancel',
-                                  style: TextStyle(
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.w700,
+                                      child: const Text(
+                                        'Cancel',
+                                        style: TextStyle(
+                                          fontSize: 16,
+                                          fontWeight: FontWeight.w700,
+                                          fontFamily: 'Montserrat',
+                                        ),
+                                      ),
+                                    ),
                                   ),
                                 ),
-                              ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  flex: 2,
+                                  child: SizedBox(
+                                    height: 56,
+                                    child: ElevatedButton.icon(
+                                      onPressed: _isSubmitting
+                                          ? null
+                                          : _submitBeneficiary,
+                                      icon: _isSubmitting
+                                          ? const SizedBox(
+                                              width: 18,
+                                              height: 18,
+                                              child: CircularProgressIndicator(
+                                                color: Colors.white,
+                                                strokeWidth: 2,
+                                              ),
+                                            )
+                                          : const Icon(
+                                              Icons.person_add_rounded,
+                                              size: 18,
+                                            ),
+                                      label: Text(
+                                        _isSubmitting
+                                            ? 'Submitting...'
+                                            : 'Submit',
+                                        style: const TextStyle(
+                                          fontSize: 16,
+                                          fontWeight: FontWeight.w700,
+                                          fontFamily: 'Montserrat',
+                                        ),
+                                      ),
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor: kPrimary,
+                                        foregroundColor: Colors.white,
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius: BorderRadius.circular(
+                                            8,
+                                          ),
+                                        ),
+                                        elevation: 2,
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 20,
+                                          vertical: 16,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ],
                             ),
                           ],
                         ),
                       ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
           ),

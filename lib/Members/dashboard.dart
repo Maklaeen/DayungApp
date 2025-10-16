@@ -6,7 +6,7 @@ import 'package:capstone_app/pages/notification.dart'
     hide kPrimary, kNeutralText, kPrimaryDark, kSubtleText, kWarn, kDanger;
 import 'package:capstone_app/pages/paymentmethod.dart';
 import 'package:capstone_app/pages/contributionhistory.dart';
-import 'package:capstone_app/pages/recentdeathnotices.dart';
+import 'package:capstone_app/pages/recentdeathnotices.dart' hide kDanger;
 import 'package:capstone_app/profile/profile.dart' hide kPrimary, kWarn;
 import 'package:capstone_app/screens/selectdayung.dart';
 import 'package:capstone_app/Auth/login.dart'

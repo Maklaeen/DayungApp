@@ -95,7 +95,7 @@ class _SecretaryContributionsPageState
       final noticesMap = <int, dynamic>{
         for (var n in noticesRes) int.parse(n['id'].toString()): n,
       };
-
+      if (!mounted) return;
       setState(() {
         _payments = List<Map<String, dynamic>>.from(payments);
         _users = usersMap;
@@ -103,6 +103,7 @@ class _SecretaryContributionsPageState
         _loading = false;
       });
     } catch (e) {
+      if (!mounted) return;
       setState(() => _loading = false);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Error loading contributions: $e')),

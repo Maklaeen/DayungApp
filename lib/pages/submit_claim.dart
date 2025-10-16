@@ -236,370 +236,411 @@ class _SubmitClaimFormState extends State<SubmitClaimForm> {
     );
   }
 
-  @override
-  Widget build(BuildContext context) {
-    final mq = MediaQuery.of(context);
-    final width = mq.size.width;
-    final isTablet = width >= 600;
-    final double padH = isTablet ? 24 : 16;
+  Widget _buildModernField({
+    required TextEditingController controller,
+    required String label,
+    required IconData icon,
+    String? Function(String?)? validator,
+    int maxLines = 1,
+    int minLines = 1,
+  }) {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.grey.shade50,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.grey.shade200),
+      ),
+      child: TextFormField(
+        controller: controller,
+        maxLines: maxLines,
+        minLines: minLines,
+        textInputAction: TextInputAction.next,
+        decoration: InputDecoration(
+          labelText: label,
+          prefixIcon: Icon(icon, color: kPrimaryDark, size: 20),
+          border: InputBorder.none,
+          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+          labelStyle: TextStyle(
+            color: Colors.grey.shade600,
+            fontSize: 14,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+        validator: validator,
+      ),
+    );
+  }
 
-    return SafeArea(
-      child: AnimatedPadding(
-        duration: const Duration(milliseconds: 200),
-        curve: Curves.easeOutCubic,
-        padding: EdgeInsets.only(bottom: mq.viewInsets.bottom),
-        child: Center(
-          child: ConstrainedBox(
-            constraints: BoxConstraints(
-              maxWidth: 640,
-              maxHeight: mq.size.height - 40,
+  Widget _buildModernDropdown() {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.grey.shade50,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.grey.shade200),
+      ),
+      child: DropdownButtonFormField<String>(
+        value: _selectedDeceasedType,
+        items: [
+          const DropdownMenuItem(
+            value: 'member',
+            child: Text('I am the deceased'),
+          ),
+          if (_beneficiaries.isNotEmpty)
+            ..._beneficiaries.map(
+              (b) => DropdownMenuItem(
+                value: 'beneficiary_${b['id']}',
+                child: Text(b['full_name']),
+              ),
             ),
-            child: Material(
-              color: Colors.transparent,
-              child: SingleChildScrollView(
-                physics: const BouncingScrollPhysics(),
-                padding: EdgeInsets.fromLTRB(padH, 22, padH, 30),
-                child: Container(
-                  padding: const EdgeInsets.fromLTRB(20, 26, 20, 30),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(kRadius),
-                    border: Border.all(color: Colors.grey.shade300),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withOpacity(.05),
-                        blurRadius: 12,
-                        offset: const Offset(0, 4),
-                      ),
-                    ],
+        ],
+        onChanged: (v) {
+          setState(() {
+            _selectedDeceasedType = v;
+            if (v != null && v.startsWith('beneficiary_')) {
+              _selectedBeneficiaryId = int.tryParse(v.split('_').last);
+            } else {
+              _selectedBeneficiaryId = null;
+            }
+          });
+        },
+        decoration: const InputDecoration(
+          border: InputBorder.none,
+          contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+          labelText: 'Who passed away?',
+        ),
+        validator: (v) {
+          if (v == null || v.isEmpty) {
+            return 'Please select who passed away';
+          }
+          return null;
+        },
+      ),
+    );
+  }
+
+  Widget _buildModernDateField() {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.grey.shade50,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.grey.shade200),
+      ),
+      child: InkWell(
+        onTap: _submitting ? null : () async {
+          final picked = await showDatePicker(
+            context: context,
+            initialDate: DateTime.now(),
+            firstDate: DateTime(1900),
+            lastDate: DateTime.now(),
+          );
+          if (picked != null) {
+            setState(() => _dateOfDeath = picked);
+          }
+        },
+        borderRadius: BorderRadius.circular(12),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+          child: Row(
+            children: [
+              Icon(Icons.calendar_today_rounded, color: kPrimaryDark, size: 20),
+              const SizedBox(width: 12),
+              Text(
+                _dateOfDeath == null
+                    ? 'Select date of death'
+                    : '${_dateOfDeath!.year}-${_dateOfDeath!.month.toString().padLeft(2, '0')}-${_dateOfDeath!.day.toString().padLeft(2, '0')}',
+                style: TextStyle(
+                  fontSize: 14,
+                  color: _dateOfDeath == null ? Colors.grey.shade600 : kNeutralText,
+                ),
+              ),
+              const Spacer(),
+              Icon(Icons.arrow_drop_down, color: Colors.grey.shade600),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildModernFileUpload() {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.grey.shade50,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.grey.shade200),
+      ),
+      child: InkWell(
+        onTap: _submitting ? null : _pickDeathCert,
+        borderRadius: BorderRadius.circular(12),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+          child: Row(
+            children: [
+              Icon(Icons.attach_file_rounded, color: kPrimaryDark, size: 20),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  _deathCertFile == null
+                      ? 'Attach death certificate'
+                      : _deathCertFile!.path.split('/').last,
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: _deathCertFile == null ? Colors.grey.shade600 : kNeutralText,
                   ),
-                  child: Form(
-                    key: _formKey,
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(
-                          Icons.description_outlined,
-                          size: isTablet ? 58 : 52,
-                          color: kPrimaryDark,
-                        ),
-                        const SizedBox(height: 12),
-                        Text(
-                          'Claim Submission',
-                          textAlign: TextAlign.center,
-                          style: TextStyle(
-                            fontSize: isTablet ? 24 : 22,
-                            fontWeight: FontWeight.w800,
-                            fontFamily: 'Montserrat',
-                            color: kNeutralText,
-                            height: 1.1,
-                          ),
-                        ),
-                        const SizedBox(height: 6),
-                        Text(
-                          'Provide clear details to speed up review.',
-                          textAlign: TextAlign.center,
-                          style: TextStyle(
-                            fontSize: isTablet ? 14 : 13,
-                            fontFamily: 'OpenSans',
-                            color: kSubtleText.withOpacity(.85),
-                          ),
-                        ),
-                        const SizedBox(height: 26),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              if (_deathCertFile != null)
+                IconButton(
+                  onPressed: () => setState(() => _deathCertFile = null),
+                  icon: Icon(Icons.close, color: Colors.grey.shade600, size: 18),
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(minWidth: 24, minHeight: 24),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 
-                        // Title
-                        TextFormField(
-                          controller: _title,
-                          textInputAction: TextInputAction.next,
-                          decoration: _fieldDec(
-                            label: 'Title',
-                            icon: Icons.title,
-                          ),
-                          validator: (v) {
-                            final t = (v ?? '').trim();
-                            if (t.isEmpty) return 'Enter a title';
-                            if (t.length < 4) return 'Too short';
-                            return null;
-                          },
-                        ),
-                        const SizedBox(height: 18),
+  Widget _buildModernVigilLocation() {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.grey.shade50,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.grey.shade200),
+      ),
+      child: InkWell(
+        onTap: _submitting ? null : _pickVigilLocation,
+        borderRadius: BorderRadius.circular(12),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+          child: Row(
+            children: [
+              Icon(Icons.my_location, color: kPrimaryDark, size: 20),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  _vigilAddress == null
+                      ? 'Set vigil location'
+                      : 'Barangay: ${_vigilBarangay ?? '-'}\n$_vigilAddress',
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: _vigilAddress == null ? Colors.grey.shade600 : kNeutralText,
+                  ),
+                ),
+              ),
+              Icon(Icons.arrow_forward_ios_rounded, color: Colors.grey.shade600, size: 16),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 
-                        // Description
-                        TextFormField(
-                          controller: _desc,
-                          minLines: 4,
-                          maxLines: 6,
-                          decoration: _fieldDec(
-                            label: 'Description (optional)',
-                            icon: Icons.notes_outlined,
-                            lines: 4,
-                          ),
-                        ),
-                        const SizedBox(height: 18),
-
-                        // Who passed away?
-                        Align(
-                          alignment: Alignment.centerLeft,
-                          child: Text(
-                            'Who passed away?',
-                            style: TextStyle(
-                              fontWeight: FontWeight.w700,
-                              fontFamily: 'Montserrat',
-                              fontSize: 15,
-                              color: kNeutralText,
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        DropdownButtonFormField<String>(
-                          value: _selectedDeceasedType,
-                          items: [
-                            const DropdownMenuItem(
-                              value: 'member',
-                              child: Text('I am the deceased'),
-                            ),
-                            if (_beneficiaries.isNotEmpty)
-                              ..._beneficiaries.map(
-                                (b) => DropdownMenuItem(
-                                  value: 'beneficiary_${b['id']}',
-                                  child: Text(b['full_name']),
-                                ),
-                              ),
-                          ],
-                          onChanged: (v) {
-                            setState(() {
-                              _selectedDeceasedType = v;
-                              if (v != null && v.startsWith('beneficiary_')) {
-                                _selectedBeneficiaryId = int.tryParse(
-                                  v.split('_').last,
-                                );
-                              } else {
-                                _selectedBeneficiaryId = null;
-                              }
-                            });
-                          },
-                          decoration: const InputDecoration(
-                            border: OutlineInputBorder(),
-                            hintText: 'Select deceased',
-                          ),
-                          validator: (v) {
-                            if (v == null || v.isEmpty) {
-                              return 'Please select who passed away';
-                            }
-                            return null;
-                          },
-                        ),
-                        const SizedBox(height: 18),
-
-                        // Date of Death
-                        Align(
-                          alignment: Alignment.centerLeft,
-                          child: Text(
-                            'Date of Death',
-                            style: TextStyle(
-                              fontWeight: FontWeight.w700,
-                              fontFamily: 'Montserrat',
-                              fontSize: 15,
-                              color: kNeutralText,
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        InkWell(
-                          onTap: _submitting
-                              ? null
-                              : () async {
-                                  final picked = await showDatePicker(
-                                    context: context,
-                                    initialDate: DateTime.now(),
-                                    firstDate: DateTime(1900),
-                                    lastDate: DateTime.now(),
-                                  );
-                                  if (picked != null) {
-                                    setState(() => _dateOfDeath = picked);
-                                  }
-                                },
-                          child: InputDecorator(
-                            decoration: const InputDecoration(
-                              border: OutlineInputBorder(),
-                              hintText: 'Select date',
-                            ),
-                            child: Text(
-                              _dateOfDeath == null
-                                  ? 'Select date'
-                                  : '${_dateOfDeath!.year}-${_dateOfDeath!.month.toString().padLeft(2, '0')}-${_dateOfDeath!.day.toString().padLeft(2, '0')}',
-                              style: TextStyle(
-                                fontSize: 15,
-                                color: _dateOfDeath == null
-                                    ? Colors.grey
-                                    : kNeutralText,
-                              ),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 26),
-
-                        // Death Certificate
-                        Align(
-                          alignment: Alignment.centerLeft,
-                          child: Text(
-                            'Death Certificate (PDF/JPG/PNG)',
-                            style: TextStyle(
-                              fontWeight: FontWeight.w700,
-                              fontFamily: 'Montserrat',
-                              fontSize: 15,
-                              color: kNeutralText,
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        Row(
-                          children: [
-                            ElevatedButton.icon(
-                              onPressed: _submitting ? null : _pickDeathCert,
-                              icon: const Icon(Icons.attach_file),
-                              label: Text(
-                                _deathCertFile == null
-                                    ? 'Attach File'
-                                    : 'Change File',
-                              ),
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: kPrimary,
-                                foregroundColor: Colors.white,
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(12),
-                                ),
-                              ),
-                            ),
-                            const SizedBox(width: 12),
-                            if (_deathCertFile != null)
-                              Expanded(
-                                child: Text(
-                                  _deathCertFile!.path.split('/').last,
-                                  style: const TextStyle(
-                                    fontSize: 13,
-                                    fontFamily: 'OpenSans',
-                                    color: kSubtleText,
-                                  ),
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              ),
-                          ],
-                        ),
-                        const SizedBox(height: 18),
-
-                        // Vigil location picker
-                        Align(
-                          alignment: Alignment.centerLeft,
-                          child: Text(
-                            'Vigil Location',
-                            style: TextStyle(
-                              fontWeight: FontWeight.w700,
-                              fontFamily: 'Montserrat',
-                              fontSize: 15,
-                              color: kNeutralText,
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        Row(
-                          children: [
-                            ElevatedButton.icon(
-                              onPressed: _submitting
-                                  ? null
-                                  : _pickVigilLocation,
-                              icon: const Icon(Icons.my_location),
-                              label: const Text('Use Current Location'),
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: kPrimary,
-                                foregroundColor: Colors.white,
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(12),
-                                ),
-                              ),
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Text(
-                                _vigilAddress == null
-                                    ? 'No location selected'
-                                    : 'Barangay: ${_vigilBarangay ?? '-'}\n$_vigilAddress',
-                                maxLines: 2,
-                                overflow: TextOverflow.ellipsis,
-                                style: const TextStyle(
-                                  fontSize: 12.5,
-                                  color: kSubtleText,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-
-                        const SizedBox(height: 26),
-
-                        // Submit
-                        SizedBox(
-                          width: double.infinity,
-                          child: ElevatedButton.icon(
-                            onPressed: _submitting ? null : _submit,
-                            icon: _submitting
-                                ? const SizedBox(
-                                    width: 22,
-                                    height: 22,
-                                    child: CircularProgressIndicator(
-                                      strokeWidth: 2.4,
-                                      valueColor: AlwaysStoppedAnimation<Color>(
-                                        Colors.white,
-                                      ),
-                                    ),
-                                  )
-                                : const Icon(Icons.send_rounded),
-                            label: Padding(
-                              padding: const EdgeInsets.symmetric(vertical: 6),
-                              child: Text(
-                                _submitting ? 'Submitting...' : 'Submit Claim',
-                                style: const TextStyle(
-                                  fontSize: 17,
-                                  fontWeight: FontWeight.w700,
-                                  fontFamily: 'Montserrat',
-                                  letterSpacing: .4,
-                                ),
-                              ),
-                            ),
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: kPrimary,
-                              foregroundColor: Colors.white,
-                              minimumSize: const Size.fromHeight(54),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(16),
-                              ),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 14),
-
-                        // Cancel
-                        TextButton.icon(
-                          onPressed: _submitting
-                              ? null
-                              : () => Navigator.pop(context),
-                          icon: const Icon(Icons.close),
-                          label: const Text(
-                            'Cancel',
-                            style: TextStyle(
-                              fontFamily: 'OpenSans',
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ),
-                      ],
+  Widget _buildModernSubmitButton() {
+    return Container(
+      width: double.infinity,
+      height: 48,
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [Color(0xFF1E40AF), Color(0xFF3B82F6)],
+        ),
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: [
+          BoxShadow(
+            color: kPrimaryDark.withOpacity(0.3),
+            blurRadius: 8,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: ElevatedButton(
+        onPressed: _submitting ? null : _submit,
+        style: ElevatedButton.styleFrom(
+          backgroundColor: Colors.transparent,
+          shadowColor: Colors.transparent,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+        ),
+        child: _submitting
+            ? const SizedBox(
+                width: 20,
+                height: 20,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                ),
+              )
+            : const Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.send_rounded, color: Colors.white, size: 18),
+                  SizedBox(width: 8),
+                  Text(
+                    'Submit Claim',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w700,
+                      fontFamily: 'Montserrat',
+                      color: Colors.white,
                     ),
                   ),
+                ],
+              ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      child: Column(
+        children: [
+          // Modern Header with gradient
+          Container(
+            padding: const EdgeInsets.fromLTRB(20, 20, 20, 16),
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  Color(0xFF1E40AF),
+                  Color(0xFF3B82F6),
+                ],
+              ),
+              borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.2),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: const Icon(
+                    Icons.description_outlined,
+                    size: 20,
+                    color: Colors.white,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                const Expanded(
+                  child: Text(
+                    'New Claim',
+                    style: TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.w800,
+                      fontFamily: 'Montserrat',
+                      color: Colors.white,
+                      letterSpacing: 0.5,
+                    ),
+                  ),
+                ),
+                Container(
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.2),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: IconButton(
+                    onPressed: () => Navigator.pop(context),
+                    icon: const Icon(
+                      Icons.close_rounded,
+                      color: Colors.white,
+                      size: 20,
+                    ),
+                    padding: const EdgeInsets.all(8),
+                    constraints: const BoxConstraints(
+                      minWidth: 36,
+                      minHeight: 36,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          // Form Content
+          Expanded(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(20),
+              child: Form(
+                key: _formKey,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // Title
+                    _buildModernField(
+                      controller: _title,
+                      label: 'Title',
+                      icon: Icons.title_rounded,
+                      validator: (v) {
+                        final t = (v ?? '').trim();
+                        if (t.isEmpty) return 'Enter a title';
+                        if (t.length < 4) return 'Too short';
+                        return null;
+                      },
+                    ),
+                    const SizedBox(height: 16),
+
+                    // Description
+                    _buildModernField(
+                      controller: _desc,
+                      label: 'Description (optional)',
+                      icon: Icons.notes_rounded,
+                      maxLines: 3,
+                      minLines: 2,
+                    ),
+                    const SizedBox(height: 16),
+
+                    // Who passed away?
+                    _buildModernDropdown(),
+                    const SizedBox(height: 16),
+
+                    // Date of Death
+                    _buildModernDateField(),
+                    const SizedBox(height: 16),
+
+                    // Death Certificate
+                    _buildModernFileUpload(),
+                    const SizedBox(height: 16),
+
+                    // Vigil Location
+                    _buildModernVigilLocation(),
+                    const SizedBox(height: 20),
+
+                    // Submit Button
+                    _buildModernSubmitButton(),
+                    const SizedBox(height: 14),
+
+                    // Cancel
+                    TextButton.icon(
+                      onPressed: _submitting
+                          ? null
+                          : () => Navigator.pop(context),
+                      icon: const Icon(Icons.close),
+                      label: const Text(
+                        'Cancel',
+                        style: TextStyle(
+                          fontFamily: 'OpenSans',
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ),
           ),
-        ),
+        ],
       ),
     );
   }

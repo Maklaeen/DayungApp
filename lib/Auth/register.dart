@@ -1,19 +1,20 @@
 import 'package:auto_size_text/auto_size_text.dart';
 import 'package:capstone_app/screens/dayungquestion.dart';
+import 'package:capstone_app/ui/theme/branding.dart';
 import 'package:flutter/material.dart';
 import 'package:capstone_app/Auth/login.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
-// Palette
-const Color kBg = Color(0xFFFAFAF7);
-const Color kPrimary = Color(0xFF0D47A1);
-const Color kPrimaryDark = Color(0xFF083366);
-const Color kAccent = Color(0xFF2E7D32);
-const Color kWarn = Color(0xFFF57C00);
-const Color kDanger = Color(0xFFC62828);
-const Color kNeutralText = Color(0xFF1F2937);
-const Color kSubtleText = Color(0xFF4B5563);
-const double kEdge = 18;
+// Additional colors for register-specific styling
+const Color kPrimaryLight = Color(0xFF3B82F6);
+const Color kWarn = Color(0xFFF59E0B);
+const Color kDanger = Color(0xFFEF4444);
+const Color kNeutralText = Color(0xFF111827);
+const Color kSubtleText = Color(0xFF6B7280);
+const Color kCardBg = Color(0xFFFFFFFF);
+const Color kBorderColor = Color(0xFFE5E7EB);
+const Color kSuccess = Color(0xFF10B981);
+const double kEdge = 16;
 
 class Register extends StatefulWidget {
   const Register({super.key});
@@ -115,28 +116,44 @@ class _RegisterState extends State<Register> {
                 ),
                 padding: const EdgeInsets.symmetric(
                   horizontal: 20,
-                  vertical: 16,
+                  vertical: 18,
                 ),
                 decoration: BoxDecoration(
-                  color: kDanger.withOpacity(0.98),
-                  borderRadius: BorderRadius.circular(12),
-                  boxShadow: const [
+                  gradient: LinearGradient(
+                    colors: [kDanger, kDanger.withOpacity(0.9)],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  borderRadius: BorderRadius.circular(16),
+                  boxShadow: [
                     BoxShadow(
-                      color: Colors.black26,
-                      blurRadius: 12,
-                      offset: Offset(0, 6),
+                      color: kDanger.withOpacity(0.3),
+                      blurRadius: 20,
+                      offset: const Offset(0, 8),
+                    ),
+                    const BoxShadow(
+                      color: Colors.black12,
+                      blurRadius: 8,
+                      offset: Offset(0, 4),
                     ),
                   ],
                 ),
                 constraints: const BoxConstraints(maxWidth: 420),
                 child: Row(
                   children: [
-                    const Icon(
-                      Icons.error_outline,
-                      color: Colors.white,
-                      size: 26,
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(0.2),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: const Icon(
+                        Icons.error_outline_rounded,
+                        color: Colors.white,
+                        size: 24,
+                      ),
                     ),
-                    const SizedBox(width: 12),
+                    const SizedBox(width: 16),
                     Expanded(
                       child: Text(
                         message,
@@ -144,12 +161,13 @@ class _RegisterState extends State<Register> {
                           color: Colors.white,
                           fontSize: 16,
                           fontWeight: FontWeight.w600,
+                          height: 1.4,
                         ),
                       ),
                     ),
                     IconButton(
                       tooltip: 'Dismiss',
-                      icon: const Icon(Icons.close, color: Colors.white),
+                      icon: const Icon(Icons.close_rounded, color: Colors.white),
                       onPressed: () => Navigator.of(ctx).pop(),
                     ),
                   ],
@@ -264,7 +282,7 @@ class _RegisterState extends State<Register> {
         child: TextFormField(
           decoration: _dec(
             'Date of Birth',
-            icon: Icons.cake,
+            icon: Icons.calendar_today_rounded,
           ).copyWith(hintText: 'Select your birth date'),
           controller: TextEditingController(
             text: _selectedDob == null
@@ -282,14 +300,32 @@ class _RegisterState extends State<Register> {
     return InputDecoration(
       labelText: label,
       hintText: hint,
-      labelStyle: const TextStyle(color: kSubtleText, fontSize: 16),
-      prefixIcon: icon != null ? Icon(icon, color: kSubtleText) : null,
+      labelStyle: const TextStyle(
+        color: kSubtleText, 
+        fontSize: 14,
+        fontWeight: FontWeight.w500,
+      ),
+      hintStyle: const TextStyle(
+        color: kSubtleText,
+        fontSize: 16,
+      ),
+      prefixIcon: icon != null 
+          ? Container(
+              margin: const EdgeInsets.all(12),
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: kPrimary.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Icon(icon, color: kPrimary, size: 20),
+            ) 
+          : null,
       filled: true,
-      fillColor: Colors.white,
-      contentPadding: const EdgeInsets.symmetric(vertical: 18, horizontal: 16),
+      fillColor: kCardBg,
+      contentPadding: const EdgeInsets.symmetric(vertical: 20, horizontal: 16),
       enabledBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(kEdge),
-        borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
+        borderSide: const BorderSide(color: kBorderColor, width: 1.5),
       ),
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(kEdge),
@@ -303,11 +339,16 @@ class _RegisterState extends State<Register> {
         borderRadius: BorderRadius.circular(kEdge),
         borderSide: const BorderSide(color: kDanger, width: 2),
       ),
+      errorStyle: const TextStyle(
+        color: kDanger,
+        fontSize: 13,
+        fontWeight: FontWeight.w500,
+      ),
     );
   }
 
   InputDecoration _dropdownDec(String label) => _dec(label).copyWith(
-    contentPadding: const EdgeInsets.symmetric(vertical: 4, horizontal: 12),
+    contentPadding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
   );
 
   @override
@@ -317,52 +358,81 @@ class _RegisterState extends State<Register> {
     final isSmall = width < 350;
 
     return Scaffold(
-      backgroundColor: const Color.fromARGB(255, 255, 255, 255),
+      backgroundColor: kBg,
       resizeToAvoidBottomInset: true,
-      body: SafeArea(
-        child: Center(
-          child: SingleChildScrollView(
-            padding: EdgeInsets.symmetric(
-              horizontal: isSmall ? 8 : 24,
-              vertical: isSmall ? 8 : 16,
-            ),
-            child: ConstrainedBox(
-              constraints: BoxConstraints(maxWidth: isWide ? 640 : 420),
-              child: Column(
-                children: [
-                  // Header
-                  Padding(
-                    padding: EdgeInsets.only(bottom: isSmall ? 8 : 16),
-                    child: Column(
-                      children: [
-                        Image.asset(
-                          'assets/images/dayunglogo.jpeg',
-                          width: isWide ? 280 : (isSmall ? 120 : 220),
-                          height: isWide ? 100 : (isSmall ? 40 : 80),
-                          fit: BoxFit.contain,
-                        ),
-                        SizedBox(height: isSmall ? 4 : 8),
-                        AutoSizeText(
-                          'Tabang sa Kalisud, Sa Isa ka Tap.',
-                          maxLines: 1,
-                          minFontSize: 10,
-                          style: TextStyle(
-                            fontSize: isWide ? 20 : (isSmall ? 12 : 16),
-                            fontWeight: FontWeight.w600,
-                            color: kSubtleText,
+      body: Container(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              Color(0xFFF8FAFC),
+              Color(0xFFF1F5F9),
+            ],
+          ),
+        ),
+        child: SafeArea(
+          child: Center(
+            child: SingleChildScrollView(
+              padding: EdgeInsets.symmetric(
+                horizontal: isSmall ? 16 : 24,
+                vertical: isSmall ? 12 : 20,
+              ),
+              child: ConstrainedBox(
+                constraints: BoxConstraints(maxWidth: isWide ? 640 : 420),
+                child: Column(
+                  children: [
+                    // Header
+                    Padding(
+                      padding: EdgeInsets.only(bottom: isSmall ? 12 : 20),
+                      child: Column(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(20),
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(20),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: kPrimary.withOpacity(0.1),
+                                  blurRadius: 20,
+                                  offset: const Offset(0, 8),
+                                ),
+                              ],
+                            ),
+                            child: Image.asset(
+                              'assets/images/dayunglogo.jpeg',
+                              width: isWide ? 280 : (isSmall ? 120 : 220),
+                              height: isWide ? 100 : (isSmall ? 40 : 80),
+                              fit: BoxFit.contain,
+                            ),
                           ),
-                        ),
-                      ],
+                          SizedBox(height: isSmall ? 8 : 12),
+                          AutoSizeText(
+                            'Tabang sa Kalisud, Sa Isa ka Tap.',
+                            maxLines: 1,
+                            minFontSize: 10,
+                            style: TextStyle(
+                              fontSize: isWide ? 20 : (isSmall ? 12 : 16),
+                              fontWeight: FontWeight.w600,
+                              color: kSubtleText,
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
-                  ),
 
-                  Card(
-                    elevation: 2,
-                    shadowColor: Colors.black12,
-                    color: const Color.fromARGB(255, 232, 232, 232),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(kEdge),
-                    ),
+                    Card(
+                      elevation: 0,
+                      shadowColor: Colors.transparent,
+                      color: kCardBg,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(24),
+                        side: BorderSide(
+                          color: kBorderColor.withOpacity(0.5),
+                          width: 1,
+                        ),
+                      ),
                     child: Padding(
                       padding: EdgeInsets.all(isSmall ? 10 : 20),
                       child: Form(
@@ -370,33 +440,76 @@ class _RegisterState extends State<Register> {
                         child: Column(
                           children: [
                             if (_isSubmitting)
-                              Padding(
-                                padding: EdgeInsets.only(
-                                  bottom: isSmall ? 6 : 12,
+                              Container(
+                                margin: EdgeInsets.only(
+                                  bottom: isSmall ? 8 : 16,
                                 ),
-                                child: const LinearProgressIndicator(
-                                  color: kPrimary,
-                                  backgroundColor: Color(0xFFEFF2F7),
-                                  minHeight: 3,
+                                padding: const EdgeInsets.all(16),
+                                decoration: BoxDecoration(
+                                  color: kPrimary.withOpacity(0.1),
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                child: Row(
+                                  children: [
+                                    const SizedBox(
+                                      width: 20,
+                                      height: 20,
+                                      child: CircularProgressIndicator(
+                                        color: kPrimary,
+                                        strokeWidth: 2,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 12),
+                                    Text(
+                                      'Creating your account...',
+                                      style: TextStyle(
+                                        color: kPrimary,
+                                        fontWeight: FontWeight.w600,
+                                        fontSize: 14,
+                                      ),
+                                    ),
+                                  ],
                                 ),
                               ),
 
                             // Section: Personal Info
-                            Row(
-                              children: const [
-                                Icon(Icons.person_outline, color: kPrimary),
-                                SizedBox(width: 8),
-                                Text(
-                                  'Personal Information',
-                                  style: TextStyle(
-                                    fontSize: 18,
-                                    fontWeight: FontWeight.w700,
-                                    color: kNeutralText,
-                                  ),
+                            Container(
+                              padding: const EdgeInsets.all(16),
+                              decoration: BoxDecoration(
+                                color: kPrimary.withOpacity(0.05),
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(
+                                  color: kPrimary.withOpacity(0.1),
+                                  width: 1,
                                 ),
-                              ],
+                              ),
+                              child: Row(
+                                children: [
+                                  Container(
+                                    padding: const EdgeInsets.all(8),
+                                    decoration: BoxDecoration(
+                                      color: kPrimary,
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                    child: const Icon(
+                                      Icons.person_rounded,
+                                      color: Colors.white,
+                                      size: 20,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 12),
+                                  const Text(
+                                    'Personal Information',
+                                    style: TextStyle(
+                                      fontSize: 18,
+                                      fontWeight: FontWeight.w700,
+                                      color: kNeutralText,
+                                    ),
+                                  ),
+                                ],
+                              ),
                             ),
-                            const SizedBox(height: 14),
+                            const SizedBox(height: 20),
 
                             // Full Name
                             TextFormField(
@@ -405,27 +518,33 @@ class _RegisterState extends State<Register> {
                               style: TextStyle(
                                 fontSize: isWide ? 18 : 16,
                                 color: kNeutralText,
+                                fontWeight: FontWeight.w500,
                               ),
                               decoration: _dec(
                                 'Full Name',
                                 hint: 'Juan Dela Cruz',
-                                icon: Icons.badge_outlined,
+                                icon: Icons.person_rounded,
                               ),
                               validator: (v) => (v == null || v.trim().isEmpty)
                                   ? 'Full Name is required'
                                   : null,
                             ),
-                            const SizedBox(height: 14),
+                            const SizedBox(height: 16),
 
                             // Sex
                             DropdownButtonFormField<String>(
-                              value: selectedSex,
+                              initialValue: selectedSex,
                               decoration: _dropdownDec('Sex'),
                               items: const ['Male', 'Female']
                                   .map(
                                     (s) => DropdownMenuItem(
                                       value: s,
-                                      child: Text(s),
+                                      child: Text(
+                                        s,
+                                        style: const TextStyle(
+                                          fontWeight: FontWeight.w500,
+                                        ),
+                                      ),
                                     ),
                                   )
                                   .toList(),
@@ -433,9 +552,9 @@ class _RegisterState extends State<Register> {
                               validator: (v) =>
                                   v == null ? 'Sex is required' : null,
                             ),
-                            const SizedBox(height: 14),
+                            const SizedBox(height: 16),
                             _dobField(context),
-                            const SizedBox(height: 14),
+                            const SizedBox(height: 16),
 
                             // Mobile
                             TextFormField(
@@ -445,17 +564,18 @@ class _RegisterState extends State<Register> {
                               style: TextStyle(
                                 fontSize: isWide ? 18 : 16,
                                 color: kNeutralText,
+                                fontWeight: FontWeight.w500,
                               ),
                               decoration: _dec(
                                 'Mobile Number',
                                 hint: '+63 9XXXXXXXXX',
-                                icon: Icons.phone_outlined,
+                                icon: Icons.phone_rounded,
                               ),
                               validator: (v) => (v == null || v.trim().isEmpty)
                                   ? 'Mobile number is required'
                                   : null,
                             ),
-                            const SizedBox(height: 14),
+                            const SizedBox(height: 16),
 
                             // Address
                             TextFormField(
@@ -464,35 +584,58 @@ class _RegisterState extends State<Register> {
                               style: TextStyle(
                                 fontSize: isWide ? 18 : 16,
                                 color: kNeutralText,
+                                fontWeight: FontWeight.w500,
                               ),
                               decoration: _dec(
                                 'Address',
                                 hint: 'Purok, Barangay, City',
-                                icon: Icons.home_outlined,
+                                icon: Icons.home_rounded,
                               ),
                               validator: (v) => (v == null || v.trim().isEmpty)
                                   ? 'Address is required'
                                   : null,
                             ),
 
-                            const SizedBox(height: 24),
+                            const SizedBox(height: 28),
 
                             // Section: Account
-                            Row(
-                              children: const [
-                                Icon(Icons.lock_outline, color: kPrimary),
-                                SizedBox(width: 8),
-                                Text(
-                                  'Account',
-                                  style: TextStyle(
-                                    fontSize: 18,
-                                    fontWeight: FontWeight.w700,
-                                    color: kNeutralText,
-                                  ),
+                            Container(
+                              padding: const EdgeInsets.all(16),
+                              decoration: BoxDecoration(
+                                color: kAccent.withOpacity(0.05),
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(
+                                  color: kAccent.withOpacity(0.1),
+                                  width: 1,
                                 ),
-                              ],
+                              ),
+                              child: Row(
+                                children: [
+                                  Container(
+                                    padding: const EdgeInsets.all(8),
+                                    decoration: BoxDecoration(
+                                      color: kAccent,
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                    child: const Icon(
+                                      Icons.lock_rounded,
+                                      color: Colors.white,
+                                      size: 20,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 12),
+                                  const Text(
+                                    'Account Information',
+                                    style: TextStyle(
+                                      fontSize: 18,
+                                      fontWeight: FontWeight.w700,
+                                      color: kNeutralText,
+                                    ),
+                                  ),
+                                ],
+                              ),
                             ),
-                            const SizedBox(height: 14),
+                            const SizedBox(height: 20),
 
                             // Email
                             TextFormField(
@@ -502,23 +645,26 @@ class _RegisterState extends State<Register> {
                               style: TextStyle(
                                 fontSize: isWide ? 18 : 16,
                                 color: kNeutralText,
+                                fontWeight: FontWeight.w500,
                               ),
                               decoration: _dec(
                                 'Email',
                                 hint: 'example@email.com',
-                                icon: Icons.email_outlined,
+                                icon: Icons.email_rounded,
                               ),
                               validator: (v) {
-                                if (v == null || v.trim().isEmpty)
+                                if (v == null || v.trim().isEmpty) {
                                   return 'Email is required';
+                                }
                                 if (!RegExp(
                                   r'^[^@]+@[^@]+\.[^@]+',
-                                ).hasMatch(v.trim()))
+                                ).hasMatch(v.trim())) {
                                   return 'Enter a valid email';
+                                }
                                 return null;
                               },
                             ),
-                            const SizedBox(height: 14),
+                            const SizedBox(height: 16),
 
                             // Password
                             TextFormField(
@@ -528,22 +674,28 @@ class _RegisterState extends State<Register> {
                               style: TextStyle(
                                 fontSize: isWide ? 18 : 16,
                                 color: kNeutralText,
+                                fontWeight: FontWeight.w500,
                               ),
                               decoration:
                                   _dec(
                                     'Create Password',
                                     hint: '********',
-                                    icon: Icons.password_outlined,
+                                    icon: Icons.lock_rounded,
                                   ).copyWith(
                                     helperText: 'At least 6 characters',
+                                    helperStyle: TextStyle(
+                                      color: kSubtleText,
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w500,
+                                    ),
                                     suffixIcon: IconButton(
                                       tooltip: _obscurePassword
                                           ? 'Show password'
                                           : 'Hide password',
                                       icon: Icon(
                                         _obscurePassword
-                                            ? Icons.visibility_off
-                                            : Icons.visibility,
+                                            ? Icons.visibility_off_rounded
+                                            : Icons.visibility_rounded,
                                         color: kSubtleText,
                                       ),
                                       onPressed: () => setState(
@@ -553,14 +705,16 @@ class _RegisterState extends State<Register> {
                                     ),
                                   ),
                               validator: (v) {
-                                if (v == null || v.trim().isEmpty)
+                                if (v == null || v.trim().isEmpty) {
                                   return 'Password is required';
-                                if (v.trim().length < 6)
+                                }
+                                if (v.trim().length < 6) {
                                   return 'Password must be at least 6 characters';
+                                }
                                 return null;
                               },
                             ),
-                            const SizedBox(height: 14),
+                            const SizedBox(height: 16),
 
                             // Confirm Password
                             TextFormField(
@@ -570,12 +724,13 @@ class _RegisterState extends State<Register> {
                               style: TextStyle(
                                 fontSize: isWide ? 18 : 16,
                                 color: kNeutralText,
+                                fontWeight: FontWeight.w500,
                               ),
                               decoration:
                                   _dec(
                                     'Confirm Password',
                                     hint: '********',
-                                    icon: Icons.lock_person_outlined,
+                                    icon: Icons.lock_person_rounded,
                                   ).copyWith(
                                     errorText: _confirmPasswordError,
                                     suffixIcon: IconButton(
@@ -584,8 +739,8 @@ class _RegisterState extends State<Register> {
                                           : 'Hide password',
                                       icon: Icon(
                                         _obscureConfirmPassword
-                                            ? Icons.visibility_off
-                                            : Icons.visibility,
+                                            ? Icons.visibility_off_rounded
+                                            : Icons.visibility_rounded,
                                         color: kSubtleText,
                                       ),
                                       onPressed: () => setState(
@@ -595,27 +750,42 @@ class _RegisterState extends State<Register> {
                                     ),
                                   ),
                               validator: (v) {
-                                if (v == null || v.trim().isEmpty)
+                                if (v == null || v.trim().isEmpty) {
                                   return 'Confirm your password';
-                                if (v != passwordController.text)
+                                }
+                                if (v != passwordController.text) {
                                   return 'Passwords do not match';
+                                }
                                 return null;
                               },
                             ),
 
-                            const SizedBox(height: 24),
+                            const SizedBox(height: 28),
 
                             // Submit
-                            SizedBox(
+                            Container(
                               width: double.infinity,
                               height: 56,
+                              decoration: BoxDecoration(
+                                gradient: LinearGradient(
+                                  colors: [kPrimary, kPrimaryLight],
+                                  begin: Alignment.topLeft,
+                                  end: Alignment.bottomRight,
+                                ),
+                                borderRadius: BorderRadius.circular(kEdge),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: kPrimary.withOpacity(0.3),
+                                    blurRadius: 12,
+                                    offset: const Offset(0, 6),
+                                  ),
+                                ],
+                              ),
                               child: ElevatedButton(
                                 onPressed: _isSubmitting ? null : _registerUser,
                                 style: ElevatedButton.styleFrom(
-                                  backgroundColor: kPrimary,
-                                  disabledBackgroundColor: kPrimaryDark
-                                      .withOpacity(0.5),
-                                  foregroundColor: Colors.white,
+                                  backgroundColor: Colors.transparent,
+                                  shadowColor: Colors.transparent,
                                   shape: RoundedRectangleBorder(
                                     borderRadius: BorderRadius.circular(kEdge),
                                   ),
@@ -631,20 +801,29 @@ class _RegisterState extends State<Register> {
                                         ),
                                       )
                                     : const Text(
-                                        'Submit',
+                                        'Create Account',
                                         style: TextStyle(
-                                          fontSize: 20,
+                                          fontSize: 18,
                                           fontWeight: FontWeight.w700,
+                                          color: Colors.white,
                                         ),
                                       ),
                               ),
                             ),
-                            const SizedBox(height: 12),
+                            const SizedBox(height: 16),
 
                             // Back to login
-                            SizedBox(
+                            Container(
                               width: double.infinity,
                               height: 56,
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                borderRadius: BorderRadius.circular(kEdge),
+                                border: Border.all(
+                                  color: kBorderColor,
+                                  width: 1.5,
+                                ),
+                              ),
                               child: OutlinedButton(
                                 onPressed: _isSubmitting
                                     ? null
@@ -655,21 +834,29 @@ class _RegisterState extends State<Register> {
                                         ),
                                       ),
                                 style: OutlinedButton.styleFrom(
+                                  backgroundColor: Colors.transparent,
                                   shape: RoundedRectangleBorder(
                                     borderRadius: BorderRadius.circular(kEdge),
                                   ),
-                                  side: const BorderSide(
-                                    color: kPrimary,
-                                    width: 1.5,
-                                  ),
+                                  side: BorderSide.none,
                                   foregroundColor: kPrimary,
                                 ),
-                                child: const Text(
+                                child: Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    const Icon(
+                                      Icons.arrow_back_rounded,
+                                      size: 20,
+                                    ),
+                                    const SizedBox(width: 8),
+                                    const Text(
                                   'Already have an account? Login',
                                   style: TextStyle(
                                     fontSize: 16,
-                                    fontWeight: FontWeight.w700,
+                                    fontWeight: FontWeight.w600,
                                   ),
+                                ),
+                                  ],
                                 ),
                               ),
                             ),
@@ -679,16 +866,46 @@ class _RegisterState extends State<Register> {
                     ),
                   ),
 
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 20),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 12,
+                    ),
+                    decoration: BoxDecoration(
+                      color: kSuccess.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: kSuccess.withOpacity(0.2),
+                        width: 1,
+                      ),
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          Icons.security_rounded,
+                          color: kSuccess,
+                          size: 18,
+                        ),
+                        const SizedBox(width: 8),
                   const Text(
-                    'Your information is sept private and secure.',
+                                              'Your information is kept private and secure.',
                     textAlign: TextAlign.center,
-                    style: TextStyle(color: kSubtleText, fontSize: 14),
+                    style: TextStyle(
+                      color: kSuccess,
+                       fontSize: 14,
+                       fontWeight: FontWeight.w600,
+                       ),
                   ),
                 ],
               ),
             ),
+                  ],
+                ),
           ),
+        ),
+      ),
         ),
       ),
     );

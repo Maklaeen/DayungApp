@@ -2,15 +2,18 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 
-import 'package:capstone_app/Auth/login.dart';
-import 'package:capstone_app/Beneficiary/beneficiary.dart';
-import 'package:capstone_app/Collector/dashboard.dart';
-import 'package:capstone_app/Members/dashboard.dart';
-import 'package:capstone_app/President/dashboard.dart';
+import 'package:capstone_app/Auth/login.dart' hide kWarn;
+import 'package:capstone_app/Beneficiary/beneficiary.dart' hide kPrimaryLight;
+import 'package:capstone_app/Collector/dashboard.dart' hide kPrimaryLight;
+import 'package:capstone_app/Members/dashboard.dart' hide kAccent;
+import 'package:capstone_app/President/dashboard.dart' hide kAccent, kWarn;
 import 'package:capstone_app/Providers/dayung_role_provider.dart';
-import 'package:capstone_app/Secretary/dashboard.dart';
-import 'package:capstone_app/Treasurer/dashboard.dart';
+import 'package:capstone_app/Secretary/dashboard.dart'
+    hide kAccent, kWarn, kPrimary;
+import 'package:capstone_app/Treasurer/dashboard.dart'
+    hide kAccent, kWarn, kPrimary;
 import 'package:capstone_app/settings/settings.dart';
+import 'package:capstone_app/ui/theme/branding.dart';
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:image_cropper/image_cropper.dart';
@@ -22,13 +25,13 @@ import 'package:image_picker/image_picker.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 // Senior-friendly color palette (high contrast, softer tones)
-const kBg = Color(0xFFFAFAF7); // warm off-white
-const kText = Color(0xFF1F2937); // dark neutral
-const kSubText = Color(0xFF4B5563); // softer dark gray
-const kPrimary = Color(0xFF2F4F4F); // dark slate gray (headers)
-const kAccent = Color(0xFF3E8E7E); // muted teal (buttons)
-const kAccentDark = Color(0xFF2D6F63); // darker teal (pressed)
-const kWarn = Color(0xFFB71C1C); // dark red (logout border)
+const kText = Color(0xFF111827);
+const kSubText = Color(0xFF6B7280);
+const kPrimaryLight = Color(0xFF3B82F6);
+const kAccentDark = Color(0xFF059669);
+const kCardBg = Color(0xFFFFFFFF);
+const kBorderColor = Color(0xFFE5E7EB);
+const kSuccess = Color(0xFF10B981);
 
 class ProfilePage extends StatefulWidget {
   const ProfilePage({super.key});
@@ -1278,518 +1281,611 @@ class _ProfilePageState extends State<ProfilePage> {
 
   @override
   Widget build(BuildContext context) {
-    final isWide = MediaQuery.of(context).size.width > 700;
-
     if (isLoading) {
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
 
-    return WillPopScope(
-      // NEW: intercept back
-      onWillPop: _handleBackNavigate,
-      child: Scaffold(
-        backgroundColor: kBg,
-        appBar: AppBar(
-          backgroundColor: kPrimary,
-          elevation: 0,
-          title: const Text(
-            'Profile',
-            style: TextStyle(
-              color: Colors.white,
-              fontSize: 22,
-              fontWeight: FontWeight.w700,
-            ),
+    return Scaffold(
+      backgroundColor: const Color(0xFFF8FAFC),
+      body: Container(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [Color(0xFF1E40AF), Color(0xFF3B82F6), Color(0xFFF8FAFC)],
+            stops: [0.0, 0.3, 0.3],
           ),
-          actions: [
-            IconButton(
-              tooltip: 'Settings',
-              onPressed: () => Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => const DayungSettingsPage()),
-              ),
-              icon: const Icon(Icons.settings, color: Colors.white),
-            ),
-          ],
         ),
-        body: Stack(
+        child: Column(
           children: [
-            Form(
-              key: _formKey,
-              child: ListView(
-                padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
+            // Modern Header
+            Container(
+              padding: const EdgeInsets.fromLTRB(16, 40, 16, 24),
+              child: Row(
                 children: [
-                  Card(
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(14),
+                  IconButton(
+                    icon: const Icon(
+                      Icons.chevron_left,
+                      color: Colors.white,
+                      size: 22,
                     ),
-                    child: Padding(
-                      padding: const EdgeInsets.all(16),
-                      child: Row(
-                        children: [
-                          Stack(
-                            children: [
-                              GestureDetector(
-                                onTap: _editing
-                                    ? _chooseImageSource
-                                    : _openProfilePreview,
-                                child: Hero(
-                                  tag: 'profilePhotoHero',
-                                  child: CircleAvatar(
-                                    radius: isWide ? 56 : 48,
-                                    backgroundColor: const Color(0xFFE0E0E0),
-                                    backgroundImage:
-                                        (profileUrl != null &&
-                                            profileUrl!.isNotEmpty)
-                                        ? NetworkImage(profileUrl!)
-                                        : null,
-                                    child:
-                                        (profileUrl == null ||
-                                            profileUrl!.isEmpty)
-                                        ? Text(
-                                            _initialOf(fullName),
-                                            style: TextStyle(
-                                              fontSize: isWide ? 28 : 24,
-                                              color: kPrimary,
-                                              fontWeight: FontWeight.bold,
-                                            ),
-                                          )
-                                        : null,
-                                  ),
-                                ),
-                              ),
-                              if (_editing)
-                                Positioned(
-                                  bottom: 0,
-                                  right: 0,
-                                  child: InkWell(
-                                    onTap: _chooseImageSource,
-                                    borderRadius: BorderRadius.circular(24),
-                                    child: Container(
-                                      decoration: const BoxDecoration(
-                                        color: kAccent,
-                                        shape: BoxShape.circle,
-                                      ),
-                                      padding: const EdgeInsets.all(8),
-                                      child: const Icon(
-                                        Icons.camera_alt,
-                                        color: Colors.white,
-                                        size: 20,
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                            ],
-                          ),
-                          const SizedBox(width: 16),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  _displayName().isNotEmpty
-                                      ? _displayName()
-                                      : 'Your name',
-                                  style: TextStyle(
-                                    fontSize: isWide ? 22 : 18,
-                                    fontWeight: FontWeight.w700,
-                                    color: kText,
-                                  ),
-                                ),
-                                const SizedBox(height: 4),
-                                Text(
-                                  mobileNumber.isNotEmpty
-                                      ? mobileNumber
-                                      : 'Mobile not set',
-                                  style: const TextStyle(
-                                    color: kSubText,
-                                    fontSize: 14,
-                                  ),
-                                ),
-                                const SizedBox(height: 12),
-                                SizedBox(
-                                  height: 44,
-                                  child: OutlinedButton.icon(
-                                    icon: Icon(
-                                      _editing ? Icons.close : Icons.edit,
-                                      size: 20,
-                                      color: kAccent,
-                                    ),
-                                    label: Text(
-                                      _editing ? 'Cancel' : 'Edit Profile',
-                                      style: const TextStyle(
-                                        color: kAccent,
-                                        fontWeight: FontWeight.w600,
-                                      ),
-                                    ),
-                                    style: OutlinedButton.styleFrom(
-                                      side: const BorderSide(color: kAccent),
-                                      shape: RoundedRectangleBorder(
-                                        borderRadius: BorderRadius.circular(10),
-                                      ),
-                                    ),
-                                    onPressed: () {
-                                      if (_editing) {
-                                        _fullNameController.text = fullName;
-                                        _mobileController.text = mobileNumber;
-                                        _addressController.text = address;
-                                        _sexController.text = sex;
-                                      }
-                                      setState(() => _editing = !_editing);
-                                    },
-                                  ),
-                                ),
-                              ],
-                            ),
+                    onPressed: () => Navigator.pop(context),
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(
+                      minWidth: 32,
+                      minHeight: 32,
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  const Expanded(
+                    child: Text(
+                      'Profile',
+                      style: TextStyle(
+                        fontSize: 22,
+                        fontWeight: FontWeight.w800,
+                        color: Colors.white,
+                        fontFamily: 'Montserrat',
+                        letterSpacing: 0.3,
+                        shadows: [
+                          Shadow(
+                            color: Colors.black26,
+                            offset: Offset(0, 1),
+                            blurRadius: 2,
                           ),
                         ],
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  _ProfileFieldCard(
-                    icon: Icons.person,
-                    label: 'Full Name',
-                    value: _displayName(),
-                    editingChild: TextFormField(
-                      controller: _fullNameController,
-                      textCapitalization: TextCapitalization.words,
-                      validator: (v) => v == null || v.trim().isEmpty
-                          ? 'Full name is required'
-                          : null,
-                      style: const TextStyle(fontSize: 16),
-                      decoration: _fieldDecoration('Enter full name'),
-                    ),
-                  ),
-                  _ProfileFieldCard(
-                    icon: Icons.location_on,
-                    label: 'Address',
-                    value: address.isNotEmpty ? address : 'Not provided',
-                    editingChild: TextFormField(
-                      controller: _addressController,
-                      textCapitalization: TextCapitalization.sentences,
-                      style: const TextStyle(fontSize: 16),
-                      decoration: _fieldDecoration('Enter address'),
-                    ),
-                  ),
-                  _ProfileFieldCard(
-                    icon: Icons.phone,
-                    label: 'Mobile Number',
-                    value: mobileNumber.isNotEmpty
-                        ? mobileNumber
-                        : 'Not provided',
-                    editingChild: TextFormField(
-                      controller: _mobileController,
-                      keyboardType: TextInputType.phone,
-                      validator: (v) {
-                        final t = (v ?? '').trim();
-                        if (t.isEmpty) return 'Mobile number is required';
-                        if (t.length < 7) return 'Enter a valid number';
-                        return null;
-                      },
-                      style: const TextStyle(fontSize: 16),
-                      decoration: _fieldDecoration('Enter mobile number'),
-                    ),
-                  ),
-                  _ProfileFieldCard(
-                    icon: Icons.person_outline,
-                    label: 'Sex',
-                    value: sex.isNotEmpty ? sex : 'Not provided',
-                    editingChild: DropdownButtonFormField<String>(
-                      value: (_sexController.text.isNotEmpty
-                          ? _sexController.text
-                          : null),
-                      items: const [
-                        DropdownMenuItem(value: 'Male', child: Text('Male')),
-                        DropdownMenuItem(
-                          value: 'Female',
-                          child: Text('Female'),
-                        ),
-                        DropdownMenuItem(
-                          value: 'Prefer not to say',
-                          child: Text('Prefer not to say'),
-                        ),
-                      ],
-                      onChanged: (val) => _sexController.text = val ?? '',
-                      decoration: _fieldDecoration('Select sex'),
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  if (_editing) ...[
-                    SizedBox(
-                      height: 52,
-                      child: ElevatedButton(
-                        onPressed: _saving ? null : _saveProfile,
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: kAccent,
-                          foregroundColor: Colors.white,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                        ),
-                        child: _saving
-                            ? const SizedBox(
-                                height: 22,
-                                width: 22,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                  color: Colors.white,
-                                ),
-                              )
-                            : const Text(
-                                'Save Changes',
-                                style: TextStyle(
-                                  fontSize: 18,
-                                  fontWeight: FontWeight.w700,
-                                ),
-                              ),
-                      ),
-                    ),
-                  ] else ...[
-                    SizedBox(
-                      height: 52,
-                      child: ElevatedButton.icon(
-                        icon: const Icon(Icons.people),
-                        onPressed: () {
-                          Navigator.pushReplacement(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) => const BeneficiaryPage(),
-                            ),
-                          );
-                        },
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: kAccent,
-                          foregroundColor: Colors.white,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                        ),
-                        label: const Text(
-                          'Beneficiaries',
-                          style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-
-                    SizedBox(
-                      height: 52,
-                      child: ElevatedButton.icon(
-                        icon: const Icon(Icons.lock_reset),
-                        onPressed: _openChangePasswordDialog,
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: kPrimary,
-                          foregroundColor: Colors.white,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                        ),
-                        label: const Text(
-                          'Change Password',
-                          style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    Card(
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(14),
-                      ),
-                      margin: const EdgeInsets.symmetric(vertical: 8),
-                      child: Padding(
-                        padding: const EdgeInsets.all(16),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
-                              children: [
-                                const Icon(Icons.description, color: kPrimary),
-                                const SizedBox(width: 10),
-                                const Text(
-                                  'Certificates',
-                                  style: TextStyle(
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.w700,
-                                    color: kText,
-                                  ),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 14),
-                            _certificateRow(
-                              label: 'Birth Certificate',
-                              url: birthCertificateUrl,
-                              onUpload: () => _uploadCertificate(type: 'birth'),
-                              onView: () =>
-                                  _openCertificate(birthCertificateUrl ?? ''),
-                            ),
-                            const SizedBox(height: 10),
-                            _certificateRow(
-                              label: 'Marriage Certificate',
-                              url: marriageCertificateUrl,
-                              onUpload: () =>
-                                  _uploadCertificate(type: 'marriage'),
-                              onView: () => _openCertificate(
-                                marriageCertificateUrl ?? '',
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                    SizedBox(
-                      height: 52,
-                      child: OutlinedButton.icon(
-                        icon: const Icon(Icons.logout, color: kWarn),
-                        onPressed: _confirmLogout,
-                        style: OutlinedButton.styleFrom(
-                          side: const BorderSide(color: kWarn),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                        ),
-                        label: const Text(
-                          'Logout',
-                          style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.w700,
-                            color: kWarn,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                  const SizedBox(height: 16),
-                  Card(
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(14),
-                    ),
-                    child: ListTile(
-                      leading: const Icon(Icons.home, color: kPrimary),
-                      title: const Text(
-                        'Manage Dayung',
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                      subtitle: const Text(
-                        'View current Dayung, apply or change',
-                        style: TextStyle(color: kSubText),
-                      ),
-                      trailing: const Icon(Icons.chevron_right),
-                      onTap: () => Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => const DayungSettingsPage(),
-                        ),
                       ),
                     ),
                   ),
                 ],
               ),
             ),
-            if (_uploadingImage)
-              Positioned(
-                top: 12,
-                right: 12,
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 8,
-                  ),
-                  decoration: BoxDecoration(
-                    color: kPrimary.withOpacity(0.9),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: const Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      SizedBox(
-                        width: 16,
-                        height: 16,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          color: Colors.white,
-                        ),
-                      ),
-                      SizedBox(width: 8),
-                      Text(
-                        'Uploading photo...',
-                        style: TextStyle(color: Colors.white),
-                      ),
-                    ],
+            // Content
+            Expanded(
+              child: Container(
+                decoration: const BoxDecoration(
+                  color: Color(0xFFF8FAFC),
+                  borderRadius: BorderRadius.only(
+                    topLeft: Radius.circular(16),
+                    topRight: Radius.circular(16),
                   ),
                 ),
+                child: Stack(
+                  children: [
+                    Form(
+                      key: _formKey,
+                      child: SingleChildScrollView(
+                        padding: const EdgeInsets.fromLTRB(16, 16, 16, 20),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            // Profile Section
+                            _buildModernProfileSection(),
+                            const SizedBox(height: 32),
+
+                            // Profile Fields
+                            _buildProfileFields(),
+                            const SizedBox(height: 24),
+
+                            // Action Buttons
+                            _buildActionButtons(),
+                            const SizedBox(height: 24),
+
+                            // Certificates Section
+                            _buildCertificatesSection(),
+                            const SizedBox(height: 24),
+
+                            // Dayung Management
+                            _buildDayungManagement(),
+                          ],
+                        ),
+                      ),
+                    ),
+                    if (_uploadingImage)
+                      Positioned(
+                        top: 12,
+                        right: 12,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 12,
+                          ),
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              colors: [kPrimary, kPrimaryLight],
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                            ),
+                            borderRadius: BorderRadius.circular(12),
+                            boxShadow: [
+                              BoxShadow(
+                                color: kPrimary.withOpacity(0.3),
+                                blurRadius: 8,
+                                offset: const Offset(0, 4),
+                              ),
+                            ],
+                          ),
+                          child: const Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              SizedBox(
+                                width: 16,
+                                height: 16,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: Colors.white,
+                                ),
+                              ),
+                              SizedBox(width: 8),
+                              Text(
+                                'Uploading photo...',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
               ),
+            ),
           ],
         ),
       ),
     );
   }
-}
 
-class _ProfileFieldCard extends StatelessWidget {
-  const _ProfileFieldCard({
-    required this.icon,
-    required this.label,
-    required this.value,
-    required this.editingChild,
-  });
+  // --- Modern UI section widgets ---
 
-  final IconData icon;
-  final String label;
-  final String value;
-  final Widget editingChild;
-
-  @override
-  Widget build(BuildContext context) {
-    final largeText = MediaQuery.of(context).textScaleFactor > 1.2;
-
-    return Card(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-      margin: const EdgeInsets.symmetric(vertical: 8),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
+  Widget _buildModernProfileSection() {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        children: [
+          GestureDetector(
+            onTap: _editing ? _chooseImageSource : _openProfilePreview,
+            child: Hero(
+              tag: 'profilePhotoHero',
+              child: CircleAvatar(
+                radius: 24,
+                backgroundColor: Colors.white,
+                backgroundImage: (profileUrl != null && profileUrl!.isNotEmpty)
+                    ? NetworkImage(profileUrl!)
+                    : null,
+                child: (profileUrl == null || profileUrl!.isEmpty)
+                    ? Icon(Icons.person, color: kPrimary, size: 28)
+                    : null,
+              ),
+            ),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Icon(icon, size: largeText ? 30 : 26, color: kPrimary),
-                const SizedBox(width: 10),
                 Text(
-                  label,
-                  style: TextStyle(
-                    fontSize: largeText ? 18 : 16,
-                    fontWeight: FontWeight.w700,
+                  _displayName().isNotEmpty ? _displayName() : 'Your name',
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
                     color: kText,
+                    fontFamily: 'Montserrat',
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  mobileNumber.isNotEmpty ? mobileNumber : 'Mobile not set',
+                  style: const TextStyle(
+                    fontSize: 12,
+                    color: kSubText,
+                    fontFamily: 'OpenSans',
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Container(
+                  height: 36,
+                  decoration: BoxDecoration(
+                    color: _editing ? kWarn : kAccent,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: ElevatedButton.icon(
+                    icon: Icon(
+                      _editing ? Icons.close_rounded : Icons.edit_rounded,
+                      size: 14,
+                      color: Colors.white,
+                    ),
+                    label: Text(
+                      _editing ? 'Cancel' : 'Edit Profile',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w500,
+                        fontSize: 12,
+                      ),
+                    ),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.transparent,
+                      shadowColor: Colors.transparent,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      elevation: 0,
+                    ),
+                    onPressed: () {
+                      if (_editing) {
+                        _fullNameController.text = fullName;
+                        _mobileController.text = mobileNumber;
+                        _addressController.text = address;
+                        _sexController.text = sex;
+                      }
+                      setState(() => _editing = !_editing);
+                    },
                   ),
                 ),
               ],
             ),
-            const SizedBox(height: 10),
-            _isEditing(context)
-                ? editingChild
-                : Text(
-                    value,
-                    style: const TextStyle(color: kSubText, fontSize: 16),
-                  ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
 
-  bool _isEditing(BuildContext context) {
-    final state = context.findAncestorStateOfType<_ProfilePageState>();
-    return state?._editing ?? false;
+  Widget _buildProfileFields() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'Personal Information',
+          style: TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.w600,
+            color: kText,
+            fontFamily: 'Montserrat',
+          ),
+        ),
+        const SizedBox(height: 12),
+        _buildSimpleField(
+          icon: Icons.person_rounded,
+          label: 'Full Name',
+          value: _displayName(),
+          editingChild: TextFormField(
+            controller: _fullNameController,
+            textCapitalization: TextCapitalization.words,
+            validator: (v) =>
+                v == null || v.trim().isEmpty ? 'Full name is required' : null,
+            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
+            decoration: _fieldDecoration('Enter full name'),
+          ),
+        ),
+        _buildSimpleField(
+          icon: Icons.location_on_rounded,
+          label: 'Address',
+          value: address.isNotEmpty ? address : 'Not provided',
+          editingChild: TextFormField(
+            controller: _addressController,
+            textCapitalization: TextCapitalization.sentences,
+            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
+            decoration: _fieldDecoration('Enter address'),
+          ),
+        ),
+        _buildSimpleField(
+          icon: Icons.phone_rounded,
+          label: 'Mobile Number',
+          value: mobileNumber.isNotEmpty ? mobileNumber : 'Not provided',
+          editingChild: TextFormField(
+            controller: _mobileController,
+            keyboardType: TextInputType.phone,
+            validator: (v) {
+              final t = (v ?? '').trim();
+              if (t.isEmpty) return 'Mobile number is required';
+              if (t.length < 7) return 'Enter a valid number';
+              return null;
+            },
+            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
+            decoration: _fieldDecoration('Enter mobile number'),
+          ),
+        ),
+        _buildSimpleField(
+          icon: Icons.person_outline_rounded,
+          label: 'Sex',
+          value: sex.isNotEmpty ? sex : 'Not provided',
+          editingChild: DropdownButtonFormField<String>(
+            value: (_sexController.text.isNotEmpty
+                ? _sexController.text
+                : null),
+            items: const [
+              DropdownMenuItem(value: 'Male', child: Text('Male')),
+              DropdownMenuItem(value: 'Female', child: Text('Female')),
+              DropdownMenuItem(
+                value: 'Prefer not to say',
+                child: Text('Prefer not to say'),
+              ),
+            ],
+            onChanged: (val) => _sexController.text = val ?? '',
+            decoration: _fieldDecoration('Select sex'),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildSimpleField({
+    required IconData icon,
+    required String label,
+    required String value,
+    required Widget editingChild,
+  }) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(6),
+                decoration: BoxDecoration(
+                  color: kPrimary.withOpacity(0.08),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Icon(icon, size: 16, color: kPrimary),
+              ),
+              const SizedBox(width: 12),
+              Text(
+                label,
+                style: const TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w500,
+                  color: kText,
+                  fontFamily: 'Montserrat',
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          _editing
+              ? editingChild
+              : Text(
+                  value,
+                  style: const TextStyle(
+                    color: kSubText,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w400,
+                  ),
+                ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildActionButtons() {
+    if (_editing) {
+      return Container(
+        width: double.infinity,
+        height: 44,
+        decoration: BoxDecoration(
+          color: kAccent,
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: ElevatedButton(
+          onPressed: _saving ? null : _saveProfile,
+          style: ElevatedButton.styleFrom(
+            backgroundColor: Colors.transparent,
+            shadowColor: Colors.transparent,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(8),
+            ),
+            elevation: 0,
+          ),
+          child: _saving
+              ? const SizedBox(
+                  height: 22,
+                  width: 22,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: Colors.white,
+                  ),
+                )
+              : const Text(
+                  'Save Changes',
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.white,
+                    fontFamily: 'Montserrat',
+                  ),
+                ),
+        ),
+      );
+    } else {
+      return Column(
+        children: [
+          _buildActionButton(
+            icon: Icons.people_rounded,
+            label: 'Beneficiaries',
+            color: kAccent,
+            onTap: () {
+              Navigator.pushReplacement(
+                context,
+                MaterialPageRoute(builder: (_) => const BeneficiaryPage()),
+              );
+            },
+          ),
+          const SizedBox(height: 8),
+          _buildActionButton(
+            icon: Icons.lock_reset_rounded,
+            label: 'Change Password',
+            color: kPrimary,
+            onTap: _openChangePasswordDialog,
+          ),
+          const SizedBox(height: 8),
+          _buildActionButton(
+            icon: Icons.logout_rounded,
+            label: 'Logout',
+            color: kWarn,
+            onTap: _confirmLogout,
+          ),
+        ],
+      );
+    }
+  }
+
+  Widget _buildActionButton({
+    required IconData icon,
+    required String label,
+    required Color color,
+    required VoidCallback onTap,
+  }) {
+    return Container(
+      width: double.infinity,
+      height: 44,
+      decoration: BoxDecoration(
+        color: color,
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: ElevatedButton.icon(
+        icon: Icon(icon, color: Colors.white, size: 16),
+        label: Text(
+          label,
+          style: const TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.w600,
+            color: Colors.white,
+            fontFamily: 'Montserrat',
+          ),
+        ),
+        style: ElevatedButton.styleFrom(
+          backgroundColor: Colors.transparent,
+          shadowColor: Colors.transparent,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+          elevation: 0,
+        ),
+        onPressed: onTap,
+      ),
+    );
+  }
+
+  Widget _buildCertificatesSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'Certificates',
+          style: TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.w600,
+            color: kText,
+            fontFamily: 'Montserrat',
+          ),
+        ),
+        const SizedBox(height: 12),
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Column(
+            children: [
+              _certificateRow(
+                label: 'Birth Certificate',
+                url: birthCertificateUrl,
+                onUpload: () => _uploadCertificate(type: 'birth'),
+                onView: () => _openCertificate(birthCertificateUrl ?? ''),
+              ),
+              const SizedBox(height: 8),
+              _certificateRow(
+                label: 'Marriage Certificate',
+                url: marriageCertificateUrl,
+                onUpload: () => _uploadCertificate(type: 'marriage'),
+                onView: () => _openCertificate(marriageCertificateUrl ?? ''),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildDayungManagement() {
+    return Column(
+      children: [
+        // Manage Dayung Card
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: InkWell(
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const DayungSettingsPage()),
+              );
+            },
+            borderRadius: BorderRadius.circular(8),
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: kPrimary.withOpacity(0.08),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: const Icon(
+                    Icons.home_rounded,
+                    color: kPrimary,
+                    size: 18,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Manage Dayung',
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          color: kText,
+                          fontFamily: 'Montserrat',
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      const Text(
+                        'View current Dayung, apply or change',
+                        style: TextStyle(
+                          color: kSubText,
+                          fontSize: 12,
+                          fontFamily: 'OpenSans',
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const Icon(
+                  Icons.chevron_right_rounded,
+                  color: kPrimary,
+                  size: 18,
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
   }
 }
 

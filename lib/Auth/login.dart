@@ -1,13 +1,18 @@
 import 'dart:convert';
 
 import 'package:capstone_app/Auth/utils_file.dart';
-import 'package:capstone_app/Collector/dashboard.dart';
-import 'package:capstone_app/Members/dashboard.dart';
-import 'package:capstone_app/President/dashboard.dart';
+import 'package:capstone_app/ui/theme/branding.dart';
+import 'package:capstone_app/Collector/dashboard.dart'
+    hide kPrimary, kAccent, kBg;
+import 'package:capstone_app/Members/dashboard.dart' hide kAccent, kBg;
+import 'package:capstone_app/President/dashboard.dart'
+    hide kPrimary, kAccent, kBg;
 import 'package:capstone_app/Providers/dayung_provider.dart';
 import 'package:capstone_app/Providers/dayung_role_provider.dart';
-import 'package:capstone_app/Secretary/dashboard.dart';
-import 'package:capstone_app/Treasurer/dashboard.dart';
+import 'package:capstone_app/Secretary/dashboard.dart'
+    hide kPrimary, kAccent, kBg;
+import 'package:capstone_app/Treasurer/dashboard.dart'
+    hide kPrimary, kAccent, kBg;
 import 'package:capstone_app/screens/selectdayung.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -16,16 +21,16 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:auto_size_text/auto_size_text.dart';
 import 'dart:io' show SocketException;
 
-// Palette
-const Color kBg = Color(0xFFFAFAF7);
-const Color kPrimary = Color(0xFF0D47A1);
-const Color kPrimaryDark = Color(0xFF083366);
-const Color kAccent = Color(0xFF2E7D32);
-const Color kWarn = Color(0xFFF57C00);
-const Color kDanger = Color(0xFFC62828);
-const Color kNeutralText = Color(0xFF1F2937);
-const Color kSubtleText = Color(0xFF4B5563);
-const double kEdge = 18;
+// Additional colors for login-specific styling
+const Color kPrimaryLight = Color(0xFF3B82F6);
+const Color kWarn = Color(0xFFF59E0B);
+const Color kDanger = Color(0xFFEF4444);
+const Color kNeutralText = Color(0xFF111827);
+const Color kSubtleText = Color(0xFF6B7280);
+const Color kCardBg = Color(0xFFFFFFFF);
+const Color kBorderColor = Color(0xFFE5E7EB);
+const Color kSuccess = Color(0xFF10B981);
+const double kEdge = 16;
 
 class Login extends StatefulWidget {
   const Login({super.key});
@@ -101,14 +106,22 @@ class _LoginState extends State<Login> {
                       vertical: 18,
                     ),
                     decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(18),
-                      border: Border.all(color: color.withOpacity(0.45)),
-                      boxShadow: const [
+                      gradient: LinearGradient(
+                        colors: [color, color.withOpacity(0.9)],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      ),
+                      borderRadius: BorderRadius.circular(16),
+                      boxShadow: [
                         BoxShadow(
-                          color: Colors.black26,
-                          blurRadius: 18,
-                          offset: Offset(0, 12),
+                          color: color.withOpacity(0.3),
+                          blurRadius: 20,
+                          offset: const Offset(0, 8),
+                        ),
+                        const BoxShadow(
+                          color: Colors.black12,
+                          blurRadius: 8,
+                          offset: Offset(0, 4),
                         ),
                       ],
                     ),
@@ -119,19 +132,18 @@ class _LoginState extends State<Login> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Container(
-                              width: 40,
-                              height: 40,
+                              padding: const EdgeInsets.all(8),
                               decoration: BoxDecoration(
-                                color: color.withOpacity(0.12),
-                                borderRadius: BorderRadius.circular(12),
+                                color: Colors.white.withOpacity(0.2),
+                                borderRadius: BorderRadius.circular(8),
                               ),
                               child: Icon(
-                                Icons.error_outline,
-                                color: color,
+                                Icons.error_outline_rounded,
+                                color: Colors.white,
                                 size: 24,
                               ),
                             ),
-                            const SizedBox(width: 12),
+                            const SizedBox(width: 16),
                             Expanded(
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -139,7 +151,7 @@ class _LoginState extends State<Login> {
                                   Text(
                                     title,
                                     style: const TextStyle(
-                                      color: kNeutralText,
+                                      color: Colors.white,
                                       fontSize: 18,
                                       fontWeight: FontWeight.w700,
                                     ),
@@ -148,7 +160,7 @@ class _LoginState extends State<Login> {
                                   Text(
                                     message,
                                     style: const TextStyle(
-                                      color: kNeutralText,
+                                      color: Colors.white,
                                       fontSize: 16,
                                       height: 1.35,
                                     ),
@@ -170,11 +182,11 @@ class _LoginState extends State<Login> {
                                     shape: RoundedRectangleBorder(
                                       borderRadius: BorderRadius.circular(12),
                                     ),
-                                    side: BorderSide(
-                                      color: color.withOpacity(0.6),
+                                    side: const BorderSide(
+                                      color: Colors.white,
                                       width: 1.5,
                                     ),
-                                    foregroundColor: color,
+                                    foregroundColor: Colors.white,
                                   ),
                                   child: const Text(
                                     'Close',
@@ -195,8 +207,8 @@ class _LoginState extends State<Login> {
                                     if (onTryAgain != null) onTryAgain();
                                   },
                                   style: ElevatedButton.styleFrom(
-                                    backgroundColor: kPrimary,
-                                    foregroundColor: Colors.white,
+                                    backgroundColor: Colors.white,
+                                    foregroundColor: color,
                                     shape: RoundedRectangleBorder(
                                       borderRadius: BorderRadius.circular(12),
                                     ),
@@ -266,7 +278,7 @@ class _LoginState extends State<Login> {
       if (userData != null && (userData['role'] ?? '') == 'admin') {
         Navigator.pushReplacementNamed(context, '/admin-dashboard');
       } else {
-        await _routeAfterLogin(); // NEW
+        await _routeAfterLogin();
       }
     } catch (e) {
       setState(() => _isLoading = false);
@@ -297,14 +309,29 @@ class _LoginState extends State<Login> {
   InputDecoration _inputDecoration(String label, {IconData? icon}) {
     return InputDecoration(
       labelText: label,
-      labelStyle: const TextStyle(color: kSubtleText, fontSize: 16),
-      prefixIcon: icon != null ? Icon(icon, color: kSubtleText) : null,
+      labelStyle: const TextStyle(
+        color: kSubtleText,
+        fontSize: 14,
+        fontWeight: FontWeight.w500,
+      ),
+      hintStyle: const TextStyle(color: kSubtleText, fontSize: 16),
+      prefixIcon: icon != null
+          ? Container(
+              margin: const EdgeInsets.all(12),
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: kPrimary.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Icon(icon, color: kPrimary, size: 20),
+            )
+          : null,
       filled: true,
-      fillColor: Colors.white,
-      contentPadding: const EdgeInsets.symmetric(vertical: 20, horizontal: 18),
+      fillColor: kCardBg,
+      contentPadding: const EdgeInsets.symmetric(vertical: 20, horizontal: 16),
       enabledBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(kEdge),
-        borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
+        borderSide: const BorderSide(color: kBorderColor, width: 1.5),
       ),
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(kEdge),
@@ -317,6 +344,11 @@ class _LoginState extends State<Login> {
       focusedErrorBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(kEdge),
         borderSide: const BorderSide(color: kDanger, width: 2),
+      ),
+      errorStyle: const TextStyle(
+        color: kDanger,
+        fontSize: 13,
+        fontWeight: FontWeight.w500,
       ),
     );
   }
@@ -411,7 +443,9 @@ class _LoginState extends State<Login> {
       if (savedId != null && allIds.contains(savedId)) {
         final u = await sb
             .from('dayung_units')
-            .select('id, name, barangay, city, province, secretary_id, treasurer_id, president_id, collector_id')
+            .select(
+              'id, name, barangay, city, province, secretary_id, treasurer_id, president_id, collector_id',
+            )
             .eq('id', savedId)
             .maybeSingle();
         if (u != null) selected = Map<String, dynamic>.from(u);
@@ -428,7 +462,9 @@ class _LoginState extends State<Login> {
         final onlyId = allIds.first;
         final u = await sb
             .from('dayung_units')
-            .select('id, name, barangay, city, province, secretary_id, treasurer_id, president_id, collector_id')
+            .select(
+              'id, name, barangay, city, province, secretary_id, treasurer_id, president_id, collector_id',
+            )
             .eq('id', onlyId)
             .maybeSingle();
         if (u != null) selected = Map<String, dynamic>.from(u);
@@ -505,235 +541,357 @@ class _LoginState extends State<Login> {
     final isWide = size.width > 720;
 
     return Scaffold(
-      backgroundColor: const Color.fromARGB(255, 255, 255, 255),
-      body: SafeArea(
-        child: Center(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 520),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  // Header + Logo
-                  Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 12),
-                    child: Column(
-                      children: [
-                        AutoSizeText(
-                          'WELCOME',
-                          style: TextStyle(
-                            fontSize: isWide ? 40 : 34,
-                            fontWeight: FontWeight.w800,
-                            letterSpacing: 1.5,
-                            color: kNeutralText,
-                            fontFamily: 'Montserrat',
-                          ),
-                          maxLines: 1,
-                          minFontSize: 22,
-                        ),
-                        const SizedBox(height: 8),
-                        Image.asset(
-                          'assets/images/dayunglogo.jpeg',
-                          width: isWide ? 340 : 300,
-                          height: isWide ? 120 : 96,
-                          fit: BoxFit.contain,
-                        ),
-                        const SizedBox(height: 12),
-                        AutoSizeText(
-                          'Tabang sa Kalisud, Sa Isa ka Tap.',
-                          style: TextStyle(
-                            fontSize: isWide ? 22 : 18,
-                            fontWeight: FontWeight.w600,
-                            color: kSubtleText,
-                            fontFamily: 'OpenSans',
-                          ),
-                          maxLines: 1,
-                          minFontSize: 14,
-                        ),
-                      ],
-                    ),
-                  ),
-
-                  // Card
-                  Card(
-                    elevation: 2,
-                    shadowColor: Colors.black12,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(kEdge),
-                    ),
-                    color: const Color.fromARGB(255, 232, 232, 232),
-                    child: Padding(
-                      padding: const EdgeInsets.all(20),
-                      child: Form(
-                        key: _formKey,
-                        child: Column(
-                          children: [
-                            if (_isLoading)
-                              const Padding(
-                                padding: EdgeInsets.only(bottom: 12),
-                                child: LinearProgressIndicator(
-                                  color: kPrimary,
-                                  backgroundColor: Color(0xFFEFF2F7),
-                                  minHeight: 3,
-                                ),
-                              ),
-
-                            // Email
-                            TextFormField(
-                              controller: emailController,
-                              keyboardType: TextInputType.emailAddress,
-                              textInputAction: TextInputAction.next,
-                              style: TextStyle(
-                                fontSize: isWide ? 20 : 18,
-                                color: kNeutralText,
-                              ),
-                              decoration: _inputDecoration(
-                                'Email address',
-                                icon: Icons.email_outlined,
-                              ),
-                              validator: (value) {
-                                if (value == null || value.trim().isEmpty) {
-                                  return 'Email is required';
-                                }
-                                final emailRegex = RegExp(
-                                  r'^[^@]+@[^@]+\.[^@]+',
-                                );
-                                if (!emailRegex.hasMatch(value.trim())) {
-                                  return 'Enter a valid email';
-                                }
-                                return null;
-                              },
+      backgroundColor: kBg,
+      body: Container(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [Color(0xFFF8FAFC), Color(0xFFF1F5F9)],
+          ),
+        ),
+        child: SafeArea(
+          child: Center(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 520),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    // Header + Logo
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      child: Column(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(20),
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(20),
                             ),
-                            const SizedBox(height: 16),
-
-                            // Password
-                            TextFormField(
-                              controller: passwordController,
-                              obscureText: _obscurePassword,
-                              textInputAction: TextInputAction.done,
-                              onFieldSubmitted: (_) =>
-                                  _isLoading ? null : _handleLogin(),
-                              style: TextStyle(
-                                fontSize: isWide ? 20 : 18,
-                                color: kNeutralText,
-                              ),
-                              decoration:
-                                  _inputDecoration(
-                                    'Password',
-                                    icon: Icons.lock_outline,
-                                  ).copyWith(
-                                    suffixIcon: IconButton(
-                                      tooltip: _obscurePassword
-                                          ? 'Show password'
-                                          : 'Hide password',
-                                      icon: Icon(
-                                        _obscurePassword
-                                            ? Icons.visibility_off
-                                            : Icons.visibility,
-                                        color: kSubtleText,
-                                      ),
-                                      onPressed: () {
-                                        setState(() {
-                                          _obscurePassword = !_obscurePassword;
-                                        });
-                                      },
-                                    ),
-                                  ),
-                              validator: (value) =>
-                                  (value == null || value.trim().isEmpty)
-                                  ? 'Password is required'
-                                  : null,
-                            ),
-                            const SizedBox(height: 22),
-
-                            // Sign in button
-                            SizedBox(
-                              width: double.infinity,
-                              height: 56,
-                              child: ElevatedButton(
-                                onPressed: _isLoading ? null : _handleLogin,
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: kPrimary,
-                                  disabledBackgroundColor: kPrimaryDark
-                                      .withOpacity(0.5),
-                                  foregroundColor: Colors.white,
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(kEdge),
-                                  ),
-                                  elevation: 0,
-                                ),
-                                child: _isLoading
-                                    ? const SizedBox(
-                                        height: 26,
-                                        width: 26,
-                                        child: CircularProgressIndicator(
-                                          color: Colors.white,
-                                          strokeWidth: 3,
-                                        ),
-                                      )
-                                    : const Text(
-                                        'Sign In',
-                                        style: TextStyle(
-                                          fontSize: 20,
-                                          fontWeight: FontWeight.w700,
-                                          letterSpacing: 0.5,
-                                        ),
-                                      ),
-                              ),
-                            ),
-                            const SizedBox(height: 12),
-
-                            // Secondary actions
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            child: Column(
                               children: [
-                                TextButton(
-                                  onPressed: _isLoading
-                                      ? null
-                                      : _forgotPassword,
-                                  child: const Text(
-                                    'Forgot password?',
-                                    style: TextStyle(
-                                      color: kPrimary,
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.w600,
-                                    ),
+                                AutoSizeText(
+                                  'WELCOME',
+                                  style: TextStyle(
+                                    fontSize: isWide ? 40 : 34,
+                                    fontWeight: FontWeight.w800,
+                                    letterSpacing: 1.5,
+                                    color: kNeutralText,
+                                    fontFamily: 'Montserrat',
+                                  ),
+                                  maxLines: 1,
+                                  minFontSize: 22,
+                                ),
+                                const SizedBox(height: 12),
+                                RichText(
+                                  text: TextSpan(
+                                    children: [
+                                      TextSpan(
+                                        text: 'Da',
+                                        style: TextStyle(
+                                          fontSize: isWide ? 48 : 42,
+                                          fontWeight: FontWeight.w900,
+                                          letterSpacing: 1.0,
+                                          color: kNeutralText,
+                                          fontFamily: 'Montserrat',
+                                        ),
+                                      ),
+                                      TextSpan(
+                                        text: 'y',
+                                        style: TextStyle(
+                                          fontSize: isWide ? 48 : 42,
+                                          fontWeight: FontWeight.w900,
+                                          letterSpacing: 1.0,
+                                          color: kNeutralText,
+                                          fontFamily: 'Montserrat',
+                                          // Add any special styling for the 'y' here
+                                          decoration: TextDecoration.none,
+                                        ),
+                                      ),
+                                      TextSpan(
+                                        text: 'ung',
+                                        style: TextStyle(
+                                          fontSize: isWide ? 48 : 42,
+                                          fontWeight: FontWeight.w900,
+                                          letterSpacing: 1.0,
+                                          color: kNeutralText,
+                                          fontFamily: 'Montserrat',
+                                        ),
+                                      ),
+                                    ],
                                   ),
                                 ),
-                                TextButton(
-                                  onPressed: _isLoading
-                                      ? null
-                                      : () => Navigator.pushNamed(
-                                          context,
-                                          '/register',
-                                        ),
-                                  child: const Text(
-                                    'Create account',
-                                    style: TextStyle(
-                                      color: kPrimary,
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.w600,
-                                    ),
+                                const SizedBox(height: 12),
+                                AutoSizeText(
+                                  'Tabang sa Kalisud, Sa Isa ka Tap.',
+                                  style: TextStyle(
+                                    fontSize: isWide ? 22 : 18,
+                                    fontWeight: FontWeight.w600,
+                                    color: kSubtleText,
+                                    fontFamily: 'OpenSans',
                                   ),
+                                  maxLines: 1,
+                                  minFontSize: 14,
                                 ),
                               ],
                             ),
-                          ],
+                          ),
+                        ],
+                      ),
+                    ),
+
+                    // Card
+                    Card(
+                      elevation: 0,
+                      shadowColor: Colors.transparent,
+                      color: kCardBg,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(24),
+                      ),
+                      child: Padding(
+                        padding: const EdgeInsets.all(20),
+                        child: Form(
+                          key: _formKey,
+                          child: Column(
+                            children: [
+                              if (_isLoading)
+                                Container(
+                                  margin: const EdgeInsets.only(bottom: 16),
+                                  padding: const EdgeInsets.all(16),
+                                  decoration: BoxDecoration(
+                                    color: kPrimary.withOpacity(0.1),
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  child: Row(
+                                    children: [
+                                      const SizedBox(
+                                        width: 20,
+                                        height: 20,
+                                        child: CircularProgressIndicator(
+                                          color: kPrimary,
+                                          strokeWidth: 2,
+                                        ),
+                                      ),
+                                      const SizedBox(width: 12),
+                                      Text(
+                                        'Signing you in...',
+                                        style: TextStyle(
+                                          color: kPrimary,
+                                          fontWeight: FontWeight.w600,
+                                          fontSize: 14,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+
+                              // Email
+                              TextFormField(
+                                controller: emailController,
+                                keyboardType: TextInputType.emailAddress,
+                                textInputAction: TextInputAction.next,
+                                style: TextStyle(
+                                  fontSize: isWide ? 20 : 18,
+                                  color: kNeutralText,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                                decoration: _inputDecoration(
+                                  'Email address',
+                                  icon: Icons.email_rounded,
+                                ),
+                                validator: (value) {
+                                  if (value == null || value.trim().isEmpty) {
+                                    return 'Email is required';
+                                  }
+                                  final emailRegex = RegExp(
+                                    r'^[^@]+@[^@]+\.[^@]+',
+                                  );
+                                  if (!emailRegex.hasMatch(value.trim())) {
+                                    return 'Enter a valid email';
+                                  }
+                                  return null;
+                                },
+                              ),
+                              const SizedBox(height: 16),
+
+                              // Password
+                              TextFormField(
+                                controller: passwordController,
+                                obscureText: _obscurePassword,
+                                textInputAction: TextInputAction.done,
+                                onFieldSubmitted: (_) =>
+                                    _isLoading ? null : _handleLogin(),
+                                style: TextStyle(
+                                  fontSize: isWide ? 20 : 18,
+                                  color: kNeutralText,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                                decoration:
+                                    _inputDecoration(
+                                      'Password',
+                                      icon: Icons.lock_rounded,
+                                    ).copyWith(
+                                      suffixIcon: IconButton(
+                                        tooltip: _obscurePassword
+                                            ? 'Show password'
+                                            : 'Hide password',
+                                        icon: Icon(
+                                          _obscurePassword
+                                              ? Icons.visibility_off_rounded
+                                              : Icons.visibility_rounded,
+                                          color: kSubtleText,
+                                        ),
+                                        onPressed: () {
+                                          setState(() {
+                                            _obscurePassword =
+                                                !_obscurePassword;
+                                          });
+                                        },
+                                      ),
+                                    ),
+                                validator: (value) =>
+                                    (value == null || value.trim().isEmpty)
+                                    ? 'Password is required'
+                                    : null,
+                              ),
+                              const SizedBox(height: 24),
+
+                              // Sign in button
+                              Container(
+                                width: double.infinity,
+                                height: 56,
+                                decoration: BoxDecoration(
+                                  gradient: LinearGradient(
+                                    colors: [kPrimary, kPrimaryLight],
+                                    begin: Alignment.topLeft,
+                                    end: Alignment.bottomRight,
+                                  ),
+                                  borderRadius: BorderRadius.circular(kEdge),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: kPrimary.withOpacity(0.3),
+                                      blurRadius: 12,
+                                      offset: const Offset(0, 6),
+                                    ),
+                                  ],
+                                ),
+                                child: ElevatedButton(
+                                  onPressed: _isLoading ? null : _handleLogin,
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: Colors.transparent,
+                                    shadowColor: Colors.transparent,
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(
+                                        kEdge,
+                                      ),
+                                    ),
+                                    elevation: 0,
+                                  ),
+                                  child: _isLoading
+                                      ? const SizedBox(
+                                          height: 26,
+                                          width: 26,
+                                          child: CircularProgressIndicator(
+                                            color: Colors.white,
+                                            strokeWidth: 3,
+                                          ),
+                                        )
+                                      : const Text(
+                                          'Sign In',
+                                          style: TextStyle(
+                                            fontSize: 18,
+                                            fontWeight: FontWeight.w700,
+                                            color: Colors.white,
+                                          ),
+                                        ),
+                                ),
+                              ),
+                              const SizedBox(height: 16),
+
+                              // Secondary actions
+                              Row(
+                                mainAxisAlignment:
+                                    MainAxisAlignment.spaceBetween,
+                                children: [
+                                  TextButton(
+                                    onPressed: _isLoading
+                                        ? null
+                                        : _forgotPassword,
+                                    child: const Text(
+                                      'Forgot password?',
+                                      style: TextStyle(
+                                        color: kPrimary,
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                  ),
+                                  TextButton(
+                                    onPressed: _isLoading
+                                        ? null
+                                        : () => Navigator.pushNamed(
+                                            context,
+                                            '/register',
+                                          ),
+                                    child: const Text(
+                                      'Create account',
+                                      style: TextStyle(
+                                        color: kPrimary,
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
                         ),
                       ),
                     ),
-                  ),
 
-                  const SizedBox(height: 18),
+                    const SizedBox(height: 20),
 
-                  // Helpful tip (for seniors)
-                  const Text(
-                    'Need help? Ask a family member to assist you signing in.',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(color: kSubtleText, fontSize: 14),
-                  ),
-                ],
+                    // Helpful tip (for seniors)
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 12,
+                      ),
+                      decoration: BoxDecoration(
+                        color: kSuccess.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: kSuccess.withOpacity(0.2),
+                          width: 1,
+                        ),
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(
+                            Icons.help_outline_rounded,
+                            color: kSuccess,
+                            size: 18,
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              'Need help? Ask a family member to assist you signing in.',
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                color: kSuccess,
+                                fontSize: 14,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
           ),

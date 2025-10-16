@@ -308,278 +308,314 @@ class _DeathNoticeDetailState extends State<DeathNoticeDetail> {
 
   @override
   Widget build(BuildContext context) {
-    final scale = MediaQuery.of(context).textScaleFactor.clamp(1.0, 1.3);
+    final screenHeight = MediaQuery.of(context).size.height;
     final name = _fName ?? 'Death Notice';
     final dDate = _fDateOfDeath;
     final bDate = _fBirthDate;
     final age = _fStoredAge ?? _computeAge(bDate, dDate);
 
-    return Scaffold(
-      backgroundColor: Colors.grey.shade100,
-      appBar: AppBar(
-        backgroundColor: Colors.white,
-        elevation: 1,
-        automaticallyImplyLeading: false,
-        iconTheme: const IconThemeData(color: Colors.black87),
-        title: Text(
-          'Dayung',
-          style: TextStyle(
-            fontSize: 24 * scale,
-            fontWeight: FontWeight.bold,
-            color: Colors.black87,
-          ),
+    return Container(
+      height: screenHeight * 0.75,
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.only(
+          topLeft: Radius.circular(20),
+          topRight: Radius.circular(20),
         ),
-        actions: [
-          IconButton(
-            tooltip: 'Close',
-            icon: const Icon(Icons.close),
-            onPressed: () => Navigator.pop(context),
-          ),
-          const SizedBox(width: 6),
-        ],
       ),
-      body: SafeArea(
-        child: _loading
-            ? const Center(child: CircularProgressIndicator())
-            : _error != null
-            ? Center(
-                child: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Text(
-                    _error!,
-                    style: const TextStyle(color: Colors.red),
-                    textAlign: TextAlign.center,
+      child: Column(
+        children: [
+          // Drag handle
+          Container(
+            margin: const EdgeInsets.only(top: 8),
+            width: 40,
+            height: 4,
+            decoration: BoxDecoration(
+              color: Colors.grey.shade300,
+              borderRadius: BorderRadius.circular(2),
+            ),
+          ),
+          // Header
+          Container(
+            padding: const EdgeInsets.all(20),
+            child: Row(
+              children: [
+                IconButton(
+                  icon: const Icon(Icons.close, color: Colors.grey),
+                  onPressed: () => Navigator.pop(context),
+                ),
+                const Spacer(),
+                Text(
+                  'In Loving Memory',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.grey.shade800,
                   ),
                 ),
-              )
-            : SingleChildScrollView(
-                padding: const EdgeInsets.symmetric(vertical: 16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Header row
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 16),
-                      child: Row(
-                        children: [
-                          InkWell(
-                            borderRadius: BorderRadius.circular(24),
-                            onTap: () => Navigator.pop(context),
-                            child: const Padding(
-                              padding: EdgeInsets.all(8),
-                              child: Icon(
-                                Icons.arrow_back,
-                                size: 28,
-                                color: Colors.black87,
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          const Icon(
-                            Icons.inventory_2_rounded,
-                            size: 36,
-                            color: Colors.black54,
-                          ),
-                          const SizedBox(width: 8),
-                          const Expanded(
-                            child: Text(
-                              'In loving\nmemory of:',
-                              style: TextStyle(
-                                fontSize: 28,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.black87,
-                                height: 1.1,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-
-                    // Name card
-                    Padding(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 20,
-                      ),
-                      child: Card(
-                        elevation: 2,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(16),
+                const Spacer(),
+                const SizedBox(width: 48), // Balance the close button
+              ],
+            ),
+          ),
+          // Content
+          Expanded(
+            child: _loading
+                ? const Center(child: CircularProgressIndicator())
+                : _error != null
+                ? Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.error_outline, color: Colors.red, size: 48),
+                        const SizedBox(height: 16),
+                        Text(
+                          _error!,
+                          style: const TextStyle(color: Colors.red),
                         ),
-                        child: Container(
+                      ],
+                    ),
+                  )
+                : SingleChildScrollView(
+                    padding: const EdgeInsets.symmetric(horizontal: 20),
+                    child: Column(
+                      children: [
+                        // Memorial Card
+                        Container(
                           width: double.infinity,
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 24,
-                            vertical: 30,
-                          ),
+                          padding: const EdgeInsets.all(20),
                           decoration: BoxDecoration(
-                            color: Colors.grey.shade800,
+                            gradient: const LinearGradient(
+                              colors: [Color(0xFF0D47A1), Color(0xFF3B82F6)],
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                            ),
                             borderRadius: BorderRadius.circular(16),
+                            boxShadow: [
+                              BoxShadow(
+                                color: const Color(
+                                  0xFF0D47A1,
+                                ).withValues(alpha: 0.3),
+                                blurRadius: 10,
+                                offset: const Offset(0, 4),
+                              ),
+                            ],
                           ),
-                          child: Center(
-                            child: Text(
-                              name,
-                              textAlign: TextAlign.center,
-                              style: const TextStyle(
-                                fontSize: 34,
-                                fontWeight: FontWeight.bold,
+                          child: Column(
+                            children: [
+                              Icon(
+                                Icons.favorite,
                                 color: Colors.white,
-                                letterSpacing: 1.2,
+                                size: 32,
                               ),
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-
-                    // Dates + Age
-                    Center(
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 16),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.center,
-                          children: [
-                            Text(
-                              '${_fmtDate(bDate)} – ${_fmtDate(dDate)}',
-                              style: const TextStyle(
-                                fontSize: 20,
-                                fontWeight: FontWeight.w600,
-                                color: Colors.black87,
-                                height: 1.4,
-                              ),
-                            ),
-                            const SizedBox(height: 4),
-                            if (age != null)
+                              const SizedBox(height: 12),
                               Text(
-                                'Aged $age years',
+                                'In Loving Memory Of',
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  color: Colors.white.withValues(alpha: 0.9),
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                              Text(
+                                name,
+                                textAlign: TextAlign.center,
                                 style: const TextStyle(
-                                  fontSize: 18,
-                                  fontWeight: FontWeight.w400,
-                                  color: Colors.black54,
-                                  height: 1.3,
+                                  fontSize: 24,
+                                  fontWeight: FontWeight.w700,
+                                  color: Colors.white,
                                 ),
                               ),
-                          ],
+                            ],
+                          ),
                         ),
-                      ),
-                    ),
-
-                    const SizedBox(height: 24),
-
-                    // Location
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 16),
-                      child: Row(
-                        children: [
-                          const Text(
-                            'Location of Vigil:',
-                            style: TextStyle(
-                              fontSize: 22,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.black87,
+                        const SizedBox(height: 20),
+                        // Date Card
+                        _buildInfoCard(
+                          icon: Icons.calendar_today,
+                          title: 'Date of Death',
+                          value: _fmtDate(dDate),
+                          subtitle: age != null ? 'Aged $age years' : null,
+                        ),
+                        const SizedBox(height: 16),
+                        // Location Card
+                        _buildInfoCard(
+                          icon: Icons.location_on,
+                          title: 'Vigil Location',
+                          value:
+                              _fBarangay ??
+                              _locationName ??
+                              'Location unavailable',
+                          showMapButton: _fLat != null && _fLng != null,
+                        ),
+                        if (_fLat != null && _fLng != null) ...[
+                          const SizedBox(height: 16),
+                          Container(
+                            height: 200,
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(12),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withValues(alpha: 0.1),
+                                  blurRadius: 8,
+                                  offset: const Offset(0, 2),
+                                ),
+                              ],
+                            ),
+                            child: ClipRRect(
+                              borderRadius: BorderRadius.circular(12),
+                              child: GoogleMap(
+                                initialCameraPosition: CameraPosition(
+                                  target: LatLng(_fLat!, _fLng!),
+                                  zoom: 16,
+                                ),
+                                markers: {
+                                  Marker(
+                                    markerId: const MarkerId('vigil'),
+                                    position: LatLng(_fLat!, _fLng!),
+                                    infoWindow: InfoWindow(
+                                      title: name,
+                                      snippet:
+                                          _fBarangay ?? _locationName ?? '',
+                                    ),
+                                  ),
+                                },
+                                myLocationButtonEnabled: false,
+                                zoomControlsEnabled: true,
+                                onMapCreated: (controller) {
+                                  _mapController = controller;
+                                },
+                              ),
                             ),
                           ),
-                          const Spacer(),
-                          if (_fLat != null && _fLng != null)
-                            TextButton.icon(
-                              onPressed: _openInMaps,
-                              icon: const Icon(Icons.directions),
-                              label: const Text('Open in Maps'),
-                            ),
                         ],
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 16),
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(16),
-                        child: Container(
-                          height: 80,
+                        const SizedBox(height: 20),
+                        // Memorial Message
+                        Container(
                           width: double.infinity,
-                          color: Colors.grey.shade200,
-                          child: Center(
-                            child: (_fBarangay ?? '').isNotEmpty
-                                ? Text(
-                                    _fBarangay!,
-                                    textAlign: TextAlign.center,
-                                    style: const TextStyle(
-                                      fontSize: 20,
-                                      fontWeight: FontWeight.bold,
-                                      color: Colors.black87,
-                                    ),
-                                  )
-                                : (_fLat == null || _fLng == null)
-                                ? const Text("Location unavailable")
-                                : Text(
-                                    _locationName ??
-                                        'Lat: ${_fLat!.toStringAsFixed(4)}\n'
-                                            'Lng: ${_fLng!.toStringAsFixed(4)}',
-                                    textAlign: TextAlign.center,
-                                    style: const TextStyle(
-                                      fontSize: 18,
-                                      fontWeight: FontWeight.bold,
-                                      color: Colors.black87,
-                                      height: 1.3,
-                                    ),
-                                  ),
+                          padding: const EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            color: Colors.grey.shade50,
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: Colors.grey.shade200),
                           ),
-                        ),
-                      ),
-                    ),
-
-                    if (_fLat != null && _fLng != null) ...[
-                      const SizedBox(height: 20),
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 16),
-                        child: SizedBox(
-                          height: 220,
-                          child: ClipRRect(
-                            borderRadius: BorderRadius.circular(16),
-                            child: GoogleMap(
-                              initialCameraPosition: CameraPosition(
-                                target: LatLng(_fLat!, _fLng!),
-                                zoom: 16,
+                          child: Column(
+                            children: [
+                              Icon(
+                                Icons.favorite,
+                                color: const Color(0xFF0D47A1),
+                                size: 24,
                               ),
-                              markers: {
-                                Marker(
-                                  markerId: const MarkerId('vigil'),
-                                  position: LatLng(_fLat!, _fLng!),
-                                  infoWindow: InfoWindow(
-                                    title: name,
-                                    snippet: _fBarangay ?? _locationName ?? '',
-                                  ),
+                              const SizedBox(height: 8),
+                              Text(
+                                'With deepest respect and remembrance.',
+                                textAlign: TextAlign.center,
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  color: Colors.grey.shade700,
+                                  fontStyle: FontStyle.italic,
                                 ),
-                              },
-                              myLocationButtonEnabled: false,
-                              zoomControlsEnabled: true,
-                              onMapCreated: (controller) {
-                                _mapController = controller;
-                              },
-                            ),
+                              ),
+                            ],
                           ),
                         ),
-                      ),
-                    ],
-
-                    const SizedBox(height: 28),
-                    const Padding(
-                      padding: EdgeInsets.symmetric(horizontal: 16),
-                      child: Text(
-                        'With deepest respect and remembrance.',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          fontSize: 26,
-                          fontStyle: FontStyle.italic,
-                          color: Colors.black87,
-                        ),
-                      ),
+                        const SizedBox(height: 20),
+                      ],
                     ),
-                    const SizedBox(height: 24),
-                  ],
+                  ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildInfoCard({
+    required IconData icon,
+    required String title,
+    required String value,
+    String? subtitle,
+    bool showMapButton = false,
+  }) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.grey.shade200),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.05),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(icon, color: const Color(0xFF0D47A1), size: 20),
+              const SizedBox(width: 8),
+              Text(
+                title,
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.grey.shade700,
                 ),
               ),
+              const Spacer(),
+              if (showMapButton)
+                GestureDetector(
+                  onTap: _openInMaps,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 6,
+                    ),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF0D47A1),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.directions, color: Colors.white, size: 16),
+                        SizedBox(width: 4),
+                        Text(
+                          'Maps',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            value,
+            style: const TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w600,
+              color: Colors.black87,
+            ),
+          ),
+          if (subtitle != null) ...[
+            const SizedBox(height: 4),
+            Text(
+              subtitle,
+              style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+            ),
+          ],
+        ],
       ),
     );
   }

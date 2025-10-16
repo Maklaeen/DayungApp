@@ -134,8 +134,7 @@ class _DayungProfilePageState extends State<DayungProfilePage> {
             ListTile(
               leading: const Icon(Icons.person),
               title: Text(m['full_name'] ?? 'Member'),
-              subtitle: Text(
-                '${m['role'] ?? ''}${m['email'] != null ? ' • ${m['email']}' : ''}',
+              subtitle: Text('${m['role'] ?? ''}${m['email'] != null ? ' • ${m['email']}' : ''}',
               ),
             ),
         ],
