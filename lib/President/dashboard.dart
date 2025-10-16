@@ -253,14 +253,6 @@ class _PresidentDashboardPageState extends State<PresidentDashboardPage> {
                         letterSpacing: 0.5,
                       ),
                     ),
-                    const Text(
-                      'President Dashboard',
-                      style: TextStyle(
-                        fontSize: 14,
-                        color: Colors.white,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
                   ],
                 ),
               ),

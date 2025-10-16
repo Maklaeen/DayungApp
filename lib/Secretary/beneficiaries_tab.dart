@@ -1,3 +1,4 @@
+import 'package:capstone_app/ui/theme/branding.dart';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:photo_view/photo_view.dart'; // Add this to your pubspec.yaml for image preview
@@ -10,9 +11,8 @@ class SecretaryBeneficiariesTab extends StatefulWidget {
       _SecretaryBeneficiariesTabState();
 }
 
-class _SecretaryBeneficiariesTabState extends State<SecretaryBeneficiariesTab>
-    with SingleTickerProviderStateMixin {
-  late TabController _tabController;
+class _SecretaryBeneficiariesTabState extends State<SecretaryBeneficiariesTab> {
+  int _selectedTab = 0; // 0: Pending, 1: Active
   Map<String, dynamic> _users = {};
   Map<String, List<dynamic>> _pendingByUser = {};
   Map<String, List<dynamic>> _activeByUser = {};
@@ -21,7 +21,6 @@ class _SecretaryBeneficiariesTabState extends State<SecretaryBeneficiariesTab>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 2, vsync: this);
     _fetchBeneficiaries();
   }
 
@@ -29,22 +28,28 @@ class _SecretaryBeneficiariesTabState extends State<SecretaryBeneficiariesTab>
     setState(() => _loading = true);
     final supabase = Supabase.instance.client;
     try {
+      // Load users (id -> full_name) for grouping headers
       final usersData = await supabase.from('users').select('id, full_name');
-      final beneficiariesData = await supabase
-          .from('beneficiaries')
-          .select()
-          .inFilter('status', ['Pending', 'Approved'])
-          .order('full_name', ascending: true);
-
       final usersMap = <String, dynamic>{};
       for (final user in usersData) {
         usersMap[user['id']] = user['full_name'] ?? 'Unknown User';
       }
 
+      // Load beneficiaries with status Pending/Approved
+      final beneficiariesData = await supabase
+          .from('beneficiaries')
+          .select(
+            'id, user_id, full_name, relationship, dob, status, birth_certificate',
+          )
+          .inFilter('status', ['Pending', 'Approved'])
+          .order('full_name', ascending: true);
+
+      // Group by user and split by status
       final pendingByUser = <String, List<dynamic>>{};
       final activeByUser = <String, List<dynamic>>{};
       for (final b in beneficiariesData) {
-        final uid = b['user_id'];
+        final uid = (b['user_id'] ?? '').toString();
+        if (uid.isEmpty) continue;
         if (b['status'] == 'Pending') {
           pendingByUser.putIfAbsent(uid, () => []).add(b);
         } else if (b['status'] == 'Approved') {
@@ -52,6 +57,7 @@ class _SecretaryBeneficiariesTabState extends State<SecretaryBeneficiariesTab>
         }
       }
 
+      if (!mounted) return;
       setState(() {
         _users = usersMap;
         _pendingByUser = pendingByUser;
@@ -59,11 +65,150 @@ class _SecretaryBeneficiariesTabState extends State<SecretaryBeneficiariesTab>
         _loading = false;
       });
     } catch (e) {
+      if (!mounted) return;
       setState(() => _loading = false);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Error fetching beneficiaries: $e')),
       );
     }
+  }
+
+  Future<void> _approveBeneficiary(dynamic id) async {
+    final supabase = Supabase.instance.client;
+    try {
+      await supabase
+          .from('beneficiaries')
+          .update({'status': 'Approved', 'eligible_to_claim': true})
+          .eq('id', id);
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Beneficiary approved!')));
+      await _fetchBeneficiaries(); // Refresh
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Error approving: $e')));
+    }
+  }
+
+  Widget _groupedList(
+    Map<String, List<dynamic>> grouped, {
+    bool isPending = false,
+  }) {
+    if (grouped.isEmpty) {
+      // Empty state (matches the new UI style)
+      return Center(
+        child: Container(
+          margin: const EdgeInsets.all(20),
+          padding: const EdgeInsets.all(32),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.05),
+                blurRadius: 10,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  color:
+                      (isPending
+                              ? const Color(0xFFFF6B35)
+                              : const Color(0xFF10B981))
+                          .withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(50),
+                ),
+                child: Icon(
+                  isPending
+                      ? Icons.schedule_rounded
+                      : Icons.check_circle_rounded,
+                  color: isPending
+                      ? const Color(0xFFFF6B35)
+                      : const Color(0xFF10B981),
+                  size: 48,
+                ),
+              ),
+              const SizedBox(height: 24),
+              Text(
+                isPending
+                    ? 'No pending beneficiaries found'
+                    : 'No active beneficiaries found',
+                style: const TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w700,
+                  color: Color(0xFF374151),
+                  fontFamily: 'Montserrat',
+                ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 8),
+              Text(
+                isPending
+                    ? 'No pending beneficiaries have been recorded yet'
+                    : 'No active beneficiaries have been recorded yet',
+                style: const TextStyle(
+                  fontSize: 14,
+                  color: Color(0xFF6B7280),
+                  fontFamily: 'OpenSans',
+                ),
+                textAlign: TextAlign.center,
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    final sortedUserIds = grouped.keys.toList()
+      ..sort(
+        (a, b) => (_users[a] ?? '').toString().compareTo(
+          (_users[b] ?? '').toString(),
+        ),
+      );
+
+    return ListView.builder(
+      itemCount: sortedUserIds.length,
+      itemBuilder: (context, idx) {
+        final userId = sortedUserIds[idx];
+        final userName = _users[userId] ?? 'Unknown User';
+        final beneficiaries = grouped[userId]!;
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // User header
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 18, 16, 6),
+              child: Text(
+                userName.toString(),
+                style: const TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.indigo,
+                ),
+              ),
+            ),
+            // Cards
+            ...beneficiaries
+                .map(
+                  (b) => _beneficiaryCard(
+                    Map<String, dynamic>.from(b as Map),
+                    isPending: isPending,
+                  ),
+                )
+                .toList(),
+          ],
+        );
+      },
+    );
   }
 
   Widget _beneficiaryCard(Map b, {bool isPending = false}) {
@@ -85,7 +230,7 @@ class _SecretaryBeneficiariesTabState extends State<SecretaryBeneficiariesTab>
                 const SizedBox(width: 12),
                 Expanded(
                   child: Text(
-                    b['full_name'] ?? '',
+                    (b['full_name'] ?? '').toString(),
                     style: const TextStyle(
                       fontWeight: FontWeight.bold,
                       fontSize: 18,
@@ -105,7 +250,7 @@ class _SecretaryBeneficiariesTabState extends State<SecretaryBeneficiariesTab>
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: Text(
-                    b['status'] ?? '',
+                    (b['status'] ?? '').toString(),
                     style: TextStyle(
                       color: b['status'] == 'Pending'
                           ? Colors.orange.shade800
@@ -120,18 +265,18 @@ class _SecretaryBeneficiariesTabState extends State<SecretaryBeneficiariesTab>
             const SizedBox(height: 10),
             _infoRow(
               Icons.family_restroom,
-              'Relationship: ${b['relationship'] ?? ''}',
+              'Relationship: ${(b['relationship'] ?? '').toString()}',
             ),
-            _infoRow(Icons.cake, 'DOB: ${b['dob'] ?? ''}'),
-            if (b['birth_certificate'] != null &&
-                b['birth_certificate'].toString().isNotEmpty)
+            _infoRow(Icons.cake, 'DOB: ${(b['dob'] ?? '').toString()}'),
+            if ((b['birth_certificate'] ?? '').toString().isNotEmpty)
               Padding(
                 padding: const EdgeInsets.only(top: 8.0),
                 child: TextButton.icon(
                   icon: const Icon(Icons.picture_as_pdf, color: Colors.blue),
                   label: const Text('View Birth Certificate'),
-                  onPressed: () =>
-                      _showBirthCertificateModal(b['birth_certificate']),
+                  onPressed: () => _showBirthCertificateModal(
+                    b['birth_certificate'].toString(),
+                  ),
                   style: TextButton.styleFrom(foregroundColor: Colors.blue),
                 ),
               ),
@@ -193,91 +338,195 @@ class _SecretaryBeneficiariesTabState extends State<SecretaryBeneficiariesTab>
     );
   }
 
-  Future<void> _approveBeneficiary(dynamic id) async {
-    final supabase = Supabase.instance.client;
-    try {
-      await supabase
-          .from('beneficiaries')
-          .update({
-            'status': 'Approved',
-            'eligible_to_claim': true,
-          }) // <-- add this
-          .eq('id', id);
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Beneficiary approved!')));
-      _fetchBeneficiaries(); // Refresh the list
-    } catch (e) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Error approving: $e')));
-    }
-  }
-
-  Widget _groupedList(
-    Map<String, List<dynamic>> grouped, {
-    bool isPending = false,
-  }) {
-    if (grouped.isEmpty) {
-      return const Center(child: Text('No beneficiaries found.'));
-    }
-    final sortedUserIds = grouped.keys.toList()
-      ..sort(
-        (a, b) => (_users[a] ?? '').toString().compareTo(
-          (_users[b] ?? '').toString(),
-        ),
-      );
-    return ListView.builder(
-      itemCount: sortedUserIds.length,
-      itemBuilder: (context, idx) {
-        final userId = sortedUserIds[idx];
-        final userName = _users[userId] ?? 'Unknown User';
-        final beneficiaries = grouped[userId]!;
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 18, 16, 6),
-              child: Text(
-                userName,
-                style: const TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.indigo,
-                ),
-              ),
-            ),
-            ...beneficiaries
-                .map((b) => _beneficiaryCard(b, isPending: isPending))
-                .toList(),
-          ],
-        );
-      },
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Beneficiaries'),
-        bottom: TabBar(
-          controller: _tabController,
-          tabs: const [
-            Tab(text: 'Pending'),
-            Tab(text: 'Active'),
+      backgroundColor: kBg,
+      body: Container(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [Color(0xFFF8FAFC), Color(0xFFF1F5F9)],
+          ),
+        ),
+        child: Column(
+          children: [
+            // Header
+            Container(
+              padding: const EdgeInsets.fromLTRB(20, 50, 20, 20),
+              decoration: BoxDecoration(
+                color: const Color(0xFF1E40AF),
+                borderRadius: const BorderRadius.only(
+                  bottomLeft: Radius.circular(24),
+                  bottomRight: Radius.circular(24),
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: const Color(0xFF1E40AF).withOpacity(0.3),
+                    blurRadius: 20,
+                    offset: const Offset(0, 8),
+                  ),
+                ],
+              ),
+              child: Row(
+                children: [
+                  IconButton(
+                    icon: const Icon(
+                      Icons.chevron_left,
+                      color: Colors.white,
+                      size: 24,
+                    ),
+                    onPressed: () => Navigator.pop(context),
+                  ),
+                  const Icon(
+                    Icons.people_rounded,
+                    color: Colors.white,
+                    size: 24,
+                  ),
+                  const SizedBox(width: 16),
+                  const Expanded(
+                    child: Text(
+                      'Beneficiaries',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w800,
+                        color: Colors.white,
+                        fontFamily: 'Montserrat',
+                        letterSpacing: 0.3,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            // Navigation Bar
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  _NavTab(
+                    label: 'Pending',
+                    icon: Icons.schedule_rounded,
+                    selected: _selectedTab == 0,
+                    onTap: () => setState(() => _selectedTab = 0),
+                  ),
+                  const SizedBox(width: 40),
+                  _NavTab(
+                    label: 'Active',
+                    icon: Icons.check_circle_rounded,
+                    selected: _selectedTab == 1,
+                    onTap: () => setState(() => _selectedTab = 1),
+                  ),
+                ],
+              ),
+            ),
+            // Search Bar (placeholder)
+            Container(
+              padding: const EdgeInsets.fromLTRB(20, 20, 20, 16),
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 12,
+                ),
+                decoration: BoxDecoration(
+                  color: Colors.grey[100],
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Row(
+                  children: const [
+                    Icon(Icons.search_rounded, color: Colors.grey, size: 20),
+                    SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        'Find beneficiary',
+                        style: TextStyle(
+                          color: Colors.grey,
+                          fontSize: 14,
+                          fontFamily: 'OpenSans',
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            // Content (wired to backend data)
+            Expanded(
+              child: RefreshIndicator(
+                onRefresh: _fetchBeneficiaries,
+                child: _loading
+                    ? const Center(child: CircularProgressIndicator())
+                    : (_selectedTab == 0
+                          ? _groupedList(_pendingByUser, isPending: true)
+                          : _groupedList(_activeByUser, isPending: false)),
+              ),
+            ),
           ],
         ),
       ),
-      body: _loading
-          ? const Center(child: CircularProgressIndicator())
-          : TabBarView(
-              controller: _tabController,
-              children: [
-                _groupedList(_pendingByUser, isPending: true),
-                _groupedList(_activeByUser),
-              ],
+    );
+  }
+}
+
+class _NavTab extends StatelessWidget {
+  final String label;
+  final IconData icon;
+  final bool selected;
+  final VoidCallback onTap;
+
+  const _NavTab({
+    required this.label,
+    required this.icon,
+    required this.selected,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                icon,
+                size: 16,
+                color: selected
+                    ? const Color(0xFF3B82F6)
+                    : const Color(0xFF6B7280),
+              ),
+              const SizedBox(width: 6),
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: selected
+                      ? const Color(0xFF3B82F6)
+                      : const Color(0xFF6B7280),
+                  fontFamily: 'Montserrat',
+                ),
+              ),
+            ],
+          ),
+          if (selected) ...[
+            const SizedBox(height: 4),
+            Container(
+              height: 2,
+              width: label.length * 8.0,
+              decoration: BoxDecoration(
+                color: const Color(0xFF3B82F6),
+                borderRadius: BorderRadius.circular(1),
+              ),
             ),
+          ],
+        ],
+      ),
     );
   }
 }
@@ -294,9 +543,6 @@ class _PdfViewer extends StatelessWidget {
         'PDF preview is not implemented.\nOpen this PDF in browser:\n$url',
         textAlign: TextAlign.center,
       ),
-      // For real PDF preview, use flutter_pdfview or advance_pdf_viewer package.
-      // Example:
-      // return PDFView(filePath: ...);
     );
   }
 }

@@ -170,8 +170,8 @@ class _RecentDeathNoticesState extends State<RecentDeathNotices> {
                       ),
                       const SizedBox(width: 20),
                       Expanded(
-                        child: Text(
-                          'Deaths and Vigil locations',
+                        child: Text(      
+                         'Recent Deaths',
                           style: TextStyle(
                             fontSize: isWide ? 32 : 28,
                             fontWeight: FontWeight.w900,
@@ -426,14 +426,14 @@ class _RecentDeathNoticesState extends State<RecentDeathNotices> {
                 ),
                 // Tabs
                 const TabBar(
-                  labelColor: Colors.indigo,
+                  labelColor: kPrimary,
                   unselectedLabelColor: Colors.black54,
-                  indicatorColor: Colors.indigo,
-                  tabs: [
-                    Tab(text: 'Members'),
-                    Tab(text: 'Beneficiaries'),
-                  ],
-                ),
+                  indicatorColor: kPrimary,
+                   tabs: [
+                     Tab(text: 'Members'),
+                     Tab(text: 'Beneficiaries'),
+                   ],
+                 ),
                 // Content
                 Expanded(
                   child: Container(
@@ -637,26 +637,26 @@ class _RecentDeathNoticesState extends State<RecentDeathNotices> {
               ],
             ),
             child: Material(
-              color: Colors.transparent,
-              child: InkWell(
-                borderRadius: BorderRadius.circular(20),
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => DeathNoticeDetail.byNoticeId(
-                        noticeId: notice['id'] as int,
-                        dayungUnitId: widget.dayungUnitId,
-                        name: notice['name']?.toString(),
-                        date: notice['date_of_death']?.toString(),
-                        barangay: notice['barangay']?.toString(),
-                      ),
-                    ),
-                  );
-                },
-                child: Padding(
-                  padding: const EdgeInsets.all(20),
-                  child: Row(
+                  color: Colors.transparent,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(20),
+        onTap: () {
+          showModalBottomSheet(
+            context: context,
+            isScrollControlled: true,
+            backgroundColor: Colors.transparent,
+            builder: (_) => DeathNoticeDetail.byNoticeId(
+              noticeId: notice['id'] as int,
+              dayungUnitId: widget.dayungUnitId,
+              name: notice['name']?.toString(),
+              date: notice['date_of_death']?.toString(),
+              barangay: notice['barangay']?.toString(),
+            ),
+          );
+        },
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Row(
                     children: [
                       Container(
                         padding: const EdgeInsets.all(12),

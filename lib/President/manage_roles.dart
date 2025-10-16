@@ -1,5 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:capstone_app/ui/theme/branding.dart';
+
+// Additional colors for manage roles specific styling
+const kText = Color(0xFF111827);
+const kSubText = Color(0xFF6B7280);
+const kPrimaryLight = Color(0xFF3B82F6);
+const kAccentDark = Color(0xFF059669);
+const kCardBg = Color(0xFFFFFFFF);
+const kBorderColor = Color(0xFFE5E7EB);
+const kSuccess = Color(0xFF10B981);
+const kDanger = Color(0xFFEF4444);
+const double kEdge = 16;
 
 class ManageRolesPagePres extends StatefulWidget {
   const ManageRolesPagePres({super.key});
@@ -59,16 +71,12 @@ class _ManageRolesPageState extends State<ManageRolesPagePres> {
 
   Future<void> _loadUnitData(int unitId) async {
     // load members of this unit
-    final apps = await sb
-        .from('applications')
-        .select('user:users(id, full_name, mobile_number)')
+    final usersRes = await sb
+        .from('users')
+        .select('id, full_name, mobile_number')
         .eq('dayung_unit_id', unitId)
-        .eq('status', 'approved')
-        .order('approved_at', ascending: true);
-
-    _members = List<Map<String, dynamic>>.from(
-      (apps as List).map((r) => (r['user'] as Map?) ?? const {}),
-    ).where((u) => u.isNotEmpty).toList();
+        .order('full_name', ascending: true);
+    _members = List<Map<String, dynamic>>.from(usersRes);
 
     // load secretary/treasurer
     final du = await sb
@@ -96,70 +104,47 @@ class _ManageRolesPageState extends State<ManageRolesPagePres> {
 
   Future<void> _setSecretary(String? userId) async {
     if (_unitId == null) return;
-    if (userId == null) {
-      await sb.rpc('pres_clear_secretary', params: {'p_unit_id': _unitId});
-      _secretaryId = null;
-      _snack('Secretary cleared.');
-    } else {
-      await sb.rpc(
-        'pres_set_secretary',
-        params: {'p_unit_id': _unitId, 'p_user_id': userId},
-      );
-      _secretaryId = userId;
-      _snack('Secretary updated.');
-    }
-    await _loadUnitData(_unitId!);
+    await sb
+        .from('dayung_units')
+        .update({'secretary_id': userId})
+        .eq('id', _unitId!);
+    _secretaryId = userId;
     setState(() {});
+    _snack('Secretary updated.');
   }
 
   Future<void> _setTreasurer(String? userId) async {
     if (_unitId == null) return;
-    if (userId == null) {
-      await sb.rpc('pres_clear_treasurer', params: {'p_unit_id': _unitId});
-      _treasurerId = null;
-      _snack('Treasurer cleared.');
-    } else {
-      await sb.rpc(
-        'pres_set_treasurer',
-        params: {'p_unit_id': _unitId, 'p_user_id': userId},
-      );
-      _treasurerId = userId;
-      _snack('Treasurer updated.');
-    }
-    await _loadUnitData(_unitId!);
+    await sb
+        .from('dayung_units')
+        .update({'treasurer_id': userId})
+        .eq('id', _unitId!);
+    _treasurerId = userId;
     setState(() {});
+    _snack('Treasurer updated.');
   }
 
   Future<void> _addCollector(String userId) async {
     if (_unitId == null) return;
-
-    // Use RPC to insert + set users.role atomically under definer
-    await sb.rpc(
-      'pres_add_collector',
-      params: {'p_unit_id': _unitId, 'p_user_id': userId},
-    );
-
+    await sb.from('dayung_collectors').insert({
+      'dayung_unit_id': _unitId!,
+      'user_id': userId,
+      'added_by': sb.auth.currentUser?.id,
+    });
     _collectors.add(userId);
     setState(() {});
     _snack('Collector added.');
-    // Refresh lists
-    await _loadUnitData(_unitId!);
   }
 
   Future<void> _removeCollector(String userId) async {
     if (_unitId == null) return;
-
-    // Use RPC to delete + revert role if needed
-    await sb.rpc(
-      'pres_remove_collector',
-      params: {'p_unit_id': _unitId, 'p_user_id': userId},
-    );
-
+    await sb.from('dayung_collectors').delete().match({
+      'dayung_unit_id': _unitId!,
+      'user_id': userId,
+    });
     _collectors.remove(userId);
     setState(() {});
     _snack('Collector removed.');
-    // Refresh lists
-    await _loadUnitData(_unitId!);
   }
 
   void _snack(String m) {
@@ -170,80 +155,272 @@ class _ManageRolesPageState extends State<ManageRolesPagePres> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Manage Roles')),
-      body: _loading
-          ? const Center(child: CircularProgressIndicator())
-          : _units.isEmpty
-          ? const Center(child: Text('No dayung units found for your account'))
-          : Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                children: [
-                  // Unit picker
-                  Row(
-                    children: [
-                      const Text(
-                        'Dayung Unit:',
-                        style: TextStyle(fontWeight: FontWeight.w700),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: DropdownButtonFormField<int>(
-                          value: _unitId,
-                          items: _units
-                              .map(
-                                (u) => DropdownMenuItem<int>(
-                                  value:
-                                      (u['id'] as int?) ??
-                                      int.tryParse('${u['id']}'),
-                                  child: Text(
-                                    (u['name'] ?? 'Unit ${u['id']}').toString(),
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                ),
-                              )
-                              .toList(),
-                          onChanged: (v) async {
-                            _unitId = v;
-                            setState(() => _loading = true);
-                            try {
-                              if (v != null) await _loadUnitData(v);
-                            } finally {
-                              if (mounted) setState(() => _loading = false);
-                            }
-                          },
-                        ),
-                      ),
-                    ],
+      backgroundColor: kBg,
+      body: Container(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [Color(0xFFF8FAFC), Color(0xFFF1F5F9)],
+          ),
+        ),
+        child: SafeArea(
+          child: Column(
+            children: [
+              // Custom App Bar
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 20,
+                  vertical: 16,
+                ),
+                decoration: BoxDecoration(
+                  color: kPrimary,
+                  borderRadius: const BorderRadius.only(
+                    bottomLeft: Radius.circular(24),
+                    bottomRight: Radius.circular(24),
                   ),
-                  const SizedBox(height: 16),
-
-                  Expanded(
-                    child: ListView(
-                      children: [
-                        _roleTile(
-                          title: 'Secretary',
-                          currentUserId: _secretaryId,
-                          members: _members,
-                          onAssign: (id) => _setSecretary(id),
-                          onClear: () => _setSecretary(null),
-                        ),
-                        const SizedBox(height: 10),
-                        _roleTile(
-                          title: 'Treasurer',
-                          currentUserId: _treasurerId,
-                          members: _members,
-                          onAssign: (id) => _setTreasurer(id),
-                          onClear: () => _setTreasurer(null),
-                        ),
-                        const SizedBox(height: 10),
-                        _collectorsTile(),
-                      ],
+                  boxShadow: [
+                    BoxShadow(
+                      color: kPrimary.withOpacity(0.3),
+                      blurRadius: 20,
+                      offset: const Offset(0, 8),
                     ),
-                  ),
-                ],
+                  ],
+                ),
+                child: Row(
+                  children: [
+                    IconButton(
+                      icon: const Icon(
+                        Icons.arrow_back_ios_rounded,
+                        size: 24,
+                        color: Colors.white,
+                      ),
+                      onPressed: () => Navigator.pop(context),
+                      tooltip: 'Back',
+                    ),
+                    Expanded(
+                      child: Text(
+                        'Manage Roles',
+                        style: TextStyle(
+                          fontSize: 24,
+                          fontWeight: FontWeight.w800,
+                          color: Colors.white,
+                          fontFamily: 'Montserrat',
+                          letterSpacing: 0.3,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               ),
-            ),
+              // Content
+              Expanded(
+                child: _loading
+                    ? Center(
+                        child: CircularProgressIndicator(
+                          color: kPrimary,
+                          strokeWidth: 3,
+                        ),
+                      )
+                    : _units.isEmpty
+                    ? Center(
+                        child: Container(
+                          margin: const EdgeInsets.all(20),
+                          padding: const EdgeInsets.all(24),
+                          decoration: BoxDecoration(
+                            color: kCardBg,
+                            borderRadius: BorderRadius.circular(20),
+                            border: Border.all(
+                              color: kBorderColor.withOpacity(0.3),
+                              width: 1,
+                            ),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withOpacity(0.05),
+                                blurRadius: 15,
+                                offset: const Offset(0, 6),
+                              ),
+                            ],
+                          ),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                Icons.admin_panel_settings_rounded,
+                                size: 48,
+                                color: kSubText,
+                              ),
+                              const SizedBox(height: 16),
+                              Text(
+                                'No dayung units found',
+                                style: TextStyle(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.w700,
+                                  color: kText,
+                                  fontFamily: 'Montserrat',
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                              Text(
+                                'No dayung units found for your account',
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  color: kSubText,
+                                  fontFamily: 'OpenSans',
+                                ),
+                                textAlign: TextAlign.center,
+                              ),
+                            ],
+                          ),
+                        ),
+                      )
+                    : Padding(
+                        padding: const EdgeInsets.all(20),
+                        child: Column(
+                          children: [
+                            // Unit picker
+                            Container(
+                              padding: const EdgeInsets.all(20),
+                              decoration: BoxDecoration(
+                                color: kCardBg,
+                                borderRadius: BorderRadius.circular(20),
+                                border: Border.all(
+                                  color: kBorderColor.withOpacity(0.3),
+                                  width: 1,
+                                ),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.black.withOpacity(0.05),
+                                    blurRadius: 15,
+                                    offset: const Offset(0, 6),
+                                  ),
+                                ],
+                              ),
+                              child: Row(
+                                children: [
+                                  Container(
+                                    padding: const EdgeInsets.all(8),
+                                    decoration: BoxDecoration(
+                                      color: kPrimary.withOpacity(0.1),
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                    child: const Icon(
+                                      Icons.location_on_rounded,
+                                      color: kPrimary,
+                                      size: 20,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Text(
+                                    'Dayung Unit:',
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.w700,
+                                      fontSize: 16,
+                                      color: kText,
+                                      fontFamily: 'Montserrat',
+                                    ),
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: DropdownButtonFormField<int>(
+                                      value: _unitId,
+                                      decoration: InputDecoration(
+                                        filled: true,
+                                        fillColor: kCardBg,
+                                        border: OutlineInputBorder(
+                                          borderRadius: BorderRadius.circular(
+                                            12,
+                                          ),
+                                          borderSide: BorderSide(
+                                            color: kBorderColor,
+                                            width: 1,
+                                          ),
+                                        ),
+                                        enabledBorder: OutlineInputBorder(
+                                          borderRadius: BorderRadius.circular(
+                                            12,
+                                          ),
+                                          borderSide: BorderSide(
+                                            color: kBorderColor,
+                                            width: 1,
+                                          ),
+                                        ),
+                                        focusedBorder: OutlineInputBorder(
+                                          borderRadius: BorderRadius.circular(
+                                            12,
+                                          ),
+                                          borderSide: BorderSide(
+                                            color: kPrimary,
+                                            width: 2,
+                                          ),
+                                        ),
+                                      ),
+                                      items: _units
+                                          .map(
+                                            (u) => DropdownMenuItem<int>(
+                                              value:
+                                                  (u['id'] as int?) ??
+                                                  int.tryParse('${u['id']}'),
+                                              child: Text(
+                                                (u['name'] ?? 'Unit ${u['id']}')
+                                                    .toString(),
+                                                overflow: TextOverflow.ellipsis,
+                                                style: const TextStyle(
+                                                  fontFamily: 'OpenSans',
+                                                  fontWeight: FontWeight.w600,
+                                                ),
+                                              ),
+                                            ),
+                                          )
+                                          .toList(),
+                                      onChanged: (v) async {
+                                        _unitId = v;
+                                        setState(() => _loading = true);
+                                        try {
+                                          if (v != null) await _loadUnitData(v);
+                                        } finally {
+                                          if (mounted)
+                                            setState(() => _loading = false);
+                                        }
+                                      },
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(height: 20),
+
+                            Expanded(
+                              child: ListView(
+                                children: [
+                                  _roleTile(
+                                    title: 'Secretary',
+                                    currentUserId: _secretaryId,
+                                    members: _members,
+                                    onAssign: (id) => _setSecretary(id),
+                                    onClear: () => _setSecretary(null),
+                                  ),
+                                  const SizedBox(height: 16),
+                                  _roleTile(
+                                    title: 'Treasurer',
+                                    currentUserId: _treasurerId,
+                                    members: _members,
+                                    onAssign: (id) => _setTreasurer(id),
+                                    onClear: () => _setTreasurer(null),
+                                  ),
+                                  const SizedBox(height: 16),
+                                  _collectorsTile(),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 
@@ -259,90 +436,301 @@ class _ManageRolesPageState extends State<ManageRolesPagePres> {
       orElse: () => const {'id': null, 'full_name': null},
     );
 
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              title,
-              style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16),
-            ),
-            const SizedBox(height: 6),
-            Row(
-              children: [
-                Expanded(
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: kCardBg,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: kBorderColor.withOpacity(0.3), width: 1),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 15,
+            offset: const Offset(0, 6),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: kPrimary.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(
+                  title == 'Secretary'
+                      ? Icons.admin_panel_settings_rounded
+                      : Icons.account_balance_wallet_rounded,
+                  color: kPrimary,
+                  size: 20,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Text(
+                title,
+                style: TextStyle(
+                  fontWeight: FontWeight.w800,
+                  fontSize: 18,
+                  color: kText,
+                  fontFamily: 'Montserrat',
+                  letterSpacing: 0.3,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              Expanded(
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 12,
+                  ),
+                  decoration: BoxDecoration(
+                    color: kBorderColor.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: kBorderColor.withOpacity(0.3),
+                      width: 1,
+                    ),
+                  ),
                   child: Text(
                     currentUserId == null
                         ? 'Not assigned'
                         : '${current['full_name'] ?? currentUserId} (${currentUserId.substring(0, 6)}...)',
-                    style: const TextStyle(fontWeight: FontWeight.w600),
+                    style: TextStyle(
+                      fontWeight: FontWeight.w600,
+                      fontSize: 14,
+                      color: currentUserId == null ? kSubText : kText,
+                      fontFamily: 'OpenSans',
+                    ),
                     overflow: TextOverflow.ellipsis,
                   ),
                 ),
-                TextButton(
-                  onPressed: () => _pickMember(members).then((id) {
-                    if (id != null) onAssign(id);
-                  }),
-                  child: const Text('Assign'),
+              ),
+              const SizedBox(width: 12),
+              ElevatedButton(
+                onPressed: () => _pickMember(members).then((id) {
+                  if (id != null) onAssign(id);
+                }),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: kPrimary,
+                  foregroundColor: Colors.white,
+                  elevation: 0,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 12,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
                 ),
-                const SizedBox(width: 6),
-                if (currentUserId != null)
-                  TextButton(onPressed: onClear, child: const Text('Clear')),
+                child: const Text(
+                  'Assign',
+                  style: TextStyle(
+                    fontWeight: FontWeight.w700,
+                    fontSize: 14,
+                    fontFamily: 'OpenSans',
+                  ),
+                ),
+              ),
+              if (currentUserId != null) ...[
+                const SizedBox(width: 8),
+                OutlinedButton(
+                  onPressed: onClear,
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: kDanger,
+                    side: BorderSide(color: kDanger, width: 1.5),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 12,
+                    ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                  child: const Text(
+                    'Clear',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w700,
+                      fontSize: 14,
+                      fontFamily: 'OpenSans',
+                    ),
+                  ),
+                ),
               ],
-            ),
-          ],
-        ),
+            ],
+          ),
+        ],
       ),
     );
   }
 
   Widget _collectorsTile() {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              'Collectors',
-              style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16),
-            ),
-            const SizedBox(height: 6),
-            Wrap(
-              spacing: 8,
-              runSpacing: -6,
-              children: _collectors.isEmpty
-                  ? [const Text('None assigned')]
-                  : _collectors.map((id) {
-                      final user = _members.firstWhere(
-                        (m) => (m['id'] ?? '').toString() == id,
-                        orElse: () => const {'full_name': null},
-                      );
-                      final name = (user['full_name'] ?? id).toString();
-                      return Chip(
-                        label: Text(name, overflow: TextOverflow.ellipsis),
-                        deleteIcon: const Icon(Icons.close),
-                        onDeleted: () => _removeCollector(id),
-                      );
-                    }).toList(),
-            ),
-            const SizedBox(height: 6),
-            Align(
-              alignment: Alignment.centerLeft,
-              child: OutlinedButton.icon(
-                onPressed: () => _pickMember(_members, multi: false).then((id) {
-                  if (id != null && !_collectors.contains(id)) {
-                    _addCollector(id);
-                  }
-                }),
-                icon: const Icon(Icons.person_add_alt),
-                label: const Text('Add Collector'),
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: kCardBg,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: kBorderColor.withOpacity(0.3), width: 1),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 15,
+            offset: const Offset(0, 6),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: kPrimary.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Icon(
+                  Icons.people_rounded,
+                  color: kPrimary,
+                  size: 20,
+                ),
+              ),
+              const SizedBox(width: 12),
+              const Text(
+                'Collectors',
+                style: TextStyle(
+                  fontWeight: FontWeight.w800,
+                  fontSize: 18,
+                  color: kText,
+                  fontFamily: 'Montserrat',
+                  letterSpacing: 0.3,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: _collectors.isEmpty
+                ? [
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 12,
+                      ),
+                      decoration: BoxDecoration(
+                        color: kBorderColor.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: kBorderColor.withOpacity(0.3),
+                          width: 1,
+                        ),
+                      ),
+                      child: Text(
+                        'None assigned',
+                        style: TextStyle(
+                          fontWeight: FontWeight.w600,
+                          fontSize: 14,
+                          color: kSubText,
+                          fontFamily: 'OpenSans',
+                        ),
+                      ),
+                    ),
+                  ]
+                : _collectors.map((id) {
+                    final user = _members.firstWhere(
+                      (m) => (m['id'] ?? '').toString() == id,
+                      orElse: () => const {'full_name': null},
+                    );
+                    final name = (user['full_name'] ?? id).toString();
+                    return Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 8,
+                      ),
+                      decoration: BoxDecoration(
+                        color: kPrimary.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: kPrimary.withOpacity(0.3),
+                          width: 1,
+                        ),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            name,
+                            style: const TextStyle(
+                              fontWeight: FontWeight.w600,
+                              fontSize: 14,
+                              color: kPrimary,
+                              fontFamily: 'OpenSans',
+                            ),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          const SizedBox(width: 6),
+                          GestureDetector(
+                            onTap: () => _removeCollector(id),
+                            child: Container(
+                              padding: const EdgeInsets.all(2),
+                              decoration: BoxDecoration(
+                                color: kDanger.withOpacity(0.1),
+                                borderRadius: BorderRadius.circular(6),
+                              ),
+                              child: const Icon(
+                                Icons.close_rounded,
+                                size: 14,
+                                color: kDanger,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  }).toList(),
+          ),
+          const SizedBox(height: 16),
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              onPressed: () => _pickMember(_members, multi: false).then((id) {
+                if (id != null && !_collectors.contains(id)) {
+                  _addCollector(id);
+                }
+              }),
+              icon: const Icon(Icons.person_add_rounded, size: 18),
+              label: const Text(
+                'Add Collector',
+                style: TextStyle(
+                  fontWeight: FontWeight.w700,
+                  fontSize: 14,
+                  fontFamily: 'OpenSans',
+                ),
+              ),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: kPrimary,
+                side: BorderSide(color: kPrimary, width: 1.5),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 20,
+                  vertical: 14,
+                ),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
               ),
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
@@ -355,72 +743,178 @@ class _ManageRolesPageState extends State<ManageRolesPagePres> {
     return showModalBottomSheet<String>(
       context: context,
       isScrollControlled: true,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-      ),
+      backgroundColor: Colors.transparent,
       builder: (_) {
-        return Padding(
-          padding: EdgeInsets.only(
-            left: 12,
-            right: 12,
-            top: 10,
-            bottom: MediaQuery.of(context).viewInsets.bottom + 12,
+        return Container(
+          decoration: const BoxDecoration(
+            color: kCardBg,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black26,
+                blurRadius: 20,
+                offset: Offset(0, -5),
+              ),
+            ],
           ),
-          child: StatefulBuilder(
-            builder: (ctx, setM) {
-              final q = controller.text.trim().toLowerCase();
-              final list = q.isEmpty
-                  ? members
-                  : members.where((m) {
-                      final name = (m['full_name'] ?? '')
-                          .toString()
-                          .toLowerCase();
-                      final id = (m['id'] ?? '').toString().toLowerCase();
-                      return name.contains(q) || id.contains(q);
-                    }).toList();
-              return SizedBox(
-                height: MediaQuery.of(context).size.height * 0.7,
-                child: Column(
-                  children: [
-                    TextField(
-                      controller: controller,
-                      decoration: const InputDecoration(
-                        hintText: 'Search member',
-                        prefixIcon: Icon(Icons.search),
+          child: Padding(
+            padding: EdgeInsets.only(
+              left: 20,
+              right: 20,
+              top: 20,
+              bottom: MediaQuery.of(context).viewInsets.bottom + 20,
+            ),
+            child: StatefulBuilder(
+              builder: (ctx, setM) {
+                final q = controller.text.trim().toLowerCase();
+                final list = q.isEmpty
+                    ? members
+                    : members.where((m) {
+                        final name = (m['full_name'] ?? '')
+                            .toString()
+                            .toLowerCase();
+                        final id = (m['id'] ?? '').toString().toLowerCase();
+                        return name.contains(q) || id.contains(q);
+                      }).toList();
+                return SizedBox(
+                  height: MediaQuery.of(context).size.height * 0.7,
+                  child: Column(
+                    children: [
+                      // Handle bar
+                      Container(
+                        width: 40,
+                        height: 4,
+                        margin: const EdgeInsets.only(bottom: 20),
+                        decoration: BoxDecoration(
+                          color: kBorderColor,
+                          borderRadius: BorderRadius.circular(2),
+                        ),
                       ),
-                      onChanged: (_) => setM(() {}),
-                    ),
-                    const SizedBox(height: 10),
-                    Expanded(
-                      child: list.isEmpty
-                          ? const Center(child: Text('No members found'))
-                          : ListView.separated(
-                              itemCount: list.length,
-                              separatorBuilder: (_, __) =>
-                                  const Divider(height: 1),
-                              itemBuilder: (_, i) {
-                                final u = list[i];
-                                return ListTile(
-                                  leading: const CircleAvatar(
-                                    child: Icon(Icons.person),
-                                  ),
-                                  title: Text(
-                                    (u['full_name'] ?? 'Member').toString(),
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                  subtitle: Text((u['id'] ?? '').toString()),
-                                  onTap: () => Navigator.pop(
-                                    context,
-                                    (u['id'] ?? '').toString(),
-                                  ),
-                                );
-                              },
+                      // Search field
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 4,
+                        ),
+                        decoration: BoxDecoration(
+                          color: kBorderColor.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: kBorderColor.withOpacity(0.3),
+                            width: 1,
+                          ),
+                        ),
+                        child: TextField(
+                          controller: controller,
+                          decoration: const InputDecoration(
+                            hintText: 'Search member...',
+                            hintStyle: TextStyle(
+                              color: kSubText,
+                              fontFamily: 'OpenSans',
                             ),
-                    ),
-                  ],
-                ),
-              );
-            },
+                            prefixIcon: Icon(
+                              Icons.search_rounded,
+                              color: kSubText,
+                            ),
+                            border: InputBorder.none,
+                          ),
+                          style: const TextStyle(
+                            fontFamily: 'OpenSans',
+                            fontWeight: FontWeight.w600,
+                          ),
+                          onChanged: (_) => setM(() {}),
+                        ),
+                      ),
+                      const SizedBox(height: 20),
+                      // Members list
+                      Expanded(
+                        child: list.isEmpty
+                            ? Center(
+                                child: Column(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Icon(
+                                      Icons.search_off_rounded,
+                                      size: 48,
+                                      color: kSubText,
+                                    ),
+                                    const SizedBox(height: 16),
+                                    Text(
+                                      'No members found',
+                                      style: TextStyle(
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.w600,
+                                        color: kSubText,
+                                        fontFamily: 'Montserrat',
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              )
+                            : ListView.separated(
+                                itemCount: list.length,
+                                separatorBuilder: (_, __) =>
+                                    const SizedBox(height: 8),
+                                itemBuilder: (_, i) {
+                                  final u = list[i];
+                                  return Container(
+                                    padding: const EdgeInsets.all(16),
+                                    decoration: BoxDecoration(
+                                      color: kBorderColor.withOpacity(0.05),
+                                      borderRadius: BorderRadius.circular(12),
+                                      border: Border.all(
+                                        color: kBorderColor.withOpacity(0.2),
+                                        width: 1,
+                                      ),
+                                    ),
+                                    child: ListTile(
+                                      contentPadding: EdgeInsets.zero,
+                                      leading: Container(
+                                        padding: const EdgeInsets.all(8),
+                                        decoration: BoxDecoration(
+                                          color: kPrimary.withOpacity(0.1),
+                                          borderRadius: BorderRadius.circular(
+                                            12,
+                                          ),
+                                        ),
+                                        child: const Icon(
+                                          Icons.person_rounded,
+                                          color: kPrimary,
+                                          size: 20,
+                                        ),
+                                      ),
+                                      title: Text(
+                                        (u['full_name'] ?? 'Member').toString(),
+                                        style: const TextStyle(
+                                          fontWeight: FontWeight.w700,
+                                          fontSize: 16,
+                                          color: kText,
+                                          fontFamily: 'Montserrat',
+                                        ),
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                      subtitle: Text(
+                                        (u['id'] ?? '').toString(),
+                                        style: const TextStyle(
+                                          fontSize: 12,
+                                          color: kSubText,
+                                          fontFamily: 'OpenSans',
+                                        ),
+                                      ),
+                                      onTap: () => Navigator.pop(
+                                        context,
+                                        (u['id'] ?? '').toString(),
+                                      ),
+                                    ),
+                                  );
+                                },
+                              ),
+                      ),
+                    ],
+                  ),
+                );
+              },
+            ),
           ),
         );
       },

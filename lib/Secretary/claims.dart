@@ -1,4 +1,5 @@
 import 'dart:io';
+
 import 'package:capstone_app/Providers/dayung_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -8,8 +9,9 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:photo_view/photo_view.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:http/http.dart' as http;
+import 'package:capstone_app/ui/theme/branding.dart';
 
-// Shared palette (aligns with dashboard.dart)
+// Old palette (kept so old logic/widgets compile)
 const Color kPrimary = Color(0xFF0D47A1);
 const Color kPrimaryDark = Color(0xFF083366);
 const Color kAccent = Color(0xFF2E7D32);
@@ -18,6 +20,10 @@ const Color kDanger = Color(0xFFC62828);
 const Color kNeutralText = Color(0xFF1F2937);
 const Color kSubtleText = Color(0xFF4B5563);
 const double kRadius = 18;
+
+// Extra tones used by new UI
+const kCardBg = Color(0xFFFFFFFF);
+const kBorderColor = Color(0xFFE5E7EB);
 
 class SecretaryClaimsPage extends StatefulWidget {
   const SecretaryClaimsPage({super.key});
@@ -47,7 +53,6 @@ class _SecretaryClaimsPageState extends State<SecretaryClaimsPage>
     _tabController = TabController(length: _tabs.length, vsync: this);
     _tabController.addListener(() {
       if (_tabController.indexIsChanging) return;
-      // Pass the last known unit id so we don't lose context
       _fetchClaims(forUnitId: _lastUnitId, tabSwitch: true);
     });
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -60,7 +65,6 @@ class _SecretaryClaimsPageState extends State<SecretaryClaimsPage>
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    // Watch for global Dayung switches
     final currentId = context.watch<DayungUnitProvider>().currentUnitId;
     if (currentId != _lastUnitId) {
       _lastUnitId = currentId;
@@ -87,7 +91,6 @@ class _SecretaryClaimsPageState extends State<SecretaryClaimsPage>
 
     _lastUnitId = unitId;
 
-    // Only show spinner on full reload, not simple tab switch (optional)
     if (!tabSwitch) {
       if (mounted) setState(() => _loading = true);
     }
@@ -117,6 +120,7 @@ class _SecretaryClaimsPageState extends State<SecretaryClaimsPage>
 
       final statusTitle = _tabs[_tabController.index];
 
+      // New scheme: claims tagged with unit
       final tagged = await supabase
           .from('claims')
           .select(
@@ -129,6 +133,7 @@ class _SecretaryClaimsPageState extends State<SecretaryClaimsPage>
 
       final taggedList = List<Map<String, dynamic>>.from(tagged);
 
+      // Legacy: claims without dayung_unit_id but by members of this unit
       List<Map<String, dynamic>> legacyList = [];
       if (allowedUserIds.isNotEmpty) {
         final legacy = await supabase
@@ -144,6 +149,7 @@ class _SecretaryClaimsPageState extends State<SecretaryClaimsPage>
         legacyList = List<Map<String, dynamic>>.from(legacy);
       }
 
+      // Merge
       final merged = <String, Map<String, dynamic>>{};
       for (final c in legacyList) {
         merged[c['id'].toString()] = c;
@@ -223,8 +229,9 @@ class _SecretaryClaimsPageState extends State<SecretaryClaimsPage>
     if (birthIso == null ||
         birthIso.isEmpty ||
         deathIso == null ||
-        deathIso.isEmpty)
+        deathIso.isEmpty) {
       return null;
+    }
     final b =
         DateTime.tryParse(birthIso) ??
         DateTime.tryParse('${birthIso}T00:00:00');
@@ -246,10 +253,6 @@ class _SecretaryClaimsPageState extends State<SecretaryClaimsPage>
           .from('claims')
           .update({'status': newStatusTitleCase})
           .eq('id', claimId);
-
-      // If approved, stop here. Finalize in deathnotice.dart via "Set Deceased".
-      // Remove automatic users/beneficiaries update and death_notices insert here.
-
       await _fetchClaims();
     } catch (e) {
       debugPrint("Error updating status: $e");
@@ -273,12 +276,12 @@ class _SecretaryClaimsPageState extends State<SecretaryClaimsPage>
   IconData _statusIcon(String s) {
     switch (s.toLowerCase()) {
       case 'approved':
-        return Icons.verified;
+        return Icons.check_circle;
       case 'rejected':
-        return Icons.cancel_outlined;
+        return Icons.cancel;
       case 'pending':
       default:
-        return Icons.pending_actions;
+        return Icons.schedule;
     }
   }
 
@@ -307,81 +310,218 @@ class _SecretaryClaimsPageState extends State<SecretaryClaimsPage>
         context.watch<DayungUnitProvider>().dayungUnit ?? 'Dayung';
 
     return Scaffold(
-      backgroundColor: const Color(0xFFFAFAF7),
-      appBar: AppBar(
-        backgroundColor: Colors.white,
-        surfaceTintColor: Colors.white,
-
-        bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(70),
-          child: Column(
-            children: [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
-                child: _searchField(),
-              ),
-              TabBar(
-                controller: _tabController,
-                // ...unchanged tab styling...
-                tabs: _tabs.map((t) {
-                  final active = t == currentStatus;
-                  return Tab(
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(
-                          _statusIcon(t),
-                          size: 18,
-                          color: active ? _statusColor(t) : kSubtleText,
-                        ),
-                        const SizedBox(width: 6),
-                        Text(t),
-                      ],
-                    ),
-                  );
-                }).toList(),
-              ),
-              const SizedBox(height: 8),
-            ],
-          ),
-        ),
-      ),
+      backgroundColor: const Color(0xFFF8FAFC),
       body: Stack(
         children: [
-          _loading
-              ? ListView(
-                  padding: const EdgeInsets.only(top: 40),
-                  children: [_skeletonCard(), _skeletonCard(), _skeletonCard()],
-                )
-              : (claims.isEmpty
-                    ? ListView(
+          Column(
+            children: [
+              // Header with search (new UI style)
+              Container(
+                padding: const EdgeInsets.fromLTRB(20, 50, 20, 12),
+                child: _searchField(),
+              ),
+              // Tab Bar (new UI style)
+              Container(
+                margin: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+                child: TabBar(
+                  controller: _tabController,
+                  isScrollable: false,
+                  tabAlignment: TabAlignment.fill,
+                  labelStyle: const TextStyle(
+                    fontWeight: FontWeight.w700,
+                    fontSize: 10,
+                    fontFamily: 'Montserrat',
+                  ),
+                  unselectedLabelStyle: const TextStyle(
+                    fontWeight: FontWeight.w600,
+                    fontSize: 10,
+                    fontFamily: 'Montserrat',
+                  ),
+                  labelColor: kPrimary,
+                  unselectedLabelColor: kSubtleText,
+                  indicator: const UnderlineTabIndicator(
+                    borderSide: BorderSide(color: kPrimary, width: 2),
+                  ),
+                  tabs: _tabs.map((t) {
+                    final active = t == currentStatus;
+                    return Tab(
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        mainAxisSize: MainAxisSize.min,
                         children: [
-                          const SizedBox(height: 120),
                           Icon(
-                            _statusIcon(currentStatus),
-                            size: 54,
-                            color: _statusColor(currentStatus).withOpacity(.6),
+                            _statusIcon(t),
+                            size: 12,
+                            color: active ? kPrimary : kSubtleText,
                           ),
-                          const SizedBox(height: 16),
-                          Center(
+                          const SizedBox(width: 2),
+                          Flexible(
                             child: Text(
-                              "No $currentStatus claims",
-                              style: const TextStyle(
-                                fontSize: 16,
-                                fontFamily: 'OpenSans',
-                                fontWeight: FontWeight.w600,
-                                color: kNeutralText,
+                              t,
+                              style: TextStyle(
+                                fontSize: 10,
+                                fontWeight: active
+                                    ? FontWeight.w700
+                                    : FontWeight.w600,
+                                fontFamily: 'Montserrat',
+                                color: active ? kPrimary : kSubtleText,
                               ),
+                              overflow: TextOverflow.ellipsis,
                             ),
                           ),
                         ],
+                      ),
+                    );
+                  }).toList(),
+                ),
+              ),
+              // Current Dayung banner (read-only, from provider)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
+                child: Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 12,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.grey.shade100,
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(color: Colors.grey.shade200),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(
+                        Icons.home_work_outlined,
+                        size: 16,
+                        color: kSubtleText,
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          dayungName,
+                          style: const TextStyle(
+                            fontSize: 13,
+                            fontFamily: 'OpenSans',
+                            fontWeight: FontWeight.w600,
+                            color: kSubtleText,
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              // List content
+              Expanded(
+                child: _loading
+                    ? Center(
+                        child: Container(
+                          padding: const EdgeInsets.all(24),
+                          decoration: BoxDecoration(
+                            color: kCardBg,
+                            borderRadius: BorderRadius.circular(20),
+                            border: Border.all(
+                              color: kBorderColor.withOpacity(0.3),
+                              width: 1,
+                            ),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withOpacity(0.05),
+                                blurRadius: 15,
+                                offset: const Offset(0, 6),
+                              ),
+                            ],
+                          ),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              CircularProgressIndicator(
+                                color: kPrimary,
+                                strokeWidth: 3,
+                              ),
+                              const SizedBox(height: 16),
+                              const Text(
+                                'Loading claims...',
+                                style: TextStyle(
+                                  color: kSubtleText,
+                                  fontSize: 16,
+                                  fontFamily: 'OpenSans',
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
                       )
-                    : ListView.separated(
-                        padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
-                        itemCount: claims.length,
-                        separatorBuilder: (_, __) => const SizedBox(height: 14),
-                        itemBuilder: (_, i) => _claimCard(claims[i]),
-                      )),
+                    : (claims.isEmpty
+                          ? SingleChildScrollView(
+                              child: Container(
+                                margin: const EdgeInsets.all(20),
+                                padding: const EdgeInsets.all(24),
+                                decoration: BoxDecoration(
+                                  color: kCardBg,
+                                  borderRadius: BorderRadius.circular(20),
+                                  border: Border.all(
+                                    color: kBorderColor.withOpacity(0.3),
+                                    width: 1,
+                                  ),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: Colors.black.withOpacity(0.05),
+                                      blurRadius: 15,
+                                      offset: const Offset(0, 6),
+                                    ),
+                                  ],
+                                ),
+                                child: Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(
+                                      _statusIcon(currentStatus),
+                                      size: 48,
+                                      color: _statusColor(
+                                        currentStatus,
+                                      ).withOpacity(0.6),
+                                    ),
+                                    const SizedBox(height: 16),
+                                    const Text(
+                                      "No claims found",
+                                      style: TextStyle(
+                                        fontSize: 18,
+                                        fontWeight: FontWeight.w700,
+                                        color: kNeutralText,
+                                        fontFamily: 'Montserrat',
+                                      ),
+                                      textAlign: TextAlign.center,
+                                    ),
+                                    const SizedBox(height: 8),
+                                    const Text(
+                                      "No claims for the selected status in this Dayung",
+                                      style: TextStyle(
+                                        fontSize: 14,
+                                        color: kSubtleText,
+                                        fontFamily: 'OpenSans',
+                                      ),
+                                      textAlign: TextAlign.center,
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            )
+                          : ListView.separated(
+                              padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
+                              itemCount: claims.length,
+                              separatorBuilder: (_, __) =>
+                                  const SizedBox(height: 8),
+                              itemBuilder: (_, i) => _claimCard(claims[i]),
+                            )),
+              ),
+            ],
+          ),
+
+          // Updating overlay (keep as overlay)
           if (_updating)
             Positioned(
               left: 0,
@@ -390,12 +530,19 @@ class _SecretaryClaimsPageState extends State<SecretaryClaimsPage>
               child: Center(
                 child: Container(
                   padding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 10,
+                    horizontal: 20,
+                    vertical: 12,
                   ),
                   decoration: BoxDecoration(
-                    color: Colors.black.withOpacity(.75),
+                    color: kPrimary,
                     borderRadius: BorderRadius.circular(30),
+                    boxShadow: [
+                      BoxShadow(
+                        color: kPrimary.withOpacity(0.3),
+                        blurRadius: 12,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
                   ),
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
@@ -415,7 +562,7 @@ class _SecretaryClaimsPageState extends State<SecretaryClaimsPage>
                         "Updating...",
                         style: TextStyle(
                           color: Colors.white,
-                          fontSize: 13,
+                          fontSize: 14,
                           fontFamily: 'OpenSans',
                           fontWeight: FontWeight.w600,
                         ),
@@ -434,54 +581,39 @@ class _SecretaryClaimsPageState extends State<SecretaryClaimsPage>
     return TextField(
       controller: _searchCtrl,
       onChanged: (v) => setState(() => _search = v),
+      style: const TextStyle(color: Colors.black87, fontSize: 14),
       decoration: InputDecoration(
         hintText: "Search title, member, dayung...",
-        prefixIcon: const Icon(Icons.search),
+        hintStyle: const TextStyle(color: Colors.grey, fontSize: 14),
+        prefixIcon: const Icon(Icons.search, color: Colors.grey),
         filled: true,
-        fillColor: Colors.grey.shade100,
-        contentPadding: const EdgeInsets.symmetric(vertical: 14),
+        fillColor: Colors.white,
+        contentPadding: const EdgeInsets.symmetric(
+          vertical: 12,
+          horizontal: 16,
+        ),
         border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(14),
+          borderRadius: BorderRadius.circular(12),
           borderSide: BorderSide(color: Colors.grey.shade300),
         ),
         enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(14),
+          borderRadius: BorderRadius.circular(12),
           borderSide: BorderSide(color: Colors.grey.shade300),
         ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(14),
-          borderSide: const BorderSide(color: kPrimaryDark, width: 1.6),
+        focusedBorder: const OutlineInputBorder(
+          borderRadius: BorderRadius.all(Radius.circular(12)),
+          borderSide: BorderSide(color: kPrimary, width: 2),
         ),
         suffixIcon: _search.isEmpty
             ? null
             : IconButton(
                 tooltip: "Clear",
-                icon: const Icon(Icons.close),
+                icon: const Icon(Icons.close, color: Colors.grey),
                 onPressed: () {
                   _searchCtrl.clear();
                   setState(() => _search = '');
                 },
               ),
-      ),
-    );
-  }
-
-  Widget _infoBox(String msg) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-      decoration: BoxDecoration(
-        color: Colors.grey.shade100,
-        borderRadius: BorderRadius.circular(14),
-      ),
-      child: Text(
-        msg,
-        style: const TextStyle(
-          fontSize: 13,
-          fontFamily: 'OpenSans',
-          fontWeight: FontWeight.w600,
-          color: kSubtleText,
-        ),
       ),
     );
   }
@@ -495,48 +627,47 @@ class _SecretaryClaimsPageState extends State<SecretaryClaimsPage>
 
     return InkWell(
       onTap: () => _showDetail(claim),
-      borderRadius: BorderRadius.circular(kRadius), // kCardRadius -> kRadius
+      borderRadius: BorderRadius.circular(12),
       child: Container(
         decoration: BoxDecoration(
           color: Colors.white,
-          borderRadius: BorderRadius.circular(
-            kRadius,
-          ), // kCardRadius -> kRadius
-          border: Border.all(color: color.withOpacity(.35), width: 1.2),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: color.withOpacity(.2), width: 1),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(.05),
-              blurRadius: 10,
-              offset: const Offset(0, 4),
+              color: Colors.black.withOpacity(.03),
+              blurRadius: 8,
+              offset: const Offset(0, 2),
             ),
           ],
         ),
-        padding: const EdgeInsets.fromLTRB(16, 16, 16, 14),
+        padding: const EdgeInsets.all(12),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // ...status, title, desc, etc...
+            // Status + short id
             Row(
               children: [
                 Container(
                   padding: const EdgeInsets.symmetric(
-                    horizontal: 10,
-                    vertical: 5,
+                    horizontal: 8,
+                    vertical: 4,
                   ),
                   decoration: BoxDecoration(
-                    color: color.withOpacity(.12),
-                    borderRadius: BorderRadius.circular(30),
-                    border: Border.all(color: color.withOpacity(.45)),
+                    color: color.withOpacity(.1),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: color.withOpacity(.3)),
                   ),
                   child: Row(
+                    mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(_statusIcon(status), size: 14, color: color),
+                      Icon(_statusIcon(status), size: 12, color: color),
                       const SizedBox(width: 4),
                       Text(
                         status[0].toUpperCase() + status.substring(1),
                         style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w700,
+                          fontSize: 10,
+                          fontWeight: FontWeight.w600,
                           fontFamily: 'Montserrat',
                           color: color,
                         ),
@@ -546,170 +677,82 @@ class _SecretaryClaimsPageState extends State<SecretaryClaimsPage>
                 ),
                 const Spacer(),
                 Text(
-                  '#${claim['id']}',
+                  '#${claim['id'].toString().substring(0, 8)}...',
                   style: TextStyle(
-                    fontSize: 11,
+                    fontSize: 9,
                     fontFamily: 'OpenSans',
-                    fontWeight: FontWeight.w600,
-                    color: kSubtleText.withOpacity(.65),
+                    fontWeight: FontWeight.w500,
+                    color: kSubtleText.withOpacity(.7),
                   ),
                 ),
               ],
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 8),
+            // Title
             Text(
               title,
               style: const TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w800,
+                fontSize: 14,
+                fontWeight: FontWeight.w700,
                 fontFamily: 'Montserrat',
-                height: 1.15,
                 color: kNeutralText,
               ),
-              maxLines: 2,
+              maxLines: 1,
               overflow: TextOverflow.ellipsis,
             ),
+            // Description
             if (desc.isNotEmpty) ...[
-              const SizedBox(height: 6),
+              const SizedBox(height: 4),
               Text(
                 desc,
-                maxLines: 2,
+                maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: const TextStyle(
-                  fontSize: 13,
+                  fontSize: 11,
                   fontFamily: 'OpenSans',
-                  height: 1.3,
                   color: kSubtleText,
                 ),
               ),
             ],
-            // --- INSERT THE FUTUREBUILDER HERE ---
-            const SizedBox(height: 10),
+            const SizedBox(height: 6),
+            // Deceased line (kept from old logic)
             FutureBuilder<Map<String, dynamic>>(
               future: getDeceasedInfo(claim),
               builder: (context, snapshot) {
                 if (!snapshot.hasData) return const SizedBox.shrink();
                 final deceased = snapshot.data!;
-                final dob = (deceased['dob'] ?? '').toString();
-                final dod = (deceased['date_of_death'] ?? '').toString();
-                final age = _computeAge(dob, dod);
-                return Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Deceased: ${deceased['name']}',
-                      style: const TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
-                        color: kNeutralText,
-                      ),
-                    ),
-                    if (dob.isNotEmpty)
-                      Text(
-                        'Date of Birth: $dob',
-                        style: const TextStyle(
-                          fontSize: 13,
-                          color: kSubtleText,
-                        ),
-                      ),
-                    if (dod.isNotEmpty)
-                      Text(
-                        'Date of Death: $dod',
-                        style: const TextStyle(
-                          fontSize: 13,
-                          color: kSubtleText,
-                        ),
-                      ),
-                    if (age != null)
-                      Text(
-                        'Age at death: $age years',
-                        style: const TextStyle(
-                          fontSize: 13,
-                          color: kSubtleText,
-                        ),
-                      ),
-
-                    const SizedBox(height: 18),
-                    if ((claim['death_certificate_url'] ?? '')
-                        .toString()
-                        .isNotEmpty)
-                      TextButton.icon(
-                        icon: const Icon(Icons.visibility),
-                        label: const Text('View Death Certificate'),
-                        onPressed: () async {
-                          final url = claim['death_certificate_url'].toString();
-                          // --- Image/PDF viewer logic here ---
-                          if (url.endsWith('.jpg') ||
-                              url.endsWith('.jpeg') ||
-                              url.endsWith('.png')) {
-                            showDialog(
-                              context: context,
-                              builder: (ctx) => Dialog(
-                                backgroundColor: Colors.black,
-                                insetPadding: const EdgeInsets.all(12),
-                                child: PhotoView(
-                                  imageProvider: NetworkImage(url),
-                                  backgroundDecoration: const BoxDecoration(
-                                    color: Colors.black,
-                                  ),
-                                  minScale: PhotoViewComputedScale.contained,
-                                  maxScale: PhotoViewComputedScale.covered * 3,
-                                ),
-                              ),
-                            );
-                          } else if (url.endsWith('.pdf')) {
-                            if (await canLaunchUrl(Uri.parse(url))) {
-                              await launchUrl(
-                                Uri.parse(url),
-                                mode: LaunchMode.externalApplication,
-                              );
-                            } else {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content: Text('Could not open PDF file.'),
-                                ),
-                              );
-                            }
-                          } else {
-                            if (await canLaunchUrl(Uri.parse(url))) {
-                              await launchUrl(
-                                Uri.parse(url),
-                                mode: LaunchMode.externalApplication,
-                              );
-                            } else {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content: Text('Could not open file.'),
-                                ),
-                              );
-                            }
-                          }
-                        },
-                      ),
-                  ],
+                return Text(
+                  'Deceased: ${deceased['name']}',
+                  style: const TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                    color: kNeutralText,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 );
               },
             ),
-            // --- END FUTUREBUILDER ---
-            const SizedBox(height: 10),
+            const SizedBox(height: 6),
+            // Date row
             Row(
               children: [
-                Icon(Icons.access_time, size: 14, color: kSubtleText),
+                Icon(Icons.schedule, size: 12, color: kSubtleText),
                 const SizedBox(width: 4),
                 Expanded(
                   child: Text(
                     date,
                     style: const TextStyle(
-                      fontSize: 12,
+                      fontSize: 10,
                       fontFamily: 'OpenSans',
-                      fontWeight: FontWeight.w600,
+                      fontWeight: FontWeight.w500,
                       color: kSubtleText,
                     ),
                   ),
                 ),
                 const Icon(
                   Icons.chevron_right,
-                  size: 20,
+                  size: 16,
                   color: Colors.black38,
                 ),
               ],
@@ -720,402 +763,315 @@ class _SecretaryClaimsPageState extends State<SecretaryClaimsPage>
     );
   }
 
-  Widget _avatar(String url, String name, {double size = 34}) {
-    final initials = name.isNotEmpty
-        ? name
-              .trim()
-              .split(RegExp(r'\s+'))
-              .take(2)
-              .map((e) => e[0])
-              .join()
-              .toUpperCase()
-        : '?';
-    final bg = kPrimary.withOpacity(.12);
-    if (url.isNotEmpty) {
-      return ClipRRect(
-        borderRadius: BorderRadius.circular(size / 2),
-        child: Image.network(
-          url,
-          width: size,
-          height: size,
-          fit: BoxFit.cover,
-          errorBuilder: (_, __, ___) => _fallbackAvatar(initials, size, bg),
-          loadingBuilder: (c, child, prog) {
-            if (prog == null) return child;
-            return _fallbackAvatar(initials, size, bg);
-          },
-        ),
-      );
-    }
-    return _fallbackAvatar(initials, size, bg);
-  }
-
-  Widget _fallbackAvatar(String initials, double size, Color bg) {
-    return Container(
-      width: size,
-      height: size,
-      alignment: Alignment.center,
-      decoration: BoxDecoration(
-        color: bg,
-        borderRadius: BorderRadius.circular(size / 2),
-        border: Border.all(color: kPrimary.withOpacity(.4)),
-      ),
-      child: Text(
-        initials,
-        style: TextStyle(
-          fontSize: size * 0.42,
-          fontWeight: FontWeight.w700,
-          fontFamily: 'Montserrat',
-          color: kPrimaryDark,
-        ),
-      ),
-    );
-  }
-
-  Widget _actionButtons(String status, Map<String, dynamic> claim) {
-    final sLower = status.toLowerCase();
-    final id = claim['id'].toString();
-
-    Widget btn({
-      required String label,
-      required Color color,
-      required IconData icon,
-      required VoidCallback onTap,
-    }) {
-      return TextButton.icon(
-        style: TextButton.styleFrom(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-          foregroundColor: color,
-          textStyle: const TextStyle(
-            fontSize: 12,
-            fontWeight: FontWeight.w700,
-            fontFamily: 'Montserrat',
-          ),
-        ),
-        icon: Icon(icon, size: 16),
-        label: Text(label),
-        onPressed: _updating ? null : onTap,
-      );
-    }
-
-    if (sLower == 'pending') {
-      return Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          btn(
-            label: "Approve",
-            color: kAccent,
-            icon: Icons.check_circle_outline,
-            onTap: () => _updateStatus(id, 'Approved'),
-          ),
-          btn(
-            label: "Reject",
-            color: kDanger,
-            icon: Icons.cancel_outlined,
-            onTap: () => _updateStatus(id, 'Rejected'),
-          ),
-        ],
-      );
-    }
-    if (sLower == 'approved') {
-      return btn(
-        label: "Set Pending",
-        color: kWarn,
-        icon: Icons.history_toggle_off,
-        onTap: () => _updateStatus(id, 'Pending'),
-      );
-    }
-    return btn(
-      label: "Set Pending",
-      color: kWarn,
-      icon: Icons.history_toggle_off,
-      onTap: () => _updateStatus(id, 'Pending'),
-    );
-  }
-
   void _showDetail(Map<String, dynamic> claim) {
     final status = (claim['status'] ?? '').toString();
     final color = _statusColor(status);
     final userId = (claim['user_id'] ?? '').toString();
     final userInfo = _userMap[userId];
     final submitter = (userInfo?['full_name'] ?? 'Member').toString();
-    final profileUrl = (userInfo?['profile_url'] ?? '').toString();
-
-    // Since this page is already scoped to the selected unit, just read it from provider
     final dayungName =
         context.read<DayungUnitProvider>().dayungUnit ?? 'Dayung';
 
     showModalBottomSheet(
       context: context,
-      showDragHandle: true,
       isScrollControlled: true,
-      backgroundColor: Colors.white,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(26)),
-      ),
+      backgroundColor: Colors.transparent,
       builder: (ctx) {
-        return Padding(
-          padding: EdgeInsets.only(
-            left: 20,
-            right: 20,
-            top: 8,
-            bottom: MediaQuery.of(ctx).viewInsets.bottom + 24,
+        return Container(
+          height: MediaQuery.of(ctx).size.height * 0.8,
+          decoration: const BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black26,
+                blurRadius: 20,
+                offset: Offset(0, -5),
+              ),
+            ],
           ),
           child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Row(
-                children: [
-                  _avatar(profileUrl, submitter, size: 46),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Text(
-                      submitter,
-                      style: const TextStyle(
-                        fontSize: 17,
-                        fontWeight: FontWeight.w800,
-                        fontFamily: 'Montserrat',
-                        color: kNeutralText,
+              // Drag handle
+              Container(
+                margin: const EdgeInsets.only(top: 12),
+                width: 50,
+                height: 5,
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade400,
+                  borderRadius: BorderRadius.circular(3),
+                ),
+              ),
+              // Header
+              Container(
+                padding: const EdgeInsets.all(20),
+                child: Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: color.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(16),
                       ),
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
+                      child: Icon(_statusIcon(status), size: 28, color: color),
                     ),
-                  ),
-                  const SizedBox(width: 8),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 10,
-                      vertical: 6,
-                    ),
-                    decoration: BoxDecoration(
-                      color: color.withOpacity(.12),
-                      borderRadius: BorderRadius.circular(30),
-                      border: Border.all(color: color.withOpacity(.45)),
-                    ),
-                    child: Row(
-                      children: [
-                        Icon(_statusIcon(status), size: 16, color: color),
-                        const SizedBox(width: 4),
-                        Text(
-                          status,
-                          style: TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w700,
-                            fontFamily: 'Montserrat',
-                            color: color,
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            submitter,
+                            style: const TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.w700,
+                              color: Colors.black87,
+                            ),
                           ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 10),
-              Row(
-                children: [
-                  const Icon(
-                    Icons.home_work_outlined,
-                    size: 16,
-                    color: kSubtleText,
-                  ),
-                  const SizedBox(width: 6),
-                  Expanded(
-                    child: Text(
-                      dayungName,
-                      style: const TextStyle(
-                        fontSize: 13,
-                        fontFamily: 'OpenSans',
-                        fontWeight: FontWeight.w600,
-                        color: kSubtleText,
+                          const SizedBox(height: 4),
+                          Text(
+                            dayungName,
+                            style: TextStyle(
+                              fontSize: 14,
+                              color: Colors.grey.shade600,
+                            ),
+                          ),
+                        ],
                       ),
-                      overflow: TextOverflow.ellipsis,
                     ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 16),
-              Text(
-                (claim['title'] ?? 'Untitled').toString(),
-                style: const TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w800,
-                  fontFamily: 'Montserrat',
-                  color: kNeutralText,
-                ),
-              ),
-              const SizedBox(height: 10),
-              if ((claim['description'] ?? '').toString().trim().isNotEmpty)
-                Text(
-                  claim['description'],
-                  style: const TextStyle(
-                    fontSize: 14,
-                    fontFamily: 'OpenSans',
-                    height: 1.35,
-                  ),
-                ),
-              const SizedBox(height: 14),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: [
-                  _detailChip(icon: Icons.tag, label: "#${claim['id']}"),
-                  _detailChip(
-                    icon: Icons.access_time,
-                    label: _formatDate(claim['date_submitted']),
-                  ),
-                  _detailChip(icon: Icons.account_circle, label: submitter),
-                  _detailChip(icon: Icons.apartment, label: dayungName),
-                ],
-              ),
-              const SizedBox(height: 18), // <-- Insert here
-              FutureBuilder<Map<String, dynamic>>(
-                future: getDeceasedInfo(claim),
-                builder: (context, snapshot) {
-                  if (!snapshot.hasData) return const SizedBox.shrink();
-                  final deceased = snapshot.data!;
-                  final dob = (deceased['dob'] ?? '').toString();
-                  final dod = (deceased['date_of_death'] ?? '').toString();
-                  final age = _computeAge(dob, dod);
-                  return Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Deceased: ${deceased['name']}',
-                        style: const TextStyle(
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 8,
+                      ),
+                      decoration: BoxDecoration(
+                        color: color.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(color: color.withOpacity(0.3)),
+                      ),
+                      child: Text(
+                        status,
+                        style: TextStyle(
                           fontSize: 14,
                           fontWeight: FontWeight.w600,
-                          color: kNeutralText,
+                          color: color,
                         ),
-                      ),
-                      if (dob.isNotEmpty) const SizedBox(height: 4),
-                      if (dob.isNotEmpty)
-                        Text(
-                          'Date of Birth: $dob',
-                          style: const TextStyle(
-                            fontSize: 13,
-                            color: kSubtleText,
-                          ),
-                        ),
-                      if (dod.isNotEmpty)
-                        Text(
-                          'Date of Death: $dod',
-                          style: const TextStyle(
-                            fontSize: 13,
-                            color: kSubtleText,
-                          ),
-                        ),
-                      if (age != null)
-                        Text(
-                          'Age at death: $age years',
-                          style: const TextStyle(
-                            fontSize: 13,
-                            color: kSubtleText,
-                          ),
-                        ),
-                    ],
-                  );
-                },
-              ),
-              const SizedBox(height: 18),
-
-              if ((claim['death_certificate_url'] ?? '').toString().isNotEmpty)
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 18),
-                  child: ElevatedButton.icon(
-                    icon: const Icon(Icons.visibility),
-                    label: const Text('View Death Certificate'),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: kPrimary,
-                      foregroundColor: Colors.white,
-                      minimumSize: const Size.fromHeight(48),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(14),
                       ),
                     ),
-                    onPressed: () async {
-                      final url = claim['death_certificate_url'].toString();
-                      final isImage =
-                          url.endsWith('.jpg') ||
-                          url.endsWith('.jpeg') ||
-                          url.endsWith('.png');
-                      final isPdf = url.endsWith('.pdf');
-
-                      if (isImage) {
-                        showDialog(
-                          context: context,
-                          builder: (ctx) => Dialog(
-                            backgroundColor: Colors.black,
-                            insetPadding: const EdgeInsets.all(12),
-                            child: PhotoView(
-                              imageProvider: NetworkImage(url),
-                              backgroundDecoration: const BoxDecoration(
-                                color: Colors.black,
+                  ],
+                ),
+              ),
+              // Content
+              Expanded(
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Title
+                      Text(
+                        (claim['title'] ?? 'Untitled').toString(),
+                        style: const TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.w700,
+                          color: Colors.black87,
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      // Description
+                      if ((claim['description'] ?? '')
+                          .toString()
+                          .trim()
+                          .isNotEmpty)
+                        Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            color: Colors.grey.shade50,
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: Colors.grey.shade200),
+                          ),
+                          child: Text(
+                            claim['description'],
+                            style: TextStyle(
+                              fontSize: 15,
+                              color: Colors.grey.shade700,
+                              height: 1.5,
+                            ),
+                          ),
+                        ),
+                      const SizedBox(height: 20),
+                      // Meta details
+                      _buildInfoRow(Icons.fingerprint, 'ID', '#${claim['id']}'),
+                      _buildInfoRow(
+                        Icons.schedule,
+                        'Submitted',
+                        _formatDate(claim['date_submitted']),
+                      ),
+                      _buildInfoRow(
+                        Icons.person_outline,
+                        'Submitter',
+                        submitter,
+                      ),
+                      _buildInfoRow(Icons.business, 'Dayung', dayungName),
+                      const SizedBox(height: 20),
+                      // Deceased Info with age
+                      FutureBuilder<Map<String, dynamic>>(
+                        future: getDeceasedInfo(claim),
+                        builder: (context, snapshot) {
+                          if (!snapshot.hasData) return const SizedBox.shrink();
+                          final deceased = snapshot.data!;
+                          final dob = (deceased['dob'] ?? '').toString();
+                          final dod = (deceased['date_of_death'] ?? '')
+                              .toString();
+                          final age = _computeAge(dob, dod);
+                          return Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              _buildInfoRow(
+                                Icons.account_circle,
+                                'Deceased',
+                                deceased['name'],
                               ),
-                              minScale: PhotoViewComputedScale.contained,
-                              maxScale: PhotoViewComputedScale.covered * 3,
+                              if (dob.isNotEmpty)
+                                _buildInfoRow(Icons.cake, 'Date of Birth', dob),
+                              if (dod.isNotEmpty)
+                                _buildInfoRow(
+                                  Icons.event,
+                                  'Date of Death',
+                                  dod,
+                                ),
+                              if (age != null)
+                                _buildInfoRow(
+                                  Icons.hourglass_bottom,
+                                  'Age',
+                                  '$age years',
+                                ),
+                            ],
+                          );
+                        },
+                      ),
+                      const SizedBox(height: 16),
+                      // Death Certificate Button
+                      if ((claim['death_certificate_url'] ?? '')
+                          .toString()
+                          .isNotEmpty)
+                        SizedBox(
+                          width: double.infinity,
+                          child: ElevatedButton.icon(
+                            icon: const Icon(Icons.description, size: 20),
+                            label: const Text('View Death Certificate'),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: kPrimary,
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(vertical: 16),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
                             ),
-                          ),
-                        );
-                      } else if (isPdf) {
-                        // Download PDF to local file
-                        final tempDir = await getTemporaryDirectory();
-                        final filePath = '${tempDir.path}/death_cert.pdf';
-                        final response = await http.get(Uri.parse(url));
-                        final file = File(filePath);
-                        await file.writeAsBytes(response.bodyBytes);
+                            onPressed: () async {
+                              final url = claim['death_certificate_url']
+                                  .toString();
+                              final isImage =
+                                  url.endsWith('.jpg') ||
+                                  url.endsWith('.jpeg') ||
+                                  url.endsWith('.png');
+                              final isPdf = url.endsWith('.pdf');
 
-                        showDialog(
-                          context: context,
-                          builder: (ctx) => Dialog(
-                            backgroundColor: Colors.black,
-                            insetPadding: const EdgeInsets.all(12),
-                            child: Stack(
-                              children: [
-                                PhotoView(
-                                  imageProvider: NetworkImage(url),
-                                  backgroundDecoration: const BoxDecoration(
-                                    color: Colors.black,
-                                  ),
-                                  minScale: PhotoViewComputedScale.contained,
-                                  maxScale: PhotoViewComputedScale.covered * 3,
-                                ),
-                                Positioned(
-                                  top: 12,
-                                  right: 12,
-                                  child: IconButton(
-                                    icon: const Icon(
-                                      Icons.close,
-                                      color: Colors.white,
-                                      size: 32,
+                              if (isImage) {
+                                showDialog(
+                                  context: context,
+                                  builder: (ctx) => Dialog(
+                                    backgroundColor: Colors.black,
+                                    insetPadding: const EdgeInsets.all(12),
+                                    child: PhotoView(
+                                      imageProvider: NetworkImage(url),
+                                      backgroundDecoration: const BoxDecoration(
+                                        color: Colors.black,
+                                      ),
+                                      minScale:
+                                          PhotoViewComputedScale.contained,
+                                      maxScale:
+                                          PhotoViewComputedScale.covered * 3,
                                     ),
-                                    onPressed: () => Navigator.of(ctx).pop(),
-                                    tooltip: 'Close',
                                   ),
-                                ),
-                              ],
-                            ),
+                                );
+                              } else if (isPdf) {
+                                // Note: This path won't work on Flutter Web.
+                                final tempDir = await getTemporaryDirectory();
+                                final filePath =
+                                    '${tempDir.path}/death_cert.pdf';
+                                final response = await http.get(Uri.parse(url));
+                                final file = File(filePath);
+                                await file.writeAsBytes(response.bodyBytes);
+
+                                showDialog(
+                                  context: context,
+                                  builder: (ctx) => Dialog(
+                                    backgroundColor: Colors.black,
+                                    insetPadding: const EdgeInsets.all(12),
+                                    child: Stack(
+                                      children: [
+                                        PhotoView(
+                                          imageProvider: NetworkImage(url),
+                                          backgroundDecoration:
+                                              const BoxDecoration(
+                                                color: Colors.black,
+                                              ),
+                                          minScale:
+                                              PhotoViewComputedScale.contained,
+                                          maxScale:
+                                              PhotoViewComputedScale.covered *
+                                              3,
+                                        ),
+                                        Positioned(
+                                          top: 12,
+                                          right: 12,
+                                          child: IconButton(
+                                            icon: const Icon(
+                                              Icons.close,
+                                              color: Colors.white,
+                                              size: 24,
+                                            ),
+                                            onPressed: () =>
+                                                Navigator.of(ctx).pop(),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                );
+                              } else {
+                                if (await canLaunchUrl(Uri.parse(url))) {
+                                  await launchUrl(
+                                    Uri.parse(url),
+                                    mode: LaunchMode.externalApplication,
+                                  );
+                                } else {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(
+                                      content: Text('Could not open file.'),
+                                    ),
+                                  );
+                                }
+                              }
+                            },
                           ),
-                        );
-                      } else {
-                        // Fallback: open in browser
-                        if (await canLaunchUrl(Uri.parse(url))) {
-                          await launchUrl(
-                            Uri.parse(url),
-                            mode: LaunchMode.externalApplication,
-                          );
-                        } else {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text('Could not open file.'),
-                            ),
-                          );
-                        }
-                      }
-                    },
+                        ),
+                      const SizedBox(height: 20),
+                    ],
                   ),
                 ),
-              _bottomSheetActions(status, claim),
+              ),
+              // Actions
+              Container(
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade50,
+                  border: Border(top: BorderSide(color: Colors.grey.shade200)),
+                ),
+                child: _bottomSheetActions(status, claim),
+              ),
             ],
           ),
         );
@@ -1123,27 +1079,39 @@ class _SecretaryClaimsPageState extends State<SecretaryClaimsPage>
     );
   }
 
-  Widget _detailChip({required IconData icon, required String label}) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-      decoration: BoxDecoration(
-        color: Colors.grey.shade100,
-        borderRadius: BorderRadius.circular(30),
-      ),
+  Widget _buildInfoRow(IconData icon, String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
       child: Row(
-        mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 14, color: kSubtleText),
-          const SizedBox(width: 4),
-          Text(
-            label,
-            style: const TextStyle(
-              fontSize: 11.5,
-              fontWeight: FontWeight.w600,
-              fontFamily: 'OpenSans',
-              color: kSubtleText,
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: Colors.grey.shade100,
+              borderRadius: BorderRadius.circular(8),
             ),
-            overflow: TextOverflow.ellipsis,
+            child: Icon(icon, size: 18, color: Colors.grey.shade700),
+          ),
+          const SizedBox(width: 12),
+          Text(
+            '$label:',
+            style: TextStyle(
+              fontSize: 15,
+              fontWeight: FontWeight.w600,
+              color: Colors.grey.shade600,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              value,
+              style: const TextStyle(
+                fontSize: 15,
+                color: Colors.black87,
+                fontWeight: FontWeight.w500,
+              ),
+              overflow: TextOverflow.ellipsis,
+            ),
           ),
         ],
       ),
@@ -1164,19 +1132,19 @@ class _SecretaryClaimsPageState extends State<SecretaryClaimsPage>
                       _updateStatus(id, 'Approved');
                       Navigator.pop(context);
                     },
-              icon: const Icon(Icons.check_circle_outline),
+              icon: const Icon(Icons.check_circle, size: 20),
               label: const Text("Approve"),
               style: ElevatedButton.styleFrom(
                 backgroundColor: kAccent,
                 foregroundColor: Colors.white,
-                minimumSize: const Size.fromHeight(52),
+                padding: const EdgeInsets.symmetric(vertical: 16),
                 shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(14),
+                  borderRadius: BorderRadius.circular(12),
                 ),
               ),
             ),
           ),
-          const SizedBox(width: 14),
+          const SizedBox(width: 16),
           Expanded(
             child: ElevatedButton.icon(
               onPressed: _updating
@@ -1185,14 +1153,14 @@ class _SecretaryClaimsPageState extends State<SecretaryClaimsPage>
                       _updateStatus(id, 'Rejected');
                       Navigator.pop(context);
                     },
-              icon: const Icon(Icons.cancel_outlined),
+              icon: const Icon(Icons.cancel, size: 20),
               label: const Text("Reject"),
               style: ElevatedButton.styleFrom(
                 backgroundColor: kDanger,
                 foregroundColor: Colors.white,
-                minimumSize: const Size.fromHeight(52),
+                padding: const EdgeInsets.symmetric(vertical: 16),
                 shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(14),
+                  borderRadius: BorderRadius.circular(12),
                 ),
               ),
             ),
@@ -1200,73 +1168,25 @@ class _SecretaryClaimsPageState extends State<SecretaryClaimsPage>
         ],
       );
     }
-    return ElevatedButton.icon(
-      onPressed: _updating
-          ? null
-          : () {
-              _updateStatus(id, 'Pending');
-              Navigator.pop(context);
-            },
-      icon: const Icon(Icons.history_toggle_off),
-      label: const Text("Set Pending"),
-      style: ElevatedButton.styleFrom(
-        backgroundColor: kWarn,
-        foregroundColor: Colors.white,
-        minimumSize: const Size.fromHeight(52),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-      ),
-    );
-  }
-
-  Widget _skeletonCard() {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-      child: Container(
-        height: 130,
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(kRadius),
-          border: Border.all(color: Colors.grey.shade200),
+    return SizedBox(
+      width: double.infinity,
+      child: ElevatedButton.icon(
+        onPressed: _updating
+            ? null
+            : () {
+                _updateStatus(id, 'Pending');
+                Navigator.pop(context);
+              },
+        icon: const Icon(Icons.restore, size: 20),
+        label: const Text("Set Pending"),
+        style: ElevatedButton.styleFrom(
+          backgroundColor: kWarn,
+          foregroundColor: Colors.white,
+          padding: const EdgeInsets.symmetric(vertical: 16),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
         ),
-        padding: const EdgeInsets.all(16),
-        child: Row(
-          children: [
-            Container(
-              width: 46,
-              height: 46,
-              decoration: BoxDecoration(
-                color: Colors.grey.shade200,
-                borderRadius: BorderRadius.circular(14),
-              ),
-            ),
-            const SizedBox(width: 16),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _skelLine(140),
-                  const SizedBox(height: 10),
-                  _skelLine(200),
-                  const SizedBox(height: 8),
-                  _skelLine(160),
-                  const Spacer(),
-                  _skelLine(120),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _skelLine(double w) {
-    return Container(
-      width: w,
-      height: 10,
-      decoration: BoxDecoration(
-        color: Colors.grey.shade200,
-        borderRadius: BorderRadius.circular(6),
       ),
     );
   }

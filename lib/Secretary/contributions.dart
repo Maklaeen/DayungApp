@@ -1,14 +1,18 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:capstone_app/ui/theme/branding.dart';
 
-const Color kBg = Color(0xFFFAFAF7);
-const Color kPrimary = Color(0xFF0D47A1);
-const Color kAccent = Color(0xFF3E8E7E);
-const Color kPaid = Color(0xFF2E7D32);
-const Color kPending = Color(0xFFF57C00);
-const Color kCardBg = Color(0xFFF5F8FA);
-const Color kText = Color(0xFF1F2937);
-const Color kSubtle = Color(0xFF4B5563);
+// Additional colors for secretary contributions specific styling (new UI)
+const kText = Color(0xFF111827);
+const kSubText = Color(0xFF6B7280);
+const kPrimaryLight = Color(0xFF3B82F6);
+const kCardBg = Color(0xFFFFFFFF);
+const kBorderColor = Color(0xFFE5E7EB);
+const kSuccess = Color(0xFF10B981);
+const kDanger = Color(0xFFEF4444);
+const kPaid = Color(0xFF2E7D32);
+const kPending = Color(0xFFF57C00);
+const double kEdge = 16;
 
 class SecretaryContributionsPage extends StatefulWidget {
   final int dayungUnitId;
@@ -26,6 +30,12 @@ class _SecretaryContributionsPageState
   Map<String, dynamic> _users = {};
   Map<int, dynamic> _deathNotices = {};
 
+  @override
+  void initState() {
+    super.initState();
+    _fetchContributions();
+  }
+
   String _fmtDateTime(dynamic v) {
     if (v == null) return '';
     final s = v.toString();
@@ -36,17 +46,11 @@ class _SecretaryContributionsPageState
     return '${dt.year}-${two(dt.month)}-${two(dt.day)} ${two(dt.hour)}:${two(dt.minute)}';
   }
 
-  @override
-  void initState() {
-    super.initState();
-    _fetchContributions();
-  }
-
   Future<void> _fetchContributions() async {
-    setState(() => _loading = true);
+    if (mounted) setState(() => _loading = true);
     final sb = Supabase.instance.client;
     try {
-      // Fetch all payments for this dayung unit, include collector embed + collected_by for fallback
+      // Old backend logic: richer select with collector embed + fallback
       final payments = await sb
           .from('payments')
           .select(
@@ -56,7 +60,7 @@ class _SecretaryContributionsPageState
           .eq('dayung_unit_id', widget.dayungUnitId)
           .order('paid_at', ascending: false);
 
-      // Fetch users for payer names + fallback for collector names (if embed not returned)
+      // Build user id list for payer and collector fallback
       final payerIds = payments
           .map((p) => p['user_id'])
           .where((v) => v != null);
@@ -79,7 +83,7 @@ class _SecretaryContributionsPageState
         for (var u in usersRes) u['id'].toString(): u['full_name'] ?? 'Unknown',
       };
 
-      // Fetch death notices
+      // Fetch death notices referenced by payments
       final noticeIds = payments
           .map((p) => p['death_notice_id'])
           .where((v) => v != null)
@@ -95,6 +99,7 @@ class _SecretaryContributionsPageState
       final noticesMap = <int, dynamic>{
         for (var n in noticesRes) int.parse(n['id'].toString()): n,
       };
+
       if (!mounted) return;
       setState(() {
         _payments = List<Map<String, dynamic>>.from(payments);
@@ -111,150 +116,431 @@ class _SecretaryContributionsPageState
     }
   }
 
+  int _countByStatus(String status) => _payments
+      .where(
+        (p) =>
+            (p['status']?.toString().toLowerCase() ?? '') ==
+            status.toLowerCase(),
+      )
+      .length;
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: kBg,
-      body: _loading
-          ? const Center(child: CircularProgressIndicator())
-          : (_payments.isEmpty
-                ? const Center(
-                    child: Text(
-                      'No contributions found.',
-                      style: TextStyle(fontSize: 18, color: kSubtle),
+      backgroundColor: const Color(0xFFF8FAFC),
+      body: Container(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [Color(0xFFF8FAFC), Color(0xFFF1F5F9)],
+          ),
+        ),
+        child: Column(
+          children: [
+            // Stats Overview Cards (new UI)
+            Container(
+              padding: const EdgeInsets.fromLTRB(20, 40, 20, 12),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(12),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.08),
+                            blurRadius: 8,
+                            offset: const Offset(0, 2),
+                          ),
+                        ],
+                      ),
+                      child: Column(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(6),
+                            decoration: BoxDecoration(
+                              color: kSuccess.withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: const Icon(
+                              Icons.check_circle_rounded,
+                              color: kSuccess,
+                              size: 16,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          const Text(
+                            'Paid',
+                            style: TextStyle(
+                              color: kSubText,
+                              fontSize: 10,
+                              fontFamily: 'OpenSans',
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          const SizedBox(height: 1),
+                          Text(
+                            '${_countByStatus('paid')}',
+                            style: const TextStyle(
+                              color: kText,
+                              fontSize: 14,
+                              fontFamily: 'Montserrat',
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
-                  )
-                : ListView.separated(
-                    padding: const EdgeInsets.all(18),
-                    separatorBuilder: (_, __) => const SizedBox(height: 14),
-                    itemCount: _payments.length,
-                    itemBuilder: (context, i) {
-                      final p = _payments[i];
-                      final userName = _users[p['user_id']] ?? 'Unknown';
-                      final notice = _deathNotices[p['death_notice_id']];
-                      final deceased = notice?['name'] ?? 'Unknown';
-                      final paidAtStr = _fmtDateTime(p['paid_at']);
-
-                      // Collector name: prefer embed, fallback to lookup by collected_by
-                      String collectorName =
-                          (((p['collector'] as Map?)?['full_name']) ?? '')
-                              .toString();
-                      if (collectorName.isEmpty && p['collected_by'] != null) {
-                        collectorName = (_users[p['collected_by']] ?? '')
-                            .toString();
-                      }
-                      final paid =
-                          (p['status']?.toString().toLowerCase() == 'paid');
-                      return Container(
+                  ),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(12),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.08),
+                            blurRadius: 8,
+                            offset: const Offset(0, 2),
+                          ),
+                        ],
+                      ),
+                      child: Column(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(6),
+                            decoration: BoxDecoration(
+                              color: kPending.withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: const Icon(
+                              Icons.schedule_rounded,
+                              color: kPending,
+                              size: 16,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          const Text(
+                            'Pending',
+                            style: TextStyle(
+                              color: kSubText,
+                              fontSize: 10,
+                              fontFamily: 'OpenSans',
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          const SizedBox(height: 1),
+                          Text(
+                            '${_countByStatus('pending')}',
+                            style: const TextStyle(
+                              color: kText,
+                              fontSize: 14,
+                              fontFamily: 'Montserrat',
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            // Content
+            Expanded(
+              child: _loading
+                  ? Center(
+                      child: Container(
+                        padding: const EdgeInsets.all(24),
                         decoration: BoxDecoration(
                           color: kCardBg,
-                          borderRadius: BorderRadius.circular(18),
-                          border: Border.all(
-                            color: paid
-                                ? kPaid.withOpacity(.25)
-                                : kPending.withOpacity(.18),
-                            width: 2,
-                          ),
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(color: kBorderColor, width: 1),
                           boxShadow: [
                             BoxShadow(
-                              color: Colors.black.withOpacity(.04),
-                              blurRadius: 8,
-                              offset: const Offset(0, 3),
+                              color: Colors.black.withOpacity(0.05),
+                              blurRadius: 15,
+                              offset: const Offset(0, 6),
                             ),
                           ],
                         ),
-                        child: ListTile(
-                          contentPadding: const EdgeInsets.symmetric(
-                            vertical: 16,
-                            horizontal: 18,
-                          ),
-                          leading: CircleAvatar(
-                            backgroundColor: paid
-                                ? kPaid.withOpacity(.15)
-                                : kPending.withOpacity(.15),
-                            child: Icon(
-                              paid
-                                  ? Icons.check_circle
-                                  : Icons.hourglass_bottom,
-                              color: paid ? kPaid : kPending,
-                              size: 30,
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            CircularProgressIndicator(
+                              color: kPrimary,
+                              strokeWidth: 3,
                             ),
-                            radius: 28,
-                          ),
-                          title: Text(
-                            userName,
-                            style: const TextStyle(
-                              fontSize: 20,
-                              fontWeight: FontWeight.w700,
-                              color: kText,
-                              fontFamily: 'Montserrat',
-                            ),
-                          ),
-                          subtitle: Padding(
-                            padding: const EdgeInsets.only(top: 6),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  'For: $deceased',
-                                  style: const TextStyle(
-                                    fontSize: 15,
-                                    color: kSubtle,
-                                    fontFamily: 'OpenSans',
-                                  ),
-                                ),
-                                if (paidAtStr.isNotEmpty)
-                                  Text(
-                                    'Paid at: $paidAtStr',
-                                    style: const TextStyle(
-                                      fontSize: 14,
-                                      color: kSubtle,
-                                    ),
-                                  ),
-                                if (collectorName.isNotEmpty)
-                                  Text(
-                                    'Collected by: $collectorName',
-                                    style: const TextStyle(
-                                      fontSize: 14,
-                                      color: kSubtle,
-                                    ),
-                                  ),
-                                Text(
-                                  'Amount: ₱${p['amount']}',
-                                  style: TextStyle(
-                                    fontSize: 16,
-                                    color: paid ? kPaid : kPending,
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                          trailing: Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 14,
-                              vertical: 8,
-                            ),
-                            decoration: BoxDecoration(
-                              color: paid
-                                  ? kPaid.withOpacity(.13)
-                                  : kPending.withOpacity(.13),
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            child: Text(
-                              paid ? 'PAID' : 'PENDING',
+                            const SizedBox(height: 16),
+                            const Text(
+                              'Loading contributions...',
                               style: TextStyle(
-                                color: paid ? kPaid : kPending,
-                                fontWeight: FontWeight.bold,
+                                color: kSubText,
                                 fontSize: 16,
-                                letterSpacing: 1.2,
+                                fontFamily: 'OpenSans',
+                                fontWeight: FontWeight.w600,
                               ),
                             ),
-                          ),
+                          ],
                         ),
-                      );
-                    },
-                  )),
+                      ),
+                    )
+                  : (_payments.isEmpty
+                        ? Center(
+                            child: Container(
+                              margin: const EdgeInsets.all(20),
+                              padding: const EdgeInsets.all(24),
+                              decoration: BoxDecoration(
+                                color: kCardBg,
+                                borderRadius: BorderRadius.circular(20),
+                                border: Border.all(
+                                  color: kBorderColor,
+                                  width: 1,
+                                ),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.black.withOpacity(0.05),
+                                    blurRadius: 15,
+                                    offset: const Offset(0, 6),
+                                  ),
+                                ],
+                              ),
+                              child: const Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(
+                                    Icons.account_balance_wallet_rounded,
+                                    size: 48,
+                                    color: kSubText,
+                                  ),
+                                  SizedBox(height: 16),
+                                  Text(
+                                    'No contributions found',
+                                    style: TextStyle(
+                                      fontSize: 18,
+                                      fontWeight: FontWeight.w700,
+                                      color: kText,
+                                      fontFamily: 'Montserrat',
+                                    ),
+                                    textAlign: TextAlign.center,
+                                  ),
+                                  SizedBox(height: 8),
+                                  Text(
+                                    'No contributions have been made yet',
+                                    style: TextStyle(
+                                      fontSize: 14,
+                                      color: kSubText,
+                                      fontFamily: 'OpenSans',
+                                    ),
+                                    textAlign: TextAlign.center,
+                                  ),
+                                ],
+                              ),
+                            ),
+                          )
+                        : Padding(
+                            padding: const EdgeInsets.all(16),
+                            child: RefreshIndicator(
+                              onRefresh: _fetchContributions,
+                              child: ListView.separated(
+                                itemCount: _payments.length,
+                                separatorBuilder: (_, __) =>
+                                    const SizedBox(height: 8),
+                                itemBuilder: (context, i) {
+                                  final p = _payments[i];
+                                  final userName =
+                                      _users[p['user_id']?.toString()] ??
+                                      'Unknown';
+                                  final notice =
+                                      _deathNotices[(p['death_notice_id']
+                                              as int?) ??
+                                          -1];
+                                  final deceased = notice?['name'] ?? 'Unknown';
+                                  final date = notice?['date_of_death'] ?? '';
+                                  final paidAtStr = _fmtDateTime(p['paid_at']);
+                                  final paid =
+                                      (p['status']?.toString().toLowerCase() ==
+                                      'paid');
+
+                                  // Collector name: prefer embed, fallback to lookup
+                                  String collectorName =
+                                      (((p['collector']
+                                                  as Map?)?['full_name']) ??
+                                              '')
+                                          .toString();
+                                  if (collectorName.isEmpty &&
+                                      p['collected_by'] != null) {
+                                    collectorName =
+                                        (_users[p['collected_by']
+                                                    ?.toString()] ??
+                                                '')
+                                            .toString();
+                                  }
+
+                                  return Container(
+                                    padding: const EdgeInsets.all(8),
+                                    decoration: BoxDecoration(
+                                      color: kCardBg,
+                                      borderRadius: BorderRadius.circular(12),
+                                      border: Border.all(
+                                        color: kBorderColor,
+                                        width: 1,
+                                      ),
+                                      boxShadow: [
+                                        BoxShadow(
+                                          color: Colors.black.withOpacity(0.03),
+                                          blurRadius: 8,
+                                          offset: const Offset(0, 2),
+                                        ),
+                                      ],
+                                    ),
+                                    child: Column(
+                                      children: [
+                                        Row(
+                                          children: [
+                                            Container(
+                                              padding: const EdgeInsets.all(8),
+                                              decoration: BoxDecoration(
+                                                color: paid
+                                                    ? kPaid.withOpacity(0.1)
+                                                    : kPending.withOpacity(0.1),
+                                                borderRadius:
+                                                    BorderRadius.circular(10),
+                                              ),
+                                              child: Icon(
+                                                paid
+                                                    ? Icons.check_circle_rounded
+                                                    : Icons.schedule_rounded,
+                                                color: paid ? kPaid : kPending,
+                                                size: 18,
+                                              ),
+                                            ),
+                                            const SizedBox(width: 12),
+                                            Expanded(
+                                              child: Column(
+                                                crossAxisAlignment:
+                                                    CrossAxisAlignment.start,
+                                                children: [
+                                                  Text(
+                                                    userName.toString(),
+                                                    style: const TextStyle(
+                                                      fontSize: 14,
+                                                      fontWeight:
+                                                          FontWeight.w700,
+                                                      color: kText,
+                                                      fontFamily: 'Montserrat',
+                                                    ),
+                                                  ),
+                                                  const SizedBox(height: 1),
+                                                  Text(
+                                                    'For: $deceased',
+                                                    style: const TextStyle(
+                                                      fontSize: 11,
+                                                      color: kSubText,
+                                                      fontFamily: 'OpenSans',
+                                                      fontWeight:
+                                                          FontWeight.w500,
+                                                    ),
+                                                  ),
+                                                  if (date != null &&
+                                                      date
+                                                          .toString()
+                                                          .isNotEmpty)
+                                                    Text(
+                                                      'Date of Death: $date',
+                                                      style: const TextStyle(
+                                                        fontSize: 10,
+                                                        color: kSubText,
+                                                        fontFamily: 'OpenSans',
+                                                      ),
+                                                    ),
+                                                  if (collectorName.isNotEmpty)
+                                                    Text(
+                                                      'Collected by: $collectorName',
+                                                      style: const TextStyle(
+                                                        fontSize: 10,
+                                                        color: kSubText,
+                                                        fontFamily: 'OpenSans',
+                                                      ),
+                                                    ),
+                                                ],
+                                              ),
+                                            ),
+                                            Container(
+                                              padding:
+                                                  const EdgeInsets.symmetric(
+                                                    horizontal: 8,
+                                                    vertical: 4,
+                                                  ),
+                                              decoration: BoxDecoration(
+                                                color: paid
+                                                    ? kPaid.withOpacity(0.1)
+                                                    : kPending.withOpacity(0.1),
+                                                borderRadius:
+                                                    BorderRadius.circular(8),
+                                                border: Border.all(
+                                                  color: paid
+                                                      ? kPaid
+                                                      : kPending,
+                                                  width: 1,
+                                                ),
+                                              ),
+                                              child: Text(
+                                                paid ? 'PAID' : 'PENDING',
+                                                style: TextStyle(
+                                                  color: paid
+                                                      ? kPaid
+                                                      : kPending,
+                                                  fontWeight: FontWeight.w700,
+                                                  fontSize: 10,
+                                                  letterSpacing: 0.5,
+                                                  fontFamily: 'Montserrat',
+                                                ),
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                        const SizedBox(height: 8),
+                                        Row(
+                                          mainAxisAlignment:
+                                              MainAxisAlignment.spaceBetween,
+                                          children: [
+                                            Text(
+                                              'Amount: ₱${p['amount']}',
+                                              style: TextStyle(
+                                                fontSize: 11,
+                                                color: paid ? kPaid : kPending,
+                                                fontWeight: FontWeight.w700,
+                                                fontFamily: 'Montserrat',
+                                              ),
+                                            ),
+                                            if (paidAtStr.isNotEmpty)
+                                              Text(
+                                                'Paid: $paidAtStr',
+                                                style: const TextStyle(
+                                                  fontSize: 10,
+                                                  color: kSubText,
+                                                  fontFamily: 'OpenSans',
+                                                ),
+                                              ),
+                                          ],
+                                        ),
+                                      ],
+                                    ),
+                                  );
+                                },
+                              ),
+                            ),
+                          )),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

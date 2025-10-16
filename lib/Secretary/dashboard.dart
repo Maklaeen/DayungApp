@@ -13,6 +13,7 @@ import 'package:capstone_app/pages/dayung_profile.dart';
 import 'package:capstone_app/pages/notification.dart';
 import 'package:capstone_app/pages/recentdeathnotices.dart';
 import 'package:capstone_app/profile/profile.dart';
+import 'package:capstone_app/ui/theme/branding.dart' as branding;
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -79,7 +80,7 @@ class _SecretaryDashboardPageState extends State<SecretaryDashboardPage> {
       _fetchUnreadNotifCount();
       _subscribeNotifBadgeRealtime();
     });
-    // Load secretary info + recent deaths/pending on start
+
     _initLoad();
   }
 
@@ -432,33 +433,21 @@ class _SecretaryDashboardPageState extends State<SecretaryDashboardPage> {
     }
 
     return Scaffold(
-      backgroundColor: kBg,
-      body: RefreshIndicator(
-        onRefresh: _refreshAll,
-        edgeOffset: 68,
+      backgroundColor: const Color(0xFFF8FAFC),
+      body: Container(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [Color(0xFF1E40AF), Color(0xFF3B82F6), Color(0xFFF8FAFC)],
+            stops: [0.0, 0.3, 0.3],
+          ),
+        ),
         child: Stack(
           children: [
             SafeArea(
               child: Column(
-                children: [
-                  _topHeader(wide),
-                  const Divider(
-                    height: 1,
-                    thickness: 1,
-                    color: Color(0xFFE1E4E8),
-                  ),
-                  if (_currentIndex == 0) _greetingSection(),
-                  Expanded(
-                    child: AnimatedSwitcher(
-                      duration: const Duration(milliseconds: 250),
-                      child: IndexedStack(
-                        key: ValueKey(_currentIndex),
-                        index: _currentIndex,
-                        children: _pages,
-                      ),
-                    ),
-                  ),
-                ],
+                children: [_buildModernHeader(), _buildContentArea(wide)],
               ),
             ),
             _bottomNav(wide),
@@ -468,748 +457,723 @@ class _SecretaryDashboardPageState extends State<SecretaryDashboardPage> {
     );
   }
 
-  Widget _topHeader(bool wide) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 12, 16, 8),
-      child: Row(
-        children: [
-          // NEW: Styled dayung title + subtitle
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  _selectedDayungUnit,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    fontSize: 22,
-                    fontWeight: FontWeight.w800,
-                    fontFamily: 'Montserrat',
-                    color: kNeutralText,
-                    height: 1.1,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                if (_unitBarangay != null || _unitCity != null)
-                  Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Icon(
-                        Icons.location_on_outlined,
-                        size: 14,
-                        color: kSubtleText,
-                      ),
-                      const SizedBox(width: 4),
-                      Flexible(
-                        child: Text(
-                          [
-                            if (_unitBarangay != null) _unitBarangay!,
-                            if (_unitCity != null) _unitCity!,
-                          ].join(', '),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            fontSize: 12.5,
-                            fontWeight: FontWeight.w600,
-                            fontFamily: 'OpenSans',
-                            color: kSubtleText,
-                            height: 1.1,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-              ],
-            ),
-          ),
-          _iconBtn(
-            tooltip: 'Dayung Profile',
-            icon: Icons.settings,
-            color: kPrimary,
-            onTap: () {
-              final id = _dayungUnitId ?? 1;
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => DayungProfilePage(dayungUnitId: id),
-                ),
-              );
-            },
-          ),
-          _iconBtn(
-            tooltip: 'Notifications',
-            icon: Icons.notifications,
-            color: kWarn,
-            badge: _unreadNotifCount > 0 ? '$_unreadNotifCount' : null, // NEW
-            onTap: () async {
-              await Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => const NotificationPage()),
-              );
-              await _fetchUnreadNotifCount();
-            },
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _greetingSection() {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 12, 20, 6),
-      child: Row(
-        children: [
-          Expanded(
-            child: Text(
-              "Maayung buntag, $_fullName!",
-              style: const TextStyle(
-                fontSize: 22,
-                fontWeight: FontWeight.w700,
-                fontFamily: 'Montserrat',
-                color: kNeutralText,
-                height: 1.15,
-              ),
-            ),
-          ),
-          GestureDetector(
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => const ProfilePage()),
-              );
-            },
-            child: const CircleAvatar(
-              radius: 30,
-              backgroundColor: kPrimary,
-              child: Icon(Icons.person, size: 34, color: Colors.white),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildHomePage(BuildContext context) {
-    return LayoutBuilder(
-      builder: (ctx, constraints) {
-        return SingleChildScrollView(
-          controller: _scrollController,
-          physics: const AlwaysScrollableScrollPhysics(),
-          padding: const EdgeInsets.fromLTRB(20, 8, 20, 120),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _overviewTripleCards(constraints.maxWidth),
-              const SizedBox(height: 28),
-              _sectionTitle("Certificates"),
-              _panelCard(
-                child: Column(
-                  children: [
-                    const Text(
-                      "Death Certificate Inbox",
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        fontSize: 22,
-                        fontWeight: FontWeight.w700,
-                        fontFamily: 'Montserrat',
-                        color: kNeutralText,
-                        height: 1.15,
-                      ),
-                    ),
-                    const SizedBox(height: 14),
-                    _primaryButton(
-                      label: "View Certificates",
-                      icon: Icons.folder_open,
-                      onTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => const CertificatesPage(),
-                          ),
-                        );
-                      },
-                    ),
-                    if (_recentCertificates.isNotEmpty) ...[
-                      const SizedBox(height: 20),
-                      Align(
-                        alignment: Alignment.centerLeft,
-                        child: Text(
-                          "Recent",
-                          style: TextStyle(
-                            fontSize: 15,
-                            fontWeight: FontWeight.w600,
-                            color: kSubtleText.withOpacity(.9),
-                            fontFamily: 'Montserrat',
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      Column(
-                        children: _recentCertificates.take(3).map((c) {
-                          return Padding(
-                            padding: const EdgeInsets.symmetric(vertical: 3),
-                            child: Row(
-                              children: [
-                                const Icon(
-                                  Icons.circle,
-                                  size: 8,
-                                  color: kPrimary,
-                                ),
-                                const SizedBox(width: 8),
-                                Expanded(
-                                  child: Text(
-                                    c['deceased_name'] ?? 'Unknown',
-                                    style: const TextStyle(
-                                      fontSize: 15,
-                                      fontFamily: 'OpenSans',
-                                    ),
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          );
-                        }).toList(),
-                      ),
-                    ],
-                  ],
-                ),
-              ),
-              const SizedBox(height: 30),
-              _sectionTitle("Actions"),
-              Row(
-                children: [
-                  Expanded(
-                    child: _actionTile(
-                      icon: Icons.info_outline,
-                      label: "Notify members to\nupdate info",
-                      color: kPrimary,
-                      onTap: () {},
-                    ),
-                  ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: _actionTile(
-                      icon: Icons.volunteer_activism,
-                      label: "Service\nTracking",
-                      color: kAccent,
-                      onTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => ServiceTrackerPage(
-                              dayungUnitId: _dayungUnitId ?? 1,
-                            ),
-                          ),
-                        );
-                      },
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 18),
-              _primaryButton(
-                label: "Create Death Notice",
-                icon: Icons.add_circle_outline,
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => CreateDeathNoticePage(
-                        dayungUnitId: _dayungUnitId ?? 1,
-                      ),
-                    ),
-                  );
-                },
-                fillColor: kPrimary,
-              ),
-              const SizedBox(height: 30),
-              _sectionTitle("Management"),
-              _secondaryButton(
-                label: "Applications Inbox",
-                icon: Icons.mail,
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => const SecretaryApplicationsPage(),
-                    ),
-                  );
-                },
-              ),
-              const SizedBox(height: 14),
-              _secondaryButton(
-                label: "Beneficiaries",
-                icon: Icons.people,
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => const SecretaryBeneficiariesTab(),
-                    ),
-                  );
-                },
-              ),
-            ],
-          ),
-        );
-      },
-    );
-  }
-
-  Widget _overviewTripleCards(double maxWidth) {
-    final recentNames = _recentCertificates
-        .map((c) => (c['deceased_name'] ?? '').toString().trim())
-        .where((s) => s.isNotEmpty)
-        .toList();
-
-    final cards = [
-      _statCard(
-        color: const Color(0xFFD8EEFF),
-        icon: Icons.groups,
-        iconColor: Colors.blue[700],
-        title: "Total Active\nMembers",
-        value: _loadingActiveMembers ? "…" : _activeMembersCount.toString(),
-        onTap: () => Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (_) => SecretaryMembersPage(
-              dayungUnitId: _dayungUnitId ?? 1,
-            ), // CHANGED
-          ),
-        ),
-      ),
-      _recentDeathsCard(recentNames),
-      _statCard(
-        color: const Color(0xFFFEFBDC),
-        icon: Icons.account_balance_wallet,
-        iconColor: Colors.orange[700],
-        title: "Pending\nPayments",
-        value: _loadingPendingPayments
-            ? "…"
-            : "₱ ${_pendingPaymentsAmount.toStringAsFixed(0)}",
-        smallSubtitle: _loadingPendingPayments
-            ? ""
-            : "From $_pendingPaymentsMembers",
-        onTap: () => setState(() => _currentIndex = 1),
-      ),
-    ];
-
-    if (maxWidth < 360) {
-      return Column(
-        children: [
-          for (int i = 0; i < cards.length; i++) ...[
-            cards[i],
-            if (i != cards.length - 1) const SizedBox(height: 12),
-          ],
-        ],
-      );
-    }
-
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Expanded(child: cards[0]),
-        const SizedBox(width: 12),
-        Expanded(child: cards[1]),
-        const SizedBox(width: 12),
-        Expanded(child: cards[2]),
-      ],
-    );
-  }
-
-  Widget _statCard({
-    required Color color,
-    required IconData icon,
-    required Color? iconColor,
-    required String title,
-    required String value,
-    VoidCallback? onTap,
-    bool multiLineValue = false,
-    String smallSubtitle = "",
-  }) {
-    return InkWell(
-      borderRadius: BorderRadius.circular(18),
-      onTap: onTap,
-      child: Container(
-        height: 220,
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: color,
-          borderRadius: BorderRadius.circular(18),
-          border: Border.all(color: Colors.grey.shade300, width: 2),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Icon(icon, size: 32, color: iconColor),
-            const SizedBox(height: 8),
-            Text(
-              title,
-              textAlign: TextAlign.center,
-              style: const TextStyle(
-                fontWeight: FontWeight.w800,
-                fontSize: 16,
-                fontFamily: 'Montserrat',
-                height: 1.15,
-                color: kNeutralText,
-              ),
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-            ),
-            const SizedBox(height: 10),
-            Expanded(
-              child: Center(
-                child: multiLineValue
-                    ? Text(
-                        value,
-                        textAlign: TextAlign.center,
-                        style: const TextStyle(
-                          fontWeight: FontWeight.w700,
-                          fontSize: 15,
-                          height: 1.15,
-                          fontFamily: 'Montserrat',
-                          color: kNeutralText,
-                        ),
-                        maxLines: 3,
-                        overflow: TextOverflow.fade,
-                      )
-                    : FittedBox(
-                        fit: BoxFit.scaleDown,
-                        child: Text(
-                          value,
-                          style: const TextStyle(
-                            fontWeight: FontWeight.w800,
-                            fontSize: 32,
-                            fontFamily: 'Montserrat',
-                            color: kNeutralText,
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-              ),
-            ),
-            if (smallSubtitle.isNotEmpty)
-              Text(
-                smallSubtitle,
-                textAlign: TextAlign.center,
-                style: const TextStyle(
-                  fontSize: 12.5,
-                  fontWeight: FontWeight.w600,
-                  fontFamily: 'OpenSans',
-                  color: kSubtleText,
-                  height: 1.1,
-                ),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _recentDeathsCard(List<String> names) {
-    final display = names.take(2).toList();
-    final extra = names.length - display.length;
-
-    return InkWell(
-      onTap: () {
-        final id = _dayungUnitId ?? 1;
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (_) => RecentDeathNotices(dayungUnitId: id),
-          ),
-        );
-      },
-      borderRadius: BorderRadius.circular(18),
-      child: Container(
-        height: 220,
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: const Color(0xFFFFDAF6),
-          borderRadius: BorderRadius.circular(18),
-          border: Border.all(color: Colors.grey.shade300, width: 2),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Icon(FontAwesomeIcons.dove, size: 30, color: Colors.purple[400]),
-            const SizedBox(height: 8),
-            const Text(
-              "Recent Deaths",
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                fontWeight: FontWeight.w800,
-                fontSize: 16,
-                fontFamily: 'Montserrat',
-                height: 1.15,
-                color: kNeutralText,
-              ),
-              maxLines: 2,
-            ),
-            const SizedBox(height: 6),
-            Expanded(
-              child: names.isEmpty
-                  ? const Center(
-                      child: Text(
-                        "None",
-                        style: TextStyle(
-                          fontWeight: FontWeight.w600,
-                          fontSize: 14,
-                          fontFamily: 'Montserrat',
-                          color: kNeutralText,
-                        ),
-                      ),
-                    )
-                  : Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        for (final n in display)
-                          Padding(
-                            padding: const EdgeInsets.only(bottom: 4),
-                            child: Row(
-                              children: [
-                                const Icon(
-                                  FontAwesomeIcons.dove,
-                                  size: 14,
-                                  color: Colors.black87,
-                                ),
-                                const SizedBox(width: 6),
-                                Expanded(
-                                  child: Text(
-                                    n,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: const TextStyle(
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: 14,
-                                      color: Colors.black,
-                                      fontFamily: 'Montserrat',
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        if (extra > 0)
-                          Text(
-                            '+$extra more',
-                            style: const TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w600,
-                              fontFamily: 'OpenSans',
-                              color: kNeutralText,
-                            ),
-                          ),
-                      ],
-                    ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _sectionTitle(String text) => Padding(
-    padding: const EdgeInsets.only(bottom: 4),
-    child: Text(
-      text,
-      style: const TextStyle(
-        fontSize: 20,
-        fontWeight: FontWeight.w800,
-        letterSpacing: .4,
-        color: kNeutralText,
-        fontFamily: 'Montserrat',
-      ),
-    ),
-  );
-
-  Widget _panelCard({required Widget child}) {
+  Widget _buildModernHeader() {
     return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.fromLTRB(20, 22, 20, 24),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(kEdge),
-        border: Border.all(color: Colors.grey.shade300),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(.05),
-            blurRadius: 12,
-            offset: const Offset(0, 5),
-          ),
-        ],
-      ),
-      child: child,
-    );
-  }
-
-  Widget _actionTile({
-    required IconData icon,
-    required String label,
-    required Color color,
-    required VoidCallback onTap,
-  }) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(kEdge),
-      child: Container(
-        padding: const EdgeInsets.fromLTRB(20, 22, 20, 24),
-        decoration: BoxDecoration(
-          color: color.withOpacity(.09),
-          borderRadius: BorderRadius.circular(kEdge),
-          border: Border.all(color: color.withOpacity(.35)),
-        ),
-        child: Column(
-          children: [
-            Icon(icon, color: color, size: 42),
-            const SizedBox(height: 12),
-            Text(
-              label,
-              textAlign: TextAlign.center,
-              style: const TextStyle(
-                fontSize: 15,
-                fontFamily: 'OpenSans',
-                fontWeight: FontWeight.w600,
-                height: 1.25,
-                color: kNeutralText,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _primaryButton({
-    required String label,
-    required IconData icon,
-    required VoidCallback onTap,
-    Color fillColor = kAccent,
-  }) {
-    return SizedBox(
-      width: double.infinity,
-      child: ElevatedButton.icon(
-        icon: Icon(icon, size: 26),
-        label: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 6),
-          child: Text(
-            label,
-            style: const TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.w700,
-              fontFamily: 'Montserrat',
-            ),
-          ),
-        ),
-        style: ElevatedButton.styleFrom(
-          backgroundColor: fillColor,
-          foregroundColor: Colors.white,
-          minimumSize: const Size.fromHeight(60),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-          ),
-        ),
-        onPressed: onTap,
-      ),
-    );
-  }
-
-  Widget _secondaryButton({
-    required String label,
-    required IconData icon,
-    required VoidCallback onTap,
-  }) {
-    return SizedBox(
-      width: double.infinity,
-      child: OutlinedButton.icon(
-        icon: Icon(icon, size: 24, color: kPrimary),
-        label: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 4),
-          child: Text(
-            label,
-            style: const TextStyle(
-              fontSize: 16.5,
-              fontWeight: FontWeight.w600,
-              fontFamily: 'OpenSans',
-              color: kPrimaryDark,
-            ),
-          ),
-        ),
-        style: OutlinedButton.styleFrom(
-          padding: const EdgeInsets.symmetric(vertical: 14),
-          minimumSize: const Size.fromHeight(60),
-          side: const BorderSide(color: kPrimary, width: 1.8),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-          ),
-        ),
-        onPressed: onTap,
-      ),
-    );
-  }
-
-  Widget _iconBtn({
-    required IconData icon,
-    required Color color,
-    required VoidCallback onTap,
-    String? tooltip,
-    String? badge,
-  }) {
-    return Semantics(
-      button: true,
-      label: tooltip,
-      child: Padding(
-        padding: const EdgeInsets.only(left: 6),
-        child: InkWell(
-          borderRadius: BorderRadius.circular(16),
-          onTap: onTap,
-          child: Stack(
-            clipBehavior: Clip.none,
+      padding: const EdgeInsets.fromLTRB(20, 20, 20, 40),
+      child: Column(
+        children: [
+          // Top bar
+          Row(
             children: [
               Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: color.withOpacity(.10),
+                  color: Colors.white.withValues(alpha: 0.2),
                   borderRadius: BorderRadius.circular(16),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.1),
+                      blurRadius: 8,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
                 ),
-                child: Icon(icon, size: 28, color: color),
+                child: const Icon(
+                  Icons.dashboard_rounded,
+                  color: Colors.white,
+                  size: 24,
+                ),
               ),
-              if (badge != null)
-                Positioned(
-                  right: -2,
-                  top: -2,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 6,
-                      vertical: 2,
-                    ),
-                    decoration: BoxDecoration(
-                      color: kDanger,
-                      borderRadius: BorderRadius.circular(12),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withOpacity(.25),
-                          blurRadius: 4,
-                          offset: const Offset(0, 2),
-                        ),
-                      ],
-                    ),
-                    child: Text(
-                      badge,
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      _selectedDayungUnit,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
-                        fontSize: 10,
-                        fontWeight: FontWeight.w700,
+                        fontFamily: 'Montserrat',
+                        fontSize: 24,
+                        fontWeight: FontWeight.w900,
                         color: Colors.white,
+                        letterSpacing: 0.5,
                       ),
+                    ),
+                    const Text(
+                      'Secretary Dashboard',
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: Colors.white,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              _buildModernIconButton(
+                icon: Icons.notifications_rounded,
+                onTap: () async {
+                  await Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const NotificationPage()),
+                  );
+                  await _fetchUnreadNotifCount();
+                },
+                badge: _unreadNotifCount > 0 ? '$_unreadNotifCount' : null,
+              ),
+            ],
+          ),
+          const SizedBox(height: 24),
+          // Greeting section
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  'Maayung buntag,\n${_fullName.isEmpty ? 'Secretary' : _fullName}!',
+                  style: const TextStyle(
+                    fontFamily: 'Montserrat',
+                    fontSize: 28,
+                    fontWeight: FontWeight.w900,
+                    height: 1.1,
+                    color: Colors.white,
+                    letterSpacing: 0.5,
+                  ),
+                ),
+              ),
+              GestureDetector(
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const ProfilePage()),
+                  );
+                },
+                child: Container(
+                  padding: const EdgeInsets.all(4),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.2),
+                    borderRadius: BorderRadius.circular(32),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.1),
+                        blurRadius: 8,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
+                  ),
+                  child: const CircleAvatar(
+                    radius: 28,
+                    backgroundColor: Colors.white,
+                    child: Icon(
+                      Icons.person,
+                      size: 34,
+                      color: Color(0xFF1E40AF),
                     ),
                   ),
                 ),
+              ),
             ],
           ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildContentArea(bool wide) {
+    return Expanded(
+      child: Container(
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.only(
+            topLeft: Radius.circular(24),
+            topRight: Radius.circular(24),
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: Color(0x1A000000),
+              blurRadius: 20,
+              offset: Offset(0, -4),
+            ),
+          ],
+        ),
+        child: ClipRRect(
+          borderRadius: const BorderRadius.only(
+            topLeft: Radius.circular(24),
+            topRight: Radius.circular(24),
+          ),
+          child: RefreshIndicator(
+            onRefresh: _refreshAll, // keep old backend refresh
+            edgeOffset: 68,
+            child: AnimatedSwitcher(
+              duration: const Duration(milliseconds: 300),
+              child: IndexedStack(
+                key: ValueKey(_currentIndex),
+                index: _currentIndex,
+                children: _pages,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildModernIconButton({
+    required IconData icon,
+    required VoidCallback onTap,
+    String? badge,
+  }) {
+    return Stack(
+      clipBehavior: Clip.none,
+      children: [
+        Container(
+          width: 44,
+          height: 44,
+          decoration: BoxDecoration(
+            color: Colors.white.withValues(alpha: 0.2),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: Colors.white.withValues(alpha: 0.3),
+              width: 1,
+            ),
+          ),
+          child: Material(
+            color: Colors.transparent,
+            child: InkWell(
+              borderRadius: BorderRadius.circular(12),
+              onTap: onTap,
+              child: Icon(icon, color: Colors.white, size: 20),
+            ),
+          ),
+        ),
+        if (badge != null)
+          Positioned(
+            right: -2,
+            top: -2,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  colors: [Color(0xFFEF4444), Color(0xFFDC2626)],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+                borderRadius: BorderRadius.circular(10),
+                boxShadow: [
+                  BoxShadow(
+                    color: const Color(0xFFEF4444).withValues(alpha: 0.3),
+                    blurRadius: 8,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
+              ),
+              child: Text(
+                badge,
+                style: const TextStyle(
+                  fontFamily: 'OpenSans',
+                  fontSize: 10,
+                  fontWeight: FontWeight.w700,
+                  color: Colors.white,
+                ),
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+
+  Widget _buildHomePage(BuildContext context) {
+    return SingleChildScrollView(
+      controller: _scrollController,
+      padding: const EdgeInsets.all(20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _modernStatsGrid(MediaQuery.of(context).size.width),
+          const SizedBox(height: 24),
+          _modernActionCards(),
+          const SizedBox(height: 24),
+          _modernRecentActivity(),
+          const SizedBox(height: 24),
+          _modernQuickActions(),
+          const SizedBox(height: 100), // space for bottom nav
+        ],
+      ),
+    );
+  }
+
+  Widget _modernStatsGrid(double maxWidth) {
+    return Row(
+      children: [
+        Expanded(
+          child: _modernStatCard(
+            icon: Icons.people_rounded,
+            title: "Active Members",
+            value: _loadingActiveMembers
+                ? "..."
+                : _activeMembersCount.toString(),
+            color: const Color(0xFF10B981),
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) =>
+                      SecretaryMembersPage(dayungUnitId: _dayungUnitId ?? 1),
+                ),
+              );
+            },
+          ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: _modernStatCard(
+            icon: Icons.history_rounded,
+            title: "Recent Deaths",
+            value: "${_recentCertificates.length}",
+            color: const Color(0xFF8B5CF6),
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) =>
+                      RecentDeathNotices(dayungUnitId: _dayungUnitId ?? 1),
+                ),
+              );
+            },
+          ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: _modernStatCard(
+            icon: Icons.payment_rounded,
+            title: "Pending Payments",
+            value: _loadingPendingPayments
+                ? "..."
+                : "₱${_pendingPaymentsAmount.toStringAsFixed(0)}",
+            color: const Color(0xFFF59E0B),
+            onTap: () => setState(() => _currentIndex = 1),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _modernStatCard({
+    required IconData icon,
+    required String title,
+    required String value,
+    required Color color,
+    VoidCallback? onTap,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(16),
+      child: Container(
+        height: 120,
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.05),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(6),
+              decoration: BoxDecoration(
+                color: color.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Icon(icon, color: color, size: 20),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              title,
+              style: const TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+                color: Color(0xFF6B7280),
+                fontFamily: 'OpenSans',
+              ),
+              textAlign: TextAlign.center,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+            ),
+            const SizedBox(height: 3),
+            Text(
+              value,
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w800,
+                color: color,
+                fontFamily: 'Montserrat',
+              ),
+              textAlign: TextAlign.center,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _modernActionCards() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          "Quick Actions",
+          style: TextStyle(
+            fontSize: 18,
+            fontWeight: FontWeight.w800,
+            color: branding.kNeutralText,
+            fontFamily: 'Montserrat',
+          ),
+        ),
+        const SizedBox(height: 16),
+        Column(
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: _modernActionCard(
+                    icon: Icons.add_circle_rounded,
+                    title: "Create Death Notice",
+                    subtitle: "Record new death",
+                    color: const Color(0xFFEF4444),
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => CreateDeathNoticePage(
+                            dayungUnitId: _dayungUnitId ?? 1,
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: _modernActionCard(
+                    icon: Icons.people_rounded,
+                    title: "Manage Members",
+                    subtitle: "View & edit members",
+                    color: const Color(0xFF3B82F6),
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => SecretaryMembersPage(
+                            dayungUnitId: _dayungUnitId ?? 1,
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Expanded(
+                  child: _modernActionCard(
+                    icon: Icons.assignment_rounded,
+                    title: "Manage Applications",
+                    subtitle: "Review applications",
+                    color: const Color(0xFF10B981),
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const SecretaryApplicationsPage(),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: _modernActionCard(
+                    icon: Icons.track_changes_rounded,
+                    title: "Service Tracking",
+                    subtitle: "Monitor services",
+                    color: const Color(0xFF8B5CF6),
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => ServiceTrackerPage(
+                            dayungUnitId: _dayungUnitId ?? 1,
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _modernActionCard({
+    required IconData icon,
+    required String title,
+    required String subtitle,
+    required Color color,
+    VoidCallback? onTap,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(16),
+      child: Container(
+        height: 120,
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.05),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(icon, color: color, size: 20),
+            const SizedBox(height: 12),
+            Text(
+              title,
+              style: const TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w700,
+                color: branding.kNeutralText,
+                fontFamily: 'Montserrat',
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              subtitle,
+              style: const TextStyle(
+                fontSize: 12,
+                color: Color(0xFF6B7280),
+                fontFamily: 'OpenSans',
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _modernRecentActivity() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          "Recent Activity",
+          style: TextStyle(
+            fontSize: 18,
+            fontWeight: FontWeight.w800,
+            color: branding.kNeutralText,
+            fontFamily: 'Montserrat',
+          ),
+        ),
+        const SizedBox(height: 16),
+        Container(
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.05),
+                blurRadius: 10,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: Column(
+            children: [
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: branding.kPrimary.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Icon(
+                      Icons.folder_open_rounded,
+                      color: branding.kPrimary,
+                      size: 20,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  const Expanded(
+                    child: Text(
+                      "Death Certificate Inbox",
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
+                        color: branding.kNeutralText,
+                        fontFamily: 'Montserrat',
+                      ),
+                    ),
+                  ),
+                  TextButton(
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const CertificatesPage(),
+                        ),
+                      );
+                    },
+                    child: const Text(
+                      "View All",
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: branding.kPrimary,
+                        fontFamily: 'Montserrat',
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              if (_recentCertificates.isNotEmpty) ...[
+                const SizedBox(height: 16),
+                ..._recentCertificates
+                    .take(3)
+                    .map(
+                      (cert) => Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 4),
+                        child: Row(
+                          children: [
+                            Container(
+                              width: 6,
+                              height: 6,
+                              decoration: const BoxDecoration(
+                                color: branding.kPrimary,
+                                shape: BoxShape.circle,
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Text(
+                                cert['deceased_name'] ?? 'Unknown',
+                                style: const TextStyle(
+                                  fontSize: 14,
+                                  color: branding.kNeutralText,
+                                  fontFamily: 'OpenSans',
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+              ] else ...[
+                const SizedBox(height: 16),
+                const Text(
+                  "No recent certificates",
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: Color(0xFF6B7280),
+                    fontFamily: 'OpenSans',
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _modernQuickActions() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          "Quick Access",
+          style: TextStyle(
+            fontSize: 18,
+            fontWeight: FontWeight.w800,
+            color: branding.kNeutralText,
+            fontFamily: 'Montserrat',
+          ),
+        ),
+        const SizedBox(height: 16),
+        Row(
+          children: [
+            Expanded(
+              child: _modernQuickActionCard(
+                icon: Icons.info_outline_rounded,
+                title: "Notify Members",
+                color: branding.kPrimary,
+                onTap: () {
+                  // Keep existing functionality (placeholder)
+                },
+              ),
+            ),
+            const SizedBox(width: 12),
+            const Expanded(child: SizedBox.shrink()),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _modernQuickActionCard({
+    required IconData icon,
+    required String title,
+    required Color color,
+    VoidCallback? onTap,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: color.withValues(alpha: 0.1),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: color.withValues(alpha: 0.2)),
+        ),
+        child: Row(
+          children: [
+            Icon(icon, color: color, size: 20),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                title,
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: color,
+                  fontFamily: 'Montserrat',
+                ),
+              ),
+            ),
+          ],
         ),
       ),
     );
@@ -1224,31 +1188,57 @@ class _SecretaryDashboardPageState extends State<SecretaryDashboardPage> {
         child: IgnorePointer(
           ignoring: !_showNavBar,
           child: AnimatedOpacity(
-            duration: const Duration(milliseconds: 250),
-            opacity: _showNavBar ? 1 : 0,
+            duration: const Duration(milliseconds: 300),
+            opacity: _showNavBar ? 1.0 : 0.0,
             child: Container(
-              height: 86,
-              margin: EdgeInsets.symmetric(horizontal: wide ? 170 : 20),
-              padding: const EdgeInsets.symmetric(horizontal: 14),
+              constraints: const BoxConstraints(minHeight: 80, maxHeight: 90),
+              margin: EdgeInsets.symmetric(
+                horizontal: wide
+                    ? MediaQuery.of(context).size.width * 0.15
+                    : 16,
+              ),
               decoration: BoxDecoration(
                 color: Colors.white,
-                borderRadius: BorderRadius.circular(44),
-                border: Border.all(color: Colors.grey.shade300),
+                borderRadius: BorderRadius.circular(40),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withOpacity(.08),
-                    blurRadius: 18,
-                    offset: const Offset(0, 6),
+                    color: Colors.black.withValues(alpha: 0.08),
+                    blurRadius: 20,
+                    offset: const Offset(0, 8),
+                  ),
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.02),
+                    blurRadius: 6,
+                    offset: const Offset(0, 2),
                   ),
                 ],
+                border: Border.all(color: Colors.grey.shade300, width: 1),
               ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                children: [
-                  _navItem(Icons.home_rounded, "Home", 0),
-                  _navItem(Icons.public, "Contributions", 1),
-                  _navItem(Icons.description, "Claims", 2),
-                ],
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                  children: [
+                    _navBarItem(
+                      icon: Icons.dashboard_rounded,
+                      label: 'Dashboard',
+                      selected: _currentIndex == 0,
+                      onTap: () => setState(() => _currentIndex = 0),
+                    ),
+                    _navBarItem(
+                      icon: Icons.trending_up_rounded,
+                      label: 'Contributions',
+                      selected: _currentIndex == 1,
+                      onTap: () => setState(() => _currentIndex = 1),
+                    ),
+                    _navBarItem(
+                      icon: Icons.assignment_rounded,
+                      label: 'Claims',
+                      selected: _currentIndex == 2,
+                      onTap: () => setState(() => _currentIndex = 2),
+                    ),
+                  ],
+                ),
               ),
             ),
           ),
@@ -1257,32 +1247,82 @@ class _SecretaryDashboardPageState extends State<SecretaryDashboardPage> {
     );
   }
 
-  Widget _navItem(IconData icon, String label, int index) {
-    final selected = _currentIndex == index;
-    return TextButton(
-      onPressed: () => setState(() => _currentIndex = index),
-      style: TextButton.styleFrom(
-        foregroundColor: selected ? kPrimary : kNeutralText,
-        padding: const EdgeInsets.symmetric(horizontal: 12),
-        shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.all(Radius.circular(18)),
-        ),
-      ),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(icon, size: 30, color: selected ? kPrimary : kNeutralText),
-          const SizedBox(height: 4),
-          Text(
-            label,
-            style: TextStyle(
-              fontSize: 13,
-              fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
-              fontFamily: 'OpenSans',
-              letterSpacing: .3,
+  Widget _navBarItem({
+    required IconData icon,
+    required String label,
+    required bool selected,
+    required VoidCallback onTap,
+  }) {
+    return Semantics(
+      button: true,
+      label: label,
+      child: Container(
+        margin: const EdgeInsets.symmetric(horizontal: 2),
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: onTap,
+            borderRadius: BorderRadius.circular(20),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              constraints: const BoxConstraints(minHeight: 60, maxHeight: 70),
+              decoration: BoxDecoration(
+                color: selected
+                    ? branding.kPrimary.withValues(alpha: 0.12)
+                    : Colors.transparent,
+                borderRadius: BorderRadius.circular(20),
+                border: selected
+                    ? Border.all(
+                        color: branding.kPrimary.withValues(alpha: 0.3),
+                        width: 1,
+                      )
+                    : null,
+              ),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: selected
+                          ? branding.kPrimary
+                          : Colors.grey.shade400,
+                      borderRadius: BorderRadius.circular(16),
+                      boxShadow: selected
+                          ? [
+                              BoxShadow(
+                                color: branding.kPrimary.withValues(alpha: 0.4),
+                                blurRadius: 12,
+                                offset: const Offset(0, 3),
+                              ),
+                            ]
+                          : null,
+                    ),
+                    child: Icon(
+                      icon,
+                      color: selected ? Colors.white : Colors.grey[700],
+                      size: 20,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    label,
+                    style: TextStyle(
+                      color: selected ? branding.kPrimary : Colors.grey[700],
+                      fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
+                      fontSize: 12,
+                      letterSpacing: 0.2,
+                      fontFamily: 'Montserrat',
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
+              ),
             ),
           ),
-        ],
+        ),
       ),
     );
   }

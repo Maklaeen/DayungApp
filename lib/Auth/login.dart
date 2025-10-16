@@ -1,5 +1,4 @@
 import 'dart:convert';
-
 import 'package:capstone_app/Auth/utils_file.dart';
 import 'package:capstone_app/ui/theme/branding.dart';
 import 'package:capstone_app/Collector/dashboard.dart'
@@ -19,7 +18,7 @@ import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:auto_size_text/auto_size_text.dart';
-import 'dart:io' show SocketException;
+
 
 // Additional colors for login-specific styling
 const Color kPrimaryLight = Color(0xFF3B82F6);
@@ -282,7 +281,7 @@ class _LoginState extends State<Login> {
       }
     } catch (e) {
       setState(() => _isLoading = false);
-      if (e is SocketException || _looksOffline(e)) {
+      if (_looksOffline(e)) {
         await _showErrorDialog(
           'No Internet Connection',
           'Connect to your internet connection',
