@@ -8,7 +8,8 @@ import 'package:capstone_app/pages/paymentmethod.dart';
 import 'package:capstone_app/pages/contributionhistory.dart';
 import 'package:capstone_app/pages/recentdeathnotices.dart' hide kDanger;
 import 'package:capstone_app/profile/profile.dart' hide kPrimary, kWarn;
-import 'package:capstone_app/screens/selectdayung.dart' hide kPrimary, kWarn, kPrimaryDark, kDanger;
+import 'package:capstone_app/screens/selectdayung.dart'
+    hide kPrimary, kWarn, kPrimaryDark, kDanger;
 import 'package:capstone_app/Auth/login.dart'
     hide kPrimary, kNeutralText, kSubtleText, kPrimaryDark, kWarn, kDanger;
 import 'package:auto_size_text/auto_size_text.dart';
@@ -971,86 +972,1034 @@ class _MemberDashboardPageState extends State<MemberDashboardPage> {
     super.dispose();
   }
 
-  List<Widget> get _pages => [
-    _buildHomePage(context),
-    ContributionHistory(),
-    ClaimsPage(),
-  ];
+  List<Widget> get _pages => [_homePage(), ContributionHistory(), ClaimsPage()];
 
-  @override
-  Widget build(BuildContext context) {
-    final width = MediaQuery.of(context).size.width;
-    final wide = width > 700;
-    return Scaffold(
-      backgroundColor: kBg,
-      body: RefreshIndicator(
-        onRefresh: _refreshAll,
-        edgeOffset: 68,
-        child: Stack(
-          children: [
-            SafeArea(
-              child: Column(
-                children: [
-                  _topHeader(wide),
-                  const Divider(
-                    height: 1,
-                    thickness: 1,
-                    color: Color(0xFFE1E4E8),
-                  ),
-                  if (_currentIndex == 0) _greetingSection(),
-                  Expanded(
-                    child: AnimatedSwitcher(
-                      duration: const Duration(milliseconds: 250),
-                      child: IndexedStack(
-                        key: ValueKey(_currentIndex),
-                        index: _currentIndex,
-                        children: _pages,
-                      ),
-                    ),
+  // Widget _topBar() {
+  //   return Container(
+  //     padding: const EdgeInsets.fromLTRB(20, 20, 20, 40),
+  //     child: Column(
+  //       children: [
+  //         Row(
+  //           children: [
+  //             Container(
+  //               padding: const EdgeInsets.all(12),
+  //               decoration: BoxDecoration(
+  //                 color: Colors.white.withOpacity(0.2),
+  //                 borderRadius: BorderRadius.circular(16),
+  //                 boxShadow: [
+  //                   BoxShadow(
+  //                     color: Colors.black.withOpacity(0.1),
+  //                     blurRadius: 8,
+  //                     offset: const Offset(0, 2),
+  //                   ),
+  //                 ],
+  //               ),
+  //               child: const Icon(
+  //                 Icons.account_balance_wallet_rounded,
+  //                 color: Colors.white,
+  //                 size: 24,
+  //               ),
+  //             ),
+  //             const SizedBox(width: 16),
+  //             Expanded(
+  //               child: Column(
+  //                 crossAxisAlignment: CrossAxisAlignment.start,
+  //                 children: [
+  //                   Text(
+  //                     _selectedDayungUnit,
+  //                     style: const TextStyle(
+  //                       fontFamily: 'Montserrat',
+  //                       fontSize: 24,
+  //                       fontWeight: FontWeight.w900,
+  //                       color: Colors.white,
+  //                       letterSpacing: 0.5,
+  //                     ),
+  //                   ),
+  //                 ],
+  //               ),
+  //             ),
+  //             _iconBtn(
+  //               icon: Icons.notifications_rounded,
+  //               color: kPrimary,
+  //               onTap: () => Navigator.push(
+  //                 context,
+  //                 MaterialPageRoute(builder: (_) => const NotificationPage()),
+  //               ),
+  //               badge: _unreadNotifCount > 0 ? '$_unreadNotifCount' : null,
+  //             ),
+  //           ],
+  //         ),
+  //         const SizedBox(height: 24),
+  //         Row(
+  //           children: [
+  //             Expanded(
+  //               child: Text(
+  //                 'Maayung buntag,\n$_fullName!',
+  //                 style: const TextStyle(
+  //                   fontFamily: 'Montserrat',
+  //                   fontSize: 28,
+  //                   fontWeight: FontWeight.w900,
+  //                   height: 1.1,
+  //                   color: Colors.white,
+  //                   letterSpacing: 0.5,
+  //                 ),
+  //               ),
+  //             ),
+  //             GestureDetector(
+  //               onTap: () {
+  //                 Navigator.push(
+  //                   context,
+  //                   MaterialPageRoute(builder: (_) => const ProfilePage()),
+  //                 );
+  //               },
+  //               child: Container(
+  //                 padding: const EdgeInsets.all(4),
+  //                 decoration: BoxDecoration(
+  //                   color: Colors.white.withOpacity(0.2),
+  //                   borderRadius: BorderRadius.circular(32),
+  //                   boxShadow: [
+  //                     BoxShadow(
+  //                       color: Colors.black.withOpacity(0.1),
+  //                       blurRadius: 8,
+  //                       offset: const Offset(0, 2),
+  //                     ),
+  //                   ],
+  //                 ),
+  //                 child: const CircleAvatar(
+  //                   radius: 28,
+  //                   backgroundColor: Colors.white,
+  //                   child: Icon(
+  //                     Icons.person,
+  //                     size: 34,
+  //                     color: Color(0xFF1E40AF),
+  //                   ),
+  //                 ),
+  //               ),
+  //             ),
+  //           ],
+  //         ),
+  //       ],
+  //     ),
+  //   );
+  // }
+
+  Widget _buildContentArea(bool wide) {
+    return Expanded(
+      child: Container(
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.only(
+            topLeft: Radius.circular(24),
+            topRight: Radius.circular(24),
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: Color(0x1A000000),
+              blurRadius: 20,
+              offset: Offset(0, -4),
+            ),
+          ],
+        ),
+        child: ClipRRect(
+          borderRadius: const BorderRadius.only(
+            topLeft: Radius.circular(24),
+            topRight: Radius.circular(24),
+          ),
+          child: AnimatedSwitcher(
+            duration: const Duration(milliseconds: 300),
+            child: IndexedStack(index: _currentIndex, children: _pages),
+          ),
+        ),
+      ),
+    );
+  }
+
+  // Widget _bottomNav(bool wide) {
+  //   return Positioned(
+  //     left: 0,
+  //     right: 0,
+  //     bottom: 16,
+  //     child: Center(
+  //       child: IgnorePointer(
+  //         ignoring: !_showNavBar,
+  //         child: AnimatedOpacity(
+  //           duration: const Duration(milliseconds: 300),
+  //           opacity: _showNavBar ? 1.0 : 0.0,
+  //           child: Container(
+  //             constraints: const BoxConstraints(minHeight: 80, maxHeight: 90),
+  //             margin: EdgeInsets.symmetric(
+  //               horizontal: wide
+  //                   ? MediaQuery.of(context).size.width * 0.15
+  //                   : 16,
+  //             ),
+  //             decoration: BoxDecoration(
+  //               color: Colors.white,
+  //               borderRadius: BorderRadius.circular(40),
+  //               boxShadow: [
+  //                 BoxShadow(
+  //                   color: Colors.black.withOpacity(0.08),
+  //                   blurRadius: 20,
+  //                   offset: const Offset(0, 8),
+  //                 ),
+  //                 BoxShadow(
+  //                   color: Colors.black.withOpacity(0.02),
+  //                   blurRadius: 6,
+  //                   offset: const Offset(0, 2),
+  //                 ),
+  //               ],
+  //               border: Border.all(color: Colors.grey.shade300, width: 1),
+  //             ),
+  //             child: Padding(
+  //               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+  //               child: Row(
+  //                 mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+  //                 children: [
+  //                   _navBarItem(
+  //                     icon: Icons.dashboard_rounded,
+  //                     label: 'Dashboard',
+  //                     selected: _currentIndex == 0,
+  //                     onTap: () => setState(() => _currentIndex = 0),
+  //                   ),
+  //                   _navBarItem(
+  //                     icon: Icons.trending_up_rounded,
+  //                     label: 'Contributions',
+  //                     selected: _currentIndex == 1,
+  //                     onTap: () => setState(() => _currentIndex = 1),
+  //                   ),
+  //                   _navBarItem(
+  //                     icon: Icons.assignment_rounded,
+  //                     label: 'Claims',
+  //                     selected: _currentIndex == 2,
+  //                     onTap: () => setState(() => _currentIndex = 2),
+  //                   ),
+  //                 ],
+  //               ),
+  //             ),
+  //           ),
+  //         ),
+  //       ),
+  //     ),
+  //   );
+  // }
+
+  Widget _iconBtn({
+    required IconData icon,
+    required Color color,
+    required VoidCallback onTap,
+    String? tooltip,
+    String? badge,
+  }) {
+    return Stack(
+      clipBehavior: Clip.none,
+      children: [
+        Container(
+          width: 44,
+          height: 44,
+          decoration: BoxDecoration(
+            color: Colors.white.withOpacity(0.2),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: Colors.white.withOpacity(0.3), width: 1),
+          ),
+          child: Material(
+            color: Colors.transparent,
+            child: InkWell(
+              borderRadius: BorderRadius.circular(12),
+              onTap: onTap,
+              child: Icon(icon, color: color, size: 20),
+            ),
+          ),
+        ),
+        if (badge != null)
+          Positioned(
+            right: -2,
+            top: -2,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  colors: [Color(0xFFEF4444), Color(0xFFDC2626)],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+                borderRadius: BorderRadius.circular(10),
+                boxShadow: [
+                  BoxShadow(
+                    color: const Color(0xFFEF4444).withOpacity(0.3),
+                    blurRadius: 8,
+                    offset: const Offset(0, 2),
                   ),
                 ],
               ),
+              child: Text(
+                badge,
+                style: const TextStyle(
+                  fontFamily: 'OpenSans',
+                  fontSize: 10,
+                  fontWeight: FontWeight.w700,
+                  color: Colors.white,
+                ),
+              ),
             ),
-            _bottomNav(wide),
+          ),
+      ],
+    );
+  }
+
+  // Widget _navBarItem({
+  //   required IconData icon,
+  //   required String label,
+  //   required bool selected,
+  //   required VoidCallback onTap,
+  // }) {
+  //   return Semantics(
+  //     button: true,
+  //     label: label,
+  //     child: Container(
+  //       margin: const EdgeInsets.symmetric(horizontal: 2),
+  //       child: Material(
+  //         color: Colors.transparent,
+  //         child: InkWell(
+  //           onTap: onTap,
+  //           borderRadius: BorderRadius.circular(20),
+  //           child: Container(
+  //             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+  //             constraints: const BoxConstraints(minHeight: 60, maxHeight: 70),
+  //             decoration: BoxDecoration(
+  //               color: selected
+  //                   ? const Color(0xFF1E40AF).withOpacity(0.12)
+  //                   : Colors.transparent,
+  //               borderRadius: BorderRadius.circular(20),
+  //               border: selected
+  //                   ? Border.all(
+  //                       color: const Color(0xFF1E40AF).withOpacity(0.3),
+  //                       width: 1,
+  //                     )
+  //                   : null,
+  //             ),
+  //             child: Column(
+  //               mainAxisAlignment: MainAxisAlignment.center,
+  //               mainAxisSize: MainAxisSize.min,
+  //               children: [
+  //                 Container(
+  //                   padding: const EdgeInsets.all(8),
+  //                   decoration: BoxDecoration(
+  //                     color: selected
+  //                         ? const Color(0xFF1E40AF)
+  //                         : Colors.grey.shade400,
+  //                     borderRadius: BorderRadius.circular(16),
+  //                     boxShadow: selected
+  //                         ? [
+  //                             BoxShadow(
+  //                               color: const Color(0xFF1E40AF).withOpacity(0.4),
+  //                               blurRadius: 12,
+  //                               offset: const Offset(0, 3),
+  //                             ),
+  //                           ]
+  //                         : null,
+  //                   ),
+  //                   child: Icon(
+  //                     icon,
+  //                     color: selected ? Colors.white : Colors.grey[700],
+  //                     size: 20,
+  //                   ),
+  //                 ),
+  //                 const SizedBox(height: 4),
+  //                 Text(
+  //                   label,
+  //                   style: TextStyle(
+  //                     color: selected
+  //                         ? const Color(0xFF1E40AF)
+  //                         : Colors.grey[700],
+  //                     fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
+  //                     fontSize: 12,
+  //                     letterSpacing: 0.2,
+  //                     fontFamily: 'Montserrat',
+  //                   ),
+  //                   maxLines: 1,
+  //                   overflow: TextOverflow.ellipsis,
+  //                 ),
+  //               ],
+  //             ),
+  //           ),
+  //         ),
+  //       ),
+  //     ),
+  //   );
+  // }
+
+  Widget _homePage() {
+    return SingleChildScrollView(
+      controller: _scrollController,
+      padding: const EdgeInsets.all(20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _overviewSection(),
+          const SizedBox(height: 24),
+          _buildNextPaymentCard(false), // Keep your Next Payment Due card here
+          const SizedBox(height: 24),
+          _modernActionCards(),
+          const SizedBox(height: 24),
+          _modernRecentActivity(),
+          const SizedBox(height: 24),
+          _modernQuickActions(),
+          const SizedBox(height: 100), // Space for bottom nav
+        ],
+      ),
+    );
+  }
+
+  Widget _buildModernHeader() {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(20, 20, 20, 40),
+      child: Column(
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: kPrimary.withOpacity(0.8),
+                  borderRadius: BorderRadius.circular(16),
+                  boxShadow: [
+                    BoxShadow(
+                      color: kPrimary.withOpacity(0.3),
+                      blurRadius: 8,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
+                ),
+                child: const Icon(
+                  Icons.account_balance_wallet_rounded,
+                  color: Colors.white,
+                  size: 24,
+                ),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      _selectedDayungUnit,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontFamily: 'Montserrat',
+                        fontSize: 24,
+                        fontWeight: FontWeight.w900,
+                        color: Colors.white,
+                        letterSpacing: 0.5,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              _iconBtn(
+                icon: Icons.notifications_active_rounded,
+                color: kWarn,
+                tooltip: 'Notifications',
+                onTap: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const NotificationPage()),
+                ),
+                badge: _unreadNotifCount > 0 ? '$_unreadNotifCount' : null,
+              ),
+            ],
+          ),
+          const SizedBox(height: 24),
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  'Maayung buntag,\n$_fullName!',
+                  style: const TextStyle(
+                    fontFamily: 'Montserrat',
+                    fontSize: 28,
+                    fontWeight: FontWeight.w900,
+                    height: 1.1,
+                    color: Colors.white,
+                    letterSpacing: 0.5,
+                  ),
+                ),
+              ),
+              GestureDetector(
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const ProfilePage()),
+                  );
+                },
+                child: Container(
+                  padding: const EdgeInsets.all(4),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.2),
+                    borderRadius: BorderRadius.circular(32),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.1),
+                        blurRadius: 8,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
+                  ),
+                  child: const CircleAvatar(
+                    radius: 28,
+                    backgroundColor: Colors.white,
+                    child: Icon(
+                      Icons.person,
+                      size: 34,
+                      color: Color(0xFF1E40AF),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _overviewSection() {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 15,
+            offset: const Offset(0, 5),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Overview',
+            style: TextStyle(
+              fontSize: 20,
+              fontWeight: FontWeight.w800,
+              color: Color(0xFF1E40AF),
+              fontFamily: 'Montserrat',
+            ),
+          ),
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              Expanded(
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(16),
+                  child: SizedBox(
+                    height: 180,
+                    child: _modernStatCard(
+                      icon: Icons.groups_rounded,
+                      title: 'Active Members',
+                      value: _loadingActiveMembers
+                          ? '—'
+                          : _activeMembersCount.toString(),
+                      color: const Color(0xFF3B82F6),
+                      bgColor: const Color(0xFFEFF6FF),
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: SizedBox(
+                  height: 180,
+                  child: InkWell(
+                    onTap: () {
+                      final id = _asInt(_selectedDayungUnitObj?['id']);
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => RecentDeathNotices(dayungUnitId: id),
+                        ),
+                      );
+                    },
+                    borderRadius: BorderRadius.circular(16),
+                    child: _recentDeathsCard(),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: InkWell(
+                  onTap: () {
+                    setState(() => _currentIndex = 1);
+                  },
+                  borderRadius: BorderRadius.circular(16),
+                  child: SizedBox(
+                    height: 180,
+                    child: _modernStatCard(
+                      icon: Icons.account_balance_wallet_rounded,
+                      title: 'Pending Amount',
+                      value: _loadingPending
+                          ? '—'
+                          : '₱${_pendingPaymentsAmount.toStringAsFixed(0)}',
+                      color: const Color(0xFFF59E0B),
+                      bgColor: const Color(0xFFFEF3C7),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Stat card
+  Widget _modernStatCard({
+    required IconData icon,
+    required String title,
+    required String value,
+    required Color color,
+    required Color bgColor,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: bgColor,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: color.withOpacity(0.2)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: color.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Icon(icon, color: color, size: 20),
+          ),
+          const SizedBox(height: 12),
+          Text(
+            title,
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              color: color.withOpacity(0.8),
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            value,
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.w800,
+              color: color,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Recent deaths card
+  Widget _recentDeathsCard() {
+    final names = _recentCertificates
+        .map((e) => (e['deceased_name'] ?? '').toString())
+        .where((s) => s.isNotEmpty)
+        .toList();
+    final display = names.take(2).toList();
+    final extra = names.length - display.length;
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFDF2F8),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFEC4899).withOpacity(0.2)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: const Color(0xFFEC4899).withOpacity(0.1),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: const Icon(
+              Icons.family_restroom_rounded,
+              color: Color(0xFFEC4899),
+              size: 20,
+            ),
+          ),
+          const SizedBox(height: 8),
+          const Text(
+            'Recent Deaths',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w700,
+              color: Color(0xFFEC4899),
+            ),
+          ),
+          const SizedBox(height: 8),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: display
+                .map(
+                  (name) => Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 4),
+                    child: Row(
+                      children: [
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            name,
+                            style: const TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                              color: Color(0xFF9F1239),
+                            ),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                )
+                .toList(),
+          ),
+          if (extra > 0)
+            Text(
+              'View All',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 13.5,
+                fontWeight: FontWeight.w800,
+                fontFamily: 'OpenSans',
+                color: Colors.blue[700],
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  // Quick Actions
+  Widget _modernActionCards() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'Quick Actions',
+          style: TextStyle(
+            fontSize: 18,
+            fontWeight: FontWeight.w800,
+            color: Color(0xFF1E40AF),
+            fontFamily: 'Montserrat',
+          ),
+        ),
+        const SizedBox(height: 12),
+        _modernActionCard(
+          icon: Icons.account_balance_wallet_rounded,
+          title: 'Pay Contribution',
+          subtitle: 'Make a payment',
+          color: const Color(0xFF3B82F6),
+          onTap: () {
+            // Implement payment action
+          },
+        ),
+        const SizedBox(height: 8),
+        _modernActionCard(
+          icon: Icons.receipt_long_rounded,
+          title: 'View Receipts',
+          subtitle: 'See your payment receipts',
+          color: const Color(0xFF10B981),
+          onTap: () {
+            // Implement view receipts action
+          },
+        ),
+        // Add more actions as needed
+      ],
+    );
+  }
+
+  Widget _modernActionCard({
+    required IconData icon,
+    required String title,
+    required String subtitle,
+    required Color color,
+    required VoidCallback onTap,
+  }) {
+    return Container(
+      width: double.infinity,
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: color.withOpacity(0.2)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.03),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(16),
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: color.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Icon(icon, color: color, size: 24),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        title,
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w700,
+                          color: Color(0xFF1F2937),
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        subtitle,
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: Color(0xFF6B7280),
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Icon(
+                  Icons.arrow_forward_ios_rounded,
+                  color: color.withOpacity(0.6),
+                  size: 16,
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  // Recent Activity
+  Widget _modernRecentActivity() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          "Recent Activity",
+          style: TextStyle(
+            fontSize: 18,
+            fontWeight: FontWeight.w800,
+            color: Color(0xFF111827),
+            fontFamily: 'Montserrat',
+          ),
+        ),
+        const SizedBox(height: 16),
+        Container(
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.05),
+                blurRadius: 10,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: _latestActivities.isEmpty
+              ? const Center(child: Text('No recent activity'))
+              : Column(
+                  children: [
+                    for (final activity in _latestActivities)
+                      _ActivityRow(
+                        icon: activity['icon'],
+                        color: activity['color'],
+                        text: activity['text'],
+                      ),
+                  ],
+                ),
+        ),
+      ],
+    );
+  }
+
+  // Quick Access
+  Widget _modernQuickActions() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          "Quick Access",
+          style: TextStyle(
+            fontSize: 18,
+            fontWeight: FontWeight.w800,
+            color: Color(0xFF111827),
+            fontFamily: 'Montserrat',
+          ),
+        ),
+        const SizedBox(height: 16),
+        Row(
+          children: [
+            Expanded(
+              child: _modernQuickActionCard(
+                icon: Icons.info_outline_rounded,
+                title: "Contribution Tips",
+                color: const Color(0xFF3B82F6),
+                onTap: () {
+                  // Implement tips action
+                },
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: _modernQuickActionCard(
+                icon: Icons.analytics_rounded,
+                title: "View Reports",
+                color: const Color(0xFFF59E0B),
+                onTap: () {
+                  // Implement reports action
+                },
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _modernQuickActionCard({
+    required IconData icon,
+    required String title,
+    required Color color,
+    VoidCallback? onTap,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: color.withOpacity(0.1),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: color.withOpacity(0.2)),
+        ),
+        child: Row(
+          children: [
+            Icon(icon, color: color, size: 20),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                title,
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: color,
+                  fontFamily: 'Montserrat',
+                ),
+              ),
+            ),
           ],
         ),
       ),
     );
   }
 
-  Widget _bottomNav(bool wide) {
+  @override
+  Widget build(BuildContext context) {
+    final width = MediaQuery.of(context).size.width;
+    final wide = width > 820;
+    final provUnit = context.watch<DayungRoleProvider>().unitId;
+    if (provUnit != _selectedDayungUnitObj?['id']) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        // If you have a method to handle unit changes, call it here
+        // _maybeOnProviderUnitChanged(provUnit);
+      });
+    }
+
+    return Scaffold(
+      backgroundColor: const Color(0xFFF8FAFC),
+      body: Container(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [Color(0xFF1E40AF), Color(0xFF3B82F6), Color(0xFFF8FAFC)],
+            stops: [0.0, 0.3, 0.3],
+          ),
+        ),
+        child: Stack(
+          children: [
+            SafeArea(
+              child: Column(
+                children: [_buildModernHeader(), _buildContentArea(wide)],
+              ),
+            ),
+            _buildFloatingNavBar(wide),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // Add this method for the floating nav bar, matching Treasurer style
+  Widget _buildFloatingNavBar(bool wide) {
     return Positioned(
       left: 0,
       right: 0,
-      bottom: 16,
+      bottom: 20,
       child: Center(
         child: IgnorePointer(
           ignoring: !_showNavBar,
           child: AnimatedOpacity(
-            duration: const Duration(milliseconds: 250),
+            duration: const Duration(milliseconds: 300),
             opacity: _showNavBar ? 1 : 0,
             child: Container(
-              height: 86,
-              margin: EdgeInsets.symmetric(horizontal: wide ? 170 : 20),
-              padding: const EdgeInsets.symmetric(horizontal: 14),
+              height: 80,
+              margin: EdgeInsets.symmetric(horizontal: wide ? 200 : 20),
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
               decoration: BoxDecoration(
                 color: Colors.white,
-                borderRadius: BorderRadius.circular(44),
-                border: Border.all(color: Colors.grey.shade300),
+                borderRadius: BorderRadius.circular(40),
+                border: Border.all(color: const Color(0xFFE5E7EB)),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withOpacity(.08),
-                    blurRadius: 18,
-                    offset: const Offset(0, 6),
+                    color: Colors.black.withOpacity(0.08),
+                    blurRadius: 20,
+                    offset: const Offset(0, 8),
                   ),
                 ],
               ),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                 children: [
-                  _navItem(Icons.home_rounded, "Home", 0),
-                  _navItem(Icons.public, "Contributions", 1),
-                  _navItem(Icons.description, "Claims", 2),
+                  _buildNavItem(Icons.home_rounded, "Home", 0),
+                  _buildNavItem(Icons.public, "Contributions", 1),
+                  _buildNavItem(Icons.description, "Claims", 2),
                 ],
               ),
             ),
@@ -1060,69 +2009,41 @@ class _MemberDashboardPageState extends State<MemberDashboardPage> {
     );
   }
 
-  Widget _navItem(IconData icon, String label, int index) {
+  Widget _buildNavItem(IconData icon, String label, int index) {
     final selected = _currentIndex == index;
-    return TextButton(
-      onPressed: () => setState(() => _currentIndex = index),
-      style: TextButton.styleFrom(
-        foregroundColor: selected ? kPrimary : kNeutralText,
-        padding: const EdgeInsets.symmetric(horizontal: 12),
-        shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.all(Radius.circular(18)),
+    return GestureDetector(
+      onTap: () => setState(() => _currentIndex = index),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        decoration: BoxDecoration(
+          color: selected
+              ? const Color(0xFF1E40AF).withOpacity(0.1)
+              : Colors.transparent,
+          borderRadius: BorderRadius.circular(16),
         ),
-      ),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(icon, size: 30, color: selected ? kPrimary : kNeutralText),
-          const SizedBox(height: 4),
-          Text(
-            label,
-            style: TextStyle(
-              fontSize: 13,
-              fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
-              fontFamily: 'OpenSans',
-              letterSpacing: .3,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildHomePage(BuildContext context) {
-    final width = MediaQuery.of(context).size.width;
-    final bool wide = width > 820;
-    final dayungName = _selectedDayungUnitObj?['name'] ?? 'Dayung';
-    final barangay = _selectedDayungUnitObj?['barangay'];
-    final city = _selectedDayungUnitObj?['city'];
-    final subtitle = (barangay != null)
-        ? '$barangay${city != null ? ', $city' : ''}'
-        : null;
-
-    return RefreshIndicator(
-      onRefresh: _refreshDashboard,
-      child: SingleChildScrollView(
-        controller: _scrollController,
-        physics: const AlwaysScrollableScrollPhysics(),
-        padding: const EdgeInsets.symmetric(vertical: 16),
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const SizedBox(height: 12),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: _buildCards(wide),
+            Icon(
+              icon,
+              size: 22,
+              color: selected
+                  ? const Color(0xFF1E40AF)
+                  : const Color(0xFF6B7280),
             ),
-            const SizedBox(height: 24),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: _buildNextPaymentCard(wide),
-            ),
-            const SizedBox(height: 32),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: _buildRecentActivity(wide),
+            const SizedBox(height: 3),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+                color: selected
+                    ? const Color(0xFF1E40AF)
+                    : const Color(0xFF6B7280),
+                height: 1.0,
+              ),
+              textAlign: TextAlign.center,
             ),
           ],
         ),
@@ -1130,400 +2051,435 @@ class _MemberDashboardPageState extends State<MemberDashboardPage> {
     );
   }
 
-  Widget _greetingSection() {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 12, 20, 6),
-      child: Row(
-        children: [
-          Expanded(
-            child: Text(
-              'Maayung buntag, $_fullName!',
-              style: const TextStyle(
-                fontSize: 22,
-                fontWeight: FontWeight.w700,
-                fontFamily: 'Montserrat',
-                color: kNeutralText,
-                height: 1.15,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
+  // Widget _buildHomePage(BuildContext context) {
+  //   final width = MediaQuery.of(context).size.width;
+  //   final bool wide = width > 820;
+  //   final dayungName = _selectedDayungUnitObj?['name'] ?? 'Dayung';
+  //   final barangay = _selectedDayungUnitObj?['barangay'];
+  //   final city = _selectedDayungUnitObj?['city'];
+  //   final subtitle = (barangay != null)
+  //       ? '$barangay${city != null ? ', $city' : ''}'
+  //       : null;
 
-  Widget _buildCards(bool isWide) {
-    final activeValue = _loadingActiveMembers
-        ? '…'
-        : _activeMembersCount.toString();
+  //   return RefreshIndicator(
+  //     onRefresh: _refreshDashboard,
+  //     child: SingleChildScrollView(
+  //       controller: _scrollController,
+  //       physics: const AlwaysScrollableScrollPhysics(),
+  //       padding: const EdgeInsets.symmetric(vertical: 16),
+  //       child: Column(
+  //         crossAxisAlignment: CrossAxisAlignment.start,
+  //         children: [
+  //           const SizedBox(height: 12),
+  //           Padding(
+  //             padding: const EdgeInsets.symmetric(horizontal: 16),
+  //             child: _buildCards(wide),
+  //           ),
+  //           const SizedBox(height: 24),
+  //           Padding(
+  //             padding: const EdgeInsets.symmetric(horizontal: 16),
+  //             child: _buildNextPaymentCard(wide),
+  //           ),
+  //           const SizedBox(height: 32),
+  //           Padding(
+  //             padding: const EdgeInsets.symmetric(horizontal: 16),
+  //             child: _buildRecentActivity(wide),
+  //           ),
+  //         ],
+  //       ),
+  //     ),
+  //   );
+  // }
 
-    String recentDeathsValue;
-    if (_loadingCertificates) {
-      recentDeathsValue = 'Loading…';
-    } else if (_recentCertificates.isEmpty) {
-      recentDeathsValue = 'None';
-    } else {
-      final names = _recentCertificates
-          .map((e) => (e['deceased_name'] ?? '').toString())
-          .where((s) => s.isNotEmpty)
-          .toList();
-      if (names.length <= 2) {
-        recentDeathsValue = names.join('\n');
-      } else {
-        recentDeathsValue =
-            '${names.take(2).join('\n')}\n+${names.length - 2} more';
-      }
-    }
+  // Widget _greetingSection() {
+  //   return Padding(
+  //     padding: const EdgeInsets.fromLTRB(20, 12, 20, 6),
+  //     child: Row(
+  //       children: [
+  //         Expanded(
+  //           child: Text(
+  //             'Maayung buntag, $_fullName!',
+  //             style: const TextStyle(
+  //               fontSize: 22,
+  //               fontWeight: FontWeight.w700,
+  //               fontFamily: 'Montserrat',
+  //               color: kNeutralText,
+  //               height: 1.15,
+  //             ),
+  //           ),
+  //         ),
+  //       ],
+  //     ),
+  //   );
+  // }
 
-    final pendingValue = _loadingPending
-        ? '…'
-        : '₱ ${_pendingPaymentsAmount.toStringAsFixed(0)}';
-    final pendingSubtitle = _loadingPending
-        ? ''
-        : (_pendingPaymentCount > 0
-              ? '$_pendingPaymentCount pending'
-              : 'No pending');
+  // Widget _buildCards(bool isWide) {
+  //   final activeValue = _loadingActiveMembers
+  //       ? '…'
+  //       : _activeMembersCount.toString();
 
-    final cards = [
-      _dashboardCard(
-        color: const Color(0xFFD8EEFF),
-        icon: Icons.groups,
-        iconColor: Colors.blue[700],
-        title: "Total Active\nMembers",
-        value: activeValue,
-      ),
-      _dashboardCard(
-        color: const Color(0xFFFFDAF6),
-        icon: FontAwesomeIcons.dove,
-        iconColor: Colors.purple[400],
-        title: "Recent Deaths",
-        value: recentDeathsValue,
-        isDeathNotice: true,
-        context: context,
-        onTap: () {
-          final id = _asInt(_selectedDayungUnitObj?['id']);
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (_) => RecentDeathNotices(dayungUnitId: id),
-            ),
-          );
-        },
-      ),
-      _dashboardCard(
-        color: const Color(0xFFFEFBDC),
-        icon: Icons.account_balance_wallet,
-        iconColor: Colors.orange[700],
-        title: "Pending\nPayments",
-        value: pendingValue,
-        subtitle: pendingSubtitle,
-      ),
-    ];
+  //   String recentDeathsValue;
+  //   if (_loadingCertificates) {
+  //     recentDeathsValue = 'Loading…';
+  //   } else if (_recentCertificates.isEmpty) {
+  //     recentDeathsValue = 'None';
+  //   } else {
+  //     final names = _recentCertificates
+  //         .map((e) => (e['deceased_name'] ?? '').toString())
+  //         .where((s) => s.isNotEmpty)
+  //         .toList();
+  //     if (names.length <= 2) {
+  //       recentDeathsValue = names.join('\n');
+  //     } else {
+  //       recentDeathsValue =
+  //           '${names.take(2).join('\n')}\n+${names.length - 2} more';
+  //     }
+  //   }
 
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        if (constraints.maxWidth < 360) {
-          return Column(
-            children: cards
-                .map(
-                  (c) => Padding(
-                    padding: const EdgeInsets.only(bottom: 12),
-                    child: c,
-                  ),
-                )
-                .toList(),
-          );
-        }
-        return Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Expanded(child: cards[0]),
-            const SizedBox(width: 12),
-            Expanded(child: cards[1]),
-            const SizedBox(width: 12),
-            Expanded(child: cards[2]),
-          ],
-        );
-      },
-    );
-  }
+  //   final pendingValue = _loadingPending
+  //       ? '…'
+  //       : '₱ ${_pendingPaymentsAmount.toStringAsFixed(0)}';
+  //   final pendingSubtitle = _loadingPending
+  //       ? ''
+  //       : (_pendingPaymentCount > 0
+  //             ? '$_pendingPaymentCount pending'
+  //             : 'No pending');
 
-  Widget _dashboardCard({
-    required Color color,
-    required IconData icon,
-    required Color? iconColor,
-    required String title,
-    required String value,
-    String subtitle = "",
-    double iconSize = 30,
-    bool isDeathNotice = false,
-    BuildContext? context,
-    VoidCallback? onTap,
-  }) {
-    return SizedBox(
-      height: 220,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(18),
-        splashColor: kPrimary.withOpacity(.12), // NEW ripple color
-        highlightColor: kPrimary.withOpacity(.05),
-        child: Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: color,
-            borderRadius: BorderRadius.circular(18),
-            border: Border.all(color: Colors.grey.shade300, width: 2),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Icon(icon, size: iconSize, color: iconColor),
-              const SizedBox(height: 8),
-              AutoSizeText(
-                title,
-                textAlign: TextAlign.center,
-                style: const TextStyle(
-                  fontWeight: FontWeight.w800,
-                  fontSize: 16,
-                  color: kNeutralText,
-                  fontFamily: 'Montserrat',
-                  height: 1.15,
-                ),
-                maxLines: 2,
-                minFontSize: 11,
-                overflow: TextOverflow.ellipsis,
-              ),
-              const SizedBox(height: 8),
-              Expanded(
-                child: isDeathNotice
-                    ? _recentDeathsValueWidget(value, context)
-                    : Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          AutoSizeText(
-                            value,
-                            style: const TextStyle(
-                              fontWeight: FontWeight.w800,
-                              fontSize: 30,
-                              color: kNeutralText,
-                              fontFamily: 'Montserrat',
-                            ),
-                            maxLines: 2,
-                            minFontSize: 12,
-                            overflow: TextOverflow.ellipsis,
-                            textAlign: TextAlign.center,
-                          ),
-                          if (subtitle.isNotEmpty)
-                            Padding(
-                              padding: const EdgeInsets.only(top: 4),
-                              child: AutoSizeText(
-                                subtitle,
-                                textAlign: TextAlign.center,
-                                style: TextStyle(
-                                  fontWeight: FontWeight.w600,
-                                  fontSize: 12,
-                                  color: kSubtleText.withOpacity(.9),
-                                  fontFamily: 'OpenSans',
-                                ),
-                                maxLines: 2,
-                                minFontSize: 10,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ),
-                        ],
-                      ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
+  //   final cards = [
+  //     _dashboardCard(
+  //       color: const Color(0xFFD8EEFF),
+  //       icon: Icons.groups,
+  //       iconColor: Colors.blue[700],
+  //       title: "Total Active\nMembers",
+  //       value: activeValue,
+  //     ),
+  //     _dashboardCard(
+  //       color: const Color(0xFFFFDAF6),
+  //       icon: FontAwesomeIcons.dove,
+  //       iconColor: Colors.purple[400],
+  //       title: "Recent Deaths",
+  //       value: recentDeathsValue,
+  //       isDeathNotice: true,
+  //       context: context,
+  //       onTap: () {
+  //         final id = _asInt(_selectedDayungUnitObj?['id']);
+  //         Navigator.push(
+  //           context,
+  //           MaterialPageRoute(
+  //             builder: (_) => RecentDeathNotices(dayungUnitId: id),
+  //           ),
+  //         );
+  //       },
+  //     ),
+  //     _dashboardCard(
+  //       color: const Color(0xFFFEFBDC),
+  //       icon: Icons.account_balance_wallet,
+  //       iconColor: Colors.orange[700],
+  //       title: "Pending\nPayments",
+  //       value: pendingValue,
+  //       subtitle: pendingSubtitle,
+  //     ),
+  //   ];
 
-  Widget _recentDeathsValueWidget(String raw, BuildContext? ctx) {
-    if (raw == 'Loading…') {
-      return const Center(
-        child: SizedBox(
-          height: 24,
-          width: 24,
-          child: CircularProgressIndicator(
-            strokeWidth: 3,
-            color: kPrimary, // unified color
-          ),
-        ),
-      );
-    }
-    if (raw == 'None') {
-      return const Center(
-        child: Text(
-          "None",
-          style: TextStyle(
-            fontWeight: FontWeight.w600,
-            fontSize: 14,
-            fontFamily: 'Montserrat',
-            color: kNeutralText,
-          ),
-        ),
-      );
-    }
-    final lines = raw.split('\n');
-    return Column(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        ...lines
-            .where((l) => !l.startsWith('+'))
-            .map(
-              (name) => Padding(
-                padding: const EdgeInsets.only(bottom: 4),
-                child: Row(
-                  children: [
-                    const Icon(
-                      FontAwesomeIcons.dove,
-                      size: 14,
-                      color: kNeutralText,
-                    ),
-                    const SizedBox(width: 6),
-                    Expanded(
-                      child: Text(
-                        name,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          fontWeight: FontWeight.w700,
-                          fontSize: 14,
-                          color: kNeutralText,
-                          fontFamily: 'Montserrat',
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-        if (lines.any((l) => l.startsWith('+')))
-          Text(
-            lines.firstWhere((l) => l.startsWith('+')),
-            style: const TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
-              fontFamily: 'OpenSans',
-              color: kSubtleText,
-            ),
-          ),
-        TextButton(
-          onPressed: () {
-            final id = _asInt(_selectedDayungUnitObj?['id']);
-            if (ctx != null) {
-              Navigator.push(
-                ctx,
-                MaterialPageRoute(
-                  builder: (_) => RecentDeathNotices(dayungUnitId: id),
-                ),
-              );
-            }
-          },
-          style: TextButton.styleFrom(
-            foregroundColor: kPrimary,
-            padding: EdgeInsets.zero,
-            minimumSize: const Size(0, 0),
-            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-          ),
-          child: const Text(
-            "View All",
-            style: TextStyle(
-              fontWeight: FontWeight.w700,
-              fontSize: 13,
-              fontFamily: 'Montserrat',
-            ),
-          ),
-        ),
-      ],
-    );
-  }
+  //   return LayoutBuilder(
+  //     builder: (context, constraints) {
+  //       if (constraints.maxWidth < 360) {
+  //         return Column(
+  //           children: cards
+  //               .map(
+  //                 (c) => Padding(
+  //                   padding: const EdgeInsets.only(bottom: 12),
+  //                   child: c,
+  //                 ),
+  //               )
+  //               .toList(),
+  //         );
+  //       }
+  //       return Row(
+  //         crossAxisAlignment: CrossAxisAlignment.start,
+  //         children: [
+  //           Expanded(child: cards[0]),
+  //           const SizedBox(width: 12),
+  //           Expanded(child: cards[1]),
+  //           const SizedBox(width: 12),
+  //           Expanded(child: cards[2]),
+  //         ],
+  //       );
+  //     },
+  //   );
+  // }
 
-  Widget _topHeader(bool wide) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 12, 16, 8),
-      child: Row(
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  _selectedDayungUnit, // same as Secretary header
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    fontSize: 22,
-                    fontWeight: FontWeight.w800,
-                    fontFamily: 'Montserrat',
-                    color: kNeutralText,
-                    height: 1.1,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                if (_unitBarangay != null || _unitCity != null)
-                  Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Icon(
-                        Icons.location_on_outlined,
-                        size: 14,
-                        color: kSubtleText,
-                      ),
-                      const SizedBox(width: 4),
-                      Flexible(
-                        child: Text(
-                          [
-                            if (_unitBarangay != null) _unitBarangay!,
-                            if (_unitCity != null) _unitCity!,
-                          ].join(', '),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            fontSize: 12.5,
-                            fontWeight: FontWeight.w600,
-                            fontFamily: 'OpenSans',
-                            color: kSubtleText,
-                            height: 1.1,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-              ],
-            ),
-          ),
-          // Replace settings with Profile icon
-          _iconBtn(
-            tooltip: 'Profile',
-            icon: Icons.person,
-            color: kPrimary,
-            onTap: () async {
-              await Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => const ProfilePage()),
-              );
-              await _loadUserData(); // refresh name/avatar after returning
-            },
-          ),
-          _iconBtn(
-            tooltip: 'Notifications',
-            icon: Icons.notifications,
-            color: kWarn,
-            badge: _unreadNotifCount > 0 ? '$_unreadNotifCount' : null,
-            onTap: () async {
-              await Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => const NotificationPage()),
-              );
-              await _fetchUnreadNotifCount();
-            },
-          ),
-        ],
-      ),
-    );
-  }
+  // Widget _dashboardCard({
+  //   required Color color,
+  //   required IconData icon,
+  //   required Color? iconColor,
+  //   required String title,
+  //   required String value,
+  //   String subtitle = "",
+  //   double iconSize = 30,
+  //   bool isDeathNotice = false,
+  //   BuildContext? context,
+  //   VoidCallback? onTap,
+  // }) {
+  //   return SizedBox(
+  //     height: 220,
+  //     child: InkWell(
+  //       onTap: onTap,
+  //       borderRadius: BorderRadius.circular(18),
+  //       splashColor: kPrimary.withOpacity(.12), // NEW ripple color
+  //       highlightColor: kPrimary.withOpacity(.05),
+  //       child: Container(
+  //         padding: const EdgeInsets.all(16),
+  //         decoration: BoxDecoration(
+  //           color: color,
+  //           borderRadius: BorderRadius.circular(18),
+  //           border: Border.all(color: Colors.grey.shade300, width: 2),
+  //         ),
+  //         child: Column(
+  //           crossAxisAlignment: CrossAxisAlignment.stretch,
+  //           children: [
+  //             Icon(icon, size: iconSize, color: iconColor),
+  //             const SizedBox(height: 8),
+  //             AutoSizeText(
+  //               title,
+  //               textAlign: TextAlign.center,
+  //               style: const TextStyle(
+  //                 fontWeight: FontWeight.w800,
+  //                 fontSize: 16,
+  //                 color: kNeutralText,
+  //                 fontFamily: 'Montserrat',
+  //                 height: 1.15,
+  //               ),
+  //               maxLines: 2,
+  //               minFontSize: 11,
+  //               overflow: TextOverflow.ellipsis,
+  //             ),
+  //             const SizedBox(height: 8),
+  //             Expanded(
+  //               child: isDeathNotice
+  //                   ? _recentDeathsValueWidget(value, context)
+  //                   : Column(
+  //                       mainAxisAlignment: MainAxisAlignment.center,
+  //                       children: [
+  //                         AutoSizeText(
+  //                           value,
+  //                           style: const TextStyle(
+  //                             fontWeight: FontWeight.w800,
+  //                             fontSize: 30,
+  //                             color: kNeutralText,
+  //                             fontFamily: 'Montserrat',
+  //                           ),
+  //                           maxLines: 2,
+  //                           minFontSize: 12,
+  //                           overflow: TextOverflow.ellipsis,
+  //                           textAlign: TextAlign.center,
+  //                         ),
+  //                         if (subtitle.isNotEmpty)
+  //                           Padding(
+  //                             padding: const EdgeInsets.only(top: 4),
+  //                             child: AutoSizeText(
+  //                               subtitle,
+  //                               textAlign: TextAlign.center,
+  //                               style: TextStyle(
+  //                                 fontWeight: FontWeight.w600,
+  //                                 fontSize: 12,
+  //                                 color: kSubtleText.withOpacity(.9),
+  //                                 fontFamily: 'OpenSans',
+  //                               ),
+  //                               maxLines: 2,
+  //                               minFontSize: 10,
+  //                               overflow: TextOverflow.ellipsis,
+  //                             ),
+  //                           ),
+  //                       ],
+  //                     ),
+  //             ),
+  //           ],
+  //         ),
+  //       ),
+  //     ),
+  //   );
+  // }
+
+  // Widget _recentDeathsValueWidget(String raw, BuildContext ctx) {
+  //   if (raw == 'Loading…') {
+  //     return const Center(
+  //       child: SizedBox(
+  //         height: 24,
+  //         width: 24,
+  //         child: CircularProgressIndicator(strokeWidth: 3, color: kPrimary),
+  //       ),
+  //     );
+  //   }
+  //   if (raw == 'None') {
+  //     return const Center(
+  //       child: Text(
+  //         "None",
+  //         style: TextStyle(
+  //           fontWeight: FontWeight.w600,
+  //           fontSize: 14,
+  //           fontFamily: 'Montserrat',
+  //           color: kNeutralText,
+  //         ),
+  //       ),
+  //     );
+  //   }
+  //   final lines = raw.split('\n');
+  //   return Column(
+  //     mainAxisAlignment: MainAxisAlignment.center,
+  //     children: [
+  //       ...lines
+  //           .where((l) => !l.startsWith('+'))
+  //           .map(
+  //             (name) => Padding(
+  //               padding: const EdgeInsets.only(bottom: 4),
+  //               child: Row(
+  //                 children: [
+  //                   const Icon(
+  //                     FontAwesomeIcons.dove,
+  //                     size: 14,
+  //                     color: kNeutralText,
+  //                   ),
+  //                   const SizedBox(width: 6),
+  //                   Expanded(
+  //                     child: Text(
+  //                       name,
+  //                       overflow: TextOverflow.ellipsis,
+  //                       style: const TextStyle(
+  //                         fontWeight: FontWeight.w700,
+  //                         fontSize: 14,
+  //                         color: kNeutralText,
+  //                         fontFamily: 'Montserrat',
+  //                       ),
+  //                     ),
+  //                   ),
+  //                 ],
+  //               ),
+  //             ),
+  //           ),
+  //       if (lines.any((l) => l.startsWith('+')))
+  //         Text(
+  //           lines.firstWhere((l) => l.startsWith('+')),
+  //           style: const TextStyle(
+  //             fontSize: 12,
+  //             fontWeight: FontWeight.w600,
+  //             fontFamily: 'OpenSans',
+  //             color: kSubtleText,
+  //           ),
+  //         ),
+  //       TextButton(
+  //         onPressed: () {
+  //           final id = _asInt(_selectedDayungUnitObj?['id']);
+  //           Navigator.push(
+  //             ctx,
+  //             MaterialPageRoute(
+  //               builder: (_) => RecentDeathNotices(dayungUnitId: id),
+  //             ),
+  //           );
+  //         },
+  //         style: TextButton.styleFrom(
+  //           foregroundColor: kPrimary,
+  //           padding: EdgeInsets.zero,
+  //           minimumSize: const Size(0, 0),
+  //           tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+  //         ),
+  //         child: const Text(
+  //           "View All",
+  //           style: TextStyle(
+  //             fontWeight: FontWeight.w700,
+  //             fontSize: 13,
+  //             fontFamily: 'Montserrat',
+  //           ),
+  //         ),
+  //       ),
+  //     ],
+  //   );
+  // }
+
+  // Widget _topHeader(bool wide) {
+  //   return Padding(
+  //     padding: const EdgeInsets.fromLTRB(20, 12, 16, 8),
+  //     child: Row(
+  //       children: [
+  //         Expanded(
+  //           child: Column(
+  //             crossAxisAlignment: CrossAxisAlignment.start,
+  //             children: [
+  //               Text(
+  //                 _selectedDayungUnit, // same as Secretary header
+  //                 maxLines: 1,
+  //                 overflow: TextOverflow.ellipsis,
+  //                 style: const TextStyle(
+  //                   fontSize: 22,
+  //                   fontWeight: FontWeight.w800,
+  //                   fontFamily: 'Montserrat',
+  //                   color: kNeutralText,
+  //                   height: 1.1,
+  //                 ),
+  //               ),
+  //               const SizedBox(height: 2),
+  //               if (_unitBarangay != null || _unitCity != null)
+  //                 Row(
+  //                   mainAxisSize: MainAxisSize.min,
+  //                   children: [
+  //                     const Icon(
+  //                       Icons.location_on_outlined,
+  //                       size: 14,
+  //                       color: kSubtleText,
+  //                     ),
+  //                     const SizedBox(width: 4),
+  //                     Flexible(
+  //                       child: Text(
+  //                         [
+  //                           if (_unitBarangay != null) _unitBarangay!,
+  //                           if (_unitCity != null) _unitCity!,
+  //                         ].join(', '),
+  //                         maxLines: 1,
+  //                         overflow: TextOverflow.ellipsis,
+  //                         style: const TextStyle(
+  //                           fontSize: 12.5,
+  //                           fontWeight: FontWeight.w600,
+  //                           fontFamily: 'OpenSans',
+  //                           color: kSubtleText,
+  //                           height: 1.1,
+  //                         ),
+  //                       ),
+  //                     ),
+  //                   ],
+  //                 ),
+  //             ],
+  //           ),
+  //         ),
+  //         // Replace settings with Profile icon
+  //         _iconBtn(
+  //           tooltip: 'Profile',
+  //           icon: Icons.person,
+  //           color: kPrimary,
+  //           onTap: () async {
+  //             await Navigator.push(
+  //               context,
+  //               MaterialPageRoute(builder: (_) => const ProfilePage()),
+  //             );
+  //             await _loadUserData(); // refresh name/avatar after returning
+  //           },
+  //         ),
+  //         _iconBtn(
+  //           tooltip: 'Notifications',
+  //           icon: Icons.notifications,
+  //           color: kWarn,
+  //           badge: _unreadNotifCount > 0 ? '$_unreadNotifCount' : null,
+  //           onTap: () async {
+  //             await Navigator.push(
+  //               context,
+  //               MaterialPageRoute(builder: (_) => const NotificationPage()),
+  //             );
+  //             await _fetchUnreadNotifCount();
+  //           },
+  //         ),
+  //       ],
+  //     ),
+  //   );
+  // }
 
   Widget _buildNextPaymentCard(bool isWide) {
     final loading = _loadingPending;

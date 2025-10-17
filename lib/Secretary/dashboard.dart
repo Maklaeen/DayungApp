@@ -685,7 +685,7 @@ class _SecretaryDashboardPageState extends State<SecretaryDashboardPage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _modernStatsGrid(MediaQuery.of(context).size.width),
+          _overviewSection(MediaQuery.of(context).size.width),
           const SizedBox(height: 24),
           _modernActionCards(),
           const SizedBox(height: 24),
@@ -698,138 +698,250 @@ class _SecretaryDashboardPageState extends State<SecretaryDashboardPage> {
     );
   }
 
-  Widget _modernStatsGrid(double maxWidth) {
-    return Row(
-      children: [
-        Expanded(
-          child: _modernStatCard(
-            icon: Icons.people_rounded,
-            title: "Active Members",
-            value: _loadingActiveMembers
-                ? "..."
-                : _activeMembersCount.toString(),
-            color: const Color(0xFF10B981),
-            onTap: () {
-              if (_dayungUnitId == null) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Select a Dayung first')),
-                );
-                return;
-              }
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => SecretaryMembersPage(
-                    dayungUnitId: _dayungUnitId!, // pass actual id
-                  ),
-                ),
-              );
-            },
-          ),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: _modernStatCard(
-            icon: Icons.history_rounded,
-            title: "Recent Deaths",
-            value: "${_recentCertificates.length}",
-            color: const Color(0xFF8B5CF6),
-            onTap: () {
-              if (_dayungUnitId == null) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Select a Dayung first')),
-                );
-                return;
-              }
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) =>
-                      RecentDeathNotices(dayungUnitId: _dayungUnitId!),
-                ),
-              );
-            },
-          ),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: _modernStatCard(
-            icon: Icons.payment_rounded,
-            title: "Pending Payments",
-            value: _loadingPendingPayments
-                ? "..."
-                : "₱${_pendingPaymentsAmount.toStringAsFixed(0)}",
-            color: const Color(0xFFF59E0B),
-            onTap: () => setState(() => _currentIndex = 1),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _modernStatCard({
+  Widget _modernStatCardTreasurerStyle({
     required IconData icon,
     required String title,
     required String value,
     required Color color,
-    VoidCallback? onTap,
+    required Color bgColor,
   }) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(16),
-      child: Container(
-        height: 120,
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(16),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.05),
-              blurRadius: 10,
-              offset: const Offset(0, 4),
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: bgColor,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: color.withOpacity(0.2)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: color.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(12),
             ),
-          ],
-        ),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Container(
-              padding: const EdgeInsets.all(6),
-              decoration: BoxDecoration(
-                color: color.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Icon(icon, color: color, size: 20),
+            child: Icon(icon, color: color, size: 20),
+          ),
+          const SizedBox(height: 12),
+          Text(
+            title,
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              color: color.withOpacity(0.8),
             ),
-            const SizedBox(height: 6),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            value,
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.w800,
+              color: color,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _recentDeathsCardTreasurerStyle() {
+    final names = _recentCertificates;
+    final display = names.take(2).toList();
+    final extra = names.length - display.length;
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFDF2F8),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFEC4899).withOpacity(0.2)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: const Color(0xFFEC4899).withOpacity(0.1),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: const Icon(
+              Icons.family_restroom_rounded,
+              color: Color(0xFFEC4899),
+              size: 20,
+            ),
+          ),
+          const SizedBox(height: 8),
+          const Text(
+            'Recent Deaths',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w700,
+              color: Color(0xFFEC4899),
+            ),
+          ),
+          const SizedBox(height: 8),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: display
+                .map(
+                  (name) => Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 4),
+                    child: Row(
+                      children: [
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            name['deceased_name'] ??
+                                'Unknown', // <-- FIXED HERE
+                            style: const TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                              color: Color(0xFF9F1239),
+                            ),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                )
+                .toList(),
+          ),
+          if (extra > 0)
             Text(
-              title,
-              style: const TextStyle(
-                fontSize: 11,
-                fontWeight: FontWeight.w600,
-                color: Color(0xFF6B7280),
-                fontFamily: 'OpenSans',
-              ),
+              'View All',
               textAlign: TextAlign.center,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-            ),
-            const SizedBox(height: 3),
-            Text(
-              value,
               style: TextStyle(
-                fontSize: 14,
+                fontSize: 13.5,
                 fontWeight: FontWeight.w800,
-                color: color,
-                fontFamily: 'Montserrat',
+                fontFamily: 'OpenSans',
+                color: Colors.blue[700],
               ),
-              textAlign: TextAlign.center,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
             ),
-          ],
-        ),
+        ],
+      ),
+    );
+  }
+
+  Widget _overviewSection(double maxWidth) {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 15,
+            offset: const Offset(0, 5),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Overview',
+            style: TextStyle(
+              fontSize: 20,
+              fontWeight: FontWeight.w800,
+              color: Color(0xFF1E40AF),
+              fontFamily: 'Montserrat',
+            ),
+          ),
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              Expanded(
+                child: SizedBox(
+                  height: 180,
+                  child: InkWell(
+                    onTap: () {
+                      if (_dayungUnitId == null) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Select a Dayung first'),
+                          ),
+                        );
+                        return;
+                      }
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => SecretaryMembersPage(
+                            dayungUnitId: _dayungUnitId!,
+                          ),
+                        ),
+                      );
+                    },
+                    borderRadius: BorderRadius.circular(16),
+                    child: _modernStatCardTreasurerStyle(
+                      icon: Icons.groups_rounded,
+                      title: 'Active Members',
+                      value: _loadingActiveMembers
+                          ? '—'
+                          : _activeMembersCount.toString(),
+                      color: const Color(0xFF3B82F6),
+                      bgColor: const Color(0xFFEFF6FF),
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: SizedBox(
+                  height: 180,
+                  child: InkWell(
+                    onTap: () {
+                      if (_dayungUnitId == null) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Select a Dayung first'),
+                          ),
+                        );
+                        return;
+                      }
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) =>
+                              RecentDeathNotices(dayungUnitId: _dayungUnitId!),
+                        ),
+                      );
+                    },
+                    borderRadius: BorderRadius.circular(16),
+                    child: _recentDeathsCardTreasurerStyle(),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: SizedBox(
+                  height: 180,
+                  child: InkWell(
+                    onTap: () => setState(() => _currentIndex = 1),
+                    borderRadius: BorderRadius.circular(16),
+                    child: _modernStatCardTreasurerStyle(
+                      icon: Icons.account_balance_wallet_rounded,
+                      title: 'Pending Amount',
+                      value: _loadingPendingPayments
+                          ? '—'
+                          : '₱${_pendingPaymentsAmount.toStringAsFixed(0)}',
+                      color: const Color(0xFFF59E0B),
+                      bgColor: const Color(0xFFFEF3C7),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }

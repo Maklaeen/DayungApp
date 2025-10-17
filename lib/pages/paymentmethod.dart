@@ -1,3 +1,4 @@
+import 'package:capstone_app/ui/theme/branding.dart';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -366,206 +367,200 @@ class _PaymentMethodPageState extends State<PaymentMethodPage> {
       body: SafeArea(
         child: Column(
           children: [
-            // Header
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  const Text(
-                    'Dayung',
-                    style: TextStyle(
-                      fontSize: 32,
-                      fontWeight: FontWeight.bold,
-                      letterSpacing: 1,
-                      fontFamily: 'Montserrat',
-                      color: kAccent,
-                    ),
-                  ),
-                  Row(
-                    children: const [
-                      Icon(
-                        Icons.notifications_none,
-                        color: Colors.orange,
-                        size: 36,
-                      ),
-                      SizedBox(width: 20),
-                      CircleAvatar(
-                        backgroundColor: kAccent,
-                        radius: 20,
-                        child: Icon(
-                          Icons.account_circle,
-                          color: Colors.white,
-                          size: 28,
-                        ),
-                      ),
-                    ],
+            // Curved Header (copied from deathnotice.dart)
+            Container(
+              padding: const EdgeInsets.fromLTRB(20, 36, 20, 28),
+              decoration: const BoxDecoration(
+                color: kAccent,
+                borderRadius: BorderRadius.only(
+                  bottomLeft: Radius.circular(28),
+                  bottomRight: Radius.circular(28),
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: kAccent,
+                    blurRadius: 18,
+                    offset: Offset(0, 8),
                   ),
                 ],
               ),
-            ),
-            const Divider(thickness: 1.5, color: Colors.grey),
-            // Back + Title
-            Padding(
-              padding: const EdgeInsets.fromLTRB(20, 16, 20, 10),
               child: Row(
                 children: [
                   IconButton(
                     icon: const Icon(
-                      Icons.arrow_back,
-                      size: 36,
-                      color: kAccent,
+                      Icons.chevron_left,
+                      color: Colors.white,
+                      size: 24,
                     ),
                     onPressed: () => Navigator.pop(context),
                   ),
-                  const SizedBox(width: 10),
-                  const Text(
-                    'Payment Method',
-                    style: TextStyle(
-                      fontSize: 24,
-                      fontWeight: FontWeight.w700,
-                      fontFamily: 'Montserrat',
-                      color: kText,
+                  const Icon(
+                    Icons.payments_rounded,
+                    color: Colors.white,
+                    size: 24,
+                  ),
+                  const SizedBox(width: 16),
+                  const Expanded(
+                    child: Text(
+                      'Payment Method',
+                      style: TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.w800,
+                        color: Colors.white,
+                        fontFamily: 'Montserrat',
+                        letterSpacing: 0.3,
+                      ),
                     ),
                   ),
                 ],
               ),
             ),
-            if (_loading)
-              const Expanded(child: Center(child: CircularProgressIndicator()))
-            else if (_error != null)
-              Expanded(
-                child: Center(
-                  child: Text(
-                    _error!,
-                    textAlign: TextAlign.center,
-                    style: const TextStyle(color: Colors.red, fontSize: 20),
-                  ),
+            // (Optional) Search Bar
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 18, 20, 10),
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 12,
                 ),
-              )
-            else
-              Expanded(
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 20),
-                  child: Column(
-                    children: [
-                      // Amount due summary
-                      Container(
-                        width: double.infinity,
-                        margin: const EdgeInsets.only(bottom: 20),
-                        padding: const EdgeInsets.all(22),
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(18),
-                          border: Border.all(color: kAccent.withOpacity(0.15)),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withOpacity(.04),
-                              blurRadius: 8,
-                              offset: const Offset(0, 2),
-                            ),
-                          ],
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.search_rounded, color: kAccent, size: 20),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: TextField(
+                        decoration: const InputDecoration(
+                          hintText: 'Search payment',
+                          border: InputBorder.none,
+                          isDense: true,
                         ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const Text(
-                              'Total Due',
-                              style: TextStyle(
-                                fontWeight: FontWeight.w700,
-                                fontSize: 20,
-                                fontFamily: 'Montserrat',
-                                color: kSubText,
-                              ),
-                            ),
-                            const SizedBox(height: 8),
-                            Text(
-                              '₱ ${_totalPending.toStringAsFixed(2)}',
-                              style: const TextStyle(
-                                fontWeight: FontWeight.w900,
-                                fontSize: 36,
-                                fontFamily: 'Montserrat',
-                                color: kAccent,
-                                letterSpacing: 1.2,
-                              ),
-                            ),
-                          ],
-                        ),
+                        style: const TextStyle(fontSize: 16, color: kText),
+                        // onChanged: (q) => setState(() => _search = q),
                       ),
-                      Expanded(
-                        child: _pendingRows.isEmpty
-                            ? Center(
-                                child: Text(
-                                  'Wala kang dapat bayaran ngayon.',
-                                  style: TextStyle(
-                                    fontSize: 22,
-                                    color: kSubText,
-                                    fontWeight: FontWeight.w600,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            // Content
+            Expanded(
+              child: _loading
+                  ? const Center(
+                      child: CircularProgressIndicator(color: kAccent),
+                    )
+                  : _error != null
+                  ? Center(
+                      child: Text(
+                        _error!,
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(color: Colors.red, fontSize: 20),
+                      ),
+                    )
+                  : RefreshIndicator(
+                      onRefresh: _load,
+                      child: _pendingRows.isEmpty
+                          ? ListView(
+                              children: [
+                                const SizedBox(height: 120),
+                                Center(
+                                  child: Column(
+                                    children: [
+                                      Icon(
+                                        Icons.info_outline,
+                                        color: kSubText,
+                                        size: 48,
+                                      ),
+                                      const SizedBox(height: 16),
+                                      const Text(
+                                        "No pending payments.",
+                                        style: TextStyle(
+                                          fontSize: 16,
+                                          color: kSubtleText,
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                                    ],
                                   ),
                                 ),
-                              )
-                            : ListView.separated(
-                                itemCount: _pendingRows.length,
-                                separatorBuilder: (_, __) =>
-                                    const SizedBox(height: 16),
-                                itemBuilder: (context, i) {
-                                  final row = _pendingRows[i];
-                                  final amount = (row['amount'] is num)
-                                      ? (row['amount'] as num).toDouble()
-                                      : double.tryParse('${row['amount']}') ??
-                                            0.0;
-                                  final deathNoticeId = row['death_notice_id'];
-                                  String deceasedLabel;
-                                  final meta = _noticeMeta[deathNoticeId];
-                                  if (meta != null &&
-                                      (meta['deceased_type'] ==
-                                          'beneficiary')) {
-                                    final ben = (meta['name'] ?? '').toString();
-                                    final mid = (meta['user_id'] ?? '')
-                                        .toString();
-                                    final memberName =
-                                        _memberNames[mid] ?? 'Member';
-                                    deceasedLabel =
-                                        'Para kay $ben, beneficiary ni $memberName';
-                                  } else {
-                                    final name =
-                                        _deceasedNames[deathNoticeId] ?? '';
-                                    deceasedLabel = name.isNotEmpty
-                                        ? 'Para kay $name'
-                                        : 'Para kay Deceased #$deathNoticeId';
-                                  }
+                              ],
+                            )
+                          : ListView.builder(
+                              itemCount: _pendingRows.length,
+                              itemBuilder: (_, i) {
+                                final row = _pendingRows[i];
+                                final amount = (row['amount'] is num)
+                                    ? (row['amount'] as num).toDouble()
+                                    : double.tryParse('${row['amount']}') ??
+                                          0.0;
+                                final deathNoticeId = row['death_notice_id'];
+                                String deceasedLabel;
+                                final meta = _noticeMeta[deathNoticeId];
+                                if (meta != null &&
+                                    (meta['deceased_type'] == 'beneficiary')) {
+                                  final ben = (meta['name'] ?? '').toString();
+                                  final mid = (meta['user_id'] ?? '')
+                                      .toString();
+                                  final memberName =
+                                      _memberNames[mid] ?? 'Member';
+                                  deceasedLabel =
+                                      'For $ben, beneficiary of $memberName';
+                                } else {
+                                  final name =
+                                      _deceasedNames[deathNoticeId] ?? '';
+                                  deceasedLabel = name.isNotEmpty
+                                      ? 'For $name'
+                                      : 'For Deceased #$deathNoticeId';
+                                }
 
-                                  return Container(
-                                    padding: const EdgeInsets.all(18),
-                                    decoration: BoxDecoration(
-                                      color: Colors.white,
-                                      borderRadius: BorderRadius.circular(16),
-                                      border: Border.all(
-                                        color: kAccent.withOpacity(0.10),
-                                      ),
-                                      boxShadow: [
-                                        BoxShadow(
-                                          color: Colors.black.withOpacity(.03),
-                                          blurRadius: 6,
-                                          offset: const Offset(0, 2),
-                                        ),
-                                      ],
+                                return Card(
+                                  margin: const EdgeInsets.symmetric(
+                                    horizontal: 16,
+                                    vertical: 10,
+                                  ),
+                                  elevation: 3,
+                                  color: Colors.white,
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(16),
+                                  ),
+                                  child: Padding(
+                                    padding: const EdgeInsets.symmetric(
+                                      vertical: 16,
+                                      horizontal: 18,
                                     ),
                                     child: Column(
                                       crossAxisAlignment:
                                           CrossAxisAlignment.start,
                                       children: [
-                                        Text(
-                                          deceasedLabel,
-                                          style: const TextStyle(
-                                            fontSize: 20,
-                                            fontWeight: FontWeight.w800,
-                                            color: kText,
-                                          ),
+                                        Row(
+                                          children: [
+                                            CircleAvatar(
+                                              backgroundColor:
+                                                  Colors.blue.shade100,
+                                              child: const Icon(
+                                                Icons.payments_rounded,
+                                                color: kAccent,
+                                              ),
+                                            ),
+                                            const SizedBox(width: 12),
+                                            Expanded(
+                                              child: Text(
+                                                deceasedLabel,
+                                                style: const TextStyle(
+                                                  fontWeight: FontWeight.bold,
+                                                  fontSize: 18,
+                                                  color: kAccent,
+                                                ),
+                                              ),
+                                            ),
+                                          ],
                                         ),
-                                        const SizedBox(height: 8),
+                                        const SizedBox(height: 10),
                                         Text(
-                                          'Halaga: ₱ ${amount.toStringAsFixed(2)}',
+                                          'Amount: ₱ ${amount.toStringAsFixed(2)}',
                                           style: const TextStyle(
                                             fontSize: 18,
                                             fontWeight: FontWeight.w600,
@@ -583,7 +578,7 @@ class _PaymentMethodPageState extends State<PaymentMethodPage> {
                                                 size: 22,
                                               ),
                                               label: const Text(
-                                                'Bayad Cash',
+                                                'Pay Cash',
                                                 style: TextStyle(
                                                   fontSize: 18,
                                                   fontWeight: FontWeight.w700,
@@ -612,7 +607,7 @@ class _PaymentMethodPageState extends State<PaymentMethodPage> {
                                                 size: 22,
                                               ),
                                               label: const Text(
-                                                'Bayad GCash',
+                                                'Pay GCash',
                                                 style: TextStyle(
                                                   fontSize: 18,
                                                   fontWeight: FontWeight.w700,
@@ -640,14 +635,12 @@ class _PaymentMethodPageState extends State<PaymentMethodPage> {
                                         ),
                                       ],
                                     ),
-                                  );
-                                },
-                              ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
+                                  ),
+                                );
+                              },
+                            ),
+                    ),
+            ),
           ],
         ),
       ),

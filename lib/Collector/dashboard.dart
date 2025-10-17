@@ -3,6 +3,7 @@ import 'package:capstone_app/Collector/collect_cash.dart';
 import 'package:capstone_app/Providers/dayung_role_provider.dart';
 import 'package:capstone_app/pages/claims.dart';
 import 'package:capstone_app/pages/notification.dart';
+import 'package:capstone_app/pages/recentdeathnotices.dart';
 import 'package:capstone_app/profile/profile.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -669,7 +670,7 @@ class _CollectorDashboardPageState extends State<CollectorDashboardPage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _modernStatsGrid(MediaQuery.of(context).size.width),
+          _overviewSection(),
           const SizedBox(height: 24),
           _modernActionCards(),
           const SizedBox(height: 24),
@@ -682,41 +683,97 @@ class _CollectorDashboardPageState extends State<CollectorDashboardPage> {
     );
   }
 
-  Widget _modernStatsGrid(double maxWidth) {
-    return Row(
-      children: [
-        Expanded(
-          child: _modernStatCard(
-            icon: Icons.people_rounded,
-            title: "Active Members",
-            value: _loading ? "..." : _activeMembers.toString(),
-            color: const Color(0xFF10B981),
-            onTap: () => setState(() => _tab = 2),
+  Widget _overviewSection() {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 15,
+            offset: const Offset(0, 5),
           ),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: _modernStatCard(
-            icon: Icons.payment_rounded,
-            title: "Pending Payments",
-            value: _loading ? "..." : "₱${_pendingAmount.toStringAsFixed(0)}",
-            color: const Color(0xFFF59E0B),
-            onTap: () => setState(() => _tab = 1),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Overview',
+            style: TextStyle(
+              fontSize: 20,
+              fontWeight: FontWeight.w800,
+              color: Color(0xFF1E40AF),
+              fontFamily: 'Montserrat',
+            ),
           ),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: _modernStatCard(
-            icon: Icons.family_restroom_rounded,
-            title: "Recent Deaths",
-            value: _recentDeaths.isEmpty ? "None" : _recentDeaths.first,
-            color: const Color(0xFF8B5CF6),
-            onTap: () {
-              // Navigate to deaths page if needed
-            },
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              Expanded(
+                child: InkWell(
+                  onTap: () {
+                    setState(() => _tab = 2);
+                  },
+                  borderRadius: BorderRadius.circular(16),
+                  child: SizedBox(
+                    height: 180,
+                    child: _modernStatCard(
+                      icon: Icons.groups_rounded,
+                      title: 'Active Members',
+                      value: _loading ? '—' : _activeMembers.toString(),
+                      color: const Color(0xFF3B82F6),
+                      bgColor: const Color(0xFFEFF6FF),
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: SizedBox(
+                  height: 180,
+                  child: GestureDetector(
+                    onTap: () {
+                      if (_dayungUnitId == null) return;
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) =>
+                              RecentDeathNotices(dayungUnitId: _dayungUnitId),
+                        ),
+                      );
+                    },
+                    child: _recentDeathsCard(),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: InkWell(
+                  onTap: () {
+                    setState(() => _tab = 1);
+                  },
+                  borderRadius: BorderRadius.circular(16),
+                  child: SizedBox(
+                    height: 180,
+                    child: _modernStatCard(
+                      icon: Icons.account_balance_wallet_rounded,
+                      title: 'Pending Amount',
+                      value: _loading
+                          ? '—'
+                          : '₱${_pendingAmount.toStringAsFixed(0)}',
+                      color: const Color(0xFFF59E0B),
+                      bgColor: const Color(0xFFFEF3C7),
+                    ),
+                  ),
+                ),
+              ),
+            ],
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 
@@ -725,140 +782,44 @@ class _CollectorDashboardPageState extends State<CollectorDashboardPage> {
     required String title,
     required String value,
     required Color color,
-    VoidCallback? onTap,
-  }) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(16),
-      child: Container(
-        height: 120,
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(16),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.05),
-              blurRadius: 10,
-              offset: const Offset(0, 4),
-            ),
-          ],
-        ),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Container(
-              padding: const EdgeInsets.all(6),
-              decoration: BoxDecoration(
-                color: color.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Icon(icon, color: color, size: 20),
-            ),
-            const SizedBox(height: 6),
-            Text(
-              title,
-              style: const TextStyle(
-                fontSize: 11,
-                fontWeight: FontWeight.w600,
-                color: Color(0xFF6B7280),
-                fontFamily: 'OpenSans',
-              ),
-              textAlign: TextAlign.center,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-            ),
-            const SizedBox(height: 3),
-            Text(
-              value,
-              style: TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.w800,
-                color: color,
-                fontFamily: 'Montserrat',
-              ),
-              textAlign: TextAlign.center,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _overviewStatCard({
-    required Color color,
-    required IconData icon,
-    required Color iconColor,
-    required String title,
-    required String value,
-    String subtitle = '',
-    bool isFullWidth = false,
+    required Color bgColor,
   }) {
     return Container(
-      constraints: BoxConstraints(
-        minHeight: isFullWidth ? 60 : 120,
-        maxHeight: isFullWidth ? 80 : 140,
-      ),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: color,
+        color: bgColor,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.grey.shade200, width: 1.5),
+        border: Border.all(color: color.withOpacity(0.2)),
       ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
           Container(
             padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
-              color: iconColor.withOpacity(0.12),
+              color: color.withOpacity(0.1),
               borderRadius: BorderRadius.circular(12),
             ),
-            child: Icon(icon, color: iconColor, size: 28),
+            child: Icon(icon, color: color, size: 20),
           ),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Text(
-                  title,
-                  style: TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w700,
-                    color: iconColor,
-                    fontFamily: 'Montserrat',
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Flexible(
-                  child: Text(
-                    value,
-                    style: const TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w900,
-                      fontFamily: 'Montserrat',
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-                if (subtitle.isNotEmpty)
-                  Flexible(
-                    child: Text(
-                      subtitle,
-                      style: const TextStyle(
-                        fontSize: 12,
-                        color: Color(0xFF6B7280),
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-              ],
+          const SizedBox(height: 12),
+          Text(
+            title,
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              color: color.withOpacity(0.8),
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            value,
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.w800,
+              color: color,
             ),
           ),
         ],
@@ -866,76 +827,126 @@ class _CollectorDashboardPageState extends State<CollectorDashboardPage> {
     );
   }
 
+  Widget _recentDeathsCard() {
+    final names = _recentDeaths;
+    final display = names.take(2).toList();
+    final extra = names.length - display.length;
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFDF2F8),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFEC4899).withOpacity(0.2)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: const Color(0xFFEC4899).withOpacity(0.1),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: const Icon(
+              Icons.family_restroom_rounded,
+              color: Color(0xFFEC4899),
+              size: 20,
+            ),
+          ),
+          const SizedBox(height: 8),
+          const Text(
+            'Recent Deaths',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w700,
+              color: Color(0xFFEC4899),
+            ),
+          ),
+          const SizedBox(height: 8),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: display
+                .map(
+                  (name) => Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 4),
+                    child: Row(
+                      children: [
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            name,
+                            style: const TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                              color: Color(0xFF9F1239),
+                            ),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                )
+                .toList(),
+          ),
+          if (extra > 0)
+            Text(
+              'View All',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 13.5,
+                fontWeight: FontWeight.w800,
+                fontFamily: 'OpenSans',
+                color: Colors.blue[700],
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  // ...existing code...
+
   Widget _modernActionCards() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         const Text(
-          "Quick Actions",
+          'Quick Actions',
           style: TextStyle(
             fontSize: 18,
             fontWeight: FontWeight.w800,
-            color: Color(0xFF111827),
+            color: Color(0xFF1E40AF),
             fontFamily: 'Montserrat',
           ),
         ),
-        const SizedBox(height: 16),
-        // Grid layout - 2x2 with one centered below
-        Column(
-          children: [
-            // First row - 2 cards
-            Row(
-              children: [
-                Expanded(
-                  child: _modernActionCard(
-                    icon: Icons.qr_code_2_rounded,
-                    title: "Open GCash QR",
-                    subtitle: "Show payment QR",
-                    color: const Color(0xFF3B82F6),
-                    onTap: _openGcashQr,
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: _modernActionCard(
-                    icon: Icons.receipt_long_rounded,
-                    title: "Record Payment",
-                    subtitle: "Record cash payment",
-                    color: const Color(0xFF10B981),
-                    onTap: _recordCashPayment,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            // Second row - 2 cards
-            Row(
-              children: [
-                Expanded(
-                  child: _modernActionCard(
-                    icon: Icons.sticky_note_2_rounded,
-                    title: "Show Receipts",
-                    subtitle: "View payment receipts",
-                    color: const Color(0xFF8B5CF6),
-                    onTap: _showReceipts,
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: _modernActionCard(
-                    icon: Icons.analytics_rounded,
-                    title: "View Reports",
-                    subtitle: "Collection reports",
-                    color: const Color(0xFFF59E0B),
-                    onTap: () {
-                      // TODO: Add reports functionality
-                    },
-                  ),
-                ),
-              ],
-            ),
-          ],
+        const SizedBox(height: 12),
+        _modernActionCard(
+          icon: Icons.account_balance_wallet_rounded,
+          title: 'Collect Cash',
+          subtitle: 'Record cash payment',
+          color: const Color(0xFF3B82F6),
+          onTap: _recordCashPayment,
         ),
+        const SizedBox(height: 8),
+        _modernActionCard(
+          icon: Icons.receipt_long_rounded,
+          title: 'Show Receipts',
+          subtitle: 'View payment receipts',
+          color: const Color(0xFF10B981),
+          onTap: _showReceipts,
+        ),
+        const SizedBox(height: 8),
+        _modernActionCard(
+          icon: Icons.qr_code_2_rounded,
+          title: 'Open GCash QR',
+          subtitle: 'Show payment QR',
+          color: const Color(0xFFF59E0B),
+          onTap: _openGcashQr,
+        ),
+        // Add more actions as needed, following the Treasurer's style
       ],
     );
   }
@@ -945,54 +956,78 @@ class _CollectorDashboardPageState extends State<CollectorDashboardPage> {
     required String title,
     required String subtitle,
     required Color color,
-    VoidCallback? onTap,
+    required VoidCallback onTap,
   }) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(16),
-      child: Container(
-        height: 120, // Fixed height for consistent sizing
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: Colors.white,
+    return Container(
+      width: double.infinity,
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: color.withOpacity(0.2)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.03),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
           borderRadius: BorderRadius.circular(16),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.05),
-              blurRadius: 10,
-              offset: const Offset(0, 4),
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: color.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Icon(icon, color: color, size: 24),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        title,
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w700,
+                          color: Color(0xFF1F2937),
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        subtitle,
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: Color(0xFF6B7280),
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Icon(
+                  Icons.arrow_forward_ios_rounded,
+                  color: color.withOpacity(0.6),
+                  size: 16,
+                ),
+              ],
             ),
-          ],
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Icon(icon, color: color, size: 20),
-            const SizedBox(height: 12),
-            Text(
-              title,
-              style: const TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.w700,
-                color: Color(0xFF111827),
-                fontFamily: 'Montserrat',
-              ),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              subtitle,
-              style: const TextStyle(
-                fontSize: 12,
-                color: Color(0xFF6B7280),
-                fontFamily: 'OpenSans',
-              ),
-            ),
-          ],
+          ),
         ),
       ),
     );
   }
 
+  // ...existing code...
   Widget _modernRecentActivity() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1103,7 +1138,14 @@ class _CollectorDashboardPageState extends State<CollectorDashboardPage> {
             ),
             const SizedBox(width: 12),
             Expanded(
-              child: Container(), // Empty container to maintain layout
+              child: _modernQuickActionCard(
+                icon: Icons.analytics_rounded,
+                title: "View Reports",
+                color: const Color(0xFFF59E0B),
+                onTap: () {
+                  // TODO: Add reports functionality
+                },
+              ),
             ),
           ],
         ),
