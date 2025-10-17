@@ -8,7 +8,7 @@ import 'package:capstone_app/pages/paymentmethod.dart';
 import 'package:capstone_app/pages/contributionhistory.dart';
 import 'package:capstone_app/pages/recentdeathnotices.dart' hide kDanger;
 import 'package:capstone_app/profile/profile.dart' hide kPrimary, kWarn;
-import 'package:capstone_app/screens/selectdayung.dart';
+import 'package:capstone_app/screens/selectdayung.dart' hide kPrimary, kWarn, kPrimaryDark, kDanger;
 import 'package:capstone_app/Auth/login.dart'
     hide kPrimary, kNeutralText, kSubtleText, kPrimaryDark, kWarn, kDanger;
 import 'package:auto_size_text/auto_size_text.dart';

@@ -55,8 +55,12 @@ class _BeneficiaryPageState extends State<BeneficiaryPage>
     // ignore: unnecessary_type_check
     if (response is List) {
       final List<dynamic> allBeneficiaries = response;
-      final List<dynamic> pending = allBeneficiaries.where((b) => b['status'] == 'Pending' || b['status'] == null).toList();
-      final List<dynamic> active = allBeneficiaries.where((b) => b['status'] == 'Approved').toList();
+      final List<dynamic> pending = allBeneficiaries
+          .where((b) => b['status'] == 'Pending' || b['status'] == null)
+          .toList();
+      final List<dynamic> active = allBeneficiaries
+          .where((b) => b['status'] == 'Approved')
+          .toList();
 
       setState(() {
         beneficiaries = allBeneficiaries;
@@ -182,11 +186,7 @@ class _BeneficiaryPageState extends State<BeneficiaryPage>
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(
-                Icons.inbox_outlined,
-                size: 48,
-                color: kSubText,
-              ),
+              Icon(Icons.inbox_outlined, size: 48, color: kSubText),
               const SizedBox(height: 16),
               Text(
                 'No $type beneficiaries found',
@@ -309,9 +309,7 @@ class _BeneficiaryPageState extends State<BeneficiaryPage>
                   ),
                 ),
                 if (item['birth_certificate'] != null &&
-                    item['birth_certificate']
-                        .toString()
-                        .isNotEmpty)
+                    item['birth_certificate'].toString().isNotEmpty)
                   Container(
                     padding: const EdgeInsets.all(4),
                     decoration: BoxDecoration(
@@ -331,10 +329,9 @@ class _BeneficiaryPageState extends State<BeneficiaryPage>
       },
     );
   }
-  
+
   @override
   Widget build(BuildContext context) {
-
     return Scaffold(
       backgroundColor: Colors.white,
       body: Container(
@@ -349,17 +346,20 @@ class _BeneficiaryPageState extends State<BeneficiaryPage>
                 child: Row(
                   children: [
                     IconButton(
-                      icon: const Icon(Icons.chevron_left, color: Colors.white, size: 24),
+                      icon: const Icon(
+                        Icons.chevron_left,
+                        color: Colors.white,
+                        size: 24,
+                      ),
                       onPressed: () => Navigator.pop(context),
                       padding: EdgeInsets.zero,
-                      constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
+                      constraints: const BoxConstraints(
+                        minWidth: 40,
+                        minHeight: 40,
+                      ),
                     ),
                     const SizedBox(width: 16),
-                    Icon(
-                      Icons.inbox_rounded,
-                      color: Colors.white,
-                      size: 20,
-                    ),
+                    Icon(Icons.inbox_rounded, color: Colors.white, size: 20),
                     const SizedBox(width: 16),
                     const Expanded(
                       child: Text(
@@ -377,15 +377,14 @@ class _BeneficiaryPageState extends State<BeneficiaryPage>
               ),
               // Tab Bar
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 20,
+                  vertical: 16,
+                ),
                 color: const Color(0xFFF1F5F9),
                 child: Row(
                   children: [
-                    Icon(
-                      Icons.filter_list_rounded,
-                      size: 16,
-                      color: kSubText,
-                    ),
+                    Icon(Icons.filter_list_rounded, size: 16, color: kSubText),
                     const SizedBox(width: 12),
                     Expanded(
                       child: AnimatedBuilder(
@@ -395,13 +394,13 @@ class _BeneficiaryPageState extends State<BeneficiaryPage>
                             mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                             children: [
                               _NavTab(
-                                label: 'Pending',
+                                label: 'Active',
                                 icon: Icons.schedule_rounded,
                                 selected: _tabController.index == 0,
                                 onTap: () => _tabController.animateTo(0),
                               ),
                               _NavTab(
-                                label: 'Active',
+                                label: 'Pending',
                                 icon: Icons.check_circle_rounded,
                                 selected: _tabController.index == 1,
                                 onTap: () => _tabController.animateTo(1),
@@ -415,49 +414,58 @@ class _BeneficiaryPageState extends State<BeneficiaryPage>
                 ),
               ),
 
-            // LIST
-            Expanded(
-              child: isLoading
-                  ? const Center(child: CircularProgressIndicator())
-                  : TabBarView(
-                      controller: _tabController,
-                      children: [
-                        _buildBeneficiariesList(pendingBeneficiaries, 'Pending'),
-                        _buildBeneficiariesList(activeBeneficiaries, 'Active'),
-                      ],
-                    ),
-            ),
+              // LIST
+              Expanded(
+                child: isLoading
+                    ? const Center(child: CircularProgressIndicator())
+                    : TabBarView(
+                        controller: _tabController,
+                        children: [
+                          _buildBeneficiariesList(
+                            pendingBeneficiaries,
+                            'Active',
+                          ),
+                          _buildBeneficiariesList(
+                            activeBeneficiaries,
+                            'Pending',
+                          ),
+                        ],
+                      ),
+              ),
 
-            // ADD BUTTON
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              child: SizedBox(
-                width: double.infinity,
-                height: 44,
-                child: ElevatedButton.icon(
-                  onPressed: () => _navigateToAddBeneficiary(context),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: kSuccess,
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
+              // ADD BUTTON
+              Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 8,
+                ),
+                child: SizedBox(
+                  width: double.infinity,
+                  height: 44,
+                  child: ElevatedButton.icon(
+                    onPressed: () => _navigateToAddBeneficiary(context),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: kSuccess,
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      elevation: 0,
                     ),
-                    elevation: 0,
-                  ),
-                  icon: const Icon(Icons.add, size: 16),
-                  label: const Text(
-                    'Add a Beneficiary',
-                    style: TextStyle(
-                      fontSize: 14,
-                      fontFamily: 'Montserrat',
-                      fontWeight: FontWeight.w600,
+                    icon: const Icon(Icons.add, size: 16),
+                    label: const Text(
+                      'Add a Beneficiary',
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontFamily: 'Montserrat',
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
                   ),
                 ),
               ),
-            ),
-          ],
-        ),
+            ],
+          ),
         ),
       ),
     );
@@ -487,11 +495,7 @@ class _NavTab extends StatelessWidget {
           Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(
-                icon,
-                size: 12,
-                color: selected ? kPrimary : kSubText,
-              ),
+              Icon(icon, size: 12, color: selected ? kPrimary : kSubText),
               const SizedBox(width: 3),
               Text(
                 label,

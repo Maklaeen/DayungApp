@@ -417,7 +417,10 @@ class _SecretaryDashboardPageState extends State<SecretaryDashboardPage> {
 
   List<Widget> get _pages => [
     _buildHomePage(context),
-    SecretaryContributionsPage(dayungUnitId: _dayungUnitId ?? 1),
+    if (_dayungUnitId == null)
+      const Center(child: Text('Select a Dayung first'))
+    else
+      SecretaryContributionsPage(dayungUnitId: _dayungUnitId!),
     const SecretaryClaimsPage(),
   ];
 
@@ -499,14 +502,6 @@ class _SecretaryDashboardPageState extends State<SecretaryDashboardPage> {
                         fontWeight: FontWeight.w900,
                         color: Colors.white,
                         letterSpacing: 0.5,
-                      ),
-                    ),
-                    const Text(
-                      'Secretary Dashboard',
-                      style: TextStyle(
-                        fontSize: 14,
-                        color: Colors.white,
-                        fontWeight: FontWeight.w500,
                       ),
                     ),
                   ],
@@ -715,11 +710,18 @@ class _SecretaryDashboardPageState extends State<SecretaryDashboardPage> {
                 : _activeMembersCount.toString(),
             color: const Color(0xFF10B981),
             onTap: () {
+              if (_dayungUnitId == null) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Select a Dayung first')),
+                );
+                return;
+              }
               Navigator.push(
                 context,
                 MaterialPageRoute(
-                  builder: (_) =>
-                      SecretaryMembersPage(dayungUnitId: _dayungUnitId ?? 1),
+                  builder: (_) => SecretaryMembersPage(
+                    dayungUnitId: _dayungUnitId!, // pass actual id
+                  ),
                 ),
               );
             },
@@ -733,11 +735,17 @@ class _SecretaryDashboardPageState extends State<SecretaryDashboardPage> {
             value: "${_recentCertificates.length}",
             color: const Color(0xFF8B5CF6),
             onTap: () {
+              if (_dayungUnitId == null) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Select a Dayung first')),
+                );
+                return;
+              }
               Navigator.push(
                 context,
                 MaterialPageRoute(
                   builder: (_) =>
-                      RecentDeathNotices(dayungUnitId: _dayungUnitId ?? 1),
+                      RecentDeathNotices(dayungUnitId: _dayungUnitId!),
                 ),
               );
             },
@@ -851,11 +859,19 @@ class _SecretaryDashboardPageState extends State<SecretaryDashboardPage> {
                     subtitle: "Record new death",
                     color: const Color(0xFFEF4444),
                     onTap: () {
+                      if (_dayungUnitId == null) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Select a Dayung first'),
+                          ),
+                        );
+                        return;
+                      }
                       Navigator.push(
                         context,
                         MaterialPageRoute(
                           builder: (_) => CreateDeathNoticePage(
-                            dayungUnitId: _dayungUnitId ?? 1,
+                            dayungUnitId: _dayungUnitId!,
                           ),
                         ),
                       );
@@ -865,16 +881,24 @@ class _SecretaryDashboardPageState extends State<SecretaryDashboardPage> {
                 const SizedBox(width: 12),
                 Expanded(
                   child: _modernActionCard(
-                    icon: Icons.people_rounded,
-                    title: "Manage Members",
-                    subtitle: "View & edit members",
+                    icon: Icons.family_restroom_rounded,
+                    title: "Manage Beneficiaries",
+                    subtitle: "View & edit beneficiaries",
                     color: const Color(0xFF3B82F6),
                     onTap: () {
+                      if (_dayungUnitId == null) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Select a Dayung first'),
+                          ),
+                        );
+                        return;
+                      }
                       Navigator.push(
                         context,
                         MaterialPageRoute(
-                          builder: (_) => SecretaryMembersPage(
-                            dayungUnitId: _dayungUnitId ?? 1,
+                          builder: (_) => SecretaryBeneficiariesTab(
+                            dayungUnitId: _dayungUnitId!,
                           ),
                         ),
                       );
@@ -910,12 +934,19 @@ class _SecretaryDashboardPageState extends State<SecretaryDashboardPage> {
                     subtitle: "Monitor services",
                     color: const Color(0xFF8B5CF6),
                     onTap: () {
+                      if (_dayungUnitId == null) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Select a Dayung first'),
+                          ),
+                        );
+                        return;
+                      }
                       Navigator.push(
                         context,
                         MaterialPageRoute(
-                          builder: (_) => ServiceTrackerPage(
-                            dayungUnitId: _dayungUnitId ?? 1,
-                          ),
+                          builder: (_) =>
+                              ServiceTrackerPage(dayungUnitId: _dayungUnitId!),
                         ),
                       );
                     },

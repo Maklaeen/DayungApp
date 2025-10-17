@@ -12,7 +12,8 @@ import 'package:capstone_app/Secretary/dashboard.dart'
     hide kAccent, kWarn, kPrimary;
 import 'package:capstone_app/Treasurer/dashboard.dart'
     hide kAccent, kWarn, kPrimary;
-import 'package:capstone_app/settings/settings.dart';
+import 'package:capstone_app/profile/dayung_profile.dart';
+import 'package:capstone_app/settings/settings.dart' hide DayungSettingsPage;
 import 'package:capstone_app/ui/theme/branding.dart';
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
@@ -1831,7 +1832,7 @@ class _ProfilePageState extends State<ProfilePage> {
             onTap: () {
               Navigator.push(
                 context,
-                MaterialPageRoute(builder: (_) => const DayungSettingsPage()),
+                MaterialPageRoute(builder: (_) => const DayungProfile()),
               );
             },
             borderRadius: BorderRadius.circular(8),

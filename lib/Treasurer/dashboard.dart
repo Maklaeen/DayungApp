@@ -4,6 +4,7 @@ import 'package:capstone_app/Treasurer/collected.dart';
 import 'package:capstone_app/Treasurer/manage_fund.dart';
 import 'package:capstone_app/pages/claims.dart';
 import 'package:capstone_app/pages/notification.dart';
+import 'package:capstone_app/pages/recentdeathnotices.dart';
 import 'package:capstone_app/profile/profile.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -38,6 +39,8 @@ class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
   int? _lastStatsDayungId;
 
   String _dayungLabel = 'Dayung';
+  int _tab = 0;
+  bool _showNavBar = true;
   int? _dayungUnitId;
   int? _lastRoleUnitId;
   bool _loading = true;
@@ -46,9 +49,7 @@ class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
   int _pendingMembers = 0;
   DateTime? _lastRefreshTime;
   List<String> _recentDeaths = [];
-
-  int _tab = 0;
-  bool _showNavBar = true;
+  String _noticeFilter = 'members';
 
   @override
   void initState() {
@@ -124,7 +125,7 @@ class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
           : (_dayungUnitId != null ? [_dayungUnitId!] : const <int>[]);
       if (ids.isEmpty) return [];
 
-      // A) direct matches on death_notices.dayung_unit_id
+      // Only fetch notices where dayung_unit_id matches
       final dnDirect = await sb
           .from('death_notices')
           .select(
@@ -135,50 +136,17 @@ class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
 
       final direct = List<Map<String, dynamic>>.from(dnDirect);
 
-      // B) rows where dayung_unit_id is NULL but user's dayung matches
-      final usersRes = await sb
-          .from('users')
-          .select('id')
-          .inFilter('dayung_unit_id', ids);
-      final userIds = List<Map<String, dynamic>>.from(usersRes)
-          .map((e) => (e['id'] ?? '').toString())
-          .where((s) => s.isNotEmpty)
-          .toList();
-
-      List<Map<String, dynamic>> viaUser = [];
-      if (userIds.isNotEmpty) {
-        final dnViaUser = await sb
-            .from('death_notices')
-            .select(
-              'id,name,date_of_death,dayung_unit_id,user_id,beneficiary_id,deceased_type',
-            )
-            .isFilter('dayung_unit_id', null)
-            .inFilter('user_id', userIds);
-        viaUser = List<Map<String, dynamic>>.from(dnViaUser);
-      }
-
-      // Merge unique by id and sort desc by date
-      final map = <int, Map<String, dynamic>>{};
-      for (final m in [...direct, ...viaUser]) {
-        final id = int.tryParse((m['id']).toString());
-        if (id == null) continue;
-
-        // Ensure deceased_type populated for older rows
+      // Ensure deceased_type populated for older rows
+      for (final m in direct) {
         final dtype = (m['deceased_type'] ?? '').toString();
         if (dtype.isEmpty) {
           m['deceased_type'] = (m['beneficiary_id'] != null)
               ? 'beneficiary'
               : 'member';
         }
-        map[id] = m;
       }
-      final list = map.values.toList();
-      list.sort(
-        (a, b) => DateTime.parse(
-          (b['date_of_death']).toString(),
-        ).compareTo(DateTime.parse((a['date_of_death']).toString())),
-      );
-      return list;
+
+      return direct;
     } catch (_) {
       return [];
     }
@@ -520,31 +488,316 @@ class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
     }
 
     return Scaffold(
-      backgroundColor: kBg,
-      body: Stack(
-        children: [
-          SafeArea(
-            child: Column(
-              children: [
-                _topBar(),
-                const Divider(height: 1, color: Color(0xFFE1E4E8)),
-                _greeting(),
-                Expanded(
-                  child: AnimatedSwitcher(
-                    duration: const Duration(milliseconds: 250),
-                    child: IndexedStack(index: _tab, children: _pages),
-                  ),
-                ),
-              ],
-            ),
+      backgroundColor: const Color(0xFFF8FAFC),
+      body: Container(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [Color(0xFF1E40AF), Color(0xFF3B82F6), Color(0xFFF8FAFC)],
+            stops: [0.0, 0.3, 0.3],
           ),
-          _bottomNav(wide),
-        ],
+        ),
+        child: Stack(
+          children: [
+            SafeArea(
+              child: Column(
+                children: [_buildModernHeader(), _buildContentArea(wide)],
+              ),
+            ),
+            _buildFloatingNavBar(wide),
+          ],
+        ),
       ),
     );
   }
 
   /* ------------------------------- UI parts ------------------------------- */
+
+  Widget _buildModernHeader() {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(20, 20, 20, 40),
+      child: Column(
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF1E40AF).withOpacity(0.8),
+                  borderRadius: BorderRadius.circular(16),
+                  boxShadow: [
+                    BoxShadow(
+                      color: const Color(0xFF1E40AF).withOpacity(0.3),
+                      blurRadius: 8,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
+                ),
+                child: const Icon(
+                  Icons.account_balance_wallet_rounded,
+                  color: Colors.white,
+                  size: 24,
+                ),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      _dayungLabel,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontFamily: 'Montserrat',
+                        fontSize: 24,
+                        fontWeight: FontWeight.w900,
+                        color: Colors.white,
+                        letterSpacing: 0.5,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              _buildModernIconButton(
+                icon: Icons.notifications_active_rounded,
+                onTap: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const NotificationPage()),
+                ),
+                badge: '1',
+              ),
+            ],
+          ),
+          const SizedBox(height: 24),
+          Row(
+            children: [
+              const Expanded(
+                child: Text(
+                  'Maayung buntag,\nTreasurer!',
+                  style: TextStyle(
+                    fontFamily: 'Montserrat',
+                    fontSize: 28,
+                    fontWeight: FontWeight.w900,
+                    height: 1.1,
+                    color: Colors.white,
+                    letterSpacing: 0.5,
+                  ),
+                ),
+              ),
+              GestureDetector(
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const ProfilePage()),
+                  );
+                },
+                child: Container(
+                  padding: const EdgeInsets.all(4),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.2),
+                    borderRadius: BorderRadius.circular(32),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.1),
+                        blurRadius: 8,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
+                  ),
+                  child: const CircleAvatar(
+                    radius: 28,
+                    backgroundColor: Colors.white,
+                    child: Icon(
+                      Icons.person,
+                      size: 34,
+                      color: Color(0xFF1E40AF),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildContentArea(bool wide) {
+    return Expanded(
+      child: Container(
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.only(
+            topLeft: Radius.circular(24),
+            topRight: Radius.circular(24),
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: Color(0x1A000000),
+              blurRadius: 20,
+              offset: Offset(0, -4),
+            ),
+          ],
+        ),
+        child: ClipRRect(
+          borderRadius: const BorderRadius.only(
+            topLeft: Radius.circular(24),
+            topRight: Radius.circular(24),
+          ),
+          child: AnimatedSwitcher(
+            duration: const Duration(milliseconds: 300),
+            child: IndexedStack(index: _tab, children: _pages),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildFloatingNavBar(bool wide) {
+    return Positioned(
+      left: 0,
+      right: 0,
+      bottom: 20,
+      child: Center(
+        child: IgnorePointer(
+          ignoring: !_showNavBar,
+          child: AnimatedOpacity(
+            duration: const Duration(milliseconds: 300),
+            opacity: _showNavBar ? 1 : 0,
+            child: Container(
+              height: 80,
+              margin: EdgeInsets.symmetric(horizontal: wide ? 200 : 20),
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(40),
+                border: Border.all(color: const Color(0xFFE5E7EB)),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.08),
+                    blurRadius: 20,
+                    offset: const Offset(0, 8),
+                  ),
+                ],
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                children: [
+                  _buildNavItem(Icons.home_rounded, "Home", 0),
+                  _buildNavItem(Icons.public, "Contributions", 1),
+                  _buildNavItem(Icons.description, "Claims", 2),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildModernIconButton({
+    required IconData icon,
+    required VoidCallback onTap,
+    String? badge,
+  }) {
+    return Stack(
+      clipBehavior: Clip.none,
+      children: [
+        Container(
+          width: 44,
+          height: 44,
+          decoration: BoxDecoration(
+            color: Colors.white.withOpacity(0.2),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: Colors.white.withOpacity(0.3), width: 1),
+          ),
+          child: Material(
+            color: Colors.transparent,
+            child: InkWell(
+              borderRadius: BorderRadius.circular(12),
+              onTap: onTap,
+              child: Icon(icon, color: Colors.white, size: 20),
+            ),
+          ),
+        ),
+        if (badge != null)
+          Positioned(
+            right: -2,
+            top: -2,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  colors: [Color(0xFFEF4444), Color(0xFFDC2626)],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+                borderRadius: BorderRadius.circular(10),
+                boxShadow: [
+                  BoxShadow(
+                    color: const Color(0xFFEF4444).withOpacity(0.3),
+                    blurRadius: 8,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
+              ),
+              child: Text(
+                badge,
+                style: const TextStyle(
+                  fontFamily: 'OpenSans',
+                  fontSize: 10,
+                  fontWeight: FontWeight.w700,
+                  color: Colors.white,
+                ),
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+
+  Widget _buildNavItem(IconData icon, String label, int index) {
+    final selected = _tab == index;
+    return GestureDetector(
+      onTap: () => setState(() => _tab = index),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        decoration: BoxDecoration(
+          color: selected
+              ? const Color(0xFF1E40AF).withOpacity(0.1)
+              : Colors.transparent,
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              icon,
+              size: 22,
+              color: selected
+                  ? const Color(0xFF1E40AF)
+                  : const Color(0xFF6B7280),
+            ),
+            const SizedBox(height: 3),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+                color: selected
+                    ? const Color(0xFF1E40AF)
+                    : const Color(0xFF6B7280),
+                height: 1.0,
+              ),
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 
   Widget _topBar() {
     return Container(
@@ -634,480 +887,906 @@ class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
       edgeOffset: 68,
       child: SingleChildScrollView(
         controller: _scrollController,
-        padding: const EdgeInsets.fromLTRB(20, 8, 20, 120),
+        padding: const EdgeInsets.fromLTRB(20, 20, 20, 100),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            _tripleCards(),
-            const SizedBox(height: 18),
-            _primaryAction('Manage Fund', Icons.account_balance_wallet, () {
-              if (_dayungUnitId == null) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Select a Dayung first')),
-                );
-                return;
-              }
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => ManageFundPage(dayungUnitId: _dayungUnitId!),
-                ),
-              ).then((_) => _fetchAll());
-            }),
-            const SizedBox(height: 12),
-            _primaryAction('Paid Members', Icons.verified_user, () async {
-              if (_dayungUnitId == null) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Select a Dayung first')),
-                );
-                return;
-              }
-              await _showMembersModal(paid: true);
-            }),
-            const SizedBox(height: 12),
-            _primaryAction('Unpaid Members', Icons.pending_actions, () async {
-              if (_dayungUnitId == null) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Select a Dayung first')),
-                );
-                return;
-              }
-              await _showMembersModal(paid: false);
-            }),
-            const SizedBox(height: 14),
-            _collectedPanel(),
-
-            // ------------ Death Notices (split by Members/Beneficiaries) ------------
-            FutureBuilder<List<Map<String, dynamic>>>(
-              future: _deathNoticesFutureCached,
-              builder: (context, snap) {
-                if (snap.connectionState == ConnectionState.waiting) {
-                  return const Padding(
-                    padding: EdgeInsets.symmetric(vertical: 18),
-                    child: Center(child: CircularProgressIndicator()),
-                  );
-                }
-                if (snap.hasError) {
-                  return const Padding(
-                    padding: EdgeInsets.symmetric(vertical: 18),
-                    child: Text(
-                      'Failed to load death notices.',
-                      style: TextStyle(color: kDanger),
-                    ),
-                  );
-                }
-                final notices = snap.data ?? const <Map<String, dynamic>>[];
-                if (notices.isEmpty) {
-                  return const Padding(
-                    padding: EdgeInsets.symmetric(vertical: 18),
-                    child: Text(
-                      'No death notices yet.',
-                      style: TextStyle(
-                        fontSize: 16,
-                        color: kSubtleText,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                  );
-                }
-
-                final dayungId =
-                    _dayungUnitId ??
-                    (notices.isNotEmpty
-                        ? (notices.first['dayung_unit_id'] ?? 0)
-                        : 0);
-
-                final members = notices
-                    .where((n) => (n['deceased_type'] ?? 'member') == 'member')
-                    .toList();
-                final beneficiaries = notices
-                    .where((n) => (n['deceased_type'] ?? '') == 'beneficiary')
-                    .toList();
-
-                Widget sectionHeader(String title, int count) => Row(
-                  children: [
-                    Text(
-                      title,
-                      style: const TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 18,
-                        color: kPrimaryDark,
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 8,
-                        vertical: 2,
-                      ),
-                      decoration: BoxDecoration(
-                        color: kPrimary.withOpacity(.08),
-                        borderRadius: BorderRadius.circular(10),
-                        border: Border.all(color: kPrimary),
-                      ),
-                      child: Text(
-                        '$count',
-                        style: const TextStyle(
-                          color: kPrimaryDark,
-                          fontWeight: FontWeight.w800,
-                        ),
-                      ),
-                    ),
-                  ],
-                );
-
-                Widget noticeList(List<Map<String, dynamic>> list) {
-                  if (list.isEmpty) {
-                    return const Padding(
-                      padding: EdgeInsets.symmetric(vertical: 12),
-                      child: Text(
-                        'No notices found in this category.',
-                        style: TextStyle(color: kSubtleText),
-                      ),
-                    );
-                  }
-
-                  final noticeIds = list
-                      .map<int>((e) => int.tryParse('${e['id']}') ?? 0)
-                      .toList();
-
-                  return FutureBuilder<Map<int, Map<String, dynamic>>>(
-                    future: _paymentStatsByNotice(noticeIds, dayungId),
-                    builder: (context, statSnap) {
-                      final stats =
-                          statSnap.data ?? const <int, Map<String, dynamic>>{};
-
-                      Widget statusPill(String text, Color color) => Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 10,
-                          vertical: 4,
-                        ),
-                        decoration: BoxDecoration(
-                          color: color.withOpacity(.12),
-                          borderRadius: BorderRadius.circular(20),
-                          border: Border.all(color: color),
-                        ),
-                        child: Text(
-                          text,
-                          style: TextStyle(
-                            color: color,
-                            fontWeight: FontWeight.w800,
-                          ),
-                        ),
-                      );
-
-                      Widget countChip(
-                        IconData icon,
-                        String label,
-                        int count,
-                        Color color,
-                      ) => Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 10,
-                          vertical: 6,
-                        ),
-                        decoration: BoxDecoration(
-                          color: color.withOpacity(.06),
-                          borderRadius: BorderRadius.circular(10),
-                          border: Border.all(color: color.withOpacity(.25)),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(icon, size: 16, color: color),
-                            const SizedBox(width: 6),
-                            Text(
-                              '$label $count',
-                              style: TextStyle(
-                                color: color.withOpacity(.95),
-                                fontWeight: FontWeight.w800,
-                              ),
-                            ),
-                          ],
-                        ),
-                      );
-
-                      Widget noticeCard(Map<String, dynamic> n) {
-                        final sid = int.tryParse('${n['id']}') ?? 0;
-                        final dId =
-                            int.tryParse(
-                              '${n['dayung_unit_id'] ?? dayungId ?? 0}',
-                            ) ??
-                            0;
-                        final st =
-                            stats[sid] ??
-                            const {
-                              'paidCount': 0,
-                              'unpaidCount': 0,
-                              'paidAmount': 0.0,
-                              'pendingAmount': 0.0,
-                              'totalCount': 0,
-                            };
-
-                        final paid = (st['paidCount'] ?? 0) as int;
-                        final unpaid = (st['unpaidCount'] ?? 0) as int;
-                        final totalCount =
-                            (st['totalCount'] ?? (paid + unpaid)) as int;
-                        final paidAmt = (st['paidAmount'] ?? 0.0) as double;
-                        final pendingAmt =
-                            (st['pendingAmount'] ?? 0.0) as double;
-
-                        final completed = unpaid == 0 && totalCount > 0;
-                        final progress = totalCount == 0
-                            ? 0.0
-                            : (paid / totalCount).clamp(0.0, 1.0);
-
-                        return Container(
-                          margin: const EdgeInsets.only(bottom: 12),
-                          padding: const EdgeInsets.all(14),
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            borderRadius: BorderRadius.circular(16),
-                            border: Border.all(color: Colors.grey.shade300),
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.black.withOpacity(.06),
-                                blurRadius: 10,
-                                offset: const Offset(0, 3),
-                              ),
-                            ],
-                          ),
-                          child: Column(
-                            children: [
-                              // Title + status
-                              Row(
-                                children: [
-                                  Expanded(
-                                    child: Text(
-                                      (n['name'] ?? 'Death Notice').toString(),
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                      style: const TextStyle(
-                                        fontWeight: FontWeight.w800,
-                                        fontSize: 16,
-                                        color: kNeutralText,
-                                        fontFamily: 'Montserrat',
-                                      ),
-                                    ),
-                                  ),
-                                  statusPill(
-                                    completed ? 'Completed' : 'Collecting',
-                                    completed ? Colors.teal : Colors.orange,
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(height: 6),
-                              // Date row
-                              Row(
-                                children: [
-                                  const Icon(
-                                    Icons.event,
-                                    size: 16,
-                                    color: kSubtleText,
-                                  ),
-                                  const SizedBox(width: 6),
-                                  Text(
-                                    (n['date_of_death'] ?? '')
-                                            .toString()
-                                            .isEmpty
-                                        ? '—'
-                                        : (n['date_of_death']).toString(),
-                                    style: const TextStyle(
-                                      color: kSubtleText,
-                                      fontWeight: FontWeight.w600,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(height: 10),
-                              // Counts + amount
-                              Row(
-                                children: [
-                                  countChip(
-                                    Icons.verified_rounded,
-                                    'Paid',
-                                    paid,
-                                    Colors.green,
-                                  ),
-                                  const SizedBox(width: 8),
-                                  countChip(
-                                    Icons.pending_actions_rounded,
-                                    'Unpaid',
-                                    unpaid,
-                                    Colors.red,
-                                  ),
-                                  const Spacer(),
-                                  Text(
-                                    '₱${paidAmt.toStringAsFixed(0)} / ₱${(paidAmt + pendingAmt).toStringAsFixed(0)}',
-                                    style: const TextStyle(
-                                      fontWeight: FontWeight.w800,
-                                      color: kNeutralText,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(height: 10),
-                              // Progress
-                              Row(
-                                children: [
-                                  Expanded(
-                                    child: ClipRRect(
-                                      borderRadius: BorderRadius.circular(8),
-                                      child: LinearProgressIndicator(
-                                        value: progress,
-                                        minHeight: 10,
-                                        backgroundColor: Colors.grey.shade200,
-                                        valueColor: AlwaysStoppedAnimation(
-                                          completed
-                                              ? Colors.teal
-                                              : Colors.indigo,
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                  const SizedBox(width: 10),
-                                  Text(
-                                    '${(progress * 100).round()}%',
-                                    style: const TextStyle(
-                                      fontWeight: FontWeight.w800,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(height: 10),
-                              // ACTIONS: Collect + Status
-                              Row(
-                                children: [
-                                  OutlinedButton.icon(
-                                    onPressed: () =>
-                                        _triggerPaymentCollection(sid, dId),
-                                    icon: const Icon(Icons.playlist_add_check),
-                                    label: const Text('Collect'),
-                                    style: OutlinedButton.styleFrom(
-                                      foregroundColor: kPrimaryDark,
-                                      side: const BorderSide(
-                                        color: kPrimaryDark,
-                                      ),
-                                    ),
-                                  ),
-                                  const SizedBox(width: 8),
-                                  TextButton.icon(
-                                    onPressed: () => _showPaymentStatusSheet(
-                                      sid,
-                                      dId, // pass dayungUnitId from the card
-                                    ),
-                                    icon: const Icon(Icons.list_alt),
-                                    label: const Text('Status'),
-                                  ),
-                                ],
-                              ),
-                            ],
-                          ),
-                        );
-                      }
-
-                      final width = MediaQuery.of(context).size.width;
-                      final isGrid = width >= 720;
-                      final cards = list.map(noticeCard).toList();
-
-                      if (!isGrid) {
-                        return Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            for (int i = 0; i < cards.length; i++) cards[i],
-                          ],
-                        );
-                      }
-                      return GridView.builder(
-                        shrinkWrap: true,
-                        physics: const NeverScrollableScrollPhysics(),
-                        itemCount: cards.length,
-                        gridDelegate:
-                            const SliverGridDelegateWithFixedCrossAxisCount(
-                              crossAxisCount: 2,
-                              crossAxisSpacing: 12,
-                              mainAxisSpacing: 12,
-                              childAspectRatio: 2.6,
-                            ),
-                        itemBuilder: (_, i) => cards[i],
-                      );
-                    },
-                  );
-                }
-
-                return Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Local tab controller for splitting
-                    const SizedBox(height: 14),
-                    DefaultTabController(
-                      length: 2,
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          // Header + tabs
-                          Row(
-                            children: [
-                              const Expanded(
-                                child: Text(
-                                  'Death Notices',
-                                  style: TextStyle(
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 18,
-                                    color: kPrimaryDark,
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(width: 12),
-                              SizedBox(
-                                width: 280,
-                                child: TabBar(
-                                  labelColor: kPrimaryDark,
-                                  unselectedLabelColor: kSubtleText,
-                                  indicatorColor: kPrimaryDark,
-                                  tabs: [
-                                    Tab(
-                                      child: sectionHeader(
-                                        'Members',
-                                        members.length,
-                                      ),
-                                    ),
-                                    Tab(
-                                      child: sectionHeader(
-                                        'Beneficiaries',
-                                        beneficiaries.length,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 10),
-                          // Tab content
-                          SizedBox(
-                            height: 420, // enough to show grid/list comfortably
-                            child: TabBarView(
-                              children: [
-                                SingleChildScrollView(
-                                  child: noticeList(members),
-                                ),
-                                SingleChildScrollView(
-                                  child: noticeList(beneficiaries),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                );
-              },
-            ),
-            // ------------ End split section ------------
+            _buildModernStatsCards(),
+            const SizedBox(height: 24),
+            _buildQuickActions(),
+            const SizedBox(height: 24),
+            _buildCollectedSection(),
+            const SizedBox(height: 24),
+            _buildDeathNoticesSection(),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildModernStatsCards() {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 15,
+            offset: const Offset(0, 5),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Overview',
+            style: TextStyle(
+              fontSize: 20,
+              fontWeight: FontWeight.w800,
+              color: Color(0xFF1E40AF),
+              fontFamily: 'Montserrat',
+            ),
+          ),
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              Expanded(
+                child: SizedBox(
+                  height: 180,
+                  child: _buildModernStatCard(
+                    icon: Icons.groups_rounded,
+                    title: 'Active Members',
+                    value: _loading ? '—' : _activeMembers.toString(),
+                    color: const Color(0xFF3B82F6),
+                    bgColor: const Color(0xFFEFF6FF),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: SizedBox(
+                  height: 180,
+                  child: GestureDetector(
+                    onTap: () {
+                      if (_dayungUnitId == null) return;
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) =>
+                              RecentDeathNotices(dayungUnitId: _dayungUnitId),
+                        ),
+                      );
+                    },
+                    child: _buildRecentDeathsCard(),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: SizedBox(
+                  height: 180,
+                  child: _buildModernStatCard(
+                    icon: Icons.account_balance_wallet_rounded,
+                    title: 'Pending Amount',
+                    value: _loading
+                        ? '—'
+                        : '₱${_pendingAmount.toStringAsFixed(0)}',
+                    color: const Color(0xFFF59E0B),
+                    bgColor: const Color(0xFFFEF3C7),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildModernStatCard({
+    required IconData icon,
+    required String title,
+    required String value,
+    String subtitle = '',
+    required Color color,
+    required Color bgColor,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: bgColor,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: color.withOpacity(0.2)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.center, // Center horizontally
+        children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: color.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Icon(icon, color: color, size: 20),
+          ),
+          const SizedBox(height: 12),
+          Text(
+            title,
+            textAlign: TextAlign.center, // Center text
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              color: color.withOpacity(0.8),
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            value,
+            textAlign: TextAlign.center, // Center text
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.w800,
+              color: color,
+            ),
+          ),
+          if (subtitle.isNotEmpty) ...[
+            const SizedBox(height: 2),
+            Text(
+              subtitle,
+              textAlign: TextAlign.center, // Center text
+              style: TextStyle(
+                fontSize: 10,
+                fontWeight: FontWeight.w500,
+                color: color.withOpacity(0.6),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildRecentDeathsCard() {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFDF2F8),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFEC4899).withOpacity(0.2)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: const Color(0xFFEC4899).withOpacity(0.1),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: const Icon(
+              FontAwesomeIcons.dove,
+              color: Color(0xFFEC4899),
+              size: 20,
+            ),
+          ),
+          const SizedBox(height: 8),
+          const Text(
+            'Recent Deaths',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w700,
+              color: Color(0xFFEC4899),
+            ),
+          ),
+          const SizedBox(height: 8),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: _recentDeaths
+                .take(2)
+                .map(
+                  (name) => Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 4),
+                    child: Row(
+                      children: [
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            name,
+                            style: const TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                              color: Color(0xFF9F1239),
+                            ),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                )
+                .toList(),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildQuickActions() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'Quick Actions',
+          style: TextStyle(
+            fontSize: 18,
+            fontWeight: FontWeight.w800,
+            color: Color(0xFF1E40AF),
+            fontFamily: 'Montserrat',
+          ),
+        ),
+        const SizedBox(height: 12),
+        _buildModernActionCard(
+          icon: Icons.account_balance_wallet_rounded,
+          title: 'Manage Fund',
+          subtitle: 'View and manage fund details',
+          color: const Color(0xFF3B82F6),
+          onTap: () {
+            if (_dayungUnitId == null) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Select a Dayung first')),
+              );
+              return;
+            }
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => ManageFundPage(dayungUnitId: _dayungUnitId!),
+              ),
+            ).then((_) => _fetchAll());
+          },
+        ),
+        const SizedBox(height: 8),
+        _buildModernActionCard(
+          icon: Icons.verified_user_rounded,
+          title: 'Paid Members',
+          subtitle: 'View members who have paid',
+          color: const Color(0xFF10B981),
+          onTap: () async {
+            if (_dayungUnitId == null) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Select a Dayung first')),
+              );
+              return;
+            }
+            await _showMembersModal(paid: true);
+          },
+        ),
+        const SizedBox(height: 8),
+        _buildModernActionCard(
+          icon: Icons.pending_actions_rounded,
+          title: 'Unpaid Members',
+          subtitle: 'View members who haven\'t paid',
+          color: const Color(0xFFEF4444),
+          onTap: () async {
+            if (_dayungUnitId == null) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Select a Dayung first')),
+              );
+              return;
+            }
+            await _showMembersModal(paid: false);
+          },
+        ),
+      ],
+    );
+  }
+
+  Widget _buildModernActionCard({
+    required IconData icon,
+    required String title,
+    required String subtitle,
+    required Color color,
+    required VoidCallback onTap,
+  }) {
+    return Container(
+      width: double.infinity,
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: color.withOpacity(0.2)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.03),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(16),
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: color.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Icon(icon, color: color, size: 24),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        title,
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w700,
+                          color: Color(0xFF1F2937),
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        subtitle,
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: Color(0xFF6B7280),
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Icon(
+                  Icons.arrow_forward_ios_rounded,
+                  color: color.withOpacity(0.6),
+                  size: 16,
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCollectedSection() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [Color(0xFF10B981), Color(0xFF059669)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF10B981).withOpacity(0.3),
+            blurRadius: 15,
+            offset: const Offset(0, 5),
+          ),
+        ],
+      ),
+      child: Column(
+        children: [
+          const Icon(
+            Icons.account_balance_rounded,
+            color: Colors.white,
+            size: 32,
+          ),
+          const SizedBox(height: 12),
+          const Text(
+            'Collected from Collectors',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.w800,
+              color: Colors.white,
+              fontFamily: 'Montserrat',
+            ),
+          ),
+          const SizedBox(height: 16),
+          Container(
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(12),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.1),
+                  blurRadius: 8,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+            ),
+            child: Material(
+              color: Colors.transparent,
+              child: InkWell(
+                borderRadius: BorderRadius.circular(12),
+                onTap: () {
+                  if (_dayungUnitId == null) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Select a Dayung first')),
+                    );
+                    return;
+                  }
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => CollectedFromCollectorsPage(
+                        dayungUnitId: _dayungUnitId!,
+                      ),
+                    ),
+                  );
+                },
+                child: const Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                  child: Text(
+                    'View Collections',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w700,
+                      color: Color(0xFF10B981),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDeathNoticesSection() {
+    return FutureBuilder<List<Map<String, dynamic>>>(
+      future: _deathNoticesFutureCached,
+      builder: (context, snap) {
+        if (snap.connectionState == ConnectionState.waiting) {
+          return const Center(
+            child: Padding(
+              padding: EdgeInsets.symmetric(vertical: 40),
+              child: CircularProgressIndicator(),
+            ),
+          );
+        }
+        if (snap.hasError) {
+          return Container(
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              color: Colors.red.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: Colors.red.withOpacity(0.3)),
+            ),
+            child: const Text(
+              'Failed to load death notices.',
+              style: TextStyle(color: Color(0xFFDC2626)),
+            ),
+          );
+        }
+        final notices = snap.data ?? const <Map<String, dynamic>>[];
+        if (notices.isEmpty) {
+          return Container(
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              color: Colors.grey.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: const Text(
+              'No death notices yet.',
+              style: TextStyle(
+                fontSize: 16,
+                color: Color(0xFF6B7280),
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          );
+        }
+
+        // Filter by Members | Beneficiaries tab
+        final filtered = notices.where((n) {
+          final t = (n['deceased_type'] ?? '').toString().toLowerCase();
+          if (_noticeFilter == 'members') return t == 'member';
+          return t == 'beneficiary';
+        }).toList();
+
+        if (filtered.isEmpty) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _deathNoticesHeader(count: 0),
+              const SizedBox(height: 12),
+              _buildNoticeTypeTabs(),
+              const SizedBox(height: 12),
+              Container(
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  color: Colors.grey.withOpacity(0.08),
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: Text(
+                  _noticeFilter == 'members'
+                      ? 'No member death notices yet.'
+                      : 'No beneficiary death notices yet.',
+                  style: const TextStyle(
+                    fontSize: 16,
+                    color: Color(0xFF6B7280),
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ),
+            ],
+          );
+        }
+
+        final noticeIds = filtered
+            .map<int>((e) => int.tryParse('${e['id']}') ?? 0)
+            .toList();
+        final dayungId =
+            _dayungUnitId ??
+            (filtered.isNotEmpty ? (filtered.first['dayung_unit_id'] ?? 0) : 0);
+
+        _ensureStatsFuture(noticeIds, dayungId);
+
+        return FutureBuilder<Map<int, Map<String, dynamic>>>(
+          future: _paymentStatsByNotice(noticeIds, dayungId),
+          builder: (context, statSnap) {
+            final stats = statSnap.data ?? const <int, Map<String, dynamic>>{};
+
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _deathNoticesHeader(count: filtered.length),
+                const SizedBox(height: 12),
+                _buildNoticeTypeTabs(),
+                const SizedBox(height: 16),
+                ...filtered.map(
+                  (n) => _buildModernNoticeCard(n, stats, dayungId),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Widget _deathNoticesHeader({required int count}) {
+    return Row(
+      children: [
+        const Text(
+          'Death Notices',
+          style: TextStyle(
+            fontSize: 20,
+            fontWeight: FontWeight.w800,
+            color: Color(0xFF1E40AF),
+            fontFamily: 'Montserrat',
+          ),
+        ),
+        const SizedBox(width: 8),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+          decoration: BoxDecoration(
+            color: const Color(0xFF1E40AF).withOpacity(0.1),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: const Color(0xFF1E40AF).withOpacity(0.3)),
+          ),
+          child: Text(
+            '$count',
+            style: const TextStyle(
+              color: Color(0xFF1E40AF),
+              fontWeight: FontWeight.w700,
+              fontSize: 12,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildNoticeTypeTabs() {
+    final isMembers = _noticeFilter == 'members';
+    return Center(
+      child: Container(
+        padding: const EdgeInsets.all(2),
+        decoration: BoxDecoration(
+          color: const Color(0xFFF3F4F6),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: const Color(0xFFE5E7EB)),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _segTab(
+              label: 'Members',
+              selected: isMembers,
+              onTap: () => setState(() => _noticeFilter = 'members'),
+            ),
+            _segTab(
+              label: 'Beneficiaries',
+              selected: !isMembers,
+              onTap: () => setState(() => _noticeFilter = 'beneficiaries'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _segTab({
+    required String label,
+    required bool selected,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      onTap: selected ? null : onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+        decoration: BoxDecoration(
+          color: selected ? const Color(0xFF1E40AF) : Colors.transparent,
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            fontSize: 12.5,
+            fontWeight: FontWeight.w800,
+            color: selected ? Colors.white : const Color(0xFF1E40AF),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildModernNoticeCard(
+    Map<String, dynamic> notice,
+    Map<int, Map<String, dynamic>> stats,
+    int dayungId,
+  ) {
+    final sid = int.tryParse('${notice['id']}') ?? 0;
+    final dId =
+        int.tryParse((notice['dayung_unit_id'] ?? dayungId).toString()) ?? 0;
+    final st =
+        stats[sid] ??
+        const {
+          'paidCount': 0,
+          'unpaidCount': 0,
+          'paidAmount': 0.0,
+          'pendingAmount': 0.0,
+          'totalCount': 0,
+        };
+
+    final paid = (st['paidCount'] ?? 0) as int;
+    final unpaid = (st['unpaidCount'] ?? 0) as int;
+    final totalCount = (st['totalCount'] ?? (paid + unpaid)) as int;
+    final paidAmt = (st['paidAmount'] ?? 0.0) as double;
+    final pendingAmt = (st['pendingAmount'] ?? 0.0) as double;
+
+    final completed = unpaid == 0 && totalCount > 0;
+    final progress = totalCount == 0
+        ? 0.0
+        : (paid / totalCount).clamp(0.0, 1.0);
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: const Color(0xFFE5E7EB)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  (notice['name'] ?? 'Death Notice').toString(),
+                  style: const TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w800,
+                    color: Color(0xFF1F2937),
+                    fontFamily: 'Montserrat',
+                  ),
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 6,
+                ),
+                decoration: BoxDecoration(
+                  color: completed
+                      ? const Color(0xFF10B981).withOpacity(0.1)
+                      : const Color(0xFFF59E0B).withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(
+                    color: completed
+                        ? const Color(0xFF10B981)
+                        : const Color(0xFFF59E0B),
+                  ),
+                ),
+                child: Text(
+                  completed ? 'Completed' : 'Collecting',
+                  style: TextStyle(
+                    color: completed
+                        ? const Color(0xFF10B981)
+                        : const Color(0xFFF59E0B),
+                    fontWeight: FontWeight.w700,
+                    fontSize: 12,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              const Icon(
+                Icons.event_rounded,
+                size: 16,
+                color: Color(0xFF6B7280),
+              ),
+              const SizedBox(width: 8),
+              Text(
+                (notice['date_of_death'] ?? '').toString().isEmpty
+                    ? '—'
+                    : notice['date_of_death'].toString(),
+                style: const TextStyle(
+                  color: Color(0xFF6B7280),
+                  fontWeight: FontWeight.w600,
+                  fontSize: 14,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              _buildCountChip(
+                Icons.verified_rounded,
+                'Paid',
+                paid,
+                const Color(0xFF10B981),
+              ),
+              const SizedBox(width: 8),
+              _buildCountChip(
+                Icons.pending_actions_rounded,
+                'Unpaid',
+                unpaid,
+                const Color(0xFFEF4444),
+              ),
+              const Spacer(),
+              Text(
+                '₱${paidAmt.toStringAsFixed(0)} / ₱${(paidAmt + pendingAmt).toStringAsFixed(0)}',
+                style: const TextStyle(
+                  fontWeight: FontWeight.w800,
+                  color: Color(0xFF1F2937),
+                  fontSize: 14,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(8),
+            child: LinearProgressIndicator(
+              value: progress,
+              minHeight: 8,
+              backgroundColor: const Color(0xFFE5E7EB),
+              valueColor: AlwaysStoppedAnimation(
+                completed ? const Color(0xFF10B981) : const Color(0xFF3B82F6),
+              ),
+            ),
+          ),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Text(
+                '${(progress * 100).round()}% Complete',
+                style: const TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: Color(0xFF6B7280),
+                ),
+              ),
+              const Spacer(),
+              Text(
+                '$paid of $totalCount members',
+                style: const TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: Color(0xFF6B7280),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: () => _showPaymentStatusSheet(sid, dId),
+                  icon: const Icon(Icons.info_outline_rounded, size: 18),
+                  label: const Text('View Status'),
+                  style: OutlinedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    side: const BorderSide(color: Color(0xFF3B82F6)),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: ElevatedButton.icon(
+                  onPressed: completed
+                      ? null
+                      : () => _triggerPaymentCollection(sid, dId),
+                  icon: const Icon(Icons.campaign_rounded, size: 18),
+                  label: const Text('Collect'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF3B82F6),
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    elevation: 0,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCountChip(IconData icon, String label, int count, Color color) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: color.withOpacity(0.3)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 14, color: color),
+          const SizedBox(width: 4),
+          Text(
+            '$label $count',
+            style: TextStyle(
+              color: color,
+              fontWeight: FontWeight.w700,
+              fontSize: 12,
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -1411,13 +2090,14 @@ class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
     return _statShell(
       color: const Color(0xFFFFDAF6),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
+        crossAxisAlignment:
+            CrossAxisAlignment.center, // <-- Center horizontally
         children: [
           Icon(FontAwesomeIcons.dove, size: 30, color: Colors.purple[400]),
           const SizedBox(height: 8),
           const Text(
             "Recent Death Notices",
-            textAlign: TextAlign.center,
+            textAlign: TextAlign.center, // <-- Center text
             style: TextStyle(
               fontWeight: FontWeight.w800,
               fontSize: 16,
@@ -1432,6 +2112,7 @@ class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
                 ? const Center(
                     child: Text(
                       "None",
+                      textAlign: TextAlign.center, // <-- Center text
                       style: TextStyle(
                         fontWeight: FontWeight.w600,
                         fontSize: 14,
@@ -1447,6 +2128,8 @@ class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
                         Padding(
                           padding: const EdgeInsets.only(bottom: 4),
                           child: Row(
+                            mainAxisAlignment:
+                                MainAxisAlignment.center, // <-- Center row
                             children: [
                               const Icon(
                                 FontAwesomeIcons.dove,
@@ -1457,6 +2140,8 @@ class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
                               Expanded(
                                 child: Text(
                                   n,
+                                  textAlign:
+                                      TextAlign.center, // <-- Center text
                                   overflow: TextOverflow.ellipsis,
                                   style: const TextStyle(
                                     fontWeight: FontWeight.bold,
@@ -1472,6 +2157,7 @@ class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
                       if (extra > 0)
                         Text(
                           'View All',
+                          textAlign: TextAlign.center, // <-- Center text
                           style: TextStyle(
                             fontSize: 13.5,
                             fontWeight: FontWeight.w800,
@@ -1498,13 +2184,14 @@ class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
     return _statShell(
       color: color,
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
+        crossAxisAlignment:
+            CrossAxisAlignment.center, // <-- Center horizontally
         children: [
           Icon(icon, size: 32, color: iconColor),
           const SizedBox(height: 8),
           Text(
             title,
-            textAlign: TextAlign.center,
+            textAlign: TextAlign.center, // <-- Center text
             style: const TextStyle(
               fontWeight: FontWeight.w800,
               fontSize: 16,
@@ -1525,6 +2212,7 @@ class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
                     fit: BoxFit.scaleDown,
                     child: Text(
                       bigText,
+                      textAlign: TextAlign.center, // <-- Center text
                       style: const TextStyle(
                         fontWeight: FontWeight.w800,
                         fontSize: 32,
@@ -1537,6 +2225,7 @@ class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
                     const SizedBox(height: 4),
                     Text(
                       smallSubtitle,
+                      textAlign: TextAlign.center, // <-- Center text
                       style: const TextStyle(
                         fontSize: 12.5,
                         fontWeight: FontWeight.w600,

@@ -9,6 +9,17 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:capstone_app/screens/dayung_suggestions.dart';
 
+// Modern color palette
+const Color kPrimary = Color(0xFF3B82F6);
+const Color kPrimaryDark = Color(0xFF1E40AF);
+const Color kAccent = Color(0xFF10B981);
+const Color kWarn = Color(0xFFF59E0B);
+const Color kDanger = Color(0xFFEF4444);
+const Color kBg = Color(0xFFF8FAFC);
+const Color kCardBg = Color(0xFFFFFFFF);
+const Color kSubText = Color(0xFF6B7280);
+const Color kText = Color(0xFF111827);
+
 class SelectDayungPage extends StatefulWidget {
   const SelectDayungPage({super.key});
 
@@ -133,7 +144,7 @@ class _SelectDayungPageState extends State<SelectDayungPage> {
           .map((e) => _normalizeDayung(Map<String, dynamic>.from(e)))
           .toList();
 
-      // NEW: tag each as member if in approved list
+      // Tag each as member if in approved list
       final approvedSet = approvedIds.toSet();
       for (final j in joined) {
         final jid = j['id'] is int
@@ -193,124 +204,199 @@ class _SelectDayungPageState extends State<SelectDayungPage> {
 
   @override
   Widget build(BuildContext context) {
+    final width = MediaQuery.of(context).size.width;
+    final isWide = width > 700;
+
     return Scaffold(
-      appBar: AppBar(title: const Text('Select Your Dayung')),
-      body: SafeArea(
-        child: _loading
-            ? const Center(child: CircularProgressIndicator())
-            : _error != null
-            ? _ErrorState(message: _error!, onRetry: _fetchJoinedDayung)
-            : RefreshIndicator(
-                onRefresh: _fetchJoinedDayung,
-                child: _joined.isEmpty
-                    ? _EmptyState(
-                        onFind: () async {
-                          final selected = await Navigator.push(
+      backgroundColor: kBg,
+      body: Container(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [kPrimaryDark, kPrimary, kBg],
+            stops: [0.0, 0.15, 0.15],
+          ),
+        ),
+        child: SafeArea(
+          child: Column(
+            children: [
+              // Modern Header
+              Container(
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 20),
+                child: Row(
+                  children: [
+                    IconButton(
+                      icon: const Icon(
+                        Icons.arrow_back_rounded,
+                        color: Colors.white,
+                        size: 20,
+                      ),
+                      onPressed: () => Navigator.pop(context, true),
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        'Select Your Dayung',
+                        style: TextStyle(
+                          fontSize: isWide ? 24 : 20,
+                          fontWeight: FontWeight.w800,
+                          color: Colors.white,
+                          fontFamily: 'Montserrat',
+                          letterSpacing: 0.3,
+                          shadows: [
+                            const Shadow(
+                              color: Colors.black26,
+                              offset: Offset(0, 1),
+                              blurRadius: 2,
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              // Curved container for content
+              Expanded(
+                child: Container(
+                  decoration: const BoxDecoration(
+                    color: kBg,
+                    borderRadius: BorderRadius.only(
+                      topLeft: Radius.circular(32),
+                      topRight: Radius.circular(32),
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black12,
+                        blurRadius: 20,
+                        offset: Offset(0, -5),
+                      ),
+                    ],
+                  ),
+                  child: _buildBody(context, isWide),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildBody(BuildContext context, bool isWide) {
+    if (_loading) {
+      return const Center(child: CircularProgressIndicator(color: kPrimary));
+    }
+    if (_error != null) {
+      return _ErrorState(message: _error!, onRetry: _fetchJoinedDayung);
+    }
+    if (_joined.isEmpty) {
+      return _EmptyState(
+        onFind: () async {
+          final selected = await Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => const DayungSuggestionsPage()),
+          );
+          await _fetchJoinedDayung();
+          if (selected != null) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Application submitted. Awaiting approval.'),
+              ),
+            );
+          }
+        },
+      );
+    }
+    return RefreshIndicator(
+      onRefresh: _fetchJoinedDayung,
+      child: ListView.builder(
+        padding: const EdgeInsets.all(16),
+        itemCount: _joined.length,
+        itemBuilder: (ctx, i) {
+          final d = _joined[i];
+          return Card(
+            elevation: 2,
+            color: kCardBg,
+            margin: const EdgeInsets.only(bottom: 12),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      CircleAvatar(
+                        backgroundColor: kPrimary.withOpacity(0.2),
+                        child: Icon(Icons.home, color: kPrimary),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          d['name'] ?? 'Dayung',
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.w700,
+                            color: kPrimaryDark,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Text(_address(d), style: TextStyle(color: kSubText)),
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      OutlinedButton.icon(
+                        icon: const Icon(Icons.check_circle),
+                        label: const Text('Use this Dayung'),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: kPrimary,
+                          side: BorderSide(color: kPrimary),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                        onPressed: () async {
+                          final normalized = await _persistSelectionAndNotify(
+                            d,
+                          );
+                          if (!mounted) return;
+                          Navigator.pop(context, normalized);
+                        },
+                      ),
+                      const SizedBox(width: 12),
+                      TextButton.icon(
+                        icon: const Icon(Icons.map),
+                        label: const Text('View on Map'),
+                        style: TextButton.styleFrom(foregroundColor: kAccent),
+                        onPressed: () {
+                          final normalized = _normalizeDayung(d);
+                          Navigator.push(
                             context,
                             MaterialPageRoute(
-                              builder: (_) => const DayungSuggestionsPage(),
-                            ),
-                          );
-                          await _fetchJoinedDayung();
-                          if (selected != null) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text(
-                                  'Application submitted. Awaiting approval.',
-                                ),
-                              ),
-                            );
-                          }
-                        },
-                      )
-                    : ListView.builder(
-                        padding: const EdgeInsets.all(16),
-                        itemCount: _joined.length,
-                        itemBuilder: (ctx, i) {
-                          final d = _joined[i];
-                          return Card(
-                            elevation: 1,
-                            margin: const EdgeInsets.only(bottom: 12),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            child: Padding(
-                              padding: const EdgeInsets.all(16.0),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Row(
-                                    children: [
-                                      const CircleAvatar(
-                                        child: Icon(Icons.home),
-                                      ),
-                                      const SizedBox(width: 12),
-                                      Expanded(
-                                        child: Text(
-                                          d['name'] ?? 'Dayung',
-                                          style: const TextStyle(
-                                            fontSize: 18,
-                                            fontWeight: FontWeight.w700,
-                                          ),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                  const SizedBox(height: 8),
-                                  Text(
-                                    _address(d),
-                                    style: const TextStyle(
-                                      color: Colors.black54,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 12),
-                                  Row(
-                                    children: [
-                                      OutlinedButton.icon(
-                                        icon: const Icon(Icons.check_circle),
-                                        label: const Text('Use this Dayung'),
-                                        onPressed: () async {
-                                          final normalized =
-                                              await _persistSelectionAndNotify(
-                                                d,
-                                              );
-                                          if (!mounted) return;
-                                          Navigator.pop(
-                                            context,
-                                            normalized,
-                                          ); // pop normalized, not raw d
-                                        },
-                                      ),
-                                      const SizedBox(width: 12),
-                                      TextButton.icon(
-                                        icon: const Icon(Icons.map), // NEW
-                                        label: const Text('View on Map'),
-                                        onPressed: () {
-                                          final normalized = _normalizeDayung(
-                                            d,
-                                          );
-                                          Navigator.push(
-                                            context,
-                                            MaterialPageRoute(
-                                              builder: (_) => DayungMapPage(
-                                                dayung: normalized,
-                                                isMember:
-                                                    (d['is_member'] == true),
-                                              ),
-                                            ),
-                                          );
-                                        },
-                                      ),
-                                      const SizedBox(width: 12),
-                                    ],
-                                  ),
-                                ],
+                              builder: (_) => DayungMapPage(
+                                dayung: normalized,
+                                isMember: (d['is_member'] == true),
                               ),
                             ),
                           );
                         },
                       ),
+                    ],
+                  ),
+                ],
               ),
+            ),
+          );
+        },
       ),
     );
   }
@@ -322,52 +408,55 @@ class _EmptyState extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ListView(
-      physics: const AlwaysScrollableScrollPhysics(),
-      children: [
-        const SizedBox(height: 40),
-        Icon(
-          Icons.search,
-          size: 64,
-          color: Theme.of(context).colorScheme.primary,
-        ),
-        const SizedBox(height: 12),
-        const Center(
-          child: Text(
-            'You have not joined any Dayung yet.',
-            style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
-          ),
-        ),
-        const SizedBox(height: 8),
-        const Center(
-          child: Padding(
-            padding: EdgeInsets.symmetric(horizontal: 24),
-            child: Text(
-              'Find your Dayung and submit an application. Once approved, it will appear here.',
-              textAlign: TextAlign.center,
-              style: TextStyle(color: Colors.black54),
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(32),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(24),
+              decoration: BoxDecoration(
+                color: kPrimary.withOpacity(0.08),
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Icon(Icons.home, color: kPrimary, size: 48),
             ),
-          ),
-        ),
-        const SizedBox(height: 24),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 24),
-          child: SizedBox(
-            width: double.infinity,
-            child: ElevatedButton.icon(
+            const SizedBox(height: 24),
+            Text(
+              'No Dayung Found',
+              style: TextStyle(
+                fontSize: 22,
+                fontWeight: FontWeight.bold,
+                color: kPrimaryDark,
+              ),
+            ),
+            const SizedBox(height: 12),
+            Text(
+              'You have not joined any Dayung yet.\nFind one to get started!',
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 16, color: kSubText),
+            ),
+            const SizedBox(height: 24),
+            ElevatedButton.icon(
               icon: const Icon(Icons.explore),
               label: const Text('Find a Dayung'),
-              onPressed: onFind,
               style: ElevatedButton.styleFrom(
-                padding: const EdgeInsets.symmetric(vertical: 14),
+                backgroundColor: kPrimary,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 24,
+                  vertical: 14,
+                ),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(12),
                 ),
               ),
+              onPressed: onFind,
             ),
-          ),
+          ],
         ),
-      ],
+      ),
     );
   }
 }
@@ -385,14 +474,24 @@ class _ErrorState extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(Icons.error_outline, size: 48, color: Colors.redAccent),
+            Icon(Icons.error_outline, size: 48, color: kDanger),
             const SizedBox(height: 12),
-            Text(message, textAlign: TextAlign.center),
+            Text(
+              message,
+              textAlign: TextAlign.center,
+              style: TextStyle(color: kDanger, fontWeight: FontWeight.bold),
+            ),
             const SizedBox(height: 12),
             OutlinedButton.icon(
               onPressed: onRetry,
-              icon: const Icon(Icons.refresh),
-              label: const Text('Retry'),
+              icon: Icon(Icons.refresh, color: kPrimary),
+              label: Text('Retry', style: TextStyle(color: kPrimary)),
+              style: OutlinedButton.styleFrom(
+                side: BorderSide(color: kPrimary),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
             ),
           ],
         ),

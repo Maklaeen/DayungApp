@@ -93,7 +93,7 @@ class NotificationPage extends StatefulWidget {
     required Color iconBg,
     required Color iconColor,
     required bool isWide,
-    required bool isUnread, // <-- add this
+    required bool isUnread,
   }) {
     return Semantics(
       label: '$title. $message. $time.',
@@ -112,12 +112,12 @@ class NotificationPage extends StatefulWidget {
                 BoxShadow(
                   color: kPrimary.withOpacity(0.08),
                   blurRadius: 20,
-                  offset: const Offset(0, 8),
+                  offset: Offset(0, 8),
                 ),
                 BoxShadow(
                   color: Colors.black.withOpacity(0.03),
                   blurRadius: 10,
-                  offset: const Offset(0, 2),
+                  offset: Offset(0, 2),
                 ),
               ],
             ),
@@ -129,14 +129,10 @@ class NotificationPage extends StatefulWidget {
                   width: isWide ? 52 : 48,
                   height: isWide ? 52 : 48,
                   decoration: BoxDecoration(
-                    color: kPrimary.withOpacity(0.1),
+                    color: iconBg, // use the passed bg color
                     borderRadius: BorderRadius.circular(12),
                   ),
-                  child: Icon(
-                    icon,
-                    color: Colors.white,
-                    size: isWide ? 28 : 26,
-                  ),
+                  child: Icon(icon, color: iconColor, size: isWide ? 28 : 26),
                 ),
                 const SizedBox(width: 16),
                 Expanded(
@@ -236,8 +232,17 @@ class _NotificationPageState extends State<NotificationPage> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      _currentUnitId = context.read<DayungUnitProvider>().currentUnitId;
-      _fetchAll(unitId: _currentUnitId);
+      final unitId = context.read<DayungUnitProvider>().currentUnitId;
+      if (unitId != null) {
+        _currentUnitId = unitId;
+        _fetchAll(unitId: _currentUnitId);
+      } else {
+        setState(() {
+          _currentUnitId = null;
+          _items = [];
+          _loading = false;
+        });
+      }
     });
   }
 
@@ -247,16 +252,168 @@ class _NotificationPageState extends State<NotificationPage> {
     final newId = context.watch<DayungUnitProvider>().currentUnitId;
     if (newId != _currentUnitId) {
       _currentUnitId = newId;
-      if (mounted) setState(() => _items = []); // clear stale
-      _fetchAll(unitId: _currentUnitId);
+      if (_currentUnitId != null) {
+        if (mounted) setState(() => _items = []);
+        _fetchAll(unitId: _currentUnitId);
+      } else {
+        setState(() {
+          _items = [];
+          _loading = false;
+        });
+      }
     }
+  }
+
+  void _showNotificationModal({
+    required String title,
+    required String message,
+    required String time,
+    required IconData icon,
+    required Color iconColor,
+    required bool isAnnouncement,
+  }) {
+    if (!mounted) return;
+    showModalBottomSheet(
+      context: context, // use State's context
+      useRootNavigator: true, // ensure a Navigator is available
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) {
+        final mq = MediaQuery.maybeOf(ctx);
+        final width =
+            mq?.size.width ?? MediaQuery.of(context).size.width; // fallback
+        final isWide = width > 700;
+        return Container(
+          padding: EdgeInsets.only(bottom: mq?.viewInsets.bottom ?? 0),
+          decoration: const BoxDecoration(
+            color: kCardBg,
+            borderRadius: BorderRadius.only(
+              topLeft: Radius.circular(28),
+              topRight: Radius.circular(28),
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: Color(0x22000000),
+                blurRadius: 24,
+                offset: Offset(0, -8),
+              ),
+            ],
+          ),
+          child: SafeArea(
+            top: false,
+            child: Padding(
+              padding: EdgeInsets.fromLTRB(
+                isWide ? 40 : 24,
+                28,
+                isWide ? 40 : 24,
+                24,
+              ),
+              child: SingleChildScrollView(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Container(
+                          decoration: BoxDecoration(
+                            color: iconColor.withOpacity(0.12),
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                          padding: const EdgeInsets.all(12),
+                          child: Icon(icon, color: iconColor, size: 28),
+                        ),
+                        const SizedBox(width: 16),
+                        Expanded(
+                          child: Text(
+                            title,
+                            style: TextStyle(
+                              fontSize: isWide ? 22 : 18,
+                              fontWeight: FontWeight.w800,
+                              color: kText,
+                              fontFamily: 'Montserrat',
+                            ),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        IconButton(
+                          icon: const Icon(
+                            Icons.close_rounded,
+                            color: kSubText,
+                          ),
+                          onPressed: () =>
+                              Navigator.of(ctx, rootNavigator: true).pop(),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 18),
+                    Text(
+                      message,
+                      style: TextStyle(
+                        fontSize: isWide ? 16 : 15,
+                        color: kText,
+                        fontFamily: 'OpenSans',
+                        fontWeight: FontWeight.w500,
+                        height: 1.5,
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+                    Row(
+                      children: [
+                        const Icon(
+                          Icons.access_time_rounded,
+                          size: 16,
+                          color: kSubText,
+                        ),
+                        const SizedBox(width: 6),
+                        Text(
+                          time,
+                          style: TextStyle(
+                            fontSize: isWide ? 14 : 13,
+                            color: kSubText,
+                            fontFamily: 'OpenSans',
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                        if (isAnnouncement)
+                          Padding(
+                            padding: const EdgeInsets.only(left: 16),
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 10,
+                                vertical: 4,
+                              ),
+                              decoration: BoxDecoration(
+                                color: kPrimary.withOpacity(0.08),
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: const Text(
+                                'Announcement',
+                                style: TextStyle(
+                                  color: kPrimary,
+                                  fontWeight: FontWeight.w700,
+                                  fontSize: 13,
+                                ),
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        );
+      },
+    );
   }
 
   Future<void> _fetchAll({int? unitId}) async {
     setState(() => _loading = true);
     final sb = Supabase.instance.client;
     final uid = sb.auth.currentUser?.id;
-    final scopedUnitId = unitId ?? _currentUnitId; // NEW
+    final scopedUnitId = unitId ?? _currentUnitId;
 
     if (uid == null) {
       setState(() {
@@ -267,80 +424,91 @@ class _NotificationPageState extends State<NotificationPage> {
     }
 
     try {
-      // Notifications addressed to the user, scoped to current unit
+      // 1) Notifications for this user (optionally scoped to unit)
       var notifQuery = sb
           .from('notifications')
-          .select('id, type, title, body, created_at, read_at, dayung_unit_id')
+          .select(
+            'id, type, title, body, created_at, read_at, dayung_unit_id, announcement_id',
+          )
           .eq('recipient_id', uid);
-
       if (scopedUnitId != null) {
         notifQuery = notifQuery.eq('dayung_unit_id', scopedUnitId);
       }
-
       final notifData = List<Map<String, dynamic>>.from(
         await notifQuery.order('created_at', ascending: false),
       );
 
-      // Announcements only for current unit
-      List<Map<String, dynamic>> annData = [];
+      // Capture announcement_ids already present in notifications to avoid duplicates
+      final announcedInNotifs = notifData
+          .map((n) => n['announcement_id'])
+          .where((x) => x != null)
+          .cast<int>()
+          .toSet();
+
+      // 2) Direct announcements for the current unit (if any)
+      List<Map<String, dynamic>> annData = const [];
       if (scopedUnitId != null) {
-        final results = await Future.wait([
-          sb
-              .from('announcements')
-              .select('id, title, body, created_at, dayung_unit_id')
-              .eq('dayung_unit_id', scopedUnitId)
-              .order('created_at', ascending: false),
-          sb
-              .from('announcement_reads')
-              .select('announcement_id')
-              .eq('user_id', uid),
-        ]);
-
-        final anns = List<Map<String, dynamic>>.from(results[0] as List);
-        final reads = Set.from(
-          (results[1] as List)
-              .map((r) => r['announcement_id'])
-              .where((v) => v != null),
-        );
-
-        annData = anns
-            .map(
-              (a) => {
-                ...a,
-                'type': 'announcement_direct',
-                'is_read': reads.contains(a['id']),
-              },
-            )
-            .toList();
+        final ann = await sb
+            .from('announcements')
+            .select('id, dayung_unit_id, title, body, created_at')
+            .eq('dayung_unit_id', scopedUnitId)
+            .order('created_at', ascending: false);
+        annData = List<Map<String, dynamic>>.from(ann);
       }
 
-      // Extra safety: drop any row not matching scoped unit
-      final filteredNotif = scopedUnitId == null
-          ? notifData
-          : notifData
-                .where((n) => n['dayung_unit_id'] == scopedUnitId)
-                .toList();
+      // 3) Read states for announcements (per-user)
+      final annIds = annData.map((a) => a['id'] as int).toList();
+      Set<int> readAnn = {};
+      if (annIds.isNotEmpty) {
+        final reads = await sb
+            .from('announcement_reads')
+            .select('announcement_id')
+            .eq('user_id', uid)
+            .inFilter('announcement_id', annIds);
+        readAnn = (reads as List)
+            .map((e) => (e as Map)['announcement_id'] as int)
+            .toSet();
+      }
 
-      final all = [...filteredNotif, ...annData]
-        ..sort(
-          (a, b) => DateTime.parse(
-            b['created_at'].toString(),
-          ).compareTo(DateTime.parse(a['created_at'].toString())),
-        );
+      // 4) Map direct announcements to unified item shape, excluding those already in notifications
+      final mappedAnnouncements = annData
+          .where((a) => !announcedInNotifs.contains(a['id']))
+          .map<Map<String, dynamic>>((a) {
+            return {
+              'id': a['id'],
+              'type': 'announcement_direct',
+              'title': a['title'],
+              'body': a['body'],
+              'created_at': a['created_at'],
+              'read_at': null, // announcements track read via is_read
+              'is_read': readAnn.contains(a['id']),
+              'dayung_unit_id': a['dayung_unit_id'],
+            };
+          })
+          .toList();
+
+      // 5) Merge and sort by created_at desc
+      final merged =
+          <Map<String, dynamic>>[...notifData, ...mappedAnnouncements]
+            ..sort((a, b) {
+              final ta = DateTime.tryParse('${a['created_at']}') ?? DateTime(0);
+              final tb = DateTime.tryParse('${b['created_at']}') ?? DateTime(0);
+              return tb.compareTo(ta);
+            });
 
       if (!mounted) return;
       setState(() {
-        _items = all;
+        _items = merged;
         _loading = false;
       });
-    } catch (_) {
+    } catch (e) {
       if (!mounted) return;
       setState(() {
         _items = [];
         _loading = false;
       });
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Failed to load notifications')),
+        SnackBar(content: Text('Failed to load notifications: $e')),
       );
     }
   }
@@ -352,181 +520,237 @@ class _NotificationPageState extends State<NotificationPage> {
 
     return Scaffold(
       backgroundColor: kBg,
-      body: Container(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [Color(0xFFF8FAFC), Color(0xFFF1F5F9)],
-          ),
-        ),
-        child: SafeArea(
-          child: Column(
-            children: [
-              // Custom App Bar
-              Container(
-                padding: EdgeInsets.symmetric(
-                  horizontal: isWide ? 24 : 16,
-                  vertical: 16,
-                ),
-                decoration: BoxDecoration(
-                  color: kPrimary,
-                  borderRadius: const BorderRadius.only(
-                    bottomLeft: Radius.circular(24),
-                    bottomRight: Radius.circular(24),
-                  ),
-                  boxShadow: [
-                    BoxShadow(
-                      color: kPrimary.withOpacity(0.3),
-                      blurRadius: 20,
-                      offset: const Offset(0, 8),
-                    ),
-                  ],
-                ),
-                child: Row(
-                  children: [
-                    IconButton(
-                      icon: const Icon(
-                        Icons.arrow_back_ios_rounded,
-                        size: 24,
-                        color: Colors.white,
-                      ),
-                      onPressed: () => Navigator.pop(context),
-                      tooltip: 'Back',
-                    ),
-                    Expanded(
-                      child: AutoSizeText(
-                        'Notifications',
-                        style: TextStyle(
-                          fontSize: isWide ? 28 : 24,
-                          fontWeight: FontWeight.w800,
-                          color: Colors.white,
-                          fontFamily: 'Montserrat',
-                          letterSpacing: 0.3,
-                        ),
-                      ),
-                    ),
-                    TextButton.icon(
-                      onPressed: () async {
-                        final sb = Supabase.instance.client;
-                        final uid = sb.auth.currentUser?.id;
-                        if (uid != null) {
-                          // Only mark current unit's notifications as read
-                          var upd = sb
-                              .from('notifications')
-                              .update({
-                                'read_at': DateTime.now().toIso8601String(),
-                              })
-                              .eq('recipient_id', uid)
-                              .isFilter('read_at', null);
-                          if (_currentUnitId != null) {
-                            upd = upd.eq(
-                              'dayung_unit_id',
-                              _currentUnitId as Object,
-                            );
-                          }
-                          await upd;
-
-                          // Announcements: only current unit’s
-                          final unreadAnn = _items.where(
-                            (n) =>
-                                n['type'] == 'announcement_direct' &&
-                                !(n['is_read'] ?? false) &&
-                                (_currentUnitId == null ||
-                                    n['dayung_unit_id'] == _currentUnitId),
-                          );
-                          if (unreadAnn.isNotEmpty) {
-                            await sb
-                                .from('announcement_reads')
-                                .upsert(
-                                  unreadAnn
-                                      .map(
-                                        (ann) => {
-                                          'announcement_id': ann['id'],
-                                          'user_id': uid,
-                                          'read_at': DateTime.now()
-                                              .toIso8601String(),
-                                        },
-                                      )
-                                      .toList(),
-                                  onConflict: 'announcement_id,user_id',
-                                );
-                          }
-                          await _fetchAll(unitId: _currentUnitId);
-                        }
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('Marked current unit as read'),
-                          ),
-                        );
-                      },
-                      icon: const Icon(
-                        Icons.done_all_rounded,
-                        color: Colors.white,
-                      ),
-                      label: const Text(
-                        'Mark all read',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.w600,
-                          fontFamily: 'OpenSans',
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
+      body: SafeArea(
+        child: Column(
+          children: [
+            // Modern Curved Header
+            Container(
+              padding: EdgeInsets.fromLTRB(
+                8,
+                isWide ? 36 : 28,
+                isWide ? 24 : 16,
+                isWide ? 32 : 24,
               ),
-              Expanded(
-                child: _loading
-                    ? Center(
-                        child: CircularProgressIndicator(
-                          color: kPrimary,
-                          strokeWidth: 3,
-                        ),
-                      )
-                    : _items.isEmpty
-                    ? NotificationPage._emptyState(isWide: isWide)
-                    : ListView.separated(
-                        padding: EdgeInsets.symmetric(vertical: 24),
-                        itemCount: _items.length,
-                        separatorBuilder: (_, __) => const SizedBox(height: 16),
-                        itemBuilder: (context, i) {
-                          final n = _items[i];
-                          final isNotif =
-                              n['type'] == 'membership_approved' ||
-                              n['type'] == 'announcement';
-                          final isAnnouncement =
-                              n['type'] == 'announcement_direct';
-                          final isUnread = isNotif
-                              ? n['read_at'] == null
-                              : !(n['is_read'] ?? false);
+              decoration: const BoxDecoration(
+                color: kPrimary,
+                borderRadius: BorderRadius.only(
+                  bottomLeft: Radius.circular(28),
+                  bottomRight: Radius.circular(28),
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: Color(0xFF1E40AF),
+                    blurRadius: 18,
+                    offset: Offset(0, 8),
+                  ),
+                ],
+              ),
+              child: Row(
+                children: [
+                  IconButton(
+                    icon: const Icon(
+                      Icons.arrow_back_rounded,
+                      color: Colors.white,
+                      size: 26,
+                    ),
+                    onPressed: () => Navigator.pop(context),
+                    tooltip: 'Back',
+                  ),
+                  const SizedBox(width: 4),
+                  const Icon(
+                    Icons.notifications_rounded,
+                    color: Colors.white,
+                    size: 28,
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: Text(
+                      'Notifications',
+                      style: TextStyle(
+                        fontSize: isWide ? 24 : 22,
+                        fontWeight: FontWeight.w800,
+                        color: Colors.white,
+                        fontFamily: 'Montserrat',
+                        letterSpacing: 0.3,
+                      ),
+                    ),
+                  ),
+                  TextButton.icon(
+                    onPressed: () async {
+                      final sb = Supabase.instance.client;
+                      final uid = sb.auth.currentUser?.id;
+                      if (uid != null) {
+                        // notifications
+                        var upd = sb
+                            .from('notifications')
+                            .update({
+                              'read_at': DateTime.now().toIso8601String(),
+                            })
+                            .eq('recipient_id', uid)
+                            .isFilter('read_at', null);
+                        if (_currentUnitId != null) {
+                          upd = upd.eq(
+                            'dayung_unit_id',
+                            _currentUnitId as Object,
+                          );
+                        }
+                        await upd;
 
-                          return GestureDetector(
+                        // direct announcements (no corresponding notification)
+                        final unreadDirect = _items.where(
+                          (n) =>
+                              n['type'] == 'announcement_direct' &&
+                              (n['is_read'] != true),
+                        );
+                        for (final ann in unreadDirect) {
+                          final id = ann['id'];
+                          if (id is int) {
+                            await _markAnnouncementRead(id);
+                          } else if (id is num) {
+                            await _markAnnouncementRead(id.toInt());
+                          }
+                        }
+
+                        await _fetchAll(unitId: _currentUnitId);
+                      }
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Marked current unit as read'),
+                        ),
+                      );
+                    },
+                    icon: const Icon(
+                      Icons.done_all_rounded,
+                      color: Colors.white,
+                      size: 20,
+                    ),
+                    label: const Text(
+                      'Mark all read',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w600,
+                        fontFamily: 'OpenSans',
+                      ),
+                    ),
+                    style: TextButton.styleFrom(
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 8,
+                      ),
+                      textStyle: const TextStyle(fontSize: 14),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Expanded(
+              child: _loading
+                  ? Center(
+                      child: Container(
+                        padding: const EdgeInsets.all(32),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(20),
+                          boxShadow: [
+                            BoxShadow(
+                              color: kPrimary.withOpacity(0.08),
+                              blurRadius: 20,
+                              offset: const Offset(0, 8),
+                            ),
+                          ],
+                        ),
+                        child: const Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            CircularProgressIndicator(
+                              color: kPrimary,
+                              strokeWidth: 3,
+                            ),
+                            SizedBox(height: 18),
+                            Text(
+                              'Loading notifications...',
+                              style: TextStyle(
+                                color: kSubText,
+                                fontSize: 15,
+                                fontFamily: 'OpenSans',
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    )
+                  : _items.isEmpty
+                  ? NotificationPage._emptyState(isWide: isWide)
+                  : ListView.separated(
+                      padding: EdgeInsets.symmetric(vertical: 24),
+                      itemCount: _items.length,
+                      separatorBuilder: (_, __) => const SizedBox(height: 16),
+                      itemBuilder: (context, i) {
+                        final n = _items[i];
+                        final isAnnouncement =
+                            n['type'] == 'announcement' ||
+                            n['type'] == 'announcement_direct';
+                        final isDirect = n['type'] == 'announcement_direct';
+                        final isUnread = isDirect
+                            ? (n['is_read'] != true)
+                            : (n['read_at'] == null);
+
+                        return Material(
+                          color: Colors.transparent,
+                          child: InkWell(
+                            borderRadius: BorderRadius.circular(18),
                             onTap: () async {
-                              final sb = Supabase.instance.client;
-                              final uid = sb.auth.currentUser?.id;
-                              if (isNotif) {
-                                await sb
-                                    .from('notifications')
-                                    .update({
-                                      'read_at': DateTime.now()
-                                          .toIso8601String(),
-                                    })
-                                    .eq('id', n['id']);
-                              } else if (isAnnouncement && uid != null) {
-                                await sb.from('announcement_reads').upsert([
-                                  {
-                                    'announcement_id': n['id'],
-                                    'user_id': uid,
-                                    'read_at': DateTime.now().toIso8601String(),
-                                  },
-                                ], onConflict: 'announcement_id,user_id');
-                              }
-                              await _fetchAll();
-                              await _fetchAll(
-                                unitId: _currentUnitId,
-                              ); // keep scoped
-                            },
+  // Optimistic UI: mark as read locally to avoid “hang” feel
+  if (isDirect && isUnread) {
+    setState(() {
+      _items[i] = {
+        ...n,
+        'is_read': true,
+      };
+    });
+  }
+
+  bool ok = true;
+  try {
+    if (isDirect) {
+      if (isUnread) {
+        final id = n['id'];
+        ok = await _markAnnouncementRead(id is num ? id.toInt() : int.parse('$id'));
+      }
+    } else {
+      final sb = Supabase.instance.client;
+      await sb
+          .from('notifications')
+          .update({'read_at': DateTime.now().toIso8601String()})
+          .eq('id', n['id'])
+          .isFilter('read_at', null);
+    }
+  } catch (_) {
+    ok = false;
+  }
+
+  // Show modal regardless of backend outcome
+  _showNotificationModal(
+    title: n['title'] ?? (isAnnouncement ? 'Announcement' : 'Notification'),
+    message: n['body'] ?? '',
+    time: _formatTime(n['created_at']),
+    icon: isAnnouncement ? Icons.campaign_rounded : Icons.notifications_active_rounded,
+    iconColor: isAnnouncement ? kPrimary : kAccent,
+    isAnnouncement: isAnnouncement,
+  );
+
+  // Refresh list in background (do not await)
+  // ignore: unawaited_futures
+  _fetchAll(unitId: _currentUnitId);
+
+  if (!ok && mounted) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Could not mark announcement as read.')),
+    );
+  }
+},
                             child: NotificationPage._notificationCard(
                               title:
                                   n['title'] ??
@@ -545,12 +769,12 @@ class _NotificationPageState extends State<NotificationPage> {
                               isWide: isWide,
                               isUnread: isUnread,
                             ),
-                          );
-                        },
-                      ),
-              ),
-            ],
-          ),
+                          ),
+                        );
+                      },
+                    ),
+            ),
+          ],
         ),
       ),
     );
@@ -567,5 +791,42 @@ class _NotificationPageState extends State<NotificationPage> {
     if (diff.inHours < 24) return '${diff.inHours} hr ago';
     if (diff.inDays < 7) return '${diff.inDays} days ago';
     return '${dt.year}-${dt.month.toString().padLeft(2, '0')}-${dt.day.toString().padLeft(2, '0')}';
+  }
+}
+
+Future<bool> _markAnnouncementRead(int announcementId) async {
+  final sb = Supabase.instance.client;
+  final uid = sb.auth.currentUser?.id;
+  if (uid == null) return false;
+
+  try {
+    await sb.from('announcement_reads').upsert(
+      [
+        {
+          'announcement_id': announcementId,
+          'user_id': uid,
+          'read_at': DateTime.now().toIso8601String(),
+        },
+      ],
+      onConflict: 'announcement_id,user_id',
+      ignoreDuplicates: true,
+    );
+    return true;
+  } on PostgrestException catch (e) {
+    if (e.code == '23505') {
+      // already exists, update timestamp best-effort
+      try {
+        await sb
+            .from('announcement_reads')
+            .update({'read_at': DateTime.now().toIso8601String()})
+            .eq('announcement_id', announcementId)
+            .eq('user_id', uid);
+      } catch (_) {}
+      return true;
+    }
+    // any other error -> treat as failure (e.g., RLS)
+    return false;
+  } catch (_) {
+    return false;
   }
 }

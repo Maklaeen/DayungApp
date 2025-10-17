@@ -12,7 +12,7 @@ const Color kNeutralText = Color(0xFF1F2937);
 const Color kSubtleText = Color(0xFF4B5563);
 
 class SecretaryMembersPage extends StatefulWidget {
-  final int dayungUnitId; // NEW
+  final int dayungUnitId;
   const SecretaryMembersPage({super.key, required this.dayungUnitId});
 
   @override
@@ -29,12 +29,11 @@ String _initialOf(dynamic name) {
 
 class _SecretaryMembersPageState extends State<SecretaryMembersPage>
     with SingleTickerProviderStateMixin {
-  // Responsive breakpoints and max content width
-  static const double _kTablet = 700; // >= tablet
-  static const double _kDesktop = 1100; // >= desktop
+  static const double _kTablet = 700;
+  static const double _kDesktop = 1100;
   static const double _kMaxContentWidth = 1000;
 
-  final supabase = Supabase.instance.client;
+  final _sb = Supabase.instance.client;
   bool _loading = true;
   String? _infoMsg;
   final TextEditingController _searchController = TextEditingController();
@@ -42,11 +41,9 @@ class _SecretaryMembersPageState extends State<SecretaryMembersPage>
 
   late TabController _tabController;
 
-  // Raw fetched members (approved + pending) for secretary’s dayungs
   List<Map<String, dynamic>> _rows = [];
   final Map<int, String> _dayungNames = {};
   List<int> _managedDayungIds = [];
-  List<Map<String, dynamic>> _members = [];
 
   @override
   void initState() {
@@ -60,67 +57,119 @@ class _SecretaryMembersPageState extends State<SecretaryMembersPage>
       _loading = true;
       _infoMsg = null;
     });
-
     try {
-      final unitId = widget.dayungUnitId;
+      final uid = _sb.auth.currentUser?.id;
+      if (uid == null) {
+        if (!mounted) return;
+        setState(() {
+          _loading = false;
+          _infoMsg = 'Please log in.';
+          _rows = [];
+          _managedDayungIds = [];
+          _dayungNames.clear();
+        });
+        return;
+      }
 
-      // Fetch approved + pending applications for this unit with embedded user
-      final apps = await supabase
+      // Only fetch the selected dayung unit
+      final dayungId = widget.dayungUnitId;
+
+      final dayung = await _sb
+          .from('dayung_units')
+          .select('id,name')
+          .eq('id', dayungId)
+          .single();
+
+      _dayungNames
+        ..clear()
+        ..addEntries([
+          MapEntry(dayungId, (dayung['name'] ?? 'Dayung') as String),
+        ]);
+
+      final apps = await _sb
           .from('applications')
           .select(
-            'id, status, dayung_unit_id, user:users(id, full_name, email, profile_url, is_deceased)',
+            'user_id, status, dayung_unit_id, approved_at, '
+            'user:users(id, full_name, email, profile_url, is_deceased, date_of_death)',
           )
-          .eq('dayung_unit_id', unitId)
+          .eq('dayung_unit_id', dayungId) // <--- strict filter!
           .inFilter('status', ['approved', 'pending'])
-          .order('approved_at', ascending: true);
+          .order('approved_at', ascending: false);
 
-      final list = List<Map<String, dynamic>>.from(
-        apps,
-      ).where((r) => r['user'] != null).toList();
+      final list = List<Map<String, dynamic>>.from(apps);
+
+      final byKey = <String, Map<String, dynamic>>{};
+      for (final r in list) {
+        final u = r['user'] as Map<String, dynamic>?;
+        final userId = (u?['id'] ?? r['user_id']).toString();
+        final dayungId = r['dayung_unit_id'] as int;
+        final key = '$userId-$dayungId';
+        if (!byKey.containsKey(key)) {
+          byKey[key] = r;
+        } else {
+          final prev = byKey[key]!;
+          final prevAt = prev['approved_at']?.toString();
+          final currAt = r['approved_at']?.toString();
+          if (currAt != null &&
+              (prevAt == null ||
+                  DateTime.tryParse(
+                        currAt,
+                      )?.isAfter(DateTime.tryParse(prevAt) ?? DateTime(0)) ==
+                      true)) {
+            byKey[key] = r;
+          }
+        }
+      }
 
       if (!mounted) return;
       setState(() {
-        _rows = list;
-        if (_rows.isEmpty) {
-          _infoMsg = 'No members found for this Dayung.';
-        }
+        _managedDayungIds = [dayungId];
+        _rows = byKey.values.toList()
+          ..sort((a, b) {
+            final sa = (a['status'] ?? '').toString();
+            final sb = (b['status'] ?? '').toString();
+            if (sa != sb) return sa == 'approved' ? -1 : 1;
+            final ta = DateTime.tryParse(a['approved_at']?.toString() ?? '');
+            final tb = DateTime.tryParse(b['approved_at']?.toString() ?? '');
+            if (ta == null && tb == null) return 0;
+            if (ta == null) return 1;
+            if (tb == null) return -1;
+            return tb.compareTo(ta);
+          });
         _loading = false;
       });
     } on PostgrestException catch (e) {
       if (!mounted) return;
       setState(() {
-        _rows = [];
-        _infoMsg = 'Failed to load members: ${e.message}';
         _loading = false;
+        _infoMsg = e.message.isEmpty ? 'Load failed (policies?)' : e.message;
       });
-    } catch (e) {
+    } catch (_) {
       if (!mounted) return;
       setState(() {
-        _rows = [];
-        _infoMsg = 'Unexpected error: $e';
         _loading = false;
+        _infoMsg = 'Unexpected error loading members';
       });
     }
   }
 
-  Future<void> _refresh() => _load();
-
-  // Derived lists
   List<Map<String, dynamic>> get _approved => _rows.where((r) {
     final status = (r['status'] ?? '').toString();
     final u = r['user'] as Map<String, dynamic>?;
-    return status == 'approved' && (u?['is_deceased'] != true);
+    final deceased = (u?['is_deceased'] == true);
+    return status == 'approved' && !deceased;
   }).toList();
 
   List<Map<String, dynamic>> get _pending => _rows.where((r) {
     final status = (r['status'] ?? '').toString();
     final u = r['user'] as Map<String, dynamic>?;
-    return status == 'pending' && (u?['is_deceased'] != true);
+    final deceased = (u?['is_deceased'] == true);
+    return status == 'pending' && !deceased;
   }).toList();
 
   List<Map<String, dynamic>> get _deceased => _rows.where((r) {
     final u = r['user'] as Map<String, dynamic>?;
-    return u?['is_deceased'] == true;
+    return (u?['is_deceased'] == true);
   }).toList();
 
   @override
@@ -130,103 +179,275 @@ class _SecretaryMembersPageState extends State<SecretaryMembersPage>
     super.dispose();
   }
 
+  Future<void> _refresh() => _load();
+
   @override
   Widget build(BuildContext context) {
-    final activeCount = _approved.length;
-    final pendingCount = _pending.length;
-    final deceasedCount = _deceased.length;
-
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Members'),
-        bottom: TabBar(
-          controller: _tabController,
-          isScrollable: true,
-          tabs: [
-            Tab(text: 'Active ($activeCount)'),
-            Tab(text: 'Pending ($pendingCount)'),
-            Tab(text: 'Deceased ($deceasedCount)'),
+      backgroundColor: const Color(0xFFF8FAFC),
+      body: SafeArea(
+        child: Column(
+          children: [
+            // Header
+            Container(
+              padding: const EdgeInsets.fromLTRB(8, 36, 20, 28),
+              decoration: const BoxDecoration(
+                color: kPrimaryDark,
+                borderRadius: BorderRadius.only(
+                  bottomLeft: Radius.circular(28),
+                  bottomRight: Radius.circular(28),
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: Color(0xFF1E40AF),
+                    blurRadius: 18,
+                    offset: Offset(0, 8),
+                  ),
+                ],
+              ),
+              child: Row(
+                children: [
+                  IconButton(
+                    icon: const Icon(
+                      Icons.arrow_back_rounded,
+                      color: Colors.white,
+                      size: 26,
+                    ),
+                    onPressed: () => Navigator.pop(context),
+                  ),
+                  const SizedBox(width: 4),
+                  const Icon(
+                    Icons.people_rounded,
+                    color: Colors.white,
+                    size: 28,
+                  ),
+                  const SizedBox(width: 16),
+                  const Expanded(
+                    child: Text(
+                      'Members',
+                      style: TextStyle(
+                        fontSize: 22,
+                        fontWeight: FontWeight.w800,
+                        color: Colors.white,
+                        fontFamily: 'Montserrat',
+                        letterSpacing: 0.3,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            // Search
+            Container(
+              padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
+              child: TextField(
+                controller: _searchController,
+                decoration: InputDecoration(
+                  hintText: 'Search member...',
+                  hintStyle: const TextStyle(
+                    color: kSubtleText,
+                    fontFamily: 'OpenSans',
+                  ),
+                  prefixIcon: const Icon(
+                    Icons.search_rounded,
+                    color: kPrimary,
+                    size: 20,
+                  ),
+                  filled: true,
+                  fillColor: Colors.white,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide(color: Colors.grey.shade300),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide(color: Colors.grey.shade300),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: const BorderSide(color: kPrimary, width: 1.5),
+                  ),
+                  contentPadding: const EdgeInsets.symmetric(vertical: 12),
+                ),
+                style: const TextStyle(
+                  fontSize: 14,
+                  color: kNeutralText,
+                  fontFamily: 'OpenSans',
+                  fontWeight: FontWeight.w600,
+                ),
+                onChanged: (q) =>
+                    setState(() => _searchQuery = q.trim().toLowerCase()),
+              ),
+            ),
+
+            // Tabs
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+              color: const Color(0xFFF1F5F9),
+              child: Row(
+                children: [
+                  const Icon(
+                    Icons.filter_list_rounded,
+                    color: kSubtleText,
+                    size: 16,
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: AnimatedBuilder(
+                      animation: _tabController,
+                      builder: (context, _) {
+                        return Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                          children: [
+                            _NavTab(
+                              label: 'Active',
+                              icon: Icons.check_circle_rounded,
+                              selected: _tabController.index == 0,
+                              onTap: () => _tabController.animateTo(0),
+                            ),
+                            _NavTab(
+                              label: 'Pending',
+                              icon: Icons.schedule_rounded,
+                              selected: _tabController.index == 1,
+                              onTap: () => _tabController.animateTo(1),
+                            ),
+                            _NavTab(
+                              label: 'Deceased',
+                              icon: Icons.person_off_rounded,
+                              selected: _tabController.index == 2,
+                              onTap: () => _tabController.animateTo(2),
+                            ),
+                          ],
+                        );
+                      },
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            // Content
+            Expanded(
+              child: _loading
+                  ? Center(
+                      child: Container(
+                        padding: const EdgeInsets.all(24),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(
+                            color: Colors.grey.shade300,
+                            width: 1,
+                          ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withOpacity(0.05),
+                              blurRadius: 15,
+                              offset: const Offset(0, 6),
+                            ),
+                          ],
+                        ),
+                        child: const Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            CircularProgressIndicator(
+                              color: kPrimary,
+                              strokeWidth: 3,
+                            ),
+                            SizedBox(height: 16),
+                            Text(
+                              'Loading members...',
+                              style: TextStyle(
+                                color: kSubtleText,
+                                fontSize: 14,
+                                fontFamily: 'OpenSans',
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    )
+                  : (_infoMsg != null)
+                  ? Center(
+                      child: Container(
+                        margin: const EdgeInsets.all(20),
+                        padding: const EdgeInsets.all(24),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(
+                            color: Colors.grey.shade300,
+                            width: 1,
+                          ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withOpacity(0.05),
+                              blurRadius: 15,
+                              offset: const Offset(0, 6),
+                            ),
+                          ],
+                        ),
+                        child: Text(
+                          _infoMsg!,
+                          style: const TextStyle(
+                            fontSize: 16,
+                            color: kNeutralText,
+                            fontFamily: 'OpenSans',
+                            fontWeight: FontWeight.w600,
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                      ),
+                    )
+                  : LayoutBuilder(
+                      builder: (context, constraints) {
+                        return Column(
+                          children: [
+                            Expanded(
+                              child: Center(
+                                child: ConstrainedBox(
+                                  constraints: const BoxConstraints(
+                                    maxWidth: _kMaxContentWidth,
+                                  ),
+                                  child: TabBarView(
+                                    controller: _tabController,
+                                    children: [
+                                      _memberList(
+                                        _approved,
+                                        mode: 'active',
+                                        constraints: constraints,
+                                      ),
+                                      _memberList(
+                                        _pending,
+                                        mode: 'pending',
+                                        constraints: constraints,
+                                      ),
+                                      _memberList(
+                                        _deceased,
+                                        mode: 'deceased',
+                                        constraints: constraints,
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
+                        );
+                      },
+                    ),
+            ),
           ],
         ),
       ),
-      body: _loading
-          ? const Center(child: CircularProgressIndicator())
-          : (_infoMsg != null)
-          ? RefreshIndicator(
-              onRefresh: _refresh,
-              child: ListView(
-                physics: const AlwaysScrollableScrollPhysics(),
-                children: [
-                  const SizedBox(height: 120),
-                  Center(child: Text(_infoMsg!)),
-                ],
-              ),
-            )
-          : LayoutBuilder(
-              builder: (context, constraints) {
-                final width = constraints.maxWidth;
-                final padH = width >= 700 ? 24.0 : 12.0;
-                return Column(
-                  children: [
-                    Padding(
-                      padding: EdgeInsets.fromLTRB(padH, 12, padH, 0),
-                      child: TextField(
-                        controller: _searchController,
-                        decoration: InputDecoration(
-                          hintText: 'Search member...',
-                          prefixIcon: const Icon(
-                            Icons.search,
-                            color: kPrimaryDark,
-                          ),
-                          filled: true,
-                          fillColor: Colors.white,
-                          contentPadding: const EdgeInsets.symmetric(
-                            vertical: 14,
-                          ),
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(16),
-                            borderSide: BorderSide(
-                              color: kPrimary.withOpacity(.2),
-                            ),
-                          ),
-                        ),
-                        onChanged: (q) => setState(() {
-                          _searchQuery = q.trim().toLowerCase();
-                        }),
-                      ),
-                    ),
-                    Expanded(
-                      child: TabBarView(
-                        controller: _tabController,
-                        children: [
-                          _memberList(
-                            _approved,
-                            mode: 'active',
-                            constraints: constraints,
-                          ),
-                          _memberList(
-                            _pending,
-                            mode: 'pending',
-                            constraints: constraints,
-                          ),
-                          _memberList(
-                            _deceased,
-                            mode: 'deceased',
-                            constraints: constraints,
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                );
-              },
-            ),
     );
   }
 
   Widget _memberList(
     List<Map<String, dynamic>> list, {
-    required String mode,
+    String mode = 'active',
     required BoxConstraints constraints,
   }) {
     List<Map<String, dynamic>> filtered = list;
@@ -245,7 +466,7 @@ class _SecretaryMembersPageState extends State<SecretaryMembersPage>
           physics: const AlwaysScrollableScrollPhysics(),
           children: const [
             SizedBox(height: 120),
-            Icon(Icons.people_outline, size: 48, color: Colors.grey),
+            Icon(Icons.people_outline, size: 48, color: kSubtleText),
             SizedBox(height: 12),
             Center(child: Text('No members in this status')),
           ],
@@ -254,8 +475,8 @@ class _SecretaryMembersPageState extends State<SecretaryMembersPage>
     }
 
     final width = constraints.maxWidth;
-    final useGrid = width >= 700;
-    final crossAxisCount = width >= 1100 ? 3 : 2;
+    final useGrid = width >= _kTablet;
+    final crossAxisCount = width >= _kDesktop ? 3 : 2;
 
     if (!useGrid) {
       return RefreshIndicator(
@@ -288,7 +509,10 @@ class _SecretaryMembersPageState extends State<SecretaryMembersPage>
   Widget _memberTileCard(Map<String, dynamic> r, {required String mode}) {
     final u = r['user'] as Map<String, dynamic>?;
     final profileUrl = (u?['profile_url'] as String?)?.trim();
-    final status = (r['status'] ?? '').toString();
+    final dayungId = r['dayung_unit_id'] as int?;
+    final dayungName = dayungId != null
+        ? (_dayungNames[dayungId] ?? 'Dayung')
+        : 'Dayung';
 
     String chipText;
     Color chipColor;
@@ -296,6 +520,7 @@ class _SecretaryMembersPageState extends State<SecretaryMembersPage>
       chipText = 'deceased';
       chipColor = Colors.red;
     } else {
+      final status = (r['status'] ?? '').toString();
       chipText = status;
       chipColor = status == 'approved'
           ? Colors.green
@@ -304,56 +529,68 @@ class _SecretaryMembersPageState extends State<SecretaryMembersPage>
           : Colors.grey;
     }
 
-    final title = (u?['full_name'] ?? 'Member').toString();
+    final title = (u?['full_name'] as String?)?.trim().isNotEmpty == true
+        ? (u?['full_name'] as String).trim()
+        : 'Member';
 
-    return Card(
-      margin: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-      elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        border: Border(
+          bottom: BorderSide(color: Colors.grey.shade200, width: 0.5),
+        ),
+      ),
       child: ListTile(
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
         leading: CircleAvatar(
           backgroundImage: (profileUrl != null && profileUrl.isNotEmpty)
               ? NetworkImage(profileUrl)
               : null,
+          backgroundColor: kBg,
+          radius: 16,
           child: (profileUrl == null || profileUrl.isEmpty)
               ? Text(
                   _initialOf(u?['full_name']),
                   style: const TextStyle(
                     fontWeight: FontWeight.bold,
-                    fontSize: 22,
+                    fontSize: 12,
                     color: kPrimaryDark,
                   ),
                 )
               : null,
-          backgroundColor: kBg,
-          radius: 26,
         ),
         title: Text(
           title,
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
           style: const TextStyle(
-            fontWeight: FontWeight.w700,
-            fontSize: 18,
+            fontWeight: FontWeight.w600,
+            fontSize: 12,
             color: kPrimaryDark,
             fontFamily: 'Montserrat',
           ),
         ),
         subtitle: Text(
-          status == 'approved' ? 'Active Member' : status.capitalize(),
-          style: const TextStyle(fontSize: 14, color: kSubtleText),
+          dayungName,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: const TextStyle(
+            fontSize: 10,
+            color: kSubtleText,
+            fontFamily: 'OpenSans',
+          ),
         ),
         trailing: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
           decoration: BoxDecoration(
-            color: chipColor.withOpacity(.15),
-            borderRadius: BorderRadius.circular(20),
+            color: chipColor.withValues(alpha: .15),
+            borderRadius: BorderRadius.circular(12),
             border: Border.all(color: chipColor),
           ),
           child: Text(
             chipText,
             style: TextStyle(
-              fontSize: 12,
+              fontSize: 8,
               fontWeight: FontWeight.w600,
               color: chipColor,
             ),
@@ -361,12 +598,65 @@ class _SecretaryMembersPageState extends State<SecretaryMembersPage>
         ),
         onTap: mode == 'active'
             ? () {
-                final uuid = (u?['id'] as String?)?.trim();
-                if (uuid != null && uuid.isNotEmpty) {
-                  _showBeneficiariesModal(context, uuid, u?['full_name']);
-                }
+                final uuid = (u?['id'] as String?)?.trim().isNotEmpty == true
+                    ? (u?['id'] as String).trim()
+                    : (r['user_id']?.toString().trim());
+                _showBeneficiariesModal(context, uuid, u?['full_name']);
               }
             : null,
+      ),
+    );
+  }
+}
+
+class _NavTab extends StatelessWidget {
+  final String label;
+  final IconData icon;
+  final bool selected;
+  final VoidCallback onTap;
+
+  const _NavTab({
+    required this.label,
+    required this.icon,
+    required this.selected,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, size: 12, color: selected ? kPrimary : kSubtleText),
+              const SizedBox(width: 3),
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                  color: selected ? kPrimary : kSubtleText,
+                  fontFamily: 'Montserrat',
+                ),
+              ),
+            ],
+          ),
+          if (selected) ...[
+            const SizedBox(height: 4),
+            Container(
+              height: 3,
+              width: label.length * 8.0,
+              decoration: BoxDecoration(
+                color: kPrimary,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+          ],
+        ],
       ),
     );
   }
@@ -383,12 +673,8 @@ Future<void> _showBeneficiariesModal(
   showModalBottomSheet(
     context: context,
     isScrollControlled: true,
-    backgroundColor: Colors.white,
-    shape: const RoundedRectangleBorder(
-      borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-    ),
+    backgroundColor: Colors.transparent,
     builder: (ctx) {
-      // BENEFICIARIES
       final futureBeneficiaries = Supabase.instance.client
           .from('beneficiaries')
           .select(
@@ -397,7 +683,6 @@ Future<void> _showBeneficiariesModal(
           .eq('user_id', uuid)
           .order('full_name', ascending: true);
 
-      // NEW: last contributions (limit 5)
       final futureContribs = _fetchLastContributionsForUser(uuid, max: 5);
 
       return FutureBuilder<dynamic>(
@@ -422,7 +707,6 @@ Future<void> _showBeneficiariesModal(
               )
               .toList();
 
-          // USER HEADER future above
           final userFuture = Supabase.instance.client
               .from('users')
               .select(
@@ -438,37 +722,126 @@ Future<void> _showBeneficiariesModal(
 
           return LayoutBuilder(
             builder: (context, constraints) {
-              final width = constraints.maxWidth;
-              final padH = width >= 700 ? 24.0 : 18.0;
-              final heightFactor = width >= 1100
-                  ? 0.75
-                  : width >= 700
-                  ? 0.85
-                  : 0.92;
-
               String fmtDate(String iso) =>
                   iso.isEmpty ? '—' : (iso.split('T').first);
 
-              return SafeArea(
-                top: false,
-                child: FractionallySizedBox(
-                  heightFactor: heightFactor,
-                  child: Padding(
-                    padding: EdgeInsets.only(
-                      left: padH,
-                      right: padH,
-                      top: 18,
-                      bottom: MediaQuery.of(ctx).viewInsets.bottom + 18,
+              return Container(
+                height: MediaQuery.of(context).size.height * 0.8,
+                decoration: const BoxDecoration(
+                  color: Color(0xFFF8FAFC),
+                  borderRadius: BorderRadius.only(
+                    topLeft: Radius.circular(24),
+                    topRight: Radius.circular(24),
+                  ),
+                ),
+                child: Column(
+                  children: [
+                    Container(
+                      margin: const EdgeInsets.only(top: 8),
+                      width: 50,
+                      height: 5,
+                      decoration: BoxDecoration(
+                        color: Colors.grey.shade400,
+                        borderRadius: BorderRadius.circular(2),
+                      ),
                     ),
-                    child: Center(
-                      child: ConstrainedBox(
-                        constraints: const BoxConstraints(maxWidth: 820),
+                    Container(
+                      padding: const EdgeInsets.fromLTRB(20, 20, 20, 20),
+                      child: Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              gradient: const LinearGradient(
+                                colors: [Color(0xFFFFFFFF), Color(0xFFE0E7FF)],
+                                begin: Alignment.topLeft,
+                                end: Alignment.bottomRight,
+                              ),
+                              borderRadius: BorderRadius.circular(16),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.white54,
+                                  blurRadius: 20,
+                                  offset: Offset(0, 8),
+                                ),
+                                BoxShadow(
+                                  color: Color(0xFF1E40AF),
+                                  blurRadius: 12,
+                                  offset: Offset(0, 4),
+                                ),
+                              ],
+                            ),
+                            child: const Icon(
+                              Icons.person_rounded,
+                              color: Color(0xFF1E40AF),
+                              size: 24,
+                            ),
+                          ),
+                          const SizedBox(width: 16),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  userName ?? 'Member',
+                                  style: const TextStyle(
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.w800,
+                                    color: Color(0xFF1E40AF),
+                                    fontFamily: 'Montserrat',
+                                  ),
+                                ),
+                                const SizedBox(height: 4),
+                                const Text(
+                                  'Member Details',
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    color: Color(0xFF6B7280),
+                                    fontFamily: 'OpenSans',
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          Container(
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              color: Colors.grey.shade100,
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: IconButton(
+                              icon: const Icon(
+                                Icons.close,
+                                color: Color(0xFF6B7280),
+                                size: 20,
+                              ),
+                              onPressed: () => Navigator.pop(context),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Expanded(
+                      child: Container(
+                        decoration: const BoxDecoration(
+                          color: Color(0xFFF8FAFC),
+                          borderRadius: BorderRadius.only(
+                            topLeft: Radius.circular(32),
+                            topRight: Radius.circular(32),
+                          ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black12,
+                              blurRadius: 20,
+                              offset: Offset(0, -5),
+                            ),
+                          ],
+                        ),
                         child: SingleChildScrollView(
+                          padding: const EdgeInsets.fromLTRB(20, 20, 20, 20),
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
-                            mainAxisSize: MainAxisSize.min,
                             children: [
-                              // Header card (non-blocking)
                               FutureBuilder<Map<String, dynamic>?>(
                                 future: userFuture,
                                 builder: (ctx, uSnap) {
@@ -488,24 +861,52 @@ Future<void> _showBeneficiariesModal(
                                           .toString()
                                           .isNotEmpty;
 
-                                  Widget docItem(String label, bool ok) => Row(
-                                    children: [
-                                      Icon(
-                                        ok
-                                            ? Icons.check_circle
-                                            : Icons.radio_button_unchecked,
-                                        color: ok ? kAccent : kSubtleText,
-                                        size: 20,
+                                  Widget docItem(
+                                    String label,
+                                    bool ok,
+                                  ) => Container(
+                                    padding: const EdgeInsets.all(12),
+                                    decoration: BoxDecoration(
+                                      color: ok
+                                          ? const Color(
+                                              0xFF10B981,
+                                            ).withValues(alpha: 0.1)
+                                          : Colors.grey.shade50,
+                                      borderRadius: BorderRadius.circular(10),
+                                      border: Border.all(
+                                        color: ok
+                                            ? const Color(
+                                                0xFF10B981,
+                                              ).withValues(alpha: 0.3)
+                                            : Colors.grey.shade300,
                                       ),
-                                      const SizedBox(width: 8),
-                                      Text(
-                                        label,
-                                        style: const TextStyle(
-                                          fontSize: 16,
-                                          color: kNeutralText,
+                                    ),
+                                    child: Row(
+                                      children: [
+                                        Icon(
+                                          ok
+                                              ? Icons.check_circle_rounded
+                                              : Icons
+                                                    .radio_button_unchecked_rounded,
+                                          color: ok
+                                              ? const Color(0xFF10B981)
+                                              : const Color(0xFF6B7280),
+                                          size: 18,
                                         ),
-                                      ),
-                                    ],
+                                        const SizedBox(width: 10),
+                                        Text(
+                                          label,
+                                          style: TextStyle(
+                                            fontSize: 14,
+                                            color: ok
+                                                ? const Color(0xFF10B981)
+                                                : const Color(0xFF374151),
+                                            fontFamily: 'OpenSans',
+                                            fontWeight: FontWeight.w600,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
                                   );
 
                                   return Container(
@@ -513,15 +914,17 @@ Future<void> _showBeneficiariesModal(
                                     padding: const EdgeInsets.all(16),
                                     decoration: BoxDecoration(
                                       color: Colors.white,
-                                      borderRadius: BorderRadius.circular(16),
+                                      borderRadius: BorderRadius.circular(12),
                                       border: Border.all(
-                                        color: const Color(0xFFE1E4E8),
+                                        color: Colors.grey.shade200,
                                       ),
-                                      boxShadow: const [
+                                      boxShadow: [
                                         BoxShadow(
-                                          color: Color(0x0F000000),
-                                          blurRadius: 6,
-                                          offset: Offset(0, 2),
+                                          color: Colors.black.withValues(
+                                            alpha: 0.03,
+                                          ),
+                                          blurRadius: 8,
+                                          offset: const Offset(0, 2),
                                         ),
                                       ],
                                     ),
@@ -531,14 +934,19 @@ Future<void> _showBeneficiariesModal(
                                       children: [
                                         Row(
                                           children: [
-                                            const CircleAvatar(
-                                              radius: 22,
-                                              backgroundColor: Color(
-                                                0xFF3B82F6,
+                                            Container(
+                                              padding: const EdgeInsets.all(8),
+                                              decoration: BoxDecoration(
+                                                color: const Color(
+                                                  0xFF1E40AF,
+                                                ).withValues(alpha: 0.1),
+                                                borderRadius:
+                                                    BorderRadius.circular(10),
                                               ),
-                                              child: Icon(
-                                                Icons.person,
-                                                color: Colors.white,
+                                              child: const Icon(
+                                                Icons.person_rounded,
+                                                color: Color(0xFF1E40AF),
+                                                size: 20,
                                               ),
                                             ),
                                             const SizedBox(width: 12),
@@ -551,9 +959,9 @@ Future<void> _showBeneficiariesModal(
                                                     (userName ?? 'Member'),
                                                     style: const TextStyle(
                                                       fontWeight:
-                                                          FontWeight.w800,
-                                                      fontSize: 18,
-                                                      color: kNeutralText,
+                                                          FontWeight.w700,
+                                                      fontSize: 16,
+                                                      color: Color(0xFF374151),
                                                       fontFamily: 'Montserrat',
                                                     ),
                                                   ),
@@ -561,31 +969,25 @@ Future<void> _showBeneficiariesModal(
                                                     Text(
                                                       phone,
                                                       style: const TextStyle(
-                                                        fontSize: 14,
-                                                        color: kSubtleText,
+                                                        fontSize: 12,
+                                                        color: Color(
+                                                          0xFF6B7280,
+                                                        ),
                                                         fontFamily: 'OpenSans',
                                                       ),
                                                     ),
                                                 ],
                                               ),
                                             ),
-                                            IconButton(
-                                              tooltip: 'Close',
-                                              icon: const Icon(Icons.close),
-                                              onPressed: () =>
-                                                  Navigator.of(context).pop(),
-                                            ),
                                           ],
                                         ),
                                         const SizedBox(height: 14),
-
-                                        // Last Contribution (now real)
                                         const Text(
                                           'Last Contribution:',
                                           style: TextStyle(
-                                            fontWeight: FontWeight.w800,
-                                            fontSize: 18,
-                                            color: kNeutralText,
+                                            fontWeight: FontWeight.w700,
+                                            fontSize: 14,
+                                            color: Color(0xFF374151),
                                             fontFamily: 'Montserrat',
                                           ),
                                         ),
@@ -635,35 +1037,31 @@ Future<void> _showBeneficiariesModal(
                                             );
                                           },
                                         ),
-
-                                        const SizedBox(height: 18),
+                                        const SizedBox(height: 16),
                                         const Text(
                                           'Required Documents',
                                           style: TextStyle(
-                                            fontWeight: FontWeight.w800,
-                                            fontSize: 18,
-                                            color: kNeutralText,
+                                            fontWeight: FontWeight.w700,
+                                            fontSize: 14,
+                                            color: Color(0xFF374151),
                                             fontFamily: 'Montserrat',
                                           ),
                                         ),
-                                        const SizedBox(height: 10),
+                                        const SizedBox(height: 8),
                                         docItem('Birth Certificate', hasBirth),
-                                        const SizedBox(height: 10),
+                                        const SizedBox(height: 8),
                                         docItem(
                                           'Marriage Certificate',
                                           hasMarriage,
                                         ),
-                                        const SizedBox(height: 10),
+                                        const SizedBox(height: 8),
                                         docItem('Death Certificate', hasDeath),
                                       ],
                                     ),
                                   );
                                 },
                               ),
-
                               const SizedBox(height: 18),
-
-                              // NEW: Last Contributions section (top 5)
                               FutureBuilder<List<Map<String, dynamic>>>(
                                 future: futureContribs,
                                 builder: (ctx, cSnap) {
@@ -680,7 +1078,7 @@ Future<void> _showBeneficiariesModal(
                                         'Last Contributions',
                                         style: TextStyle(
                                           fontWeight: FontWeight.bold,
-                                          fontSize: 20,
+                                          fontSize: 12,
                                           color: kPrimaryDark,
                                         ),
                                       ),
@@ -763,18 +1161,16 @@ Future<void> _showBeneficiariesModal(
                                   );
                                 },
                               ),
-
                               const SizedBox(height: 22),
                               const Text(
                                 'Beneficiaries',
                                 style: TextStyle(
                                   fontWeight: FontWeight.bold,
-                                  fontSize: 20,
+                                  fontSize: 12,
                                   color: kPrimaryDark,
                                 ),
                               ),
                               const SizedBox(height: 12),
-
                               if (list.isEmpty)
                                 const Text(
                                   'No beneficiaries found.',
@@ -783,7 +1179,6 @@ Future<void> _showBeneficiariesModal(
                                     fontSize: 16,
                                   ),
                                 ),
-
                               ...list.map(
                                 (b) => Card(
                                   margin: const EdgeInsets.symmetric(
@@ -841,7 +1236,7 @@ Future<void> _showBeneficiariesModal(
                         ),
                       ),
                     ),
-                  ),
+                  ],
                 ),
               );
             },
@@ -852,7 +1247,6 @@ Future<void> _showBeneficiariesModal(
   );
 }
 
-// NEW: shared helper using the same logic as contributionhistory.dart
 Future<List<Map<String, dynamic>>> _fetchLastContributionsForUser(
   String uid, {
   int max = 5,
@@ -904,9 +1298,4 @@ Future<List<Map<String, dynamic>>> _fetchLastContributionsForUser(
       'date_of_death': n?['date_of_death'],
     };
   }).toList();
-}
-
-extension on String {
-  String capitalize() =>
-      isEmpty ? this : '${this[0].toUpperCase()}${substring(1)}';
 }

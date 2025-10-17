@@ -1,10 +1,21 @@
-import 'package:capstone_app/ui/theme/branding.dart';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:photo_view/photo_view.dart'; // Add this to your pubspec.yaml for image preview
 
+const Color kPrimary = Color(0xFF3B82F6);
+const Color kPrimaryDark = Color(0xFF1E40AF);
+const Color kAccent = Color(0xFF10B981);
+const Color kWarn = Color(0xFFF59E0B);
+const Color kDanger = Color(0xFFEF4444);
+const Color kBg = Color(0xFFF8FAFC);
+const Color kCardBg = Color(0xFFFFFFFF);
+const Color kSubText = Color(0xFF6B7280);
+const Color kNeutralText = Color(0xFF1F2937);
+const Color kSubtleText = Color(0xFF4B5563);
+
 class SecretaryBeneficiariesTab extends StatefulWidget {
-  const SecretaryBeneficiariesTab({super.key});
+  final int dayungUnitId;
+  const SecretaryBeneficiariesTab({super.key, required this.dayungUnitId});
 
   @override
   State<SecretaryBeneficiariesTab> createState() =>
@@ -28,31 +39,65 @@ class _SecretaryBeneficiariesTabState extends State<SecretaryBeneficiariesTab> {
     setState(() => _loading = true);
     final supabase = Supabase.instance.client;
     try {
-      // Load users (id -> full_name) for grouping headers
-      final usersData = await supabase.from('users').select('id, full_name');
-      final usersMap = <String, dynamic>{};
-      for (final user in usersData) {
-        usersMap[user['id']] = user['full_name'] ?? 'Unknown User';
+      // 1) Get approved members for this unit
+      final apps = await supabase
+          .from('applications')
+          .select('user_id')
+          .eq('dayung_unit_id', widget.dayungUnitId)
+          .eq('status', 'approved');
+
+      final userIds = (apps as List<dynamic>)
+          .map((e) => (e as Map)['user_id'])
+          .where((v) => v != null && v.toString().trim().isNotEmpty)
+          .map((v) => v.toString())
+          .toSet()
+          .toList();
+
+      if (userIds.isEmpty) {
+        if (!mounted) return;
+        setState(() {
+          _users = {};
+          _pendingByUser = {};
+          _activeByUser = {};
+          _loading = false;
+        });
+        return;
       }
 
-      // Load beneficiaries with status Pending/Approved
+      // 2) Load users (scoped)
+      final usersData = await supabase
+          .from('users')
+          .select('id, full_name')
+          .inFilter('id', userIds);
+
+      final usersMap = <String, dynamic>{};
+      for (final user in usersData as List<dynamic>) {
+        final m = user as Map<String, dynamic>;
+        usersMap[m['id'].toString()] = (m['full_name'] ?? 'Unknown User')
+            .toString();
+      }
+
+      // 3) Load beneficiaries for those users only
       final beneficiariesData = await supabase
           .from('beneficiaries')
           .select(
             'id, user_id, full_name, relationship, dob, status, birth_certificate',
           )
-          .inFilter('status', ['Pending', 'Approved'])
+          .inFilter('user_id', userIds)
+          .inFilter('status', ['Approved', 'Pending'])
           .order('full_name', ascending: true);
 
-      // Group by user and split by status
+      // 4) Group and split by status
       final pendingByUser = <String, List<dynamic>>{};
       final activeByUser = <String, List<dynamic>>{};
-      for (final b in beneficiariesData) {
+      for (final raw in beneficiariesData as List<dynamic>) {
+        final b = raw as Map<String, dynamic>;
         final uid = (b['user_id'] ?? '').toString();
         if (uid.isEmpty) continue;
-        if (b['status'] == 'Pending') {
+        final status = (b['status'] ?? '').toString();
+        if (status == 'Pending') {
           pendingByUser.putIfAbsent(uid, () => []).add(b);
-        } else if (b['status'] == 'Approved') {
+        } else if (status == 'Approved') {
           activeByUser.putIfAbsent(uid, () => []).add(b);
         }
       }
@@ -122,8 +167,8 @@ class _SecretaryBeneficiariesTabState extends State<SecretaryBeneficiariesTab> {
                 decoration: BoxDecoration(
                   color:
                       (isPending
-                              ? const Color(0xFFFF6B35)
-                              : const Color(0xFF10B981))
+                              ? const Color(0xFF10B981)
+                              : const Color(0xFFFF6B35))
                           .withOpacity(0.1),
                   borderRadius: BorderRadius.circular(50),
                 ),
@@ -132,16 +177,16 @@ class _SecretaryBeneficiariesTabState extends State<SecretaryBeneficiariesTab> {
                       ? Icons.schedule_rounded
                       : Icons.check_circle_rounded,
                   color: isPending
-                      ? const Color(0xFFFF6B35)
-                      : const Color(0xFF10B981),
+                      ? const Color(0xFF10B981)
+                      : const Color(0xFFFF6B35),
                   size: 48,
                 ),
               ),
               const SizedBox(height: 24),
               Text(
                 isPending
-                    ? 'No pending beneficiaries found'
-                    : 'No active beneficiaries found',
+                    ? 'No active beneficiaries found'
+                    : 'No pending beneficiaries found',
                 style: const TextStyle(
                   fontSize: 18,
                   fontWeight: FontWeight.w700,
@@ -153,8 +198,8 @@ class _SecretaryBeneficiariesTabState extends State<SecretaryBeneficiariesTab> {
               const SizedBox(height: 8),
               Text(
                 isPending
-                    ? 'No pending beneficiaries have been recorded yet'
-                    : 'No active beneficiaries have been recorded yet',
+                    ? 'No active beneficiaries have been recorded yet'
+                    : 'No pending beneficiaries have been recorded yet',
                 style: const TextStyle(
                   fontSize: 14,
                   color: Color(0xFF6B7280),
@@ -342,30 +387,22 @@ class _SecretaryBeneficiariesTabState extends State<SecretaryBeneficiariesTab> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: kBg,
-      body: Container(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [Color(0xFFF8FAFC), Color(0xFFF1F5F9)],
-          ),
-        ),
+      body: SafeArea(
         child: Column(
           children: [
-            // Header
             Container(
-              padding: const EdgeInsets.fromLTRB(20, 50, 20, 20),
-              decoration: BoxDecoration(
-                color: const Color(0xFF1E40AF),
-                borderRadius: const BorderRadius.only(
-                  bottomLeft: Radius.circular(24),
-                  bottomRight: Radius.circular(24),
+              padding: const EdgeInsets.fromLTRB(20, 36, 20, 28),
+              decoration: const BoxDecoration(
+                color: kPrimaryDark,
+                borderRadius: BorderRadius.only(
+                  bottomLeft: Radius.circular(28),
+                  bottomRight: Radius.circular(28),
                 ),
                 boxShadow: [
                   BoxShadow(
-                    color: const Color(0xFF1E40AF).withOpacity(0.3),
-                    blurRadius: 20,
-                    offset: const Offset(0, 8),
+                    color: Color(0xFF1E40AF),
+                    blurRadius: 18,
+                    offset: Offset(0, 8),
                   ),
                 ],
               ),
@@ -373,23 +410,24 @@ class _SecretaryBeneficiariesTabState extends State<SecretaryBeneficiariesTab> {
                 children: [
                   IconButton(
                     icon: const Icon(
-                      Icons.chevron_left,
+                      Icons.arrow_back_rounded,
                       color: Colors.white,
-                      size: 24,
+                      size: 26,
                     ),
                     onPressed: () => Navigator.pop(context),
                   ),
+                  const SizedBox(width: 4),
                   const Icon(
-                    Icons.people_rounded,
+                    Icons.family_restroom_rounded,
                     color: Colors.white,
-                    size: 24,
+                    size: 28,
                   ),
                   const SizedBox(width: 16),
                   const Expanded(
                     child: Text(
                       'Beneficiaries',
                       style: TextStyle(
-                        fontSize: 16,
+                        fontSize: 22,
                         fontWeight: FontWeight.w800,
                         color: Colors.white,
                         fontFamily: 'Montserrat',
@@ -407,14 +445,14 @@ class _SecretaryBeneficiariesTabState extends State<SecretaryBeneficiariesTab> {
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   _NavTab(
-                    label: 'Pending',
+                    label: 'Active',
                     icon: Icons.schedule_rounded,
                     selected: _selectedTab == 0,
                     onTap: () => setState(() => _selectedTab = 0),
                   ),
                   const SizedBox(width: 40),
                   _NavTab(
-                    label: 'Active',
+                    label: 'Pending',
                     icon: Icons.check_circle_rounded,
                     selected: _selectedTab == 1,
                     onTap: () => setState(() => _selectedTab = 1),
@@ -459,8 +497,8 @@ class _SecretaryBeneficiariesTabState extends State<SecretaryBeneficiariesTab> {
                 child: _loading
                     ? const Center(child: CircularProgressIndicator())
                     : (_selectedTab == 0
-                          ? _groupedList(_pendingByUser, isPending: true)
-                          : _groupedList(_activeByUser, isPending: false)),
+                          ? _groupedList(_activeByUser, isPending: true)
+                          : _groupedList(_pendingByUser, isPending: false)),
               ),
             ),
           ],

@@ -12,13 +12,13 @@ import 'package:capstone_app/Secretary/dashboard.dart'
     hide kPrimary, kAccent, kBg;
 import 'package:capstone_app/Treasurer/dashboard.dart'
     hide kPrimary, kAccent, kBg;
-import 'package:capstone_app/screens/selectdayung.dart';
+import 'package:capstone_app/screens/selectdayung.dart'
+    hide kAccent, kPrimary, kBg;
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:auto_size_text/auto_size_text.dart';
-
 
 // Additional colors for login-specific styling
 const Color kPrimaryLight = Color(0xFF3B82F6);

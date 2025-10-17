@@ -62,15 +62,33 @@ class _RecentDeathNoticesState extends State<RecentDeathNotices> {
   }
 
   void _applySplit(List<Map<String, dynamic>> rows) {
-    rows.sort((a, b) {
+    final unitId = widget.dayungUnitId;
+    // Debug: print all incoming unit IDs
+    debugPrint(
+      'Incoming death_notices IDs: ${rows.map((r) => r['dayung_unit_id']).toList()}',
+    );
+
+    // Filter by dayung_unit_id before splitting
+    final filtered = rows.where((r) {
+      final v = r['dayung_unit_id'];
+      final asInt = v is int ? v : int.tryParse('$v');
+      return asInt == unitId;
+    }).toList();
+
+    debugPrint(
+      'Filtered death_notices IDs: ${filtered.map((r) => r['dayung_unit_id']).toList()}',
+    );
+
+    filtered.sort((a, b) {
       final ad = (a['date_of_death'] ?? '').toString();
       final bd = (b['date_of_death'] ?? '').toString();
       return bd.compareTo(ad); // desc
     });
-    final members = rows
+
+    final members = filtered
         .where((r) => (r['deceased_type'] ?? 'member') == 'member')
         .toList();
-    final beneficiaries = rows
+    final beneficiaries = filtered
         .where((r) => r['deceased_type'] == 'beneficiary')
         .toList();
 
@@ -170,8 +188,8 @@ class _RecentDeathNoticesState extends State<RecentDeathNotices> {
                       ),
                       const SizedBox(width: 20),
                       Expanded(
-                        child: Text(      
-                         'Recent Deaths',
+                        child: Text(
+                          'Recent Deaths',
                           style: TextStyle(
                             fontSize: isWide ? 32 : 28,
                             fontWeight: FontWeight.w900,
@@ -429,11 +447,11 @@ class _RecentDeathNoticesState extends State<RecentDeathNotices> {
                   labelColor: kPrimary,
                   unselectedLabelColor: Colors.black54,
                   indicatorColor: kPrimary,
-                   tabs: [
-                     Tab(text: 'Members'),
-                     Tab(text: 'Beneficiaries'),
-                   ],
-                 ),
+                  tabs: [
+                    Tab(text: 'Members'),
+                    Tab(text: 'Beneficiaries'),
+                  ],
+                ),
                 // Content
                 Expanded(
                   child: Container(
@@ -637,26 +655,26 @@ class _RecentDeathNoticesState extends State<RecentDeathNotices> {
               ],
             ),
             child: Material(
-                  color: Colors.transparent,
-      child: InkWell(
-        borderRadius: BorderRadius.circular(20),
-        onTap: () {
-          showModalBottomSheet(
-            context: context,
-            isScrollControlled: true,
-            backgroundColor: Colors.transparent,
-            builder: (_) => DeathNoticeDetail.byNoticeId(
-              noticeId: notice['id'] as int,
-              dayungUnitId: widget.dayungUnitId,
-              name: notice['name']?.toString(),
-              date: notice['date_of_death']?.toString(),
-              barangay: notice['barangay']?.toString(),
-            ),
-          );
-        },
-        child: Padding(
-          padding: const EdgeInsets.all(20),
-          child: Row(
+              color: Colors.transparent,
+              child: InkWell(
+                borderRadius: BorderRadius.circular(20),
+                onTap: () {
+                  showModalBottomSheet(
+                    context: context,
+                    isScrollControlled: true,
+                    backgroundColor: Colors.transparent,
+                    builder: (_) => DeathNoticeDetail.byNoticeId(
+                      noticeId: notice['id'] as int,
+                      dayungUnitId: widget.dayungUnitId,
+                      name: notice['name']?.toString(),
+                      date: notice['date_of_death']?.toString(),
+                      barangay: notice['barangay']?.toString(),
+                    ),
+                  );
+                },
+                child: Padding(
+                  padding: const EdgeInsets.all(20),
+                  child: Row(
                     children: [
                       Container(
                         padding: const EdgeInsets.all(12),

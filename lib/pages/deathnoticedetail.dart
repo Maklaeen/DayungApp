@@ -64,12 +64,75 @@ class _DeathNoticeDetailState extends State<DeathNoticeDetail> {
 
   bool _loading = false;
   String? _error;
+  bool _membersLoading = false;
+  List<Map<String, dynamic>> _paidMembers = [];
+  List<Map<String, dynamic>> _unpaidMembers = [];
 
   @override
   void initState() {
     super.initState();
     _hydrateFromPassedProps();
     _loadIfNeeded();
+    _fetchMembersForNotice();
+  }
+
+  Future<void> _fetchMembersForNotice() async {
+    if (widget.noticeId == null || widget.dayungUnitId == null) return;
+    setState(() => _membersLoading = true);
+
+    final sb = Supabase.instance.client;
+
+    // 1) Approved members in this dayung unit
+    final appsRes = await sb
+        .from('applications')
+        .select('user_id')
+        .eq('dayung_unit_id', widget.dayungUnitId as Object)
+        .eq('status', 'approved');
+
+    final approvedIds = List<Map<String, dynamic>>.from(
+      appsRes,
+    ).map((e) => e['user_id'].toString()).toSet();
+
+    // 2) Payments for this death notice in this dayung unit
+    final paysRes = await sb
+        .from('payments')
+        .select('user_id,status,dayung_unit_id')
+        .eq('death_notice_id', widget.noticeId as Object)
+        .eq('dayung_unit_id', widget.dayungUnitId as Object);
+
+    final pays = List<Map<String, dynamic>>.from(paysRes);
+
+    final paidIds = pays
+        .where((p) => p['status'] == 'paid')
+        .map((p) => p['user_id'].toString())
+        .where(approvedIds.contains)
+        .toSet();
+
+    final pendingIds = pays
+        .where((p) => p['status'] == 'pending')
+        .map((p) => p['user_id'].toString())
+        .where(approvedIds.contains)
+        .toSet();
+
+    // 3) Fetch user details for each set
+    Future<List<Map<String, dynamic>>> loadUsers(Set<String> ids) async {
+      if (ids.isEmpty) return [];
+      final res = await sb
+          .from('users')
+          .select('id, full_name')
+          .inFilter('id', ids.toList())
+          .order('full_name', ascending: true);
+      return List<Map<String, dynamic>>.from(res);
+    }
+
+    final paid = await loadUsers(paidIds);
+    final unpaid = await loadUsers(pendingIds);
+
+    setState(() {
+      _paidMembers = paid;
+      _unpaidMembers = unpaid;
+      _membersLoading = false;
+    });
   }
 
   void _hydrateFromPassedProps() {

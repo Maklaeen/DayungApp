@@ -1,6 +1,7 @@
 import 'package:capstone_app/President/manage_roles.dart';
 import 'package:capstone_app/President/post_announcement.dart';
 import 'package:capstone_app/Providers/dayung_role_provider.dart';
+import 'package:capstone_app/pages/recentdeathnotices.dart';
 import 'package:capstone_app/ui/theme/branding.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -511,13 +512,6 @@ class _PresidentDashboardPageState extends State<PresidentDashboardPage> {
             _buildModernStatsCards(),
             const SizedBox(height: 24),
             _buildQuickActions(),
-            const SizedBox(height: 24),
-            const _PostAnnouncementButton(),
-            const SizedBox(height: 18),
-            const _UpcomingText(),
-            const SizedBox(height: 12),
-            const _ContributionBarChartCard(),
-            const SizedBox(height: 12),
           ],
         ),
       ),
@@ -551,38 +545,181 @@ class _PresidentDashboardPageState extends State<PresidentDashboardPage> {
             ),
           ),
           const SizedBox(height: 16),
-          Row(
+          GridView.count(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            crossAxisCount: 2,
+            mainAxisSpacing: 12,
+            crossAxisSpacing: 12,
+            childAspectRatio: 1.1,
             children: [
-              Expanded(
-                child: _buildModernStatCard(
-                  icon: Icons.groups_rounded,
-                  title: 'Active Members',
-                  value: _loading ? '—' : _activeMembersCount.toString(),
-                  color: const Color(0xFF3B82F6),
-                  bgColor: const Color(0xFFEFF6FF),
-                ),
+              _buildModernStatCard(
+                icon: Icons.groups_rounded,
+                title: 'Active Members',
+                value: _loading ? '—' : _activeMembersCount.toString(),
+                color: const Color(0xFF3B82F6),
+                bgColor: const Color(0xFFEFF6FF),
               ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: _buildModernStatCard(
-                  icon: Icons.account_balance_wallet_rounded,
-                  title: 'Pending Amount',
-                  value: _loading
-                      ? '—'
-                      : '₱${_pendingAmount.toStringAsFixed(0)}',
-                  subtitle: _loading ? '' : 'From $_pendingMembers members',
-                  color: const Color(0xFFF59E0B),
-                  bgColor: const Color(0xFFFEF3C7),
-                ),
+              _buildModernStatCard(
+                icon: Icons.account_balance_wallet_rounded,
+                title: 'Pending Amount',
+                value: _loading ? '—' : '₱${_pendingAmount.toStringAsFixed(0)}',
+                subtitle: _loading ? '' : 'From $_pendingMembers members',
+                color: const Color(0xFFF59E0B),
+                bgColor: const Color(0xFFFEF3C7),
               ),
+              _buildOverviewRecentDeathsTile(),
+              _buildOverviewManageRolesTile(),
             ],
           ),
-          if (_recentDeaths.isNotEmpty) ...[
-            const SizedBox(height: 16),
-            _buildRecentDeathsCard(),
-          ],
         ],
       ),
+    );
+  }
+
+  Widget _buildOverviewRecentDeathsTile() {
+    final hasDeaths = _recentDeaths.isNotEmpty;
+    final subtitle = hasDeaths ? _recentDeaths.take(2).join(', ') : 'None';
+    return InkWell(
+      borderRadius: BorderRadius.circular(16),
+      onTap: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => RecentDeathNotices(
+              dayungUnitId: context.read<DayungRoleProvider>().unitId,
+            ),
+          ),
+        );
+      },
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: const Color(0xFFFDF2F8),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: const Color(0xFFEC4899).withOpacity(0.2)),
+        ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center, // Center vertically
+          crossAxisAlignment: CrossAxisAlignment.center, // Center horizontally
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: const Color(0xFFEC4899).withOpacity(0.1),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: const Icon(
+                Icons.local_florist_rounded,
+                color: Color(0xFFEC4899),
+                size: 20,
+              ),
+            ),
+            const SizedBox(height: 12),
+            const Text(
+              'Recent Deaths',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w700,
+                color: Color(0xFFEC4899),
+              ),
+            ),
+            const SizedBox(height: 2),
+            Text(
+              subtitle,
+              textAlign: TextAlign.center,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: Color(0xFF9F1239),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildOverviewManageRolesTile() {
+    return InkWell(
+      borderRadius: BorderRadius.circular(16),
+      onTap: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => const ManageRolesPagePres()),
+        );
+      },
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: const Color(0xFF3B82F6).withOpacity(0.2)),
+        ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center, // Center vertically
+          crossAxisAlignment: CrossAxisAlignment.center, // Center horizontally
+          children: [
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: const Color(0xFF3B82F6).withOpacity(0.1),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: const Icon(
+                Icons.manage_accounts_rounded,
+                color: Color(0xFF3B82F6),
+                size: 22,
+              ),
+            ),
+            const SizedBox(height: 12),
+            const Text(
+              'Manage Roles',
+              textAlign: TextAlign.center,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w800,
+                color: Color(0xFF1F2937),
+                fontFamily: 'Montserrat',
+              ),
+            ),
+            const SizedBox(height: 2),
+            Icon(
+              Icons.arrow_forward_ios_rounded,
+              size: 16,
+              color: Color(0xFF3B82F6).withOpacity(0.7),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildQuickActions() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: const [
+        Text(
+          'Quick Actions',
+          style: TextStyle(
+            fontSize: 18,
+            fontWeight: FontWeight.w800,
+            color: Color(0xFF1E40AF),
+            fontFamily: 'Montserrat',
+          ),
+        ),
+        SizedBox(height: 12),
+        _PostAnnouncementButton(),
+        SizedBox(height: 18),
+        _UpcomingText(),
+        SizedBox(height: 12),
+        _ContributionBarChartCard(),
+      ],
     );
   }
 
@@ -602,7 +739,8 @@ class _PresidentDashboardPageState extends State<PresidentDashboardPage> {
         border: Border.all(color: color.withOpacity(0.2)),
       ),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisAlignment: MainAxisAlignment.center, // Center vertically
+        crossAxisAlignment: CrossAxisAlignment.center, // Center horizontally
         children: [
           Container(
             padding: const EdgeInsets.all(8),
@@ -615,6 +753,7 @@ class _PresidentDashboardPageState extends State<PresidentDashboardPage> {
           const SizedBox(height: 12),
           Text(
             title,
+            textAlign: TextAlign.center,
             style: TextStyle(
               fontSize: 12,
               fontWeight: FontWeight.w600,
@@ -624,6 +763,7 @@ class _PresidentDashboardPageState extends State<PresidentDashboardPage> {
           const SizedBox(height: 4),
           Text(
             value,
+            textAlign: TextAlign.center,
             style: TextStyle(
               fontSize: 18,
               fontWeight: FontWeight.w800,
@@ -634,6 +774,7 @@ class _PresidentDashboardPageState extends State<PresidentDashboardPage> {
             const SizedBox(height: 2),
             Text(
               subtitle,
+              textAlign: TextAlign.center,
               style: TextStyle(
                 fontSize: 10,
                 fontWeight: FontWeight.w500,
@@ -697,36 +838,6 @@ class _PresidentDashboardPageState extends State<PresidentDashboardPage> {
           ),
         ],
       ),
-    );
-  }
-
-  Widget _buildQuickActions() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Text(
-          'Quick Actions',
-          style: TextStyle(
-            fontSize: 18,
-            fontWeight: FontWeight.w800,
-            color: Color(0xFF1E40AF),
-            fontFamily: 'Montserrat',
-          ),
-        ),
-        const SizedBox(height: 12),
-        _buildModernActionCard(
-          icon: Icons.manage_accounts_rounded,
-          title: 'Manage Roles',
-          subtitle: 'Manage member roles and permissions',
-          color: const Color(0xFF3B82F6),
-          onTap: () {
-            Navigator.push(
-              context,
-              MaterialPageRoute(builder: (_) => const ManageRolesPagePres()),
-            );
-          },
-        ),
-      ],
     );
   }
 

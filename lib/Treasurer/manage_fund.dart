@@ -28,6 +28,7 @@ class _ManageFundPageState extends State<ManageFundPage> {
   String _search = '';
   String _statusFilter = 'all';
   String _sort = 'date_desc';
+  String _typeFilter = 'members';
 
   double _totalPaid = 0.0;
   double _totalGoal = 0.0;
@@ -65,8 +66,7 @@ class _ManageFundPageState extends State<ManageFundPage> {
         final dateStr = (notice?['date_of_death'] ?? '').toString();
         final dtype = (notice?['deceased_type'] ?? '').toString().isEmpty
             ? 'member'
-            : (notice?['deceased_type']).toString();
-
+            : (notice?['deceased_type']).toString().toLowerCase().trim();
         final amt = (r['amount'] is num)
             ? (r['amount'] as num).toDouble()
             : double.tryParse('${r['amount']}') ?? 0.0;
@@ -196,6 +196,18 @@ class _ManageFundPageState extends State<ManageFundPage> {
           .toList();
     }
 
+    // Type filter: Members | Beneficiaries
+    bool isMember(Map f) =>
+        (f['type'] ?? 'member').toString().toLowerCase().contains('member');
+    bool isBeneficiary(Map f) =>
+        (f['type'] ?? '').toString().toLowerCase().contains('benefic');
+
+    if (_typeFilter == 'members') {
+      list = list.where(isMember).toList();
+    } else if (_typeFilter == 'beneficiaries') {
+      list = list.where(isBeneficiary).toList();
+    }
+
     // Sort
     int cmpDate(a, b, {bool desc = true}) {
       final ad = DateTime.tryParse((a['deadline'] ?? '').toString());
@@ -229,32 +241,53 @@ class _ManageFundPageState extends State<ManageFundPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: kBg,
-      appBar: AppBar(
-        backgroundColor: Colors.white,
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: kPrimaryDark, size: 28),
-          onPressed: () => Navigator.pop(context),
-          tooltip: 'Back',
-        ),
-        title: const Text(
-          'Manage Fund',
-          style: TextStyle(
-            color: kPrimaryDark,
-            fontWeight: FontWeight.w800,
-            fontSize: 22,
-            fontFamily: 'Montserrat',
-            letterSpacing: .2,
+      appBar: PreferredSize(
+        preferredSize: const Size.fromHeight(90),
+        child: Container(
+          padding: const EdgeInsets.fromLTRB(20, 50, 20, 20),
+          decoration: BoxDecoration(
+            color: const Color(0xFF1E40AF),
+            borderRadius: const BorderRadius.only(
+              bottomLeft: Radius.circular(24),
+              bottomRight: Radius.circular(24),
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: const Color(0xFF1E40AF).withOpacity(0.3),
+                blurRadius: 20,
+                offset: const Offset(0, 8),
+              ),
+            ],
+          ),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              // Back
+              GestureDetector(
+                onTap: () => Navigator.pop(context),
+                child: const Icon(
+                  Icons.chevron_left,
+                  color: Colors.white,
+                  size: 24,
+                ),
+              ),
+              const SizedBox(width: 8),
+              const Icon(Icons.track_changes, color: Colors.white, size: 24),
+              const SizedBox(width: 10),
+              const Text(
+                'Manage Funds',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w900,
+                  color: Colors.white,
+                  fontFamily: 'Montserrat',
+                  letterSpacing: 0.3,
+                ),
+              ),
+              const Spacer(),
+            ],
           ),
         ),
-        centerTitle: false,
-        actions: [
-          IconButton(
-            tooltip: 'Refresh',
-            icon: const Icon(Icons.refresh, color: kPrimaryDark),
-            onPressed: _loading ? null : _load,
-          ),
-        ],
       ),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
@@ -279,120 +312,29 @@ class _ManageFundPageState extends State<ManageFundPage> {
                   const SizedBox(height: 12),
                   _filtersBar(),
                   const SizedBox(height: 8),
-
-                  // Split into Members / Beneficiaries sections
-                  Builder(
-                    builder: (_) {
-                      final visible = _visibleFunds;
-                      final members = visible
-                          .where((f) => (f['type'] ?? 'member') == 'member')
-                          .toList();
-                      final beneficiaries = visible
-                          .where((f) => (f['type'] ?? '') == 'beneficiary')
-                          .toList();
-
-                      Widget section(
-                        String title,
-                        List<Map<String, dynamic>> list,
-                      ) {
-                        if (list.isEmpty) {
-                          return Padding(
-                            padding: const EdgeInsets.symmetric(vertical: 12),
-                            child: Row(
-                              children: [
-                                Text(
-                                  '$title',
-                                  style: const TextStyle(
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.w800,
-                                    color: kPrimaryDark,
-                                  ),
-                                ),
-                                const SizedBox(width: 8),
-                                const Text(
-                                  '— No records',
-                                  style: TextStyle(color: kSubtleText),
-                                ),
-                              ],
-                            ),
-                          );
-                        }
-                        return Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
-                              children: [
-                                Text(
-                                  '$title',
-                                  style: const TextStyle(
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.w800,
-                                    color: kPrimaryDark,
-                                  ),
-                                ),
-                                const SizedBox(width: 8),
-                                Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 8,
-                                    vertical: 2,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color: kPrimary.withOpacity(.08),
-                                    borderRadius: BorderRadius.circular(10),
-                                    border: Border.all(color: kPrimary),
-                                  ),
-                                  child: Text(
-                                    '${list.length}',
-                                    style: const TextStyle(
-                                      color: kPrimaryDark,
-                                      fontWeight: FontWeight.w800,
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 8),
-                            ...List.generate(
-                              list.length,
-                              (i) => Padding(
-                                padding: const EdgeInsets.symmetric(
-                                  vertical: 8,
-                                ),
-                                child: _fundCard(list[i]),
-                              ),
-                            ),
-                            const SizedBox(height: 8),
-                          ],
-                        );
-                      }
-
-                      if (visible.isEmpty) {
-                        return Padding(
-                          padding: const EdgeInsets.only(top: 80),
-                          child: Column(
-                            children: const [
-                              Icon(
-                                Icons.inbox_outlined,
-                                size: 48,
-                                color: Colors.grey,
-                              ),
-                              SizedBox(height: 10),
-                              Text('No matching funds.'),
-                            ],
+                  if (_visibleFunds.isEmpty)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 80),
+                      child: Column(
+                        children: const [
+                          Icon(
+                            Icons.inbox_outlined,
+                            size: 48,
+                            color: Colors.grey,
                           ),
-                        );
-                      }
-
-                      return Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          section('Members', members),
-                          const SizedBox(height: 8),
-                          section('Beneficiaries', beneficiaries),
+                          SizedBox(height: 10),
+                          Text('No matching funds. Try a different filter.'),
                         ],
-                      );
-                    },
-                  ),
+                      ),
+                    )
+                  else
+                    ...List.generate(
+                      _visibleFunds.length,
+                      (i) => Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 8),
+                        child: _fundCard(_visibleFunds[i]),
+                      ),
+                    ),
                 ],
               ),
             ),
@@ -405,10 +347,15 @@ class _ManageFundPageState extends State<ManageFundPage> {
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: kCard,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(20),
         boxShadow: const [
-          BoxShadow(color: Colors.black12, blurRadius: 8, offset: Offset(0, 2)),
+          BoxShadow(
+            color: Color(0x1A000000),
+            blurRadius: 20,
+            offset: Offset(0, 4),
+          ),
         ],
+        border: Border.all(color: Colors.grey.shade200),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -416,12 +363,13 @@ class _ManageFundPageState extends State<ManageFundPage> {
           const Text(
             'Overview',
             style: TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.w700,
+              fontSize: 18,
+              fontWeight: FontWeight.w800,
               color: kSubtleText,
+              fontFamily: 'Montserrat',
             ),
           ),
-          const SizedBox(height: 10),
+          const SizedBox(height: 12),
           Row(
             children: [
               _kpi('Collected', _currency(_totalPaid), color: Colors.teal),
@@ -432,6 +380,311 @@ class _ManageFundPageState extends State<ManageFundPage> {
             ],
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _filtersBar() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Search
+        TextField(
+          decoration: InputDecoration(
+            hintText: 'Search...',
+            hintStyle: const TextStyle(fontWeight: FontWeight.w500),
+            prefixIcon: const Icon(Icons.search),
+            filled: true,
+            fillColor: Colors.white,
+            contentPadding: const EdgeInsets.symmetric(
+              vertical: 12,
+              horizontal: 14,
+            ),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(14),
+              borderSide: BorderSide(color: Colors.grey.shade300),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(14),
+              borderSide: const BorderSide(color: Color(0xFF1E40AF)),
+            ),
+          ),
+          onChanged: (v) => setState(() => _search = v.trim()),
+        ),
+        const SizedBox(height: 10),
+        // Status segmented (All | Collecting | Completed)
+        Center(
+          child: Container(
+            padding: const EdgeInsets.all(2),
+            decoration: BoxDecoration(
+              color: const Color(0xFFF3F4F6),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: const Color(0xFFE5E7EB)),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                _segChip('All', 'all'),
+                _segChip('Collecting', 'collecting'),
+                _segChip('Completed', 'completed'),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: 10),
+        // Type segmented (Members | Beneficiaries)
+        Center(
+          child: Container(
+            padding: const EdgeInsets.all(2),
+            decoration: BoxDecoration(
+              color: const Color(0xFFF3F4F6),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: const Color(0xFFE5E7EB)),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                _segChipType('Members', 'members'),
+                _segChipType('Beneficiaries', 'beneficiaries'),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _segChip(String label, String key) {
+    final selected = _statusFilter == key;
+    return GestureDetector(
+      onTap: selected ? null : () => setState(() => _statusFilter = key),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 160),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+        decoration: BoxDecoration(
+          color: selected ? const Color(0xFF1E40AF) : Colors.transparent,
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            fontSize: 12.5,
+            fontWeight: FontWeight.w800,
+            color: selected ? Colors.white : const Color(0xFF1E40AF),
+          ),
+        ),
+      ),
+    );
+  }
+
+  // NEW: Type segmented chip
+  Widget _segChipType(String label, String key) {
+    final selected = _typeFilter == key;
+    return GestureDetector(
+      onTap: selected ? null : () => setState(() => _typeFilter = key),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 160),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+        decoration: BoxDecoration(
+          color: selected ? const Color(0xFF1E40AF) : Colors.transparent,
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            fontSize: 12.5,
+            fontWeight: FontWeight.w800,
+            color: selected ? Colors.white : const Color(0xFF1E40AF),
+          ),
+        ),
+      ),
+    );
+  }
+
+  // NEW: Section builder for grouped lists
+  List<Widget> _typeSection({
+    required String title,
+    required List<Map<String, dynamic>> items,
+  }) {
+    if (items.isEmpty) return [];
+    return [
+      Row(
+        children: [
+          Text(
+            title,
+            style: const TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w900,
+              color: kNeutralText,
+              fontFamily: 'Montserrat',
+            ),
+          ),
+          const SizedBox(width: 8),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            decoration: BoxDecoration(
+              color: const Color(0xFFEFF6FF),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: const Color(0xFFBFDBFE)),
+            ),
+            child: Text(
+              '${items.length}',
+              style: const TextStyle(
+                color: Color(0xFF1E40AF),
+                fontWeight: FontWeight.w800,
+                fontSize: 12,
+              ),
+            ),
+          ),
+        ],
+      ),
+      const SizedBox(height: 8),
+      ...List.generate(
+        items.length,
+        (i) => Padding(
+          padding: const EdgeInsets.symmetric(vertical: 8),
+          child: _fundCard(items[i]),
+        ),
+      ),
+    ];
+  }
+
+  Widget _fundCard(Map<String, dynamic> fund) {
+    final paid = (fund['paid'] as double?) ?? 0.0;
+    final goal = (fund['goal'] as double?) ?? 0.0;
+    final progress = (fund['progress'] as double?)?.clamp(0.0, 1.0) ?? 0.0;
+    final deadline = (fund['deadline'] ?? '').toString();
+    final completed = (fund['status'] ?? '').toString() == 'Completed';
+
+    return InkWell(
+      borderRadius: BorderRadius.circular(20),
+      onTap: () {},
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: kCard,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: Colors.grey.shade200),
+          boxShadow: const [
+            BoxShadow(
+              color: Color(0x14000000),
+              blurRadius: 12,
+              offset: Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _jarIcon(progress: progress),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Title + pill
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          (fund['name'] ?? 'Death Notice').toString(),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontWeight: FontWeight.w900,
+                            fontSize: 18,
+                            color: kNeutralText,
+                            fontFamily: 'Montserrat',
+                          ),
+                        ),
+                      ),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 4,
+                        ),
+                        decoration: BoxDecoration(
+                          color: completed
+                              ? Colors.teal.withOpacity(.12)
+                              : Colors.orange.withOpacity(.12),
+                          border: Border.all(
+                            color: completed ? Colors.teal : Colors.orange,
+                          ),
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: Text(
+                          completed ? 'Completed' : 'Collecting',
+                          style: TextStyle(
+                            color: completed
+                                ? Colors.teal[800]
+                                : Colors.orange[800],
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                  // Amounts
+                  Text(
+                    '₱${paid.toStringAsFixed(2)} / ₱${goal.toStringAsFixed(2)}',
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w800,
+                      fontSize: 16,
+                      color: kNeutralText,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  // Progress
+                  Row(
+                    children: [
+                      Expanded(
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(8),
+                          child: LinearProgressIndicator(
+                            value: progress,
+                            minHeight: 10,
+                            backgroundColor: const Color(0xFFE5E7EB),
+                            valueColor: AlwaysStoppedAnimation(
+                              completed
+                                  ? const Color(0xFF10B981)
+                                  : const Color(0xFF3B82F6),
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Text(
+                        '${(progress * 100).round()}%',
+                        style: const TextStyle(fontWeight: FontWeight.w800),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  // Date of death
+                  Row(
+                    children: [
+                      const Icon(
+                        Icons.event_rounded,
+                        size: 16,
+                        color: kSubtleText,
+                      ),
+                      const SizedBox(width: 6),
+                      Text(
+                        'Date of Death: ${deadline.isEmpty ? '—' : deadline}',
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w600,
+                          fontSize: 13,
+                          color: kSubtleText,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -470,46 +723,6 @@ class _ManageFundPageState extends State<ManageFundPage> {
     );
   }
 
-  Widget _filtersBar() {
-    return Column(
-      children: [
-        // Search
-        TextField(
-          decoration: InputDecoration(
-            hintText: 'Search...',
-            prefixIcon: const Icon(Icons.search),
-            filled: true,
-            fillColor: Colors.white,
-            contentPadding: const EdgeInsets.symmetric(
-              vertical: 12,
-              horizontal: 14,
-            ),
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(14),
-              borderSide: BorderSide(color: Colors.grey.shade300),
-            ),
-            focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(14),
-              borderSide: const BorderSide(color: kPrimary),
-            ),
-          ),
-          onChanged: (v) => setState(() => _search = v.trim()),
-        ),
-        const SizedBox(height: 10),
-        // Status chips only (removed sort menu)
-        Wrap(
-          spacing: 8,
-          runSpacing: 8,
-          children: [
-            _statusChip('All', 'all'),
-            _statusChip('Collecting', 'collecting'),
-            _statusChip('Completed', 'completed'),
-          ],
-        ),
-      ],
-    );
-  }
-
   Widget _statusChip(String label, String key) {
     final selected = _statusFilter == key;
     return ChoiceChip(
@@ -523,171 +736,6 @@ class _ManageFundPageState extends State<ManageFundPage> {
       backgroundColor: Colors.white,
       side: BorderSide(color: selected ? kPrimary : Colors.grey.shade300),
       onSelected: (_) => setState(() => _statusFilter = key),
-    );
-  }
-
-  Widget _fundCard(Map<String, dynamic> fund) {
-    final paid = (fund['paid'] as double?) ?? 0.0;
-    final goal = (fund['goal'] as double?) ?? 0.0;
-    final progress = (fund['progress'] as double?)?.clamp(0.0, 1.0) ?? 0.0;
-    final deadline = (fund['deadline'] ?? '').toString();
-    final completed = (fund['status'] ?? '').toString() == 'Completed';
-    final noticeId = (fund['id'] as int?) ?? 0;
-
-    return InkWell(
-      borderRadius: BorderRadius.circular(16),
-      onTap: () {},
-      child: Container(
-        padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(
-          color: kCard,
-          borderRadius: BorderRadius.circular(16),
-          boxShadow: const [
-            BoxShadow(
-              color: Colors.black12,
-              blurRadius: 8,
-              offset: Offset(0, 2),
-            ),
-          ],
-          border: Border.all(
-            color: completed ? Colors.teal.withOpacity(.3) : Colors.transparent,
-          ),
-        ),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _jarIcon(progress: progress),
-            const SizedBox(width: 14),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Title + status pill
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          (fund['name'] ?? 'Death Notice').toString(),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            fontWeight: FontWeight.w800,
-                            fontSize: 18,
-                            color: kNeutralText,
-                          ),
-                        ),
-                      ),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 10,
-                          vertical: 4,
-                        ),
-                        decoration: BoxDecoration(
-                          color: completed
-                              ? Colors.teal.withOpacity(.12)
-                              : Colors.orange.withOpacity(.12),
-                          border: Border.all(
-                            color: completed ? Colors.teal : Colors.orange,
-                          ),
-                          borderRadius: BorderRadius.circular(20),
-                        ),
-                        child: Text(
-                          completed ? 'Completed' : 'Collecting',
-                          style: TextStyle(
-                            color: completed
-                                ? Colors.teal[800]
-                                : Colors.orange[800],
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-                  // Amounts
-                  Text(
-                    '₱${paid.toStringAsFixed(2)} / ₱${goal.toStringAsFixed(2)}',
-                    style: const TextStyle(
-                      fontWeight: FontWeight.w700,
-                      fontSize: 16,
-                      color: kNeutralText,
-                    ),
-                  ),
-                  const SizedBox(height: 6),
-                  // Progress bar + percent
-                  Row(
-                    children: [
-                      Expanded(
-                        child: ClipRRect(
-                          borderRadius: BorderRadius.circular(8),
-                          child: LinearProgressIndicator(
-                            value: progress,
-                            minHeight: 10,
-                            backgroundColor: Colors.grey.shade200,
-                            valueColor: AlwaysStoppedAnimation(
-                              completed ? Colors.teal : Colors.indigo,
-                            ),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 10),
-                      Text(
-                        '${(progress * 100).round()}%',
-                        style: const TextStyle(fontWeight: FontWeight.w700),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-                  // Date of death
-                  Row(
-                    children: [
-                      const Icon(Icons.event, size: 16, color: kSubtleText),
-                      const SizedBox(width: 6),
-                      Text(
-                        'Date of Death: ${deadline.isEmpty ? '—' : deadline}',
-                        style: const TextStyle(
-                          fontWeight: FontWeight.w600,
-                          fontSize: 13,
-                          color: kSubtleText,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 10),
-                  // ACTIONS: Collect + Status
-                  Row(
-                    children: [
-                      OutlinedButton.icon(
-                        onPressed: noticeId == 0
-                            ? null
-                            : () => _triggerPaymentCollection(
-                                noticeId,
-                                widget.dayungUnitId, // pass second arg
-                              ),
-                        icon: const Icon(Icons.playlist_add_check),
-                        label: const Text('Collect'),
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: kPrimaryDark,
-                          side: const BorderSide(color: kPrimaryDark),
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      TextButton.icon(
-                        onPressed: () => _showPaymentStatusSheet(
-                          noticeId,
-                          widget.dayungUnitId, // pass dayungUnitId
-                        ),
-                        icon: const Icon(Icons.list_alt),
-                        label: const Text('Status'),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
     );
   }
 
