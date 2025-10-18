@@ -387,122 +387,138 @@ class _SecretaryBeneficiariesTabState extends State<SecretaryBeneficiariesTab> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: kBg,
-      body: SafeArea(
-        child: Column(
-          children: [
-            Container(
-              padding: const EdgeInsets.fromLTRB(20, 36, 20, 28),
-              decoration: const BoxDecoration(
-                color: kPrimaryDark,
-                borderRadius: BorderRadius.only(
-                  bottomLeft: Radius.circular(28),
-                  bottomRight: Radius.circular(28),
-                ),
-                boxShadow: [
-                  BoxShadow(
-                    color: Color(0xFF1E40AF),
-                    blurRadius: 18,
-                    offset: Offset(0, 8),
-                  ),
-                ],
-              ),
-              child: Row(
-                children: [
-                  IconButton(
-                    icon: const Icon(
-                      Icons.arrow_back_rounded,
-                      color: Colors.white,
-                      size: 26,
-                    ),
-                    onPressed: () => Navigator.pop(context),
-                  ),
-                  const SizedBox(width: 4),
-                  const Icon(
-                    Icons.family_restroom_rounded,
-                    color: Colors.white,
-                    size: 28,
-                  ),
-                  const SizedBox(width: 16),
-                  const Expanded(
-                    child: Text(
-                      'Beneficiaries',
-                      style: TextStyle(
-                        fontSize: 22,
-                        fontWeight: FontWeight.w800,
-                        color: Colors.white,
-                        fontFamily: 'Montserrat',
-                        letterSpacing: 0.3,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            // Navigation Bar
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  _NavTab(
-                    label: 'Active',
-                    icon: Icons.schedule_rounded,
-                    selected: _selectedTab == 0,
-                    onTap: () => setState(() => _selectedTab = 0),
-                  ),
-                  const SizedBox(width: 40),
-                  _NavTab(
-                    label: 'Pending',
-                    icon: Icons.check_circle_rounded,
-                    selected: _selectedTab == 1,
-                    onTap: () => setState(() => _selectedTab = 1),
-                  ),
-                ],
-              ),
-            ),
-            // Search Bar (placeholder)
-            Container(
-              padding: const EdgeInsets.fromLTRB(20, 20, 20, 16),
-              child: Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 12,
+      body: LayoutBuilder(
+        builder: (context, constraints) {
+          final isWide = constraints.maxWidth > 700;
+          final horizontalPadding = isWide ? constraints.maxWidth * 0.15 : 20.0;
+          final headerFontSize = isWide ? 28.0 : 20.0;
+
+          return Column(
+            children: [
+              // Modern Header
+              Container(
+                padding: EdgeInsets.fromLTRB(
+                  horizontalPadding,
+                  isWide ? 60 : 32,
+                  horizontalPadding,
+                  isWide ? 48 : 32,
                 ),
                 decoration: BoxDecoration(
-                  color: Colors.grey[100],
-                  borderRadius: BorderRadius.circular(12),
+                  color: kPrimaryDark,
+                  borderRadius: const BorderRadius.only(
+                    bottomLeft: Radius.circular(24),
+                    bottomRight: Radius.circular(24),
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: kPrimaryDark.withOpacity(0.3),
+                      blurRadius: 20,
+                      offset: const Offset(0, 8),
+                    ),
+                  ],
                 ),
                 child: Row(
-                  children: const [
-                    Icon(Icons.search_rounded, color: Colors.grey, size: 20),
-                    SizedBox(width: 12),
+                  children: [
+                    IconButton(
+                      icon: const Icon(
+                        Icons.chevron_left_rounded,
+                        color: Colors.white,
+                        size: 28,
+                      ),
+                      onPressed: () => Navigator.pop(context),
+                    ),
+                    const Icon(
+                      Icons.family_restroom_rounded,
+                      color: Colors.white,
+                      size: 28,
+                    ),
+                    const SizedBox(width: 16),
                     Expanded(
                       child: Text(
-                        'Find beneficiary',
+                        'Beneficiaries',
                         style: TextStyle(
-                          color: Colors.grey,
-                          fontSize: 14,
-                          fontFamily: 'OpenSans',
+                          fontSize: headerFontSize,
+                          fontWeight: FontWeight.w800,
+                          color: Colors.white,
+                          fontFamily: 'Montserrat',
+                          letterSpacing: 0.3,
                         ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                       ),
                     ),
                   ],
                 ),
               ),
-            ),
-            // Content (wired to backend data)
-            Expanded(
-              child: RefreshIndicator(
-                onRefresh: _fetchBeneficiaries,
-                child: _loading
-                    ? const Center(child: CircularProgressIndicator())
-                    : (_selectedTab == 0
-                          ? _groupedList(_activeByUser, isPending: true)
-                          : _groupedList(_pendingByUser, isPending: false)),
+              // Navigation Bar
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 20,
+                  vertical: 16,
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    _NavTab(
+                      label: 'Active',
+                      icon: Icons.schedule_rounded,
+                      selected: _selectedTab == 0,
+                      onTap: () => setState(() => _selectedTab = 0),
+                    ),
+                    const SizedBox(width: 40),
+                    _NavTab(
+                      label: 'Pending',
+                      icon: Icons.check_circle_rounded,
+                      selected: _selectedTab == 1,
+                      onTap: () => setState(() => _selectedTab = 1),
+                    ),
+                  ],
+                ),
               ),
-            ),
-          ],
-        ),
+              // Search Bar (placeholder)
+              Container(
+                padding: const EdgeInsets.fromLTRB(20, 20, 20, 16),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 12,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.grey[100],
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Row(
+                    children: const [
+                      Icon(Icons.search_rounded, color: Colors.grey, size: 20),
+                      SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          'Find beneficiary',
+                          style: TextStyle(
+                            color: Colors.grey,
+                            fontSize: 14,
+                            fontFamily: 'OpenSans',
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              // Content (wired to backend data)
+              Expanded(
+                child: RefreshIndicator(
+                  onRefresh: _fetchBeneficiaries,
+                  child: _loading
+                      ? const Center(child: CircularProgressIndicator())
+                      : (_selectedTab == 0
+                            ? _groupedList(_activeByUser, isPending: true)
+                            : _groupedList(_pendingByUser, isPending: false)),
+                ),
+              ),
+            ],
+          );
+        },
       ),
     );
   }

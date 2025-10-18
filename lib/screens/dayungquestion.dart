@@ -1,4 +1,5 @@
 import 'package:capstone_app/Members/dashboard.dart';
+import 'package:capstone_app/screens/dayung_suggestions.dart';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -23,97 +24,103 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
   String? paymentMethod;
   String? openForAll;
   String? fundSupportRange;
-  String? location;
 
   List<dynamic> suggestedUnits = [];
 
   bool isLoading = false;
   bool isSubmitting = false;
 
+  // Normalize helpers
+  String _digits(String? s) => (s ?? '').replaceAll(RegExp(r'[^\d]'), '');
+  String _trimLower(String? s) => (s ?? '').trim().toLowerCase();
+
   Future<void> applyToDayungUnit(String userId, int dayungUnitId) async {
-  await Supabase.instance.client.from('applications').insert({
-    'user_id': userId,
-    'dayung_unit_id': dayungUnitId,
-    'status': 'pending',
-  });
-}
-
-  Future<List<double>> _embedText(String text) async {
-    final fn = Supabase.instance.client.functions;
-    final res = await fn.invoke('embed', body: {'input': text});
-    final data = res.data as Map<String, dynamic>;
-    final emb = (data['embedding'] as List).map((e) => (e as num).toDouble()).toList();
-    return emb;
-  }
-
-  List<String> _deriveTags() {
-    final tags = <String>[];
-    if (feeRange != null) tags.add(feeRange!);
-    if (paymentMethod != null) tags.add(paymentMethod!);
-    if (fundSupportRange != null) tags.add(fundSupportRange!);
-    if (location != null) tags.add(location!);
-    if (openForAll != null) tags.add(openForAll!);
-    return tags;
-  }
-
-  String _preferenceSummary() {
-    return [
-      if (feeRange != null) 'Fee: $feeRange',
-      if (paymentMethod != null) 'Payment: $paymentMethod',
-      if (openForAll != null) 'OpenForAll: $openForAll',
-      if (fundSupportRange != null) 'FundSupport: $fundSupportRange',
-      if (location != null) 'Location: $location',
-    ].join(', ');
+    await Supabase.instance.client.from('applications').insert({
+      'user_id': userId,
+      'dayung_unit_id': dayungUnitId,
+      'status': 'pending',
+    });
   }
 
   Future<void> _fetchSuggestions() async {
-    if (!_formKey.currentState!.validate()) return;
-
     setState(() => isLoading = true);
     try {
-      final summary = _preferenceSummary().isEmpty
-          ? 'Find the best Dayung unit for me'
-          : _preferenceSummary();
-      final embedding = await _embedText(summary);
-      final tags = _deriveTags();
+      var qb = Supabase.instance.client.from('dayung_units').select();
 
-      final rpc = await Supabase.instance.client.rpc('dayung_search', params: {
-        'query_embedding': embedding,
-        'in_tags': tags.isEmpty ? null : tags,
-        'in_fee_range': feeRange,
-        'in_payment_method': paymentMethod,
-        'in_open_for_all': openForAll == null ? null : (openForAll == 'Yes'),
-        'in_fund_support_range': fundSupportRange,
-        'in_location': location == null ? null : '%$location%',
-        'in_limit': 20,
-      });
-
-      setState(() {
-        suggestedUnits = rpc as List<dynamic>;
-      });
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error fetching suggestions: $e')),
+      // Debug: show chosen filters
+      // ignore: avoid_print
+      print(
+        'Filters -> fee:$feeRange, pay:$paymentMethod, open:$openForAll, fund:$fundSupportRange',
       );
+
+      // Make filters tolerant:
+      // - For fee/fund, match by digits (so "100" matches "₱100", "₱0 - ₱100")
+      // - For text, use ilike with wildcards
+      final feeDigits = _digits(feeRange);
+      if (feeRange != null && feeRange != 'Any' && feeDigits.isNotEmpty) {
+        qb = qb.ilike('fee_range', '%$feeDigits%');
+      }
+
+      if (paymentMethod != null && paymentMethod != 'Any') {
+        qb = qb.ilike('payment_method', '%${_trimLower(paymentMethod)}%');
+      }
+
+      if (openForAll != null) {
+        qb = qb.eq('open_for_all', openForAll == 'Yes');
+      }
+
+      final fundDigits = _digits(fundSupportRange);
+      if (fundSupportRange != null &&
+          fundSupportRange != 'Any' &&
+          fundDigits.isNotEmpty) {
+        qb = qb.ilike('fund_support_range', '%$fundDigits%');
+      }
+
+      final rows = await qb.limit(20);
+
+      // Debug
+      // ignore: avoid_print
+      print('Suggestions found: ${rows.length}');
+      setState(() {
+        suggestedUnits = rows as List<dynamic>;
+      });
+
+      // Optional: fallback to show all if nothing matched (helps debug)
+      if (suggestedUnits.isEmpty) {
+        final all = await Supabase.instance.client
+            .from('dayung_units')
+            .select()
+            .limit(10);
+        // ignore: avoid_print
+        print('All units sample (no filters matched): ${all.length}');
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Error fetching suggestions: $e')));
     } finally {
       setState(() => isLoading = false);
     }
+  }
+
+  Future<void> _savePreferences({String? selectedUnitId}) async {
+    await Supabase.instance.client.from('user_preferences').insert({
+      'user_id': widget.userId,
+      'fee_range': feeRange,
+      'payment_method': paymentMethod,
+      'open_for_all': openForAll == 'Yes',
+      'fund_support_range': fundSupportRange,
+      // Removed: 'location': location,
+      'selected_unit_id': selectedUnitId,
+    });
   }
 
   Future<void> _completeRegistration({String? selectedUnitId}) async {
     setState(() => isSubmitting = true);
 
     try {
-      // Save preferences (optional)
-      // await Supabase.instance.client.from('user_preferences').insert({
-      //   'user_id': widget.userId,
-      //   'fee_range': feeRange,
-      //   'payment_method': paymentMethod,
-      //   'open_for_all': openForAll == 'Yes',
-      //   'fund_support_range': fundSupportRange,
-      //   'location': location,
-      //   'selected_unit_id': selectedUnitId,
-      // });
+      // Save preferences
+      await _savePreferences(selectedUnitId: selectedUnitId);
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -153,18 +160,36 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
                   child: Column(
                     children: [
                       _buildDropdown(
-  label: 'Registration Fee Range',
-  value: feeRange,
-  items: ['Free', '₱1 - ₱100', '₱101 - ₱500', '₱501+'],
-  onChanged: (val) {
-    setState(() => feeRange = val);
-    _fetchSuggestions();
-  },
-),
+                        label: 'Registration Fee Range',
+                        value: feeRange,
+                        // Ensure options are consistent; include "Any"
+                        items: [
+                          'Any',
+                          'Free',
+                          '₱1 - ₱100',
+                          '₱101 - ₱500',
+                          '₱501+',
+                          '₱100',
+                          '₱500',
+                          '₱1000',
+                        ],
+                        onChanged: (val) {
+                          setState(() => feeRange = val);
+                          _fetchSuggestions();
+                        },
+                      ),
                       _buildDropdown(
                         label: 'Preferred Payment Method',
                         value: paymentMethod,
-                        items: ['GCash', 'Bank Transfer', 'Cash', 'Any'],
+                        items: [
+                          'Any',
+                          'GCash',
+                          'Bank Transfer',
+                          'Cash',
+                          'gcash',
+                          'bank',
+                          'cash',
+                        ],
                         onChanged: (val) {
                           setState(() => paymentMethod = val);
                           _fetchSuggestions();
@@ -182,29 +207,28 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
                       _buildDropdown(
                         label: 'Fund Support Range',
                         value: fundSupportRange,
-                        items: ['₱0 - ₱500', '₱501 - ₱1000', '₱1001+'],
+                        items: [
+                          'Any',
+                          '₱0 - ₱500',
+                          '₱501 - ₱1000',
+                          '₱1001+',
+                          '₱500',
+                          '₱1000',
+                          '₱1500',
+                        ],
                         onChanged: (val) {
                           setState(() => fundSupportRange = val);
                           _fetchSuggestions();
                         },
                       ),
-                      _buildDropdown(
-                        label: 'Preferred Location',
-                        value: location,
-                        items: ['Cebu', 'Davao', 'Manila', 'Anywhere'],
-                        onChanged: (val) {
-                          setState(() => location = val);
-                          _fetchSuggestions();
-                        },
-                      ),
+
                       const SizedBox(height: 16),
                       ElevatedButton(
                         onPressed: () {
                           if (feeRange == null &&
                               paymentMethod == null &&
                               openForAll == null &&
-                              fundSupportRange == null &&
-                              location == null) {
+                              fundSupportRange == null) {
                             ScaffoldMessenger.of(context).showSnackBar(
                               const SnackBar(
                                 content: Text(
@@ -236,7 +260,21 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
                               return Card(
                                 child: ListTile(
                                   title: Text(unit['name'] ?? 'Unnamed Unit'),
-                                  subtitle: Text(unit['location'] ?? ''),
+                                  subtitle: Text(
+                                    [
+                                          if (unit['barangay'] != null)
+                                            unit['barangay'],
+                                          if (unit['city'] != null)
+                                            unit['city'],
+                                          if (unit['province'] != null)
+                                            unit['province'],
+                                        ]
+                                        .where(
+                                          (e) =>
+                                              (e ?? '').toString().isNotEmpty,
+                                        )
+                                        .join(', '),
+                                  ),
                                   trailing: ElevatedButton(
                                     onPressed: () => _completeRegistration(
                                       selectedUnitId: unit['id'],
@@ -252,8 +290,7 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
                       else if (feeRange != null ||
                           paymentMethod != null ||
                           openForAll != null ||
-                          fundSupportRange != null ||
-                          location != null)
+                          fundSupportRange != null)
                         Padding(
                           padding: const EdgeInsets.only(top: 16),
                           child: const Text(
@@ -266,7 +303,14 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
 
                       Center(
                         child: TextButton(
-                          onPressed: () => _completeRegistration(),
+                          onPressed: () async {
+                            await _savePreferences();
+                            Navigator.of(context).pushReplacement(
+                              MaterialPageRoute(
+                                builder: (_) => const DayungSuggestionsPage(),
+                              ),
+                            );
+                          },
                           child: const Text('Skip & Continue'),
                         ),
                       ),
@@ -296,7 +340,8 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
             .map((item) => DropdownMenuItem(value: item, child: Text(item)))
             .toList(),
         onChanged: onChanged,
-        validator: (val) => val == null ? 'This field is required' : null,
+        // Preferences are optional
+        validator: (_) => null,
       ),
     );
   }

@@ -1,11 +1,13 @@
 import 'dart:typed_data';
+import 'package:capstone_app/Providers/membership_qualification_provider.dart';
 import 'package:pdfx/pdfx.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:provider/provider.dart';
+import 'package:provider/provider.dart' as provider;
 import 'package:capstone_app/Providers/dayung_provider.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 const kText = Color(0xFF111827);
 const kSubText = Color(0xFF6B7280);
@@ -432,6 +434,7 @@ class _SecretaryApplicationsPageState extends State<SecretaryApplicationsPage> {
                             fontSize: 16,
                           ),
                         ),
+
                         const SizedBox(height: 6),
                         if (name.isNotEmpty) Text('Name: $name'),
                         if (type.isNotEmpty) Text('Type: $type'),
@@ -628,356 +631,409 @@ class _SecretaryApplicationsPageState extends State<SecretaryApplicationsPage> {
         context.watch<DayungUnitProvider>().dayungUnit ?? 'Dayung';
     return Scaffold(
       backgroundColor: kCardBg,
-      body: SafeArea(
-        child: Column(
-          children: [
-            // Modern App Bar
-            Container(
-              padding: const EdgeInsets.fromLTRB(8, 36, 20, 28),
-              decoration: const BoxDecoration(
-                color: kPrimaryDark,
-                borderRadius: BorderRadius.only(
-                  bottomLeft: Radius.circular(28),
-                  bottomRight: Radius.circular(28),
+      body: LayoutBuilder(
+        builder: (context, constraints) {
+          final isWide = constraints.maxWidth > 700;
+          final horizontalPadding = isWide ? constraints.maxWidth * 0.15 : 20.0;
+          final headerFontSize = isWide ? 28.0 : 20.0;
+
+          return Column(
+            children: [
+              // Modern Header
+              Container(
+                padding: EdgeInsets.fromLTRB(
+                  horizontalPadding,
+                  isWide ? 60 : 32,
+                  horizontalPadding,
+                  isWide ? 48 : 32,
                 ),
-                boxShadow: [
-                  BoxShadow(
-                    color: Color(0xFF1E40AF),
-                    blurRadius: 18,
-                    offset: Offset(0, 8),
+                decoration: BoxDecoration(
+                  color: kPrimaryDark,
+                  borderRadius: const BorderRadius.only(
+                    bottomLeft: Radius.circular(24),
+                    bottomRight: Radius.circular(24),
                   ),
-                ],
-              ),
-              child: Row(
-                children: [
-                  IconButton(
-                    icon: const Icon(
-                      Icons.arrow_back_rounded,
-                      color: Colors.white,
-                      size: 26,
+                  boxShadow: [
+                    BoxShadow(
+                      color: kPrimaryDark.withOpacity(0.3),
+                      blurRadius: 20,
+                      offset: const Offset(0, 8),
                     ),
-                    onPressed: () => Navigator.pop(context),
-                  ),
-                  const SizedBox(width: 4),
-                  const Icon(
-                    Icons.assignment_rounded,
-                    color: Colors.white,
-                    size: 28,
-                  ),
-                  const SizedBox(width: 16),
-                  const Expanded(
-                    child: Text(
-                      'Applications',
-                      style: TextStyle(
-                        fontSize: 22,
-                        fontWeight: FontWeight.w800,
+                  ],
+                ),
+                child: Row(
+                  children: [
+                    IconButton(
+                      icon: const Icon(
+                        Icons.chevron_left_rounded,
                         color: Colors.white,
-                        fontFamily: 'Montserrat',
-                        letterSpacing: 0.3,
+                        size: 28,
+                      ),
+                      onPressed: () => Navigator.pop(context),
+                    ),
+                    const Icon(
+                      Icons.assignment_rounded,
+                      color: Colors.white,
+                      size: 28,
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: Text(
+                        'Applications',
+                        style: TextStyle(
+                          fontSize: headerFontSize,
+                          fontWeight: FontWeight.w800,
+                          color: Colors.white,
+                          fontFamily: 'Montserrat',
+                          letterSpacing: 0.3,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                       ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
-            ),
-            // Navigation Tabs
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-              child: Row(
-                children: [
-                  const Icon(
-                    Icons.filter_list_rounded,
-                    color: kSubText,
-                    size: 16,
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                      children: [
-                        _NavTab(
-                          label: 'Pending',
-                          icon: Icons.schedule_rounded,
-                          selected: _filter == 'pending',
-                          onTap: () {
-                            setState(() => _filter = 'pending');
-                            _fetchApplications(forUnitId: _currentUnitId);
-                          },
-                        ),
-                        _NavTab(
-                          label: 'Approved',
-                          icon: Icons.check_circle_rounded,
-                          selected: _filter == 'approved',
-                          onTap: () {
-                            setState(() => _filter = 'approved');
-                            _fetchApplications(forUnitId: _currentUnitId);
-                          },
-                        ),
-                        _NavTab(
-                          label: 'Rejected',
-                          icon: Icons.cancel_rounded,
-                          selected: _filter == 'rejected',
-                          onTap: () {
-                            setState(() => _filter = 'rejected');
-                            _fetchApplications(forUnitId: _currentUnitId);
-                          },
-                        ),
-                      ],
+              // Navigation Tabs
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 20,
+                  vertical: 16,
+                ),
+                child: Row(
+                  children: [
+                    const Icon(
+                      Icons.filter_list_rounded,
+                      color: kSubText,
+                      size: 16,
                     ),
-                  ),
-                ],
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                        children: [
+                          _NavTab(
+                            label: 'Pending',
+                            icon: Icons.schedule_rounded,
+                            selected: _filter == 'pending',
+                            onTap: () {
+                              setState(() => _filter = 'pending');
+                              _fetchApplications(forUnitId: _currentUnitId);
+                            },
+                          ),
+                          _NavTab(
+                            label: 'Approved',
+                            icon: Icons.check_circle_rounded,
+                            selected: _filter == 'approved',
+                            onTap: () {
+                              setState(() => _filter = 'approved');
+                              _fetchApplications(forUnitId: _currentUnitId);
+                            },
+                          ),
+                          _NavTab(
+                            label: 'Rejected',
+                            icon: Icons.cancel_rounded,
+                            selected: _filter == 'rejected',
+                            onTap: () {
+                              setState(() => _filter = 'rejected');
+                              _fetchApplications(forUnitId: _currentUnitId);
+                            },
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
               ),
-            ),
-            // Content
-            Expanded(
-              child: RefreshIndicator(
-                onRefresh: () => _fetchApplications(forUnitId: _currentUnitId),
-                color: kPrimary,
-                child: _loading
-                    ? Center(
-                        child: Container(
-                          padding: const EdgeInsets.all(24),
-                          decoration: BoxDecoration(
-                            color: kCardBg,
-                            borderRadius: BorderRadius.circular(20),
-                            border: Border.all(
-                              color: kBorderColor.withOpacity(0.3),
-                              width: 1,
+              // Content
+              Expanded(
+                child: RefreshIndicator(
+                  onRefresh: () =>
+                      _fetchApplications(forUnitId: _currentUnitId),
+                  color: kPrimary,
+                  child: _loading
+                      ? Center(
+                          child: Container(
+                            padding: const EdgeInsets.all(24),
+                            decoration: BoxDecoration(
+                              color: kCardBg,
+                              borderRadius: BorderRadius.circular(20),
+                              border: Border.all(
+                                color: kBorderColor.withOpacity(0.3),
+                                width: 1,
+                              ),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withOpacity(0.05),
+                                  blurRadius: 15,
+                                  offset: const Offset(0, 6),
+                                ),
+                              ],
                             ),
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.black.withOpacity(0.05),
-                                blurRadius: 15,
-                                offset: const Offset(0, 6),
-                              ),
-                            ],
-                          ),
-                          child: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              CircularProgressIndicator(
-                                color: kPrimary,
-                                strokeWidth: 3,
-                              ),
-                              const SizedBox(height: 16),
-                              const Text(
-                                'Loading applications...',
-                                style: TextStyle(
-                                  color: kSubText,
-                                  fontSize: 16,
-                                  fontFamily: 'OpenSans',
-                                  fontWeight: FontWeight.w600,
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                CircularProgressIndicator(
+                                  color: kPrimary,
+                                  strokeWidth: 3,
                                 ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      )
-                    : _apps.isEmpty
-                    ? Center(
-                        child: Container(
-                          margin: const EdgeInsets.all(20),
-                          padding: const EdgeInsets.all(24),
-                          decoration: BoxDecoration(
-                            color: kCardBg,
-                            borderRadius: BorderRadius.circular(20),
-                            border: Border.all(
-                              color: kBorderColor.withOpacity(0.3),
-                              width: 1,
-                            ),
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.black.withOpacity(0.05),
-                                blurRadius: 15,
-                                offset: const Offset(0, 6),
-                              ),
-                            ],
-                          ),
-                          child: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(
-                                Icons.inbox_rounded,
-                                size: 48,
-                                color: kSubText,
-                              ),
-                              const SizedBox(height: 16),
-                              const Text(
-                                'No applications found',
-                                style: TextStyle(
-                                  fontSize: 18,
-                                  fontWeight: FontWeight.w700,
-                                  color: kText,
-                                  fontFamily: 'Montserrat',
-                                ),
-                              ),
-                              const SizedBox(height: 8),
-                              const Text(
-                                'No applications match the selected filter',
-                                style: TextStyle(
-                                  fontSize: 14,
-                                  color: kSubText,
-                                  fontFamily: 'OpenSans',
-                                ),
-                                textAlign: TextAlign.center,
-                              ),
-                            ],
-                          ),
-                        ),
-                      )
-                    : Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 20),
-                        child: ListView.separated(
-                          physics: const AlwaysScrollableScrollPhysics(),
-                          itemCount: _apps.length,
-                          separatorBuilder: (_, __) =>
-                              const SizedBox(height: 12),
-                          itemBuilder: (context, i) {
-                            final app = _apps[i];
-                            final user = app['users'] as Map<String, dynamic>?;
-                            final status = (app['status'] ?? '').toString();
-                            final appliedAt = DateTime.tryParse(
-                              app['applied_at']?.toString() ?? '',
-                            );
-                            final userIdStr = (app['user_id'] ?? '').toString();
-                            final deceasedElsewhere = _deceasedUserIds.contains(
-                              userIdStr,
-                            );
-
-                            return Container(
-                              padding: const EdgeInsets.all(16),
-                              decoration: BoxDecoration(
-                                color: kCardBg,
-                                borderRadius: BorderRadius.circular(16),
-                                border: Border.all(
-                                  color: kBorderColor.withOpacity(0.3),
-                                  width: 1,
-                                ),
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: Colors.black.withOpacity(0.05),
-                                    blurRadius: 10,
-                                    offset: const Offset(0, 4),
+                                const SizedBox(height: 16),
+                                const Text(
+                                  'Loading applications...',
+                                  style: TextStyle(
+                                    color: kSubText,
+                                    fontSize: 16,
+                                    fontFamily: 'OpenSans',
+                                    fontWeight: FontWeight.w600,
                                   ),
-                                ],
+                                ),
+                              ],
+                            ),
+                          ),
+                        )
+                      : _apps.isEmpty
+                      ? Center(
+                          child: Container(
+                            margin: const EdgeInsets.all(20),
+                            padding: const EdgeInsets.all(24),
+                            decoration: BoxDecoration(
+                              color: kCardBg,
+                              borderRadius: BorderRadius.circular(20),
+                              border: Border.all(
+                                color: kBorderColor.withOpacity(0.3),
+                                width: 1,
                               ),
-                              child: Row(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Container(
-                                    padding: const EdgeInsets.all(12),
-                                    decoration: BoxDecoration(
-                                      color: kPrimary.withOpacity(0.1),
-                                      borderRadius: BorderRadius.circular(12),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withOpacity(0.05),
+                                  blurRadius: 15,
+                                  offset: const Offset(0, 6),
+                                ),
+                              ],
+                            ),
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  Icons.inbox_rounded,
+                                  size: 48,
+                                  color: kSubText,
+                                ),
+                                const SizedBox(height: 16),
+                                const Text(
+                                  'No applications found',
+                                  style: TextStyle(
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.w700,
+                                    color: kText,
+                                    fontFamily: 'Montserrat',
+                                  ),
+                                ),
+                                const SizedBox(height: 8),
+                                const Text(
+                                  'No applications match the selected filter',
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    color: kSubText,
+                                    fontFamily: 'OpenSans',
+                                  ),
+                                  textAlign: TextAlign.center,
+                                ),
+                              ],
+                            ),
+                          ),
+                        )
+                      : Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 20),
+                          child: ListView.separated(
+                            physics: const AlwaysScrollableScrollPhysics(),
+                            itemCount: _apps.length,
+                            separatorBuilder: (_, __) =>
+                                const SizedBox(height: 12),
+                            itemBuilder: (context, i) {
+                              final app = _apps[i];
+                              final user =
+                                  app['users'] as Map<String, dynamic>?;
+                              final status = (app['status'] ?? '').toString();
+                              final appliedAt = DateTime.tryParse(
+                                app['applied_at']?.toString() ?? '',
+                              );
+                              final userIdStr = (app['user_id'] ?? '')
+                                  .toString();
+                              final deceasedElsewhere = _deceasedUserIds
+                                  .contains(userIdStr);
+
+                              return Container(
+                                padding: const EdgeInsets.all(16),
+                                decoration: BoxDecoration(
+                                  color: kCardBg,
+                                  borderRadius: BorderRadius.circular(16),
+                                  border: Border.all(
+                                    color: kBorderColor.withOpacity(0.3),
+                                    width: 1,
+                                  ),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: Colors.black.withOpacity(0.05),
+                                      blurRadius: 10,
+                                      offset: const Offset(0, 4),
                                     ),
-                                    child: Text(
-                                      (user?['full_name'] ?? 'M')[0]
-                                          .toString()
-                                          .toUpperCase(),
-                                      style: const TextStyle(
-                                        color: kPrimary,
-                                        fontWeight: FontWeight.w700,
-                                        fontSize: 16,
-                                        fontFamily: 'Montserrat',
+                                  ],
+                                ),
+                                child: Row(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Container(
+                                      padding: const EdgeInsets.all(12),
+                                      decoration: BoxDecoration(
+                                        color: kPrimary.withOpacity(0.1),
+                                        borderRadius: BorderRadius.circular(12),
+                                      ),
+                                      child: Text(
+                                        (user?['full_name'] ?? 'M')[0]
+                                            .toString()
+                                            .toUpperCase(),
+                                        style: const TextStyle(
+                                          color: kPrimary,
+                                          fontWeight: FontWeight.w700,
+                                          fontSize: 16,
+                                          fontFamily: 'Montserrat',
+                                        ),
                                       ),
                                     ),
-                                  ),
-                                  const SizedBox(width: 16),
-                                  Expanded(
-                                    child: Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
-                                      children: [
-                                        Text(
-                                          user?['full_name'] ?? 'Member',
-                                          style: const TextStyle(
-                                            fontWeight: FontWeight.w700,
-                                            fontSize: 16,
-                                            color: kText,
-                                            fontFamily: 'Montserrat',
-                                          ),
-                                        ),
-                                        const SizedBox(height: 4),
-                                        Text(
-                                          dayungName,
-                                          style: const TextStyle(
-                                            fontSize: 14,
-                                            color: kSubText,
-                                            fontFamily: 'OpenSans',
-                                            fontWeight: FontWeight.w500,
-                                          ),
-                                        ),
-                                        if (appliedAt != null)
+                                    const SizedBox(width: 16),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
                                           Text(
-                                            'Applied: ${appliedAt.toLocal().toString().split(' ')[0]}',
+                                            user?['full_name'] ?? 'Member',
                                             style: const TextStyle(
-                                              fontSize: 12,
+                                              fontWeight: FontWeight.w700,
+                                              fontSize: 16,
+                                              color: kText,
+                                              fontFamily: 'Montserrat',
+                                            ),
+                                          ),
+                                          const SizedBox(height: 4),
+                                          Text(
+                                            dayungName,
+                                            style: const TextStyle(
+                                              fontSize: 14,
                                               color: kSubText,
                                               fontFamily: 'OpenSans',
+                                              fontWeight: FontWeight.w500,
                                             ),
                                           ),
-                                        if (deceasedElsewhere)
-                                          Padding(
-                                            padding: const EdgeInsets.only(
-                                              top: 4,
+                                          if (appliedAt != null)
+                                            Text(
+                                              'Applied: ${appliedAt.toLocal().toString().split(' ')[0]}',
+                                              style: const TextStyle(
+                                                fontSize: 12,
+                                                color: kSubText,
+                                                fontFamily: 'OpenSans',
+                                              ),
                                             ),
-                                            child: Row(
-                                              children: const [
-                                                Icon(
-                                                  Icons.warning_amber_rounded,
-                                                  size: 16,
-                                                  color: Colors.red,
+                                          Consumer(
+                                            builder: (context, ref, _) {
+                                              final userId = app['user_id']
+                                                  .toString();
+                                              final unitId =
+                                                  app['dayung_unit_id'] as int;
+                                              final qualification = ref.watch(
+                                                membershipQualificationProvider(
+                                                  {
+                                                    'userId': userId,
+                                                    'unitId': unitId,
+                                                  },
                                                 ),
-                                                SizedBox(width: 6),
-                                                Expanded(
-                                                  child: Text(
-                                                    'This user is marked as deceased in other dayung.',
-                                                    style: TextStyle(
-                                                      color: Colors.red,
-                                                      fontWeight:
-                                                          FontWeight.w600,
+                                              );
+                                              return qualification.when(
+                                                data: (isQualified) =>
+                                                    isQualified
+                                                    ? const Text(
+                                                        'Qualified for membership',
+                                                        style: TextStyle(
+                                                          color: Colors.green,
+                                                        ),
+                                                      )
+                                                    : const Text(
+                                                        'Not qualified',
+                                                        style: TextStyle(
+                                                          color: Colors.red,
+                                                        ),
+                                                      ),
+                                                loading: () =>
+                                                    const CircularProgressIndicator(),
+                                                error: (e, _) =>
+                                                    Text('Error: $e'),
+                                              );
+                                            },
+                                          ),
+                                          if (deceasedElsewhere)
+                                            Padding(
+                                              padding: const EdgeInsets.only(
+                                                top: 4,
+                                              ),
+                                              child: Row(
+                                                children: [
+                                                  const Icon(
+                                                    Icons.warning_amber_rounded,
+                                                    size: 16,
+                                                    color: Colors.red,
+                                                  ),
+                                                  const SizedBox(width: 6),
+                                                  const Expanded(
+                                                    child: Text(
+                                                      'This user is marked as deceased in other dayung.',
+                                                      style: TextStyle(
+                                                        color: Colors.red,
+                                                        fontWeight:
+                                                            FontWeight.w600,
+                                                      ),
                                                     ),
                                                   ),
+                                                ],
+                                              ),
+                                            ),
+                                          if (deceasedElsewhere)
+                                            Padding(
+                                              padding: const EdgeInsets.only(
+                                                top: 8,
+                                              ),
+                                              child: OutlinedButton.icon(
+                                                icon: const Icon(
+                                                  Icons.info_outline,
                                                 ),
-                                              ],
-                                            ),
-                                          ),
-                                        if (deceasedElsewhere)
-                                          Padding(
-                                            padding: const EdgeInsets.only(
-                                              top: 8,
-                                            ),
-                                            child: OutlinedButton.icon(
-                                              icon: const Icon(
-                                                Icons.info_outline,
+                                                label: const Text(
+                                                  'View deceased details',
+                                                ),
+                                                onPressed: () =>
+                                                    _openDeceasedDetails(
+                                                      userIdStr,
+                                                    ),
                                               ),
-                                              label: const Text(
-                                                'View deceased details',
-                                              ),
-                                              onPressed: () =>
-                                                  _openDeceasedDetails(
-                                                    userIdStr,
-                                                  ),
                                             ),
-                                          ),
-                                      ],
+                                        ],
+                                      ),
                                     ),
-                                  ),
-                                  _buildActions(
-                                    status,
-                                    app['id'] as int,
-                                    deceasedElsewhere,
-                                  ),
-                                ],
-                              ),
-                            );
-                          },
+                                    _buildActions(
+                                      status,
+                                      app['id'] as int,
+                                      deceasedElsewhere,
+                                    ),
+                                  ],
+                                ),
+                              );
+                            },
+                          ),
                         ),
-                      ),
+                ),
               ),
-            ),
-          ],
-        ),
+            ],
+          );
+        },
       ),
     );
   }
