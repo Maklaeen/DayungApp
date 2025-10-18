@@ -1,5 +1,5 @@
 import 'package:auto_size_text/auto_size_text.dart';
-import 'package:capstone_app/screens/dayungquestion.dart';
+import 'package:capstone_app/screens/dayungquestion.dart' hide kPrimary, kBg, kAccent;
 import 'package:capstone_app/ui/theme/branding.dart';
 import 'package:flutter/material.dart';
 import 'package:capstone_app/Auth/login.dart';

@@ -1,5 +1,5 @@
 import 'dart:async';
-import 'package:capstone_app/screens/dayung_suggestions.dart';
+import 'package:capstone_app/screens/dayung_suggestions.dart' hide kPrimary;
 import 'package:flutter/material.dart';
 import 'package:capstone_app/pages/deathnoticedetail.dart';
 import 'package:capstone_app/ui/theme/branding.dart';

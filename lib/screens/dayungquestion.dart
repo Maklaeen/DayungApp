@@ -1,7 +1,18 @@
 import 'package:capstone_app/Members/dashboard.dart';
+import 'package:capstone_app/screens/dayung_map_page.dart';
 import 'package:capstone_app/screens/dayung_suggestions.dart';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+
+const Color kPrimary = Color(0xFF3B82F6);
+const Color kPrimaryDark = Color(0xFF1E40AF);
+const Color kAccent = Color(0xFF10B981);
+const Color kWarn = Color(0xFFF59E0B);
+const Color kDanger = Color(0xFFEF4444);
+const Color kBg = Color(0xFFF8FAFC);
+const Color kCardBg = Color(0xFFFFFFFF);
+const Color kSubText = Color(0xFF6B7280);
+const Color kText = Color(0xFF111827);
 
 class QuestionnaireScreen extends StatefulWidget {
   final String userId;
@@ -103,44 +114,59 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
     }
   }
 
-  Future<void> _savePreferences({String? selectedUnitId}) async {
-    await Supabase.instance.client.from('user_preferences').insert({
+  Future<void> _savePreferences({int? selectedUnitId}) async {
+    final payload = {
       'user_id': widget.userId,
       'fee_range': feeRange,
       'payment_method': paymentMethod,
-      'open_for_all': openForAll == 'Yes',
+      'open_for_all': openForAll == null ? null : (openForAll == 'Yes'),
       'fund_support_range': fundSupportRange,
-      // Removed: 'location': location,
       'selected_unit_id': selectedUnitId,
-    });
+    };
+
+    // Try update existing row; if none updated, insert
+    final existing = await Supabase.instance.client
+        .from('user_preferences')
+        .select('id')
+        .eq('user_id', widget.userId)
+        .limit(1);
+    if ((existing as List).isNotEmpty) {
+      await Supabase.instance.client
+          .from('user_preferences')
+          .update(payload)
+          .eq('user_id', widget.userId);
+    } else {
+      await Supabase.instance.client.from('user_preferences').insert(payload);
+    }
   }
 
-  Future<void> _completeRegistration({String? selectedUnitId}) async {
+  Future<void> _completeRegistration({int? selectedUnitId}) async {
     setState(() => isSubmitting = true);
-
     try {
-      // Save preferences
       await _savePreferences(selectedUnitId: selectedUnitId);
+
+      // Optional: also create an application immediately
+      // if (selectedUnitId != null) {
+      //   await applyToDayungUnit(widget.userId, selectedUnitId);
+      // }
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Logging in'),
+            content: Text('Preferences saved'),
             behavior: SnackBarBehavior.floating,
-            margin: EdgeInsets.only(top: 16, left: 16, right: 16),
             duration: Duration(seconds: 1),
             backgroundColor: Colors.blue,
           ),
         );
-        await Future.delayed(const Duration(milliseconds: 800));
         Navigator.of(context).pushReplacement(
           MaterialPageRoute(builder: (_) => const MemberDashboardPage()),
         );
       }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error completing registration: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Error: $e')));
     } finally {
       setState(() => isSubmitting = false);
     }
@@ -148,82 +174,187 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('Dayung Preferences')),
-      body: Padding(
-        padding: const EdgeInsets.all(16),
-        child: isLoading
-            ? const Center(child: CircularProgressIndicator())
-            : SingleChildScrollView(
-                child: Form(
-                  key: _formKey,
-                  child: Column(
-                    children: [
-                      _buildDropdown(
-                        label: 'Registration Fee Range',
-                        value: feeRange,
-                        // Ensure options are consistent; include "Any"
-                        items: [
-                          'Any',
-                          'Free',
-                          '₱1 - ₱100',
-                          '₱101 - ₱500',
-                          '₱501+',
-                          '₱100',
-                          '₱500',
-                          '₱1000',
-                        ],
-                        onChanged: (val) {
-                          setState(() => feeRange = val);
-                          _fetchSuggestions();
-                        },
-                      ),
-                      _buildDropdown(
-                        label: 'Preferred Payment Method',
-                        value: paymentMethod,
-                        items: [
-                          'Any',
-                          'GCash',
-                          'Bank Transfer',
-                          'Cash',
-                          'gcash',
-                          'bank',
-                          'cash',
-                        ],
-                        onChanged: (val) {
-                          setState(() => paymentMethod = val);
-                          _fetchSuggestions();
-                        },
-                      ),
-                      _buildDropdown(
-                        label: 'Open for All?',
-                        value: openForAll,
-                        items: ['Yes', 'No'],
-                        onChanged: (val) {
-                          setState(() => openForAll = val);
-                          _fetchSuggestions();
-                        },
-                      ),
-                      _buildDropdown(
-                        label: 'Fund Support Range',
-                        value: fundSupportRange,
-                        items: [
-                          'Any',
-                          '₱0 - ₱500',
-                          '₱501 - ₱1000',
-                          '₱1001+',
-                          '₱500',
-                          '₱1000',
-                          '₱1500',
-                        ],
-                        onChanged: (val) {
-                          setState(() => fundSupportRange = val);
-                          _fetchSuggestions();
-                        },
-                      ),
+    final width = MediaQuery.of(context).size.width;
+    final isWide = width > 700;
 
-                      const SizedBox(height: 16),
-                      ElevatedButton(
+    return Scaffold(
+      backgroundColor: kBg,
+      body: Container(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [kPrimaryDark, kPrimary, kBg],
+            stops: [0.0, 0.15, 0.15],
+          ),
+        ),
+        child: SafeArea(
+          child: Column(
+            children: [
+              // Header (same style as selectdayung.dart)
+              Container(
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 20),
+                child: Row(
+                  children: [
+                    IconButton(
+                      icon: const Icon(
+                        Icons.arrow_back_rounded,
+                        color: Colors.white,
+                        size: 20,
+                      ),
+                      onPressed: () => Navigator.pop(context),
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        'Find a Dayung',
+                        style: TextStyle(
+                          fontSize: isWide ? 24 : 20,
+                          fontWeight: FontWeight.w800,
+                          color: Colors.white,
+                          fontFamily: 'Montserrat',
+                          letterSpacing: 0.3,
+                          shadows: const [
+                            Shadow(
+                              color: Colors.black26,
+                              offset: Offset(0, 1),
+                              blurRadius: 2,
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              // Curved container body
+              Expanded(
+                child: Container(
+                  decoration: const BoxDecoration(
+                    color: kBg,
+                    borderRadius: BorderRadius.only(
+                      topLeft: Radius.circular(32),
+                      topRight: Radius.circular(32),
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black12,
+                        blurRadius: 20,
+                        offset: Offset(0, -5),
+                      ),
+                    ],
+                  ),
+                  child: _buildBody(context, isWide),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildBody(BuildContext context, bool isWide) {
+    if (isLoading) {
+      return const Center(child: CircularProgressIndicator(color: kPrimary));
+    }
+
+    return RefreshIndicator(
+      onRefresh: () async => _fetchSuggestions(),
+      child: ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
+          // Preferences card
+          Card(
+            elevation: 2,
+            color: kCardBg,
+            margin: const EdgeInsets.only(bottom: 16),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Form(
+                key: _formKey,
+                child: Column(
+                  children: [
+                    _buildDropdown(
+                      label: 'Registration Fee Range',
+                      value: feeRange,
+                      items: [
+                        'Any',
+                        'Free',
+                        '₱1 - ₱100',
+                        '₱101 - ₱500',
+                        '₱501+',
+                        '₱100',
+                        '₱500',
+                        '₱1000',
+                      ],
+                      onChanged: (val) {
+                        setState(() => feeRange = val);
+                        _fetchSuggestions();
+                      },
+                    ),
+                    _buildDropdown(
+                      label: 'Preferred Payment Method',
+                      value: paymentMethod,
+                      items: [
+                        'Any',
+                        'GCash',
+                        'Bank Transfer',
+                        'Cash',
+                        'gcash',
+                        'bank',
+                        'cash',
+                      ],
+                      onChanged: (val) {
+                        setState(() => paymentMethod = val);
+                        _fetchSuggestions();
+                      },
+                    ),
+                    _buildDropdown(
+                      label: 'Open for All?',
+                      value: openForAll,
+                      items: ['Yes', 'No'],
+                      onChanged: (val) {
+                        setState(() => openForAll = val);
+                        _fetchSuggestions();
+                      },
+                    ),
+                    _buildDropdown(
+                      label: 'Fund Support Range',
+                      value: fundSupportRange,
+                      items: [
+                        'Any',
+                        '₱0 - ₱500',
+                        '₱501 - ₱1000',
+                        '₱1001+',
+                        '₱500',
+                        '₱1000',
+                        '₱1500',
+                      ],
+                      onChanged: (val) {
+                        setState(() => fundSupportRange = val);
+                        _fetchSuggestions();
+                      },
+                    ),
+                    const SizedBox(height: 8),
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton.icon(
+                        icon: const Icon(Icons.search),
+                        label: const Text('Find Matching Units'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: kPrimary,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
                         onPressed: () {
                           if (feeRange == null &&
                               paymentMethod == null &&
@@ -240,84 +371,175 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
                           }
                           _fetchSuggestions();
                         },
-                        child: const Text('Find Matching Units'),
                       ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
 
-                      const SizedBox(height: 24),
-                      if (suggestedUnits.isNotEmpty)
-                        Column(
+          // Suggestions
+          if (suggestedUnits.isNotEmpty) ...[
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 8),
+              child: Text(
+                'Suggested Dayung Units',
+                style: TextStyle(
+                  fontSize: isWide ? 20 : 18,
+                  fontWeight: FontWeight.w800,
+                  color: kPrimaryDark,
+                ),
+              ),
+            ),
+            const SizedBox(height: 8),
+            ...suggestedUnits.map((unit) {
+              return Card(
+                elevation: 2,
+                color: kCardBg,
+                margin: const EdgeInsets.only(bottom: 12),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 10,
+                  ),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      CircleAvatar(
+                        backgroundColor: kPrimary.withOpacity(0.12),
+                        child: const Icon(Icons.home, color: kPrimary),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            const Text(
-                              'Suggested Dayung Units:',
-                              style: TextStyle(
-                                fontSize: 18,
-                                fontWeight: FontWeight.bold,
+                            Text(
+                              unit['name'] ?? 'Unnamed Unit',
+                              style: const TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w700,
+                                color: kText,
                               ),
                             ),
-                            const SizedBox(height: 12),
-                            ...suggestedUnits.map((unit) {
-                              return Card(
-                                child: ListTile(
-                                  title: Text(unit['name'] ?? 'Unnamed Unit'),
-                                  subtitle: Text(
-                                    [
-                                          if (unit['barangay'] != null)
-                                            unit['barangay'],
-                                          if (unit['city'] != null)
-                                            unit['city'],
-                                          if (unit['province'] != null)
-                                            unit['province'],
-                                        ]
-                                        .where(
-                                          (e) =>
-                                              (e ?? '').toString().isNotEmpty,
-                                        )
-                                        .join(', '),
-                                  ),
-                                  trailing: ElevatedButton(
-                                    onPressed: () => _completeRegistration(
-                                      selectedUnitId: unit['id'],
-                                    ),
-                                    child: const Text('Select'),
+                            const SizedBox(height: 4),
+                            Text(
+                              [
+                                    if (unit['barangay'] != null)
+                                      unit['barangay'],
+                                    if (unit['city'] != null) unit['city'],
+                                    if (unit['province'] != null)
+                                      unit['province'],
+                                  ]
+                                  .where((e) => (e ?? '').toString().isNotEmpty)
+                                  .join(', '),
+                              style: const TextStyle(
+                                color: kSubText,
+                                fontSize: 13,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          OutlinedButton.icon(
+                            icon: const Icon(Icons.map),
+                            label: const Text('Map'),
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: kPrimary,
+                              side: const BorderSide(color: kPrimary),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                            ),
+                            onPressed: () {
+                              final selected = Map<String, dynamic>.from(
+                                unit as Map,
+                              );
+                              final all = suggestedUnits
+                                  .map(
+                                    (e) => Map<String, dynamic>.from(e as Map),
+                                  )
+                                  .toList();
+                              Navigator.of(context).push(
+                                MaterialPageRoute(
+                                  builder: (_) => DayungMapPage(
+                                    dayung: selected,
+                                    isApplied: false,
+                                    isMember: false,
+                                    allDayungs: all,
+                                    nearbyRadiusMeters: 5000,
                                   ),
                                 ),
                               );
-                            }).toList(),
-                            const SizedBox(height: 16),
-                          ],
-                        )
-                      else if (feeRange != null ||
-                          paymentMethod != null ||
-                          openForAll != null ||
-                          fundSupportRange != null)
-                        Padding(
-                          padding: const EdgeInsets.only(top: 16),
-                          child: const Text(
-                            'No suggestions found with the given preferences.',
-                            style: TextStyle(color: Colors.grey),
+                            },
                           ),
-                        ),
-
-                      const SizedBox(height: 24),
-
-                      Center(
-                        child: TextButton(
-                          onPressed: () async {
-                            await _savePreferences();
-                            Navigator.of(context).pushReplacement(
-                              MaterialPageRoute(
-                                builder: (_) => const DayungSuggestionsPage(),
+                          const SizedBox(width: 8),
+                          OutlinedButton.icon(
+                            icon: const Icon(Icons.check_circle),
+                            label: const Text('Select'),
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: kPrimary,
+                              side: const BorderSide(color: kPrimary),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
                               ),
-                            );
-                          },
-                          child: const Text('Skip & Continue'),
-                        ),
+                            ),
+                            onPressed: () => _completeRegistration(
+                              selectedUnitId: unit['id'] as int,
+                            ),
+                          ),
+                        ],
                       ),
                     ],
                   ),
                 ),
+              );
+            }).toList(),
+          ] else if (feeRange != null ||
+              paymentMethod != null ||
+              openForAll != null ||
+              fundSupportRange != null) ...[
+            const SizedBox(height: 8),
+            const Text(
+              'No suggestions found with the given preferences.',
+              style: TextStyle(color: kSubText),
+              textAlign: TextAlign.center,
+            ),
+          ],
+
+          const SizedBox(height: 16),
+          Center(
+            child: TextButton.icon(
+              icon: const Icon(Icons.arrow_forward),
+              label: const Text('Skip & Continue'),
+              style: TextButton.styleFrom(
+                foregroundColor: kPrimaryDark,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 12,
+                ),
               ),
+              onPressed: () async {
+                await _savePreferences();
+                if (!mounted) return;
+                Navigator.of(context).pushReplacement(
+                  MaterialPageRoute(
+                    builder: (_) => const DayungSuggestionsPage(),
+                  ),
+                );
+              },
+            ),
+          ),
+          const SizedBox(height: 12),
+        ],
       ),
     );
   }
@@ -329,18 +551,23 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
     required Function(String?) onChanged,
   }) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 10),
+      padding: const EdgeInsets.symmetric(vertical: 8),
       child: DropdownButtonFormField<String>(
         value: value,
         decoration: InputDecoration(
           labelText: label,
           border: const OutlineInputBorder(),
+          filled: true,
+          fillColor: Colors.white,
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 12,
+            vertical: 12,
+          ),
         ),
         items: items
             .map((item) => DropdownMenuItem(value: item, child: Text(item)))
             .toList(),
         onChanged: onChanged,
-        // Preferences are optional
         validator: (_) => null,
       ),
     );
