@@ -8,6 +8,7 @@ import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:capstone_app/pages/notification.dart';
 import 'package:capstone_app/profile/profile.dart';
+import 'package:fl_chart/fl_chart.dart';
 
 // Palette aligned with Secretary
 const kText = Color(0xFF111827);
@@ -1033,11 +1034,75 @@ class _UpcomingText extends StatelessWidget {
 
 /* ------------------------- SIMPLE BAR CHART CARD ------------------------ */
 
-class _ContributionBarChartCard extends StatelessWidget {
+class _ContributionBarChartCard extends StatefulWidget {
   const _ContributionBarChartCard();
 
   @override
+  State<_ContributionBarChartCard> createState() =>
+      _ContributionBarChartCardState();
+}
+
+class _ContributionBarChartCardState extends State<_ContributionBarChartCard> {
+  Map<String, double> _yearTotals = {};
+  bool _loading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadData();
+  }
+
+  Future<Map<String, double>> fetchYearlyContributions({
+    List<int>? unitIds,
+  }) async {
+    final sb = Supabase.instance.client;
+
+    // Build query: only paid payments, optionally filter by unit
+    var query = sb
+        .from('payments')
+        .select('paid_at, amount')
+        .eq('status', 'paid');
+
+    if (unitIds != null && unitIds.isNotEmpty) {
+      query = query.inFilter('dayung_unit_id', unitIds);
+    }
+
+    final rows = await query;
+
+    // Aggregate by year
+    final Map<String, double> yearTotals = {};
+    for (final row in List<Map<String, dynamic>>.from(rows)) {
+      final paidAtStr = row['paid_at'] ?? row['created_at'];
+      final paidAt = DateTime.tryParse(paidAtStr?.toString() ?? '');
+      if (paidAt != null) {
+        final year = paidAt.year.toString();
+        final amount = double.tryParse(row['amount'].toString()) ?? 0.0;
+        yearTotals[year] = (yearTotals[year] ?? 0) + amount;
+      }
+    }
+
+    return yearTotals;
+  }
+
+  Future<void> _loadData() async {
+    // Optionally pass unitIds if you want to filter
+    final data = await fetchYearlyContributions();
+    if (mounted) {
+      setState(() {
+        _yearTotals = data;
+        _loading = false;
+      });
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final barLabels = _yearTotals.keys.toList()..sort();
+    final barValues = barLabels.map((y) => _yearTotals[y] ?? 0).toList();
+    final maxY = barValues.isNotEmpty
+        ? (barValues.reduce((a, b) => a > b ? a : b) * 1.2)
+        : 25.0;
+
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 20),
       decoration: BoxDecoration(
@@ -1073,7 +1138,7 @@ class _ContributionBarChartCard extends StatelessWidget {
                 ),
                 const SizedBox(width: 12),
                 const Text(
-                  'Contribution Records by Year',
+                  'Contribution Records',
                   style: TextStyle(
                     fontFamily: 'Montserrat',
                     fontSize: 18,
@@ -1087,11 +1152,93 @@ class _ContributionBarChartCard extends StatelessWidget {
             const SizedBox(height: 16),
             SizedBox(
               height: 180,
-              child: _MiniBarChart(
-                values: const [14, 20, 13],
-                maxY: 25,
-                labels: const ['2023', '2024', '2025'],
-              ),
+              child: _loading
+                  ? const Center(child: CircularProgressIndicator())
+                  : barLabels.isEmpty
+                  ? const Center(child: Text('No data'))
+                  : BarChart(
+                      BarChartData(
+                        alignment: BarChartAlignment.spaceAround,
+                        maxY: maxY,
+                        minY: 0,
+                        groupsSpace: 24,
+                        barTouchData: BarTouchData(enabled: true),
+                        titlesData: FlTitlesData(
+                          leftTitles: AxisTitles(
+                            sideTitles: SideTitles(
+                              showTitles: true,
+                              interval: ((maxY ~/ 5) > 0
+                                  ? (maxY ~/ 5).toDouble()
+                                  : 1.0),
+                              getTitlesWidget: (value, meta) => Padding(
+                                padding: const EdgeInsets.only(right: 8.0),
+                                child: Text(
+                                  value.toInt().toString(),
+                                  style: const TextStyle(
+                                    fontSize: 10,
+                                    color: Colors.black54,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                          bottomTitles: AxisTitles(
+                            sideTitles: SideTitles(
+                              showTitles: true,
+                              getTitlesWidget: (value, meta) {
+                                final idx = value.toInt();
+                                return idx >= 0 && idx < barLabels.length
+                                    ? Padding(
+                                        padding: const EdgeInsets.only(
+                                          top: 6.0,
+                                        ),
+                                        child: Text(
+                                          barLabels[idx],
+                                          style: const TextStyle(
+                                            fontSize: 12,
+                                            color: kSubText,
+                                          ),
+                                        ),
+                                      )
+                                    : const SizedBox.shrink();
+                              },
+                            ),
+                          ),
+                          topTitles: AxisTitles(
+                            sideTitles: SideTitles(showTitles: false),
+                          ),
+                          rightTitles: AxisTitles(
+                            sideTitles: SideTitles(showTitles: false),
+                          ),
+                        ),
+                        gridData: FlGridData(
+                          show: true,
+                          horizontalInterval: ((maxY ~/ 5) > 0
+                              ? (maxY ~/ 5).toDouble()
+                              : 1.0),
+                        ),
+                        borderData: FlBorderData(show: false),
+                        barGroups: List.generate(barValues.length, (i) {
+                          return BarChartGroupData(
+                            x: i,
+                            barRods: [
+                              BarChartRodData(
+                                toY: barValues[i],
+                                color: const Color(0xFF2D63D6),
+                                width: 22,
+                                borderRadius: BorderRadius.circular(4),
+                                backDrawRodData: BackgroundBarChartRodData(
+                                  show: true,
+                                  toY: maxY,
+                                  color: const Color(0xFFE5E7EB),
+                                ),
+                              ),
+                            ],
+                          );
+                        }),
+                      ),
+                    ),
             ),
             const SizedBox(height: 4),
             const _MiniLegendRow(),
@@ -1100,105 +1247,6 @@ class _ContributionBarChartCard extends StatelessWidget {
       ),
     );
   }
-}
-
-class _MiniBarChart extends StatelessWidget {
-  final List<int> values;
-  final int maxY;
-  final List<String> labels;
-
-  const _MiniBarChart({
-    required this.values,
-    required this.maxY,
-    required this.labels,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    const barColor = Color(0xFF2D63D6);
-    return LayoutBuilder(
-      builder: (context, c) {
-        final barWidth = (c.maxWidth - 40) / (values.length * 2);
-        return Stack(
-          children: [
-            Positioned.fill(
-              child: CustomPaint(painter: _GridLinesPainter(maxY: maxY)),
-            ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(26, 4, 12, 28),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: List.generate(values.length, (i) {
-                  final h = (values[i] / maxY) * (c.maxHeight - 36);
-                  return Expanded(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.end,
-                      children: [
-                        Container(
-                          height: h,
-                          width: barWidth,
-                          decoration: BoxDecoration(
-                            color: barColor,
-                            borderRadius: BorderRadius.circular(4),
-                          ),
-                        ),
-                        const SizedBox(height: 6),
-                        Text(
-                          labels[i],
-                          style: TextStyle(
-                            fontFamily: 'OpenSans',
-                            fontSize: 12,
-                            color: kSubText,
-                          ),
-                        ),
-                      ],
-                    ),
-                  );
-                }),
-              ),
-            ),
-          ],
-        );
-      },
-    );
-  }
-}
-
-class _GridLinesPainter extends CustomPainter {
-  final int maxY;
-  _GridLinesPainter({required this.maxY});
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = Colors.black.withOpacity(0.08)
-      ..strokeWidth = 1;
-
-    const leftPad = 26.0;
-    const bottomPad = 28.0;
-    final chartHeight = size.height - bottomPad - 8;
-
-    for (int y = 0; y <= maxY; y += 5) {
-      final dy = size.height - bottomPad - (y / maxY) * chartHeight;
-      canvas.drawLine(Offset(leftPad, dy), Offset(size.width - 8, dy), paint);
-      final tp = TextPainter(
-        text: TextSpan(
-          text: y == 0 ? '0' : '$y',
-          style: TextStyle(
-            fontFamily: 'OpenSans',
-            fontSize: 10,
-            color: Colors.black.withOpacity(0.6),
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-        textDirection: TextDirection.ltr,
-      )..layout();
-      tp.paint(canvas, Offset(0, dy - 6));
-    }
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
 
 class _MiniLegendRow extends StatelessWidget {

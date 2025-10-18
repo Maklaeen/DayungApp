@@ -37,9 +37,8 @@ dependencies:
   cupertino_icons: ^1.0.8
   supabase_flutter: ^2.10.1
   font_awesome_flutter: ^10.7.0
-  geocoding: ^4.0.0
+  google_maps_flutter: ^2.13.1
   shared_preferences: ^2.5.3
-  file_picker: ^10.3.3
   auto_size_text: ^3.0.0
   flutter_launcher_icons: ^0.14.4
   intl: ^0.20.2
@@ -53,10 +52,12 @@ dependencies:
   flutter_compass: ^0.8.1
   http: ^1.5.0
   pdfx: ^2.9.2
-
-# maps
+  
+  # For Specific objectives
+  fl_chart: ^1.1.1
   geolocator: ^14.0.2
-  google_maps_flutter: ^2.13.1
+  geocoding: ^4.0.0
+  file_picker: ^10.3.3
   
 flutter_icons:
   android: true

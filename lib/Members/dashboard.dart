@@ -2636,74 +2636,74 @@ class _MemberDashboardPageState extends State<MemberDashboardPage> {
     );
   }
 
-  Widget _buildRecentActivity(bool isWide) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          'Recent Activity',
-          style: TextStyle(
-            fontSize: 20,
-            fontWeight: FontWeight.w800,
-            color: kPrimaryDark,
-            fontFamily: 'Montserrat',
-            letterSpacing: .2,
-          ),
-        ),
-        const SizedBox(height: 16),
-        Container(
-          padding: EdgeInsets.symmetric(
-            horizontal: isWide ? 40 : 20,
-            vertical: isWide ? 24 : 16,
-          ),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: Colors.grey.shade300, width: 1.3),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(.04),
-                blurRadius: 10,
-                offset: const Offset(0, 4),
-              ),
-            ],
-          ),
-          child: _loadingActivity
-              ? const Center(child: CircularProgressIndicator())
-              : _latestActivities.isEmpty ||
-                    _latestActivities.length <=
-                        1 // Updated condition
-              ? const Center(
-                  child: Padding(
-                    padding: EdgeInsets.symmetric(vertical: 20),
-                    child: Text(
-                      'No recent activity',
-                      style: TextStyle(
-                        fontSize: 16,
-                        color: kSubtleText,
-                        fontWeight: FontWeight.w600,
-                        fontFamily: 'OpenSans',
-                      ),
-                    ),
-                  ),
-                )
-              : Column(
-                  children: [
-                    for (int i = 0; i < _latestActivities.length; i++) ...[
-                      _ActivityRow(
-                        icon: _latestActivities[i]['icon'],
-                        color: _latestActivities[i]['color'],
-                        text: _latestActivities[i]['text'],
-                      ),
-                      if (i < _latestActivities.length - 1)
-                        const SizedBox(height: 12),
-                    ],
-                  ],
-                ),
-        ),
-      ],
-    );
-  }
+  // Widget _buildRecentActivity(bool isWide) {
+  //   return Column(
+  //     crossAxisAlignment: CrossAxisAlignment.start,
+  //     children: [
+  //       Text(
+  //         'Recent Activity',
+  //         style: TextStyle(
+  //           fontSize: 20,
+  //           fontWeight: FontWeight.w800,
+  //           color: kPrimaryDark,
+  //           fontFamily: 'Montserrat',
+  //           letterSpacing: .2,
+  //         ),
+  //       ),
+  //       const SizedBox(height: 16),
+  //       Container(
+  //         padding: EdgeInsets.symmetric(
+  //           horizontal: isWide ? 40 : 20,
+  //           vertical: isWide ? 24 : 16,
+  //         ),
+  //         decoration: BoxDecoration(
+  //           color: Colors.white,
+  //           borderRadius: BorderRadius.circular(16),
+  //           border: Border.all(color: Colors.grey.shade300, width: 1.3),
+  //           boxShadow: [
+  //             BoxShadow(
+  //               color: Colors.black.withOpacity(.04),
+  //               blurRadius: 10,
+  //               offset: const Offset(0, 4),
+  //             ),
+  //           ],
+  //         ),
+  //         child: _loadingActivity
+  //             ? const Center(child: CircularProgressIndicator())
+  //             : _latestActivities.isEmpty ||
+  //                   _latestActivities.length <=
+  //                       1 // Updated condition
+  //             ? const Center(
+  //                 child: Padding(
+  //                   padding: EdgeInsets.symmetric(vertical: 20),
+  //                   child: Text(
+  //                     'No recent activity',
+  //                     style: TextStyle(
+  //                       fontSize: 16,
+  //                       color: kSubtleText,
+  //                       fontWeight: FontWeight.w600,
+  //                       fontFamily: 'OpenSans',
+  //                     ),
+  //                   ),
+  //                 ),
+  //               )
+  //             : Column(
+  //                 children: [
+  //                   for (int i = 0; i < _latestActivities.length; i++) ...[
+  //                     _ActivityRow(
+  //                       icon: _latestActivities[i]['icon'],
+  //                       color: _latestActivities[i]['color'],
+  //                       text: _latestActivities[i]['text'],
+  //                     ),
+  //                     if (i < _latestActivities.length - 1)
+  //                       const SizedBox(height: 12),
+  //                   ],
+  //                 ],
+  //               ),
+  //       ),
+  //     ],
+  //   );
+  // }
 }
 
 class _ActivityRow extends StatelessWidget {
@@ -2736,65 +2736,65 @@ class _ActivityRow extends StatelessWidget {
   }
 }
 
-Widget _iconBtn({
-  required IconData icon,
-  required Color color,
-  required VoidCallback onTap,
-  String? tooltip,
-  String? badge,
-}) {
-  return Semantics(
-    button: true,
-    label: tooltip,
-    child: Padding(
-      padding: const EdgeInsets.only(left: 6),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(16),
-        onTap: onTap,
-        child: Stack(
-          clipBehavior: Clip.none,
-          children: [
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: color.withOpacity(.10),
-                borderRadius: BorderRadius.circular(16),
-              ),
-              child: Icon(icon, size: 28, color: color),
-            ),
-            if (badge != null)
-              Positioned(
-                right: -2,
-                top: -2,
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 6,
-                    vertical: 2,
-                  ),
-                  decoration: BoxDecoration(
-                    color: kDanger,
-                    borderRadius: BorderRadius.circular(12),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withOpacity(.25),
-                        blurRadius: 4,
-                        offset: const Offset(0, 2),
-                      ),
-                    ],
-                  ),
-                  child: Text(
-                    badge,
-                    style: const TextStyle(
-                      fontSize: 10,
-                      fontWeight: FontWeight.w700,
-                      color: Colors.white,
-                    ),
-                  ),
-                ),
-              ),
-          ],
-        ),
-      ),
-    ),
-  );
-}
+// Widget _iconBtn({
+//   required IconData icon,
+//   required Color color,
+//   required VoidCallback onTap,
+//   String? tooltip,
+//   String? badge,
+// }) {
+//   return Semantics(
+//     button: true,
+//     label: tooltip,
+//     child: Padding(
+//       padding: const EdgeInsets.only(left: 6),
+//       child: InkWell(
+//         borderRadius: BorderRadius.circular(16),
+//         onTap: onTap,
+//         child: Stack(
+//           clipBehavior: Clip.none,
+//           children: [
+//             Container(
+//               padding: const EdgeInsets.all(12),
+//               decoration: BoxDecoration(
+//                 color: color.withOpacity(.10),
+//                 borderRadius: BorderRadius.circular(16),
+//               ),
+//               child: Icon(icon, size: 28, color: color),
+//             ),
+//             if (badge != null)
+//               Positioned(
+//                 right: -2,
+//                 top: -2,
+//                 child: Container(
+//                   padding: const EdgeInsets.symmetric(
+//                     horizontal: 6,
+//                     vertical: 2,
+//                   ),
+//                   decoration: BoxDecoration(
+//                     color: kDanger,
+//                     borderRadius: BorderRadius.circular(12),
+//                     boxShadow: [
+//                       BoxShadow(
+//                         color: Colors.black.withOpacity(.25),
+//                         blurRadius: 4,
+//                         offset: const Offset(0, 2),
+//                       ),
+//                     ],
+//                   ),
+//                   child: Text(
+//                     badge,
+//                     style: const TextStyle(
+//                       fontSize: 10,
+//                       fontWeight: FontWeight.w700,
+//                       color: Colors.white,
+//                     ),
+//                   ),
+//                 ),
+//               ),
+//           ],
+//         ),
+//       ),
+//     ),
+//   );
+// }
