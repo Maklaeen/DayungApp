@@ -12,6 +12,7 @@ import 'package:capstone_app/Secretary/service_tracker.dart';
 import 'package:capstone_app/pages/dayung_profile.dart';
 import 'package:capstone_app/pages/notification.dart';
 import 'package:capstone_app/pages/recentdeathnotices.dart';
+import 'package:capstone_app/pages/reports.dart';
 import 'package:capstone_app/profile/profile.dart';
 import 'package:capstone_app/ui/theme/branding.dart' as branding;
 import 'package:flutter/material.dart';
@@ -1269,11 +1270,14 @@ class _SecretaryDashboardPageState extends State<SecretaryDashboardPage> {
           children: [
             Expanded(
               child: _modernQuickActionCard(
-                icon: Icons.info_outline_rounded,
-                title: "Notify Members",
+                icon: Icons.bar_chart_rounded,
+                title: "Reports",
                 color: branding.kPrimary,
                 onTap: () {
-                  // Keep existing functionality (placeholder)
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const ReportsPage()),
+                  );
                 },
               ),
             ),
