@@ -415,7 +415,13 @@ class _LoginState extends State<Login> {
 
     final prefs = await SharedPreferences.getInstance();
     final savedRaw = prefs.getString('selectedDayungUnit');
+
     if (allIds.length > 1) {
+      // Important: clear in-memory selection so SelectDayung doesn't mark any as "Already using"
+      try {
+        await context.read<DayungUnitProvider>().clear();
+      } catch (_) {}
+
       final picked = await Navigator.push<Map<String, dynamic>?>(
         context,
         MaterialPageRoute(builder: (_) => const SelectDayungPage()),

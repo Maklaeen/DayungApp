@@ -7,6 +7,7 @@ import 'package:capstone_app/Beneficiary/beneficiary.dart' hide kPrimaryLight;
 import 'package:capstone_app/Collector/dashboard.dart' hide kPrimaryLight;
 import 'package:capstone_app/Members/dashboard.dart' hide kAccent;
 import 'package:capstone_app/President/dashboard.dart' hide kAccent, kWarn;
+import 'package:capstone_app/Providers/dayung_provider.dart';
 import 'package:capstone_app/Providers/dayung_role_provider.dart';
 import 'package:capstone_app/Secretary/dashboard.dart'
     hide kAccent, kWarn, kPrimary;
@@ -1257,19 +1258,29 @@ class _ProfilePageState extends State<ProfilePage> {
   }
 
   Future<void> _confirmLogout() async {
-    final ok = await _showLogoutConfirmDialog();
-    if (ok == true) {
-      await Supabase.instance.client.auth.signOut();
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.remove('selectedDayungUnit');
-      await prefs.remove('selectedDayungUnitData');
-      if (!mounted) return;
-      Navigator.of(context).pushAndRemoveUntil(
-        MaterialPageRoute(builder: (_) => const Login()),
-        (route) => false,
-      );
-    }
+  final ok = await _showLogoutConfirmDialog();
+  if (ok == true) {
+    await Supabase.instance.client.auth.signOut();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove('selectedDayungUnit');
+    await prefs.remove('selectedDayungUnitData');
+
+    // Clear in-memory selection so "Already using" won't appear after logout
+    try {
+      if (mounted) {
+        context.read<DayungUnitProvider>().clear();
+        // Optional: reset roles as well if you keep them around
+        // context.read<DayungRoleProvider>().refreshRoles(null);
+      }
+    } catch (_) {}
+
+    if (!mounted) return;
+    Navigator.of(context).pushAndRemoveUntil(
+      MaterialPageRoute(builder: (_) => const Login()),
+      (route) => false,
+    );
   }
+}
 
   InputDecoration _fieldDecoration(String hint) {
     return InputDecoration(

@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:capstone_app/Auth/login.dart';
 import 'package:capstone_app/Providers/dayung_provider.dart';
 import 'package:capstone_app/Providers/dayung_role_provider.dart';
 import 'package:capstone_app/screens/dayung_map_page.dart';
@@ -287,6 +288,8 @@ class _SelectDayungPageState extends State<SelectDayungPage> {
   }
 
   Widget _buildBody(BuildContext context, bool isWide) {
+    final currentId = context.watch<DayungUnitProvider>().currentUnitId;
+
     if (_loading) {
       return const Center(child: CircularProgressIndicator(color: kPrimary));
     }
@@ -318,6 +321,13 @@ class _SelectDayungPageState extends State<SelectDayungPage> {
         itemCount: _joined.length,
         itemBuilder: (ctx, i) {
           final d = _joined[i];
+          // Add: normalize id and compare with current
+          final did = d['id'] is int
+              ? d['id'] as int
+              : int.tryParse('${d['id']}');
+          final isCurrent =
+              currentId != null && did != null && currentId == did;
+
           return Card(
             elevation: 2,
             color: kCardBg,
@@ -355,22 +365,32 @@ class _SelectDayungPageState extends State<SelectDayungPage> {
                   Row(
                     children: [
                       OutlinedButton.icon(
-                        icon: const Icon(Icons.check_circle),
-                        label: const Text('Use this Dayung'),
+                        icon: Icon(
+                          isCurrent
+                              ? Icons.check_circle
+                              : Icons.check_circle_outlined,
+                          size: 16,
+                        ),
+                        label: Text(
+                          isCurrent ? 'Already using' : 'Use this Dayung',
+                        ),
                         style: OutlinedButton.styleFrom(
-                          foregroundColor: kPrimary,
-                          side: BorderSide(color: kPrimary),
+                          foregroundColor: isCurrent ? kSubText : kPrimary,
+                          side: BorderSide(
+                            color: isCurrent ? kBorderColor : kPrimary,
+                          ),
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(12),
                           ),
                         ),
-                        onPressed: () async {
-                          final normalized = await _persistSelectionAndNotify(
-                            d,
-                          );
-                          if (!mounted) return;
-                          Navigator.pop(context, normalized);
-                        },
+                        onPressed: isCurrent
+                            ? null
+                            : () async {
+                                final normalized =
+                                    await _persistSelectionAndNotify(d);
+                                if (!mounted) return;
+                                Navigator.pop(context, normalized);
+                              },
                       ),
                       const SizedBox(width: 12),
                       TextButton.icon(

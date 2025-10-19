@@ -19,9 +19,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
-// Palette
 const Color kBg = Color(0xFFFAFAF7);
 const Color kPrimary = Color(0xFF0D47A1);
 const Color kPrimaryDark = Color(0xFF083366);
@@ -193,6 +191,7 @@ class _SecretaryDashboardPageState extends State<SecretaryDashboardPage> {
         value: uid,
       ),
       callback: (payload) async {
+        // ignore: unnecessary_cast
         final rec = payload.newRecord as Map<String, dynamic>;
         if (rec['dayung_unit_id'] == unitId) {
           await _fetchUnreadNotifCount();
@@ -270,7 +269,7 @@ class _SecretaryDashboardPageState extends State<SecretaryDashboardPage> {
       if (unitId == null) {
         _activeMembersCount = 0;
       } else {
-        // Approved members for the selected unit only
+        // Get approved applications for this unit
         final apps = await supabase
             .from('applications')
             .select('user_id')
@@ -285,11 +284,12 @@ class _SecretaryDashboardPageState extends State<SecretaryDashboardPage> {
         if (ids.isEmpty) {
           _activeMembersCount = 0;
         } else {
-          // Optional: exclude deceased
+          // Only count users who are NOT deceased
           final usersRows = await supabase
               .from('users')
-              .select('id, is_deceased')
-              .inFilter('id', ids.toList());
+              .select('id')
+              .inFilter('id', ids.toList())
+              .eq('is_deceased', false);
           final alive = (usersRows as List)
               .map((e) => (e as Map)['id']?.toString())
               .whereType<String>()
@@ -699,7 +699,7 @@ class _SecretaryDashboardPageState extends State<SecretaryDashboardPage> {
     );
   }
 
-  Widget _modernStatCardTreasurerStyle({
+  Widget _modernStatCard({
     required IconData icon,
     required String title,
     required String value,
@@ -749,10 +749,10 @@ class _SecretaryDashboardPageState extends State<SecretaryDashboardPage> {
     );
   }
 
-  Widget _recentDeathsCardTreasurerStyle() {
+  Widget _recentDeathsCard() {
     final names = _recentCertificates;
     final display = names.take(2).toList();
-    final extra = names.length - display.length;
+    // final extra = names.length - display.length;
 
     return Container(
       padding: const EdgeInsets.all(16),
@@ -798,8 +798,7 @@ class _SecretaryDashboardPageState extends State<SecretaryDashboardPage> {
                         const SizedBox(width: 8),
                         Expanded(
                           child: Text(
-                            name['deceased_name'] ??
-                                'Unknown', // <-- FIXED HERE
+                            name['deceased_name'] ?? 'Unknown',
                             style: const TextStyle(
                               fontSize: 13,
                               fontWeight: FontWeight.w600,
@@ -814,17 +813,17 @@ class _SecretaryDashboardPageState extends State<SecretaryDashboardPage> {
                 )
                 .toList(),
           ),
-          if (extra > 0)
-            Text(
-              'View All',
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: 13.5,
-                fontWeight: FontWeight.w800,
-                fontFamily: 'OpenSans',
-                color: Colors.blue[700],
-              ),
-            ),
+          // if (extra > 0)
+          //   Text(
+          //     'View All',
+          //     textAlign: TextAlign.center,
+          //     style: TextStyle(
+          //       fontSize: 13.5,
+          //       fontWeight: FontWeight.w800,
+          //       fontFamily: 'OpenSans',
+          //       color: Colors.blue[700],
+          //     ),
+          //   ),
         ],
       ),
     );
@@ -882,7 +881,7 @@ class _SecretaryDashboardPageState extends State<SecretaryDashboardPage> {
                       );
                     },
                     borderRadius: BorderRadius.circular(16),
-                    child: _modernStatCardTreasurerStyle(
+                    child: _modernStatCard(
                       icon: Icons.groups_rounded,
                       title: 'Active Members',
                       value: _loadingActiveMembers
@@ -917,7 +916,7 @@ class _SecretaryDashboardPageState extends State<SecretaryDashboardPage> {
                       );
                     },
                     borderRadius: BorderRadius.circular(16),
-                    child: _recentDeathsCardTreasurerStyle(),
+                    child: _recentDeathsCard(),
                   ),
                 ),
               ),
@@ -928,7 +927,7 @@ class _SecretaryDashboardPageState extends State<SecretaryDashboardPage> {
                   child: InkWell(
                     onTap: () => setState(() => _currentIndex = 1),
                     borderRadius: BorderRadius.circular(16),
-                    child: _modernStatCardTreasurerStyle(
+                    child: _modernStatCard(
                       icon: Icons.account_balance_wallet_rounded,
                       title: 'Pending Amount',
                       value: _loadingPendingPayments
@@ -1267,24 +1266,32 @@ class _SecretaryDashboardPageState extends State<SecretaryDashboardPage> {
         ),
         const SizedBox(height: 16),
         Row(
-          children: [
-            Expanded(
-              child: _modernQuickActionCard(
-                icon: Icons.bar_chart_rounded,
-                title: "Reports",
-                color: branding.kPrimary,
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (_) => const ReportsPage()),
-                  );
-                },
-              ),
+  children: [
+    Expanded(
+      child: _modernQuickActionCard(
+        icon: Icons.bar_chart_rounded,
+        title: "Reports",
+        color: branding.kPrimary,
+        onTap: () {
+          if (_dayungUnitId == null) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Select a Dayung first')),
+            );
+            return;
+          }
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => ReportsPage(unitId: _dayungUnitId),
             ),
-            const SizedBox(width: 12),
-            const Expanded(child: SizedBox.shrink()),
-          ],
-        ),
+          );
+        },
+      ),
+    ),
+    const SizedBox(width: 12),
+    const Expanded(child: SizedBox.shrink()),
+  ],
+),
       ],
     );
   }

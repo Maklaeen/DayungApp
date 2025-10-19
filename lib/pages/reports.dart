@@ -59,13 +59,13 @@ class ReportsService {
 
   /// Number of new members each month
   Future<List<Map<String, dynamic>>> fetchNewMembersPerMonth({
-    int? unitId,
+    required int unitId,
   }) async {
     final query = sb
         .from('applications')
         .select('approved_at')
-        .eq('status', 'approved');
-    if (unitId != null) query.eq('dayung_unit_id', unitId);
+        .eq('status', 'approved')
+        .eq('dayung_unit_id', unitId); // Always filter by unitId
     final rows = List<Map<String, dynamic>>.from(await query);
 
     final Map<String, int> monthCounts = {};
@@ -109,7 +109,8 @@ String _formatMonthYear(String ym) {
 }
 
 class ReportsPage extends StatefulWidget {
-  const ReportsPage({super.key});
+  final int? unitId;
+  const ReportsPage({super.key, this.unitId});
   @override
   State<ReportsPage> createState() => _ReportsPageState();
 }
@@ -128,8 +129,13 @@ class _ReportsPageState extends State<ReportsPage> {
 
   Future<void> _loadReports() async {
     setState(() => loading = true);
-    moneyCollected = await service.fetchMoneyCollectedPerCollector();
-    newMembers = await service.fetchNewMembersPerMonth();
+    moneyCollected = await service.fetchMoneyCollectedPerCollector(
+      unitId: widget.unitId,
+    );
+    // Pass unitId as required
+    newMembers = widget.unitId != null
+        ? await service.fetchNewMembersPerMonth(unitId: widget.unitId!)
+        : [];
     setState(() => loading = false);
   }
 

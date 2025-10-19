@@ -1,5 +1,7 @@
 import 'package:capstone_app/President/manage_roles.dart';
 import 'package:capstone_app/President/post_announcement.dart';
+import 'package:capstone_app/President/presidentmemberspage.dart'
+    hide kPrimary, kNeutralText;
 import 'package:capstone_app/Providers/dayung_role_provider.dart';
 import 'package:capstone_app/pages/recentdeathnotices.dart';
 import 'package:capstone_app/ui/theme/branding.dart';
@@ -560,6 +562,16 @@ class _PresidentDashboardPageState extends State<PresidentDashboardPage> {
                 value: _loading ? '—' : _activeMembersCount.toString(),
                 color: const Color(0xFF3B82F6),
                 bgColor: const Color(0xFFEFF6FF),
+                onTap: () async {
+                  final ids = await _managedDayungIds();
+                  if (!mounted) return;
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => PresidentMembersPage(dayungUnitIds: ids),
+                    ),
+                  );
+                },
               ),
               _buildModernStatCard(
                 icon: Icons.account_balance_wallet_rounded,
@@ -731,59 +743,64 @@ class _PresidentDashboardPageState extends State<PresidentDashboardPage> {
     String subtitle = '',
     required Color color,
     required Color bgColor,
+    VoidCallback? onTap,
   }) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: bgColor,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: color.withOpacity(0.2)),
-      ),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center, // Center vertically
-        crossAxisAlignment: CrossAxisAlignment.center, // Center horizontally
-        children: [
-          Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: color.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(12),
+    return InkWell(
+      borderRadius: BorderRadius.circular(16),
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: bgColor,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: color.withOpacity(0.2)),
+        ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: color.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Icon(icon, color: color, size: 20),
             ),
-            child: Icon(icon, color: color, size: 20),
-          ),
-          const SizedBox(height: 12),
-          Text(
-            title,
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
-              color: color.withOpacity(0.8),
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            value,
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.w800,
-              color: color,
-            ),
-          ),
-          if (subtitle.isNotEmpty) ...[
-            const SizedBox(height: 2),
+            const SizedBox(height: 12),
             Text(
-              subtitle,
+              title,
               textAlign: TextAlign.center,
               style: TextStyle(
-                fontSize: 10,
-                fontWeight: FontWeight.w500,
-                color: color.withOpacity(0.6),
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: color.withOpacity(0.8),
               ),
             ),
+            const SizedBox(height: 4),
+            Text(
+              value,
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.w800,
+                color: color,
+              ),
+            ),
+            if (subtitle.isNotEmpty) ...[
+              const SizedBox(height: 2),
+              Text(
+                subtitle,
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 10,
+                  fontWeight: FontWeight.w500,
+                  color: color.withOpacity(0.6),
+                ),
+              ),
+            ],
           ],
-        ],
+        ),
       ),
     );
   }

@@ -63,10 +63,6 @@ class _RecentDeathNoticesState extends State<RecentDeathNotices> {
 
   void _applySplit(List<Map<String, dynamic>> rows) {
     final unitId = widget.dayungUnitId;
-    // Debug: print all incoming unit IDs
-    debugPrint(
-      'Incoming death_notices IDs: ${rows.map((r) => r['dayung_unit_id']).toList()}',
-    );
 
     // Filter by dayung_unit_id before splitting
     final filtered = rows.where((r) {
@@ -74,10 +70,6 @@ class _RecentDeathNoticesState extends State<RecentDeathNotices> {
       final asInt = v is int ? v : int.tryParse('$v');
       return asInt == unitId;
     }).toList();
-
-    debugPrint(
-      'Filtered death_notices IDs: ${filtered.map((r) => r['dayung_unit_id']).toList()}',
-    );
 
     filtered.sort((a, b) {
       final ad = (a['date_of_death'] ?? '').toString();

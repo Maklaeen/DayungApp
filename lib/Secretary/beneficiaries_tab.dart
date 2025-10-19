@@ -185,8 +185,8 @@ class _SecretaryBeneficiariesTabState extends State<SecretaryBeneficiariesTab> {
               const SizedBox(height: 24),
               Text(
                 isPending
-                    ? 'No active beneficiaries found'
-                    : 'No pending beneficiaries found',
+                    ? 'No pending beneficiaries found'
+                    : 'No active beneficiaries found',
                 style: const TextStyle(
                   fontSize: 18,
                   fontWeight: FontWeight.w700,
@@ -198,8 +198,8 @@ class _SecretaryBeneficiariesTabState extends State<SecretaryBeneficiariesTab> {
               const SizedBox(height: 8),
               Text(
                 isPending
-                    ? 'No active beneficiaries have been recorded yet'
-                    : 'No pending beneficiaries have been recorded yet',
+                    ? 'No pending beneficiaries have been recorded yet'
+                    : 'No active beneficiaries have been recorded yet',
                 style: const TextStyle(
                   fontSize: 14,
                   color: Color(0xFF6B7280),
@@ -512,8 +512,8 @@ class _SecretaryBeneficiariesTabState extends State<SecretaryBeneficiariesTab> {
                   child: _loading
                       ? const Center(child: CircularProgressIndicator())
                       : (_selectedTab == 0
-                            ? _groupedList(_activeByUser, isPending: true)
-                            : _groupedList(_pendingByUser, isPending: false)),
+                            ? _groupedList(_activeByUser, isPending: false)
+                            : _groupedList(_pendingByUser, isPending: true)),
                 ),
               ),
             ],

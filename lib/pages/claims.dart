@@ -428,8 +428,11 @@ class _ClaimsPageState extends State<ClaimsPage>
     }).toList();
   }
 
-  void _openSubmitSheet() {
+  void _openSubmitSheet() async {
     if (_submittingModalOpen) return;
+    // Ensure we have the latest selected unit before opening the form
+    await _loadDayungUnit();
+
     _submittingModalOpen = true;
     showModalBottomSheet(
       context: context,
@@ -443,7 +446,7 @@ class _ClaimsPageState extends State<ClaimsPage>
         padding: EdgeInsets.only(
           bottom: MediaQuery.of(context).viewInsets.bottom,
         ),
-        child: const SubmitClaimForm(),
+        child: SubmitClaimForm(dayungUnitId: _dayungId),
       ),
     ).whenComplete(() {
       _submittingModalOpen = false;
@@ -738,13 +741,40 @@ class _ClaimsPageState extends State<ClaimsPage>
             ),
           ],
           body: _loading
-              ? _wrapWithRefreshAndNav(
-                  ListView(
-                    physics: const AlwaysScrollableScrollPhysics(
-                      parent: BouncingScrollPhysics(),
+              ? Center(
+                  child: Container(
+                    padding: const EdgeInsets.all(24),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(color: Colors.grey.shade300, width: 1),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.05),
+                          blurRadius: 15,
+                          offset: const Offset(0, 6),
+                        ),
+                      ],
                     ),
-                    padding: const EdgeInsets.fromLTRB(16, 12, 16, 90),
-                    children: List.generate(4, (_) => _skeletonCard()),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        CircularProgressIndicator(
+                          color: kPrimary,
+                          strokeWidth: 3,
+                        ),
+                        const SizedBox(height: 16),
+                        const Text(
+                          'Loading claims...',
+                          style: TextStyle(
+                            color: kSubtleText,
+                            fontSize: 16,
+                            fontFamily: 'OpenSans',
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 )
               : TabBarView(

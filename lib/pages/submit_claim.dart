@@ -1,3 +1,5 @@
+import 'dart:convert';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:file_picker/file_picker.dart';
@@ -13,7 +15,8 @@ const Color kSubtleText = Color(0xFF4B5563);
 const double kRadius = 18;
 
 class SubmitClaimForm extends StatefulWidget {
-  const SubmitClaimForm({super.key});
+  final int? dayungUnitId;
+  const SubmitClaimForm({super.key, this.dayungUnitId});
   @override
   State<SubmitClaimForm> createState() => _SubmitClaimFormState();
 }
@@ -134,7 +137,8 @@ class _SubmitClaimFormState extends State<SubmitClaimForm> {
 
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
-    final user = Supabase.instance.client.auth.currentUser;
+    final sb = Supabase.instance.client;
+    final user = sb.auth.currentUser;
     if (user == null) {
       ScaffoldMessenger.of(
         context,
@@ -147,10 +151,47 @@ class _SubmitClaimFormState extends State<SubmitClaimForm> {
       );
       return;
     }
-    // Require date of death for both member or beneficiary claims
     if (_dateOfDeath == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Please select date of death.')),
+      );
+      return;
+    }
+
+    // Always re-read the currently selected unit from SharedPreferences
+    int? unitFromPrefs;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final raw = prefs.getString('selectedDayungUnit');
+      if (raw != null) {
+        final map = Map<String, dynamic>.from(jsonDecode(raw));
+        unitFromPrefs = map['id'] is int
+            ? map['id'] as int
+            : int.tryParse('${map['id']}');
+      }
+    } catch (_) {}
+
+    // Prefer the latest from prefs, fallback to the passed-in value
+    final int? effectiveUnitId = unitFromPrefs ?? widget.dayungUnitId;
+
+    if (effectiveUnitId == null) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('No Dayung selected.')));
+      return;
+    }
+
+    // Validate membership in the selected unit via applications (approved)
+    final apps = await sb
+        .from('applications')
+        .select('id')
+        .eq('user_id', user.id)
+        .eq('dayung_unit_id', effectiveUnitId)
+        .eq('status', 'approved')
+        .limit(1);
+    if ((apps as List).isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('You are not a member of this Dayung.')),
       );
       return;
     }
@@ -160,32 +201,31 @@ class _SubmitClaimFormState extends State<SubmitClaimForm> {
 
     setState(() => _submitting = true);
     try {
-      // 1. Insert claim (now includes date_of_death)
       final claimData = {
-      'user_id': user.id,
-      'title': _title.text.trim(),
-      'description': _desc.text.trim(),
-      'status': 'Pending',
-      if (_selectedBeneficiaryId != null) 'beneficiary_id': _selectedBeneficiaryId,
-      'date_of_death': _fmtDate(_dateOfDeath!),
-      // vigil fields
-      'vigil_latitude': _vigilPos?.latitude,
-      'vigil_longitude': _vigilPos?.longitude,
-      'vigil_address': _vigilAddress,
-      'vigil_barangay': _vigilBarangay,
-    };
-    final insertRes = await Supabase.instance.client
-        .from('claims')
-        .insert(claimData)
-        .select()
-        .maybeSingle();
+        'user_id': user.id,
+        'title': _title.text.trim(),
+        'description': _desc.text.trim(),
+        'status': 'Pending',
+        if (_selectedBeneficiaryId != null)
+          'beneficiary_id': _selectedBeneficiaryId,
+        'date_of_death': _fmtDate(_dateOfDeath!),
+        'dayung_unit_id': effectiveUnitId, // <- always the latest selected unit
+        'vigil_latitude': _vigilPos?.latitude,
+        'vigil_longitude': _vigilPos?.longitude,
+        'vigil_address': _vigilAddress,
+        'vigil_barangay': _vigilBarangay,
+      };
+
+      final insertRes = await sb
+          .from('claims')
+          .insert(claimData)
+          .select()
+          .maybeSingle();
       final claimId = insertRes!['id'].toString();
 
-      // 2. Upload file if picked
-      String? fileUrl;
       if (_deathCertFile != null) {
-        fileUrl = await _uploadDeathCert(claimId);
-        await Supabase.instance.client
+        final fileUrl = await _uploadDeathCert(claimId);
+        await sb
             .from('claims')
             .update({'death_certificate_url': fileUrl})
             .eq('id', claimId);
@@ -197,6 +237,7 @@ class _SubmitClaimFormState extends State<SubmitClaimForm> {
         context,
       ).showSnackBar(const SnackBar(content: Text('Claim submitted.')));
     } catch (e, st) {
+      // ...existing error handling...
       print('CLAIM SUBMIT ERROR: $e\n$st');
       if (!mounted) return;
       ScaffoldMessenger.of(
@@ -205,35 +246,6 @@ class _SubmitClaimFormState extends State<SubmitClaimForm> {
     } finally {
       if (mounted) setState(() => _submitting = false);
     }
-  }
-
-  InputDecoration _fieldDec({
-    required String label,
-    required IconData icon,
-    int lines = 1,
-  }) {
-    return InputDecoration(
-      labelText: label,
-      prefixIcon: Icon(icon),
-      filled: true,
-      fillColor: Colors.grey.shade100,
-      contentPadding: EdgeInsets.symmetric(
-        vertical: lines > 1 ? 16 : 0,
-        horizontal: 14,
-      ),
-      border: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(14),
-        borderSide: BorderSide(color: Colors.grey.shade300),
-      ),
-      enabledBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(14),
-        borderSide: BorderSide(color: Colors.grey.shade300),
-      ),
-      focusedBorder: const OutlineInputBorder(
-        borderRadius: BorderRadius.all(Radius.circular(14)),
-        borderSide: BorderSide(color: kPrimaryDark, width: 1.6),
-      ),
-    );
   }
 
   Widget _buildModernField({
@@ -259,7 +271,10 @@ class _SubmitClaimFormState extends State<SubmitClaimForm> {
           labelText: label,
           prefixIcon: Icon(icon, color: kPrimaryDark, size: 20),
           border: InputBorder.none,
-          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 16,
+            vertical: 16,
+          ),
           labelStyle: TextStyle(
             color: Colors.grey.shade600,
             fontSize: 14,
@@ -326,17 +341,19 @@ class _SubmitClaimFormState extends State<SubmitClaimForm> {
         border: Border.all(color: Colors.grey.shade200),
       ),
       child: InkWell(
-        onTap: _submitting ? null : () async {
-          final picked = await showDatePicker(
-            context: context,
-            initialDate: DateTime.now(),
-            firstDate: DateTime(1900),
-            lastDate: DateTime.now(),
-          );
-          if (picked != null) {
-            setState(() => _dateOfDeath = picked);
-          }
-        },
+        onTap: _submitting
+            ? null
+            : () async {
+                final picked = await showDatePicker(
+                  context: context,
+                  initialDate: DateTime.now(),
+                  firstDate: DateTime(1900),
+                  lastDate: DateTime.now(),
+                );
+                if (picked != null) {
+                  setState(() => _dateOfDeath = picked);
+                }
+              },
         borderRadius: BorderRadius.circular(12),
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
@@ -350,7 +367,9 @@ class _SubmitClaimFormState extends State<SubmitClaimForm> {
                     : '${_dateOfDeath!.year}-${_dateOfDeath!.month.toString().padLeft(2, '0')}-${_dateOfDeath!.day.toString().padLeft(2, '0')}',
                 style: TextStyle(
                   fontSize: 14,
-                  color: _dateOfDeath == null ? Colors.grey.shade600 : kNeutralText,
+                  color: _dateOfDeath == null
+                      ? Colors.grey.shade600
+                      : kNeutralText,
                 ),
               ),
               const Spacer(),
@@ -385,7 +404,9 @@ class _SubmitClaimFormState extends State<SubmitClaimForm> {
                       : _deathCertFile!.path.split('/').last,
                   style: TextStyle(
                     fontSize: 14,
-                    color: _deathCertFile == null ? Colors.grey.shade600 : kNeutralText,
+                    color: _deathCertFile == null
+                        ? Colors.grey.shade600
+                        : kNeutralText,
                   ),
                   overflow: TextOverflow.ellipsis,
                 ),
@@ -393,9 +414,16 @@ class _SubmitClaimFormState extends State<SubmitClaimForm> {
               if (_deathCertFile != null)
                 IconButton(
                   onPressed: () => setState(() => _deathCertFile = null),
-                  icon: Icon(Icons.close, color: Colors.grey.shade600, size: 18),
+                  icon: Icon(
+                    Icons.close,
+                    color: Colors.grey.shade600,
+                    size: 18,
+                  ),
                   padding: EdgeInsets.zero,
-                  constraints: const BoxConstraints(minWidth: 24, minHeight: 24),
+                  constraints: const BoxConstraints(
+                    minWidth: 24,
+                    minHeight: 24,
+                  ),
                 ),
             ],
           ),
@@ -429,11 +457,17 @@ class _SubmitClaimFormState extends State<SubmitClaimForm> {
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
                     fontSize: 13,
-                    color: _vigilAddress == null ? Colors.grey.shade600 : kNeutralText,
+                    color: _vigilAddress == null
+                        ? Colors.grey.shade600
+                        : kNeutralText,
                   ),
                 ),
               ),
-              Icon(Icons.arrow_forward_ios_rounded, color: Colors.grey.shade600, size: 16),
+              Icon(
+                Icons.arrow_forward_ios_rounded,
+                color: Colors.grey.shade600,
+                size: 16,
+              ),
             ],
           ),
         ),
@@ -512,10 +546,7 @@ class _SubmitClaimFormState extends State<SubmitClaimForm> {
               gradient: LinearGradient(
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
-                colors: [
-                  Color(0xFF1E40AF),
-                  Color(0xFF3B82F6),
-                ],
+                colors: [Color(0xFF1E40AF), Color(0xFF3B82F6)],
               ),
               borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
             ),

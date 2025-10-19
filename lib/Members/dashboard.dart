@@ -46,6 +46,8 @@ class _MemberDashboardPageState extends State<MemberDashboardPage> {
   String? _unitCity; // align with Secretary
   // ignore: unused_field
   int? _dayungUnitId;
+  int? _lastRoleUnitId;
+  int? _lastProviderUnitId;
 
   // ignore: unused_field
   User? _user;
@@ -611,9 +613,6 @@ class _MemberDashboardPageState extends State<MemberDashboardPage> {
       final uid = supabase.auth.currentUser?.id;
       final dayungId = _asInt(_selectedDayungUnitObj?['id']);
 
-      // Debug prints
-      debugPrint('DEBUG: User ID: $uid, Dayung ID: $dayungId');
-
       if (uid == null || dayungId == null) {
         setState(() {
           _latestActivities = [];
@@ -631,8 +630,6 @@ class _MemberDashboardPageState extends State<MemberDashboardPage> {
           .order('created_at', ascending: false)
           .limit(1);
 
-      // Debug
-      debugPrint('DEBUG: Contributions result: $contribResult');
       final recentContributions = contribResult as List? ?? [];
 
       // 2. Get most recent claim update
@@ -643,8 +640,6 @@ class _MemberDashboardPageState extends State<MemberDashboardPage> {
           .order('date_submitted', ascending: false)
           .limit(1);
 
-      // Debug
-      debugPrint('DEBUG: Claims result: $claimResult');
       final recentClaims = claimResult as List? ?? [];
 
       List<Map<String, dynamic>> activities = [];
@@ -1106,9 +1101,13 @@ class _MemberDashboardPageState extends State<MemberDashboardPage> {
             topRight: Radius.circular(24),
           ),
           child: AnimatedSwitcher(
-            duration: const Duration(milliseconds: 300),
-            child: IndexedStack(index: _currentIndex, children: _pages),
-          ),
+  duration: const Duration(milliseconds: 300),
+  child: IndexedStack(
+    key: ValueKey(_currentIndex), // <-- Add this line
+    index: _currentIndex,
+    children: _pages,
+  ),
+),
         ),
       ),
     );
@@ -1611,7 +1610,7 @@ class _MemberDashboardPageState extends State<MemberDashboardPage> {
         .where((s) => s.isNotEmpty)
         .toList();
     final display = names.take(2).toList();
-    final extra = names.length - display.length;
+    // final extra = names.length - display.length;
 
     return Container(
       padding: const EdgeInsets.all(16),
@@ -1672,17 +1671,17 @@ class _MemberDashboardPageState extends State<MemberDashboardPage> {
                 )
                 .toList(),
           ),
-          if (extra > 0)
-            Text(
-              'View All',
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: 13.5,
-                fontWeight: FontWeight.w800,
-                fontFamily: 'OpenSans',
-                color: Colors.blue[700],
-              ),
-            ),
+          // if (extra > 0)
+          //   Text(
+          //     'View All',
+          //     textAlign: TextAlign.center,
+          //     style: TextStyle(
+          //       fontSize: 13.5,
+          //       fontWeight: FontWeight.w800,
+          //       fontFamily: 'OpenSans',
+          //       color: Colors.blue[700],
+          //     ),
+          //   ),
         ],
       ),
     );
@@ -1929,15 +1928,47 @@ class _MemberDashboardPageState extends State<MemberDashboardPage> {
     );
   }
 
+  Future<void> _maybeOnProviderUnitChanged(int? newUnitId) async {
+    if (!mounted) return;
+    final current = _dayungUnitId;
+    if (newUnitId == null || newUnitId == current) return;
+
+    // Prevent double-runs in the same frame
+    _lastRoleUnitId = newUnitId;
+    _lastProviderUnitId = newUnitId;
+
+    // Reload selection from prefs, refresh roles and stats
+    await _reloadDayungFromPrefs();
+    await _fetchUnreadNotifCount();
+    await _fetchAllStats();
+    await _subscribeAnnouncementsRealtime();
+    if (mounted) setState(() {});
+  }
+  
   @override
   Widget build(BuildContext context) {
     final width = MediaQuery.of(context).size.width;
     final wide = width > 820;
-    final provUnit = context.watch<DayungRoleProvider>().unitId;
-    if (provUnit != _selectedDayungUnitObj?['id']) {
+    // final provUnit = context.watch<DayungRoleProvider>().unitId;
+    // if (provUnit != _selectedDayungUnitObj?['id']) {
+    //   WidgetsBinding.instance.addPostFrameCallback((_) {
+    //     // If you have a method to handle unit changes, call it here
+    //     // _maybeOnProviderUnitChanged(provUnit);
+    //   });
+    // }
+
+       // Watch both providers to detect unit changes
+    final rolesUnitId = context.watch<DayungRoleProvider>().unitId;
+    final providerUnitId = context.watch<DayungUnitProvider>().currentUnitId;
+
+    if (rolesUnitId != null && rolesUnitId != _dayungUnitId) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        // If you have a method to handle unit changes, call it here
-        // _maybeOnProviderUnitChanged(provUnit);
+        _maybeOnProviderUnitChanged(rolesUnitId);
+      });
+    }
+    if (providerUnitId != null && providerUnitId != _dayungUnitId) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _maybeOnProviderUnitChanged(providerUnitId);
       });
     }
 

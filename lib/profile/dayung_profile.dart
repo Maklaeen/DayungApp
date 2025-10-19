@@ -1,10 +1,13 @@
 import 'dart:convert';
-import 'package:capstone_app/screens/dayung_suggestions.dart' hide kPrimary, kAccent, kWarn;
+import 'package:capstone_app/Providers/dayung_provider.dart';
+import 'package:capstone_app/screens/dayung_suggestions.dart'
+    hide kPrimary, kAccent, kWarn;
 import 'package:capstone_app/screens/selectdayung.dart'
     hide kPrimary, kWarn, kAccent;
 import 'package:capstone_app/screens/dayung_map_page.dart' as map;
 import 'package:capstone_app/ui/theme/branding.dart';
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -400,49 +403,19 @@ class _DayungProfileState extends State<DayungProfile> {
 
   Future<void> _loadCurrentDayung() async {
     setState(() => _loadingDayung = true);
-    final supabase = Supabase.instance.client;
-    final user = supabase.auth.currentUser;
-    if (user == null) {
-      setState(() {
-        _currentDayungId = null;
-        _currentDayungName = null;
-        _currentDayungData = null;
-        _loadingDayung = false;
-      });
-      return;
-    }
-    try {
-      final userData = await supabase
-          .from('users')
-          .select('dayung_unit_id')
-          .eq('id', user.id)
-          .maybeSingle();
 
-      _currentDayungId = userData?['dayung_unit_id'];
-      if (_currentDayungId != null) {
-        final dayung = await supabase
-            .from('dayung_units')
-            .select('id, name, barangay, city, province, latitude, longitude')
-            .eq('id', _currentDayungId as Object)
-            .maybeSingle();
+    // Use DayungUnitProvider or SharedPreferences as the source of truth
+    final provider = context.read<DayungUnitProvider>();
+    await provider.loadDayungUnit(); // ensures latest from prefs
 
-        setState(() {
-          _currentDayungData = dayung != null
-              ? Map<String, dynamic>.from(dayung)
-              : null;
-          _currentDayungName = dayung?['name'];
-          _loadingDayung = false;
-        });
-      } else {
-        setState(() {
-          _currentDayungData = null;
-          _currentDayungName = null;
-          _loadingDayung = false;
-        });
-      }
-    } on PostgrestException catch (_) {
-      setState(() => _loadingDayung = false);
-    }
+    final obj = provider.dayungUnitObj;
+    final name = provider.dayungUnit;
+    setState(() {
+      _currentDayungId = obj?['id'] as int?;
+      _currentDayungName = name;
+      _currentDayungData = obj;
+      _loadingDayung = false;
+    });
   }
 
   String _address(Map<String, dynamic> d) {

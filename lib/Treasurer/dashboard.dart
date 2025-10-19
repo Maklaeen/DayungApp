@@ -331,7 +331,6 @@ class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
     int deathNoticeId,
     int dayungUnitId,
   ) async {
-    // Fetch notice meta (always contains the member/parent user_id snapshot)
     Map<String, dynamic>? dn;
     try {
       final res = await sb
@@ -359,17 +358,32 @@ class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
       } catch (_) {}
     }
 
-    // Get active members for the dayung
+    // Get active, alive members for the dayung (exclude kicked and deceased)
     final appsRes = await sb
         .from('applications')
         .select('user_id')
         .eq('dayung_unit_id', dayungUnitId)
         .eq('status', 'approved');
-    final members = List<Map<String, dynamic>>.from(appsRes);
+    final memberIds = List<Map<String, dynamic>>.from(appsRes)
+        .map((u) => u['user_id']?.toString())
+        .where((id) => id != null && id.isNotEmpty)
+        .toList();
 
-    if (members.isEmpty) {
+    // Only include members who are alive
+    List<Map<String, dynamic>> aliveMembers = [];
+    if (memberIds.isNotEmpty) {
+      final usersRes = await sb
+          .from('users')
+          .select('id, is_deceased')
+          .inFilter('id', memberIds);
+      aliveMembers = List<Map<String, dynamic>>.from(
+        usersRes,
+      ).where((u) => (u['is_deceased'] ?? false) == false).toList();
+    }
+
+    if (aliveMembers.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('No active members to charge.')),
+        const SnackBar(content: Text('No active (alive) members to charge.')),
       );
       return;
     }
@@ -387,8 +401,8 @@ class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
 
     // Prepare new rows (skip duplicates and excluded user)
     final rows = <Map<String, dynamic>>[];
-    for (final u in members) {
-      final uid = (u['user_id'] ?? '').toString(); // CHANGED from u['id']
+    for (final u in aliveMembers) {
+      final uid = (u['id'] ?? '').toString();
       if (uid.isEmpty) continue;
       if (excludedUserId != null && uid == excludedUserId) continue;
       if (existingIds.contains(uid)) continue;
