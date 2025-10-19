@@ -109,11 +109,11 @@ class _CollectorDashboardPageState extends State<CollectorDashboardPage> {
     String? jsonFull = prefs.getString('selectedDayungUnitData');
     Map<String, dynamic>? parsed;
 
-    if (jsonFull != null) {
-      try {
+    try {
+      if (jsonFull != null) {
         parsed = jsonDecode(jsonFull);
-      } catch (_) {}
-    }
+      }
+    } catch (_) {}
     if (parsed == null &&
         label.trim().startsWith('{') &&
         label.contains('"name"')) {

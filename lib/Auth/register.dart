@@ -849,13 +849,16 @@ class _RegisterState extends State<Register> {
                                       size: 20,
                                     ),
                                     const SizedBox(width: 8),
-                                    const Text(
-                                  'Already have an account? Login',
-                                  style: TextStyle(
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                ),
+                                    Flexible(
+                                      child: Text(
+                                        'Already have an account? Login',
+                                        style: TextStyle(
+                                          fontSize: 16,
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                        textAlign: TextAlign.center,
+                                      ),
+                                    ),
                                   ],
                                 ),
                               ),
@@ -889,17 +892,19 @@ class _RegisterState extends State<Register> {
                           size: 18,
                         ),
                         const SizedBox(width: 8),
-                  const Text(
-                                              'Your information is kept private and secure.',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      color: kSuccess,
-                       fontSize: 14,
-                       fontWeight: FontWeight.w600,
-                       ),
-                  ),
-                ],
-              ),
+                        Flexible(
+                          child: Text(
+                            'Your information is kept private and secure.',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              color: kSuccess,
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
             ),
                   ],
                 ),

@@ -1,6 +1,4 @@
-import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 class DayungProfilePage extends StatefulWidget {
@@ -37,29 +35,12 @@ class _DayungProfilePageState extends State<DayungProfilePage> {
 
     // 1) Resolve unit id: prop -> prefs
     int? unitId = widget.dayungUnitId;
+    _unitId = unitId;
+
     if (unitId == null) {
-      final prefs = await SharedPreferences.getInstance();
-      final raw =
-          prefs.getString('selectedDayungUnitData') ??
-          prefs.getString('selectedDayungUnit');
-      if (raw != null) {
-        try {
-          final obj = Map<String, dynamic>.from(jsonDecode(raw));
-          final v = obj['id'];
-          unitId = v is int ? v : int.tryParse('$v');
-        } catch (_) {}
-      }
-    }
-    if (unitId == null) {
-      _setStateSafe(() {
-        _unitId = null;
-        dayung = null;
-        members = [];
-        _loading = false;
-      });
+      _setStateSafe(() => _loading = false);
       return;
     }
-    _unitId = unitId;
 
     try {
       // 2) Fetch dayung info
@@ -134,7 +115,8 @@ class _DayungProfilePageState extends State<DayungProfilePage> {
             ListTile(
               leading: const Icon(Icons.person),
               title: Text(m['full_name'] ?? 'Member'),
-              subtitle: Text('${m['role'] ?? ''}${m['email'] != null ? ' • ${m['email']}' : ''}',
+              subtitle: Text(
+                '${m['role'] ?? ''}${m['email'] != null ? ' • ${m['email']}' : ''}',
               ),
             ),
         ],

@@ -229,11 +229,11 @@ class _SecretaryDashboardPageState extends State<SecretaryDashboardPage> {
     int? unitId;
     String? jsonFull = prefs.getString('selectedDayungUnitData');
     Map<String, dynamic>? parsed;
-    if (jsonFull != null) {
-      try {
+    try {
+      if (jsonFull != null) {
         parsed = jsonDecode(jsonFull);
-      } catch (_) {}
-    }
+      }
+    } catch (_) {}
     if (parsed == null &&
         dayungLabelRaw.trim().startsWith('{') &&
         dayungLabelRaw.contains('"name"')) {
