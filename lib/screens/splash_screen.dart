@@ -74,7 +74,7 @@ class _SplashScreenState extends State<SplashScreen> {
 
               // Welcome Text
               Text(
-                    'Welcome to DAYUNG',
+                    'Dayung',
                     style: TextStyle(
                       fontSize: 24,
                       fontWeight: FontWeight.w700,
