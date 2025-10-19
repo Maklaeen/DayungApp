@@ -96,7 +96,7 @@ class _SplashScreenState extends State<SplashScreen> {
               const SizedBox(height: 8),
 
               Text(
-                    'Your trusted companion in times of need',
+                    'Tabang sa kalisud, Sa isa ka Tap',
                     style: TextStyle(
                       fontSize: 14,
                       fontWeight: FontWeight.w500,

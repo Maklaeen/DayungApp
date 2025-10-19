@@ -576,18 +576,18 @@ class _LoginState extends State<Login> {
                             ),
                             child: Column(
                               children: [
-                                AutoSizeText(
-                                  'WELCOME',
-                                  style: TextStyle(
-                                    fontSize: isWide ? 40 : 34,
-                                    fontWeight: FontWeight.w800,
-                                    letterSpacing: 1.5,
-                                    color: kNeutralText,
-                                    fontFamily: 'Montserrat',
-                                  ),
-                                  maxLines: 1,
-                                  minFontSize: 22,
-                                ),
+                                // AutoSizeText(
+                                //   'Welcome',
+                                //   style: TextStyle(
+                                //     fontSize: isWide ? 40 : 34,
+                                //     fontWeight: FontWeight.w800,
+                                //     letterSpacing: 1.5,
+                                //     color: kNeutralText,
+                                //     fontFamily: 'Montserrat',
+                                //   ),
+                                //   maxLines: 1,
+                                //   minFontSize: 22,
+                                // ),
                                 const SizedBox(height: 12),
                                 RichText(
                                   text: TextSpan(
