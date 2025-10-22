@@ -213,7 +213,7 @@ class _CreateDeathNoticePageState extends State<CreateDeathNoticePage> {
 
           return Column(
             children: [
-              // Modern Header
+              // Header
               Container(
                 padding: EdgeInsets.fromLTRB(
                   horizontalPadding,

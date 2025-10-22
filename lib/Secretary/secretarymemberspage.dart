@@ -185,262 +185,277 @@ class _SecretaryMembersPageState extends State<SecretaryMembersPage>
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFFF8FAFC),
-      body: SafeArea(
-        child: Column(
-          children: [
-            // Header
-            Container(
-              padding: const EdgeInsets.fromLTRB(8, 36, 20, 28),
-              decoration: const BoxDecoration(
-                color: kPrimaryDark,
-                borderRadius: BorderRadius.only(
-                  bottomLeft: Radius.circular(28),
-                  bottomRight: Radius.circular(28),
+      body: LayoutBuilder(
+        builder: (context, constraints) {
+          final isWide = constraints.maxWidth > 700;
+          final horizontalPadding = isWide ? constraints.maxWidth * 0.15 : 20.0;
+          final headerFontSize = isWide ? 28.0 : 20.0;
+
+          return Column(
+            children: [
+              // Responsive Modern Header (copied/adapted from beneficiaries_tab.dart)
+              Container(
+                padding: EdgeInsets.fromLTRB(
+                  horizontalPadding,
+                  isWide ? 60 : 32,
+                  horizontalPadding,
+                  isWide ? 48 : 32,
                 ),
-                boxShadow: [
-                  BoxShadow(
-                    color: Color(0xFF1E40AF),
-                    blurRadius: 18,
-                    offset: Offset(0, 8),
+                decoration: BoxDecoration(
+                  color: kPrimaryDark,
+                  borderRadius: const BorderRadius.only(
+                    bottomLeft: Radius.circular(24),
+                    bottomRight: Radius.circular(24),
                   ),
-                ],
-              ),
-              child: Row(
-                children: [
-                  IconButton(
-                    icon: const Icon(
-                      Icons.arrow_back_rounded,
-                      color: Colors.white,
-                      size: 26,
+                  boxShadow: [
+                    BoxShadow(
+                      color: kPrimaryDark.withOpacity(0.3),
+                      blurRadius: 20,
+                      offset: const Offset(0, 8),
                     ),
-                    onPressed: () => Navigator.pop(context),
-                  ),
-                  const SizedBox(width: 4),
-                  const Icon(
-                    Icons.people_rounded,
-                    color: Colors.white,
-                    size: 28,
-                  ),
-                  const SizedBox(width: 16),
-                  const Expanded(
-                    child: Text(
-                      'Members',
-                      style: TextStyle(
-                        fontSize: 22,
-                        fontWeight: FontWeight.w800,
+                  ],
+                ),
+                child: Row(
+                  children: [
+                    IconButton(
+                      icon: const Icon(
+                        Icons.chevron_left_rounded,
                         color: Colors.white,
-                        fontFamily: 'Montserrat',
-                        letterSpacing: 0.3,
+                        size: 28,
+                      ),
+                      onPressed: () => Navigator.pop(context),
+                    ),
+                    const Icon(
+                      Icons.people_rounded,
+                      color: Colors.white,
+                      size: 28,
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: Text(
+                        'Members',
+                        style: TextStyle(
+                          fontSize: headerFontSize,
+                          fontWeight: FontWeight.w800,
+                          color: Colors.white,
+                          fontFamily: 'Montserrat',
+                          letterSpacing: 0.3,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                       ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
-            ),
 
-            // Search
-            Container(
-              padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
-              child: TextField(
-                controller: _searchController,
-                decoration: InputDecoration(
-                  hintText: 'Search member...',
-                  hintStyle: const TextStyle(
-                    color: kSubtleText,
+              // Search
+              Container(
+                padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
+                child: TextField(
+                  controller: _searchController,
+                  decoration: InputDecoration(
+                    hintText: 'Search member...',
+                    hintStyle: const TextStyle(
+                      color: kSubtleText,
+                      fontFamily: 'OpenSans',
+                    ),
+                    prefixIcon: const Icon(
+                      Icons.search_rounded,
+                      color: kPrimary,
+                      size: 20,
+                    ),
+                    filled: true,
+                    fillColor: Colors.white,
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide(color: Colors.grey.shade300),
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide(color: Colors.grey.shade300),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: const BorderSide(color: kPrimary, width: 1.5),
+                    ),
+                    contentPadding: const EdgeInsets.symmetric(vertical: 12),
+                  ),
+                  style: const TextStyle(
+                    fontSize: 14,
+                    color: kNeutralText,
                     fontFamily: 'OpenSans',
+                    fontWeight: FontWeight.w600,
                   ),
-                  prefixIcon: const Icon(
-                    Icons.search_rounded,
-                    color: kPrimary,
-                    size: 20,
-                  ),
-                  filled: true,
-                  fillColor: Colors.white,
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide(color: Colors.grey.shade300),
-                  ),
-                  enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide(color: Colors.grey.shade300),
-                  ),
-                  focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: const BorderSide(color: kPrimary, width: 1.5),
-                  ),
-                  contentPadding: const EdgeInsets.symmetric(vertical: 12),
+                  onChanged: (q) =>
+                      setState(() => _searchQuery = q.trim().toLowerCase()),
                 ),
-                style: const TextStyle(
-                  fontSize: 14,
-                  color: kNeutralText,
-                  fontFamily: 'OpenSans',
-                  fontWeight: FontWeight.w600,
-                ),
-                onChanged: (q) =>
-                    setState(() => _searchQuery = q.trim().toLowerCase()),
               ),
-            ),
 
-            // Tabs
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-              color: const Color(0xFFF1F5F9),
-              child: Row(
-                children: [
-                  const Icon(
-                    Icons.filter_list_rounded,
-                    color: kSubtleText,
-                    size: 16,
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: AnimatedBuilder(
-                      animation: _tabController,
-                      builder: (context, _) {
-                        return Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                          children: [
-                            _NavTab(
-                              label: 'Active',
-                              icon: Icons.check_circle_rounded,
-                              selected: _tabController.index == 0,
-                              onTap: () => _tabController.animateTo(0),
-                            ),
-                            _NavTab(
-                              label: 'Pending',
-                              icon: Icons.schedule_rounded,
-                              selected: _tabController.index == 1,
-                              onTap: () => _tabController.animateTo(1),
-                            ),
-                            _NavTab(
-                              label: 'Deceased',
-                              icon: Icons.person_off_rounded,
-                              selected: _tabController.index == 2,
-                              onTap: () => _tabController.animateTo(2),
-                            ),
-                          ],
-                        );
-                      },
+              // Tabs
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 20,
+                  vertical: 16,
+                ),
+                color: const Color(0xFFF1F5F9),
+                child: Row(
+                  children: [
+                    const Icon(
+                      Icons.filter_list_rounded,
+                      color: kSubtleText,
+                      size: 16,
                     ),
-                  ),
-                ],
-              ),
-            ),
-
-            // Content
-            Expanded(
-              child: _loading
-                  ? Center(
-                      child: Container(
-                        padding: const EdgeInsets.all(24),
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(20),
-                          border: Border.all(
-                            color: Colors.grey.shade300,
-                            width: 1,
-                          ),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withOpacity(0.05),
-                              blurRadius: 15,
-                              offset: const Offset(0, 6),
-                            ),
-                          ],
-                        ),
-                        child: const Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            CircularProgressIndicator(
-                              color: kPrimary,
-                              strokeWidth: 3,
-                            ),
-                            SizedBox(height: 16),
-                            Text(
-                              'Loading members...',
-                              style: TextStyle(
-                                color: kSubtleText,
-                                fontSize: 14,
-                                fontFamily: 'OpenSans',
-                                fontWeight: FontWeight.w600,
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: AnimatedBuilder(
+                        animation: _tabController,
+                        builder: (context, _) {
+                          return Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                            children: [
+                              _NavTab(
+                                label: 'Active',
+                                icon: Icons.check_circle_rounded,
+                                selected: _tabController.index == 0,
+                                onTap: () => _tabController.animateTo(0),
                               ),
-                            ),
-                          ],
-                        ),
+                              _NavTab(
+                                label: 'Pending',
+                                icon: Icons.schedule_rounded,
+                                selected: _tabController.index == 1,
+                                onTap: () => _tabController.animateTo(1),
+                              ),
+                              _NavTab(
+                                label: 'Deceased',
+                                icon: Icons.person_off_rounded,
+                                selected: _tabController.index == 2,
+                                onTap: () => _tabController.animateTo(2),
+                              ),
+                            ],
+                          );
+                        },
                       ),
-                    )
-                  : (_infoMsg != null)
-                  ? Center(
-                      child: Container(
-                        margin: const EdgeInsets.all(20),
-                        padding: const EdgeInsets.all(24),
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(20),
-                          border: Border.all(
-                            color: Colors.grey.shade300,
-                            width: 1,
-                          ),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withOpacity(0.05),
-                              blurRadius: 15,
-                              offset: const Offset(0, 6),
+                    ),
+                  ],
+                ),
+              ),
+
+              // Content
+              Expanded(
+                child: _loading
+                    ? Center(
+                        child: Container(
+                          padding: const EdgeInsets.all(24),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(20),
+                            border: Border.all(
+                              color: Colors.grey.shade300,
+                              width: 1,
                             ),
-                          ],
-                        ),
-                        child: Text(
-                          _infoMsg!,
-                          style: const TextStyle(
-                            fontSize: 16,
-                            color: kNeutralText,
-                            fontFamily: 'OpenSans',
-                            fontWeight: FontWeight.w600,
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withOpacity(0.05),
+                                blurRadius: 15,
+                                offset: const Offset(0, 6),
+                              ),
+                            ],
                           ),
-                          textAlign: TextAlign.center,
+                          child: const Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              CircularProgressIndicator(
+                                color: kPrimary,
+                                strokeWidth: 3,
+                              ),
+                              SizedBox(height: 16),
+                              Text(
+                                'Loading members...',
+                                style: TextStyle(
+                                  color: kSubtleText,
+                                  fontSize: 14,
+                                  fontFamily: 'OpenSans',
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
-                      ),
-                    )
-                  : LayoutBuilder(
-                      builder: (context, constraints) {
-                        return Column(
-                          children: [
-                            Expanded(
-                              child: Center(
-                                child: ConstrainedBox(
-                                  constraints: const BoxConstraints(
-                                    maxWidth: _kMaxContentWidth,
-                                  ),
-                                  child: TabBarView(
-                                    controller: _tabController,
-                                    children: [
-                                      _memberList(
-                                        _approved,
-                                        mode: 'active',
-                                        constraints: constraints,
-                                      ),
-                                      _memberList(
-                                        _pending,
-                                        mode: 'pending',
-                                        constraints: constraints,
-                                      ),
-                                      _memberList(
-                                        _deceased,
-                                        mode: 'deceased',
-                                        constraints: constraints,
-                                      ),
-                                    ],
+                      )
+                    : (_infoMsg != null)
+                    ? Center(
+                        child: Container(
+                          margin: const EdgeInsets.all(20),
+                          padding: const EdgeInsets.all(24),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(20),
+                            border: Border.all(
+                              color: Colors.grey.shade300,
+                              width: 1,
+                            ),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withOpacity(0.05),
+                                blurRadius: 15,
+                                offset: const Offset(0, 6),
+                              ),
+                            ],
+                          ),
+                          child: Text(
+                            _infoMsg!,
+                            style: const TextStyle(
+                              fontSize: 16,
+                              color: kNeutralText,
+                              fontFamily: 'OpenSans',
+                              fontWeight: FontWeight.w600,
+                            ),
+                            textAlign: TextAlign.center,
+                          ),
+                        ),
+                      )
+                    : LayoutBuilder(
+                        builder: (context, constraints) {
+                          return Column(
+                            children: [
+                              Expanded(
+                                child: Center(
+                                  child: ConstrainedBox(
+                                    constraints: const BoxConstraints(
+                                      maxWidth: _kMaxContentWidth,
+                                    ),
+                                    child: TabBarView(
+                                      controller: _tabController,
+                                      children: [
+                                        _memberList(
+                                          _approved,
+                                          mode: 'active',
+                                          constraints: constraints,
+                                        ),
+                                        _memberList(
+                                          _pending,
+                                          mode: 'pending',
+                                          constraints: constraints,
+                                        ),
+                                        _memberList(
+                                          _deceased,
+                                          mode: 'deceased',
+                                          constraints: constraints,
+                                        ),
+                                      ],
+                                    ),
                                   ),
                                 ),
                               ),
-                            ),
-                          ],
-                        );
-                      },
-                    ),
-            ),
-          ],
-        ),
+                            ],
+                          );
+                        },
+                      ),
+              ),
+            ],
+          );
+        },
       ),
     );
   }

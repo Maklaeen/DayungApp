@@ -1,0 +1,98 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
+
+class HandshakeAnimation extends StatefulWidget {
+  const HandshakeAnimation({super.key});
+
+  @override
+  State<HandshakeAnimation> createState() => _HandshakeAnimationState();
+}
+
+class _HandshakeAnimationState extends State<HandshakeAnimation>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+  late Animation<double> leftX;
+  late Animation<double> leftY;
+  late Animation<double> rightX;
+  late Animation<double> rightY;
+  late Animation<double> rotation;
+
+  @override
+  void initState() {
+    super.initState();
+
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 2),
+    )..repeat(reverse: true);
+
+    // Left hand (coming from top-left)
+    leftX = Tween<double>(begin: -60, end: 0).animate(
+      CurvedAnimation(parent: _controller, curve: Curves.easeInOut),
+    );
+    leftY = Tween<double>(begin: -60, end: 0).animate(
+      CurvedAnimation(parent: _controller, curve: Curves.easeInOut),
+    );
+
+    // Right hand (coming from bottom-right)
+    rightX = Tween<double>(begin: 60, end: 0).animate(
+      CurvedAnimation(parent: _controller, curve: Curves.easeInOut),
+    );
+    rightY = Tween<double>(begin: 60, end: 0).animate(
+      CurvedAnimation(parent: _controller, curve: Curves.easeInOut),
+    );
+
+    // Slight rotation for realism
+    rotation = Tween<double>(begin: -0.08, end: 0.08).animate(
+      CurvedAnimation(parent: _controller, curve: Curves.easeInOut),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: 160,
+      height: 160,
+      child: AnimatedBuilder(
+        animation: _controller,
+        builder: (context, child) {
+          return Stack(
+            alignment: Alignment.center,
+            children: [
+              // Left hand
+              Transform.translate(
+                offset: Offset(leftX.value, leftY.value),
+                child: Transform.rotate(
+                  angle: rotation.value,
+                  child: SvgPicture.asset(
+                    'assets/left_hand.svg',
+                    width: 100,
+                    height: 100,
+                  ),
+                ),
+              ),
+              // Right hand
+              Transform.translate(
+                offset: Offset(rightX.value, rightY.value),
+                child: Transform.rotate(
+                  angle: -rotation.value,
+                  child: SvgPicture.asset(
+                    'assets/right_hand.svg',
+                    width: 100,
+                    height: 100,
+                  ),
+                ),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+}

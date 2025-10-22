@@ -3,10 +3,12 @@ import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:capstone_app/Auth/login.dart' hide kWarn;
+import 'package:capstone_app/Auth/utils_file.dart';
 import 'package:capstone_app/Beneficiary/beneficiary.dart' hide kPrimaryLight;
 import 'package:capstone_app/Collector/dashboard.dart' hide kPrimaryLight;
 import 'package:capstone_app/Members/dashboard.dart' hide kAccent;
 import 'package:capstone_app/President/dashboard.dart' hide kAccent, kWarn;
+import 'package:capstone_app/President/manage_rules.dart' hide kPrimary;
 import 'package:capstone_app/Providers/dayung_provider.dart';
 import 'package:capstone_app/Providers/dayung_role_provider.dart';
 import 'package:capstone_app/Secretary/dashboard.dart'
@@ -14,12 +16,14 @@ import 'package:capstone_app/Secretary/dashboard.dart'
 import 'package:capstone_app/Treasurer/dashboard.dart'
     hide kAccent, kWarn, kPrimary;
 import 'package:capstone_app/profile/dayung_profile.dart';
+import 'package:capstone_app/settings/noti_service.dart';
 import 'package:capstone_app/settings/settings.dart' hide DayungSettingsPage;
 import 'package:capstone_app/ui/theme/branding.dart';
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:image_cropper/image_cropper.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -58,6 +62,7 @@ class _ProfilePageState extends State<ProfilePage> {
   bool _obscureCur = true;
   bool _obscureNew = true;
   bool _obscureConf = true;
+  bool _isDarkMode = false;
 
   String fullName = '';
   String mobileNumber = '';
@@ -72,6 +77,15 @@ class _ProfilePageState extends State<ProfilePage> {
   bool _editing = false;
   bool _saving = false;
   bool _uploadingImage = false;
+
+  bool get isPresident {
+    try {
+      final roles = context.read<DayungRoleProvider>();
+      return roles.isPresident;
+    } catch (_) {
+      return false;
+    }
+  }
 
   @override
   void initState() {
@@ -170,6 +184,7 @@ class _ProfilePageState extends State<ProfilePage> {
     required String? url,
     required VoidCallback onUpload,
     required VoidCallback onView,
+    required Color labelColor,
   }) {
     return Row(
       children: [
@@ -183,7 +198,11 @@ class _ProfilePageState extends State<ProfilePage> {
         Expanded(
           child: Text(
             label,
-            style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+            style: TextStyle(
+              fontSize: 15,
+              fontWeight: FontWeight.w600,
+              color: labelColor,
+            ),
           ),
         ),
         if (url != null && url.isNotEmpty)
@@ -1258,29 +1277,29 @@ class _ProfilePageState extends State<ProfilePage> {
   }
 
   Future<void> _confirmLogout() async {
-  final ok = await _showLogoutConfirmDialog();
-  if (ok == true) {
-    await Supabase.instance.client.auth.signOut();
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.remove('selectedDayungUnit');
-    await prefs.remove('selectedDayungUnitData');
+    final ok = await _showLogoutConfirmDialog();
+    if (ok == true) {
+      await Supabase.instance.client.auth.signOut();
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove('selectedDayungUnit');
+      await prefs.remove('selectedDayungUnitData');
 
-    // Clear in-memory selection so "Already using" won't appear after logout
-    try {
-      if (mounted) {
-        context.read<DayungUnitProvider>().clear();
-        // Optional: reset roles as well if you keep them around
-        // context.read<DayungRoleProvider>().refreshRoles(null);
-      }
-    } catch (_) {}
+      // Clear in-memory selection so "Already using" won't appear after logout
+      try {
+        if (mounted) {
+          context.read<DayungUnitProvider>().clear();
+          // Optional: reset roles as well if you keep them around
+          // context.read<DayungRoleProvider>().refreshRoles(null);
+        }
+      } catch (_) {}
 
-    if (!mounted) return;
-    Navigator.of(context).pushAndRemoveUntil(
-      MaterialPageRoute(builder: (_) => const Login()),
-      (route) => false,
-    );
+      if (!mounted) return;
+      Navigator.of(context).pushAndRemoveUntil(
+        MaterialPageRoute(builder: (_) => const Login()),
+        (route) => false,
+      );
+    }
   }
-}
 
   InputDecoration _fieldDecoration(String hint) {
     return InputDecoration(
@@ -1293,18 +1312,39 @@ class _ProfilePageState extends State<ProfilePage> {
 
   @override
   Widget build(BuildContext context) {
+    final themeBg = _isDarkMode
+        ? const Color(0xFF18181B)
+        : const Color(0xFFF8FAFC);
+    final themeCard = _isDarkMode ? const Color(0xFF23232A) : Colors.white;
+    final themeText = _isDarkMode ? Colors.white : kText;
+    final themeSubText = _isDarkMode ? Colors.grey[400]! : kSubText;
+    final themeField = _isDarkMode ? const Color(0xFF23232A) : Colors.white;
+
     if (isLoading) {
-      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+      return Scaffold(
+        backgroundColor: themeBg,
+        body: const Center(child: CircularProgressIndicator()),
+      );
     }
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF8FAFC),
+      backgroundColor: themeBg,
       body: Container(
-        decoration: const BoxDecoration(
+        decoration: BoxDecoration(
           gradient: LinearGradient(
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
-            colors: [Color(0xFF1E40AF), Color(0xFF3B82F6), Color(0xFFF8FAFC)],
+            colors: _isDarkMode
+                ? [
+                    const Color(0xFF23232A),
+                    const Color(0xFF18181B),
+                    const Color(0xFF23232A),
+                  ]
+                : [
+                    const Color(0xFF1E40AF),
+                    const Color(0xFF3B82F6),
+                    const Color(0xFFF8FAFC),
+                  ],
             stops: [0.0, 0.3, 0.3],
           ),
         ),
@@ -1316,7 +1356,7 @@ class _ProfilePageState extends State<ProfilePage> {
               child: Row(
                 children: [
                   IconButton(
-                    icon: const Icon(
+                    icon: Icon(
                       Icons.chevron_left,
                       color: Colors.white,
                       size: 22,
@@ -1348,15 +1388,29 @@ class _ProfilePageState extends State<ProfilePage> {
                       ),
                     ),
                   ),
+                  // Moon/Sun toggle button
+                  IconButton(
+                    icon: Icon(
+                      _isDarkMode
+                          ? Icons.wb_sunny_rounded
+                          : Icons.nightlight_round,
+                      color: Colors.white,
+                      size: 22,
+                    ),
+                    tooltip: _isDarkMode ? 'Light mode' : 'Dark mode',
+                    onPressed: () {
+                      setState(() => _isDarkMode = !_isDarkMode);
+                    },
+                  ),
                 ],
               ),
             ),
             // Content
             Expanded(
               child: Container(
-                decoration: const BoxDecoration(
-                  color: Color(0xFFF8FAFC),
-                  borderRadius: BorderRadius.only(
+                decoration: BoxDecoration(
+                  color: themeBg,
+                  borderRadius: const BorderRadius.only(
                     topLeft: Radius.circular(16),
                     topRight: Radius.circular(16),
                   ),
@@ -1371,11 +1425,20 @@ class _ProfilePageState extends State<ProfilePage> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             // Profile Section
-                            _buildModernProfileSection(),
+                            _buildModernProfileSection(
+                              themeCard,
+                              themeText,
+                              themeSubText,
+                            ),
                             const SizedBox(height: 32),
 
                             // Profile Fields
-                            _buildProfileFields(),
+                            _buildProfileFields(
+                              themeCard,
+                              themeText,
+                              themeSubText,
+                              themeField,
+                            ),
                             const SizedBox(height: 24),
 
                             // Action Buttons
@@ -1383,11 +1446,15 @@ class _ProfilePageState extends State<ProfilePage> {
                             const SizedBox(height: 24),
 
                             // Certificates Section
-                            _buildCertificatesSection(),
+                            _buildCertificatesSection(themeCard, themeText),
                             const SizedBox(height: 24),
 
                             // Dayung Management
-                            _buildDayungManagement(),
+                            _buildDayungManagement(
+                              themeCard,
+                              themeText,
+                              themeSubText,
+                            ),
                           ],
                         ),
                       ),
@@ -1451,30 +1518,41 @@ class _ProfilePageState extends State<ProfilePage> {
 
   // --- Modern UI section widgets ---
 
-  Widget _buildModernProfileSection() {
+  Widget _buildModernProfileSection(
+    Color themeCard,
+    Color themeText,
+    Color themeSubText,
+  ) {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: themeCard,
         borderRadius: BorderRadius.circular(12),
       ),
       child: Row(
         children: [
-          GestureDetector(
-            onTap: _editing ? _chooseImageSource : _openProfilePreview,
-            child: Hero(
-              tag: 'profilePhotoHero',
-              child: CircleAvatar(
-                radius: 24,
-                backgroundColor: Colors.white,
-                backgroundImage: (profileUrl != null && profileUrl!.isNotEmpty)
-                    ? NetworkImage(profileUrl!)
-                    : null,
-                child: (profileUrl == null || profileUrl!.isEmpty)
-                    ? Icon(Icons.person, color: kPrimary, size: 28)
-                    : null,
-              ),
+          // Box background behind the profile photo
+          Container(
+            padding: const EdgeInsets.all(6),
+            decoration: BoxDecoration(
+              color: _isDarkMode
+                  ? const Color(0xFF44444A) // gray in dark mode
+                  : const Color.fromARGB(
+                      255,
+                      215,
+                      215,
+                      215,
+                    ), // dark in light mode
+              borderRadius: BorderRadius.circular(45),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.10),
+                  blurRadius: 16,
+                  offset: const Offset(0, 6),
+                ),
+              ],
             ),
+            child: _buildProfileAvatar(themeCard),
           ),
           const SizedBox(width: 16),
           Expanded(
@@ -1483,19 +1561,19 @@ class _ProfilePageState extends State<ProfilePage> {
               children: [
                 Text(
                   _displayName().isNotEmpty ? _displayName() : 'Your name',
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.w600,
-                    color: kText,
+                    color: themeText,
                     fontFamily: 'Montserrat',
                   ),
                 ),
                 const SizedBox(height: 6),
                 Text(
                   mobileNumber.isNotEmpty ? mobileNumber : 'Mobile not set',
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 12,
-                    color: kSubText,
+                    color: themeSubText,
                     fontFamily: 'OpenSans',
                   ),
                 ),
@@ -1547,16 +1625,40 @@ class _ProfilePageState extends State<ProfilePage> {
     );
   }
 
-  Widget _buildProfileFields() {
+  Widget _buildProfileAvatar(Color themeCard) {
+    return GestureDetector(
+      onTap: _editing ? _chooseImageSource : _openProfilePreview,
+      child: Hero(
+        tag: 'profilePhotoHero',
+        child: CircleAvatar(
+          radius: 40,
+          backgroundColor: themeCard,
+          backgroundImage: (profileUrl != null && profileUrl!.isNotEmpty)
+              ? NetworkImage(profileUrl!)
+              : null,
+          child: (profileUrl == null || profileUrl!.isEmpty)
+              ? Icon(Icons.person, color: kPrimary, size: 28)
+              : null,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildProfileFields(
+    Color themeCard,
+    Color themeText,
+    Color themeSubText,
+    Color themeField,
+  ) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text(
+        Text(
           'Personal Information',
           style: TextStyle(
             fontSize: 14,
             fontWeight: FontWeight.w600,
-            color: kText,
+            color: themeText,
             fontFamily: 'Montserrat',
           ),
         ),
@@ -1570,9 +1672,18 @@ class _ProfilePageState extends State<ProfilePage> {
             textCapitalization: TextCapitalization.words,
             validator: (v) =>
                 v == null || v.trim().isEmpty ? 'Full name is required' : null,
-            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
-            decoration: _fieldDecoration('Enter full name'),
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w500,
+              color: themeText,
+            ),
+            decoration: _fieldDecoration(
+              'Enter full name',
+            ).copyWith(filled: true, fillColor: themeField),
           ),
+          themeCard: themeCard,
+          themeText: themeText,
+          themeSubText: themeSubText,
         ),
         _buildSimpleField(
           icon: Icons.location_on_rounded,
@@ -1581,9 +1692,18 @@ class _ProfilePageState extends State<ProfilePage> {
           editingChild: TextFormField(
             controller: _addressController,
             textCapitalization: TextCapitalization.sentences,
-            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
-            decoration: _fieldDecoration('Enter address'),
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w500,
+              color: themeText,
+            ),
+            decoration: _fieldDecoration(
+              'Enter address',
+            ).copyWith(filled: true, fillColor: themeField),
           ),
+          themeCard: themeCard,
+          themeText: themeText,
+          themeSubText: themeSubText,
         ),
         _buildSimpleField(
           icon: Icons.phone_rounded,
@@ -1598,9 +1718,18 @@ class _ProfilePageState extends State<ProfilePage> {
               if (t.length < 7) return 'Enter a valid number';
               return null;
             },
-            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
-            decoration: _fieldDecoration('Enter mobile number'),
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w500,
+              color: themeText,
+            ),
+            decoration: _fieldDecoration(
+              'Enter mobile number',
+            ).copyWith(filled: true, fillColor: themeField),
           ),
+          themeCard: themeCard,
+          themeText: themeText,
+          themeSubText: themeSubText,
         ),
         _buildSimpleField(
           icon: Icons.person_outline_rounded,
@@ -1619,8 +1748,15 @@ class _ProfilePageState extends State<ProfilePage> {
               ),
             ],
             onChanged: (val) => _sexController.text = val ?? '',
-            decoration: _fieldDecoration('Select sex'),
+            decoration: _fieldDecoration(
+              'Select sex',
+            ).copyWith(filled: true, fillColor: themeField),
+            dropdownColor: themeField,
+            style: TextStyle(color: themeText),
           ),
+          themeCard: themeCard,
+          themeText: themeText,
+          themeSubText: themeSubText,
         ),
       ],
     );
@@ -1631,12 +1767,15 @@ class _ProfilePageState extends State<ProfilePage> {
     required String label,
     required String value,
     required Widget editingChild,
+    required Color themeCard,
+    required Color themeText,
+    required Color themeSubText,
   }) {
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: themeCard,
         borderRadius: BorderRadius.circular(8),
       ),
       child: Column(
@@ -1655,10 +1794,10 @@ class _ProfilePageState extends State<ProfilePage> {
               const SizedBox(width: 12),
               Text(
                 label,
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 14,
                   fontWeight: FontWeight.w500,
-                  color: kText,
+                  color: themeText,
                   fontFamily: 'Montserrat',
                 ),
               ),
@@ -1669,8 +1808,8 @@ class _ProfilePageState extends State<ProfilePage> {
               ? editingChild
               : Text(
                   value,
-                  style: const TextStyle(
-                    color: kSubText,
+                  style: TextStyle(
+                    color: themeSubText,
                     fontSize: 14,
                     fontWeight: FontWeight.w400,
                   ),
@@ -1681,12 +1820,20 @@ class _ProfilePageState extends State<ProfilePage> {
   }
 
   Widget _buildActionButtons() {
+    final themeButtonBeneficiary = _isDarkMode
+        ? const Color(0xFF059669)
+        : kAccent;
+    final themeButtonChangePw = _isDarkMode
+        ? const Color(0xFF2563EB)
+        : kPrimaryLight;
+    final themeButtonLogout = _isDarkMode ? const Color(0xFFB91C1C) : kWarn;
+
     if (_editing) {
       return Container(
         width: double.infinity,
         height: 44,
         decoration: BoxDecoration(
-          color: kAccent,
+          color: themeButtonBeneficiary,
           borderRadius: BorderRadius.circular(8),
         ),
         child: ElevatedButton(
@@ -1722,10 +1869,25 @@ class _ProfilePageState extends State<ProfilePage> {
     } else {
       return Column(
         children: [
+          if (isPresident)
+            _buildActionButton(
+              icon: Icons.rule_rounded,
+              label: 'Manage Rules',
+              color: Colors.indigo,
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => const ManageRulesPagePres(),
+                  ),
+                );
+              },
+            ),
+          const SizedBox(height: 8),
           _buildActionButton(
             icon: Icons.people_rounded,
             label: 'Beneficiaries',
-            color: kAccent,
+            color: themeButtonBeneficiary,
             onTap: () {
               Navigator.pushReplacement(
                 context,
@@ -1735,16 +1897,54 @@ class _ProfilePageState extends State<ProfilePage> {
           ),
           const SizedBox(height: 8),
           _buildActionButton(
+            icon: Icons.notifications_active_rounded,
+            label: 'Notification trigger',
+            color: _isDarkMode
+                ? const Color(0xFF6366F1)
+                : const Color(0xFF3B82F6),
+            onTap: () async {
+              print('Notify button pressed');
+              try {
+                final status = await Permission.notification.request().timeout(
+                  const Duration(seconds: 3),
+                );
+                if (status.isDenied || status.isPermanentlyDenied) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Notification permission required'),
+                    ),
+                  );
+                  return;
+                }
+                final noti = NotiService();
+                await noti.initNotification();
+                try {
+                  await noti.showNotification(
+                    title: 'MESSENGER',
+                    body: 'HOY ASA AKONG BAYNTE SA PITAKA??',
+                  );
+                } catch (e) {
+                  print('Notification error: $e');
+                }
+              } catch (e) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text('Permission request failed: $e')),
+                );
+              }
+            },
+          ),
+          const SizedBox(height: 8),
+          _buildActionButton(
             icon: Icons.lock_reset_rounded,
             label: 'Change Password',
-            color: kPrimary,
+            color: themeButtonChangePw,
             onTap: _openChangePasswordDialog,
           ),
           const SizedBox(height: 8),
           _buildActionButton(
             icon: Icons.logout_rounded,
             label: 'Logout',
-            color: kWarn,
+            color: themeButtonLogout,
             onTap: _confirmLogout,
           ),
         ],
@@ -1787,16 +1987,16 @@ class _ProfilePageState extends State<ProfilePage> {
     );
   }
 
-  Widget _buildCertificatesSection() {
+  Widget _buildCertificatesSection(Color themeCard, Color themeText) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text(
+        Text(
           'Certificates',
           style: TextStyle(
             fontSize: 14,
             fontWeight: FontWeight.w600,
-            color: kText,
+            color: themeText,
             fontFamily: 'Montserrat',
           ),
         ),
@@ -1804,7 +2004,7 @@ class _ProfilePageState extends State<ProfilePage> {
         Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            color: Colors.white,
+            color: themeCard,
             borderRadius: BorderRadius.circular(8),
           ),
           child: Column(
@@ -1814,6 +2014,7 @@ class _ProfilePageState extends State<ProfilePage> {
                 url: birthCertificateUrl,
                 onUpload: () => _uploadCertificate(type: 'birth'),
                 onView: () => _openCertificate(birthCertificateUrl ?? ''),
+                labelColor: themeText, // <-- pass here
               ),
               const SizedBox(height: 8),
               _certificateRow(
@@ -1821,6 +2022,7 @@ class _ProfilePageState extends State<ProfilePage> {
                 url: marriageCertificateUrl,
                 onUpload: () => _uploadCertificate(type: 'marriage'),
                 onView: () => _openCertificate(marriageCertificateUrl ?? ''),
+                labelColor: themeText, // <-- pass here
               ),
             ],
           ),
@@ -1829,14 +2031,18 @@ class _ProfilePageState extends State<ProfilePage> {
     );
   }
 
-  Widget _buildDayungManagement() {
+  Widget _buildDayungManagement(
+    Color themeCard,
+    Color themeText,
+    Color themeSubText,
+  ) {
     return Column(
       children: [
         // Manage Dayung Card
         Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            color: Colors.white,
+            color: themeCard,
             borderRadius: BorderRadius.circular(8),
           ),
           child: InkWell(
@@ -1866,20 +2072,20 @@ class _ProfilePageState extends State<ProfilePage> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text(
+                      Text(
                         'Manage Dayung',
                         style: TextStyle(
                           fontSize: 14,
                           fontWeight: FontWeight.w600,
-                          color: kText,
+                          color: themeText,
                           fontFamily: 'Montserrat',
                         ),
                       ),
                       const SizedBox(height: 4),
-                      const Text(
+                      Text(
                         'View current Dayung, apply or change',
                         style: TextStyle(
-                          color: kSubText,
+                          color: themeSubText,
                           fontSize: 12,
                           fontFamily: 'OpenSans',
                         ),
