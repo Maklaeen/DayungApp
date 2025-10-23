@@ -364,51 +364,55 @@ class _SelectDayungPageState extends State<SelectDayungPage> {
                   const SizedBox(height: 12),
                   Row(
                     children: [
-                      OutlinedButton.icon(
-                        icon: Icon(
-                          isCurrent
-                              ? Icons.check_circle
-                              : Icons.check_circle_outlined,
-                          size: 16,
-                        ),
-                        label: Text(
-                          isCurrent ? 'Already using' : 'Use this Dayung',
-                        ),
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: isCurrent ? kSubText : kPrimary,
-                          side: BorderSide(
-                            color: isCurrent ? kBorderColor : kPrimary,
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          icon: Icon(
+                            isCurrent
+                                ? Icons.check_circle
+                                : Icons.check_circle_outlined,
+                            size: 16,
                           ),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
+                          label: Text(
+                            isCurrent ? 'Already using' : 'Use this Dayung',
                           ),
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: isCurrent ? kSubText : kPrimary,
+                            side: BorderSide(
+                              color: isCurrent ? kBorderColor : kPrimary,
+                            ),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                          onPressed: isCurrent
+                              ? null
+                              : () async {
+                                  final normalized =
+                                      await _persistSelectionAndNotify(d);
+                                  if (!mounted) return;
+                                  Navigator.pop(context, normalized);
+                                },
                         ),
-                        onPressed: isCurrent
-                            ? null
-                            : () async {
-                                final normalized =
-                                    await _persistSelectionAndNotify(d);
-                                if (!mounted) return;
-                                Navigator.pop(context, normalized);
-                              },
                       ),
                       const SizedBox(width: 12),
-                      TextButton.icon(
-                        icon: const Icon(Icons.map),
-                        label: const Text('View on Map'),
-                        style: TextButton.styleFrom(foregroundColor: kAccent),
-                        onPressed: () {
-                          final normalized = _normalizeDayung(d);
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) => DayungMapPage(
-                                dayung: normalized,
-                                isMember: (d['is_member'] == true),
+                      Expanded(
+                        child: TextButton.icon(
+                          icon: const Icon(Icons.map),
+                          label: const Text('View on Map'),
+                          style: TextButton.styleFrom(foregroundColor: kAccent),
+                          onPressed: () {
+                            final normalized = _normalizeDayung(d);
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => DayungMapPage(
+                                  dayung: normalized,
+                                  isMember: (d['is_member'] == true),
+                                ),
                               ),
-                            ),
-                          );
-                        },
+                            );
+                          },
+                        ),
                       ),
                     ],
                   ),

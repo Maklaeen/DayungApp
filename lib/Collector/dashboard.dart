@@ -596,8 +596,8 @@ class _CollectorDashboardPageState extends State<CollectorDashboardPage> {
             onTap: onTap,
             borderRadius: BorderRadius.circular(20),
             child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-              constraints: const BoxConstraints(minHeight: 60, maxHeight: 70),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
+              constraints: const BoxConstraints(minHeight: 56, maxHeight: 64),
               decoration: BoxDecoration(
                 color: selected
                     ? const Color(0xFF1E40AF).withValues(alpha: 0.12)
@@ -639,7 +639,7 @@ class _CollectorDashboardPageState extends State<CollectorDashboardPage> {
                       size: 20,
                     ),
                   ),
-                  const SizedBox(height: 4),
+                  const SizedBox(height: 2),
                   Text(
                     label,
                     style: TextStyle(
@@ -677,7 +677,7 @@ class _CollectorDashboardPageState extends State<CollectorDashboardPage> {
           _modernRecentActivity(),
           const SizedBox(height: 24),
           _modernQuickActions(),
-          const SizedBox(height: 100), // Space for bottom nav
+          const SizedBox(height: 100),
         ],
       ),
     );

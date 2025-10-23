@@ -1083,7 +1083,6 @@ class _SecretaryDashboardPageState extends State<SecretaryDashboardPage> {
       onTap: onTap,
       borderRadius: BorderRadius.circular(16),
       child: Container(
-        height: 120,
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
           color: Colors.white,
@@ -1266,32 +1265,32 @@ class _SecretaryDashboardPageState extends State<SecretaryDashboardPage> {
         ),
         const SizedBox(height: 16),
         Row(
-  children: [
-    Expanded(
-      child: _modernQuickActionCard(
-        icon: Icons.bar_chart_rounded,
-        title: "Reports",
-        color: branding.kPrimary,
-        onTap: () {
-          if (_dayungUnitId == null) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Select a Dayung first')),
-            );
-            return;
-          }
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (_) => ReportsPage(unitId: _dayungUnitId),
+          children: [
+            Expanded(
+              child: _modernQuickActionCard(
+                icon: Icons.bar_chart_rounded,
+                title: "Reports",
+                color: branding.kPrimary,
+                onTap: () {
+                  if (_dayungUnitId == null) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Select a Dayung first')),
+                    );
+                    return;
+                  }
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => ReportsPage(unitId: _dayungUnitId),
+                    ),
+                  );
+                },
+              ),
             ),
-          );
-        },
-      ),
-    ),
-    const SizedBox(width: 12),
-    const Expanded(child: SizedBox.shrink()),
-  ],
-),
+            const SizedBox(width: 12),
+            const Expanded(child: SizedBox.shrink()),
+          ],
+        ),
       ],
     );
   }
@@ -1373,23 +1372,29 @@ class _SecretaryDashboardPageState extends State<SecretaryDashboardPage> {
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                   children: [
-                    _navBarItem(
-                      icon: Icons.dashboard_rounded,
-                      label: 'Dashboard',
-                      selected: _currentIndex == 0,
-                      onTap: () => setState(() => _currentIndex = 0),
+                    Expanded(
+                      child: _navBarItem(
+                        icon: Icons.dashboard_rounded,
+                        label: 'Dashboard',
+                        selected: _currentIndex == 0,
+                        onTap: () => setState(() => _currentIndex = 0),
+                      ),
                     ),
-                    _navBarItem(
-                      icon: Icons.trending_up_rounded,
-                      label: 'Contributions',
-                      selected: _currentIndex == 1,
-                      onTap: () => setState(() => _currentIndex = 1),
+                    Expanded(
+                      child: _navBarItem(
+                        icon: Icons.trending_up_rounded,
+                        label: 'Contributions',
+                        selected: _currentIndex == 1,
+                        onTap: () => setState(() => _currentIndex = 1),
+                      ),
                     ),
-                    _navBarItem(
-                      icon: Icons.assignment_rounded,
-                      label: 'Claims',
-                      selected: _currentIndex == 2,
-                      onTap: () => setState(() => _currentIndex = 2),
+                    Expanded(
+                      child: _navBarItem(
+                        icon: Icons.assignment_rounded,
+                        label: 'Claims',
+                        selected: _currentIndex == 2,
+                        onTap: () => setState(() => _currentIndex = 2),
+                      ),
                     ),
                   ],
                 ),
@@ -1418,8 +1423,8 @@ class _SecretaryDashboardPageState extends State<SecretaryDashboardPage> {
             onTap: onTap,
             borderRadius: BorderRadius.circular(20),
             child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-              constraints: const BoxConstraints(minHeight: 60, maxHeight: 70),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
+              constraints: const BoxConstraints(minHeight: 56, maxHeight: 64),
               decoration: BoxDecoration(
                 color: selected
                     ? branding.kPrimary.withValues(alpha: 0.12)
@@ -1459,7 +1464,7 @@ class _SecretaryDashboardPageState extends State<SecretaryDashboardPage> {
                       size: 20,
                     ),
                   ),
-                  const SizedBox(height: 4),
+                  const SizedBox(height: 2),
                   Text(
                     label,
                     style: TextStyle(

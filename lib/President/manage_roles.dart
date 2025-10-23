@@ -310,7 +310,7 @@ class _ManageRolesPageState extends State<ManageRolesPagePres> {
                                       size: 20,
                                     ),
                                   ),
-                                  const SizedBox(width: 12),
+                                  const SizedBox(width: 8),
                                   Text(
                                     'Dayung Unit:',
                                     style: TextStyle(
@@ -320,10 +320,11 @@ class _ManageRolesPageState extends State<ManageRolesPagePres> {
                                       fontFamily: 'Montserrat',
                                     ),
                                   ),
-                                  const SizedBox(width: 12),
+                                  const SizedBox(width: 8),
                                   Expanded(
                                     child: DropdownButtonFormField<int>(
                                       value: _unitId,
+                                      isExpanded: true,
                                       decoration: InputDecoration(
                                         filled: true,
                                         fillColor: kCardBg,
@@ -668,15 +669,20 @@ class _ManageRolesPageState extends State<ManageRolesPagePres> {
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          Text(
-                            name,
-                            style: const TextStyle(
-                              fontWeight: FontWeight.w600,
-                              fontSize: 14,
-                              color: kPrimary,
-                              fontFamily: 'OpenSans',
+                          ConstrainedBox(
+                            constraints: const BoxConstraints(
+                              maxWidth: 100,
+                            ), // Limit width
+                            child: Text(
+                              name,
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w600,
+                                fontSize: 14,
+                                color: kPrimary,
+                                fontFamily: 'OpenSans',
+                              ),
+                              overflow: TextOverflow.ellipsis,
                             ),
-                            overflow: TextOverflow.ellipsis,
                           ),
                           const SizedBox(width: 6),
                           GestureDetector(

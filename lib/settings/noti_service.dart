@@ -24,6 +24,7 @@ class NotiService {
     const initSettings = InitializationSettings(
       android: initSettingsAndroid,
       iOS: initSettingsIOS,
+      
     );
 
     await notificationsPlugin.initialize(initSettings);

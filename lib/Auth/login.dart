@@ -816,35 +816,37 @@ class _LoginState extends State<Login> {
 
                               // Secondary actions
                               Row(
-                                mainAxisAlignment:
-                                    MainAxisAlignment.spaceBetween,
                                 children: [
-                                  TextButton(
-                                    onPressed: _isLoading
-                                        ? null
-                                        : _forgotPassword,
-                                    child: const Text(
-                                      'Forgot password?',
-                                      style: TextStyle(
-                                        color: kPrimary,
-                                        fontSize: 16,
-                                        fontWeight: FontWeight.w600,
+                                  Expanded(
+                                    child: TextButton(
+                                      onPressed: _isLoading
+                                          ? null
+                                          : _forgotPassword,
+                                      child: const Text(
+                                        'Forgot password?',
+                                        style: TextStyle(
+                                          color: kPrimary,
+                                          fontSize: 16,
+                                          fontWeight: FontWeight.w600,
+                                        ),
                                       ),
                                     ),
                                   ),
-                                  TextButton(
-                                    onPressed: _isLoading
-                                        ? null
-                                        : () => Navigator.pushNamed(
-                                            context,
-                                            '/register',
-                                          ),
-                                    child: const Text(
-                                      'Create account',
-                                      style: TextStyle(
-                                        color: kPrimary,
-                                        fontSize: 16,
-                                        fontWeight: FontWeight.w600,
+                                  Expanded(
+                                    child: TextButton(
+                                      onPressed: _isLoading
+                                          ? null
+                                          : () => Navigator.pushNamed(
+                                              context,
+                                              '/register',
+                                            ),
+                                      child: const Text(
+                                        'Create account',
+                                        style: TextStyle(
+                                          color: kPrimary,
+                                          fontSize: 16,
+                                          fontWeight: FontWeight.w600,
+                                        ),
                                       ),
                                     ),
                                   ),

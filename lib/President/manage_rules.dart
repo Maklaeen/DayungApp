@@ -257,7 +257,7 @@ class _ManageRulesPagePresState extends State<ManageRulesPagePres> {
                                     size: 20,
                                   ),
                                 ),
-                                const SizedBox(width: 12),
+                                const SizedBox(width: 8),
                                 Text(
                                   'Dayung Unit:',
                                   style: TextStyle(
@@ -267,10 +267,11 @@ class _ManageRulesPagePresState extends State<ManageRulesPagePres> {
                                     fontFamily: 'Montserrat',
                                   ),
                                 ),
-                                const SizedBox(width: 12),
+                                const SizedBox(width: 8),
                                 Expanded(
                                   child: DropdownButtonFormField<int>(
                                     value: _unitId,
+                                    isExpanded: true,
                                     decoration: InputDecoration(
                                       filled: true,
                                       fillColor: kCardBg,

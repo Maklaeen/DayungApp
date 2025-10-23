@@ -1101,13 +1101,13 @@ class _MemberDashboardPageState extends State<MemberDashboardPage> {
             topRight: Radius.circular(24),
           ),
           child: AnimatedSwitcher(
-  duration: const Duration(milliseconds: 300),
-  child: IndexedStack(
-    key: ValueKey(_currentIndex), // <-- Add this line
-    index: _currentIndex,
-    children: _pages,
-  ),
-),
+            duration: const Duration(milliseconds: 300),
+            child: IndexedStack(
+              key: ValueKey(_currentIndex), // <-- Add this line
+              index: _currentIndex,
+              children: _pages,
+            ),
+          ),
         ),
       ),
     );
@@ -1328,7 +1328,6 @@ class _MemberDashboardPageState extends State<MemberDashboardPage> {
 
   Widget _homePage() {
     return SingleChildScrollView(
-      controller: _scrollController,
       padding: const EdgeInsets.all(20),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1944,7 +1943,7 @@ class _MemberDashboardPageState extends State<MemberDashboardPage> {
     await _subscribeAnnouncementsRealtime();
     if (mounted) setState(() {});
   }
-  
+
   @override
   Widget build(BuildContext context) {
     final width = MediaQuery.of(context).size.width;
@@ -1957,7 +1956,7 @@ class _MemberDashboardPageState extends State<MemberDashboardPage> {
     //   });
     // }
 
-       // Watch both providers to detect unit changes
+    // Watch both providers to detect unit changes
     final rolesUnitId = context.watch<DayungRoleProvider>().unitId;
     final providerUnitId = context.watch<DayungUnitProvider>().currentUnitId;
 
