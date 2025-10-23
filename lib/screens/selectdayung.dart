@@ -31,7 +31,7 @@ class SelectDayungPage extends StatefulWidget {
 class _SelectDayungPageState extends State<SelectDayungPage> {
   final _sb = Supabase.instance.client;
 
-  bool _loading = true;
+  bool _loading = false;
   String? _error;
   List<Map<String, dynamic>> _joined = [];
 

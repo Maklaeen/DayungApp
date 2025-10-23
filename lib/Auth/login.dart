@@ -434,6 +434,13 @@ class _LoginState extends State<Login> {
         return;
       }
       selected = picked;
+
+      // Show loading dialog while preparing dashboard
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (_) => const Center(child: CircularProgressIndicator()),
+      );
     } else {
       // Try saved selection only when 0 or 1 unit
       final prefs = await SharedPreferences.getInstance();
@@ -536,7 +543,9 @@ class _LoginState extends State<Login> {
         ? const CollectorDashboardPage()
         : const MemberDashboardPage();
 
-    if (!mounted) return;
+    if (Navigator.canPop(context)) {
+      Navigator.of(context, rootNavigator: true).pop();
+    }
     Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => home));
   }
 
