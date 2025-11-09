@@ -1,6 +1,8 @@
+import 'dart:math';
+
 import 'package:flutter/material.dart';
 import 'package:geocoding/geocoding.dart';
-import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:maplibre_gl/maplibre_gl.dart' as ml;
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -60,8 +62,7 @@ class _DeathNoticeDetailState extends State<DeathNoticeDetail> {
 
   String? _locationName;
   // ignore: unused_field
-  GoogleMapController? _mapController;
-
+  ml.MaplibreMapController? _mapController;
   bool _loading = false;
   String? _error;
   bool _membersLoading = false;
@@ -535,27 +536,35 @@ class _DeathNoticeDetailState extends State<DeathNoticeDetail> {
                               ),
                               child: ClipRRect(
                                 borderRadius: BorderRadius.circular(12),
-                                child: GoogleMap(
-                                  initialCameraPosition: CameraPosition(
-                                    target: LatLng(_fLat!, _fLng!),
+                                child: ml.MapLibreMap(
+                                  styleString:
+                                      'https://demotiles.maplibre.org/style.json',
+                                  initialCameraPosition: ml.CameraPosition(
+                                    target: ml.LatLng(_fLat!, _fLng!),
                                     zoom: 16,
                                   ),
-                                  markers: {
-                                    Marker(
-                                      markerId: const MarkerId('vigil'),
-                                      position: LatLng(_fLat!, _fLng!),
-                                      infoWindow: InfoWindow(
-                                        title: name,
-                                        snippet:
-                                            _fBarangay ?? _locationName ?? '',
-                                      ),
-                                    ),
-                                  },
-                                  myLocationButtonEnabled: false,
-                                  zoomControlsEnabled: true,
-                                  onMapCreated: (controller) {
-                                    _mapController = controller;
-                                  },
+                                  onMapCreated:
+                                      (
+                                        ml.MaplibreMapController controller,
+                                      ) async {
+                                        // Add marker after style loads
+                                        await controller.addSymbol(
+                                          ml.SymbolOptions(
+                                            geometry: ml.LatLng(_fLat!, _fLng!),
+                                            iconImage: "marker-15",
+                                            iconSize: 1.6,
+                                            textField: name,
+                                            textOffset: const Offset(0, 2),
+                                          ),
+                                        );
+                                        _mapController = controller;
+                                      },
+                                  myLocationEnabled: false,
+                                  compassEnabled: false,
+                                  rotateGesturesEnabled: false,
+                                  tiltGesturesEnabled: false,
+                                  attributionButtonMargins: const Point(8, 8),
+                                  logoViewMargins: const Point(8, 8),
                                 ),
                               ),
                             ),

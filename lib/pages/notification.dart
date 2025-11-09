@@ -556,18 +556,18 @@ class _NotificationPageState extends State<NotificationPage> {
                     onPressed: () => Navigator.pop(context),
                     tooltip: 'Back',
                   ),
-                  const SizedBox(width: 4),
-                  const Icon(
-                    Icons.notifications_rounded,
-                    color: Colors.white,
-                    size: 28,
-                  ),
+                  // const SizedBox(width: 4),
+                  // const Icon(
+                  //   Icons.notifications_rounded,
+                  //   color: Colors.white,
+                  //   size: 26,
+                  // ),
                   const SizedBox(width: 16),
                   Expanded(
                     child: Text(
                       'Notifications',
                       style: TextStyle(
-                        fontSize: isWide ? 24 : 22,
+                        fontSize: isWide ? 24 : 17,
                         fontWeight: FontWeight.w800,
                         color: Colors.white,
                         fontFamily: 'Montserrat',
@@ -702,55 +702,67 @@ class _NotificationPageState extends State<NotificationPage> {
                           child: InkWell(
                             borderRadius: BorderRadius.circular(18),
                             onTap: () async {
-  // Optimistic UI: mark as read locally to avoid “hang” feel
-  if (isDirect && isUnread) {
-    setState(() {
-      _items[i] = {
-        ...n,
-        'is_read': true,
-      };
-    });
-  }
+                              // Optimistic UI: mark as read locally to avoid “hang” feel
+                              if (isDirect && isUnread) {
+                                setState(() {
+                                  _items[i] = {...n, 'is_read': true};
+                                });
+                              }
 
-  bool ok = true;
-  try {
-    if (isDirect) {
-      if (isUnread) {
-        final id = n['id'];
-        ok = await _markAnnouncementRead(id is num ? id.toInt() : int.parse('$id'));
-      }
-    } else {
-      final sb = Supabase.instance.client;
-      await sb
-          .from('notifications')
-          .update({'read_at': DateTime.now().toIso8601String()})
-          .eq('id', n['id'])
-          .isFilter('read_at', null);
-    }
-  } catch (_) {
-    ok = false;
-  }
+                              bool ok = true;
+                              try {
+                                if (isDirect) {
+                                  if (isUnread) {
+                                    final id = n['id'];
+                                    ok = await _markAnnouncementRead(
+                                      id is num ? id.toInt() : int.parse('$id'),
+                                    );
+                                  }
+                                } else {
+                                  final sb = Supabase.instance.client;
+                                  await sb
+                                      .from('notifications')
+                                      .update({
+                                        'read_at': DateTime.now()
+                                            .toIso8601String(),
+                                      })
+                                      .eq('id', n['id'])
+                                      .isFilter('read_at', null);
+                                }
+                              } catch (_) {
+                                ok = false;
+                              }
 
-  // Show modal regardless of backend outcome
-  _showNotificationModal(
-    title: n['title'] ?? (isAnnouncement ? 'Announcement' : 'Notification'),
-    message: n['body'] ?? '',
-    time: _formatTime(n['created_at']),
-    icon: isAnnouncement ? Icons.campaign_rounded : Icons.notifications_active_rounded,
-    iconColor: isAnnouncement ? kPrimary : kAccent,
-    isAnnouncement: isAnnouncement,
-  );
+                              // Show modal regardless of backend outcome
+                              _showNotificationModal(
+                                title:
+                                    n['title'] ??
+                                    (isAnnouncement
+                                        ? 'Announcement'
+                                        : 'Notification'),
+                                message: n['body'] ?? '',
+                                time: _formatTime(n['created_at']),
+                                icon: isAnnouncement
+                                    ? Icons.campaign_rounded
+                                    : Icons.notifications_active_rounded,
+                                iconColor: isAnnouncement ? kPrimary : kAccent,
+                                isAnnouncement: isAnnouncement,
+                              );
 
-  // Refresh list in background (do not await)
-  // ignore: unawaited_futures
-  _fetchAll(unitId: _currentUnitId);
+                              // Refresh list in background (do not await)
+                              // ignore: unawaited_futures
+                              _fetchAll(unitId: _currentUnitId);
 
-  if (!ok && mounted) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Could not mark announcement as read.')),
-    );
-  }
-},
+                              if (!ok && mounted) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text(
+                                      'Could not mark announcement as read.',
+                                    ),
+                                  ),
+                                );
+                              }
+                            },
                             child: NotificationPage._notificationCard(
                               title:
                                   n['title'] ??
@@ -800,17 +812,19 @@ Future<bool> _markAnnouncementRead(int announcementId) async {
   if (uid == null) return false;
 
   try {
-    await sb.from('announcement_reads').upsert(
-      [
-        {
-          'announcement_id': announcementId,
-          'user_id': uid,
-          'read_at': DateTime.now().toIso8601String(),
-        },
-      ],
-      onConflict: 'announcement_id,user_id',
-      ignoreDuplicates: true,
-    );
+    await sb
+        .from('announcement_reads')
+        .upsert(
+          [
+            {
+              'announcement_id': announcementId,
+              'user_id': uid,
+              'read_at': DateTime.now().toIso8601String(),
+            },
+          ],
+          onConflict: 'announcement_id,user_id',
+          ignoreDuplicates: true,
+        );
     return true;
   } on PostgrestException catch (e) {
     if (e.code == '23505') {

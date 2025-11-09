@@ -1,5 +1,7 @@
 import 'dart:convert';
 import 'package:capstone_app/Providers/dayung_provider.dart';
+import 'package:capstone_app/screens/dayung_suggestions.dart'
+    hide kBg, kPrimary, kPrimaryDark, kAccent, kDanger, kWarn;
 import 'package:capstone_app/ui/theme/branding.dart';
 import 'package:capstone_app/pages/submit_claim.dart'
     hide kSubtleText, kNeutralText, kPrimaryDark, kPrimary;
@@ -13,7 +15,6 @@ const double kCardRadius = 18;
 class ClaimsPage extends StatefulWidget {
   const ClaimsPage({super.key, this.onNavBarVisible});
 
-  // Dashboard passes a callback to show/hide the bottom navbar
   final ValueChanged<bool>? onNavBarVisible;
 
   @override
@@ -43,6 +44,15 @@ class _ClaimsPageState extends State<ClaimsPage>
   String? _city;
   int? _dayungId;
   int _unreadNotifCount = 0;
+
+  Future<void> _goApplyDayung() async {
+    if (!mounted) return;
+    await Navigator.of(
+      context,
+    ).push(MaterialPageRoute(builder: (_) => const DayungSuggestionsPage()));
+    await _loadDayungUnit();
+    await _fetchClaims();
+  }
 
   void _safeSetState(VoidCallback fn) {
     if (!mounted) return;
@@ -668,11 +678,11 @@ class _ClaimsPageState extends State<ClaimsPage>
         child: Padding(
           padding: EdgeInsets.only(bottom: fabBottom),
           child: FloatingActionButton.extended(
-            onPressed: _openSubmitSheet,
-            icon: const Icon(Icons.add),
-            label: const Text(
-              'New Claim',
-              style: TextStyle(
+            onPressed: _dayungId == null ? _goApplyDayung : _openSubmitSheet,
+            icon: Icon(_dayungId == null ? Icons.how_to_reg : Icons.add),
+            label: Text(
+              _dayungId == null ? 'Apply Dayung' : 'New Claim',
+              style: const TextStyle(
                 fontWeight: FontWeight.w700,
                 fontFamily: 'Montserrat',
               ),
@@ -854,6 +864,51 @@ class _ClaimsPageState extends State<ClaimsPage>
   }
 
   Widget _claimListView(List<Map<String, dynamic>> list, bool ongoing) {
+    // NEW: if no dayung selected, show apply message
+    if (_dayungId == null) {
+      return _wrapWithRefreshAndNav(
+        ListView(
+          physics: const AlwaysScrollableScrollPhysics(
+            parent: BouncingScrollPhysics(),
+          ),
+          padding: const EdgeInsets.fromLTRB(16, 60, 16, 120),
+          children: [
+            Icon(
+              Icons.group_add,
+              size: 64,
+              color: kSubtleText.withOpacity(.35),
+            ),
+            const SizedBox(height: 16),
+            const Center(
+              child: Text(
+                'Apply dayung first',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontFamily: 'OpenSans',
+                  fontWeight: FontWeight.w700,
+                  color: kSubtleText,
+                ),
+              ),
+            ),
+            const SizedBox(height: 10),
+            // Center(
+            //   child: TextButton.icon(
+            //     onPressed: _goApplyDayung,
+            //     icon: const Icon(Icons.how_to_reg, color: kPrimary),
+            //     label: const Text(
+            //       'Apply Dayung',
+            //       style: TextStyle(
+            //         color: kPrimaryDark,
+            //         fontWeight: FontWeight.w700,
+            //       ),
+            //     ),
+            //   ),
+            // ),
+          ],
+        ),
+      );
+    }
+
     if (list.isEmpty) {
       return _wrapWithRefreshAndNav(
         ListView(

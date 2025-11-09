@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:capstone_app/Auth/login.dart';
 import 'package:capstone_app/Providers/dayung_provider.dart';
 import 'package:capstone_app/Providers/dayung_role_provider.dart';
+import 'package:capstone_app/Providers/role_router.dart';
 import 'package:capstone_app/screens/dayung_map_page.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -35,9 +36,12 @@ class _SelectDayungPageState extends State<SelectDayungPage> {
   String? _error;
   List<Map<String, dynamic>> _joined = [];
 
+  int? _prefsSelectedId;
+
   @override
   void initState() {
     super.initState();
+    _loadCurrentSelectedId();
     _fetchJoinedDayung();
   }
 
@@ -45,6 +49,20 @@ class _SelectDayungPageState extends State<SelectDayungPage> {
     if (v == null) return null;
     if (v is num) return v.toDouble();
     return double.tryParse('$v');
+  }
+
+  Future<void> _loadCurrentSelectedId() async {
+    // <-- add
+    final prefs = await SharedPreferences.getInstance();
+    final raw = prefs.getString('selectedDayungUnit');
+    if (raw != null) {
+      try {
+        final map = Map<String, dynamic>.from(jsonDecode(raw));
+        final id = map['id'];
+        final parsed = id is int ? id : int.tryParse('$id');
+        if (mounted) setState(() => _prefsSelectedId = parsed);
+      } catch (_) {}
+    }
   }
 
   Future<Map<String, dynamic>> _persistSelectionAndNotify(
@@ -55,14 +73,22 @@ class _SelectDayungPageState extends State<SelectDayungPage> {
     await prefs.setString('selectedDayungUnit', jsonEncode(normalized));
     await prefs.setString('selectedDayungUnitData', jsonEncode(normalized));
     if (!mounted) return normalized;
+
     final id = normalized['id'] is int
         ? normalized['id'] as int
         : int.tryParse('${normalized['id']}');
+
+    // Refresh roles and unit provider
     await context.read<DayungRoleProvider>().refreshRoles(id);
     context.read<DayungUnitProvider>().setDayungUnit(
       '${normalized['name'] ?? 'Dayung'}',
       obj: normalized,
     );
+
+    // Update local fallback immediately so the UI marks "Already using"
+    if (mounted) setState(() => _prefsSelectedId = id); // <-- add
+
+    // Let the caller handle navigation
     return normalized;
   }
 
@@ -233,7 +259,7 @@ class _SelectDayungPageState extends State<SelectDayungPage> {
                         color: Colors.white,
                         size: 20,
                       ),
-                      onPressed: () => Navigator.pop(context, true),
+                      onPressed: () => Navigator.pop(context, null),
                       padding: EdgeInsets.zero,
                       constraints: const BoxConstraints(),
                     ),
@@ -288,7 +314,9 @@ class _SelectDayungPageState extends State<SelectDayungPage> {
   }
 
   Widget _buildBody(BuildContext context, bool isWide) {
-    final currentId = context.watch<DayungUnitProvider>().currentUnitId;
+    // Prefer provider; fallback to prefs
+    final providerId = context.watch<DayungUnitProvider>().currentUnitId;
+    final currentId = providerId ?? _prefsSelectedId; // <-- use fallback
 
     if (_loading) {
       return const Center(child: CircularProgressIndicator(color: kPrimary));
@@ -321,12 +349,11 @@ class _SelectDayungPageState extends State<SelectDayungPage> {
         itemCount: _joined.length,
         itemBuilder: (ctx, i) {
           final d = _joined[i];
-          // Add: normalize id and compare with current
           final did = d['id'] is int
               ? d['id'] as int
               : int.tryParse('${d['id']}');
           final isCurrent =
-              currentId != null && did != null && currentId == did;
+              currentId != null && did != null && currentId == did; // <-- fixed
 
           return Card(
             elevation: 2,
@@ -370,10 +397,11 @@ class _SelectDayungPageState extends State<SelectDayungPage> {
                             isCurrent
                                 ? Icons.check_circle
                                 : Icons.check_circle_outlined,
-                            size: 16,
+                            size: isWide ? 16 : 12,
                           ),
                           label: Text(
                             isCurrent ? 'Already using' : 'Use this Dayung',
+                            style: TextStyle(fontSize: isWide ? 16 : 11),
                           ),
                           style: OutlinedButton.styleFrom(
                             foregroundColor: isCurrent ? kSubText : kPrimary,

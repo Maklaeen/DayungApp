@@ -49,6 +49,10 @@ class _MemberDashboardPageState extends State<MemberDashboardPage> {
   int? _lastRoleUnitId;
   int? _lastProviderUnitId;
 
+  int? _lastHandledUnitId; // ADD
+  bool _pendingUnitChange = false; // ADD
+  bool _handlingOverlay = false;
+
   // ignore: unused_field
   User? _user;
   String _fullName = 'Member';
@@ -78,6 +82,13 @@ class _MemberDashboardPageState extends State<MemberDashboardPage> {
 
   int? _asInt(dynamic v) => v == null ? null : int.tryParse(v.toString());
 
+  void _afterFrame(VoidCallback fn) {
+    // ADD
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) fn();
+    });
+  }
+
   @override
   void initState() {
     super.initState();
@@ -85,16 +96,40 @@ class _MemberDashboardPageState extends State<MemberDashboardPage> {
     _loadOrAskDayung();
     _fetchUnreadNotifCount();
     _loadUserData();
+    // Defer bootstrapping to after first frame to avoid setState during build
+    _afterFrame(() async {
+      if (!mounted) return;
+      await _bootstrapOnce();
+      if (!mounted) return;
+      _subscribeNotificationsRealtime();
+      await _loadUserData();
+      if (!mounted) return;
+      await _loadOrAskDayung();
+      if (!mounted) return;
+      await _fetchUnreadNotifCount();
+    });
     _scrollController.addListener(() {
-      if (!_scrollController.hasClients) return;
+      if (!_scrollController.hasClients || !mounted) return;
       final maxScroll = _scrollController.position.maxScrollExtent;
       final current = _scrollController.position.pixels;
       if (current >= maxScroll && _showNavBar) {
+        if (!mounted) return;
         setState(() => _showNavBar = false);
       } else if (current < maxScroll && !_showNavBar) {
+        if (!mounted) return;
         setState(() => _showNavBar = true);
       }
     });
+  }
+
+  Future<void> _bootstrapOnce() async {
+    await _loadUserData();
+    await _reloadDayungFromPrefs();
+    if (!mounted) return;
+    await _fetchUnreadNotifCount();
+    await _fetchAllStats();
+    _subscribeNotificationsRealtime();
+    await _subscribeAnnouncementsRealtime();
   }
 
   Future<void> _fetchUnreadNotifCount() async {
@@ -108,17 +143,14 @@ class _MemberDashboardPageState extends State<MemberDashboardPage> {
     }
 
     try {
-      // Unread notifications for current unit only
       final notifRows = await sb
           .from('notifications')
           .select('id')
           .eq('recipient_id', uid)
           .eq('dayung_unit_id', unitId)
           .isFilter('read_at', null);
-
       final notifCount = (notifRows as List).length;
 
-      // Unread announcements for current unit only
       final annRows = await sb
           .from('announcements')
           .select('id')
@@ -140,13 +172,14 @@ class _MemberDashboardPageState extends State<MemberDashboardPage> {
         final readIds = Set.from(
           (reads as List).map((r) => (r as Map)['announcement_id']),
         );
-
         annCount = annIds.where((id) => !readIds.contains(id)).length;
       }
 
-      if (mounted) setState(() => _unreadNotifCount = notifCount + annCount);
+      if (!mounted) return;
+      setState(() => _unreadNotifCount = notifCount + annCount);
     } catch (_) {
-      if (mounted) setState(() => _unreadNotifCount = 0);
+      if (!mounted) return;
+      setState(() => _unreadNotifCount = 0);
     }
   }
 
@@ -189,78 +222,84 @@ class _MemberDashboardPageState extends State<MemberDashboardPage> {
   }
 
   void _showAnnouncementDialog(Map<String, dynamic> notif) {
-    if (!mounted) return;
-    showDialog<void>(
-      context: context,
-      barrierDismissible: false,
-      builder: (_) {
-        return Dialog(
-          backgroundColor: const Color(0xFF8CA6C7), // blueish background
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(28),
-          ),
-          child: Padding(
-            padding: const EdgeInsets.all(32),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Text(
-                  'Announcement',
-                  style: TextStyle(
-                    fontFamily: 'Montserrat',
-                    fontWeight: FontWeight.w800,
-                    fontSize: 28,
-                    color: Colors.white,
-                  ),
-                ),
-                const SizedBox(height: 16),
-                const Icon(
-                  Icons.notifications_active_rounded,
-                  color: Colors.amber,
-                  size: 64,
-                ),
-                const SizedBox(height: 16),
-                Text(
-                  notif['body']?.toString() ?? '',
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(
-                    fontFamily: 'Montserrat',
-                    fontWeight: FontWeight.w800,
-                    fontSize: 24,
-                    color: Colors.white,
-                  ),
-                ),
-                const SizedBox(height: 24),
-                TextButton(
-                  onPressed: () async {
-                    final sb = Supabase.instance.client;
-                    try {
-                      await sb
-                          .from('notifications')
-                          .update({'read_at': DateTime.now().toIso8601String()})
-                          .eq('id', notif['id']);
-                    } catch (_) {}
-                    if (!mounted) return;
-                    Navigator.of(context).pop();
-                    await _loadOrAskDayung();
-                    await _fetchUnreadNotifCount();
-                  },
-                  child: const Text(
-                    'Continue',
+    if (!mounted || _handlingOverlay) return;
+    _handlingOverlay = true;
+    _afterFrame(() {
+      if (!mounted) return;
+      showDialog<void>(
+        context: context,
+        barrierDismissible: false,
+        builder: (_) {
+          return Dialog(
+            backgroundColor: const Color(0xFF8CA6C7),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(28),
+            ),
+            child: Padding(
+              padding: const EdgeInsets.all(32),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Text(
+                    'Announcement',
                     style: TextStyle(
                       fontFamily: 'Montserrat',
                       fontWeight: FontWeight.w800,
-                      fontSize: 22,
-                      color: Color(0xFFDDE3EA),
+                      fontSize: 28,
+                      color: Colors.white,
                     ),
                   ),
-                ),
-              ],
+                  const SizedBox(height: 16),
+                  const Icon(
+                    Icons.notifications_active_rounded,
+                    color: Colors.amber,
+                    size: 64,
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    notif['body']?.toString() ?? '',
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      fontFamily: 'Montserrat',
+                      fontWeight: FontWeight.w800,
+                      fontSize: 24,
+                      color: Colors.white,
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+                  TextButton(
+                    onPressed: () async {
+                      final sb = Supabase.instance.client;
+                      try {
+                        await sb
+                            .from('notifications')
+                            .update({
+                              'read_at': DateTime.now().toIso8601String(),
+                            })
+                            .eq('id', notif['id']);
+                      } catch (_) {}
+                      if (!mounted) return;
+                      Navigator.of(context).pop();
+                      _handlingOverlay = false;
+                      await _fetchUnreadNotifCount(); // light update only
+                    },
+                    child: const Text(
+                      'Continue',
+                      style: TextStyle(
+                        fontFamily: 'Montserrat',
+                        fontWeight: FontWeight.w800,
+                        fontSize: 22,
+                        color: Color(0xFFDDE3EA),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
-          ),
-        );
-      },
-    );
+          );
+        },
+      );
+    });
   }
 
   Future<void> _refreshAll() async {
@@ -275,6 +314,7 @@ class _MemberDashboardPageState extends State<MemberDashboardPage> {
     final unitJson = prefs.getString('selectedDayungUnit');
 
     if (unitJson == null) {
+      if (!mounted) return;
       setState(() {
         _selectedDayungUnit = 'Dayung Unit';
         _selectedDayungUnitObj = null;
@@ -293,6 +333,7 @@ class _MemberDashboardPageState extends State<MemberDashboardPage> {
       final id = _asInt(unit['id']);
 
       if (id != null && await _isApprovedForUnit(id)) {
+        if (!mounted) return;
         setState(() {
           _selectedDayungUnit = (unit['name'] ?? 'Dayung Unit').toString();
           _selectedDayungUnitObj = unit;
@@ -304,10 +345,9 @@ class _MemberDashboardPageState extends State<MemberDashboardPage> {
               : unit['city'].toString();
           _dayungUnitId = id;
         });
-        await context.read<DayungRoleProvider>().refreshRoles(id);
-        await _fetchUnreadNotifCount();
       } else {
         await prefs.remove('selectedDayungUnit');
+        if (!mounted) return;
         setState(() {
           _selectedDayungUnit = 'Dayung Unit';
           _selectedDayungUnitObj = null;
@@ -319,6 +359,7 @@ class _MemberDashboardPageState extends State<MemberDashboardPage> {
       }
     } catch (_) {
       await prefs.remove('selectedDayungUnit');
+      if (!mounted) return;
       setState(() {
         _selectedDayungUnit = 'Dayung Unit';
         _selectedDayungUnitObj = null;
@@ -338,6 +379,7 @@ class _MemberDashboardPageState extends State<MemberDashboardPage> {
         final unit = jsonDecode(unitJson);
         final id = _asInt((unit as Map)['id']);
         if (id != null && await _isApprovedForUnit(id)) {
+          if (!mounted) return;
           setState(() {
             _selectedDayungUnit = (unit['name'] ?? 'Dayung Unit').toString();
             _selectedDayungUnitObj = Map<String, dynamic>.from(unit);
@@ -349,18 +391,14 @@ class _MemberDashboardPageState extends State<MemberDashboardPage> {
                 : unit['city'].toString();
             _dayungUnitId = id;
           });
-          await context.read<DayungRoleProvider>().refreshRoles(id);
-          await _fetchUnreadNotifCount();
-          await _fetchAllStats();
-          await _subscribeAnnouncementsRealtime();
           return;
         } else {
           await prefs.setString('selectedDayungUnit', jsonEncode(unit));
+          if (!mounted) return;
           setState(() {
             _selectedDayungUnitObj = Map<String, dynamic>.from(unit);
             _selectedDayungUnit = (unit['name'] ?? 'Dayung Unit').toString();
-            final idx = _asInt(unit['id']);
-            _dayungUnitId = idx;
+            _dayungUnitId = _asInt(unit['id']);
             _unitBarangay = (unit['barangay'] ?? '').toString().trim().isEmpty
                 ? null
                 : unit['barangay'].toString();
@@ -368,11 +406,6 @@ class _MemberDashboardPageState extends State<MemberDashboardPage> {
                 ? null
                 : unit['city'].toString();
           });
-          await context.read<DayungRoleProvider>().refreshRoles(
-            _asInt(unit['id']),
-          );
-          await _fetchUnreadNotifCount();
-          await _fetchAllStats();
           return;
         }
       } catch (_) {
@@ -401,9 +434,9 @@ class _MemberDashboardPageState extends State<MemberDashboardPage> {
                 .maybeSingle();
             if (unit != null) {
               await prefs.setString('selectedDayungUnit', jsonEncode(unit));
+              if (!mounted) return;
               setState(() {
                 _selectedDayungUnitObj = Map<String, dynamic>.from(unit);
-
                 _selectedDayungUnit = (unit['name'] ?? 'Dayung Unit')
                     .toString();
                 _unitBarangay =
@@ -415,15 +448,13 @@ class _MemberDashboardPageState extends State<MemberDashboardPage> {
                     : unit['city'].toString();
                 _dayungUnitId = dId;
               });
-              await _fetchUnreadNotifCount();
-              await _fetchAllStats();
               return;
             }
           }
         }
       }
     } catch (_) {}
-
+    if (!mounted) return;
     await _navigateAndPickUnit();
   }
 
@@ -458,25 +489,26 @@ class _MemberDashboardPageState extends State<MemberDashboardPage> {
             final row = payload.newRecord;
             final type = (row['type'] ?? '').toString();
             if (type == 'membership_approved' || type == 'announcement') {
-              // Show top banner
-              TopNotificationBanner.show(
-                context,
-                title: row['title']?.toString() ?? 'Notification',
-                message: row['body']?.toString() ?? '',
-                icon: type == 'announcement'
-                    ? Icons.campaign
-                    : Icons.notifications_active_rounded,
-                onTap: () async {
-                  // Mark this notification as read when tapped
-                  try {
-                    await sb
-                        .from('notifications')
-                        .update({'read_at': DateTime.now().toIso8601String()})
-                        .eq('id', row['id']);
-                  } catch (_) {}
-                  await _fetchUnreadNotifCount();
-                },
-              );
+              _afterFrame(() {
+                if (!mounted) return;
+                TopNotificationBanner.show(
+                  context,
+                  title: row['title']?.toString() ?? 'Notification',
+                  message: row['body']?.toString() ?? '',
+                  icon: type == 'announcement'
+                      ? Icons.campaign
+                      : Icons.notifications_active_rounded,
+                  onTap: () async {
+                    try {
+                      await sb
+                          .from('notifications')
+                          .update({'read_at': DateTime.now().toIso8601String()})
+                          .eq('id', row['id']);
+                    } catch (_) {}
+                    await _fetchUnreadNotifCount();
+                  },
+                );
+              });
               await _fetchUnreadNotifCount();
             }
           },
@@ -491,26 +523,24 @@ class _MemberDashboardPageState extends State<MemberDashboardPage> {
     final uid = sb.auth.currentUser?.id;
     if (uid == null) return;
 
-    // Clear existing channels
     for (final ch in _announcementChannels) {
       ch.unsubscribe();
     }
     _announcementChannels.clear();
 
-    // Fetch all approved dayung units of this user
     final apps = await sb
         .from('applications')
         .select('dayung_unit_id')
         .eq('user_id', uid)
         .eq('status', 'approved');
 
+    if (!mounted) return;
     final unitIds = <int>{
       for (final r in (apps as List))
         if ((r as Map)['dayung_unit_id'] != null)
           int.parse(r['dayung_unit_id'].toString()),
     }.toList();
 
-    // Subscribe to inserts on announcements per unit
     for (final id in unitIds) {
       final ch = sb.channel('announcements_unit_$id');
       ch
@@ -525,79 +555,82 @@ class _MemberDashboardPageState extends State<MemberDashboardPage> {
             ),
             callback: (payload) async {
               final row = payload.newRecord;
-              // Pop top banner
-              showDialog(
-                context: context,
-                barrierDismissible: false,
-                builder: (_) {
-                  return Dialog(
-                    backgroundColor: const Color(0xFF8CA6C7),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(28),
-                    ),
-                    child: Padding(
-                      padding: const EdgeInsets.all(32),
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const Text(
-                            'Announcement',
-                            style: TextStyle(
-                              fontFamily: 'Montserrat',
-                              fontWeight: FontWeight.w800,
-                              fontSize: 28,
-                              color: Colors.white,
-                            ),
-                          ),
-                          const SizedBox(height: 16),
-                          const Icon(
-                            Icons.campaign,
-                            color: Colors.amber,
-                            size: 64,
-                          ),
-                          const SizedBox(height: 16),
-                          Text(
-                            (row['body'] ?? '').toString(),
-                            textAlign: TextAlign.center,
-                            style: const TextStyle(
-                              fontFamily: 'Montserrat',
-                              fontWeight: FontWeight.w800,
-                              fontSize: 24,
-                              color: Colors.white,
-                            ),
-                          ),
-                          const SizedBox(height: 24),
-                          TextButton(
-                            onPressed: () async {
-                              try {
-                                await sb.from('announcement_reads').upsert([
-                                  {
-                                    'announcement_id': row['id'],
-                                    'user_id': uid,
-                                    'read_at': DateTime.now().toIso8601String(),
-                                  },
-                                ], onConflict: 'announcement_id,user_id');
-                              } catch (_) {}
-                              if (!mounted) return;
-                              Navigator.of(context).pop();
-                              await _fetchUnreadNotifCount();
-                            },
-                            child: const Text(
-                              'Continue',
+              _afterFrame(() {
+                if (!mounted) return;
+                showDialog(
+                  context: context,
+                  barrierDismissible: false,
+                  builder: (_) {
+                    return Dialog(
+                      backgroundColor: const Color(0xFF8CA6C7),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(28),
+                      ),
+                      child: Padding(
+                        padding: const EdgeInsets.all(32),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Text(
+                              'Announcement',
                               style: TextStyle(
                                 fontFamily: 'Montserrat',
                                 fontWeight: FontWeight.w800,
-                                fontSize: 22,
-                                color: Color(0xFFDDE3EA),
+                                fontSize: 28,
+                                color: Colors.white,
                               ),
                             ),
-                          ),
-                        ],
+                            const SizedBox(height: 16),
+                            const Icon(
+                              Icons.campaign,
+                              color: Colors.amber,
+                              size: 64,
+                            ),
+                            const SizedBox(height: 16),
+                            Text(
+                              (row['body'] ?? '').toString(),
+                              textAlign: TextAlign.center,
+                              style: const TextStyle(
+                                fontFamily: 'Montserrat',
+                                fontWeight: FontWeight.w800,
+                                fontSize: 24,
+                                color: Colors.white,
+                              ),
+                            ),
+                            const SizedBox(height: 24),
+                            TextButton(
+                              onPressed: () async {
+                                try {
+                                  await sb.from('announcement_reads').upsert([
+                                    {
+                                      'announcement_id': row['id'],
+                                      'user_id': uid,
+                                      'read_at': DateTime.now()
+                                          .toIso8601String(),
+                                    },
+                                  ], onConflict: 'announcement_id,user_id');
+                                } catch (_) {}
+                                if (!mounted) return;
+                                Navigator.of(context).pop();
+                                await _fetchUnreadNotifCount();
+                              },
+                              child: const Text(
+                                'Continue',
+                                style: TextStyle(
+                                  fontFamily: 'Montserrat',
+                                  fontWeight: FontWeight.w800,
+                                  fontSize: 22,
+                                  color: Color(0xFFDDE3EA),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
-                    ),
-                  );
-                },
-              );
+                    );
+                  },
+                );
+              });
               await _fetchUnreadNotifCount();
             },
           )
@@ -607,6 +640,7 @@ class _MemberDashboardPageState extends State<MemberDashboardPage> {
   }
 
   Future<void> _fetchRecentActivity() async {
+    if (!mounted) return;
     setState(() => _loadingActivity = true);
     try {
       final supabase = Supabase.instance.client;
@@ -614,6 +648,7 @@ class _MemberDashboardPageState extends State<MemberDashboardPage> {
       final dayungId = _asInt(_selectedDayungUnitObj?['id']);
 
       if (uid == null || dayungId == null) {
+        if (!mounted) return;
         setState(() {
           _latestActivities = [];
           _loadingActivity = false;
@@ -719,11 +754,13 @@ class _MemberDashboardPageState extends State<MemberDashboardPage> {
       // Limit to 3 most recent activities
       activities = activities.take(3).toList();
 
+      if (!mounted) return;
       setState(() {
         _latestActivities = activities;
         _loadingActivity = false;
       });
-    } catch (e) {
+    } catch (_) {
+      if (!mounted) return;
       setState(() {
         _latestActivities = [];
         _loadingActivity = false;
@@ -760,7 +797,14 @@ class _MemberDashboardPageState extends State<MemberDashboardPage> {
   Future<void> _loadUserData() async {
     final currentUser = supabase.auth.currentUser;
     if (currentUser == null) {
-      _redirectToLogin();
+      _afterFrame(() {
+        if (mounted) {
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(builder: (_) => const Login()),
+          );
+        }
+      });
       return;
     }
     try {
@@ -770,6 +814,7 @@ class _MemberDashboardPageState extends State<MemberDashboardPage> {
           .eq('id', currentUser.id)
           .maybeSingle();
 
+      if (!mounted) return;
       final full = (response?['full_name'] as String?)?.trim();
       final sex = response?['sex'];
       setState(() {
@@ -779,6 +824,7 @@ class _MemberDashboardPageState extends State<MemberDashboardPage> {
         _loadingUser = false;
       });
     } catch (_) {
+      if (!mounted) return;
       setState(() {
         _loadingUser = false;
         _fullName = 'Member';
@@ -798,9 +844,12 @@ class _MemberDashboardPageState extends State<MemberDashboardPage> {
       context,
       MaterialPageRoute(builder: (_) => const SelectDayungPage()),
     );
+    if (!mounted) return;
+
     if (result != null && result is Map) {
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString('selectedDayungUnit', jsonEncode(result));
+      if (!mounted) return;
       setState(() {
         _selectedDayungUnit = (result['name'] ?? 'Dayung Unit').toString();
         _selectedDayungUnitObj = Map<String, dynamic>.from(result);
@@ -812,18 +861,20 @@ class _MemberDashboardPageState extends State<MemberDashboardPage> {
             : result['city'].toString();
         _dayungUnitId = _asInt(result['id']);
       });
-      await context.read<DayungRoleProvider>().refreshRoles(
-        _asInt(result['id']),
-      );
-      context.read<DayungUnitProvider>().setDayungUnit(result['name']);
-      await _fetchUnreadNotifCount();
-      await _fetchAllStats();
-      await _subscribeAnnouncementsRealtime();
-      return;
+
+      // IMPORTANT: notify unit provider with the full object (includes id)
+      try {
+        context.read<DayungUnitProvider>().setDayungUnit(
+          (result['name'] ?? 'Dayung').toString(),
+          obj: Map<String, dynamic>.from(result),
+        );
+      } catch (_) {}
+      // Do not navigate here; reload will be handled by provider change.
     }
   }
 
   Future<void> _fetchActiveMembers() async {
+    if (!mounted) return;
     setState(() => _loadingActiveMembers = true);
     try {
       final id = _asInt(_selectedDayungUnitObj?['id']);
@@ -841,11 +892,13 @@ class _MemberDashboardPageState extends State<MemberDashboardPage> {
     } catch (_) {
       _activeMembersCount = 0;
     } finally {
-      if (mounted) setState(() => _loadingActiveMembers = false);
+      if (!mounted) return;
+      setState(() => _loadingActiveMembers = false);
     }
   }
 
   Future<void> _fetchRecentDeaths() async {
+    if (!mounted) return;
     setState(() => _loadingCertificates = true);
     try {
       final unitId = _asInt(_selectedDayungUnitObj?['id']);
@@ -858,8 +911,6 @@ class _MemberDashboardPageState extends State<MemberDashboardPage> {
             .eq('dayung_unit_id', unitId)
             .order('date_of_death', ascending: false)
             .limit(5);
-
-        // Normalize to existing UI keys
         _recentCertificates = (data as List)
             .map(
               (e) => {
@@ -874,11 +925,13 @@ class _MemberDashboardPageState extends State<MemberDashboardPage> {
     } catch (_) {
       _recentCertificates = [];
     } finally {
-      if (mounted) setState(() => _loadingCertificates = false);
+      if (!mounted) return;
+      setState(() => _loadingCertificates = false);
     }
   }
 
   Future<void> _fetchPendingPayments() async {
+    if (!mounted) return;
     setState(() => _loadingPending = true);
     try {
       final uid = supabase.auth.currentUser?.id;
@@ -945,7 +998,8 @@ class _MemberDashboardPageState extends State<MemberDashboardPage> {
       _pendingPaymentCount = 0;
       _pendingPaymentsByDeathNotice = [];
     } finally {
-      if (mounted) setState(() => _loadingPending = false);
+      if (!mounted) return;
+      setState(() => _loadingPending = false);
     }
   }
 
@@ -1701,15 +1755,15 @@ class _MemberDashboardPageState extends State<MemberDashboardPage> {
           ),
         ),
         const SizedBox(height: 12),
-        _modernActionCard(
-          icon: Icons.account_balance_wallet_rounded,
-          title: 'Pay Contribution',
-          subtitle: 'Make a payment',
-          color: const Color(0xFF3B82F6),
-          onTap: () {
-            // Implement payment action
-          },
-        ),
+        // _modernActionCard(
+        //   icon: Icons.account_balance_wallet_rounded,
+        //   title: 'Pay Contribution',
+        //   subtitle: 'Make a payment',
+        //   color: const Color(0xFF3B82F6),
+        //   onTap: () {
+        //     // Implement payment action
+        //   },
+        // ),
         const SizedBox(height: 8),
         _modernActionCard(
           icon: Icons.receipt_long_rounded,
@@ -1929,45 +1983,48 @@ class _MemberDashboardPageState extends State<MemberDashboardPage> {
 
   Future<void> _maybeOnProviderUnitChanged(int? newUnitId) async {
     if (!mounted) return;
-    final current = _dayungUnitId;
-    if (newUnitId == null || newUnitId == current) return;
+    if (newUnitId == null) return;
+    if (newUnitId == _dayungUnitId || newUnitId == _lastHandledUnitId) return;
+    if (_pendingUnitChange) return;
 
-    // Prevent double-runs in the same frame
-    _lastRoleUnitId = newUnitId;
-    _lastProviderUnitId = newUnitId;
+    _pendingUnitChange = true;
+    _lastHandledUnitId = newUnitId;
+    _dayungUnitId = newUnitId;
 
-    // Reload selection from prefs, refresh roles and stats
+    // Refresh roles for this unit here (we don't listen to role provider in build)
+    try {
+      await context.read<DayungRoleProvider>().refreshRoles(newUnitId);
+    } catch (_) {}
+
     await _reloadDayungFromPrefs();
-    await _fetchUnreadNotifCount();
-    await _fetchAllStats();
-    await _subscribeAnnouncementsRealtime();
-    if (mounted) setState(() {});
+    if (mounted) await _fetchUnreadNotifCount();
+    if (mounted) await _fetchAllStats();
+    if (mounted) await _subscribeAnnouncementsRealtime();
+    if (!mounted) {
+      _pendingUnitChange = false;
+      return;
+    }
+    setState(() {});
+    _pendingUnitChange = false;
   }
 
   @override
   Widget build(BuildContext context) {
     final width = MediaQuery.of(context).size.width;
     final wide = width > 820;
-    // final provUnit = context.watch<DayungRoleProvider>().unitId;
-    // if (provUnit != _selectedDayungUnitObj?['id']) {
-    //   WidgetsBinding.instance.addPostFrameCallback((_) {
-    //     // If you have a method to handle unit changes, call it here
-    //     // _maybeOnProviderUnitChanged(provUnit);
-    //   });
-    // }
 
-    // Watch both providers to detect unit changes
-    final rolesUnitId = context.watch<DayungRoleProvider>().unitId;
+    // Single source of truth: only watch DayungUnitProvider here
     final providerUnitId = context.watch<DayungUnitProvider>().currentUnitId;
+    final newUnitId = providerUnitId;
 
-    if (rolesUnitId != null && rolesUnitId != _dayungUnitId) {
+    if (newUnitId != null &&
+        newUnitId != _dayungUnitId &&
+        newUnitId != _lastHandledUnitId &&
+        !_pendingUnitChange) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        _maybeOnProviderUnitChanged(rolesUnitId);
-      });
-    }
-    if (providerUnitId != null && providerUnitId != _dayungUnitId) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        _maybeOnProviderUnitChanged(providerUnitId);
+        if (mounted) {
+          _maybeOnProviderUnitChanged(newUnitId);
+        }
       });
     }
 

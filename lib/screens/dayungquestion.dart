@@ -1,7 +1,12 @@
+// ignore_for_file: non_constant_identifier_names
+
+import 'dart:math';
+
 import 'package:capstone_app/Members/dashboard.dart';
 import 'package:capstone_app/screens/dayung_map_page.dart';
 import 'package:capstone_app/screens/dayung_suggestions.dart';
 import 'package:flutter/material.dart';
+import 'package:maplibre_gl/maplibre_gl.dart' as ml;
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 const Color kPrimary = Color(0xFF3B82F6);
@@ -31,17 +36,16 @@ class QuestionnaireScreen extends StatefulWidget {
 class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
   final _formKey = GlobalKey<FormState>();
 
-  String? feeRange;
-  String? paymentMethod;
+  String? contribution_amount;
+  String? membership_payment;
+  String? penalty_payment;
+  String? payment_method;
   String? openForAll;
   String? fundSupportRange;
-
   List<dynamic> suggestedUnits = [];
-
   bool isLoading = false;
   bool isSubmitting = false;
 
-  // Normalize helpers
   String _digits(String? s) => (s ?? '').replaceAll(RegExp(r'[^\d]'), '');
   String _trimLower(String? s) => (s ?? '').trim().toLowerCase();
 
@@ -53,62 +57,59 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
     });
   }
 
+  // numeric vector for pgvector
+  List<double> _generatePreferenceVector() {
+    double fee = double.tryParse(_digits(contribution_amount)) ?? 0.0;
+    double membership = membership_payment == 'Monthly'
+        ? 1
+        : membership_payment == 'Yearly'
+        ? 2
+        : 0;
+    double penalty = penalty_payment == 'Strict'
+        ? 2
+        : penalty_payment == 'Mild'
+        ? 1
+        : 0;
+    double method = payment_method == 'Cash'
+        ? 1
+        : payment_method == 'Online'
+        ? 2
+        : 0;
+    double open = openForAll == 'Yes' ? 1 : 0;
+    double fund = double.tryParse(_digits(fundSupportRange)) ?? 0.0;
+
+    // between 0 and 1 for similarity
+    return [
+      (fee / 1000).clamp(0, 1),
+      membership / 2,
+      penalty / 2,
+      method / 2,
+      open,
+      (fund / 1000).clamp(0, 1),
+    ];
+  }
+
+  // pgvector
   Future<void> _fetchSuggestions() async {
     setState(() => isLoading = true);
     try {
-      var qb = Supabase.instance.client.from('dayung_units').select();
-
-      // Debug: show chosen filters
-      // ignore: avoid_print
-      print(
-        'Filters -> fee:$feeRange, pay:$paymentMethod, open:$openForAll, fund:$fundSupportRange',
+      final vector = _generatePreferenceVector();
+      print('User vector: $vector');
+      final response = await Supabase.instance.client.rpc(
+        'match_dayung_units',
+        params: {'user_vector': vector, 'match_count': 10},
       );
-
-      // Make filters tolerant:
-      // - For fee/fund, match by digits (so "100" matches "₱100", "₱0 - ₱100")
-      // - For text, use ilike with wildcards
-      final feeDigits = _digits(feeRange);
-      if (feeRange != null && feeRange != 'Any' && feeDigits.isNotEmpty) {
-        qb = qb.ilike('fee_range', '%$feeDigits%');
+      if (response is List) {
+        setState(() {
+          suggestedUnits = response;
+        });
       }
 
-      if (paymentMethod != null && paymentMethod != 'Any') {
-        qb = qb.ilike('payment_method', '%${_trimLower(paymentMethod)}%');
-      }
-
-      if (openForAll != null) {
-        qb = qb.eq('open_for_all', openForAll == 'Yes');
-      }
-
-      final fundDigits = _digits(fundSupportRange);
-      if (fundSupportRange != null &&
-          fundSupportRange != 'Any' &&
-          fundDigits.isNotEmpty) {
-        qb = qb.ilike('fund_support_range', '%$fundDigits%');
-      }
-
-      final rows = await qb.limit(20);
-
-      // Debug
-      // ignore: avoid_print
-      print('Suggestions found: ${rows.length}');
-      setState(() {
-        suggestedUnits = rows as List<dynamic>;
-      });
-
-      // Optional: fallback to show all if nothing matched (helps debug)
-      if (suggestedUnits.isEmpty) {
-        final all = await Supabase.instance.client
-            .from('dayung_units')
-            .select()
-            .limit(10);
-        // ignore: avoid_print
-        print('All units sample (no filters matched): ${all.length}');
-      }
+      print('pgvector suggestions: ${suggestedUnits.length}');
     } catch (e) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Error fetching suggestions: $e')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error fetching pgvector suggestions: $e')),
+      );
     } finally {
       setState(() => isLoading = false);
     }
@@ -117,19 +118,21 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
   Future<void> _savePreferences({int? selectedUnitId}) async {
     final payload = {
       'user_id': widget.userId,
-      'fee_range': feeRange,
-      'payment_method': paymentMethod,
+      'contribution_amount': contribution_amount,
+      'membership_payment': membership_payment,
+      'penalty_payment': penalty_payment,
+      'payment_method': payment_method,
       'open_for_all': openForAll == null ? null : (openForAll == 'Yes'),
       'fund_support_range': fundSupportRange,
       'selected_unit_id': selectedUnitId,
     };
 
-    // Try update existing row; if none updated, insert
     final existing = await Supabase.instance.client
         .from('user_preferences')
         .select('id')
         .eq('user_id', widget.userId)
         .limit(1);
+
     if ((existing as List).isNotEmpty) {
       await Supabase.instance.client
           .from('user_preferences')
@@ -144,11 +147,6 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
     setState(() => isSubmitting = true);
     try {
       await _savePreferences(selectedUnitId: selectedUnitId);
-
-      // Optional: also create an application immediately
-      // if (selectedUnitId != null) {
-      //   await applyToDayungUnit(widget.userId, selectedUnitId);
-      // }
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -191,7 +189,6 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
         child: SafeArea(
           child: Column(
             children: [
-              // Header (same style as selectdayung.dart)
               Container(
                 padding: const EdgeInsets.fromLTRB(16, 12, 16, 20),
                 child: Row(
@@ -229,7 +226,6 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
                   ],
                 ),
               ),
-              // Curved container body
               Expanded(
                 child: Container(
                   decoration: const BoxDecoration(
@@ -266,7 +262,6 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
       child: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          // Preferences card
           Card(
             elevation: 2,
             color: kCardBg,
@@ -282,7 +277,7 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
                   children: [
                     _buildDropdown(
                       label: 'Registration Fee Range',
-                      value: feeRange,
+                      value: contribution_amount,
                       items: [
                         'Any',
                         'Free',
@@ -291,16 +286,45 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
                         '₱501+',
                         '₱100',
                         '₱500',
+                        '₱150',
                         '₱1000',
                       ],
                       onChanged: (val) {
-                        setState(() => feeRange = val);
+                        setState(() => contribution_amount = val);
                         _fetchSuggestions();
                       },
                     ),
                     _buildDropdown(
-                      label: 'Preferred Payment Method',
-                      value: paymentMethod,
+                      label: 'Membership Payment',
+                      value: membership_payment,
+                      items: [
+                        'Any',
+                        'Free',
+                        '₱1 - ₱100',
+                        '₱101 - ₱500',
+                        '₱501+',
+                        '₱100',
+                        '₱500',
+                        '₱150',
+                        '₱1000',
+                      ],
+                      onChanged: (val) {
+                        setState(() => membership_payment = val);
+                        _fetchSuggestions();
+                      },
+                    ),
+                    _buildDropdown(
+                      label: 'Penalty Payment',
+                      value: penalty_payment,
+                      items: ['100', '200', '300', '500'],
+                      onChanged: (val) {
+                        setState(() => penalty_payment = val);
+                        _fetchSuggestions();
+                      },
+                    ),
+                    _buildDropdown(
+                      label: 'Payment Method',
+                      value: payment_method,
                       items: [
                         'Any',
                         'GCash',
@@ -311,7 +335,7 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
                         'cash',
                       ],
                       onChanged: (val) {
-                        setState(() => paymentMethod = val);
+                        setState(() => payment_method = val);
                         _fetchSuggestions();
                       },
                     ),
@@ -356,8 +380,10 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
                           ),
                         ),
                         onPressed: () {
-                          if (feeRange == null &&
-                              paymentMethod == null &&
+                          if (contribution_amount == null &&
+                              membership_payment == null &&
+                              penalty_payment == null &&
+                              payment_method == null &&
                               openForAll == null &&
                               fundSupportRange == null) {
                             ScaffoldMessenger.of(context).showSnackBar(
@@ -378,8 +404,6 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
               ),
             ),
           ),
-
-          // Suggestions
           if (suggestedUnits.isNotEmpty) ...[
             Padding(
               padding: const EdgeInsets.symmetric(vertical: 8),
@@ -406,48 +430,75 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
                     horizontal: 12,
                     vertical: 10,
                   ),
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.center,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      CircleAvatar(
-                        backgroundColor: kPrimary.withOpacity(0.12),
-                        child: const Icon(Icons.home, color: kPrimary),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              unit['name'] ?? 'Unnamed Unit',
-                              style: const TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.w700,
-                                color: kText,
-                              ),
-                            ),
-                            const SizedBox(height: 4),
-                            Text(
-                              [
-                                    if (unit['barangay'] != null)
-                                      unit['barangay'],
-                                    if (unit['city'] != null) unit['city'],
-                                    if (unit['province'] != null)
-                                      unit['province'],
-                                  ]
-                                  .where((e) => (e ?? '').toString().isNotEmpty)
-                                  .join(', '),
-                              style: const TextStyle(
-                                color: kSubText,
-                                fontSize: 13,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(width: 8),
                       Row(
-                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.center,
+                        children: [
+                          CircleAvatar(
+                            backgroundColor: kPrimary.withOpacity(0.12),
+                            child: const Icon(Icons.home, color: kPrimary),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  unit['name'] ?? 'Unnamed Unit',
+                                  style: const TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w700,
+                                    color: kText,
+                                  ),
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  [
+                                        if (unit['barangay'] != null)
+                                          unit['barangay'],
+                                        if (unit['city'] != null) unit['city'],
+                                        if (unit['province'] != null)
+                                          unit['province'],
+                                      ]
+                                      .where(
+                                        (e) => (e ?? '').toString().isNotEmpty,
+                                      )
+                                      .join(', '),
+                                  style: const TextStyle(
+                                    color: kSubText,
+                                    fontSize: 13,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                      // --- Map preview here ---
+                      Builder(
+                        builder: (context) {
+                          final lat = double.tryParse('${unit['latitude']}');
+                          final lng = double.tryParse('${unit['longitude']}');
+                          if (lat != null && lng != null) {
+                            return Padding(
+                              padding: const EdgeInsets.only(
+                                top: 10.0,
+                                bottom: 8.0,
+                              ),
+                              child: DayungMapPreview(
+                                latitude: lat,
+                                longitude: lng,
+                              ),
+                            );
+                          }
+                          return const SizedBox.shrink();
+                        },
+                      ),
+                      // --- Action buttons ---
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.end,
                         children: [
                           OutlinedButton.icon(
                             icon: const Icon(Icons.map),
@@ -502,9 +553,11 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
                   ),
                 ),
               );
-            }).toList(),
-          ] else if (feeRange != null ||
-              paymentMethod != null ||
+            }),
+          ] else if (contribution_amount != null ||
+              membership_payment != null ||
+              penalty_payment != null ||
+              payment_method != null ||
               openForAll != null ||
               fundSupportRange != null) ...[
             const SizedBox(height: 8),
@@ -553,7 +606,7 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 8),
       child: DropdownButtonFormField<String>(
-        value: value,
+        initialValue: value,
         decoration: InputDecoration(
           labelText: label,
           border: const OutlineInputBorder(),
@@ -569,6 +622,51 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
             .toList(),
         onChanged: onChanged,
         validator: (_) => null,
+      ),
+    );
+  }
+}
+
+class DayungMapPreview extends StatelessWidget {
+  final double latitude;
+  final double longitude;
+
+  const DayungMapPreview({
+    super.key,
+    required this.latitude,
+    required this.longitude,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: 120,
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(12),
+        child: ml.MapLibreMap(
+          styleString: 'https://demotiles.maplibre.org/style.json',
+          initialCameraPosition: ml.CameraPosition(
+            target: ml.LatLng(latitude, longitude),
+            zoom: 14,
+          ),
+          onMapCreated: (ml.MaplibreMapController controller) async {
+            await controller.addSymbol(
+              ml.SymbolOptions(
+                geometry: ml.LatLng(latitude, longitude),
+                iconImage: "marker-15",
+                iconSize: 1.4,
+              ),
+            );
+          },
+          myLocationEnabled: false,
+          compassEnabled: false,
+          rotateGesturesEnabled: false,
+          tiltGesturesEnabled: false,
+          scrollGesturesEnabled: false,
+          zoomGesturesEnabled: false,
+          attributionButtonMargins: const Point(8, 8),
+          logoViewMargins: const Point(8, 8),
+        ),
       ),
     );
   }

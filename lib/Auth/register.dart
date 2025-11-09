@@ -1,5 +1,7 @@
 import 'package:auto_size_text/auto_size_text.dart';
-import 'package:capstone_app/screens/dayungquestion.dart' hide kPrimary, kBg, kAccent;
+import 'package:capstone_app/Auth/utils_file.dart';
+import 'package:capstone_app/screens/dayungquestion.dart'
+    hide kPrimary, kBg, kAccent;
 import 'package:capstone_app/ui/theme/branding.dart';
 import 'package:flutter/material.dart';
 import 'package:capstone_app/Auth/login.dart';
@@ -31,6 +33,8 @@ class _RegisterState extends State<Register> {
   final addressController = TextEditingController();
   final passwordController = TextEditingController();
   final confirmPasswordController = TextEditingController();
+  String get password => passwordController.text.trim();
+  String get passwordHash => hashPassword(password);
 
   bool _obscurePassword = true;
   bool _obscureConfirmPassword = true;
@@ -167,7 +171,10 @@ class _RegisterState extends State<Register> {
                     ),
                     IconButton(
                       tooltip: 'Dismiss',
-                      icon: const Icon(Icons.close_rounded, color: Colors.white),
+                      icon: const Icon(
+                        Icons.close_rounded,
+                        color: Colors.white,
+                      ),
                       onPressed: () => Navigator.of(ctx).pop(),
                     ),
                   ],
@@ -229,6 +236,8 @@ class _RegisterState extends State<Register> {
         'birth_certificate_url': '',
         'marriage_certificate_url': '',
         'role': role,
+        'email': email,
+        'password_hash': passwordHash,
       });
 
       setState(() => _isSubmitting = false);
@@ -260,14 +269,12 @@ class _RegisterState extends State<Register> {
             return Theme(
               data: Theme.of(context).copyWith(
                 colorScheme: ColorScheme.light(
-                  primary: kPrimary, 
+                  primary: kPrimary,
                   onPrimary: Colors.white,
                   onSurface: kNeutralText,
                 ),
                 textButtonTheme: TextButtonThemeData(
-                  style: TextButton.styleFrom(
-                    foregroundColor: kPrimary,
-                  ),
+                  style: TextButton.styleFrom(foregroundColor: kPrimary),
                 ),
               ),
               child: child!,
@@ -301,15 +308,12 @@ class _RegisterState extends State<Register> {
       labelText: label,
       hintText: hint,
       labelStyle: const TextStyle(
-        color: kSubtleText, 
+        color: kSubtleText,
         fontSize: 14,
         fontWeight: FontWeight.w500,
       ),
-      hintStyle: const TextStyle(
-        color: kSubtleText,
-        fontSize: 16,
-      ),
-      prefixIcon: icon != null 
+      hintStyle: const TextStyle(color: kSubtleText, fontSize: 16),
+      prefixIcon: icon != null
           ? Container(
               margin: const EdgeInsets.all(12),
               padding: const EdgeInsets.all(8),
@@ -318,7 +322,7 @@ class _RegisterState extends State<Register> {
                 borderRadius: BorderRadius.circular(8),
               ),
               child: Icon(icon, color: kPrimary, size: 20),
-            ) 
+            )
           : null,
       filled: true,
       fillColor: kCardBg,
@@ -365,10 +369,7 @@ class _RegisterState extends State<Register> {
           gradient: LinearGradient(
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
-            colors: [
-              Color(0xFFF8FAFC),
-              Color(0xFFF1F5F9),
-            ],
+            colors: [Color(0xFFF8FAFC), Color(0xFFF1F5F9)],
           ),
         ),
         child: SafeArea(
@@ -433,484 +434,494 @@ class _RegisterState extends State<Register> {
                           width: 1,
                         ),
                       ),
-                    child: Padding(
-                      padding: EdgeInsets.all(isSmall ? 10 : 20),
-                      child: Form(
-                        key: _formKey,
-                        child: Column(
-                          children: [
-                            if (_isSubmitting)
-                              Container(
-                                margin: EdgeInsets.only(
-                                  bottom: isSmall ? 8 : 16,
+                      child: Padding(
+                        padding: EdgeInsets.all(isSmall ? 10 : 20),
+                        child: Form(
+                          key: _formKey,
+                          child: Column(
+                            children: [
+                              if (_isSubmitting)
+                                Container(
+                                  margin: EdgeInsets.only(
+                                    bottom: isSmall ? 8 : 16,
+                                  ),
+                                  padding: const EdgeInsets.all(16),
+                                  decoration: BoxDecoration(
+                                    color: kPrimary.withOpacity(0.1),
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  child: Row(
+                                    children: [
+                                      const SizedBox(
+                                        width: 20,
+                                        height: 20,
+                                        child: CircularProgressIndicator(
+                                          color: kPrimary,
+                                          strokeWidth: 2,
+                                        ),
+                                      ),
+                                      const SizedBox(width: 12),
+                                      Text(
+                                        'Creating your account...',
+                                        style: TextStyle(
+                                          color: kPrimary,
+                                          fontWeight: FontWeight.w600,
+                                          fontSize: 14,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
                                 ),
+
+                              // Section: Personal Info
+                              Container(
                                 padding: const EdgeInsets.all(16),
                                 decoration: BoxDecoration(
-                                  color: kPrimary.withOpacity(0.1),
+                                  color: kPrimary.withOpacity(0.05),
                                   borderRadius: BorderRadius.circular(12),
+                                  border: Border.all(
+                                    color: kPrimary.withOpacity(0.1),
+                                    width: 1,
+                                  ),
                                 ),
                                 child: Row(
                                   children: [
-                                    const SizedBox(
-                                      width: 20,
-                                      height: 20,
-                                      child: CircularProgressIndicator(
+                                    Container(
+                                      padding: const EdgeInsets.all(8),
+                                      decoration: BoxDecoration(
                                         color: kPrimary,
-                                        strokeWidth: 2,
+                                        borderRadius: BorderRadius.circular(8),
+                                      ),
+                                      child: const Icon(
+                                        Icons.person_rounded,
+                                        color: Colors.white,
+                                        size: 20,
                                       ),
                                     ),
                                     const SizedBox(width: 12),
-                                    Text(
-                                      'Creating your account...',
+                                    const Text(
+                                      'Personal Information',
                                       style: TextStyle(
-                                        color: kPrimary,
-                                        fontWeight: FontWeight.w600,
-                                        fontSize: 14,
+                                        fontSize: 18,
+                                        fontWeight: FontWeight.w700,
+                                        color: kNeutralText,
                                       ),
                                     ),
                                   ],
                                 ),
                               ),
+                              const SizedBox(height: 20),
 
-                            // Section: Personal Info
-                            Container(
-                              padding: const EdgeInsets.all(16),
-                              decoration: BoxDecoration(
-                                color: kPrimary.withOpacity(0.05),
-                                borderRadius: BorderRadius.circular(12),
-                                border: Border.all(
-                                  color: kPrimary.withOpacity(0.1),
-                                  width: 1,
+                              // Full Name
+                              TextFormField(
+                                controller: fullNameController,
+                                textInputAction: TextInputAction.next,
+                                style: TextStyle(
+                                  fontSize: isWide ? 18 : 16,
+                                  color: kNeutralText,
+                                  fontWeight: FontWeight.w500,
                                 ),
+                                decoration: _dec(
+                                  'Full Name',
+                                  hint: 'Juan Dela Cruz',
+                                  icon: Icons.person_rounded,
+                                ),
+                                validator: (v) =>
+                                    (v == null || v.trim().isEmpty)
+                                    ? 'Full Name is required'
+                                    : null,
                               ),
-                              child: Row(
-                                children: [
-                                  Container(
-                                    padding: const EdgeInsets.all(8),
-                                    decoration: BoxDecoration(
-                                      color: kPrimary,
-                                      borderRadius: BorderRadius.circular(8),
-                                    ),
-                                    child: const Icon(
-                                      Icons.person_rounded,
-                                      color: Colors.white,
-                                      size: 20,
-                                    ),
-                                  ),
-                                  const SizedBox(width: 12),
-                                  const Text(
-                                    'Personal Information',
-                                    style: TextStyle(
-                                      fontSize: 18,
-                                      fontWeight: FontWeight.w700,
-                                      color: kNeutralText,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            const SizedBox(height: 20),
+                              const SizedBox(height: 16),
 
-                            // Full Name
-                            TextFormField(
-                              controller: fullNameController,
-                              textInputAction: TextInputAction.next,
-                              style: TextStyle(
-                                fontSize: isWide ? 18 : 16,
-                                color: kNeutralText,
-                                fontWeight: FontWeight.w500,
-                              ),
-                              decoration: _dec(
-                                'Full Name',
-                                hint: 'Juan Dela Cruz',
-                                icon: Icons.person_rounded,
-                              ),
-                              validator: (v) => (v == null || v.trim().isEmpty)
-                                  ? 'Full Name is required'
-                                  : null,
-                            ),
-                            const SizedBox(height: 16),
-
-                            // Sex
-                            DropdownButtonFormField<String>(
-                              initialValue: selectedSex,
-                              decoration: _dropdownDec('Sex'),
-                              items: const ['Male', 'Female']
-                                  .map(
-                                    (s) => DropdownMenuItem(
-                                      value: s,
-                                      child: Text(
-                                        s,
-                                        style: const TextStyle(
-                                          fontWeight: FontWeight.w500,
+                              // Sex
+                              DropdownButtonFormField<String>(
+                                initialValue: selectedSex,
+                                decoration: _dropdownDec('Sex'),
+                                items: const ['Male', 'Female']
+                                    .map(
+                                      (s) => DropdownMenuItem(
+                                        value: s,
+                                        child: Text(
+                                          s,
+                                          style: const TextStyle(
+                                            fontWeight: FontWeight.w500,
+                                          ),
                                         ),
                                       ),
-                                    ),
-                                  )
-                                  .toList(),
-                              onChanged: (v) => setState(() => selectedSex = v),
-                              validator: (v) =>
-                                  v == null ? 'Sex is required' : null,
-                            ),
-                            const SizedBox(height: 16),
-                            _dobField(context),
-                            const SizedBox(height: 16),
-
-                            // Mobile
-                            TextFormField(
-                              controller: mobileController,
-                              keyboardType: TextInputType.phone,
-                              textInputAction: TextInputAction.next,
-                              style: TextStyle(
-                                fontSize: isWide ? 18 : 16,
-                                color: kNeutralText,
-                                fontWeight: FontWeight.w500,
+                                    )
+                                    .toList(),
+                                onChanged: (v) =>
+                                    setState(() => selectedSex = v),
+                                validator: (v) =>
+                                    v == null ? 'Sex is required' : null,
                               ),
-                              decoration: _dec(
-                                'Mobile Number',
-                                hint: '+63 9XXXXXXXXX',
-                                icon: Icons.phone_rounded,
-                              ),
-                              validator: (v) => (v == null || v.trim().isEmpty)
-                                  ? 'Mobile number is required'
-                                  : null,
-                            ),
-                            const SizedBox(height: 16),
+                              const SizedBox(height: 16),
+                              _dobField(context),
+                              const SizedBox(height: 16),
 
-                            // Address
-                            TextFormField(
-                              controller: addressController,
-                              textInputAction: TextInputAction.next,
-                              style: TextStyle(
-                                fontSize: isWide ? 18 : 16,
-                                color: kNeutralText,
-                                fontWeight: FontWeight.w500,
-                              ),
-                              decoration: _dec(
-                                'Address',
-                                hint: 'Purok, Barangay, City',
-                                icon: Icons.home_rounded,
-                              ),
-                              validator: (v) => (v == null || v.trim().isEmpty)
-                                  ? 'Address is required'
-                                  : null,
-                            ),
-
-                            const SizedBox(height: 28),
-
-                            // Section: Account
-                            Container(
-                              padding: const EdgeInsets.all(16),
-                              decoration: BoxDecoration(
-                                color: kAccent.withOpacity(0.05),
-                                borderRadius: BorderRadius.circular(12),
-                                border: Border.all(
-                                  color: kAccent.withOpacity(0.1),
-                                  width: 1,
+                              // Mobile
+                              TextFormField(
+                                controller: mobileController,
+                                keyboardType: TextInputType.phone,
+                                textInputAction: TextInputAction.next,
+                                style: TextStyle(
+                                  fontSize: isWide ? 18 : 16,
+                                  color: kNeutralText,
+                                  fontWeight: FontWeight.w500,
                                 ),
-                              ),
-                              child: Row(
-                                children: [
-                                  Container(
-                                    padding: const EdgeInsets.all(8),
-                                    decoration: BoxDecoration(
-                                      color: kAccent,
-                                      borderRadius: BorderRadius.circular(8),
-                                    ),
-                                    child: const Icon(
-                                      Icons.lock_rounded,
-                                      color: Colors.white,
-                                      size: 20,
-                                    ),
-                                  ),
-                                  const SizedBox(width: 12),
-                                  const Text(
-                                    'Account Information',
-                                    style: TextStyle(
-                                      fontSize: 18,
-                                      fontWeight: FontWeight.w700,
-                                      color: kNeutralText,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            const SizedBox(height: 20),
-
-                            // Email
-                            TextFormField(
-                              controller: emailController,
-                              keyboardType: TextInputType.emailAddress,
-                              textInputAction: TextInputAction.next,
-                              style: TextStyle(
-                                fontSize: isWide ? 18 : 16,
-                                color: kNeutralText,
-                                fontWeight: FontWeight.w500,
-                              ),
-                              decoration: _dec(
-                                'Email',
-                                hint: 'example@email.com',
-                                icon: Icons.email_rounded,
-                              ),
-                              validator: (v) {
-                                if (v == null || v.trim().isEmpty) {
-                                  return 'Email is required';
-                                }
-                                if (!RegExp(
-                                  r'^[^@]+@[^@]+\.[^@]+',
-                                ).hasMatch(v.trim())) {
-                                  return 'Enter a valid email';
-                                }
-                                return null;
-                              },
-                            ),
-                            const SizedBox(height: 16),
-
-                            // Password
-                            TextFormField(
-                              controller: passwordController,
-                              obscureText: _obscurePassword,
-                              textInputAction: TextInputAction.next,
-                              style: TextStyle(
-                                fontSize: isWide ? 18 : 16,
-                                color: kNeutralText,
-                                fontWeight: FontWeight.w500,
-                              ),
-                              decoration:
-                                  _dec(
-                                    'Create Password',
-                                    hint: '********',
-                                    icon: Icons.lock_rounded,
-                                  ).copyWith(
-                                    helperText: 'At least 6 characters',
-                                    helperStyle: TextStyle(
-                                      color: kSubtleText,
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.w500,
-                                    ),
-                                    suffixIcon: IconButton(
-                                      tooltip: _obscurePassword
-                                          ? 'Show password'
-                                          : 'Hide password',
-                                      icon: Icon(
-                                        _obscurePassword
-                                            ? Icons.visibility_off_rounded
-                                            : Icons.visibility_rounded,
-                                        color: kSubtleText,
-                                      ),
-                                      onPressed: () => setState(
-                                        () => _obscurePassword =
-                                            !_obscurePassword,
-                                      ),
-                                    ),
-                                  ),
-                              validator: (v) {
-                                if (v == null || v.trim().isEmpty) {
-                                  return 'Password is required';
-                                }
-                                if (v.trim().length < 6) {
-                                  return 'Password must be at least 6 characters';
-                                }
-                                return null;
-                              },
-                            ),
-                            const SizedBox(height: 16),
-
-                            // Confirm Password
-                            TextFormField(
-                              controller: confirmPasswordController,
-                              obscureText: _obscureConfirmPassword,
-                              textInputAction: TextInputAction.done,
-                              style: TextStyle(
-                                fontSize: isWide ? 18 : 16,
-                                color: kNeutralText,
-                                fontWeight: FontWeight.w500,
-                              ),
-                              decoration:
-                                  _dec(
-                                    'Confirm Password',
-                                    hint: '********',
-                                    icon: Icons.lock_person_rounded,
-                                  ).copyWith(
-                                    errorText: _confirmPasswordError,
-                                    suffixIcon: IconButton(
-                                      tooltip: _obscureConfirmPassword
-                                          ? 'Show password'
-                                          : 'Hide password',
-                                      icon: Icon(
-                                        _obscureConfirmPassword
-                                            ? Icons.visibility_off_rounded
-                                            : Icons.visibility_rounded,
-                                        color: kSubtleText,
-                                      ),
-                                      onPressed: () => setState(
-                                        () => _obscureConfirmPassword =
-                                            !_obscureConfirmPassword,
-                                      ),
-                                    ),
-                                  ),
-                              validator: (v) {
-                                if (v == null || v.trim().isEmpty) {
-                                  return 'Confirm your password';
-                                }
-                                if (v != passwordController.text) {
-                                  return 'Passwords do not match';
-                                }
-                                return null;
-                              },
-                            ),
-
-                            const SizedBox(height: 28),
-
-                            // Submit
-                            Container(
-                              width: double.infinity,
-                              height: 56,
-                              decoration: BoxDecoration(
-                                gradient: LinearGradient(
-                                  colors: [kPrimary, kPrimaryLight],
-                                  begin: Alignment.topLeft,
-                                  end: Alignment.bottomRight,
+                                decoration: _dec(
+                                  'Mobile Number',
+                                  hint: '+63 9XXXXXXXXX',
+                                  icon: Icons.phone_rounded,
                                 ),
-                                borderRadius: BorderRadius.circular(kEdge),
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: kPrimary.withOpacity(0.3),
-                                    blurRadius: 12,
-                                    offset: const Offset(0, 6),
-                                  ),
-                                ],
+                                validator: (v) =>
+                                    (v == null || v.trim().isEmpty)
+                                    ? 'Mobile number is required'
+                                    : null,
                               ),
-                              child: ElevatedButton(
-                                onPressed: _isSubmitting ? null : _registerUser,
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: Colors.transparent,
-                                  shadowColor: Colors.transparent,
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(kEdge),
-                                  ),
-                                  elevation: 0,
-                                ),
-                                child: _isSubmitting
-                                    ? const SizedBox(
-                                        width: 26,
-                                        height: 26,
-                                        child: CircularProgressIndicator(
-                                          color: Colors.white,
-                                          strokeWidth: 3,
-                                        ),
-                                      )
-                                    : const Text(
-                                        'Create Account',
-                                        style: TextStyle(
-                                          fontSize: 18,
-                                          fontWeight: FontWeight.w700,
-                                          color: Colors.white,
-                                        ),
-                                      ),
-                              ),
-                            ),
-                            const SizedBox(height: 16),
+                              const SizedBox(height: 16),
 
-                            // Back to login
-                            Container(
-                              width: double.infinity,
-                              height: 56,
-                              decoration: BoxDecoration(
-                                color: Colors.white,
-                                borderRadius: BorderRadius.circular(kEdge),
-                                border: Border.all(
-                                  color: kBorderColor,
-                                  width: 1.5,
+                              // Address
+                              TextFormField(
+                                controller: addressController,
+                                textInputAction: TextInputAction.next,
+                                style: TextStyle(
+                                  fontSize: isWide ? 18 : 16,
+                                  color: kNeutralText,
+                                  fontWeight: FontWeight.w500,
                                 ),
+                                decoration: _dec(
+                                  'Address',
+                                  hint: 'Purok, Barangay, City',
+                                  icon: Icons.home_rounded,
+                                ),
+                                validator: (v) =>
+                                    (v == null || v.trim().isEmpty)
+                                    ? 'Address is required'
+                                    : null,
                               ),
-                              child: OutlinedButton(
-                                onPressed: _isSubmitting
-                                    ? null
-                                    : () => Navigator.pushReplacement(
-                                        context,
-                                        MaterialPageRoute(
-                                          builder: (_) => const Login(),
-                                        ),
-                                      ),
-                                style: OutlinedButton.styleFrom(
-                                  backgroundColor: Colors.transparent,
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(kEdge),
+
+                              const SizedBox(height: 28),
+
+                              // Section: Account
+                              Container(
+                                padding: const EdgeInsets.all(16),
+                                decoration: BoxDecoration(
+                                  color: kAccent.withOpacity(0.05),
+                                  borderRadius: BorderRadius.circular(12),
+                                  border: Border.all(
+                                    color: kAccent.withOpacity(0.1),
+                                    width: 1,
                                   ),
-                                  side: BorderSide.none,
-                                  foregroundColor: kPrimary,
                                 ),
                                 child: Row(
-                                  mainAxisAlignment: MainAxisAlignment.center,
                                   children: [
-                                    const Icon(
-                                      Icons.arrow_back_rounded,
-                                      size: 20,
+                                    Container(
+                                      padding: const EdgeInsets.all(8),
+                                      decoration: BoxDecoration(
+                                        color: kAccent,
+                                        borderRadius: BorderRadius.circular(8),
+                                      ),
+                                      child: const Icon(
+                                        Icons.lock_rounded,
+                                        color: Colors.white,
+                                        size: 20,
+                                      ),
                                     ),
-                                    const SizedBox(width: 8),
-                                    Flexible(
-                                      child: Text(
-                                        'Already have an account? Login',
-                                        style: TextStyle(
-                                          fontSize: 16,
-                                          fontWeight: FontWeight.w600,
-                                        ),
-                                        textAlign: TextAlign.center,
+                                    const SizedBox(width: 12),
+                                    const Text(
+                                      'Account Information',
+                                      style: TextStyle(
+                                        fontSize: 18,
+                                        fontWeight: FontWeight.w700,
+                                        color: kNeutralText,
                                       ),
                                     ),
                                   ],
                                 ),
                               ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
+                              const SizedBox(height: 20),
 
-                  const SizedBox(height: 20),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 12,
-                    ),
-                    decoration: BoxDecoration(
-                      color: kSuccess.withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(
-                        color: kSuccess.withOpacity(0.2),
-                        width: 1,
-                      ),
-                    ),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(
-                          Icons.security_rounded,
-                          color: kSuccess,
-                          size: 18,
-                        ),
-                        const SizedBox(width: 8),
-                        Flexible(
-                          child: Text(
-                            'Your information is kept private and secure.',
-                            textAlign: TextAlign.center,
-                            style: TextStyle(
-                              color: kSuccess,
-                              fontSize: 14,
-                              fontWeight: FontWeight.w600,
-                            ),
+                              // Email
+                              TextFormField(
+                                controller: emailController,
+                                keyboardType: TextInputType.emailAddress,
+                                textInputAction: TextInputAction.next,
+                                style: TextStyle(
+                                  fontSize: isWide ? 18 : 16,
+                                  color: kNeutralText,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                                decoration: _dec(
+                                  'Email',
+                                  hint: 'example@email.com',
+                                  icon: Icons.email_rounded,
+                                ),
+                                validator: (v) {
+                                  if (v == null || v.trim().isEmpty) {
+                                    return 'Email is required';
+                                  }
+                                  if (!RegExp(
+                                    r'^[^@]+@[^@]+\.[^@]+',
+                                  ).hasMatch(v.trim())) {
+                                    return 'Enter a valid email';
+                                  }
+                                  return null;
+                                },
+                              ),
+                              const SizedBox(height: 16),
+
+                              // Password
+                              TextFormField(
+                                controller: passwordController,
+                                obscureText: _obscurePassword,
+                                textInputAction: TextInputAction.next,
+                                style: TextStyle(
+                                  fontSize: isWide ? 18 : 16,
+                                  color: kNeutralText,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                                decoration:
+                                    _dec(
+                                      'Create Password',
+                                      hint: '********',
+                                      icon: Icons.lock_rounded,
+                                    ).copyWith(
+                                      helperText: 'At least 6 characters',
+                                      helperStyle: TextStyle(
+                                        color: kSubtleText,
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w500,
+                                      ),
+                                      suffixIcon: IconButton(
+                                        tooltip: _obscurePassword
+                                            ? 'Show password'
+                                            : 'Hide password',
+                                        icon: Icon(
+                                          _obscurePassword
+                                              ? Icons.visibility_off_rounded
+                                              : Icons.visibility_rounded,
+                                          color: kSubtleText,
+                                        ),
+                                        onPressed: () => setState(
+                                          () => _obscurePassword =
+                                              !_obscurePassword,
+                                        ),
+                                      ),
+                                    ),
+                                validator: (v) {
+                                  if (v == null || v.trim().isEmpty) {
+                                    return 'Password is required';
+                                  }
+                                  if (v.trim().length < 6) {
+                                    return 'Password must be at least 6 characters';
+                                  }
+                                  return null;
+                                },
+                              ),
+                              const SizedBox(height: 16),
+
+                              // Confirm Password
+                              TextFormField(
+                                controller: confirmPasswordController,
+                                obscureText: _obscureConfirmPassword,
+                                textInputAction: TextInputAction.done,
+                                style: TextStyle(
+                                  fontSize: isWide ? 18 : 16,
+                                  color: kNeutralText,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                                decoration:
+                                    _dec(
+                                      'Confirm Password',
+                                      hint: '********',
+                                      icon: Icons.lock_person_rounded,
+                                    ).copyWith(
+                                      errorText: _confirmPasswordError,
+                                      suffixIcon: IconButton(
+                                        tooltip: _obscureConfirmPassword
+                                            ? 'Show password'
+                                            : 'Hide password',
+                                        icon: Icon(
+                                          _obscureConfirmPassword
+                                              ? Icons.visibility_off_rounded
+                                              : Icons.visibility_rounded,
+                                          color: kSubtleText,
+                                        ),
+                                        onPressed: () => setState(
+                                          () => _obscureConfirmPassword =
+                                              !_obscureConfirmPassword,
+                                        ),
+                                      ),
+                                    ),
+                                validator: (v) {
+                                  if (v == null || v.trim().isEmpty) {
+                                    return 'Confirm your password';
+                                  }
+                                  if (v != passwordController.text) {
+                                    return 'Passwords do not match';
+                                  }
+                                  return null;
+                                },
+                              ),
+
+                              const SizedBox(height: 28),
+
+                              // Submit
+                              Container(
+                                width: double.infinity,
+                                height: 56,
+                                decoration: BoxDecoration(
+                                  gradient: LinearGradient(
+                                    colors: [kPrimary, kPrimaryLight],
+                                    begin: Alignment.topLeft,
+                                    end: Alignment.bottomRight,
+                                  ),
+                                  borderRadius: BorderRadius.circular(kEdge),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: kPrimary.withOpacity(0.3),
+                                      blurRadius: 12,
+                                      offset: const Offset(0, 6),
+                                    ),
+                                  ],
+                                ),
+                                child: ElevatedButton(
+                                  onPressed: _isSubmitting
+                                      ? null
+                                      : _registerUser,
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: Colors.transparent,
+                                    shadowColor: Colors.transparent,
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(
+                                        kEdge,
+                                      ),
+                                    ),
+                                    elevation: 0,
+                                  ),
+                                  child: _isSubmitting
+                                      ? const SizedBox(
+                                          width: 26,
+                                          height: 26,
+                                          child: CircularProgressIndicator(
+                                            color: Colors.white,
+                                            strokeWidth: 3,
+                                          ),
+                                        )
+                                      : const Text(
+                                          'Create Account',
+                                          style: TextStyle(
+                                            fontSize: 18,
+                                            fontWeight: FontWeight.w700,
+                                            color: Colors.white,
+                                          ),
+                                        ),
+                                ),
+                              ),
+                              const SizedBox(height: 16),
+
+                              // Back to login
+                              Container(
+                                width: double.infinity,
+                                height: 56,
+                                decoration: BoxDecoration(
+                                  color: Colors.white,
+                                  borderRadius: BorderRadius.circular(kEdge),
+                                  border: Border.all(
+                                    color: kBorderColor,
+                                    width: 1.5,
+                                  ),
+                                ),
+                                child: OutlinedButton(
+                                  onPressed: _isSubmitting
+                                      ? null
+                                      : () => Navigator.pushReplacement(
+                                          context,
+                                          MaterialPageRoute(
+                                            builder: (_) => const Login(),
+                                          ),
+                                        ),
+                                  style: OutlinedButton.styleFrom(
+                                    backgroundColor: Colors.transparent,
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(
+                                        kEdge,
+                                      ),
+                                    ),
+                                    side: BorderSide.none,
+                                    foregroundColor: kPrimary,
+                                  ),
+                                  child: Row(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      const Icon(
+                                        Icons.arrow_back_rounded,
+                                        size: 20,
+                                      ),
+                                      const SizedBox(width: 8),
+                                      Flexible(
+                                        child: Text(
+                                          'Already have an account? Login',
+                                          style: TextStyle(
+                                            fontSize: 16,
+                                            fontWeight: FontWeight.w600,
+                                          ),
+                                          textAlign: TextAlign.center,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ],
                           ),
                         ),
-                      ],
+                      ),
                     ),
-            ),
+
+                    const SizedBox(height: 20),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 12,
+                      ),
+                      decoration: BoxDecoration(
+                        color: kSuccess.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: kSuccess.withOpacity(0.2),
+                          width: 1,
+                        ),
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(
+                            Icons.security_rounded,
+                            color: kSuccess,
+                            size: 18,
+                          ),
+                          const SizedBox(width: 8),
+                          Flexible(
+                            child: Text(
+                              'Your information is kept private and secure.',
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                color: kSuccess,
+                                fontSize: 14,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
                   ],
                 ),
+              ),
+            ),
           ),
-        ),
-      ),
         ),
       ),
     );

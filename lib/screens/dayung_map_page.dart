@@ -1,13 +1,19 @@
 // filepath: lib/screens/dayung_map_page.dart
+// ignore_for_file: deprecated_member_use, control_flow_in_finally, use_build_context_synchronously
+
 import 'dart:async';
+import 'dart:convert';
+import 'dart:math';
 import 'package:flutter/material.dart';
-import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:http/http.dart' as http;
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter_compass/flutter_compass.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:maplibre_gl/maplibre_gl.dart' as ml;
 
-// Shared palette
+// color palette
 const Color kPrimary = Color(0xFF0D47A1);
 const Color kPrimaryDark = Color(0xFF083366);
 const Color kAccent = Color(0xFF2E7D32);
@@ -75,21 +81,28 @@ class LocationService {
     return true;
   }
 
-  static Future<Position?> currentPosition() async {
+  static Future<Position?> currentPosition({
+    Duration timeout = const Duration(seconds: 8),
+  }) async {
     try {
       final ok = await ensurePermission();
       if (!ok) return null;
-      return Geolocator.getCurrentPosition(
+      return await Geolocator.getCurrentPosition(
         desiredAccuracy: LocationAccuracy.high,
+        timeLimit: timeout,
       );
+    } on TimeoutException {
+      // Fallback to last known if current fix times out
+      return Geolocator.getLastKnownPosition();
     } catch (_) {
-      return null;
+      return Geolocator.getLastKnownPosition();
     }
   }
 }
 
 class DayungMapPage extends StatefulWidget {
   final Map<String, dynamic> dayung;
+
   final bool isApplied;
   final bool isMember;
   final List<Map<String, dynamic>>? allDayungs;
@@ -109,20 +122,43 @@ class DayungMapPage extends StatefulWidget {
 }
 
 class _DayungMapPageState extends State<DayungMapPage> {
-  GoogleMapController? _map;
+  ml.MapLibreMapController? _mlController;
+  bool _styleLoaded = false;
+  ml.Symbol? _dayungSymbol;
+  ml.Symbol? _userSymbol;
+  ml.Line? _routeLine;
+  List<ml.LatLng> _routePoints = [];
+  bool _addedDayungSource = false; 
+  bool _addedDayungLayer = false; 
+  bool _addedUserSource = false; 
+  bool _addedUserLayer = false;
+
   Position? _pos;
   bool _loadingLoc = true;
   bool _permissionDenied = false;
   StreamSubscription<Position>? positionStream;
   Map<String, dynamic>? _rules;
   bool _loadingRules = true;
-  BitmapDescriptor? _arrowIcon;
   double? _compassHeading;
   StreamSubscription<CompassEvent>? compassStream;
   bool _applied = false;
   bool _submitting = false;
+  bool _loadingRoute = false;
+  int? _etaMinutes;
+  int _lastCompassUpdateMs = 0;
+  NavMode? _selectedMode;
 
-  NavMode _selectedMode = NavMode.driving;
+  String _orsProfileFor(NavMode m) {
+    switch (m) {
+      case NavMode.driving:
+      case NavMode.motorcycle:
+        return 'driving-car'; 
+      case NavMode.walking:
+        return 'foot-walking';
+      case NavMode.transit:
+        return 'driving-car'; 
+    }
+  }
 
   double? get dayungLat {
     final v = widget.dayung['latitude'];
@@ -138,47 +174,392 @@ class _DayungMapPageState extends State<DayungMapPage> {
     return null;
   }
 
-  double _wrapHeading(double? h) {
-    if (h == null || h.isNaN || !h.isFinite) return 0.0;
-    final n = h % 360.0;
-    return n < 0 ? n + 360.0 : n;
-  }
-
-  bool _isValidLatLng(double lat, double lng) {
-    return lat.isFinite &&
-        lng.isFinite &&
-        lat >= -90 &&
-        lat <= 90 &&
-        lng >= -180 &&
-        lng <= 180;
-  }
-
   @override
   void initState() {
     super.initState();
     _applied = widget.isApplied;
-    _loadArrowIcon();
-    _initLocation();
     _fetchRules();
 
     compassStream = FlutterCompass.events?.listen((event) {
       final heading = event.heading;
       if (!mounted || heading == null || heading.isNaN) return;
-      if (_compassHeading == null || (heading - _compassHeading!).abs() > 1.5) {
+      final now = DateTime.now().millisecondsSinceEpoch;
+      if (now - _lastCompassUpdateMs > 300 &&
+          (_compassHeading == null || (heading - _compassHeading!).abs() > 6)) {
+        _lastCompassUpdateMs = now;
         setState(() => _compassHeading = heading);
       }
     });
+    _loadSavedMode();
+    _initLocation();
+  }
 
-    positionStream =
-        Geolocator.getPositionStream(
-          locationSettings: const LocationSettings(
-            accuracy: LocationAccuracy.high,
-            distanceFilter: 5,
+  void _onCompass(CompassEvent event) {
+    final heading = event.heading;
+    if (!mounted || heading == null || heading.isNaN) return;
+    final now = DateTime.now().millisecondsSinceEpoch;
+    if (now - _lastCompassUpdateMs > 300 &&
+        (_compassHeading == null || (heading - _compassHeading!).abs() > 6)) {
+      _lastCompassUpdateMs = now;
+      setState(() => _compassHeading = heading);
+    }
+  }
+
+  Future<void> _onMapCreated(ml.MapLibreMapController c) async {
+    _mlController = c;
+  }
+
+  Future<void> _onStyleLoaded() async {
+    _styleLoaded = true;
+    await _ensureMarkers();
+    await _ensureDayungCircle();
+    await _updateUserMarker();
+    await _updateUserCircle();
+    await _updateRouteOnMap();
+  }
+
+  Future<void> _ensureMarkers() async {
+    if (!_styleLoaded || _mlController == null) return;
+    final lat = dayungLat, lng = dayungLng;
+    if (lat == null || lng == null) return;
+    if (_dayungSymbol == null) {
+      _dayungSymbol = await _mlController!.addSymbol(
+        ml.SymbolOptions(
+          geometry: ml.LatLng(lat, lng),
+          iconImage: 'marker-15',
+          iconSize: 1.6,
+        ),
+      );
+    }
+  }
+
+  Future<void> _ensureDayungCircle() async {
+    if (!_styleLoaded || _mlController == null) return;
+    final lat = dayungLat, lng = dayungLng;
+    if (lat == null || lng == null) return;
+
+    if (!_addedDayungSource) {
+      try {
+        await _mlController!.addSource(
+          "dayung-point",
+          ml.GeojsonSourceProperties(
+            data: {
+              "type": "FeatureCollection",
+              "features": [
+                {
+                  "type": "Feature",
+                  "geometry": {
+                    "type": "Point",
+                    "coordinates": [lng, lat],
+                  },
+                  "properties": {},
+                },
+              ],
+            },
           ),
-        ).listen((position) {
-          if (!mounted) return;
-          setState(() => _pos = position);
+        );
+        _addedDayungSource = true;
+      } catch (_) {}
+    } else {
+      // Update geometry if already added
+      try {
+        await _mlController!.setGeoJsonSource("dayung-point", {
+          "type": "FeatureCollection",
+          "features": [
+            {
+              "type": "Feature",
+              "geometry": {
+                "type": "Point",
+                "coordinates": [lng, lat],
+              },
+              "properties": {},
+            },
+          ],
         });
+      } catch (_) {}
+    }
+
+    if (!_addedDayungLayer) {
+      try {
+        await _mlController!.addLayer(
+          "dayung-point",
+          "dayung-circle",
+          const ml.CircleLayerProperties(
+            circleRadius: 26,
+            circleColor: "#2E7D32",
+            circleOpacity: 0.20,
+            circleStrokeColor: "#2E7D32",
+            circleStrokeWidth: 2.0,
+          ),
+        );
+        _addedDayungLayer = true;
+      } catch (_) {}
+    } else {
+      try {
+        await _mlController!.setLayerProperties(
+          "dayung-circle",
+          const ml.CircleLayerProperties(
+            circleRadius: 26,
+            circleColor: "#2E7D32",
+            circleOpacity: 0.20,
+            circleStrokeColor: "#2E7D32",
+            circleStrokeWidth: 2.0,
+          ),
+        );
+      } catch (_) {}
+    }
+  }
+
+  Future<void> _updateUserCircle() async {
+    if (!_styleLoaded || _mlController == null) return;
+
+    if (_pos == null) {
+      try {
+        if (_addedUserLayer) {
+          await _mlController!.removeLayer("user-circle");
+          _addedUserLayer = false;
+        }
+        if (_addedUserSource) {
+          await _mlController!.removeSource("user-point");
+          _addedUserSource = false;
+        }
+      } catch (_) {}
+      return;
+    }
+
+    final lat = _pos!.latitude;
+    final lng = _pos!.longitude;
+
+    if (!_addedUserSource) {
+      try {
+        await _mlController!.addSource(
+          "user-point",
+          ml.GeojsonSourceProperties(
+            data: {
+              "type": "FeatureCollection",
+              "features": [
+                {
+                  "type": "Feature",
+                  "geometry": {
+                    "type": "Point",
+                    "coordinates": [lng, lat],
+                  },
+                  "properties": {},
+                },
+              ],
+            },
+          ),
+        );
+        _addedUserSource = true;
+      } catch (_) {}
+    } else {
+      try {
+        await _mlController!.setGeoJsonSource("user-point", {
+          "type": "FeatureCollection",
+          "features": [
+            {
+              "type": "Feature",
+              "geometry": {
+                "type": "Point",
+                "coordinates": [lng, lat],
+              },
+              "properties": {},
+            },
+          ],
+        });
+      } catch (_) {}
+    }
+
+    if (!_addedUserLayer) {
+      try {
+        await _mlController!.addLayer(
+          "user-point",
+          "user-circle",
+          const ml.CircleLayerProperties(
+            circleRadius: 20,
+            circleColor: "#0D47A1",
+            circleOpacity: 0.18,
+            circleStrokeColor: "#0D47A1",
+            circleStrokeWidth: 2.0,
+          ),
+        );
+        _addedUserLayer = true;
+      } catch (_) {}
+    } else {
+      try {
+        await _mlController!.setLayerProperties(
+          "user-circle",
+          const ml.CircleLayerProperties(
+            circleRadius: 20,
+            circleColor: "#0D47A1",
+            circleOpacity: 0.18,
+            circleStrokeColor: "#0D47A1",
+            circleStrokeWidth: 2.0,
+          ),
+        );
+      } catch (_) {}
+    }
+  }
+
+  Future<void> _updateUserMarker() async {
+    if (!_styleLoaded || _mlController == null) return;
+    if (_pos == null) {
+      if (_userSymbol != null) {
+        await _mlController!.removeSymbol(_userSymbol!);
+        _userSymbol = null;
+      }
+      return;
+    }
+    final here = ml.LatLng(_pos!.latitude, _pos!.longitude);
+    if (_userSymbol == null) {
+      _userSymbol = await _mlController!.addSymbol(
+        ml.SymbolOptions(
+          geometry: here,
+          iconImage: 'marker-15',
+          iconColor: '#0D47A1',
+          iconSize: 1.4,
+        ),
+      );
+    } else {
+      await _mlController!.updateSymbol(
+        _userSymbol!,
+        ml.SymbolOptions(geometry: here),
+      );
+    }
+  }
+
+  Future<void> _updateRouteOnMap() async {
+    if (!_styleLoaded || _mlController == null) return;
+    if (_routeLine != null) {
+      try {
+        await _mlController!.removeLine(_routeLine!);
+      } catch (_) {
+        _routeLine = null;
+      }
+    }
+    if (_routePoints.length < 2) return;
+    try {
+      _routeLine = await _mlController!.addLine(
+        ml.LineOptions(
+          geometry: _routePoints,
+          lineColor: "#0D47A1",
+          lineWidth: 4.0,
+          lineOpacity: 0.9,
+        ),
+      );
+    } catch (_) {}
+  }
+
+  Future<void> _loadSavedMode() async {
+    final prefs = await SharedPreferences.getInstance();
+    final idx = prefs.getInt('nav_mode');
+    if (idx != null &&
+        idx >= 0 &&
+        idx < NavMode.values.length &&
+        _selectedMode == null) {
+      setState(() => _selectedMode = NavMode.values[idx]);
+    }
+  }
+
+  Future<void> _saveMode(NavMode? m) async {
+    final prefs = await SharedPreferences.getInstance();
+    if (m == null) {
+      await prefs.remove('nav_mode');
+    } else {
+      await prefs.setInt('nav_mode', m.index);
+    }
+  }
+
+  void _fitToRoute() {
+    if (_routePoints.length < 2 || _mlController == null) return;
+    final lats = _routePoints.map((p) => p.latitude).toList();
+    final lngs = _routePoints.map((p) => p.longitude).toList();
+    final sw = ml.LatLng(
+      lats.reduce((a, b) => a < b ? a : b),
+      lngs.reduce((a, b) => a < b ? a : b),
+    );
+    final ne = ml.LatLng(
+      lats.reduce((a, b) => a > b ? a : b),
+      lngs.reduce((a, b) => a > b ? a : b),
+    );
+    _mlController!.animateCamera(
+      ml.CameraUpdate.newLatLngBounds(
+        ml.LatLngBounds(southwest: sw, northeast: ne),
+        left: 40,
+        top: 40,
+        right: 40,
+        bottom: 40,
+      ),
+    );
+  }
+
+  Future<void> _getDirectionsAndFit() async {
+    if (_selectedMode == null) return;
+    if (_pos == null) {
+      await _initLocation();
+      if (_pos == null) return;
+    }
+    final profile = _orsProfileFor(_selectedMode!);
+    await _fetchRoute(mode: profile);
+    await _updateRouteOnMap();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _fitToRoute());
+  }
+
+  Future<void> _fetchRoute({String mode = 'foot-walking'}) async {
+    if (_pos == null || dayungLat == null || dayungLng == null) return;
+    setState(() => _loadingRoute = true);
+
+    final apiKey =
+        'eyJvcmciOiI1YjNjZTM1OTc4NTExMTAwMDFjZjYyNDgiLCJpZCI6IjJmYTI4ZjFkODc3NzQ1ZTNiNGI3ZGIxNGI5MGFlYzI1IiwiaCI6Im11cm11cjY0In0='; // <-- Replace with your ORS key
+    final startLng = _pos!.longitude;
+    final startLat = _pos!.latitude;
+    final endLng = dayungLng!;
+    final endLat = dayungLat!;
+
+    final url =
+        'https://api.openrouteservice.org/v2/directions/$mode?api_key=$apiKey&start=$startLng,$startLat&end=$endLng,$endLat';
+    print('ORS GET $url');
+
+    try {
+      final response = await http.get(Uri.parse(url));
+      print('ORS status: ${response.statusCode}');
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        final coords = data['features'][0]['geometry']['coordinates'];
+        final summary = data['features'][0]['properties']['summary'];
+        final durationSeconds = summary['duration'];
+        setState(() {
+          _routePoints = coords
+              .map<ml.LatLng>(
+                (c) => ml.LatLng(
+                  (c[1] is num
+                      ? (c[1] as num).toDouble()
+                      : double.parse('${c[1]}')),
+                  (c[0] is num
+                      ? (c[0] as num).toDouble()
+                      : double.parse('${c[0]}')),
+                ),
+              )
+              .toList();
+          _etaMinutes = (durationSeconds / 60).round();
+        });
+      } else {
+        print('ORS error body: ${response.body}');
+        if (mounted) {
+          setState(() {
+            _routePoints = [];
+            _etaMinutes = null;
+          });
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Failed to fetch route')),
+          );
+        }
+      }
+    } catch (e) {
+      print('ORS fetch error: $e');
+    } finally {
+      if (mounted) setState(() => _loadingRoute = false);
+    }
   }
 
   Future<void> _openExternalMaps(NavMode mode) async {
@@ -207,7 +588,7 @@ class _DayungMapPageState extends State<DayungMapPage> {
         borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
       ),
       builder: (ctx) {
-        NavMode temp = _selectedMode;
+        NavMode? temp = _selectedMode;
         return StatefulBuilder(
           builder: (ctx, setM) {
             return Padding(
@@ -216,7 +597,7 @@ class _DayungMapPageState extends State<DayungMapPage> {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   const Text(
-                    'Open in Google Maps',
+                    'Select Travel Mode',
                     style: TextStyle(
                       fontSize: 18,
                       fontWeight: FontWeight.w700,
@@ -227,7 +608,7 @@ class _DayungMapPageState extends State<DayungMapPage> {
                   Wrap(
                     spacing: 12,
                     children: NavMode.values.map((m) {
-                      final active = m == temp;
+                      final active = temp == m;
                       return ChoiceChip(
                         label: Row(
                           mainAxisSize: MainAxisSize.min,
@@ -238,7 +619,31 @@ class _DayungMapPageState extends State<DayungMapPage> {
                           ],
                         ),
                         selected: active,
-                        onSelected: (_) => setM(() => temp = m),
+                        onSelected: (_) async {
+                          setM(() => temp = m);
+                          setState(() => _selectedMode = temp);
+                          await _saveMode(temp);
+
+                          if (_pos == null) {
+                            await _initLocation();
+                            if (_pos == null) {
+                              if (mounted) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text('No current location.'),
+                                  ),
+                                );
+                              }
+                              return;
+                            }
+                          }
+
+                          final profile = _orsProfileFor(temp!);
+                          await _fetchRoute(mode: profile);
+                          await _updateRouteOnMap();
+                          if (mounted) _fitToRoute();
+                          if (mounted) Navigator.pop(ctx);
+                        },
                       );
                     }).toList(),
                   ),
@@ -248,20 +653,38 @@ class _DayungMapPageState extends State<DayungMapPage> {
                     child: ElevatedButton.icon(
                       icon: const Icon(Icons.open_in_new),
                       label: const Text('Open Google Maps'),
-                      onPressed: () {
-                        setState(() => _selectedMode = temp);
-                        Navigator.pop(ctx);
-                        _openExternalMaps(temp);
-                      },
+                      onPressed: temp == null
+                          ? null
+                          : () {
+                              Navigator.pop(ctx);
+                              _openExternalMaps(temp!);
+                            },
                     ),
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    'Select a travel mode then open external navigation. '
-                    'In‑app polyline preview was removed for performance.',
+                    temp == null
+                        ? 'Pick a mode to preview route and ETA.'
+                        : 'Route preview fetched.',
                     style: const TextStyle(fontSize: 11, color: kSubtleText),
                     textAlign: TextAlign.center,
                   ),
+                  if (temp != null)
+                    TextButton(
+                      onPressed: () async {
+                        setM(() => temp = null);
+                        setState(() => _selectedMode = null);
+                        await _saveMode(null);
+                        setState(() {
+                          _routePoints = [];
+                          _etaMinutes = null;
+                        });
+                      },
+                      child: const Text(
+                        'Clear selection',
+                        style: TextStyle(fontSize: 12),
+                      ),
+                    ),
                 ],
               ),
             );
@@ -269,16 +692,6 @@ class _DayungMapPageState extends State<DayungMapPage> {
         );
       },
     );
-  }
-
-  Future<void> _loadArrowIcon() async {
-    try {
-      final icon = await BitmapDescriptor.fromAssetImage(
-        const ImageConfiguration(size: Size(48, 48)),
-        'assets/images/wew.png',
-      );
-      if (mounted) setState(() => _arrowIcon = icon);
-    } catch (_) {}
   }
 
   @override
@@ -312,21 +725,36 @@ class _DayungMapPageState extends State<DayungMapPage> {
   }
 
   Future<void> _initLocation() async {
+    print('Requesting location permission...');
     final ok = await LocationService.ensurePermission();
+    print('Permission result: $ok');
     if (!ok) {
       if (!mounted) return;
       setState(() {
         _permissionDenied = true;
         _loadingLoc = false;
       });
+      print('Permission denied');
       return;
     }
-    final p = await LocationService.currentPosition();
-    if (!mounted) return;
-    setState(() {
-      _pos = p;
-      _loadingLoc = false;
-    });
+
+    Position? p;
+    try {
+      p = await LocationService.currentPosition(
+        timeout: const Duration(seconds: 8),
+      );
+      print('Current position: $p');
+    } catch (e) {
+      print('Location fetch error: $e');
+    } finally {
+      if (!mounted) return;
+      setState(() {
+        _pos = p; 
+        _loadingLoc = false; 
+      });
+      await _updateUserMarker();
+      await _updateUserCircle();
+    }
   }
 
   String _address(Map<String, dynamic> d) {
@@ -352,103 +780,6 @@ class _DayungMapPageState extends State<DayungMapPage> {
     }
   }
 
-  Set<Marker> _buildMarkers() {
-    final markers = <Marker>{};
-    final rot = _wrapHeading(_compassHeading);
-
-    if (_pos != null && _isValidLatLng(_pos!.latitude, _pos!.longitude)) {
-      if (_arrowIcon != null) {
-        markers.add(
-          Marker(
-            markerId: const MarkerId('me'),
-            position: LatLng(_pos!.latitude, _pos!.longitude),
-            infoWindow: const InfoWindow(title: 'You'),
-            icon: _arrowIcon!,
-            rotation: rot,
-            flat: true,
-            anchor: const Offset(0.5, 0.5),
-            zIndex: 999,
-          ),
-        );
-      } else {
-        // Safe fallback if asset icon failed to load
-        markers.add(
-          Marker(
-            markerId: const MarkerId('me'),
-            position: LatLng(_pos!.latitude, _pos!.longitude),
-            infoWindow: const InfoWindow(title: 'You'),
-            icon: BitmapDescriptor.defaultMarkerWithHue(
-              BitmapDescriptor.hueBlue,
-            ),
-            rotation: rot,
-            flat: true,
-            zIndex: 999,
-          ),
-        );
-      }
-    }
-
-    if (dayungLat != null &&
-        dayungLng != null &&
-        _isValidLatLng(dayungLat!, dayungLng!)) {
-      markers.add(
-        Marker(
-          markerId: const MarkerId('selected_dayung'),
-          position: LatLng(dayungLat!, dayungLng!),
-          infoWindow: InfoWindow(
-            title: (widget.dayung['name'] ?? 'Dayung').toString(),
-          ),
-          icon: BitmapDescriptor.defaultMarkerWithHue(
-            widget.isMember
-                ? BitmapDescriptor.hueAzure
-                : BitmapDescriptor.hueRed,
-          ),
-        ),
-      );
-    }
-
-    if (widget.allDayungs != null && _pos != null) {
-      for (final d in widget.allDayungs!) {
-        if (identical(d, widget.dayung)) continue;
-        final rl = d['latitude'], rg = d['longitude'];
-        final lat = rl is num ? rl.toDouble() : double.tryParse('$rl');
-        final lng = rg is num ? rg.toDouble() : double.tryParse('$rg');
-        if (lat == null || lng == null || !_isValidLatLng(lat, lng)) continue;
-        final dist = Geolocator.distanceBetween(
-          _pos!.latitude,
-          _pos!.longitude,
-          lat,
-          lng,
-        );
-        if (dist <= widget.nearbyRadiusMeters) {
-          markers.add(
-            Marker(
-              markerId: MarkerId('dayung_${d['id']}'),
-              position: LatLng(lat, lng),
-              infoWindow: InfoWindow(title: (d['name'] ?? 'Dayung').toString()),
-              icon: BitmapDescriptor.defaultMarkerWithHue(
-                BitmapDescriptor.hueGreen,
-              ),
-            ),
-          );
-        }
-      }
-    }
-    return markers;
-  }
-
-  Circle? _nearbyCircle() {
-    if (_pos == null) return null;
-    return Circle(
-      circleId: const CircleId('radius'),
-      center: LatLng(_pos!.latitude, _pos!.longitude),
-      radius: widget.nearbyRadiusMeters,
-      strokeWidth: 1,
-      strokeColor: kPrimary.withOpacity(.45),
-      fillColor: kPrimary.withOpacity(.10),
-    );
-  }
-
   String _formatDistance(double meters) {
     final km = meters / 1000;
     if (km < 1) return '${meters.toStringAsFixed(0)} m';
@@ -459,8 +790,10 @@ class _DayungMapPageState extends State<DayungMapPage> {
 
   void _centerOnDayung() {
     final lat = dayungLat, lng = dayungLng;
-    if (_map == null || lat == null || lng == null) return;
-    _map!.animateCamera(CameraUpdate.newLatLngZoom(LatLng(lat, lng), 15));
+    if (lat == null || lng == null || _mlController == null) return;
+    _mlController!.animateCamera(
+      ml.CameraUpdate.newLatLngZoom(ml.LatLng(lat, lng), 15),
+    );
   }
 
   @override
@@ -489,13 +822,13 @@ class _DayungMapPageState extends State<DayungMapPage> {
           overflow: TextOverflow.ellipsis,
         ),
       ),
-      floatingActionButton: FloatingActionButton.extended(
-        heroTag: 'directionsFab',
-        backgroundColor: const Color.fromARGB(255, 239, 239, 239),
-        icon: const Icon(Icons.directions),
-        label: const Text('Open Maps'),
-        onPressed: _showDirectionModeSheet,
-      ),
+      // floatingActionButton: FloatingActionButton.extended(
+      //   heroTag: 'directionsFab',
+      //   backgroundColor: const Color.fromARGB(255, 239, 239, 239),
+      //   icon: const Icon(Icons.directions),
+      //   label: const Text('Open Maps'),
+      //   onPressed: _showDirectionModeSheet,
+      // ),
       body: Stack(
         children: [
           Positioned.fill(
@@ -509,30 +842,20 @@ class _DayungMapPageState extends State<DayungMapPage> {
                     ),
                     child: Stack(
                       children: [
-                        GoogleMap(
-                          initialCameraPosition: CameraPosition(
-                            target: LatLng(dayungLat!, dayungLng!),
+                        ml.MapLibreMap(
+                          onMapCreated: _onMapCreated,
+                          onStyleLoadedCallback: _onStyleLoaded,
+                          styleString:
+                              'https://api.maptiler.com/maps/basic-v2/style.json?key=ZgS5pYNNGTrRGUAnlS71',
+                          initialCameraPosition: ml.CameraPosition(
+                            target: ml.LatLng(dayungLat!, dayungLng!),
                             zoom: 15,
                           ),
-                          markers: _buildMarkers(),
-                          circles: {
-                            if (_nearbyCircle() != null) _nearbyCircle()!,
-                          },
+                          rotateGesturesEnabled: false,
+                          tiltGesturesEnabled: false,
                           myLocationEnabled: false,
-                          zoomControlsEnabled: false,
-                          onMapCreated: (c) {
-                            _map = c;
-                            final lat = dayungLat, lng = dayungLng;
-                            if (lat != null && lng != null) {
-                              // Recenter to the selected Dayung to avoid any stale camera state
-                              _map!.moveCamera(
-                                CameraUpdate.newLatLngZoom(
-                                  LatLng(lat, lng),
-                                  15,
-                                ),
-                              );
-                            }
-                          },
+                          attributionButtonMargins: const Point(12, 12),
+                          logoViewMargins: const Point(12, 12),
                         ),
                         Container(
                           height: 140,
@@ -573,6 +896,14 @@ class _DayungMapPageState extends State<DayungMapPage> {
                                   label: 'Location denied',
                                   color: kDanger,
                                 ),
+                              if (!_loadingLoc &&
+                                  !_permissionDenied &&
+                                  _pos == null)
+                                _pillChip(
+                                  icon: Icons.location_searching,
+                                  label: 'No GPS fix',
+                                  color: kWarn,
+                                ),
                               if (widget.isMember)
                                 _pillChip(
                                   icon: Icons.verified,
@@ -585,6 +916,30 @@ class _DayungMapPageState extends State<DayungMapPage> {
                                   label: 'Applied',
                                   color: kWarn,
                                 ),
+                              if (_etaMinutes != null)
+                                _pillChip(
+                                  icon: Icons.timer,
+                                  label: 'ETA: $_etaMinutes min',
+                                  color: kPrimary,
+                                ),
+                              if (_selectedMode == null)
+                                _pillChip(
+                                  icon: Icons.info_outline,
+                                  label: 'Pick mode',
+                                  color: kSubtleText,
+                                )
+                              else if (_routePoints.isEmpty)
+                                _pillChip(
+                                  icon: _selectedMode!.icon,
+                                  label: '${_selectedMode!.label} (no route)',
+                                  color: kSubtleText,
+                                )
+                              else
+                                _pillChip(
+                                  icon: _selectedMode!.icon,
+                                  label: '${_selectedMode!.label}',
+                                  color: kPrimaryDark,
+                                ),
                             ],
                           ),
                         ),
@@ -596,28 +951,26 @@ class _DayungMapPageState extends State<DayungMapPage> {
               ],
             ),
           ),
-          if (!_loadingLoc && !_permissionDenied && _pos != null)
+          if (!_loadingLoc && !_permissionDenied)
             Positioned(
               right: 18,
               top: MediaQuery.of(context).padding.top + 82,
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  // NEW: Center to Dayung button (always available if map/coords exist)
-                  _fabIcon(
-                    icon: Icons.flag_outlined, // or Icons.location_on_outlined
-                    onTap: _centerOnDayung,
-                  ),
+                  _fabIcon(icon: Icons.route, onTap: _showDirectionModeSheet),
                   const SizedBox(height: 12),
-                  // Existing: Center to Me button (only when we have a user location)
-                  if (!_loadingLoc && !_permissionDenied && _pos != null)
+                  _fabIcon(icon: Icons.flag_outlined, onTap: _centerOnDayung),
+                  const SizedBox(height: 12),
+                  if (_pos != null)
                     _fabIcon(
                       icon: Icons.my_location,
                       onTap: () {
-                        if (_map != null && _pos != null) {
-                          _map!.animateCamera(
-                            CameraUpdate.newLatLng(
-                              LatLng(_pos!.latitude, _pos!.longitude),
+                        if (_pos != null) {
+                          _mlController!.animateCamera(
+                            ml.CameraUpdate.newLatLngZoom(
+                              ml.LatLng(_pos!.latitude, _pos!.longitude),
+                              15,
                             ),
                           );
                         }
@@ -808,12 +1161,16 @@ class _DayungMapPageState extends State<DayungMapPage> {
         final rl = d['latitude'];
         final rg = d['longitude'];
         if (rl is num)
+          // ignore: curly_braces_in_flow_control_structures
           lat = rl.toDouble();
         else if (rl is String)
+          // ignore: curly_braces_in_flow_control_structures
           lat = double.tryParse(rl);
         if (rg is num)
+          // ignore: curly_braces_in_flow_control_structures
           lng = rg.toDouble();
         else if (rg is String)
+          // ignore: curly_braces_in_flow_control_structures
           lng = double.tryParse(rg);
         if (lat == null || lng == null) continue;
         final dist = Geolocator.distanceBetween(
@@ -866,9 +1223,9 @@ class _DayungMapPageState extends State<DayungMapPage> {
                   final lng = (d['longitude'] is num)
                       ? (d['longitude'] as num).toDouble()
                       : double.tryParse('${d['longitude']}');
-                  if (lat != null && lng != null && _map != null) {
-                    _map!.animateCamera(
-                      CameraUpdate.newLatLngZoom(LatLng(lat, lng), 15),
+                  if (lat != null && lng != null) {
+                    _mlController?.animateCamera(
+                      ml.CameraUpdate.newLatLngZoom(ml.LatLng(lat, lng), 15),
                     );
                   }
                 },

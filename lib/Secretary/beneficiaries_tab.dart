@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:photo_view/photo_view.dart'; // Add this to your pubspec.yaml for image preview
+import 'package:photo_view/photo_view.dart';
 
 const Color kPrimary = Color(0xFF3B82F6);
 const Color kPrimaryDark = Color(0xFF1E40AF);
@@ -23,7 +23,7 @@ class SecretaryBeneficiariesTab extends StatefulWidget {
 }
 
 class _SecretaryBeneficiariesTabState extends State<SecretaryBeneficiariesTab> {
-  int _selectedTab = 0; // 0: Pending, 1: Active
+  int _selectedTab = 0;
   Map<String, dynamic> _users = {};
   Map<String, List<dynamic>> _pendingByUser = {};
   Map<String, List<dynamic>> _activeByUser = {};
@@ -39,7 +39,6 @@ class _SecretaryBeneficiariesTabState extends State<SecretaryBeneficiariesTab> {
     setState(() => _loading = true);
     final supabase = Supabase.instance.client;
     try {
-      // 1) Get approved members for this unit
       final apps = await supabase
           .from('applications')
           .select('user_id')
@@ -64,7 +63,6 @@ class _SecretaryBeneficiariesTabState extends State<SecretaryBeneficiariesTab> {
         return;
       }
 
-      // 2) Load users (scoped)
       final usersData = await supabase
           .from('users')
           .select('id, full_name')
@@ -77,7 +75,6 @@ class _SecretaryBeneficiariesTabState extends State<SecretaryBeneficiariesTab> {
             .toString();
       }
 
-      // 3) Load beneficiaries for those users only
       final beneficiariesData = await supabase
           .from('beneficiaries')
           .select(
@@ -87,7 +84,6 @@ class _SecretaryBeneficiariesTabState extends State<SecretaryBeneficiariesTab> {
           .inFilter('status', ['Approved', 'Pending'])
           .order('full_name', ascending: true);
 
-      // 4) Group and split by status
       final pendingByUser = <String, List<dynamic>>{};
       final activeByUser = <String, List<dynamic>>{};
       for (final raw in beneficiariesData as List<dynamic>) {
@@ -129,7 +125,7 @@ class _SecretaryBeneficiariesTabState extends State<SecretaryBeneficiariesTab> {
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(const SnackBar(content: Text('Beneficiary approved!')));
-      await _fetchBeneficiaries(); // Refresh
+      await _fetchBeneficiaries();
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(
@@ -229,7 +225,6 @@ class _SecretaryBeneficiariesTabState extends State<SecretaryBeneficiariesTab> {
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // User header
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 18, 16, 6),
               child: Text(
@@ -241,7 +236,6 @@ class _SecretaryBeneficiariesTabState extends State<SecretaryBeneficiariesTab> {
                 ),
               ),
             ),
-            // Cards
             ...beneficiaries
                 .map(
                   (b) => _beneficiaryCard(
@@ -450,7 +444,6 @@ class _SecretaryBeneficiariesTabState extends State<SecretaryBeneficiariesTab> {
                   ],
                 ),
               ),
-              // Navigation Bar
               Container(
                 padding: const EdgeInsets.symmetric(
                   horizontal: 20,
@@ -475,7 +468,6 @@ class _SecretaryBeneficiariesTabState extends State<SecretaryBeneficiariesTab> {
                   ],
                 ),
               ),
-              // Search Bar (placeholder)
               Container(
                 padding: const EdgeInsets.fromLTRB(20, 20, 20, 16),
                 child: Container(
@@ -505,7 +497,6 @@ class _SecretaryBeneficiariesTabState extends State<SecretaryBeneficiariesTab> {
                   ),
                 ),
               ),
-              // Content (wired to backend data)
               Expanded(
                 child: RefreshIndicator(
                   onRefresh: _fetchBeneficiaries,

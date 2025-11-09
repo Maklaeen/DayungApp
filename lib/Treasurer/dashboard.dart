@@ -813,87 +813,87 @@ class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
     );
   }
 
-  Widget _topBar() {
-    return Container(
-      padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
-      color: Colors.white,
-      child: Row(
-        children: [
-          Expanded(
-            child: Text(
-              _dayungLabel,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
-                fontFamily: 'Montserrat',
-                fontSize: 28,
-                fontWeight: FontWeight.w800,
-                color: kPrimaryDark,
-                letterSpacing: .4,
-              ),
-            ),
-          ),
-          _iconBtn(
-            icon: Icons.notifications_active_rounded,
-            color: kWarn,
-            tooltip: 'Notifications',
-            onTap: () => Navigator.push(
-              context,
-              MaterialPageRoute(builder: (_) => const NotificationPage()),
-            ),
-            badge: '1',
-          ),
-          const SizedBox(width: 6),
-          _iconBtn(
-            icon: Icons.settings_rounded,
-            color: kPrimary,
-            tooltip: 'Profile & Settings',
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => const ProfilePage()),
-              );
-            },
-          ),
-        ],
-      ),
-    );
-  }
+  // Widget _topBar() {
+  //   return Container(
+  //     padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
+  //     color: Colors.white,
+  //     child: Row(
+  //       children: [
+  //         Expanded(
+  //           child: Text(
+  //             _dayungLabel,
+  //             overflow: TextOverflow.ellipsis,
+  //             style: const TextStyle(
+  //               fontFamily: 'Montserrat',
+  //               fontSize: 28,
+  //               fontWeight: FontWeight.w800,
+  //               color: kPrimaryDark,
+  //               letterSpacing: .4,
+  //             ),
+  //           ),
+  //         ),
+  //         _iconBtn(
+  //           icon: Icons.notifications_active_rounded,
+  //           color: kWarn,
+  //           tooltip: 'Notifications',
+  //           onTap: () => Navigator.push(
+  //             context,
+  //             MaterialPageRoute(builder: (_) => const NotificationPage()),
+  //           ),
+  //           badge: '1',
+  //         ),
+  //         const SizedBox(width: 6),
+  //         _iconBtn(
+  //           icon: Icons.settings_rounded,
+  //           color: kPrimary,
+  //           tooltip: 'Profile & Settings',
+  //           onTap: () {
+  //             Navigator.push(
+  //               context,
+  //               MaterialPageRoute(builder: (_) => const ProfilePage()),
+  //             );
+  //           },
+  //         ),
+  //       ],
+  //     ),
+  //   );
+  // }
 
-  Widget _greeting() {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 12, 20, 8),
-      child: Row(
-        children: [
-          const Expanded(
-            child: Text(
-              'Maayung buntag,\nTreasurer!',
-              style: TextStyle(
-                fontFamily: 'Montserrat',
-                fontSize: 26,
-                fontWeight: FontWeight.w800,
-                height: 1.05,
-                color: kNeutralText,
-              ),
-            ),
-          ),
-          InkWell(
-            borderRadius: BorderRadius.circular(28),
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => const ProfilePage()),
-              );
-            },
-            child: const CircleAvatar(
-              radius: 28,
-              backgroundColor: kPrimary,
-              child: Icon(Icons.person, size: 34, color: Colors.white),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
+  // Widget _greeting() {
+  //   return Padding(
+  //     padding: const EdgeInsets.fromLTRB(20, 12, 20, 8),
+  //     child: Row(
+  //       children: [
+  //         const Expanded(
+  //           child: Text(
+  //             'Maayung buntag,\nTreasurer!',
+  //             style: TextStyle(
+  //               fontFamily: 'Montserrat',
+  //               fontSize: 26,
+  //               fontWeight: FontWeight.w800,
+  //               height: 1.05,
+  //               color: kNeutralText,
+  //             ),
+  //           ),
+  //         ),
+  //         InkWell(
+  //           borderRadius: BorderRadius.circular(28),
+  //           onTap: () {
+  //             Navigator.push(
+  //               context,
+  //               MaterialPageRoute(builder: (_) => const ProfilePage()),
+  //             );
+  //           },
+  //           child: const CircleAvatar(
+  //             radius: 28,
+  //             backgroundColor: kPrimary,
+  //             child: Icon(Icons.person, size: 34, color: Colors.white),
+  //           ),
+  //         ),
+  //       ],
+  //     ),
+  //   );
+  // }
 
   Widget _homePage() {
     return RefreshIndicator(
@@ -2049,352 +2049,352 @@ class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
     );
   }
 
-  Widget _tripleCards() {
-    final cards = <Widget>[
-      _statCard(
-        color: const Color(0xFFD8EEFF),
-        icon: Icons.groups,
-        iconColor: Colors.blue[700],
-        title: "Total Members",
-        bigText: _loading ? '—' : _activeMembers.toString(),
-      ),
-      _recentDeathsCard(),
-      _statCard(
-        color: const Color(0xFFFEFBDC),
-        icon: Icons.account_balance_wallet,
-        iconColor: Colors.orange[700],
-        title: "Pending\nPayments",
-        bigText: _loading ? '—' : '₱ ${_pendingAmount.toStringAsFixed(0)}',
-        smallSubtitle: _loading
-            ? ''
-            : (_pendingMembers > 0 ? 'From $_pendingMembers' : 'All settled'),
-      ),
-    ];
+  // Widget _tripleCards() {
+  //   final cards = <Widget>[
+  //     _statCard(
+  //       color: const Color(0xFFD8EEFF),
+  //       icon: Icons.groups,
+  //       iconColor: Colors.blue[700],
+  //       title: "Total Members",
+  //       bigText: _loading ? '—' : _activeMembers.toString(),
+  //     ),
+  //     _recentDeathsCard(),
+  //     _statCard(
+  //       color: const Color(0xFFFEFBDC),
+  //       icon: Icons.account_balance_wallet,
+  //       iconColor: Colors.orange[700],
+  //       title: "Pending\nPayments",
+  //       bigText: _loading ? '—' : '₱ ${_pendingAmount.toStringAsFixed(0)}',
+  //       smallSubtitle: _loading
+  //           ? ''
+  //           : (_pendingMembers > 0 ? 'From $_pendingMembers' : 'All settled'),
+  //     ),
+  //   ];
 
-    return LayoutBuilder(
-      builder: (context, c) {
-        if (c.maxWidth < 360) {
-          return Column(
-            children: [
-              for (int i = 0; i < cards.length; i++) ...[
-                cards[i],
-                if (i != cards.length - 1) const SizedBox(height: 12),
-              ],
-            ],
-          );
-        }
-        return Row(
-          children: [
-            Expanded(child: cards[0]),
-            const SizedBox(width: 12),
-            Expanded(child: cards[1]),
-            const SizedBox(width: 12),
-            Expanded(child: cards[2]),
-          ],
-        );
-      },
-    );
-  }
+  //   return LayoutBuilder(
+  //     builder: (context, c) {
+  //       if (c.maxWidth < 360) {
+  //         return Column(
+  //           children: [
+  //             for (int i = 0; i < cards.length; i++) ...[
+  //               cards[i],
+  //               if (i != cards.length - 1) const SizedBox(height: 12),
+  //             ],
+  //           ],
+  //         );
+  //       }
+  //       return Row(
+  //         children: [
+  //           Expanded(child: cards[0]),
+  //           const SizedBox(width: 12),
+  //           Expanded(child: cards[1]),
+  //           const SizedBox(width: 12),
+  //           Expanded(child: cards[2]),
+  //         ],
+  //       );
+  //     },
+  //   );
+  // }
 
-  Widget _recentDeathsCard() {
-    final names = _recentDeaths;
-    final display = names.take(2).toList();
-    final extra = names.length - display.length;
+  // Widget _recentDeathsCard() {
+  //   final names = _recentDeaths;
+  //   final display = names.take(2).toList();
+  //   final extra = names.length - display.length;
 
-    return _statShell(
-      color: const Color(0xFFFFDAF6),
-      child: Column(
-        crossAxisAlignment:
-            CrossAxisAlignment.center, // <-- Center horizontally
-        children: [
-          Icon(FontAwesomeIcons.dove, size: 30, color: Colors.purple[400]),
-          const SizedBox(height: 8),
-          const Text(
-            "Recent Death Notices",
-            textAlign: TextAlign.center, // <-- Center text
-            style: TextStyle(
-              fontWeight: FontWeight.w800,
-              fontSize: 16,
-              fontFamily: 'Montserrat',
-              color: kNeutralText,
-              height: 1.15,
-            ),
-          ),
-          const SizedBox(height: 6),
-          Expanded(
-            child: names.isEmpty
-                ? const Center(
-                    child: Text(
-                      "None",
-                      textAlign: TextAlign.center, // <-- Center text
-                      style: TextStyle(
-                        fontWeight: FontWeight.w600,
-                        fontSize: 14,
-                        fontFamily: 'Montserrat',
-                        color: kNeutralText,
-                      ),
-                    ),
-                  )
-                : Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      for (final n in display)
-                        Padding(
-                          padding: const EdgeInsets.only(bottom: 4),
-                          child: Row(
-                            mainAxisAlignment:
-                                MainAxisAlignment.center, // <-- Center row
-                            children: [
-                              const Icon(
-                                FontAwesomeIcons.dove,
-                                size: 14,
-                                color: Colors.black87,
-                              ),
-                              const SizedBox(width: 6),
-                              Expanded(
-                                child: Text(
-                                  n,
-                                  textAlign:
-                                      TextAlign.center, // <-- Center text
-                                  overflow: TextOverflow.ellipsis,
-                                  style: const TextStyle(
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 14,
-                                    fontFamily: 'Montserrat',
-                                    color: Colors.black,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      if (extra > 0)
-                        Text(
-                          'View All',
-                          textAlign: TextAlign.center, // <-- Center text
-                          style: TextStyle(
-                            fontSize: 13.5,
-                            fontWeight: FontWeight.w800,
-                            fontFamily: 'OpenSans',
-                            color: Colors.blue[700],
-                          ),
-                        ),
-                    ],
-                  ),
-          ),
-        ],
-      ),
-    );
-  }
+  //   return _statShell(
+  //     color: const Color(0xFFFFDAF6),
+  //     child: Column(
+  //       crossAxisAlignment:
+  //           CrossAxisAlignment.center, // <-- Center horizontally
+  //       children: [
+  //         Icon(FontAwesomeIcons.dove, size: 30, color: Colors.purple[400]),
+  //         const SizedBox(height: 8),
+  //         const Text(
+  //           "Recent Death Notices",
+  //           textAlign: TextAlign.center, // <-- Center text
+  //           style: TextStyle(
+  //             fontWeight: FontWeight.w800,
+  //             fontSize: 16,
+  //             fontFamily: 'Montserrat',
+  //             color: kNeutralText,
+  //             height: 1.15,
+  //           ),
+  //         ),
+  //         const SizedBox(height: 6),
+  //         Expanded(
+  //           child: names.isEmpty
+  //               ? const Center(
+  //                   child: Text(
+  //                     "None",
+  //                     textAlign: TextAlign.center, // <-- Center text
+  //                     style: TextStyle(
+  //                       fontWeight: FontWeight.w600,
+  //                       fontSize: 14,
+  //                       fontFamily: 'Montserrat',
+  //                       color: kNeutralText,
+  //                     ),
+  //                   ),
+  //                 )
+  //               : Column(
+  //                   mainAxisAlignment: MainAxisAlignment.center,
+  //                   children: [
+  //                     for (final n in display)
+  //                       Padding(
+  //                         padding: const EdgeInsets.only(bottom: 4),
+  //                         child: Row(
+  //                           mainAxisAlignment:
+  //                               MainAxisAlignment.center, // <-- Center row
+  //                           children: [
+  //                             const Icon(
+  //                               FontAwesomeIcons.dove,
+  //                               size: 14,
+  //                               color: Colors.black87,
+  //                             ),
+  //                             const SizedBox(width: 6),
+  //                             Expanded(
+  //                               child: Text(
+  //                                 n,
+  //                                 textAlign:
+  //                                     TextAlign.center, // <-- Center text
+  //                                 overflow: TextOverflow.ellipsis,
+  //                                 style: const TextStyle(
+  //                                   fontWeight: FontWeight.bold,
+  //                                   fontSize: 14,
+  //                                   fontFamily: 'Montserrat',
+  //                                   color: Colors.black,
+  //                                 ),
+  //                               ),
+  //                             ),
+  //                           ],
+  //                         ),
+  //                       ),
+  //                     if (extra > 0)
+  //                       Text(
+  //                         'View All',
+  //                         textAlign: TextAlign.center, // <-- Center text
+  //                         style: TextStyle(
+  //                           fontSize: 13.5,
+  //                           fontWeight: FontWeight.w800,
+  //                           fontFamily: 'OpenSans',
+  //                           color: Colors.blue[700],
+  //                         ),
+  //                       ),
+  //                   ],
+  //                 ),
+  //         ),
+  //       ],
+  //     ),
+  //   );
+  // }
 
-  Widget _statCard({
-    required Color color,
-    required IconData icon,
-    required Color? iconColor,
-    required String title,
-    required String bigText,
-    String smallSubtitle = '',
-  }) {
-    return _statShell(
-      color: color,
-      child: Column(
-        crossAxisAlignment:
-            CrossAxisAlignment.center, // <-- Center horizontally
-        children: [
-          Icon(icon, size: 32, color: iconColor),
-          const SizedBox(height: 8),
-          Text(
-            title,
-            textAlign: TextAlign.center, // <-- Center text
-            style: const TextStyle(
-              fontWeight: FontWeight.w800,
-              fontSize: 16,
-              fontFamily: 'Montserrat',
-              color: kNeutralText,
-              height: 1.15,
-            ),
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-          ),
-          const SizedBox(height: 6),
-          Expanded(
-            child: Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  FittedBox(
-                    fit: BoxFit.scaleDown,
-                    child: Text(
-                      bigText,
-                      textAlign: TextAlign.center, // <-- Center text
-                      style: const TextStyle(
-                        fontWeight: FontWeight.w800,
-                        fontSize: 32,
-                        fontFamily: 'Montserrat',
-                        color: kNeutralText,
-                      ),
-                    ),
-                  ),
-                  if (smallSubtitle.isNotEmpty) ...[
-                    const SizedBox(height: 4),
-                    Text(
-                      smallSubtitle,
-                      textAlign: TextAlign.center, // <-- Center text
-                      style: const TextStyle(
-                        fontSize: 12.5,
-                        fontWeight: FontWeight.w600,
-                        fontFamily: 'OpenSans',
-                        color: kSubtleText,
-                      ),
-                    ),
-                  ],
-                ],
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
+  // Widget _statCard({
+  //   required Color color,
+  //   required IconData icon,
+  //   required Color? iconColor,
+  //   required String title,
+  //   required String bigText,
+  //   String smallSubtitle = '',
+  // }) {
+  //   return _statShell(
+  //     color: color,
+  //     child: Column(
+  //       crossAxisAlignment:
+  //           CrossAxisAlignment.center, // <-- Center horizontally
+  //       children: [
+  //         Icon(icon, size: 32, color: iconColor),
+  //         const SizedBox(height: 8),
+  //         Text(
+  //           title,
+  //           textAlign: TextAlign.center, // <-- Center text
+  //           style: const TextStyle(
+  //             fontWeight: FontWeight.w800,
+  //             fontSize: 16,
+  //             fontFamily: 'Montserrat',
+  //             color: kNeutralText,
+  //             height: 1.15,
+  //           ),
+  //           maxLines: 2,
+  //           overflow: TextOverflow.ellipsis,
+  //         ),
+  //         const SizedBox(height: 6),
+  //         Expanded(
+  //           child: Center(
+  //             child: Column(
+  //               mainAxisAlignment: MainAxisAlignment.center,
+  //               children: [
+  //                 FittedBox(
+  //                   fit: BoxFit.scaleDown,
+  //                   child: Text(
+  //                     bigText,
+  //                     textAlign: TextAlign.center, // <-- Center text
+  //                     style: const TextStyle(
+  //                       fontWeight: FontWeight.w800,
+  //                       fontSize: 32,
+  //                       fontFamily: 'Montserrat',
+  //                       color: kNeutralText,
+  //                     ),
+  //                   ),
+  //                 ),
+  //                 if (smallSubtitle.isNotEmpty) ...[
+  //                   const SizedBox(height: 4),
+  //                   Text(
+  //                     smallSubtitle,
+  //                     textAlign: TextAlign.center, // <-- Center text
+  //                     style: const TextStyle(
+  //                       fontSize: 12.5,
+  //                       fontWeight: FontWeight.w600,
+  //                       fontFamily: 'OpenSans',
+  //                       color: kSubtleText,
+  //                     ),
+  //                   ),
+  //                 ],
+  //               ],
+  //             ),
+  //           ),
+  //         ),
+  //       ],
+  //     ),
+  //   );
+  // }
 
-  Widget _statShell({required Color color, required Widget child}) {
-    return Container(
-      height: 220,
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: color,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: Colors.grey.shade300, width: 2),
-      ),
-      child: child,
-    );
-  }
+  // Widget _statShell({required Color color, required Widget child}) {
+  //   return Container(
+  //     height: 220,
+  //     padding: const EdgeInsets.all(16),
+  //     decoration: BoxDecoration(
+  //       color: color,
+  //       borderRadius: BorderRadius.circular(18),
+  //       border: Border.all(color: Colors.grey.shade300, width: 2),
+  //     ),
+  //     child: child,
+  //   );
+  // }
 
-  Widget _primaryAction(String label, IconData icon, VoidCallback onTap) {
-    return SizedBox(
-      width: double.infinity,
-      child: OutlinedButton.icon(
-        onPressed: onTap,
-        icon: Icon(icon, size: 26, color: kPrimary),
-        label: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 8),
-          child: Text(
-            label,
-            style: const TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.w700,
-              fontFamily: 'Montserrat',
-              color: kPrimaryDark,
-            ),
-          ),
-        ),
-        style: OutlinedButton.styleFrom(
-          padding: const EdgeInsets.symmetric(vertical: 16),
-          minimumSize: const Size.fromHeight(60),
-          side: const BorderSide(color: kPrimary, width: 1.8),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-          ),
-          backgroundColor: Colors.white,
-        ),
-      ),
-    );
-  }
+  // Widget _primaryAction(String label, IconData icon, VoidCallback onTap) {
+  //   return SizedBox(
+  //     width: double.infinity,
+  //     child: OutlinedButton.icon(
+  //       onPressed: onTap,
+  //       icon: Icon(icon, size: 26, color: kPrimary),
+  //       label: Padding(
+  //         padding: const EdgeInsets.symmetric(vertical: 8),
+  //         child: Text(
+  //           label,
+  //           style: const TextStyle(
+  //             fontSize: 18,
+  //             fontWeight: FontWeight.w700,
+  //             fontFamily: 'Montserrat',
+  //             color: kPrimaryDark,
+  //           ),
+  //         ),
+  //       ),
+  //       style: OutlinedButton.styleFrom(
+  //         padding: const EdgeInsets.symmetric(vertical: 16),
+  //         minimumSize: const Size.fromHeight(60),
+  //         side: const BorderSide(color: kPrimary, width: 1.8),
+  //         shape: RoundedRectangleBorder(
+  //           borderRadius: BorderRadius.circular(16),
+  //         ),
+  //         backgroundColor: Colors.white,
+  //       ),
+  //     ),
+  //   );
+  // }
 
-  Widget _collectedPanel() {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.fromLTRB(20, 20, 20, 16),
-      decoration: BoxDecoration(
-        color: const Color(0xFFE7F8D9),
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: kAccent.withOpacity(.35)),
-      ),
-      child: Column(
-        children: [
-          const Text(
-            'Collected from the Collectors',
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.w700,
-              fontFamily: 'Montserrat',
-              color: kNeutralText,
-            ),
-          ),
-          const SizedBox(height: 10),
-          SizedBox(
-            width: 160,
-            child: ElevatedButton(
-              onPressed: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => CollectedFromCollectorsPage(
-                      dayungUnitId: _dayungUnitId!,
-                    ),
-                  ),
-                );
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: kPrimary,
-                foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-              ),
-              child: const Text(
-                'View',
-                style: TextStyle(fontWeight: FontWeight.w700),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
+  // Widget _collectedPanel() {
+  //   return Container(
+  //     width: double.infinity,
+  //     padding: const EdgeInsets.fromLTRB(20, 20, 20, 16),
+  //     decoration: BoxDecoration(
+  //       color: const Color(0xFFE7F8D9),
+  //       borderRadius: BorderRadius.circular(18),
+  //       border: Border.all(color: kAccent.withOpacity(.35)),
+  //     ),
+  //     child: Column(
+  //       children: [
+  //         const Text(
+  //           'Collected from the Collectors',
+  //           textAlign: TextAlign.center,
+  //           style: TextStyle(
+  //             fontSize: 18,
+  //             fontWeight: FontWeight.w700,
+  //             fontFamily: 'Montserrat',
+  //             color: kNeutralText,
+  //           ),
+  //         ),
+  //         const SizedBox(height: 10),
+  //         SizedBox(
+  //           width: 160,
+  //           child: ElevatedButton(
+  //             onPressed: () {
+  //               Navigator.push(
+  //                 context,
+  //                 MaterialPageRoute(
+  //                   builder: (_) => CollectedFromCollectorsPage(
+  //                     dayungUnitId: _dayungUnitId!,
+  //                   ),
+  //                 ),
+  //               );
+  //             },
+  //             style: ElevatedButton.styleFrom(
+  //               backgroundColor: kPrimary,
+  //               foregroundColor: Colors.white,
+  //               shape: RoundedRectangleBorder(
+  //                 borderRadius: BorderRadius.circular(12),
+  //               ),
+  //             ),
+  //             child: const Text(
+  //               'View',
+  //               style: TextStyle(fontWeight: FontWeight.w700),
+  //             ),
+  //           ),
+  //         ),
+  //       ],
+  //     ),
+  //   );
+  // }
 
-  Widget _bottomNav(bool wide) {
-    return Positioned(
-      left: 0,
-      right: 0,
-      bottom: 16,
-      child: Center(
-        child: IgnorePointer(
-          ignoring: !_showNavBar,
-          child: AnimatedOpacity(
-            duration: const Duration(milliseconds: 250),
-            opacity: _showNavBar ? 1 : 0,
-            child: Container(
-              height: 86,
-              margin: EdgeInsets.symmetric(horizontal: wide ? 170 : 20),
-              padding: const EdgeInsets.symmetric(horizontal: 14),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(44),
-                border: Border.all(color: Colors.grey.shade300),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(.08),
-                    blurRadius: 18,
-                    offset: const Offset(0, 6),
-                  ),
-                ],
-              ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                children: [
-                  _navItem(Icons.home_rounded, "Home", 0),
-                  _navItem(Icons.public, "Contributions", 1),
-                  _navItem(Icons.description, "Claims", 2),
-                ],
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
+  // Widget _bottomNav(bool wide) {
+  //   return Positioned(
+  //     left: 0,
+  //     right: 0,
+  //     bottom: 16,
+  //     child: Center(
+  //       child: IgnorePointer(
+  //         ignoring: !_showNavBar,
+  //         child: AnimatedOpacity(
+  //           duration: const Duration(milliseconds: 250),
+  //           opacity: _showNavBar ? 1 : 0,
+  //           child: Container(
+  //             height: 86,
+  //             margin: EdgeInsets.symmetric(horizontal: wide ? 170 : 20),
+  //             padding: const EdgeInsets.symmetric(horizontal: 14),
+  //             decoration: BoxDecoration(
+  //               color: Colors.white,
+  //               borderRadius: BorderRadius.circular(44),
+  //               border: Border.all(color: Colors.grey.shade300),
+  //               boxShadow: [
+  //                 BoxShadow(
+  //                   color: Colors.black.withOpacity(.08),
+  //                   blurRadius: 18,
+  //                   offset: const Offset(0, 6),
+  //                 ),
+  //               ],
+  //             ),
+  //             child: Row(
+  //               mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+  //               children: [
+  //                 _navItem(Icons.home_rounded, "Home", 0),
+  //                 _navItem(Icons.public, "Contributions", 1),
+  //                 _navItem(Icons.description, "Claims", 2),
+  //               ],
+  //             ),
+  //           ),
+  //         ),
+  //       ),
+  //     ),
+  //   );
+  // }
 
   Future<void> _showPaymentStatusSheet(int noticeId, int dayungUnitId) async {
     final sb = Supabase.instance.client;
@@ -2607,86 +2607,87 @@ class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
     );
   }
 
-  Widget _navItem(IconData icon, String label, int index) {
-    final selected = _tab == index;
-    return TextButton(
-      onPressed: () => setState(() => _tab = index),
-      style: TextButton.styleFrom(
-        foregroundColor: selected ? kPrimary : kNeutralText,
-        padding: const EdgeInsets.symmetric(horizontal: 12),
-        shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.all(Radius.circular(18)),
-        ),
-      ),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(icon, size: 30, color: selected ? kPrimary : kNeutralText),
-          const SizedBox(height: 4),
-          Text(
-            label,
-            style: TextStyle(
-              fontSize: 13,
-              fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
-              fontFamily: 'OpenSans',
-              letterSpacing: .3,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
+  // Widget _navItem(IconData icon, String label, int index) {
+  //   final selected = _tab == index;
+  //   return TextButton(
+  //     onPressed: () => setState(() => _tab = index),
+  //     style: TextButton.styleFrom(
+  //       foregroundColor: selected ? kPrimary : kNeutralText,
+  //       padding: const EdgeInsets.symmetric(horizontal: 12),
+  //       shape: const RoundedRectangleBorder(
+  //         borderRadius: BorderRadius.all(Radius.circular(18)),
+  //       ),
+  //     ),
+  //     child: Column(
+  //       mainAxisAlignment: MainAxisAlignment.center,
+  //       children: [
+  //         Icon(icon, size: 30, color: selected ? kPrimary : kNeutralText),
+  //         const SizedBox(height: 4),
+  //         Text(
+  //           label,
+  //           style: TextStyle(
+  //             fontSize: 13,
+  //             fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+  //             fontFamily: 'OpenSans',
+  //             letterSpacing: .3,
+  //           ),
+  //         ),
+  //       ],
+  //     ),
+  //   );
+  // }
 
-  Widget _iconBtn({
-    required IconData icon,
-    required Color color,
-    required VoidCallback onTap,
-    String? tooltip,
-    String? badge,
-  }) {
-    return Semantics(
-      label: tooltip,
-      button: true,
-      child: Stack(
-        clipBehavior: Clip.none,
-        children: [
-          InkWell(
-            borderRadius: BorderRadius.circular(12),
-            onTap: onTap,
-            child: Container(
-              width: 40,
-              height: 40,
-              alignment: Alignment.center,
-              decoration: BoxDecoration(
-                color: color.withOpacity(.10),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Icon(icon, color: color, size: 22),
-            ),
-          ),
-          if (badge != null)
-            Positioned(
-              right: -2,
-              top: -2,
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                decoration: BoxDecoration(
-                  color: kDanger,
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Text(
-                  badge,
-                  style: const TextStyle(
-                    fontFamily: 'OpenSans',
-                    fontSize: 10,
-                    fontWeight: FontWeight.w700,
-                    color: Colors.white,
-                  ),
-                ),
-              ),
-            ),
-        ],
-      ),
-    );
-  }
+  //   Widget _iconBtn({
+  //     required IconData icon,
+  //     required Color color,
+  //     required VoidCallback onTap,
+  //     String? tooltip,
+  //     String? badge,
+  //   }) {
+  //     return Semantics(
+  //       label: tooltip,
+  //       button: true,
+  //       child: Stack(
+  //         clipBehavior: Clip.none,
+  //         children: [
+  //           InkWell(
+  //             borderRadius: BorderRadius.circular(12),
+  //             onTap: onTap,
+  //             child: Container(
+  //               width: 40,
+  //               height: 40,
+  //               alignment: Alignment.center,
+  //               decoration: BoxDecoration(
+  //                 color: color.withOpacity(.10),
+  //                 borderRadius: BorderRadius.circular(12),
+  //               ),
+  //               child: Icon(icon, color: color, size: 22),
+  //             ),
+  //           ),
+  //           if (badge != null)
+  //             Positioned(
+  //               right: -2,
+  //               top: -2,
+  //               child: Container(
+  //                 padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+  //                 decoration: BoxDecoration(
+  //                   color: kDanger,
+  //                   borderRadius: BorderRadius.circular(10),
+  //                 ),
+  //                 child: Text(
+  //                   badge,
+  //                   style: const TextStyle(
+  //                     fontFamily: 'OpenSans',
+  //                     fontSize: 10,
+  //                     fontWeight: FontWeight.w700,
+  //                     color: Colors.white,
+  //                   ),
+  //                 ),
+  //               ),
+  //             ),
+  //         ],
+  //       ),
+  //     );
+  //   }
+  // }
 }

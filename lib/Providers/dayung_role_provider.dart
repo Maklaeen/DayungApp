@@ -11,11 +11,13 @@ class DayungRoleProvider extends ChangeNotifier {
   bool isSecretary = false;
   bool isTreasurer = false;
   bool isCollector = false;
+  bool isMember = false;
 
+  
   Future<void> refreshRoles(int? newUnitId) async {
     unitId = newUnitId;
     if (newUnitId == null) {
-      isPresident = isSecretary = isTreasurer = isCollector = false;
+      isPresident = isSecretary = isTreasurer = isCollector = isMember = false;
       notifyListeners();
       return;
     }
@@ -25,7 +27,7 @@ class DayungRoleProvider extends ChangeNotifier {
 
     final uid = _sb.auth.currentUser?.id;
     if (uid == null) {
-      isPresident = isSecretary = isTreasurer = isCollector = false;
+      isPresident = isSecretary = isTreasurer = isCollector = isMember = false;
       loading = false;
       notifyListeners();
       return;
@@ -55,9 +57,23 @@ class DayungRoleProvider extends ChangeNotifier {
       } catch (_) {
         isCollector = false;
       }
+
+      try {
+        final app = await _sb
+            .from('applications')
+            .select('id')
+            .eq('user_id', uid)
+            .eq('dayung_unit_id', newUnitId)
+            .eq('status', 'approved')
+            .limit(1);
+        isMember = (app as List).isNotEmpty;
+      } catch (_) {
+        isMember = false;
+      }
+
     } catch (_) {
       // If RLS blocks, assume no officer/collector role for this unit
-      isPresident = isSecretary = isTreasurer = isCollector = false;
+      isPresident = isSecretary = isTreasurer = isCollector = isMember = false;
     } finally {
       loading = false;
       notifyListeners();

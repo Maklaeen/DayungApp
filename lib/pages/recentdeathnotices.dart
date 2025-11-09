@@ -369,7 +369,7 @@ class _RecentDeathNoticesState extends State<RecentDeathNotices> {
               begin: Alignment.topCenter,
               end: Alignment.bottomCenter,
               colors: [Color(0xFF1E40AF), Color(0xFF3B82F6), Color(0xFFF8FAFC)],
-              stops: [0.0, 0.15, 0.15],
+              stops: [0.0, 0.16, 0.22],
             ),
           ),
           child: SafeArea(
@@ -381,7 +381,7 @@ class _RecentDeathNoticesState extends State<RecentDeathNotices> {
                   child: Row(
                     children: [
                       Container(
-                        padding: const EdgeInsets.all(12),
+                        padding: const EdgeInsets.all(8),
                         decoration: BoxDecoration(
                           gradient: const LinearGradient(
                             colors: [Color(0xFFFFFFFF), Color(0xFFE0E7FF)],
@@ -416,7 +416,7 @@ class _RecentDeathNoticesState extends State<RecentDeathNotices> {
                         child: Text(
                           'Deaths and Vigil locations',
                           style: TextStyle(
-                            fontSize: isWide ? 32 : 28,
+                            fontSize: isWide ? 32 : 23,
                             fontWeight: FontWeight.w900,
                             color: Colors.white,
                             fontFamily: 'Montserrat',

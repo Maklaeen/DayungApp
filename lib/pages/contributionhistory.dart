@@ -1,4 +1,5 @@
 import 'package:capstone_app/Providers/dayung_provider.dart';
+import 'package:capstone_app/screens/dayung_suggestions.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:provider/provider.dart';
@@ -104,6 +105,15 @@ class _ContributionHistoryState extends State<ContributionHistory> {
         ],
       ),
     );
+  }
+
+  Future<void> _goApplyDayung() async {
+    if (!mounted) return;
+    await Navigator.of(
+      context,
+    ).push(MaterialPageRoute(builder: (_) => const DayungSuggestionsPage()));
+    await _loadDayungUnit();
+    await _fetchPaidContributions();
   }
 
   Future<void> _fetchUnreadNotifCount() async {
@@ -325,7 +335,6 @@ class _ContributionHistoryState extends State<ContributionHistory> {
                   children: [const SizedBox(height: 16)],
                 ),
               ),
-
               const SliverToBoxAdapter(
                 child: Padding(
                   padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -384,115 +393,171 @@ class _ContributionHistoryState extends State<ContributionHistory> {
                       ),
                     ),
                   )
-                : ListView.builder(
-                    physics: const AlwaysScrollableScrollPhysics(),
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    itemCount: _loadingPaid ? 1 : _paidContributions.length,
-                    itemBuilder: (context, index) {
-                      if (_loadingPaid) {
-                        return const Padding(
-                          padding: EdgeInsets.all(24.0),
-                          child: Center(child: CircularProgressIndicator()),
-                        );
-                      }
-                      if (_paidContributions.isEmpty) {
-                        return Container(
-                          margin: const EdgeInsets.only(top: 32),
-                          child: const Center(
-                            child: Text(
-                              'No paid contributions yet.',
-                              style: TextStyle(
-                                fontSize: 16,
-                                color: Colors.black54,
-                                fontFamily: 'OpenSans',
-                                fontWeight: FontWeight.w600,
+                // ADD: Show "Apply dayung first" when no dayung selected
+                : (_dayungId == null
+                      ? ListView(
+                          physics: const AlwaysScrollableScrollPhysics(),
+                          padding: const EdgeInsets.fromLTRB(16, 60, 16, 32),
+                          children: [
+                            Icon(
+                              Icons.group_add,
+                              size: 64,
+                              color: kSubText.withOpacity(.35),
+                            ),
+                            const SizedBox(height: 16),
+                            const Center(
+                              child: Text(
+                                'Apply dayung first',
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  fontFamily: 'OpenSans',
+                                  fontWeight: FontWeight.w700,
+                                  color: kSubText,
+                                ),
                               ),
                             ),
-                          ),
-                        );
-                      }
-
-                      final item = _paidContributions[index];
-                      final datePaid = _fmtDate(item['date']?.toString() ?? '');
-                      final amount = (item['amount'] as double?) ?? 0.0;
-                      final name =
-                          item['notice_name']?.toString() ?? 'Death Notice';
-                      final dod = item['date_of_death']?.toString();
-
-                      return Container(
-                        margin: const EdgeInsets.only(bottom: 16),
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(16),
-                          border: Border.all(color: Colors.black12),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withOpacity(0.03),
-                              blurRadius: 6,
-                              offset: const Offset(0, 2),
+                            const SizedBox(height: 12),
+                            Center(
+                              child: ElevatedButton.icon(
+                                onPressed: _goApplyDayung,
+                                icon: const Icon(Icons.how_to_reg),
+                                label: const Text(
+                                  'Apply Dayung',
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.w700,
+                                    fontFamily: 'Montserrat',
+                                  ),
+                                ),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: kAccent,
+                                  foregroundColor: Colors.white,
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 16,
+                                    vertical: 12,
+                                  ),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                ),
+                              ),
                             ),
                           ],
-                        ),
-                        child: Padding(
-                          padding: const EdgeInsets.all(20),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              // Notice name
-                              Text(
-                                name,
-                                style: const TextStyle(
-                                  fontSize: 18,
-                                  fontWeight: FontWeight.w800,
-                                  fontFamily: 'Montserrat',
-                                  color: kText,
+                        )
+                      : ListView.builder(
+                          physics: const AlwaysScrollableScrollPhysics(),
+                          padding: const EdgeInsets.symmetric(horizontal: 16),
+                          itemCount: _loadingPaid
+                              ? 1
+                              : _paidContributions.length,
+                          itemBuilder: (context, index) {
+                            if (_loadingPaid) {
+                              return const Padding(
+                                padding: EdgeInsets.all(24.0),
+                                child: Center(
+                                  child: CircularProgressIndicator(),
                                 ),
-                              ),
-                              const SizedBox(height: 6),
-                              // Optional DoD
-                              if (dod != null && dod.isNotEmpty)
-                                Text(
-                                  'Date of death: $dod',
-                                  style: const TextStyle(
-                                    fontSize: 13,
-                                    fontWeight: FontWeight.w600,
-                                    color: kSubText,
-                                    fontFamily: 'OpenSans',
-                                  ),
-                                ),
-                              const SizedBox(height: 10),
-                              // Amount + date paid
-                              Row(
-                                mainAxisAlignment:
-                                    MainAxisAlignment.spaceBetween,
-                                children: [
-                                  Text(
-                                    '₱ ${amount.toStringAsFixed(0)}',
-                                    style: const TextStyle(
-                                      fontSize: 28,
-                                      fontWeight: FontWeight.bold,
-                                      letterSpacing: 1,
-                                      color: Colors.blue,
-                                      fontFamily: 'Montserrat',
-                                    ),
-                                  ),
-                                  Text(
-                                    datePaid.isEmpty ? '' : 'Paid on $datePaid',
-                                    style: const TextStyle(
-                                      fontSize: 13,
-                                      fontWeight: FontWeight.w600,
-                                      color: kSubText,
+                              );
+                            }
+                            if (_paidContributions.isEmpty) {
+                              return Container(
+                                margin: const EdgeInsets.only(top: 32),
+                                child: const Center(
+                                  child: Text(
+                                    'No paid contributions yet.',
+                                    style: TextStyle(
+                                      fontSize: 16,
+                                      color: Colors.black54,
                                       fontFamily: 'OpenSans',
+                                      fontWeight: FontWeight.w600,
                                     ),
+                                  ),
+                                ),
+                              );
+                            }
+
+                            final item = _paidContributions[index];
+                            final datePaid = _fmtDate(
+                              item['date']?.toString() ?? '',
+                            );
+                            final amount = (item['amount'] as double?) ?? 0.0;
+                            final name =
+                                item['notice_name']?.toString() ??
+                                'Death Notice';
+                            final dod = item['date_of_death']?.toString();
+
+                            return Container(
+                              margin: const EdgeInsets.only(bottom: 16),
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                borderRadius: BorderRadius.circular(16),
+                                border: Border.all(color: Colors.black12),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.black.withOpacity(0.03),
+                                    blurRadius: 6,
+                                    offset: const Offset(0, 2),
                                   ),
                                 ],
                               ),
-                            ],
-                          ),
-                        ),
-                      );
-                    },
-                  ),
+                              child: Padding(
+                                padding: const EdgeInsets.all(20),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      name,
+                                      style: const TextStyle(
+                                        fontSize: 18,
+                                        fontWeight: FontWeight.w800,
+                                        fontFamily: 'Montserrat',
+                                        color: kText,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 6),
+                                    if (dod != null && dod.isNotEmpty)
+                                      Text(
+                                        'Date of death: $dod',
+                                        style: const TextStyle(
+                                          fontSize: 13,
+                                          fontWeight: FontWeight.w600,
+                                          color: kSubText,
+                                          fontFamily: 'OpenSans',
+                                        ),
+                                      ),
+                                    const SizedBox(height: 10),
+                                    Row(
+                                      mainAxisAlignment:
+                                          MainAxisAlignment.spaceBetween,
+                                      children: [
+                                        Text(
+                                          '₱ ${amount.toStringAsFixed(0)}',
+                                          style: const TextStyle(
+                                            fontSize: 28,
+                                            fontWeight: FontWeight.bold,
+                                            letterSpacing: 1,
+                                            color: Colors.blue,
+                                            fontFamily: 'Montserrat',
+                                          ),
+                                        ),
+                                        Text(
+                                          datePaid.isEmpty
+                                              ? ''
+                                              : 'Paid on $datePaid',
+                                          style: const TextStyle(
+                                            fontSize: 13,
+                                            fontWeight: FontWeight.w600,
+                                            color: kSubText,
+                                            fontFamily: 'OpenSans',
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            );
+                          },
+                        )),
           ),
         ),
       ),

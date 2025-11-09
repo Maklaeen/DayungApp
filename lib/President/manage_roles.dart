@@ -279,116 +279,116 @@ class _ManageRolesPageState extends State<ManageRolesPagePres> {
                         child: Column(
                           children: [
                             // Unit picker
-                            Container(
-                              padding: const EdgeInsets.all(20),
-                              decoration: BoxDecoration(
-                                color: kCardBg,
-                                borderRadius: BorderRadius.circular(20),
-                                border: Border.all(
-                                  color: kBorderColor.withOpacity(0.3),
-                                  width: 1,
-                                ),
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: Colors.black.withOpacity(0.05),
-                                    blurRadius: 15,
-                                    offset: const Offset(0, 6),
-                                  ),
-                                ],
-                              ),
-                              child: Row(
-                                children: [
-                                  Container(
-                                    padding: const EdgeInsets.all(8),
-                                    decoration: BoxDecoration(
-                                      color: kPrimary.withOpacity(0.1),
-                                      borderRadius: BorderRadius.circular(12),
-                                    ),
-                                    child: const Icon(
-                                      Icons.location_on_rounded,
-                                      color: kPrimary,
-                                      size: 20,
-                                    ),
-                                  ),
-                                  const SizedBox(width: 8),
-                                  Text(
-                                    'Dayung Unit:',
-                                    style: TextStyle(
-                                      fontWeight: FontWeight.w700,
-                                      fontSize: 16,
-                                      color: kText,
-                                      fontFamily: 'Montserrat',
-                                    ),
-                                  ),
-                                  const SizedBox(width: 8),
-                                  Expanded(
-                                    child: DropdownButtonFormField<int>(
-                                      value: _unitId,
-                                      isExpanded: true,
-                                      decoration: InputDecoration(
-                                        filled: true,
-                                        fillColor: kCardBg,
-                                        border: OutlineInputBorder(
-                                          borderRadius: BorderRadius.circular(
-                                            12,
-                                          ),
-                                          borderSide: BorderSide(
-                                            color: kBorderColor,
-                                            width: 1,
-                                          ),
-                                        ),
-                                        enabledBorder: OutlineInputBorder(
-                                          borderRadius: BorderRadius.circular(
-                                            12,
-                                          ),
-                                          borderSide: BorderSide(
-                                            color: kBorderColor,
-                                            width: 1,
-                                          ),
-                                        ),
-                                        focusedBorder: OutlineInputBorder(
-                                          borderRadius: BorderRadius.circular(
-                                            12,
-                                          ),
-                                          borderSide: BorderSide(
-                                            color: kPrimary,
-                                            width: 2,
-                                          ),
-                                        ),
-                                      ),
-                                      items: _units
-                                          .map(
-                                            (u) => DropdownMenuItem<int>(
-                                              value:
-                                                  (u['id'] as int?) ??
-                                                  int.tryParse('${u['id']}'),
-                                              child: Text(
-                                                (u['name'] ?? 'Unit ${u['id']}')
-                                                    .toString(),
-                                                overflow: TextOverflow.ellipsis,
-                                                style: const TextStyle(
-                                                  fontFamily: 'OpenSans',
-                                                  fontWeight: FontWeight.w600,
-                                                ),
-                                              ),
-                                            ),
-                                          )
-                                          .toList(),
-                                      onChanged: (v) async {
-                                        _unitId = v;
-                                        setState(() => _loading = true);
-                                        try {
-                                          if (v != null) await _loadUnitData(v);
-                                        } finally {
-                                          if (mounted)
-                                            setState(() => _loading = false);
-                                        }
-                                      },
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
+                            // Container(
+                            //   padding: const EdgeInsets.all(20),
+                            //   decoration: BoxDecoration(
+                            //     color: kCardBg,
+                            //     borderRadius: BorderRadius.circular(20),
+                            //     border: Border.all(
+                            //       color: kBorderColor.withOpacity(0.3),
+                            //       width: 1,
+                            //     ),
+                            //     boxShadow: [
+                            //       BoxShadow(
+                            //         color: Colors.black.withOpacity(0.05),
+                            //         blurRadius: 15,
+                            //         offset: const Offset(0, 6),
+                            //       ),
+                            //     ],
+                            //   ),
+                            //   child: Row(
+                            //     children: [
+                            //       Container(
+                            //         padding: const EdgeInsets.all(8),
+                            //         decoration: BoxDecoration(
+                            //           color: kPrimary.withOpacity(0.1),
+                            //           borderRadius: BorderRadius.circular(12),
+                            //         ),
+                            //         child: const Icon(
+                            //           Icons.location_on_rounded,
+                            //           color: kPrimary,
+                            //           size: 20,
+                            //         ),
+                            //       ),
+                            //       const SizedBox(width: 8),
+                            //       Text(
+                            //         'Dayung Unit:',
+                            //         style: TextStyle(
+                            //           fontWeight: FontWeight.w700,
+                            //           fontSize: 16,
+                            //           color: kText,
+                            //           fontFamily: 'Montserrat',
+                            //         ),
+                            //       ),
+                            //       const SizedBox(width: 8),
+                            //       Expanded(
+                            //         child: DropdownButtonFormField<int>(
+                            //           value: _unitId,
+                            //           isExpanded: true,
+                            //           decoration: InputDecoration(
+                            //             filled: true,
+                            //             fillColor: kCardBg,
+                            //             border: OutlineInputBorder(
+                            //               borderRadius: BorderRadius.circular(
+                            //                 12,
+                            //               ),
+                            //               borderSide: BorderSide(
+                            //                 color: kBorderColor,
+                            //                 width: 1,
+                            //               ),
+                            //             ),
+                            //             enabledBorder: OutlineInputBorder(
+                            //               borderRadius: BorderRadius.circular(
+                            //                 12,
+                            //               ),
+                            //               borderSide: BorderSide(
+                            //                 color: kBorderColor,
+                            //                 width: 1,
+                            //               ),
+                            //             ),
+                            //             focusedBorder: OutlineInputBorder(
+                            //               borderRadius: BorderRadius.circular(
+                            //                 12,
+                            //               ),
+                            //               borderSide: BorderSide(
+                            //                 color: kPrimary,
+                            //                 width: 2,
+                            //               ),
+                            //             ),
+                            //           ),
+                            //           items: _units
+                            //               .map(
+                            //                 (u) => DropdownMenuItem<int>(
+                            //                   value:
+                            //                       (u['id'] as int?) ??
+                            //                       int.tryParse('${u['id']}'),
+                            //                   child: Text(
+                            //                     (u['name'] ?? 'Unit ${u['id']}')
+                            //                         .toString(),
+                            //                     overflow: TextOverflow.ellipsis,
+                            //                     style: const TextStyle(
+                            //                       fontFamily: 'OpenSans',
+                            //                       fontWeight: FontWeight.w600,
+                            //                     ),
+                            //                   ),
+                            //                 ),
+                            //               )
+                            //               .toList(),
+                            //           onChanged: (v) async {
+                            //             _unitId = v;
+                            //             setState(() => _loading = true);
+                            //             try {
+                            //               if (v != null) await _loadUnitData(v);
+                            //             } finally {
+                            //               if (mounted)
+                            //                 setState(() => _loading = false);
+                            //             }
+                            //           },
+                            //         ),
+                            //       ),
+                            //     ],
+                            //   ),
+                            // ),
                             const SizedBox(height: 20),
 
                             Expanded(

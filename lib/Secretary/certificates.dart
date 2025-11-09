@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 
-// Modern color palette
+// color palette
 const Color kPrimary = Color(0xFF3B82F6);
 const Color kPrimaryDark = Color(0xFF1E40AF);
 const Color kAccent = Color(0xFF10B981);
@@ -75,7 +75,6 @@ class _CertificatesPageState extends State<CertificatesPage>
       body: SafeArea(
         child: Column(
           children: [
-            // Curved Header with Back Button
             Container(
               padding: const EdgeInsets.fromLTRB(8, 36, 20, 28),
               decoration: const BoxDecoration(
@@ -120,7 +119,6 @@ class _CertificatesPageState extends State<CertificatesPage>
                 ],
               ),
             ),
-            // Tabs (if you want to add more in the future)
             Container(
               alignment: Alignment.centerLeft,
               padding: const EdgeInsets.only(left: 20, top: 8, bottom: 8),

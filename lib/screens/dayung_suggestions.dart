@@ -2,7 +2,7 @@ import 'package:capstone_app/screens/dayung_map_page.dart';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
-// Design tokens copied to match dayungquestion.dart
+// color palette
 const Color kPrimary = Color(0xFF3B82F6);
 const Color kPrimaryDark = Color(0xFF1E40AF);
 const Color kAccent = Color(0xFF10B981);
@@ -107,7 +107,6 @@ class _DayungSuggestionsPageState extends State<DayungSuggestionsPage> {
         child: SafeArea(
           child: Column(
             children: [
-              // Header (same as dayungquestion.dart)
               Container(
                 padding: const EdgeInsets.fromLTRB(16, 12, 16, 20),
                 child: Row(
@@ -145,8 +144,6 @@ class _DayungSuggestionsPageState extends State<DayungSuggestionsPage> {
                   ],
                 ),
               ),
-
-              // Curved container body
               Expanded(
                 child: Container(
                   decoration: const BoxDecoration(
@@ -183,7 +180,6 @@ class _DayungSuggestionsPageState extends State<DayungSuggestionsPage> {
       child: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          // Search card
           Card(
             elevation: 2,
             color: kCardBg,

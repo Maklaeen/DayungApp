@@ -14,13 +14,11 @@ class RoleRouter extends StatelessWidget {
   Widget build(BuildContext context) {
     return Consumer<DayungRoleProvider>(
       builder: (_, roles, __) {
-        // While provider is resolving roles, show a small splash/loader
         if (roles.loading) {
           return const Scaffold(
             body: Center(child: CircularProgressIndicator()),
           );
         }
-
         if (roles.isPresident) return const pres.PresidentDashboardPage();
         if (roles.isSecretary) return const sec.SecretaryDashboardPage();
         if (roles.isTreasurer) return const treas.TreasurerDashboardPage();

@@ -1,17 +1,10 @@
 import 'dart:convert';
 import 'package:capstone_app/Auth/utils_file.dart';
+import 'package:capstone_app/Providers/role_router.dart';
 import 'package:capstone_app/ui/theme/branding.dart';
-import 'package:capstone_app/Collector/dashboard.dart'
-    hide kPrimary, kAccent, kBg;
 import 'package:capstone_app/Members/dashboard.dart' hide kAccent, kBg;
-import 'package:capstone_app/President/dashboard.dart'
-    hide kPrimary, kAccent, kBg;
 import 'package:capstone_app/Providers/dayung_provider.dart';
 import 'package:capstone_app/Providers/dayung_role_provider.dart';
-import 'package:capstone_app/Secretary/dashboard.dart'
-    hide kPrimary, kAccent, kBg;
-import 'package:capstone_app/Treasurer/dashboard.dart'
-    hide kPrimary, kAccent, kBg;
 import 'package:capstone_app/screens/selectdayung.dart'
     hide kAccent, kPrimary, kBg;
 import 'package:flutter/material.dart';
@@ -245,19 +238,78 @@ class _LoginState extends State<Login> {
         s.contains('handshake');
   }
 
+  // Future<void> _handleLogin() async {
+  //   if (!_formKey.currentState!.validate()) return;
+  //   setState(() => _isLoading = true);
+  //   final email = emailController.text.trim();
+  //   final password = passwordController.text.trim();
+
+  //   try {
+  //     final res = await Supabase.instance.client.auth
+  //         .signInWithPassword(email: email, password: password)
+  //         .timeout(const Duration(seconds: 20));
+
+  //     if (res.user == null) {
+  //       setState(() => _isLoading = false);
+  //       await _showErrorDialog(
+  //         'Sign-in Failed',
+  //         'Incorrect email or password.',
+  //         onTryAgain: _handleLogin,
+  //       );
+  //       return;
+  //     }
+
+  //     final userId = res.user!.id;
+  //     final userData = await Supabase.instance.client
+  //         .from('users')
+  //         .select('role')
+  //         .eq('id', userId)
+  //         .maybeSingle();
+
+  //     setState(() => _isLoading = false);
+  //     if (userData != null && (userData['role'] ?? '') == 'admin') {
+  //       Navigator.pushReplacementNamed(context, '/admin-dashboard');
+  //     } else {
+  //       await _routeAfterLogin();
+  //     }
+  //   } catch (e) {
+  //     setState(() => _isLoading = false);
+  //     if (_looksOffline(e)) {
+  //       await _showErrorDialog(
+  //         'No Internet Connection',
+  //         'Connect to your internet connection',
+  //         color: kWarn,
+  //         onTryAgain: _handleLogin,
+  //       );
+  //     } else {
+  //       await _showErrorDialog(
+  //         'Incorrect Email or Password',
+  //         'Please try again.',
+  //         onTryAgain: _handleLogin,
+  //       );
+  //     }
+  //   }
+  // }
+
   Future<void> _handleLogin() async {
     if (!_formKey.currentState!.validate()) return;
     setState(() => _isLoading = true);
     final email = emailController.text.trim();
     final password = passwordController.text.trim();
+    final passwordHash = hashPassword(password);
 
     try {
-      final res = await Supabase.instance.client.auth
-          .signInWithPassword(email: email, password: password)
-          .timeout(const Duration(seconds: 20));
+      // Query users table for matching email and password_hash
+      final userRow = await Supabase.instance.client
+          .from('users')
+          .select()
+          .eq('email', email)
+          .eq('password_hash', passwordHash)
+          .maybeSingle();
 
-      if (res.user == null) {
-        setState(() => _isLoading = false);
+      setState(() => _isLoading = false);
+
+      if (userRow == null) {
         await _showErrorDialog(
           'Sign-in Failed',
           'Incorrect email or password.',
@@ -266,18 +318,13 @@ class _LoginState extends State<Login> {
         return;
       }
 
-      final userId = res.user!.id;
-      final userData = await Supabase.instance.client
-          .from('users')
-          .select('role')
-          .eq('id', userId)
-          .maybeSingle();
-
-      setState(() => _isLoading = false);
-      if (userData != null && (userData['role'] ?? '') == 'admin') {
+      // Save user info as needed (e.g., SharedPreferences)
+      // Route user based on role
+      final userRole = userRow['role'] ?? '';
+      if (userRole == 'admin') {
         Navigator.pushReplacementNamed(context, '/admin-dashboard');
       } else {
-        await _routeAfterLogin();
+        await _routeAfterLogin(userRow);
       }
     } catch (e) {
       setState(() => _isLoading = false);
@@ -352,18 +399,23 @@ class _LoginState extends State<Login> {
     );
   }
 
-  Future<void> _routeAfterLogin() async {
+  Future<void> _routeAfterLogin(PostgrestMap userRow) async {
     final sb = Supabase.instance.client;
     final uid = sb.auth.currentUser?.id;
     if (uid == null) {
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (_) => const MemberDashboardPage()),
-      );
+      // Just send them to router
+      if (!mounted) return;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (_) => const RoleRouter()),
+        );
+      });
       return;
     }
 
-    // Gather all accessible units: approved membership + officer roles + collector
+    // Gather all accessible unit ids (member + officer + collector)
     final approvedApps = await sb
         .from('applications')
         .select('dayung_unit_id, approved_at')
@@ -371,53 +423,40 @@ class _LoginState extends State<Login> {
         .eq('status', 'approved')
         .order('approved_at', ascending: false);
     final appList = List<Map<String, dynamic>>.from(approvedApps);
+    final approvedIds = appList.map((a) => a['dayung_unit_id'] as int).toSet();
 
-    final officers = await sb
+    final officerUnits = await sb
         .from('dayung_units')
-        .select(
-          'id, name, barangay, city, province, secretary_id, treasurer_id, president_id, collector_id',
-        )
+        .select('id')
         .or(
           'secretary_id.eq.$uid,treasurer_id.eq.$uid,president_id.eq.$uid,collector_id.eq.$uid',
         );
-    final officerUnits = List<Map<String, dynamic>>.from(officers);
+    final officerIds = List<Map<String, dynamic>>.from(
+      officerUnits,
+    ).map((o) => o['id'] as int).toSet();
 
-    List<Map<String, dynamic>> collectorUnits = [];
+    Set<int> collectorIds = {};
     try {
       final cu = await sb
           .from('dayung_collectors')
           .select('dayung_unit_id')
           .eq('user_id', uid);
-      final cuIds = List<Map<String, dynamic>>.from(
+      collectorIds = List<Map<String, dynamic>>.from(
         cu,
-      ).map((e) => e['dayung_unit_id'] as int).toList();
-      if (cuIds.isNotEmpty) {
-        final rows = await sb
-            .from('dayung_units')
-            .select(
-              'id, name, barangay, city, province, secretary_id, treasurer_id, president_id, collector_id',
-            )
-            .inFilter('id', cuIds);
-        collectorUnits = List<Map<String, dynamic>>.from(rows);
-      }
+      ).map((e) => e['dayung_unit_id'] as int).toSet();
     } catch (_) {}
 
-    final approvedIds = appList.map((a) => a['dayung_unit_id'] as int).toSet();
-    final officerIds = officerUnits.map((o) => o['id'] as int).toSet();
-    final collectorIds = collectorUnits.map((o) => o['id'] as int).toSet();
     final allIds = <int>{
       ...approvedIds,
       ...officerIds,
       ...collectorIds,
     }.toList();
 
+    final prefs = await SharedPreferences.getInstance();
     Map<String, dynamic>? selected;
 
-    final prefs = await SharedPreferences.getInstance();
-    final savedRaw = prefs.getString('selectedDayungUnit');
-
     if (allIds.length > 1) {
-      // Important: clear in-memory selection so SelectDayung doesn't mark any as "Already using"
+      // Clear in-memory to avoid "Already using" false positive
       try {
         await context.read<DayungUnitProvider>().clear();
       } catch (_) {}
@@ -426,78 +465,56 @@ class _LoginState extends State<Login> {
         context,
         MaterialPageRoute(builder: (_) => const SelectDayungPage()),
       );
-      if (picked == null) {
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (_) => const MemberDashboardPage()),
-        );
-        return;
-      }
-      selected = picked;
+      if (!mounted) return;
 
-      // Show loading dialog while preparing dashboard
-      showDialog(
-        context: context,
-        barrierDismissible: false,
-        builder: (_) => const Center(child: CircularProgressIndicator()),
-      );
-    } else {
-      // Try saved selection only when 0 or 1 unit
-      final prefs = await SharedPreferences.getInstance();
-      final savedRaw = prefs.getString('selectedDayungUnit');
-      int? savedId;
-      if (savedRaw != null) {
-        try {
-          savedId = (jsonDecode(savedRaw) as Map)['id'] as int?;
-        } catch (_) {}
-      }
-
-      if (savedId != null && allIds.contains(savedId)) {
-        final u = await sb
-            .from('dayung_units')
-            .select(
-              'id, name, barangay, city, province, secretary_id, treasurer_id, president_id, collector_id',
-            )
-            .eq('id', savedId)
-            .maybeSingle();
-        if (u != null) selected = Map<String, dynamic>.from(u);
-      }
-
-      if (selected == null) {
-        if (allIds.isEmpty) {
+      if (picked == null || picked is! Map<String, dynamic>) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!mounted) return;
           Navigator.pushReplacement(
             context,
             MaterialPageRoute(builder: (_) => const MemberDashboardPage()),
           );
-          return;
-        }
-        final onlyId = allIds.first;
+        });
+        return;
+      }
+      selected = picked;
+    } else {
+      // 0 or 1 unit, try saved or load the only one
+      int? chosenId;
+      final savedRaw = prefs.getString('selectedDayungUnit');
+      if (savedRaw != null) {
+        try {
+          chosenId = (jsonDecode(savedRaw) as Map)['id'] as int?;
+        } catch (_) {}
+      }
+      chosenId ??= allIds.isEmpty ? null : allIds.first;
+
+      if (chosenId != null) {
         final u = await sb
             .from('dayung_units')
-            .select(
-              'id, name, barangay, city, province, secretary_id, treasurer_id, president_id, collector_id',
-            )
-            .eq('id', onlyId)
+            .select('id, name, barangay, city, province')
+            .eq('id', chosenId)
             .maybeSingle();
         if (u != null) selected = Map<String, dynamic>.from(u);
       }
     }
 
-    if (selected == null) {
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (_) => const MemberDashboardPage()),
-      );
-      return;
-    }
+    selected ??= {
+      'id': null,
+      'name': 'Dayung',
+      'barangay': null,
+      'city': null,
+      'province': null,
+    };
 
-    // Persist and refresh roles
+    // Persist and refresh providers
     await prefs.setString('selectedDayungUnit', jsonEncode(selected));
     await prefs.setString('selectedDayungUnitData', jsonEncode(selected));
+
     final unitId = selected['id'] as int?;
     if (unitId != null && mounted) {
       await context.read<DayungRoleProvider>().refreshRoles(unitId);
-      // NEW: broadcast name/object so all headers/pages sync immediately
+      if (!mounted) return;
       context.read<DayungUnitProvider>().setDayungUnit(
         '${selected['name'] ?? 'Dayung'}',
         obj: {
@@ -510,43 +527,15 @@ class _LoginState extends State<Login> {
       );
     }
 
-    // Route to dashboard based on role in this selected unit (priority: President > Secretary > Treasurer > Collector > Member)
-    final urow = await sb
-        .from('dayung_units')
-        .select('id, secretary_id, treasurer_id, president_id, collector_id')
-        .eq('id', selected['id'] as Object)
-        .maybeSingle();
-
-    final isPresident = (urow?['president_id']?.toString() ?? '') == uid;
-    final isSecretary = (urow?['secretary_id']?.toString() ?? '') == uid;
-    final isTreasurer = (urow?['treasurer_id']?.toString() ?? '') == uid;
-    bool isCollector = (urow?['collector_id']?.toString() ?? '') == uid;
-    if (!isCollector) {
-      try {
-        final dc = await sb
-            .from('dayung_collectors')
-            .select('user_id')
-            .eq('dayung_unit_id', selected['id'])
-            .eq('user_id', uid)
-            .limit(1);
-        isCollector = (dc as List).isNotEmpty;
-      } catch (_) {}
-    }
-
-    final Widget home = isPresident
-        ? const PresidentDashboardPage()
-        : isSecretary
-        ? const SecretaryDashboardPage()
-        : isTreasurer
-        ? const TreasurerDashboardPage()
-        : isCollector
-        ? const CollectorDashboardPage()
-        : const MemberDashboardPage();
-
-    if (Navigator.canPop(context)) {
-      Navigator.of(context, rootNavigator: true).pop();
-    }
-    Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => home));
+    if (!mounted) return;
+    // Defer navigation to avoid "Overlay setState during build"
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (_) => const RoleRouter()),
+      );
+    });
   }
 
   @override

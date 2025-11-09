@@ -5,8 +5,16 @@ import 'package:capstone_app/Secretary/dashboard.dart';
 import 'package:capstone_app/Treasurer/dashboard.dart';
 import 'package:capstone_app/Collector/dashboard.dart';
 import 'package:capstone_app/Members/dashboard.dart';
+import 'dart:convert';
+import 'package:crypto/crypto.dart';
 
 final _sb = Supabase.instance.client;
+
+String hashPassword(String password) {
+  final bytes = utf8.encode(password);
+  final digest = sha256.convert(bytes);
+  return digest.toString();
+}
 
 Future<bool> isPresident() async {
   final uid = _sb.auth.currentUser?.id;

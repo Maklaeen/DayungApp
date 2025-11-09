@@ -5,7 +5,11 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:geolocator/geolocator.dart';
 
 class DayungUnitProvider extends ChangeNotifier {
-  String? _dayungUnit; // display name
+  int? _currentUnitId;
+  String? _currentName;
+  Map<String, dynamic>? _currentObj;
+
+  String? _dayungUnit;
   Map<String, dynamic>? _dayungUnitObj; // persisted object
 
   // NEW: user location + nearby computations
@@ -17,6 +21,13 @@ class DayungUnitProvider extends ChangeNotifier {
   // Each entry enriched with distanceMeters (double)
   double _lastRadius = 0;
 
+  int? get currentUnitId => _currentUnitId;
+  String? get currentName => _currentName;
+  Map<String, dynamic>? get currentObj =>
+      _currentObj == null ? null : Map<String, dynamic>.from(_currentObj!);
+
+  int? _asInt(dynamic v) => v is int ? v : int.tryParse('$v');
+
   String? get dayungUnit => _dayungUnit;
   Map<String, dynamic>? get dayungUnitObj => _dayungUnitObj;
 
@@ -26,16 +37,34 @@ class DayungUnitProvider extends ChangeNotifier {
 
   List<Map<String, dynamic>> get nearbyDayungs => _nearbyDayungs;
   double get lastRadius => _lastRadius;
-  int? get currentUnitId {
-    final v = _dayungUnitObj?['id'];
-    if (v is int) return v;
-    return int.tryParse('$v');
-  }
 
   double? _toDouble(dynamic v) {
     if (v == null) return null;
     if (v is num) return v.toDouble();
     return double.tryParse('$v');
+  }
+
+  // int? _asInt(dynamic v) {
+  //   if (v == null) return null;
+  //   if (v is int) return v;
+  //   return int.tryParse('$v');
+  // }
+
+  void setDayungUnit(String name, {Map<String, dynamic>? obj}) {
+    final newId = _asInt(obj?['id']);
+    final same = newId == _currentUnitId && name == _currentName;
+    if (same) return;
+    _currentUnitId = newId; // <-- ensure ID is set
+    _currentName = name;
+    _currentObj = obj == null ? null : Map<String, dynamic>.from(obj);
+    notifyListeners();
+  }
+
+  Future<void> clear() async {
+    _currentUnitId = null;
+    _currentName = null;
+    _currentObj = null;
+    notifyListeners();
   }
 
   Map<String, dynamic> _normalizeUnit(Map<String, dynamic> u) {
@@ -78,13 +107,13 @@ class DayungUnitProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  void setDayungUnit(String? name, {Map<String, dynamic>? obj}) {
-    _dayungUnit = name;
-    if (obj != null) {
-      _dayungUnitObj = _normalizeUnit(Map<String, dynamic>.from(obj)); // NEW
-    }
-    notifyListeners();
-  }
+  // void setDayungUnit(String? name, {Map<String, dynamic>? obj}) {
+  //   _dayungUnit = name;
+  //   if (obj != null) {
+  //     _dayungUnitObj = _normalizeUnit(Map<String, dynamic>.from(obj)); // NEW
+  //   }
+  //   notifyListeners();
+  // }
 
   Future<void> persistSelection(Map<String, dynamic> unit) async {
     _dayungUnitObj = _normalizeUnit(Map<String, dynamic>.from(unit)); // NEW
@@ -160,14 +189,14 @@ class DayungUnitProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> clear() async {
-    _dayungUnit = null;
-    _dayungUnitObj = null;
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.remove('selectedDayungUnit');
-    await prefs.remove('selectedDayungUnitData'); // NEW
-    notifyListeners();
-  }
+  // Future<void> clear() async {
+  //   _dayungUnit = null;
+  //   _dayungUnitObj = null;
+  //   final prefs = await SharedPreferences.getInstance();
+  //   await prefs.remove('selectedDayungUnit');
+  //   await prefs.remove('selectedDayungUnitData'); // NEW
+  //   notifyListeners();
+  // }
 
   // ---------------- NEW: Geolocation helpers ----------------
 

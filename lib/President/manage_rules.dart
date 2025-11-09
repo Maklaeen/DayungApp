@@ -1,5 +1,7 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:flutter/services.dart';
 
 // Modern UI colors
 const kText = Color(0xFF111827);
@@ -18,16 +20,25 @@ class ManageRulesPagePres extends StatefulWidget {
 
 class _ManageRulesPagePresState extends State<ManageRulesPagePres> {
   final sb = Supabase.instance.client;
+  final List<String> _paymentMethods = [
+    'GCash',
+    'Paymaya',
+    'Bank Transfer',
+    'Cash',
+  ];
+  List<String> _selectedMethods = [];
 
   bool _loading = true;
   List<Map<String, dynamic>> _units = [];
   int? _unitId;
 
   final _contrib = TextEditingController();
-  final _payout = TextEditingController();
-  final _membership = TextEditingController();
-  final _meeting = TextEditingController();
-  final _service = TextEditingController();
+  final _mempayment = TextEditingController();
+  final _penaltypayment = TextEditingController();
+  final _paymentmethod = TextEditingController();
+
+  // New service rules list
+  List<Map<String, dynamic>> _serviceRules = [];
 
   @override
   void initState() {
@@ -38,10 +49,9 @@ class _ManageRulesPagePresState extends State<ManageRulesPagePres> {
   @override
   void dispose() {
     _contrib.dispose();
-    _payout.dispose();
-    _membership.dispose();
-    _meeting.dispose();
-    _service.dispose();
+    _mempayment.dispose();
+    _penaltypayment.dispose();
+    _paymentmethod.dispose();
     super.dispose();
   }
 
@@ -74,16 +84,29 @@ class _ManageRulesPagePresState extends State<ManageRulesPagePres> {
     final row = await sb
         .from('dayung_rules')
         .select(
-          'contribution_rules, payout_rules, membership_rules, meeting_rules, service_rules',
+          'contribution_amount, membership_payment, penalty_payment, payment_method, service_rules',
         )
         .eq('dayung_unit_id', unitId)
         .maybeSingle();
 
-    _contrib.text = (row?['contribution_rules'] ?? '').toString();
-    _payout.text = (row?['payout_rules'] ?? '').toString();
-    _membership.text = (row?['membership_rules'] ?? '').toString();
-    _meeting.text = (row?['meeting_rules'] ?? '').toString();
-    _service.text = (row?['service_rules'] ?? '').toString();
+    _contrib.text = (row?['contribution_amount'] ?? '').toString();
+    _mempayment.text = (row?['membership_payment'] ?? '').toString();
+    _penaltypayment.text = (row?['penalty_payment'] ?? '').toString();
+    _paymentmethod.text = (row?['payment_method'] ?? '').toString();
+
+    _selectedMethods = _paymentmethod.text.isNotEmpty
+        ? _paymentmethod.text.split(',').map((e) => e.trim()).toList()
+        : [];
+
+    final serviceRulesText = row?['service_rules'] ?? '[]';
+    try {
+      _serviceRules = List<Map<String, dynamic>>.from(
+        jsonDecode(serviceRulesText),
+      );
+    } catch (e) {
+      _serviceRules = [];
+    }
+
     setState(() {});
   }
 
@@ -91,20 +114,29 @@ class _ManageRulesPagePresState extends State<ManageRulesPagePres> {
     if (_unitId == null) return;
     setState(() => _loading = true);
     try {
+      // 🔹 Get the selected unit name based on _unitId
+      final selectedUnit = _units.firstWhere(
+        (u) => int.tryParse('${u['id']}') == _unitId,
+        orElse: () => {},
+      );
+      final unitName = selectedUnit['name'] ?? '';
+
+      // 🔹 Prepare payload including both ID and name
       final payload = {
         'dayung_unit_id': _unitId,
-        'contribution_rules': _contrib.text.trim(),
-        'payout_rules': _payout.text.trim(),
-        'membership_rules': _membership.text.trim(),
-        'meeting_rules': _meeting.text.trim(),
-        'service_rules': _service.text.trim(),
+        'dayung_unit_name': unitName,
+        'contribution_amount': _contrib.text.trim(),
+        'membership_payment': _mempayment.text.trim(),
+        'penalty_payment': _penaltypayment.text.trim(),
+        'payment_method': _selectedMethods.join(', '),
+        'service_rules': jsonEncode(_serviceRules),
         'updated_by': sb.auth.currentUser?.id,
       };
 
-      // Upsert single row per unit
       await sb
           .from('dayung_rules')
           .upsert(payload, onConflict: 'dayung_unit_id');
+
       if (mounted) {
         ScaffoldMessenger.of(
           context,
@@ -225,119 +257,28 @@ class _ManageRulesPagePresState extends State<ManageRulesPagePres> {
                       padding: const EdgeInsets.all(20),
                       child: Column(
                         children: [
-                          // Unit picker
-                          Container(
-                            padding: const EdgeInsets.all(20),
-                            decoration: BoxDecoration(
-                              color: kCardBg,
-                              borderRadius: BorderRadius.circular(20),
-                              border: Border.all(
-                                color: kBorderColor.withOpacity(0.3),
-                                width: 1,
-                              ),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: Colors.black.withOpacity(0.05),
-                                  blurRadius: 15,
-                                  offset: const Offset(0, 6),
-                                ),
-                              ],
-                            ),
-                            child: Row(
-                              children: [
-                                Container(
-                                  padding: const EdgeInsets.all(8),
-                                  decoration: BoxDecoration(
-                                    color: kPrimary.withOpacity(0.1),
-                                    borderRadius: BorderRadius.circular(12),
-                                  ),
-                                  child: const Icon(
-                                    Icons.location_on_rounded,
-                                    color: kPrimary,
-                                    size: 20,
-                                  ),
-                                ),
-                                const SizedBox(width: 8),
-                                Text(
-                                  'Dayung Unit:',
-                                  style: TextStyle(
-                                    fontWeight: FontWeight.w700,
-                                    fontSize: 16,
-                                    color: kText,
-                                    fontFamily: 'Montserrat',
-                                  ),
-                                ),
-                                const SizedBox(width: 8),
-                                Expanded(
-                                  child: DropdownButtonFormField<int>(
-                                    value: _unitId,
-                                    isExpanded: true,
-                                    decoration: InputDecoration(
-                                      filled: true,
-                                      fillColor: kCardBg,
-                                      border: OutlineInputBorder(
-                                        borderRadius: BorderRadius.circular(12),
-                                        borderSide: BorderSide(
-                                          color: kBorderColor,
-                                          width: 1,
-                                        ),
-                                      ),
-                                      enabledBorder: OutlineInputBorder(
-                                        borderRadius: BorderRadius.circular(12),
-                                        borderSide: BorderSide(
-                                          color: kBorderColor,
-                                          width: 1,
-                                        ),
-                                      ),
-                                      focusedBorder: OutlineInputBorder(
-                                        borderRadius: BorderRadius.circular(12),
-                                        borderSide: BorderSide(
-                                          color: kPrimary,
-                                          width: 2,
-                                        ),
-                                      ),
-                                    ),
-                                    items: _units
-                                        .map(
-                                          (u) => DropdownMenuItem<int>(
-                                            value: int.tryParse('${u['id']}'),
-                                            child: Text(
-                                              (u['name'] ?? 'Unit').toString(),
-                                              overflow: TextOverflow.ellipsis,
-                                              style: const TextStyle(
-                                                fontFamily: 'OpenSans',
-                                                fontWeight: FontWeight.w600,
-                                              ),
-                                            ),
-                                          ),
-                                        )
-                                        .toList(),
-                                    onChanged: (v) async {
-                                      setState(() => _unitId = v);
-                                      if (v != null) {
-                                        setState(() => _loading = true);
-                                        try {
-                                          await _loadRules(v);
-                                        } finally {
-                                          if (mounted)
-                                            setState(() => _loading = false);
-                                        }
-                                      }
-                                    },
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
+                          _unitPicker(),
                           const SizedBox(height: 20),
                           Expanded(
                             child: ListView(
                               children: [
-                                _field('Contribution rules', _contrib),
-                                _field('Payout rules', _payout),
-                                _field('Membership rules', _membership),
-                                _field('Meeting rules', _meeting),
-                                _field('Service rules', _service),
+                                _field(
+                                  'Contribution Amount',
+                                  _contrib,
+                                  numbersOnly: true,
+                                ),
+                                _field(
+                                  'Membership Payment',
+                                  _mempayment,
+                                  numbersOnly: true,
+                                ),
+                                _field(
+                                  'Penalty Payment',
+                                  _penaltypayment,
+                                  numbersOnly: true,
+                                ),
+                                _paymentMethodSelector(),
+                                _serviceRulesSection(),
                                 const SizedBox(height: 16),
                                 ElevatedButton.icon(
                                   onPressed: _save,
@@ -369,13 +310,285 @@ class _ManageRulesPagePresState extends State<ManageRulesPagePres> {
     );
   }
 
-  Widget _field(String label, TextEditingController c) {
+  Widget _unitPicker() {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: kCardBg,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: kBorderColor.withOpacity(0.3), width: 1),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 15,
+            offset: const Offset(0, 6),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: kPrimary.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: const Icon(
+              Icons.location_on_rounded,
+              color: kPrimary,
+              size: 20,
+            ),
+          ),
+          const SizedBox(width: 8),
+          Text(
+            'Dayung Unit:',
+            style: TextStyle(
+              fontWeight: FontWeight.w700,
+              fontSize: 16,
+              color: kText,
+              fontFamily: 'Montserrat',
+            ),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: DropdownButtonFormField<int>(
+              initialValue: _unitId,
+              isExpanded: true,
+              decoration: InputDecoration(
+                filled: true,
+                fillColor: kCardBg,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide(color: kBorderColor, width: 1),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide(color: kBorderColor, width: 1),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide(color: kPrimary, width: 2),
+                ),
+              ),
+              items: _units
+                  .map(
+                    (u) => DropdownMenuItem<int>(
+                      value: int.tryParse('${u['id']}'),
+                      child: Text(
+                        (u['name'] ?? 'Unit').toString(),
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontFamily: 'OpenSans',
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  )
+                  .toList(),
+              onChanged: (v) async {
+                setState(() => _unitId = v);
+                if (v != null) {
+                  setState(() => _loading = true);
+                  try {
+                    await _loadRules(v);
+                  } finally {
+                    if (mounted) setState(() => _loading = false);
+                  }
+                }
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _paymentMethodSelector() {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: kCardBg,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: kBorderColor, width: 1),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Payment Methods',
+            style: TextStyle(
+              fontFamily: 'Montserrat',
+              fontWeight: FontWeight.w700,
+              fontSize: 16,
+              color: kText,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: _paymentMethods.map((method) {
+              final selected = _selectedMethods.contains(method);
+              return FilterChip(
+                label: Text(
+                  method,
+                  style: TextStyle(
+                    fontFamily: 'OpenSans',
+                    fontWeight: FontWeight.w600,
+                    color: selected ? Colors.white : kText,
+                  ),
+                ),
+                selected: selected,
+                selectedColor: kPrimary,
+                backgroundColor: kCardBg,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10),
+                  side: BorderSide(color: selected ? kPrimary : kBorderColor),
+                ),
+                onSelected: (value) {
+                  setState(() {
+                    if (value) {
+                      _selectedMethods.add(method);
+                    } else {
+                      _selectedMethods.remove(method);
+                    }
+                  });
+                },
+              );
+            }).toList(),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _serviceRulesSection() {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: kCardBg,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: kBorderColor, width: 1),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Service Rules',
+            style: TextStyle(
+              fontFamily: 'Montserrat',
+              fontWeight: FontWeight.w700,
+              fontSize: 16,
+              color: kText,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Column(
+            children: [
+              for (int i = 0; i < _serviceRules.length; i++)
+                _serviceRuleItem(i),
+              const SizedBox(height: 8),
+              TextButton.icon(
+                onPressed: () {
+                  setState(() {
+                    _serviceRules.add({'rule': '', 'required': false});
+                  });
+                },
+                icon: const Icon(Icons.add_circle, color: kPrimary),
+                label: const Text(
+                  'Add Rule',
+                  style: TextStyle(
+                    fontFamily: 'OpenSans',
+                    fontWeight: FontWeight.w600,
+                    color: kPrimary,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _serviceRuleItem(int index) {
+    final rule = _serviceRules[index];
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.all(8),
+      decoration: BoxDecoration(
+        color: kCardBg,
+        border: Border.all(color: kBorderColor),
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 5,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: TextFormField(
+              initialValue: rule['rule'],
+              onChanged: (v) => _serviceRules[index]['rule'] = v,
+              decoration: const InputDecoration(
+                labelText: 'Rule',
+                border: OutlineInputBorder(),
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
+          Column(
+            children: [
+              const Text(
+                'Required',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  fontFamily: 'OpenSans',
+                ),
+              ),
+              Checkbox(
+                value: rule['required'],
+                onChanged: (v) {
+                  setState(() {
+                    _serviceRules[index]['required'] = v ?? false;
+                  });
+                },
+              ),
+            ],
+          ),
+          IconButton(
+            icon: const Icon(Icons.delete, color: kDanger),
+            onPressed: () {
+              setState(() {
+                _serviceRules.removeAt(index);
+              });
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _field(
+    String label,
+    TextEditingController c, {
+    bool numbersOnly = false,
+  }) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
       child: TextFormField(
         controller: c,
-        maxLines: null,
-        minLines: 4,
+        keyboardType: numbersOnly
+            ? TextInputType.number
+            : TextInputType.multiline,
+        inputFormatters: numbersOnly
+            ? [FilteringTextInputFormatter.digitsOnly]
+            : null,
         decoration: InputDecoration(
           labelText: label,
           labelStyle: const TextStyle(

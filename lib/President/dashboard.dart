@@ -3,6 +3,7 @@ import 'package:capstone_app/President/post_announcement.dart';
 import 'package:capstone_app/President/presidentmemberspage.dart'
     hide kPrimary, kNeutralText;
 import 'package:capstone_app/Providers/dayung_role_provider.dart';
+import 'package:capstone_app/pages/paymentmethod.dart';
 import 'package:capstone_app/pages/recentdeathnotices.dart';
 import 'package:capstone_app/ui/theme/branding.dart';
 import 'package:flutter/material.dart';
@@ -11,6 +12,8 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:capstone_app/pages/notification.dart';
 import 'package:capstone_app/profile/profile.dart';
 import 'package:fl_chart/fl_chart.dart';
+import 'package:capstone_app/pages/contributionhistory.dart';
+import 'package:capstone_app/pages/claims.dart';
 
 // Palette aligned with Secretary
 const kText = Color(0xFF111827);
@@ -38,6 +41,8 @@ class _PresidentDashboardPageState extends State<PresidentDashboardPage> {
   int? _lastRoleUnitId;
   int _pendingMembers = 0;
   num _pendingAmount = 0;
+  Map<String, dynamic>? _latestAnnouncement;
+  bool _loadingAnnouncement = true;
 
   int _currentIndex = 0;
   bool _showNavBar = true;
@@ -53,16 +58,39 @@ class _PresidentDashboardPageState extends State<PresidentDashboardPage> {
   }
 
   Future<void> _load() async {
-    setState(() => _loading = true);
+    setState(() {
+      _loading = true;
+      _loadingAnnouncement = true;
+    });
     try {
       final ids = await _managedDayungIds();
       await Future.wait([
         _fetchActiveMembersCount(ids),
         _fetchRecentDeaths(ids),
         _fetchPendingPayments(ids),
+        _fetchLatestAnnouncement(ids),
       ]);
     } finally {
-      if (mounted) setState(() => _loading = false);
+      if (mounted)
+        setState(() {
+          _loading = false;
+          _loadingAnnouncement = false;
+        });
+    }
+  }
+
+  Future<void> _fetchLatestAnnouncement(List<int> unitIds) async {
+    _latestAnnouncement = null;
+    if (unitIds.isEmpty) return;
+    final rows = await _sb
+        .from('announcements')
+        .select('id, title, body, created_at')
+        .inFilter('dayung_unit_id', unitIds)
+        .order('created_at', ascending: false)
+        .limit(1);
+    final list = List<Map<String, dynamic>>.from(rows);
+    if (list.isNotEmpty) {
+      _latestAnnouncement = list.first;
     }
   }
 
@@ -179,8 +207,8 @@ class _PresidentDashboardPageState extends State<PresidentDashboardPage> {
 
   List<Widget> get _pages => [
     _buildHomePage(context),
-    const Placeholder(child: Center(child: Text("Contributions"))),
-    const Placeholder(child: Center(child: Text("Claims"))),
+    const ContributionHistory(),
+    const ClaimsPage(),
   ];
 
   @override
@@ -271,7 +299,6 @@ class _PresidentDashboardPageState extends State<PresidentDashboardPage> {
             ],
           ),
           const SizedBox(height: 24),
-          // Greeting section
           Row(
             children: [
               const Expanded(
@@ -716,8 +743,8 @@ class _PresidentDashboardPageState extends State<PresidentDashboardPage> {
   Widget _buildQuickActions() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
-      children: const [
-        Text(
+      children: [
+        const Text(
           'Quick Actions',
           style: TextStyle(
             fontSize: 18,
@@ -726,13 +753,76 @@ class _PresidentDashboardPageState extends State<PresidentDashboardPage> {
             fontFamily: 'Montserrat',
           ),
         ),
-        SizedBox(height: 12),
-        _PostAnnouncementButton(),
-        SizedBox(height: 18),
-        _UpcomingText(),
-        SizedBox(height: 12),
-        _ContributionBarChartCard(),
+        const SizedBox(height: 12),
+        const _PostAnnouncementButton(),
+        const SizedBox(height: 18),
+        _payContributionButton(context),
+        const SizedBox(height: 12),
+        _UpcomingAnnouncementCard(
+          loading: _loadingAnnouncement,
+          announcement: _latestAnnouncement,
+        ),
+        const SizedBox(height: 12),
+        const _ContributionBarChartCard(),
       ],
+    );
+  }
+
+  Widget _payContributionButton(BuildContext context) {
+    return Material(
+      color: kPrimary,
+      borderRadius: BorderRadius.circular(20),
+      elevation: 0,
+      child: InkWell(
+        onTap: () async {
+          final ids = await _managedDayungIds();
+          if (ids.isEmpty) return;
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => PaymentMethodPage(dayungUnitId: ids.first),
+            ),
+          );
+        },
+        borderRadius: BorderRadius.circular(20),
+        child: Container(
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(vertical: 20),
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: [kPrimary, kPrimaryLight],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+            borderRadius: BorderRadius.circular(20),
+            boxShadow: [
+              BoxShadow(
+                color: kPrimary.withOpacity(0.4),
+                blurRadius: 15,
+                offset: const Offset(0, 6),
+              ),
+            ],
+          ),
+          alignment: Alignment.center,
+          child: const Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(Icons.payments_rounded, color: Colors.white, size: 24),
+              SizedBox(width: 12),
+              Text(
+                'Pay Contribution',
+                style: TextStyle(
+                  fontFamily: 'Montserrat',
+                  color: Colors.white,
+                  fontSize: 18.5,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 0.3,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 
@@ -1293,4 +1383,136 @@ class _MiniLegendRow extends StatelessWidget {
     height: 10,
     decoration: BoxDecoration(color: c, borderRadius: BorderRadius.circular(3)),
   );
+}
+
+class _UpcomingAnnouncementCard extends StatelessWidget {
+  final bool loading;
+  final Map<String, dynamic>? announcement;
+
+  const _UpcomingAnnouncementCard({
+    required this.loading,
+    required this.announcement,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    if (loading) {
+      return Container(
+        margin: const EdgeInsets.symmetric(horizontal: 20),
+        padding: const EdgeInsets.symmetric(vertical: 24),
+        child: const Center(child: CircularProgressIndicator()),
+      );
+    }
+    if (announcement == null) {
+      return Container(
+        margin: const EdgeInsets.symmetric(horizontal: 20),
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+        decoration: BoxDecoration(
+          color: kCardBg,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: kBorderColor.withOpacity(0.3), width: 1),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.05),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: kPrimary.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: const Icon(Icons.event_rounded, color: kPrimary, size: 20),
+            ),
+            const SizedBox(width: 12),
+            const Expanded(
+              child: Text(
+                'No upcoming announcements.',
+                style: TextStyle(
+                  fontFamily: 'Montserrat',
+                  fontSize: 16,
+                  height: 1.3,
+                  color: kNeutralText,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 0.2,
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    final title = (announcement!['title'] ?? '').toString();
+    final createdAt = announcement!['created_at']?.toString();
+    String dateStr = '';
+    if (createdAt != null && createdAt.isNotEmpty) {
+      final dt = DateTime.tryParse(createdAt);
+      if (dt != null) {
+        dateStr = '${dt.month}/${dt.day}/${dt.year}';
+      }
+    }
+
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 20),
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+      decoration: BoxDecoration(
+        color: kCardBg,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: kBorderColor.withOpacity(0.3), width: 1),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: kPrimary.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: const Icon(Icons.event_rounded, color: kPrimary, size: 20),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: const TextStyle(
+                    fontFamily: 'Montserrat',
+                    fontSize: 16,
+                    height: 1.3,
+                    color: kNeutralText,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 0.2,
+                  ),
+                ),
+                if (dateStr.isNotEmpty)
+                  Text(
+                    dateStr,
+                    style: const TextStyle(
+                      fontSize: 12,
+                      color: kSubText,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }

@@ -80,8 +80,7 @@ class _ProfilePageState extends State<ProfilePage> {
 
   bool get isPresident {
     try {
-      final roles = context.read<DayungRoleProvider>();
-      return roles.isPresident;
+      return context.select<DayungRoleProvider, bool>((r) => r.isPresident);
     } catch (_) {
       return false;
     }
@@ -1301,6 +1300,37 @@ class _ProfilePageState extends State<ProfilePage> {
     }
   }
 
+  Future<void> handleLogout(BuildContext context) async {
+    // 1) Sign out Supabase
+    try {
+      await Supabase.instance.client.auth.signOut();
+    } catch (_) {}
+
+    // 2) Clear local selections
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove('selectedDayungUnit');
+    await prefs.remove('selectedDayungUnitData');
+
+    // 3) Clear providers (single source of truth)
+    try {
+      context.read<DayungUnitProvider>().clear();
+    } catch (_) {}
+    try {
+      await context.read<DayungRoleProvider>().refreshRoles(null);
+    } catch (_) {}
+
+    if (!context.mounted) return;
+
+    // 4) Defer navigation to next frame to avoid "Overlay setState during build"
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!context.mounted) return;
+      Navigator.of(context).pushAndRemoveUntil(
+        MaterialPageRoute(builder: (_) => const Login()),
+        (route) => false,
+      );
+    });
+  }
+
   InputDecoration _fieldDecoration(String hint) {
     return InputDecoration(
       hintText: hint,
@@ -1867,87 +1897,89 @@ class _ProfilePageState extends State<ProfilePage> {
         ),
       );
     } else {
-      return Column(
-        children: [
-          if (isPresident)
+      return Consumer<DayungRoleProvider>(
+        builder: (_, roles, __) => Column(
+          children: [
+            if (roles.isPresident) // <-- show only for president
+              _buildActionButton(
+                icon: Icons.rule_rounded,
+                label: 'Manage Rules',
+                color: Colors.indigo,
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => const ManageRulesPagePres(),
+                    ),
+                  );
+                },
+              ),
+            if (roles.isPresident) const SizedBox(height: 8),
             _buildActionButton(
-              icon: Icons.rule_rounded,
-              label: 'Manage Rules',
-              color: Colors.indigo,
+              icon: Icons.people_rounded,
+              label: 'Beneficiaries',
+              color: themeButtonBeneficiary,
               onTap: () {
-                Navigator.push(
+                Navigator.pushReplacement(
                   context,
-                  MaterialPageRoute(
-                    builder: (_) => const ManageRulesPagePres(),
-                  ),
+                  MaterialPageRoute(builder: (_) => const BeneficiaryPage()),
                 );
               },
             ),
-          const SizedBox(height: 8),
-          _buildActionButton(
-            icon: Icons.people_rounded,
-            label: 'Beneficiaries',
-            color: themeButtonBeneficiary,
-            onTap: () {
-              Navigator.pushReplacement(
-                context,
-                MaterialPageRoute(builder: (_) => const BeneficiaryPage()),
-              );
-            },
-          ),
-          const SizedBox(height: 8),
-          _buildActionButton(
-            icon: Icons.notifications_active_rounded,
-            label: 'Notification trigger',
-            color: _isDarkMode
-                ? const Color(0xFF6366F1)
-                : const Color(0xFF3B82F6),
-            onTap: () async {
-              print('Notify button pressed');
-              try {
-                final status = await Permission.notification.request().timeout(
-                  const Duration(seconds: 3),
-                );
-                if (status.isDenied || status.isPermanentlyDenied) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Notification permission required'),
-                    ),
-                  );
-                  return;
-                }
-                final noti = NotiService();
-                await noti.initNotification();
-                try {
-                  await noti.showNotification(
-                    title: 'MESSENGER',
-                    body: 'HOY ASA AKONG BAYNTE SA PITAKA??',
-                  );
-                } catch (e) {
-                  print('Notification error: $e');
-                }
-              } catch (e) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text('Permission request failed: $e')),
-                );
-              }
-            },
-          ),
-          const SizedBox(height: 8),
-          _buildActionButton(
-            icon: Icons.lock_reset_rounded,
-            label: 'Change Password',
-            color: themeButtonChangePw,
-            onTap: _openChangePasswordDialog,
-          ),
-          const SizedBox(height: 8),
-          _buildActionButton(
-            icon: Icons.logout_rounded,
-            label: 'Logout',
-            color: themeButtonLogout,
-            onTap: _confirmLogout,
-          ),
-        ],
+            // const SizedBox(height: 8),
+            // _buildActionButton(
+            //   icon: Icons.notifications_active_rounded,
+            //   label: 'Notification trigger',
+            //   color: _isDarkMode
+            //       ? const Color(0xFF6366F1)
+            //       : const Color(0xFF3B82F6),
+            //   onTap: () async {
+            //     print('Notify button pressed');
+            //     try {
+            //       final status = await Permission.notification
+            //           .request()
+            //           .timeout(const Duration(seconds: 3));
+            //       if (status.isDenied || status.isPermanentlyDenied) {
+            //         ScaffoldMessenger.of(context).showSnackBar(
+            //           const SnackBar(
+            //             content: Text('Notification permission required'),
+            //           ),
+            //         );
+            //         return;
+            //       }
+            //       final noti = NotiService();
+            //       await noti.initNotification();
+            //       try {
+            //         await noti.showNotification(
+            //           title: 'MESSENGER',
+            //           body: 'HOY ASA AKONG BAYNTE SA PITAKA??',
+            //         );
+            //       } catch (e) {
+            //         print('Notification error: $e');
+            //       }
+            //     } catch (e) {
+            //       ScaffoldMessenger.of(context).showSnackBar(
+            //         SnackBar(content: Text('Permission request failed: $e')),
+            //       );
+            //     }
+            //   },
+            // ),
+            const SizedBox(height: 8),
+            _buildActionButton(
+              icon: Icons.lock_reset_rounded,
+              label: 'Change Password',
+              color: themeButtonChangePw,
+              onTap: _openChangePasswordDialog,
+            ),
+            const SizedBox(height: 8),
+            _buildActionButton(
+              icon: Icons.logout_rounded,
+              label: 'Logout',
+              color: themeButtonLogout,
+              onTap: () => handleLogout(context),
+            ),
+          ],
+        ),
       );
     }
   }
