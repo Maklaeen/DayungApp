@@ -1,4 +1,5 @@
 import 'package:auto_size_text/auto_size_text.dart';
+import 'package:bcrypt/bcrypt.dart';
 import 'package:capstone_app/Auth/utils_file.dart';
 import 'package:capstone_app/screens/dayungquestion.dart'
     hide kPrimary, kBg, kAccent;
@@ -33,8 +34,8 @@ class _RegisterState extends State<Register> {
   final addressController = TextEditingController();
   final passwordController = TextEditingController();
   final confirmPasswordController = TextEditingController();
+
   String get password => passwordController.text.trim();
-  String get passwordHash => hashPassword(password);
 
   bool _obscurePassword = true;
   bool _obscureConfirmPassword = true;
@@ -67,6 +68,15 @@ class _RegisterState extends State<Register> {
   String? selectedDay;
   String? selectedYear;
   String? selectedSex;
+
+  String _normalizePhone(String raw) {
+    final s = raw.replaceAll(RegExp(r'\s+'), '');
+    if (s.startsWith('+')) return s;
+    if (s.startsWith('09') && s.length == 11) {
+      return '+63${s.substring(1)}';
+    }
+    return s;
+  }
 
   // ignore: unused_field
   final List<String> _months = const [
@@ -203,9 +213,12 @@ class _RegisterState extends State<Register> {
 
     setState(() => _isSubmitting = true);
 
-    final email = emailController.text.trim();
+    final email = emailController.text.trim().toLowerCase();
     final password = passwordController.text.trim();
     const role = 'member';
+
+    final rawPhone = mobileController.text.trim();
+    final normalizedPhone = _normalizePhone(rawPhone);
 
     try {
       final res = await Supabase.instance.client.auth.signUp(
@@ -213,6 +226,7 @@ class _RegisterState extends State<Register> {
         password: password,
         data: {'role': role},
       );
+
       final user = res.user;
       if (user == null) {
         setState(() => _isSubmitting = false);
@@ -220,38 +234,44 @@ class _RegisterState extends State<Register> {
         return;
       }
 
-      final dob = _selectedDob!
-          .toIso8601String()
-          .split('T')
-          .first; // YYYY-MM-DD
+      final dob = _selectedDob!.toIso8601String().split('T').first;
 
-      // Insert profile row; errors will throw and be caught by catch
       await Supabase.instance.client.from('users').insert({
         'id': user.id,
         'full_name': fullNameController.text.trim(),
         'dob': dob,
         'sex': selectedSex,
-        'mobile_number': mobileController.text.trim(),
+        'mobile_number': rawPhone,
+        'mobile_number_normalized': normalizedPhone,
         'address': addressController.text.trim(),
-        'birth_certificate_url': '',
-        'marriage_certificate_url': '',
         'role': role,
         'email': email,
-        'password_hash': passwordHash,
+        // omit password_hash here; it will be set by RPC below
       });
+
+      final hashed = BCrypt.hashpw(
+        password,
+        BCrypt.gensalt(),
+      ); // default cost 10
+      await Supabase.instance.client
+          .from('users')
+          .update({'password_hash': hashed})
+          .eq('id', user.id);
 
       setState(() => _isSubmitting = false);
 
-      // Go to questions
       if (!mounted) return;
       Navigator.of(context).pushReplacement(
         MaterialPageRoute(
           builder: (_) => QuestionnaireScreen(userId: user.id, role: role),
         ),
       );
+    } on AuthException catch (e) {
+      setState(() => _isSubmitting = false);
+      _showTopErrorDialog(context, 'Auth error: ${e.message}');
     } catch (e) {
       setState(() => _isSubmitting = false);
-      _showTopErrorDialog(context, 'Error: ${e.toString()}');
+      _showTopErrorDialog(context, 'Error: $e');
     }
   }
 

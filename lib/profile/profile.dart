@@ -29,6 +29,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:capstone_app/Auth/pinlock.dart' hide kAccent, kWarn, kPrimary;
 
 // Senior-friendly color palette (high contrast, softer tones)
 const kText = Color(0xFF111827);
@@ -225,6 +226,294 @@ class _ProfilePageState extends State<ProfilePage> {
             onPressed: onUpload,
           ),
       ],
+    );
+  }
+
+  Future<void> _showPinModal({required bool hasPin}) async {
+    String? err;
+    final pinController = TextEditingController();
+    final confirmController = TextEditingController();
+    final oldPinController = TextEditingController();
+    bool saving = false;
+
+    await showGeneralDialog<void>(
+      context: context,
+      barrierDismissible: !saving,
+      barrierColor: Colors.black.withOpacity(0.35),
+      barrierLabel: hasPin ? 'Change PIN' : 'Set up PIN',
+      transitionDuration: const Duration(milliseconds: 220),
+      pageBuilder: (_, __, ___) => const SizedBox.shrink(),
+      transitionBuilder: (ctx, anim, __, ___) {
+        final curved = CurvedAnimation(
+          parent: anim,
+          curve: Curves.easeOutCubic,
+          reverseCurve: Curves.easeInCubic,
+        );
+        return FadeTransition(
+          opacity: curved,
+          child: ScaleTransition(
+            scale: Tween<double>(begin: 0.96, end: 1.0).animate(curved),
+            child: Center(
+              child: StatefulBuilder(
+                builder: (ctx, setD) {
+                  return Material(
+                    color: Colors.transparent,
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 420),
+                      child: Container(
+                        margin: EdgeInsets.fromLTRB(
+                          24,
+                          0,
+                          24,
+                          MediaQuery.of(ctx).viewInsets.bottom + 24,
+                        ),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 20,
+                          vertical: 24,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(18),
+                          border: Border.all(
+                            color: Colors.black12.withOpacity(0.45),
+                          ),
+                          boxShadow: const [
+                            BoxShadow(
+                              color: Colors.black26,
+                              blurRadius: 18,
+                              offset: Offset(0, 12),
+                            ),
+                          ],
+                        ),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Row(
+                              children: [
+                                Container(
+                                  width: 40,
+                                  height: 40,
+                                  decoration: BoxDecoration(
+                                    color: kAccent.withOpacity(0.12),
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  child: const Icon(
+                                    Icons.pin_rounded,
+                                    color: kAccent,
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: Text(
+                                    hasPin
+                                        ? 'Change App PIN'
+                                        : 'Set up App PIN',
+                                    style: const TextStyle(
+                                      color: kText,
+                                      fontSize: 18,
+                                      fontWeight: FontWeight.w800,
+                                    ),
+                                  ),
+                                ),
+                                IconButton(
+                                  onPressed: saving
+                                      ? null
+                                      : () => Navigator.of(ctx).pop(),
+                                  icon: const Icon(
+                                    Icons.close,
+                                    color: kSubText,
+                                  ),
+                                  tooltip: 'Close',
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 18),
+                            if (hasPin)
+                              Column(
+                                children: [
+                                  TextField(
+                                    controller: oldPinController,
+                                    keyboardType: TextInputType.number,
+                                    maxLength: 6,
+                                    obscureText: true,
+                                    decoration: InputDecoration(
+                                      labelText: 'Current PIN',
+                                      filled: true,
+                                      fillColor: Colors.white,
+                                      contentPadding:
+                                          const EdgeInsets.symmetric(
+                                            horizontal: 14,
+                                            vertical: 14,
+                                          ),
+                                      border: OutlineInputBorder(
+                                        borderRadius: BorderRadius.circular(12),
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(height: 12),
+                                ],
+                              ),
+                            TextField(
+                              controller: pinController,
+                              keyboardType: TextInputType.number,
+                              maxLength: 6,
+                              obscureText: true,
+                              decoration: InputDecoration(
+                                labelText: 'Enter 6-digit PIN',
+                                filled: true,
+                                fillColor: Colors.white,
+                                contentPadding: const EdgeInsets.symmetric(
+                                  horizontal: 14,
+                                  vertical: 14,
+                                ),
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            TextField(
+                              controller: confirmController,
+                              keyboardType: TextInputType.number,
+                              maxLength: 6,
+                              obscureText: true,
+                              decoration: InputDecoration(
+                                labelText: 'Confirm PIN',
+                                filled: true,
+                                fillColor: Colors.white,
+                                contentPadding: const EdgeInsets.symmetric(
+                                  horizontal: 14,
+                                  vertical: 14,
+                                ),
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                              ),
+                            ),
+                            if (err != null)
+                              Padding(
+                                padding: const EdgeInsets.only(top: 6),
+                                child: Row(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    const Icon(
+                                      Icons.error_outline,
+                                      color: kWarn,
+                                      size: 18,
+                                    ),
+                                    const SizedBox(width: 6),
+                                    Expanded(
+                                      child: Text(
+                                        err!,
+                                        style: const TextStyle(
+                                          color: kWarn,
+                                          fontSize: 13.5,
+                                          height: 1.2,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            const SizedBox(height: 24),
+                            SizedBox(
+                              width: double.infinity,
+                              height: 48,
+                              child: ElevatedButton(
+                                onPressed: saving
+                                    ? null
+                                    : () async {
+                                        setD(() => err = null);
+                                        final pin = pinController.text.trim();
+                                        final confirm = confirmController.text
+                                            .trim();
+                                        if (pin.length != 6 ||
+                                            confirm.length != 6) {
+                                          setD(
+                                            () => err = 'PIN must be 6 digits.',
+                                          );
+                                          return;
+                                        }
+                                        if (pin != confirm) {
+                                          setD(
+                                            () => err = 'PINs do not match.',
+                                          );
+                                          return;
+                                        }
+                                        if (hasPin) {
+                                          final oldPin = oldPinController.text
+                                              .trim();
+                                          if (oldPin.length != 6) {
+                                            setD(
+                                              () => err =
+                                                  'Enter your current PIN.',
+                                            );
+                                            return;
+                                          }
+                                          final valid = await PinLock.verify(
+                                            oldPin,
+                                          );
+                                          if (!valid) {
+                                            setD(
+                                              () => err =
+                                                  'Current PIN is incorrect.',
+                                            );
+                                            return;
+                                          }
+                                        }
+                                        setD(() => saving = true);
+                                        await PinLock.setPin(pin);
+                                        if (!ctx.mounted) return;
+                                        setD(() => saving = false);
+                                        Navigator.of(ctx).pop();
+                                        ScaffoldMessenger.of(
+                                          context,
+                                        ).showSnackBar(
+                                          SnackBar(
+                                            content: Text(
+                                              hasPin
+                                                  ? 'PIN updated successfully'
+                                                  : 'PIN set successfully',
+                                            ),
+                                          ),
+                                        );
+                                      },
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: kAccent,
+                                  foregroundColor: Colors.white,
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  elevation: 0,
+                                ),
+                                child: saving
+                                    ? const SizedBox(
+                                        width: 22,
+                                        height: 22,
+                                        child: CircularProgressIndicator(
+                                          color: Colors.white,
+                                          strokeWidth: 2.5,
+                                        ),
+                                      )
+                                    : Text(
+                                        hasPin ? 'Change PIN' : 'Set PIN',
+                                        style: const TextStyle(
+                                          fontWeight: FontWeight.w700,
+                                        ),
+                                      ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+          ),
+        );
+      },
     );
   }
 
@@ -1279,6 +1568,7 @@ class _ProfilePageState extends State<ProfilePage> {
     final ok = await _showLogoutConfirmDialog();
     if (ok == true) {
       await Supabase.instance.client.auth.signOut();
+      await PinLock.clear();
       final prefs = await SharedPreferences.getInstance();
       await prefs.remove('selectedDayungUnit');
       await prefs.remove('selectedDayungUnitData');
@@ -1857,6 +2147,9 @@ class _ProfilePageState extends State<ProfilePage> {
         ? const Color(0xFF2563EB)
         : kPrimaryLight;
     final themeButtonLogout = _isDarkMode ? const Color(0xFFB91C1C) : kWarn;
+    final themeButtonPin = _isDarkMode
+        ? const Color(0xFF6366F1)
+        : Colors.deepPurple;
 
     if (_editing) {
       return Container(
@@ -1926,44 +2219,25 @@ class _ProfilePageState extends State<ProfilePage> {
                 );
               },
             ),
-            // const SizedBox(height: 8),
-            // _buildActionButton(
-            //   icon: Icons.notifications_active_rounded,
-            //   label: 'Notification trigger',
-            //   color: _isDarkMode
-            //       ? const Color(0xFF6366F1)
-            //       : const Color(0xFF3B82F6),
-            //   onTap: () async {
-            //     print('Notify button pressed');
-            //     try {
-            //       final status = await Permission.notification
-            //           .request()
-            //           .timeout(const Duration(seconds: 3));
-            //       if (status.isDenied || status.isPermanentlyDenied) {
-            //         ScaffoldMessenger.of(context).showSnackBar(
-            //           const SnackBar(
-            //             content: Text('Notification permission required'),
-            //           ),
-            //         );
-            //         return;
-            //       }
-            //       final noti = NotiService();
-            //       await noti.initNotification();
-            //       try {
-            //         await noti.showNotification(
-            //           title: 'MESSENGER',
-            //           body: 'HOY ASA AKONG BAYNTE SA PITAKA??',
-            //         );
-            //       } catch (e) {
-            //         print('Notification error: $e');
-            //       }
-            //     } catch (e) {
-            //       ScaffoldMessenger.of(context).showSnackBar(
-            //         SnackBar(content: Text('Permission request failed: $e')),
-            //       );
-            //     }
-            //   },
-            // ),
+            const SizedBox(height: 8),
+            FutureBuilder<bool>(
+              future: PinLock.hasPin(),
+              builder: (context, snapshot) {
+                final hasPin = snapshot.data ?? false;
+                return Column(
+                  children: [
+                    _buildActionButton(
+                      icon: Icons.pin_rounded,
+                      label: hasPin ? 'Change App PIN' : 'Set up App PIN',
+                      color: themeButtonPin,
+                      onTap: () async {
+                        await _showPinModal(hasPin: hasPin);
+                      },
+                    ),
+                  ],
+                );
+              },
+            ),
             const SizedBox(height: 8),
             _buildActionButton(
               icon: Icons.lock_reset_rounded,

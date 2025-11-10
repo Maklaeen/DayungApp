@@ -1,4 +1,6 @@
 import 'dart:convert';
+import 'package:bcrypt/bcrypt.dart';
+import 'package:capstone_app/Auth/pinlock.dart' hide kPrimary, kAccent;
 import 'package:capstone_app/Auth/utils_file.dart';
 import 'package:capstone_app/Providers/role_router.dart';
 import 'package:capstone_app/ui/theme/branding.dart';
@@ -7,6 +9,7 @@ import 'package:capstone_app/Providers/dayung_provider.dart';
 import 'package:capstone_app/Providers/dayung_role_provider.dart';
 import 'package:capstone_app/screens/selectdayung.dart'
     hide kAccent, kPrimary, kBg;
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -40,25 +43,42 @@ class _LoginState extends State<Login> {
   bool _obscurePassword = true;
 
   Future<void> _forgotPassword() async {
-    final email = emailController.text.trim();
-    if (email.isEmpty) {
-      _showErrorDialog('Missing Email', 'Please enter your email address.');
+    final input = emailController.text.trim(); // phone or email
+    if (input.isEmpty) {
+      _showErrorDialog('Missing Phone', 'Please enter your phone number.');
       return;
     }
+
     setState(() => _isLoading = true);
     try {
+      String? email;
+      if (input.contains('@')) {
+        email = input;
+      } else {
+        email = await _emailForPhone(input);
+      }
+
+      if (email == null || email.isEmpty) {
+        setState(() => _isLoading = false);
+        await _showErrorDialog(
+          'Not found',
+          'We could not find an account for that phone.',
+        );
+        return;
+      }
+
       await Supabase.instance.client.auth.resetPasswordForEmail(email);
       setState(() => _isLoading = false);
       await _showErrorDialog(
         'Check Your Email',
-        'A password reset link has been sent to your email.',
+        'We sent a password reset link to $email.',
         color: kAccent,
       );
     } catch (e) {
       setState(() => _isLoading = false);
       await _showErrorDialog(
         'Reset Failed',
-        'Could not send reset link. Please check your email and try again.',
+        'Could not send reset link. Please try again.',
       );
     }
   }
@@ -238,110 +258,106 @@ class _LoginState extends State<Login> {
         s.contains('handshake');
   }
 
-  // Future<void> _handleLogin() async {
-  //   if (!_formKey.currentState!.validate()) return;
-  //   setState(() => _isLoading = true);
-  //   final email = emailController.text.trim();
-  //   final password = passwordController.text.trim();
+  String _normalizePhone(String raw) {
+    final s = raw.replaceAll(RegExp(r'\s+'), '');
+    if (s.startsWith('+')) return s;
+    // Simple PH normalization: 09XXXXXXXXX -> +639XXXXXXXXX
+    if (s.startsWith('09') && s.length == 11) {
+      return '+63${s.substring(1)}';
+    }
+    return s; // fallback
+  }
 
-  //   try {
-  //     final res = await Supabase.instance.client.auth
-  //         .signInWithPassword(email: email, password: password)
-  //         .timeout(const Duration(seconds: 20));
-
-  //     if (res.user == null) {
-  //       setState(() => _isLoading = false);
-  //       await _showErrorDialog(
-  //         'Sign-in Failed',
-  //         'Incorrect email or password.',
-  //         onTryAgain: _handleLogin,
-  //       );
-  //       return;
-  //     }
-
-  //     final userId = res.user!.id;
-  //     final userData = await Supabase.instance.client
-  //         .from('users')
-  //         .select('role')
-  //         .eq('id', userId)
-  //         .maybeSingle();
-
-  //     setState(() => _isLoading = false);
-  //     if (userData != null && (userData['role'] ?? '') == 'admin') {
-  //       Navigator.pushReplacementNamed(context, '/admin-dashboard');
-  //     } else {
-  //       await _routeAfterLogin();
-  //     }
-  //   } catch (e) {
-  //     setState(() => _isLoading = false);
-  //     if (_looksOffline(e)) {
-  //       await _showErrorDialog(
-  //         'No Internet Connection',
-  //         'Connect to your internet connection',
-  //         color: kWarn,
-  //         onTryAgain: _handleLogin,
-  //       );
-  //     } else {
-  //       await _showErrorDialog(
-  //         'Incorrect Email or Password',
-  //         'Please try again.',
-  //         onTryAgain: _handleLogin,
-  //       );
-  //     }
-  //   }
-  // }
+  Future<String?> _emailForPhone(String phone) async {
+    final sb = Supabase.instance.client;
+    final normalized = _normalizePhone(phone);
+    final email = await sb.rpc(
+      'auth_email_for_phone',
+      params: {'p_mobile': normalized},
+    );
+    if (email == null) return null;
+    final e = (email as String).trim();
+    return e.isEmpty ? null : e;
+  }
 
   Future<void> _handleLogin() async {
     if (!_formKey.currentState!.validate()) return;
     setState(() => _isLoading = true);
-    final email = emailController.text.trim();
+
+    final inputRaw = emailController.text.trim();
     final password = passwordController.text.trim();
-    final passwordHash = hashPassword(password);
 
     try {
-      // Query users table for matching email and password_hash
-      final userRow = await Supabase.instance.client
-          .from('users')
-          .select()
-          .eq('email', email)
-          .eq('password_hash', passwordHash)
-          .maybeSingle();
+      // Resolve email (from phone or direct)
+      final resolvedEmail = inputRaw.contains('@')
+          ? inputRaw.trim()
+          : await _emailForPhone(inputRaw);
 
-      setState(() => _isLoading = false);
+      debugPrint('Resolved email (after mapping): $resolvedEmail');
 
-      if (userRow == null) {
-        await _showErrorDialog(
-          'Sign-in Failed',
-          'Incorrect email or password.',
-          onTryAgain: _handleLogin,
-        );
+      if (resolvedEmail == null) {
+        setState(() => _isLoading = false);
+        await _showErrorDialog('Sign-in Failed', 'No account for that phone.');
         return;
       }
 
-      // Save user info as needed (e.g., SharedPreferences)
-      // Route user based on role
-      final userRole = userRow['role'] ?? '';
-      if (userRole == 'admin') {
-        Navigator.pushReplacementNamed(context, '/admin-dashboard');
-      } else {
-        await _routeAfterLogin(userRow);
+      final res = await Supabase.instance.client.auth
+          .signInWithPassword(
+            email: resolvedEmail.toLowerCase(),
+            password: password,
+          )
+          .timeout(const Duration(seconds: 20));
+
+      setState(() => _isLoading = false);
+
+      if (res.user == null) {
+        await _showErrorDialog('Sign-in Failed', 'Invalid credentials.');
+        return;
       }
+
+      // Skip PIN on web (flutter_secure_storage not supported in your downgraded version)
+      if (!kIsWeb) {
+        final ok = await PinLock.ensurePinSetup(context);
+        if (!ok) return;
+      }
+
+      await _routeAfterLogin({'id': res.user!.id});
+    } on AuthException catch (e) {
+      setState(() => _isLoading = false);
+      debugPrint('AUTH ERROR code=${e.statusCode} msg=${e.message}');
+
+      // Diagnostic: does stored bcrypt match entered password?
+      try {
+        final row = await Supabase.instance.client
+            .from('users')
+            .select('password_hash')
+            .eq(
+              'email',
+              inputRaw.contains('@')
+                  ? inputRaw
+                  : await _emailForPhone(inputRaw) ?? '',
+            )
+            .maybeSingle();
+        if (row != null && row['password_hash'] is String) {
+          final okBcrypt = BCrypt.checkpw(
+            password,
+            row['password_hash'] as String,
+          );
+          debugPrint('Local bcrypt match: $okBcrypt');
+        }
+      } catch (_) {}
+
+      await _showErrorDialog('Sign-in Failed', e.message);
     } catch (e) {
       setState(() => _isLoading = false);
-      if (_looksOffline(e)) {
-        await _showErrorDialog(
-          'No Internet Connection',
-          'Connect to your internet connection',
-          color: kWarn,
-          onTryAgain: _handleLogin,
-        );
-      } else {
-        await _showErrorDialog(
-          'Incorrect Email or Password',
-          'Please try again.',
-          onTryAgain: _handleLogin,
-        );
-      }
+      debugPrint('Generic login error: $e');
+      await _showErrorDialog(
+        _looksOffline(e) ? 'No Internet Connection' : 'Sign-in Failed',
+        _looksOffline(e)
+            ? 'Connect to your internet connection'
+            : 'Please check your credentials and try again.',
+        color: _looksOffline(e) ? kWarn : kDanger,
+      );
     }
   }
 
@@ -689,10 +705,9 @@ class _LoginState extends State<Login> {
                                   ),
                                 ),
 
-                              // Email
                               TextFormField(
                                 controller: emailController,
-                                keyboardType: TextInputType.emailAddress,
+                                keyboardType: TextInputType.phone,
                                 textInputAction: TextInputAction.next,
                                 style: TextStyle(
                                   fontSize: isWide ? 20 : 18,
@@ -700,18 +715,33 @@ class _LoginState extends State<Login> {
                                   fontWeight: FontWeight.w500,
                                 ),
                                 decoration: _inputDecoration(
-                                  'Email address',
-                                  icon: Icons.email_rounded,
+                                  'Phone number (or email)',
+                                  icon: Icons.phone_rounded,
                                 ),
                                 validator: (value) {
                                   if (value == null || value.trim().isEmpty) {
-                                    return 'Email is required';
+                                    return 'Phone number is required';
                                   }
-                                  final emailRegex = RegExp(
-                                    r'^[^@]+@[^@]+\.[^@]+',
+                                  final s = value.trim();
+                                  // Allow email as fallback
+                                  if (s.contains('@')) {
+                                    final emailRegex = RegExp(
+                                      r'^[^@]+@[^@]+\.[^@]+$',
+                                    );
+                                    if (!emailRegex.hasMatch(s)) {
+                                      return 'Enter a valid email';
+                                    }
+                                    return null;
+                                  }
+                                  // Basic phone validation: 10–15 digits, allow leading +
+                                  final phone = s.replaceAll(
+                                    RegExp(r'\s+'),
+                                    '',
                                   );
-                                  if (!emailRegex.hasMatch(value.trim())) {
-                                    return 'Enter a valid email';
+                                  if (!RegExp(
+                                    r'^\+?\d{10,15}$',
+                                  ).hasMatch(phone)) {
+                                    return 'Enter a valid phone number';
                                   }
                                   return null;
                                 },
