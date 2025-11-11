@@ -1,6 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:provider/provider.dart';
+import 'package:capstone_app/Providers/dayung_provider.dart';
+import 'package:capstone_app/Providers/dayung_role_provider.dart';
+import 'package:capstone_app/Providers/role_router.dart';
 
 // --- Color constants (copy from profile.dart or import if shared) ---
 const kAccent = Color(0xFF059669);
@@ -8,9 +12,42 @@ const kPrimary = Color(0xFF3B82F6);
 const kWarn = Color(0xFFF59E0B);
 const kText = Color(0xFF111827);
 
+
 class PinLock {
   static const _kKey = 'user_pin_hash';
   static final _storage = const FlutterSecureStorage();
+
+  static Future<void> ensureUnlockAndRouteHome(BuildContext context) async {
+    // If no session, just return and let your normal flow (login) handle it
+    if (Supabase.instance.client.auth.currentSession == null) return;
+
+    // If there is a PIN, ask for it; otherwise continue
+    bool proceed = true;
+    if (await hasPin()) {
+      final ok = await Navigator.push<bool>(
+        context,
+        MaterialPageRoute(builder: (_) => const UnlockPinPage()),
+      );
+      proceed = ok == true;
+    }
+    if (!proceed) return;
+    await _routeHomeFromContext(context);
+  }
+
+  static Future<void> _routeHomeFromContext(BuildContext context) async {
+    // Rehydrate selection and roles
+    final unitProv = context.read<DayungUnitProvider>();
+    await unitProv.loadDayungUnit();
+    final unitId = unitProv.currentUnitId ?? unitProv.dayungUnitObj?['id'] as int?;
+    await context.read<DayungRoleProvider>().refreshRoles(unitId);
+
+    // Route via RoleRouter (it will decide the correct dashboard)
+    if (!context.mounted) return;
+    Navigator.of(context).pushAndRemoveUntil(
+      MaterialPageRoute(builder: (_) => const RoleRouter()),
+      (route) => false,
+    );
+  }
 
   static Future<bool> hasPin() async {
     final v = await _storage.read(key: _kKey);

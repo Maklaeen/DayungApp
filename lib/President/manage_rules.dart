@@ -98,12 +98,17 @@ class _ManageRulesPagePresState extends State<ManageRulesPagePres> {
         ? _paymentmethod.text.split(',').map((e) => e.trim()).toList()
         : [];
 
-    final serviceRulesText = row?['service_rules'] ?? '[]';
+    // Robustly parse service_rules as jsonb or text
+    final sr = row?['service_rules'];
     try {
-      _serviceRules = List<Map<String, dynamic>>.from(
-        jsonDecode(serviceRulesText),
-      );
-    } catch (e) {
+      if (sr is String) {
+        _serviceRules = List<Map<String, dynamic>>.from(jsonDecode(sr));
+      } else if (sr is List) {
+        _serviceRules = List<Map<String, dynamic>>.from(sr);
+      } else {
+        _serviceRules = [];
+      }
+    } catch (_) {
       _serviceRules = [];
     }
 
@@ -114,22 +119,20 @@ class _ManageRulesPagePresState extends State<ManageRulesPagePres> {
     if (_unitId == null) return;
     setState(() => _loading = true);
     try {
-      // 🔹 Get the selected unit name based on _unitId
       final selectedUnit = _units.firstWhere(
         (u) => int.tryParse('${u['id']}') == _unitId,
         orElse: () => {},
       );
       final unitName = selectedUnit['name'] ?? '';
 
-      // 🔹 Prepare payload including both ID and name
       final payload = {
         'dayung_unit_id': _unitId,
-        'dayung_unit_name': unitName,
+        'dayung_unit_name': unitName, // requires column (see SQL)
         'contribution_amount': _contrib.text.trim(),
         'membership_payment': _mempayment.text.trim(),
         'penalty_payment': _penaltypayment.text.trim(),
         'payment_method': _selectedMethods.join(', '),
-        'service_rules': jsonEncode(_serviceRules),
+        'service_rules': _serviceRules, // send JSON, not jsonEncode
         'updated_by': sb.auth.currentUser?.id,
       };
 

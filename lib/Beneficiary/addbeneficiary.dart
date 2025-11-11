@@ -1,3 +1,5 @@
+import 'dart:ui';
+
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -56,10 +58,6 @@ class _AddBeneficiaryPageState extends State<AddBeneficiaryPage> {
 
   DateTime? _selectedDob;
 
-  // Optionally, remove the old getter if you want to use only the field.
-  // If you want to keep the getter logic, rename it or merge logic as needed.
-
-  // Relationship options
   final List<String> _relationships = const [
     'Spouse',
     'Child',
@@ -84,6 +82,108 @@ class _AddBeneficiaryPageState extends State<AddBeneficiaryPage> {
   void dispose() {
     fullNameController.dispose();
     super.dispose();
+  }
+
+  void _showTopPopup(
+    String message, {
+    Color color = kAccent,
+    IconData icon = Icons.check_circle,
+  }) {
+    final overlay = Overlay.of(context);
+    if (overlay == null) return;
+
+    late OverlayEntry entry;
+    final animationController = AnimationController(
+      vsync: Navigator.of(context),
+      duration: const Duration(milliseconds: 350),
+    );
+    final curved = CurvedAnimation(
+      parent: animationController,
+      curve: Curves.easeOutCubic,
+      reverseCurve: Curves.easeInCubic,
+    );
+
+    entry = OverlayEntry(
+      builder: (context) => Positioned(
+        top: MediaQuery.of(context).padding.top + 16,
+        left: 24,
+        right: 24,
+        child: AnimatedBuilder(
+          animation: curved,
+          builder: (context, child) {
+            return Opacity(
+              opacity: curved.value,
+              child: Transform.translate(
+                offset: Offset(0, -40 * (1 - curved.value)),
+                child: child,
+              ),
+            );
+          },
+          child: Material(
+            color: Colors.transparent,
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(18),
+              child: BackdropFilter(
+                filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 18,
+                    vertical: 14,
+                  ),
+                  decoration: BoxDecoration(
+                    color: color.withOpacity(0.38),
+                    borderRadius: BorderRadius.circular(18),
+                    border: Border.all(
+                      color: Colors.white.withOpacity(0.18),
+                      width: 1.2,
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: color.withOpacity(0.18),
+                        blurRadius: 12,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(icon, color: Colors.white, size: 22),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          message,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w600,
+                            fontSize: 15,
+                            shadows: [
+                              Shadow(
+                                color: Colors.black26,
+                                blurRadius: 8,
+                                offset: Offset(0, 2),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    overlay.insert(entry);
+    animationController.forward();
+
+    Future.delayed(const Duration(seconds: 3), () async {
+      await animationController.reverse();
+      entry.remove();
+      animationController.dispose();
+    });
   }
 
   InputDecoration _dec(String label, {String? hint, IconData? icon}) {
@@ -222,7 +322,7 @@ class _AddBeneficiaryPageState extends State<AddBeneficiaryPage> {
       final result = await FilePicker.platform.pickFiles(
         type: FileType.custom,
         allowedExtensions: ['jpg', 'jpeg', 'png', 'pdf'],
-        withData: true, // Ensure bytes are available for uploadBinary
+        withData: true,
       );
 
       if (result == null || result.files.single.bytes == null) {
@@ -253,14 +353,18 @@ class _AddBeneficiaryPageState extends State<AddBeneficiaryPage> {
       });
 
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('File uploaded successfully')),
+      _showTopPopup(
+        'File uploaded successfully',
+        color: kAccent,
+        icon: Icons.check_circle,
       );
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('File upload failed: $e')));
+      _showTopPopup(
+        'File upload failed: $e',
+        color: kWarn,
+        icon: Icons.error_outline,
+      );
     } finally {
       if (mounted) setState(() => _isUploadingFile = false);
     }
@@ -270,7 +374,6 @@ class _AddBeneficiaryPageState extends State<AddBeneficiaryPage> {
       '${d.year.toString().padLeft(4, '0')}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
 
   Future<void> _submitBeneficiary() async {
-    // Compute DOB from dropdowns
     if (_selectedYear != null &&
         _selectedMonth != null &&
         _selectedDay != null) {
@@ -281,17 +384,23 @@ class _AddBeneficiaryPageState extends State<AddBeneficiaryPage> {
 
     if (!_formKey.currentState!.validate()) return;
     if (user == null) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('You must be logged in')));
-      return;
-    }
-    if (_selectedDob == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Date of birth is required')),
+      _showTopPopup(
+        'You must be logged in',
+        color: kWarn,
+        icon: Icons.error_outline,
       );
       return;
     }
+    if (_selectedDob == null) {
+      _showTopPopup(
+        'Date of birth is required',
+        color: kWarn,
+        icon: Icons.error_outline,
+      );
+      return;
+    }
+
+    setState(() => _isSubmitting = true);
 
     setState(() => _isSubmitting = true);
 
@@ -318,16 +427,18 @@ class _AddBeneficiaryPageState extends State<AddBeneficiaryPage> {
           .select()
           .single();
 
-      // ...existing code...
-
       if (response['id'] == null) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Failed to add beneficiary')),
+        _showTopPopup(
+          'Failed to add beneficiary',
+          color: kWarn,
+          icon: Icons.error_outline,
         );
       } else {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text('Beneficiary added')));
+        _showTopPopup(
+          'Beneficiary added',
+          color: kAccent,
+          icon: Icons.check_circle,
+        );
         fullNameController.clear();
         setState(() {
           selectedRelationship = null;
@@ -338,9 +449,7 @@ class _AddBeneficiaryPageState extends State<AddBeneficiaryPage> {
         Navigator.pop(context);
       }
     } catch (e) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Error: $e')));
+      _showTopPopup('Error: $e', color: kWarn, icon: Icons.error_outline);
     } finally {
       if (mounted) setState(() => _isSubmitting = false);
     }

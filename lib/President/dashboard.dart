@@ -2,6 +2,7 @@ import 'package:capstone_app/President/manage_roles.dart';
 import 'package:capstone_app/President/post_announcement.dart';
 import 'package:capstone_app/President/presidentmemberspage.dart'
     hide kPrimary, kNeutralText;
+import 'package:capstone_app/Providers/dayung_provider.dart';
 import 'package:capstone_app/Providers/dayung_role_provider.dart';
 import 'package:capstone_app/pages/paymentmethod.dart';
 import 'package:capstone_app/pages/recentdeathnotices.dart';
@@ -213,11 +214,23 @@ class _PresidentDashboardPageState extends State<PresidentDashboardPage> {
 
   @override
   Widget build(BuildContext context) {
+    final unitId = context.watch<DayungUnitProvider>().currentUnitId;
+    final roles = context.watch<DayungRoleProvider>();
+    if (unitId != null && !roles.isPresident && !roles.loading) {
+      // Attempt silent refresh if president rights expected but missing
+      context.read<DayungRoleProvider>().refreshRoles(unitId);
+    }
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final themeBg = isDark ? const Color(0xFF18181B) : const Color(0xFFF8FAFC);
+    final themeCard = isDark ? const Color(0xFF23232A) : Colors.white;
+    final themeText = isDark ? Colors.white : const Color(0xFF111827);
+    final themeSubText = isDark ? Colors.white : const Color(0xFF111827);
+    final themeField = isDark ? const Color(0xFF23232A) : Colors.white;
     final width = MediaQuery.of(context).size.width;
     final wide = width > 820;
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF8FAFC),
+      backgroundColor: themeBg,
       body: Container(
         decoration: const BoxDecoration(
           gradient: LinearGradient(
@@ -319,7 +332,12 @@ class _PresidentDashboardPageState extends State<PresidentDashboardPage> {
                   Navigator.push(
                     context,
                     MaterialPageRoute(builder: (_) => const ProfilePage()),
-                  );
+                  ).then((_) {
+                    final unitId = context
+                        .read<DayungUnitProvider>()
+                        .currentUnitId;
+                    context.read<DayungRoleProvider>().refreshRoles(unitId);
+                  });
                 },
                 child: Container(
                   padding: const EdgeInsets.all(4),

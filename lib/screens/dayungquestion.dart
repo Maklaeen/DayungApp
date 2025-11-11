@@ -41,7 +41,10 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
   String? penalty_payment;
   String? payment_method;
   String? openForAll;
-  String? fundSupportRange;
+  String? organizational_model;
+  String? participation_method;
+  String? meeting_frequency;
+  String? penalty_policy;
   List<dynamic> suggestedUnits = [];
   bool isLoading = false;
   bool isSubmitting = false;
@@ -59,33 +62,114 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
 
   // numeric vector for pgvector
   List<double> _generatePreferenceVector() {
-    double fee = double.tryParse(_digits(contribution_amount)) ?? 0.0;
-    double membership = membership_payment == 'Monthly'
-        ? 1
-        : membership_payment == 'Yearly'
-        ? 2
-        : 0;
-    double penalty = penalty_payment == 'Strict'
-        ? 2
-        : penalty_payment == 'Mild'
-        ? 1
-        : 0;
-    double method = payment_method == 'Cash'
-        ? 1
-        : payment_method == 'Online'
-        ? 2
-        : 0;
-    double open = openForAll == 'Yes' ? 1 : 0;
-    double fund = double.tryParse(_digits(fundSupportRange)) ?? 0.0;
+    // Structural similarity components (normalized 0-1)
+    double fee = contribution_amount == null
+        ? 0.0
+        : double.tryParse(_digits(contribution_amount))?.clamp(0, 1000) ?? 0.0;
 
-    // between 0 and 1 for similarity
+    double membership = membership_payment == null
+        ? 0.0
+        : double.tryParse(_digits(membership_payment))?.clamp(0, 1000) ?? 0.0;
+
+    // Binary encodings for feature presence (1) or absence (0)
+    // Each option gets its own position in the vector
+
+    // Organizational Model - 3 positions
+    double orgRotational = organizational_model == 'Rotational Leadership'
+        ? 1.0
+        : 0.0;
+    double orgConsensus = organizational_model == 'Consensus-Based' ? 1.0 : 0.0;
+    double orgElected = organizational_model == 'Elected Committee / Leaders'
+        ? 1.0
+        : 0.0;
+
+    // Participation Method - 3 positions
+    double partVoluntary = participation_method == 'Voluntary' ? 1.0 : 0.0;
+    double partInvitation = participation_method == 'Invitation-Based'
+        ? 1.0
+        : 0.0;
+    double partCommunity = participation_method == 'Community-Based'
+        ? 1.0
+        : 0.0;
+
+    // Meeting Frequency - 3 positions
+    double meetWeekly = meeting_frequency == 'Weekly' ? 1.0 : 0.0;
+    double meetMonthly = meeting_frequency == 'Monthly' ? 1.0 : 0.0;
+    double meetAsNeeded = meeting_frequency == 'As Needed' ? 1.0 : 0.0;
+
+    // Payment Method - 3 positions
+    double payCash = payment_method == 'Cash' || payment_method == 'Both'
+        ? 1.0
+        : 0.0;
+    double payGcash = payment_method == 'GCash' || payment_method == 'Both'
+        ? 1.0
+        : 0.0;
+
+    double penaltyType = penalty_policy == null
+        ? 0.0
+        : penalty_policy == 'Small Fine'
+        ? 0.2
+        : penalty_policy == 'Warning'
+        ? 0.4
+        : penalty_policy == 'Counseling'
+        ? 0.6
+        : penalty_policy == 'Extra Contribution'
+        ? 0.8
+        : penalty_policy == 'Suspension'
+        ? 1.0
+        : 0.0;
+
+    // Attribute match indicator (1 if explicitly specified)
+    double hasPrefs =
+        (contribution_amount != null ||
+            membership_payment != null ||
+            organizational_model != null ||
+            participation_method != null ||
+            meeting_frequency != null ||
+            payment_method != null ||
+            penalty_policy != null)
+        ? 1.0
+        : 0.0;
+
+    // Final vector combines all binary features
     return [
-      (fee / 1000).clamp(0, 1),
-      membership / 2,
-      penalty / 2,
-      method / 2,
-      open,
-      (fund / 1000).clamp(0, 1),
+      // Organization Model (3 positions)
+      organizational_model == 'Rotational Leadership' ? 1.0 : 0.0,
+      organizational_model == 'Consensus-Based' ? 1.0 : 0.0,
+      organizational_model == 'Elected Committee / Leaders' ? 1.0 : 0.0,
+
+      // Participation Method (3 positions)
+      participation_method == 'Voluntary' ? 1.0 : 0.0,
+      participation_method == 'Invitation-Based' ? 1.0 : 0.0,
+      participation_method == 'Community-Based' ? 1.0 : 0.0,
+
+      // Meeting Frequency (3 positions)
+      meeting_frequency == 'Weekly' ? 1.0 : 0.0,
+      meeting_frequency == 'Monthly' ? 1.0 : 0.0,
+      meeting_frequency == 'As Needed' ? 1.0 : 0.0,
+
+      // Payment Method (2 positions)
+      payment_method == 'Cash' || payment_method == 'Both' ? 1.0 : 0.0,
+      payment_method == 'GCash' || payment_method == 'Both' ? 1.0 : 0.0,
+
+      // Contribution Amount Range Indicators (7 positions)
+      contribution_amount == '50-100' ? 1.0 : 0.0,
+      contribution_amount == '100-150' ? 1.0 : 0.0,
+      contribution_amount == '150-200' ? 1.0 : 0.0,
+      contribution_amount == '250-300' ? 1.0 : 0.0,
+      contribution_amount == '350-400' ? 1.0 : 0.0,
+      contribution_amount == '450-500' ? 1.0 : 0.0,
+      contribution_amount == '500 and up' ? 1.0 : 0.0,
+
+      // Penalty Policy (5 positions)
+      penalty_policy == 'Small Fine' ? 1.0 : 0.0,
+      penalty_policy == 'Warning' ? 1.0 : 0.0,
+      penalty_policy == 'Counseling' ? 1.0 : 0.0,
+      penalty_policy == 'Extra Contribution' ? 1.0 : 0.0,
+      penalty_policy == 'Suspension' ? 1.0 : 0.0,
+
+      // Open For All (1 position)
+      openForAll == 'Yes' ? 1.0 : 0.0,
     ];
   }
 
@@ -118,12 +202,15 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
   Future<void> _savePreferences({int? selectedUnitId}) async {
     final payload = {
       'user_id': widget.userId,
+      'organizational_model': organizational_model,
+      'participation_method': participation_method,
+      'meeting_frequency': meeting_frequency,
+      'penalty_policy': penalty_policy,
       'contribution_amount': contribution_amount,
       'membership_payment': membership_payment,
       'penalty_payment': penalty_payment,
       'payment_method': payment_method,
       'open_for_all': openForAll == null ? null : (openForAll == 'Yes'),
-      'fund_support_range': fundSupportRange,
       'selected_unit_id': selectedUnitId,
     };
 
@@ -276,18 +363,54 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
                 child: Column(
                   children: [
                     _buildDropdown(
+                      label: 'Organizational Model',
+                      value: organizational_model,
+                      items: [
+                        'Any',
+                        'Rotational Leadership',
+                        'Consensus-Based',
+                        'Elected Committee / Leaders',
+                      ],
+                      onChanged: (val) {
+                        setState(() => organizational_model = val);
+                        _fetchSuggestions();
+                      },
+                    ),
+                    _buildDropdown(
+                      label: 'Participation Method',
+                      value: participation_method,
+                      items: [
+                        'Any',
+                        'Voluntary',
+                        'Invitation-Based',
+                        'Community-Based',
+                      ],
+                      onChanged: (val) {
+                        setState(() => participation_method = val);
+                        _fetchSuggestions();
+                      },
+                    ),
+                    _buildDropdown(
+                      label: 'Meeting Frequency',
+                      value: meeting_frequency,
+                      items: ['Any', 'Weekly', 'Monthly', 'As Needed'],
+                      onChanged: (val) {
+                        setState(() => meeting_frequency = val);
+                        _fetchSuggestions();
+                      },
+                    ),
+                    _buildDropdown(
                       label: 'Registration Fee Range',
                       value: contribution_amount,
                       items: [
                         'Any',
-                        'Free',
-                        '₱1 - ₱100',
-                        '₱101 - ₱500',
-                        '₱501+',
-                        '₱100',
-                        '₱500',
-                        '₱150',
-                        '₱1000',
+                        '50-100',
+                        '100-150',
+                        '150-200',
+                        '250-300',
+                        '350-400',
+                        '450-500',
+                        '500 and up',
                       ],
                       onChanged: (val) {
                         setState(() => contribution_amount = val);
@@ -299,14 +422,13 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
                       value: membership_payment,
                       items: [
                         'Any',
-                        'Free',
-                        '₱1 - ₱100',
-                        '₱101 - ₱500',
-                        '₱501+',
-                        '₱100',
-                        '₱500',
-                        '₱150',
-                        '₱1000',
+                        '50-100',
+                        '100-150',
+                        '150-200',
+                        '250-300',
+                        '350-400',
+                        '450-500',
+                        '500 and up',
                       ],
                       onChanged: (val) {
                         setState(() => membership_payment = val);
@@ -325,15 +447,7 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
                     _buildDropdown(
                       label: 'Payment Method',
                       value: payment_method,
-                      items: [
-                        'Any',
-                        'GCash',
-                        'Bank Transfer',
-                        'Cash',
-                        'gcash',
-                        'bank',
-                        'cash',
-                      ],
+                      items: ['Any', 'Cash', 'GCash', 'Both'],
                       onChanged: (val) {
                         setState(() => payment_method = val);
                         _fetchSuggestions();
@@ -349,19 +463,18 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
                       },
                     ),
                     _buildDropdown(
-                      label: 'Fund Support Range',
-                      value: fundSupportRange,
+                      label: 'Penalty Policy',
+                      value: penalty_policy,
                       items: [
                         'Any',
-                        '₱0 - ₱500',
-                        '₱501 - ₱1000',
-                        '₱1001+',
-                        '₱500',
-                        '₱1000',
-                        '₱1500',
+                        'Small Fine',
+                        'Suspension',
+                        'Counseling',
+                        'Warning',
+                        'Extra Contribution',
                       ],
                       onChanged: (val) {
-                        setState(() => fundSupportRange = val);
+                        setState(() => penalty_policy = val);
                         _fetchSuggestions();
                       },
                     ),
@@ -380,12 +493,15 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
                           ),
                         ),
                         onPressed: () {
-                          if (contribution_amount == null &&
+                          if (organizational_model == null &&
+                              participation_method == null &&
+                              meeting_frequency == null &&
+                              contribution_amount == null &&
                               membership_payment == null &&
                               penalty_payment == null &&
                               payment_method == null &&
                               openForAll == null &&
-                              fundSupportRange == null) {
+                              penalty_policy == null) {
                             ScaffoldMessenger.of(context).showSnackBar(
                               const SnackBar(
                                 content: Text(
@@ -559,7 +675,7 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
               penalty_payment != null ||
               payment_method != null ||
               openForAll != null ||
-              fundSupportRange != null) ...[
+              penalty_policy != null) ...[
             const SizedBox(height: 8),
             const Text(
               'No suggestions found with the given preferences.',

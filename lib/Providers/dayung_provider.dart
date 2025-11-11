@@ -83,26 +83,39 @@ class DayungUnitProvider extends ChangeNotifier {
   // ---------------- Existing persistence ----------------
   Future<void> loadDayungUnit() async {
     final prefs = await SharedPreferences.getInstance();
-    // CHANGED: prefer the full object, fallback to minimal
     final unitJson =
         prefs.getString('selectedDayungUnitData') ??
         prefs.getString('selectedDayungUnit');
     if (unitJson == null) {
       _dayungUnit = null;
       _dayungUnitObj = null;
+
+      // NEW: also clear current fields
+      _currentUnitId = null;
+      _currentName = null;
+      _currentObj = null;
+
       notifyListeners();
       return;
     }
     try {
       final obj = Map<String, dynamic>.from(jsonDecode(unitJson) as Map);
-      final normalized = _normalizeUnit(obj); // NEW
+      final normalized = _normalizeUnit(obj);
       _dayungUnitObj = normalized;
       _dayungUnit = normalized['name']?.toString();
+
+      // NEW: hydrate current fields
+      _currentUnitId = _asInt(normalized['id']);
+      _currentName = _dayungUnit;
+      _currentObj = Map<String, dynamic>.from(normalized);
     } catch (_) {
       _dayungUnit = null;
       _dayungUnitObj = null;
+      _currentUnitId = null; // NEW
+      _currentName = null;   // NEW
+      _currentObj = null;    // NEW
       await prefs.remove('selectedDayungUnit');
-      await prefs.remove('selectedDayungUnitData'); // NEW
+      await prefs.remove('selectedDayungUnitData');
     }
     notifyListeners();
   }
@@ -116,10 +129,15 @@ class DayungUnitProvider extends ChangeNotifier {
   // }
 
   Future<void> persistSelection(Map<String, dynamic> unit) async {
-    _dayungUnitObj = _normalizeUnit(Map<String, dynamic>.from(unit)); // NEW
+    _dayungUnitObj = _normalizeUnit(Map<String, dynamic>.from(unit));
     _dayungUnit = _dayungUnitObj!['name']?.toString();
+
+    // NEW: keep current fields in sync
+    _currentUnitId = _asInt(_dayungUnitObj!['id']);
+    _currentName = _dayungUnit;
+    _currentObj = Map<String, dynamic>.from(_dayungUnitObj!);
+
     final prefs = await SharedPreferences.getInstance();
-    // Save both keys so all pages stay in sync
     final json = jsonEncode(_dayungUnitObj);
     await prefs.setString('selectedDayungUnit', json);
     await prefs.setString('selectedDayungUnitData', json);
@@ -133,15 +151,21 @@ class DayungUnitProvider extends ChangeNotifier {
     _dayungUnit = name;
     _dayungUnitObj = obj != null
         ? _normalizeUnit(Map<String, dynamic>.from(obj))
-        : null; // NEW
+        : null;
+
+    // NEW: sync current fields
+    _currentUnitId = _asInt(_dayungUnitObj?['id']);
+    _currentName = _dayungUnit;
+    _currentObj = _dayungUnitObj == null ? null : Map<String, dynamic>.from(_dayungUnitObj!);
+
     final prefs = await SharedPreferences.getInstance();
     if (_dayungUnitObj == null) {
       await prefs.remove('selectedDayungUnit');
-      await prefs.remove('selectedDayungUnitData'); // NEW
+      await prefs.remove('selectedDayungUnitData');
     } else {
       final json = jsonEncode(_dayungUnitObj);
       await prefs.setString('selectedDayungUnit', json);
-      await prefs.setString('selectedDayungUnitData', json); // NEW
+      await prefs.setString('selectedDayungUnitData', json);
     }
     notifyListeners();
   }
@@ -149,8 +173,14 @@ class DayungUnitProvider extends ChangeNotifier {
   void setDayungUnitObj(Map<String, dynamic>? obj) {
     _dayungUnitObj = obj != null
         ? _normalizeUnit(Map<String, dynamic>.from(obj))
-        : null; // NEW
+        : null;
     _dayungUnit = _dayungUnitObj?['name']?.toString();
+
+    // NEW: sync current fields
+    _currentUnitId = _asInt(_dayungUnitObj?['id']);
+    _currentName = _dayungUnit;
+    _currentObj = _dayungUnitObj == null ? null : Map<String, dynamic>.from(_dayungUnitObj!);
+
     notifyListeners();
   }
 

@@ -13,15 +13,8 @@ class DayungRoleProvider extends ChangeNotifier {
   bool isCollector = false;
   bool isMember = false;
 
-  
   Future<void> refreshRoles(int? newUnitId) async {
     unitId = newUnitId;
-    if (newUnitId == null) {
-      isPresident = isSecretary = isTreasurer = isCollector = isMember = false;
-      notifyListeners();
-      return;
-    }
-
     loading = true;
     notifyListeners();
 
@@ -34,45 +27,63 @@ class DayungRoleProvider extends ChangeNotifier {
     }
 
     try {
-      // Get officer IDs for this unit
-      final du = await _sb
-          .from('dayung_units')
-          .select('president_id, secretary_id, treasurer_id')
-          .eq('id', newUnitId)
-          .maybeSingle();
-
-      isPresident = (du?['president_id']?.toString() ?? '') == uid;
-      isSecretary = (du?['secretary_id']?.toString() ?? '') == uid;
-      isTreasurer = (du?['treasurer_id']?.toString() ?? '') == uid;
-
-      // Collector membership
+      // Always compute presidency across ANY unit (works even if unitId is not ready yet)
       try {
-        final dc = await _sb
-            .from('dayung_collectors')
-            .select('user_id')
-            .eq('dayung_unit_id', newUnitId)
-            .eq('user_id', uid)
-            .limit(1);
-        isCollector = (dc as List).isNotEmpty;
-      } catch (_) {
-        isCollector = false;
-      }
-
-      try {
-        final app = await _sb
-            .from('applications')
+        final pres = await _sb
+            .from('dayung_units')
             .select('id')
-            .eq('user_id', uid)
-            .eq('dayung_unit_id', newUnitId)
-            .eq('status', 'approved')
+            .eq('president_id', uid)
             .limit(1);
-        isMember = (app as List).isNotEmpty;
+        isPresident = (pres as List).isNotEmpty;
       } catch (_) {
-        isMember = false;
+        isPresident = false;
       }
 
+      // If a specific unit is selected, compute other flags for that unit
+      if (newUnitId != null) {
+        Map<String, dynamic>? du;
+        try {
+          du = await _sb
+              .from('dayung_units')
+              .select('secretary_id, treasurer_id')
+              .eq('id', newUnitId)
+              .maybeSingle();
+        } catch (_) {
+          du = null;
+        }
+
+        isSecretary = (du?['secretary_id']?.toString() ?? '') == uid;
+        isTreasurer = (du?['treasurer_id']?.toString() ?? '') == uid;
+
+        try {
+          final dc = await _sb
+              .from('dayung_collectors')
+              .select('user_id')
+              .eq('dayung_unit_id', newUnitId)
+              .eq('user_id', uid)
+              .limit(1);
+          isCollector = (dc as List).isNotEmpty;
+        } catch (_) {
+          isCollector = false;
+        }
+
+        try {
+          final app = await _sb
+              .from('applications')
+              .select('id')
+              .eq('user_id', uid)
+              .eq('dayung_unit_id', newUnitId)
+              .eq('status', 'approved')
+              .limit(1);
+          isMember = (app as List).isNotEmpty;
+        } catch (_) {
+          isMember = false;
+        }
+      } else {
+        // No selected unit yet: reset per-unit roles
+        isSecretary = isTreasurer = isCollector = isMember = false;
+      }
     } catch (_) {
-      // If RLS blocks, assume no officer/collector role for this unit
       isPresident = isSecretary = isTreasurer = isCollector = isMember = false;
     } finally {
       loading = false;

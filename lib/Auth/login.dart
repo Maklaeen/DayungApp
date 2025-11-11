@@ -2,7 +2,11 @@ import 'dart:convert';
 import 'package:bcrypt/bcrypt.dart';
 import 'package:capstone_app/Auth/pinlock.dart' hide kPrimary, kAccent;
 import 'package:capstone_app/Auth/utils_file.dart';
+import 'package:capstone_app/Collector/dashboard.dart';
+import 'package:capstone_app/President/dashboard.dart';
 import 'package:capstone_app/Providers/role_router.dart';
+import 'package:capstone_app/Secretary/dashboard.dart' hide kPrimary, kBg, kAccent;
+import 'package:capstone_app/Treasurer/dashboard.dart' hide kPrimary, kBg, kAccent;
 import 'package:capstone_app/ui/theme/branding.dart';
 import 'package:capstone_app/Members/dashboard.dart' hide kAccent, kBg;
 import 'package:capstone_app/Providers/dayung_provider.dart';
@@ -288,12 +292,9 @@ class _LoginState extends State<Login> {
     final password = passwordController.text.trim();
 
     try {
-      // Resolve email (from phone or direct)
       final resolvedEmail = inputRaw.contains('@')
           ? inputRaw.trim()
           : await _emailForPhone(inputRaw);
-
-      debugPrint('Resolved email (after mapping): $resolvedEmail');
 
       if (resolvedEmail == null) {
         setState(() => _isLoading = false);
@@ -419,7 +420,6 @@ class _LoginState extends State<Login> {
     final sb = Supabase.instance.client;
     final uid = sb.auth.currentUser?.id;
     if (uid == null) {
-      // Just send them to router
       if (!mounted) return;
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted) return;
@@ -431,7 +431,6 @@ class _LoginState extends State<Login> {
       return;
     }
 
-    // Gather all accessible unit ids (member + officer + collector)
     final approvedApps = await sb
         .from('applications')
         .select('dayung_unit_id, approved_at')
@@ -444,12 +443,10 @@ class _LoginState extends State<Login> {
     final officerUnits = await sb
         .from('dayung_units')
         .select('id')
-        .or(
-          'secretary_id.eq.$uid,treasurer_id.eq.$uid,president_id.eq.$uid,collector_id.eq.$uid',
-        );
-    final officerIds = List<Map<String, dynamic>>.from(
-      officerUnits,
-    ).map((o) => o['id'] as int).toSet();
+        .or('secretary_id.eq.$uid,treasurer_id.eq.$uid,president_id.eq.$uid');
+    final officerIds = List<Map<String, dynamic>>.from(officerUnits)
+        .map((o) => o['id'] as int)
+        .toSet();
 
     Set<int> collectorIds = {};
     try {
@@ -457,62 +454,50 @@ class _LoginState extends State<Login> {
           .from('dayung_collectors')
           .select('dayung_unit_id')
           .eq('user_id', uid);
-      collectorIds = List<Map<String, dynamic>>.from(
-        cu,
-      ).map((e) => e['dayung_unit_id'] as int).toSet();
+      collectorIds = List<Map<String, dynamic>>.from(cu)
+          .map((e) => e['dayung_unit_id'] as int)
+          .toSet();
     } catch (_) {}
 
-    final allIds = <int>{
-      ...approvedIds,
-      ...officerIds,
-      ...collectorIds,
-    }.toList();
+    final allIds = <int>{...approvedIds, ...officerIds, ...collectorIds}.toList();
 
     final prefs = await SharedPreferences.getInstance();
+
+    // Try previously saved selection
+    Map<String, dynamic>? saved;
+    final rawSaved = prefs.getString('selectedDayungUnit');
+    int? savedId;
+    if (rawSaved != null) {
+      try {
+        saved = Map<String, dynamic>.from(jsonDecode(rawSaved));
+        savedId = saved['id'] is int ? saved['id'] as int : int.tryParse('${saved['id']}');
+      } catch (_) {}
+    }
+
     Map<String, dynamic>? selected;
 
-    if (allIds.length > 1) {
-      // Clear in-memory to avoid "Already using" false positive
-      try {
-        await context.read<DayungUnitProvider>().clear();
-      } catch (_) {}
+    final hasValidSaved = savedId != null && allIds.contains(savedId);
 
+    if (allIds.length > 1 && !hasValidSaved) {
+      // Need user to pick one
       final picked = await Navigator.push<Map<String, dynamic>?>(
         context,
         MaterialPageRoute(builder: (_) => const SelectDayungPage()),
       );
       if (!mounted) return;
-
-      if (picked == null || picked is! Map<String, dynamic>) {
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (!mounted) return;
-          Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(builder: (_) => const MemberDashboardPage()),
-          );
-        });
-        return;
-      }
       selected = picked;
-    } else {
-      // 0 or 1 unit, try saved or load the only one
-      int? chosenId;
-      final savedRaw = prefs.getString('selectedDayungUnit');
-      if (savedRaw != null) {
-        try {
-          chosenId = (jsonDecode(savedRaw) as Map)['id'] as int?;
-        } catch (_) {}
-      }
-      chosenId ??= allIds.isEmpty ? null : allIds.first;
-
-      if (chosenId != null) {
-        final u = await sb
-            .from('dayung_units')
-            .select('id, name, barangay, city, province')
-            .eq('id', chosenId)
-            .maybeSingle();
-        if (u != null) selected = Map<String, dynamic>.from(u);
-      }
+    } else if (hasValidSaved) {
+      // Reuse previous
+      selected = saved;
+    } else if (allIds.length == 1) {
+      // Only one: load it
+      final onlyId = allIds.first;
+      final u = await sb
+          .from('dayung_units')
+          .select('id, name, barangay, city, province')
+          .eq('id', onlyId)
+          .maybeSingle();
+      if (u != null) selected = Map<String, dynamic>.from(u);
     }
 
     selected ??= {
@@ -523,14 +508,12 @@ class _LoginState extends State<Login> {
       'province': null,
     };
 
-    // Persist and refresh providers
     await prefs.setString('selectedDayungUnit', jsonEncode(selected));
     await prefs.setString('selectedDayungUnitData', jsonEncode(selected));
 
     final unitId = selected['id'] as int?;
     if (unitId != null && mounted) {
       await context.read<DayungRoleProvider>().refreshRoles(unitId);
-      if (!mounted) return;
       context.read<DayungUnitProvider>().setDayungUnit(
         '${selected['name'] ?? 'Dayung'}',
         obj: {
@@ -544,12 +527,27 @@ class _LoginState extends State<Login> {
     }
 
     if (!mounted) return;
-    // Defer navigation to avoid "Overlay setState during build"
+
+    // Direct role-based routing (avoid stale role state)
+    final roles = context.read<DayungRoleProvider>();
+    Widget home;
+    if (roles.isPresident) {
+      home = const PresidentDashboardPage();
+    } else if (roles.isSecretary) {
+      home = const SecretaryDashboardPage();
+    } else if (roles.isTreasurer) {
+      home = const TreasurerDashboardPage();
+    } else if (roles.isCollector) {
+      home = const CollectorDashboardPage();
+    } else {
+      home = const MemberDashboardPage();
+    }
+
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       Navigator.pushReplacement(
         context,
-        MaterialPageRoute(builder: (_) => const RoleRouter()),
+        MaterialPageRoute(builder: (_) => home),
       );
     });
   }
@@ -578,7 +576,6 @@ class _LoginState extends State<Login> {
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    // Header + Logo
                     Padding(
                       padding: const EdgeInsets.symmetric(vertical: 16),
                       child: Column(
@@ -676,33 +673,33 @@ class _LoginState extends State<Login> {
                             children: [
                               if (_isLoading)
                                 Container(
-                                  margin: const EdgeInsets.only(bottom: 16),
-                                  padding: const EdgeInsets.all(16),
-                                  decoration: BoxDecoration(
-                                    color: kPrimary.withOpacity(0.1),
-                                    borderRadius: BorderRadius.circular(12),
-                                  ),
-                                  child: Row(
-                                    children: [
-                                      const SizedBox(
-                                        width: 20,
-                                        height: 20,
-                                        child: CircularProgressIndicator(
-                                          color: kPrimary,
-                                          strokeWidth: 2,
-                                        ),
-                                      ),
-                                      const SizedBox(width: 12),
-                                      Text(
-                                        'Signing you in...',
-                                        style: TextStyle(
-                                          color: kPrimary,
-                                          fontWeight: FontWeight.w600,
-                                          fontSize: 14,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
+                                  // margin: const EdgeInsets.only(bottom: 16),
+                                  // padding: const EdgeInsets.all(16),
+                                  //decoration: BoxDecoration(
+                                  //color: kPrimary.withOpacity(0.1),
+                                  //borderRadius: BorderRadius.circular(12),
+                                  //),
+                                  // child: Row(
+                                  //   children: [
+                                  //     const SizedBox(
+                                  //       width: 20,
+                                  //       height: 20,
+                                  //       // child: CircularProgressIndicator(
+                                  //       //   color: kPrimary,
+                                  //       //   strokeWidth: 2,
+                                  //       // ),
+                                  //     ),
+                                  //     const SizedBox(width: 12),
+                                  //     // Text(
+                                  //     //   'Signing you in...',
+                                  //     //   style: TextStyle(
+                                  //     //     color: kPrimary,
+                                  //     //     fontWeight: FontWeight.w600,
+                                  //     //     fontSize: 14,
+                                  //     //   ),
+                                  //     // ),
+                                  //   ],
+                                  // ),
                                 ),
 
                               TextFormField(
@@ -723,7 +720,6 @@ class _LoginState extends State<Login> {
                                     return 'Phone number is required';
                                   }
                                   final s = value.trim();
-                                  // Allow email as fallback
                                   if (s.contains('@')) {
                                     final emailRegex = RegExp(
                                       r'^[^@]+@[^@]+\.[^@]+$',

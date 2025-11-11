@@ -20,19 +20,18 @@ class _SplashScreenState extends State<SplashScreen> {
   }
 
   Future<void> _checkSessionAndNavigate() async {
-    await Future.delayed(
-      const Duration(milliseconds: 1800),
-    ); // Wait for splash animation
+    // Wait for splash animation
+    await Future.delayed(const Duration(milliseconds: 1800));
+
     final session = Supabase.instance.client.auth.currentSession;
     if (session != null) {
-      // User is logged in, require PIN
-      final ok = await PinLock.guard(context);
-      if (ok) {
-        Navigator.pushReplacementNamed(context, '/dashboard');
-      }
-      // If PIN failed, stay on splash or handle as you wish
+      // Logged in: ask for PIN (inside) then
+      // rehydrate Dayung selection + refresh roles and route properly
+      await PinLock.ensureUnlockAndRouteHome(context);
+      return; // Stop here; routing handled by PinLock
     }
-    // If not logged in, do nothing (user will tap "Get Started")
+
+    // Not logged in: stay and let user tap Get Started → /login
   }
 
   @override

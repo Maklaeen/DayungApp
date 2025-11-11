@@ -39,7 +39,7 @@ dependencies:
   font_awesome_flutter: ^10.7.0
   shared_preferences: ^2.5.3
   auto_size_text: ^3.0.0
-  flutter_launcher_icons: ^0.14.4
+  flutter_launcher_icons: ^0.14.4 #
   flutter_local_notifications: ^19.5.0
   permission_handler: ^12.0.1
   intl: ^0.20.2
@@ -70,9 +70,9 @@ dependencies:
   flutter_riverpod: ^3.0.3
   flutter_secure_storage: ^8.0.0
   
-flutter_icons:
+flutter_launcher_icons:
   android: true
-  ios: false
+  ios: true
   image_path: "assets/images/iconApp.jpeg"
 
 dev_dependencies:

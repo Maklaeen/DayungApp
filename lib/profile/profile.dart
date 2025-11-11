@@ -1,23 +1,15 @@
 import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
+import 'dart:ui';
 
 import 'package:capstone_app/Auth/login.dart' hide kWarn;
-import 'package:capstone_app/Auth/utils_file.dart';
 import 'package:capstone_app/Beneficiary/beneficiary.dart' hide kPrimaryLight;
-import 'package:capstone_app/Collector/dashboard.dart' hide kPrimaryLight;
-import 'package:capstone_app/Members/dashboard.dart' hide kAccent;
-import 'package:capstone_app/President/dashboard.dart' hide kAccent, kWarn;
 import 'package:capstone_app/President/manage_rules.dart' hide kPrimary;
+import 'package:capstone_app/Providers/apptheme_provider.dart';
 import 'package:capstone_app/Providers/dayung_provider.dart';
 import 'package:capstone_app/Providers/dayung_role_provider.dart';
-import 'package:capstone_app/Secretary/dashboard.dart'
-    hide kAccent, kWarn, kPrimary;
-import 'package:capstone_app/Treasurer/dashboard.dart'
-    hide kAccent, kWarn, kPrimary;
 import 'package:capstone_app/profile/dayung_profile.dart';
-import 'package:capstone_app/settings/noti_service.dart';
-import 'package:capstone_app/settings/settings.dart' hide DayungSettingsPage;
 import 'package:capstone_app/ui/theme/branding.dart';
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
@@ -31,7 +23,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:capstone_app/Auth/pinlock.dart' hide kAccent, kWarn, kPrimary;
 
-// Senior-friendly color palette (high contrast, softer tones)
+// color palette
 const kText = Color(0xFF111827);
 const kSubText = Color(0xFF6B7280);
 const kPrimaryLight = Color(0xFF3B82F6);
@@ -56,14 +48,9 @@ class _ProfilePageState extends State<ProfilePage> {
   final _sexController = TextEditingController();
   final _formKey = GlobalKey<FormState>();
   final ImagePicker _imagePicker = ImagePicker();
-
   final _currentPwController = TextEditingController();
   final _newPwController = TextEditingController();
   final _confirmPwController = TextEditingController();
-  bool _obscureCur = true;
-  bool _obscureNew = true;
-  bool _obscureConf = true;
-  bool _isDarkMode = false;
 
   String fullName = '';
   String mobileNumber = '';
@@ -72,13 +59,17 @@ class _ProfilePageState extends State<ProfilePage> {
   String? profileUrl;
   String? birthCertificateUrl;
   String? marriageCertificateUrl;
+  // ignore: unused_field
   int? _unitAtEntry;
 
+  bool _obscureCur = true;
+  bool _obscureNew = true;
+  bool _obscureConf = true;
+  bool _loggingOut = false;
   bool isLoading = true;
   bool _editing = false;
   bool _saving = false;
   bool _uploadingImage = false;
-
   bool get isPresident {
     try {
       return context.select<DayungRoleProvider, bool>((r) => r.isPresident);
@@ -92,6 +83,10 @@ class _ProfilePageState extends State<ProfilePage> {
     super.initState();
     _fetchUserProfile();
     _loadUnitAtEntry();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final unitId = context.read<DayungUnitProvider>().currentUnitId;
+      context.read<DayungRoleProvider>().refreshRoles(unitId);
+    });
   }
 
   @override
@@ -107,7 +102,6 @@ class _ProfilePageState extends State<ProfilePage> {
   }
 
   Future<void> _loadUnitAtEntry() async {
-    // NEW
     final prefs = await SharedPreferences.getInstance();
     final raw = prefs.getString('selectedDayungUnit');
     int? id;
@@ -119,39 +113,37 @@ class _ProfilePageState extends State<ProfilePage> {
     if (mounted) setState(() => _unitAtEntry = id);
   }
 
-  Future<bool> _handleBackNavigate() async {
-    // NEW
-    // If Dayung changed while on Profile, replace dashboard with the correct one
-    final prefs = await SharedPreferences.getInstance();
-    final raw = prefs.getString('selectedDayungUnit');
-    int? currentId;
-    if (raw != null) {
-      try {
-        currentId = (jsonDecode(raw) as Map)['id'] as int?;
-      } catch (_) {}
-    }
+  // Future<bool> _handleBackNavigate() async {
+  //   final prefs = await SharedPreferences.getInstance();
+  //   final raw = prefs.getString('selectedDayungUnit');
+  //   int? currentId;
+  //   if (raw != null) {
+  //     try {
+  //       currentId = (jsonDecode(raw) as Map)['id'] as int?;
+  //     } catch (_) {}
+  //   }
 
-    if (currentId != null && currentId != _unitAtEntry) {
-      final roles = context.read<DayungRoleProvider>();
-      final Widget home = roles.isPresident
-          ? const PresidentDashboardPage()
-          : roles.isSecretary
-          ? const SecretaryDashboardPage()
-          : roles.isTreasurer
-          ? const TreasurerDashboardPage()
-          : roles.isCollector
-          ? const CollectorDashboardPage()
-          : const MemberDashboardPage();
+  //   if (currentId != null && currentId != _unitAtEntry) {
+  //     final roles = context.read<DayungRoleProvider>();
+  //     final Widget home = roles.isPresident
+  //         ? const PresidentDashboardPage()
+  //         : roles.isSecretary
+  //         ? const SecretaryDashboardPage()
+  //         : roles.isTreasurer
+  //         ? const TreasurerDashboardPage()
+  //         : roles.isCollector
+  //         ? const CollectorDashboardPage()
+  //         : const MemberDashboardPage();
 
-      if (!mounted) return false;
-      Navigator.of(context).pushAndRemoveUntil(
-        MaterialPageRoute(builder: (_) => home),
-        (route) => false,
-      );
-      return false; // we handled navigation
-    }
-    return true; // normal back
-  }
+  //     if (!mounted) return false;
+  //     Navigator.of(context).pushAndRemoveUntil(
+  //       MaterialPageRoute(builder: (_) => home),
+  //       (route) => false,
+  //     );
+  //     return false; // we handled navigation
+  //   }
+  //   return true; // normal back
+  // }
 
   void _openCertificate(String url) {
     showDialog(
@@ -466,16 +458,12 @@ class _ProfilePageState extends State<ProfilePage> {
                                         if (!ctx.mounted) return;
                                         setD(() => saving = false);
                                         Navigator.of(ctx).pop();
-                                        ScaffoldMessenger.of(
-                                          context,
-                                        ).showSnackBar(
-                                          SnackBar(
-                                            content: Text(
-                                              hasPin
-                                                  ? 'PIN updated successfully'
-                                                  : 'PIN set successfully',
-                                            ),
-                                          ),
+                                        _showTopPopup(
+                                          hasPin
+                                              ? 'PIN updated successfully'
+                                              : 'PIN set successfully',
+                                          color: kAccent,
+                                          icon: Icons.check_circle,
                                         );
                                       },
                                 style: ElevatedButton.styleFrom(
@@ -886,14 +874,10 @@ class _ProfilePageState extends State<ProfilePage> {
 
                                                 if (!mounted) return;
                                                 Navigator.of(ctx).pop();
-                                                ScaffoldMessenger.of(
-                                                  context,
-                                                ).showSnackBar(
-                                                  const SnackBar(
-                                                    content: Text(
-                                                      'Password updated successfully',
-                                                    ),
-                                                  ),
+                                                _showTopPopup(
+                                                  'Password updated successfully',
+                                                  color: kAccent,
+                                                  icon: Icons.check_circle,
                                                 );
                                               } on SocketException {
                                                 setD(() {
@@ -1171,13 +1155,23 @@ class _ProfilePageState extends State<ProfilePage> {
 
   Future<void> _capturePhoto() async {
     if (_uploadingImage) return;
+    // Request camera permission
+    final status = await Permission.camera.request();
+    if (!status.isGranted) {
+      if (!mounted) return;
+      _showTopPopup(
+        'Camera permission denied',
+        color: kWarn,
+        icon: Icons.error_outline,
+      );
+    }
     try {
       final xFile = await _imagePicker.pickImage(
         source: ImageSource.camera,
         preferredCameraDevice: CameraDevice.front,
-        maxWidth: 2400,
-        maxHeight: 2400,
-        imageQuality: 92,
+        maxWidth: 1200,
+        maxHeight: 1200,
+        imageQuality: 70,
       );
       if (xFile == null) return;
       final bytes = await xFile.readAsBytes();
@@ -1187,9 +1181,11 @@ class _ProfilePageState extends State<ProfilePage> {
       );
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Camera error: $e')));
+      _showTopPopup(
+        'Camera error: $e',
+        color: kWarn,
+        icon: Icons.error_outline,
+      );
     }
   }
 
@@ -1210,9 +1206,11 @@ class _ProfilePageState extends State<ProfilePage> {
       await _cropAndConfirm(bytes, originalFileName: name);
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Image selection failed: $e')));
+      _showTopPopup(
+        'Image selection failed: $e',
+        color: kWarn,
+        icon: Icons.error_outline,
+      );
     }
   }
 
@@ -1323,9 +1321,11 @@ class _ProfilePageState extends State<ProfilePage> {
     } catch (e) {
       if (!mounted) return;
       setState(() => isLoading = false);
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Failed to load profile: $e')));
+      _showTopPopup(
+        'Failed to load profile: $e',
+        color: kWarn,
+        icon: Icons.error_outline,
+      );
     }
   }
 
@@ -1342,6 +1342,108 @@ class _ProfilePageState extends State<ProfilePage> {
     return t.characters.first.toUpperCase();
   }
 
+  void _showTopPopup(
+    String message, {
+    Color color = kAccent,
+    IconData icon = Icons.check_circle,
+  }) {
+    final overlay = Overlay.of(context);
+    if (overlay == null) return;
+
+    late OverlayEntry entry;
+    final animationController = AnimationController(
+      vsync: Navigator.of(context),
+      duration: const Duration(milliseconds: 350),
+    );
+    final curved = CurvedAnimation(
+      parent: animationController,
+      curve: Curves.easeOutCubic,
+      reverseCurve: Curves.easeInCubic,
+    );
+
+    entry = OverlayEntry(
+      builder: (context) => Positioned(
+        top: MediaQuery.of(context).padding.top + 16,
+        left: 24,
+        right: 24,
+        child: AnimatedBuilder(
+          animation: curved,
+          builder: (context, child) {
+            return Opacity(
+              opacity: curved.value,
+              child: Transform.translate(
+                offset: Offset(0, -40 * (1 - curved.value)),
+                child: child,
+              ),
+            );
+          },
+          child: Material(
+            color: Colors.transparent,
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(18),
+              child: BackdropFilter(
+                filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 18,
+                    vertical: 14,
+                  ),
+                  decoration: BoxDecoration(
+                    color: color.withOpacity(0.38),
+                    borderRadius: BorderRadius.circular(18),
+                    border: Border.all(
+                      color: Colors.white.withOpacity(0.18),
+                      width: 1.2,
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: color.withOpacity(0.18),
+                        blurRadius: 12,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(icon, color: Colors.white, size: 22),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          message,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w600,
+                            fontSize: 15,
+                            shadows: [
+                              Shadow(
+                                color: Colors.black26,
+                                blurRadius: 8,
+                                offset: Offset(0, 2),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    overlay.insert(entry);
+    animationController.forward();
+
+    Future.delayed(const Duration(seconds: 5), () async {
+      await animationController.reverse();
+      entry.remove();
+      animationController.dispose();
+    });
+  }
+
   Future<void> _uploadCroppedBytes(
     Uint8List bytes, {
     required String extension,
@@ -1349,6 +1451,19 @@ class _ProfilePageState extends State<ProfilePage> {
     setState(() => _uploadingImage = true);
     try {
       final userId = supabase.auth.currentUser!.id;
+
+      // 1. Delete previous profile image if it exists
+      if (profileUrl != null && profileUrl!.isNotEmpty) {
+        // Extract the file name from the URL
+        final uri = Uri.parse(profileUrl!);
+        final segments = uri.pathSegments;
+        final fileName = segments.isNotEmpty ? segments.last : null;
+        if (fileName != null && fileName.isNotEmpty) {
+          await supabase.storage.from('avatars').remove([fileName]);
+        }
+      }
+
+      // 2. Upload new image
       final fileName =
           '$userId-${DateTime.now().millisecondsSinceEpoch}.$extension';
 
@@ -1378,15 +1493,17 @@ class _ProfilePageState extends State<ProfilePage> {
         profileUrl = publicUrl;
         _uploadingImage = false;
       });
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Profile photo updated')));
+      ScaffoldMessenger.of(context);
+      _showTopPopup('Profile photo updated');
     } catch (e) {
       if (!mounted) return;
       setState(() => _uploadingImage = false);
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Upload error: $e')));
+      ScaffoldMessenger.of(context);
+      _showTopPopup(
+        'Upload error: $e',
+        color: kWarn,
+        icon: Icons.error_outline,
+      );
     }
   }
 
@@ -1447,9 +1564,7 @@ class _ProfilePageState extends State<ProfilePage> {
     );
   }
 
-  Future<void> _uploadCertificate({
-    required String type, // 'birth' or 'marriage'
-  }) async {
+  Future<void> _uploadCertificate({required String type}) async {
     final result = await FilePicker.platform.pickFiles(
       type: FileType.custom,
       allowedExtensions: ['pdf', 'png', 'jpg', 'jpeg'],
@@ -1468,7 +1583,6 @@ class _ProfilePageState extends State<ProfilePage> {
       final userId = supabase.auth.currentUser!.id;
       final fileName = '$userId-${type}_certificate.${ext.toLowerCase()}';
 
-      // Use the correct bucket for each type
       final bucket = type == 'birth'
           ? 'birth_certificates'
           : 'marriage_certificates';
@@ -1499,19 +1613,19 @@ class _ProfilePageState extends State<ProfilePage> {
         if (type == 'marriage') marriageCertificateUrl = publicUrl;
         _uploadingImage = false;
       });
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            '${type[0].toUpperCase()}${type.substring(1)} certificate uploaded!',
-          ),
-        ),
+      _showTopPopup(
+        '${type[0].toUpperCase()}${type.substring(1)} certificate uploaded!',
+        color: kAccent,
+        icon: Icons.check_circle,
       );
     } catch (e) {
       if (!mounted) return;
       setState(() => _uploadingImage = false);
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Upload error: $e')));
+      _showTopPopup(
+        'Upload error: $e',
+        color: kWarn,
+        icon: Icons.error_outline,
+      );
     }
   }
 
@@ -1537,8 +1651,10 @@ class _ProfilePageState extends State<ProfilePage> {
 
       if (!mounted) return;
       if (res.isEmpty) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('No profile found to update')),
+        _showTopPopup(
+          'No profile found to update',
+          color: kWarn,
+          icon: Icons.error_outline,
         );
       } else {
         final row = res.first;
@@ -1550,15 +1666,15 @@ class _ProfilePageState extends State<ProfilePage> {
           profileUrl = (row['profile_url'] ?? profileUrl)?.toString();
           _editing = false;
         });
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Profile updated successfully')),
-        );
+        _showTopPopup('Profile updated successfully');
       }
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Error updating profile: $e')));
+      _showTopPopup(
+        'Error updating profile: $e',
+        color: kWarn,
+        icon: Icons.error_outline,
+      );
     } finally {
       if (mounted) setState(() => _saving = false);
     }
@@ -1573,12 +1689,9 @@ class _ProfilePageState extends State<ProfilePage> {
       await prefs.remove('selectedDayungUnit');
       await prefs.remove('selectedDayungUnitData');
 
-      // Clear in-memory selection so "Already using" won't appear after logout
       try {
         if (mounted) {
           context.read<DayungUnitProvider>().clear();
-          // Optional: reset roles as well if you keep them around
-          // context.read<DayungRoleProvider>().refreshRoles(null);
         }
       } catch (_) {}
 
@@ -1591,17 +1704,15 @@ class _ProfilePageState extends State<ProfilePage> {
   }
 
   Future<void> handleLogout(BuildContext context) async {
-    // 1) Sign out Supabase
+    setState(() => _loggingOut = true);
     try {
       await Supabase.instance.client.auth.signOut();
     } catch (_) {}
 
-    // 2) Clear local selections
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove('selectedDayungUnit');
     await prefs.remove('selectedDayungUnitData');
 
-    // 3) Clear providers (single source of truth)
     try {
       context.read<DayungUnitProvider>().clear();
     } catch (_) {}
@@ -1611,9 +1722,9 @@ class _ProfilePageState extends State<ProfilePage> {
 
     if (!context.mounted) return;
 
-    // 4) Defer navigation to next frame to avoid "Overlay setState during build"
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!context.mounted) return;
+      setState(() => _loggingOut = false);
       Navigator.of(context).pushAndRemoveUntil(
         MaterialPageRoute(builder: (_) => const Login()),
         (route) => false,
@@ -1632,13 +1743,12 @@ class _ProfilePageState extends State<ProfilePage> {
 
   @override
   Widget build(BuildContext context) {
-    final themeBg = _isDarkMode
-        ? const Color(0xFF18181B)
-        : const Color(0xFFF8FAFC);
-    final themeCard = _isDarkMode ? const Color(0xFF23232A) : Colors.white;
-    final themeText = _isDarkMode ? Colors.white : kText;
-    final themeSubText = _isDarkMode ? Colors.grey[400]! : kSubText;
-    final themeField = _isDarkMode ? const Color(0xFF23232A) : Colors.white;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final themeBg = isDark ? const Color(0xFF18181B) : const Color(0xFFF8FAFC);
+    final themeCard = isDark ? const Color(0xFF23232A) : Colors.white;
+    final themeText = isDark ? Colors.white : const Color(0xFF111827);
+    final themeSubText = isDark ? Colors.white : const Color(0xFF111827);
+    final themeField = isDark ? const Color(0xFF23232A) : Colors.white;
 
     if (isLoading) {
       return Scaffold(
@@ -1654,7 +1764,7 @@ class _ProfilePageState extends State<ProfilePage> {
           gradient: LinearGradient(
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
-            colors: _isDarkMode
+            colors: isDark
                 ? [
                     const Color(0xFF23232A),
                     const Color(0xFF18181B),
@@ -1670,7 +1780,6 @@ class _ProfilePageState extends State<ProfilePage> {
         ),
         child: Column(
           children: [
-            // Modern Header
             Container(
               padding: const EdgeInsets.fromLTRB(16, 40, 16, 24),
               child: Row(
@@ -1708,24 +1817,22 @@ class _ProfilePageState extends State<ProfilePage> {
                       ),
                     ),
                   ),
-                  // Moon/Sun toggle button
                   IconButton(
                     icon: Icon(
-                      _isDarkMode
+                      Theme.of(context).brightness == Brightness.dark
                           ? Icons.wb_sunny_rounded
                           : Icons.nightlight_round,
                       color: Colors.white,
                       size: 22,
                     ),
-                    tooltip: _isDarkMode ? 'Light mode' : 'Dark mode',
-                    onPressed: () {
-                      setState(() => _isDarkMode = !_isDarkMode);
-                    },
+                    tooltip: Theme.of(context).brightness == Brightness.dark
+                        ? 'Light mode'
+                        : 'Dark mode',
+                    onPressed: () => context.read<AppTheme>().toggle(),
                   ),
                 ],
               ),
             ),
-            // Content
             Expanded(
               child: Container(
                 decoration: BoxDecoration(
@@ -1744,7 +1851,6 @@ class _ProfilePageState extends State<ProfilePage> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            // Profile Section
                             _buildModernProfileSection(
                               themeCard,
                               themeText,
@@ -1752,7 +1858,6 @@ class _ProfilePageState extends State<ProfilePage> {
                             ),
                             const SizedBox(height: 32),
 
-                            // Profile Fields
                             _buildProfileFields(
                               themeCard,
                               themeText,
@@ -1761,15 +1866,12 @@ class _ProfilePageState extends State<ProfilePage> {
                             ),
                             const SizedBox(height: 24),
 
-                            // Action Buttons
                             _buildActionButtons(),
                             const SizedBox(height: 24),
 
-                            // Certificates Section
                             _buildCertificatesSection(themeCard, themeText),
                             const SizedBox(height: 24),
 
-                            // Dayung Management
                             _buildDayungManagement(
                               themeCard,
                               themeText,
@@ -1836,13 +1938,12 @@ class _ProfilePageState extends State<ProfilePage> {
     );
   }
 
-  // --- Modern UI section widgets ---
-
   Widget _buildModernProfileSection(
     Color themeCard,
     Color themeText,
     Color themeSubText,
   ) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -1851,18 +1952,12 @@ class _ProfilePageState extends State<ProfilePage> {
       ),
       child: Row(
         children: [
-          // Box background behind the profile photo
           Container(
             padding: const EdgeInsets.all(6),
             decoration: BoxDecoration(
-              color: _isDarkMode
-                  ? const Color(0xFF44444A) // gray in dark mode
-                  : const Color.fromARGB(
-                      255,
-                      215,
-                      215,
-                      215,
-                    ), // dark in light mode
+              color: isDark
+                  ? const Color(0xFF44444A)
+                  : const Color.fromARGB(255, 215, 215, 215),
               borderRadius: BorderRadius.circular(45),
               boxShadow: [
                 BoxShadow(
@@ -2140,16 +2235,14 @@ class _ProfilePageState extends State<ProfilePage> {
   }
 
   Widget _buildActionButtons() {
-    final themeButtonBeneficiary = _isDarkMode
-        ? const Color(0xFF059669)
-        : kAccent;
-    final themeButtonChangePw = _isDarkMode
-        ? const Color(0xFF2563EB)
-        : kPrimaryLight;
-    final themeButtonLogout = _isDarkMode ? const Color(0xFFB91C1C) : kWarn;
-    final themeButtonPin = _isDarkMode
-        ? const Color(0xFF6366F1)
-        : Colors.deepPurple;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final themeButtonBeneficiary = isDark
+        ? const Color(0xFF23232A)
+        : Colors.white;
+    final themeButtonChangePw = isDark ? const Color(0xFF23232A) : Colors.white;
+    final themeButtonLogout = isDark ? const Color(0xFFB91C1C) : kWarn;
+    final themeButtonPin = isDark ? const Color(0xFF23232A) : Colors.white;
+    final textColor = isDark ? Colors.white : kText;
 
     if (_editing) {
       return Container(
@@ -2191,69 +2284,86 @@ class _ProfilePageState extends State<ProfilePage> {
       );
     } else {
       return Consumer<DayungRoleProvider>(
-        builder: (_, roles, __) => Column(
-          children: [
-            if (roles.isPresident) // <-- show only for president
+        builder: (_, roles, __) {
+          debugPrint('[RoleDebug] president=${roles.isPresident}');
+          return Column(
+            children: [
+              if (roles.isPresident)
+                _buildActionButton(
+                  icon: Icons.rule_rounded,
+                  label: 'Manage Rules',
+                  color: Colors.indigo,
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => const ManageRulesPagePres(),
+                      ),
+                    );
+                  },
+                  textColor: Colors.white,
+                ),
+              if (roles.isPresident) const SizedBox(height: 8),
               _buildActionButton(
-                icon: Icons.rule_rounded,
-                label: 'Manage Rules',
-                color: Colors.indigo,
+                icon: Icons.people_rounded,
+                label: 'Beneficiaries',
+                color: themeButtonBeneficiary,
                 onTap: () {
                   Navigator.push(
                     context,
-                    MaterialPageRoute(
-                      builder: (_) => const ManageRulesPagePres(),
-                    ),
+                    MaterialPageRoute(builder: (_) => const BeneficiaryPage()),
+                  );
+                },
+                textColor: textColor,
+              ),
+              const SizedBox(height: 8),
+              FutureBuilder<bool>(
+                future: PinLock.hasPin(),
+                builder: (context, snapshot) {
+                  final hasPin = snapshot.data ?? false;
+                  return Column(
+                    children: [
+                      _buildActionButton(
+                        icon: Icons.pin_rounded,
+                        label: hasPin ? 'Change App PIN' : 'Set up App PIN',
+                        color: themeButtonPin,
+                        onTap: () async {
+                          await _showPinModal(hasPin: hasPin);
+                        },
+                        textColor: textColor,
+                      ),
+                    ],
                   );
                 },
               ),
-            if (roles.isPresident) const SizedBox(height: 8),
-            _buildActionButton(
-              icon: Icons.people_rounded,
-              label: 'Beneficiaries',
-              color: themeButtonBeneficiary,
-              onTap: () {
-                Navigator.pushReplacement(
-                  context,
-                  MaterialPageRoute(builder: (_) => const BeneficiaryPage()),
-                );
-              },
-            ),
-            const SizedBox(height: 8),
-            FutureBuilder<bool>(
-              future: PinLock.hasPin(),
-              builder: (context, snapshot) {
-                final hasPin = snapshot.data ?? false;
-                return Column(
-                  children: [
-                    _buildActionButton(
-                      icon: Icons.pin_rounded,
-                      label: hasPin ? 'Change App PIN' : 'Set up App PIN',
-                      color: themeButtonPin,
-                      onTap: () async {
-                        await _showPinModal(hasPin: hasPin);
-                      },
-                    ),
-                  ],
-                );
-              },
-            ),
-            const SizedBox(height: 8),
-            _buildActionButton(
-              icon: Icons.lock_reset_rounded,
-              label: 'Change Password',
-              color: themeButtonChangePw,
-              onTap: _openChangePasswordDialog,
-            ),
-            const SizedBox(height: 8),
-            _buildActionButton(
-              icon: Icons.logout_rounded,
-              label: 'Logout',
-              color: themeButtonLogout,
-              onTap: () => handleLogout(context),
-            ),
-          ],
-        ),
+              const SizedBox(height: 8),
+              _buildActionButton(
+                icon: Icons.lock_reset_rounded,
+                label: 'Change Password',
+                color: themeButtonChangePw,
+                onTap: _openChangePasswordDialog,
+                textColor: textColor,
+              ),
+              const SizedBox(height: 8),
+              _buildActionButton(
+                icon: Icons.logout_rounded,
+                label: _loggingOut ? '' : 'Logout',
+                color: themeButtonLogout,
+                onTap: _loggingOut ? null : () => handleLogout(context),
+                trailing: _loggingOut
+                    ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(
+                          color: Colors.white,
+                          strokeWidth: 2.5,
+                        ),
+                      )
+                    : null,
+              ),
+            ],
+          );
+        },
       );
     }
   }
@@ -2262,7 +2372,9 @@ class _ProfilePageState extends State<ProfilePage> {
     required IconData icon,
     required String label,
     required Color color,
-    required VoidCallback onTap,
+    required VoidCallback? onTap,
+    Widget? trailing,
+    Color textColor = Colors.white,
   }) {
     return Container(
       width: double.infinity,
@@ -2272,15 +2384,21 @@ class _ProfilePageState extends State<ProfilePage> {
         borderRadius: BorderRadius.circular(8),
       ),
       child: ElevatedButton.icon(
-        icon: Icon(icon, color: Colors.white, size: 16),
-        label: Text(
-          label,
-          style: const TextStyle(
-            fontSize: 14,
-            fontWeight: FontWeight.w600,
-            color: Colors.white,
-            fontFamily: 'Montserrat',
-          ),
+        icon: Icon(icon, color: textColor, size: 16),
+        label: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+                color: textColor,
+                fontFamily: 'Montserrat',
+              ),
+            ),
+            if (trailing != null) ...[const SizedBox(width: 10), trailing],
+          ],
         ),
         style: ElevatedButton.styleFrom(
           backgroundColor: Colors.transparent,
@@ -2320,7 +2438,7 @@ class _ProfilePageState extends State<ProfilePage> {
                 url: birthCertificateUrl,
                 onUpload: () => _uploadCertificate(type: 'birth'),
                 onView: () => _openCertificate(birthCertificateUrl ?? ''),
-                labelColor: themeText, // <-- pass here
+                labelColor: themeText,
               ),
               const SizedBox(height: 8),
               _certificateRow(
@@ -2328,7 +2446,7 @@ class _ProfilePageState extends State<ProfilePage> {
                 url: marriageCertificateUrl,
                 onUpload: () => _uploadCertificate(type: 'marriage'),
                 onView: () => _openCertificate(marriageCertificateUrl ?? ''),
-                labelColor: themeText, // <-- pass here
+                labelColor: themeText,
               ),
             ],
           ),
@@ -2344,7 +2462,6 @@ class _ProfilePageState extends State<ProfilePage> {
   ) {
     return Column(
       children: [
-        // Manage Dayung Card
         Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
