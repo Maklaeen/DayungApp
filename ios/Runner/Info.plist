@@ -5,7 +5,13 @@
 <key>io.flutter.embedded_views_preview</key>
     <true/>
     <key>GMSApiKey</key>
-    <string>AIzaSyAbWnlxrn_Aq2QXyzgS1-D2ZU0UXsO1-ng</string>
+	<string>AIzaSyAbWnlxrn_Aq2QXyzgS1-D2ZU0UXsO1-ng</string>
+	<key>NSCameraUsageDescription</key>
+	<string>This app needs camera access to take profile photos.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>This app needs photo library access to select profile photos.</string>
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>This app needs photo library access to save profile photos.</string>	
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>This app needs access to your location to show your position on the map.</string>
 	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
@@ -13,7 +19,7 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>
-	<string>Capstone App</string>
+	<string>Dayung</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
@@ -21,7 +27,7 @@
 	<key>CFBundleInfoDictionaryVersion</key>
 	<string>6.0</string>
 	<key>CFBundleName</key>
-	<string>capstone_app</string>
+	<string>Dayung</string>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
