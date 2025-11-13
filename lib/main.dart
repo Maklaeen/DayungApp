@@ -9,7 +9,6 @@ import 'package:capstone_app/Providers/route_observer.dart';
 import 'package:capstone_app/Providers/user_provider.dart';
 import 'package:capstone_app/Secretary/dashboard.dart';
 import 'package:capstone_app/Treasurer/dashboard.dart';
-import 'package:capstone_app/settings/noti_service.dart';
 import 'package:flutter/material.dart';
 import 'package:capstone_app/settings/custom_scroll_behavior.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -22,7 +21,6 @@ import 'package:provider/provider.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  NotiService().initNotification();
   final appTheme = AppTheme();
   await appTheme.load();
   await Supabase.initialize(

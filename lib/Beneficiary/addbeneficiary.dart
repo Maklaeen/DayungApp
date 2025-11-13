@@ -1,14 +1,17 @@
 import 'dart:ui';
-
+import 'package:dropdown_button2/dropdown_button2.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:capstone_app/ui/theme/branding.dart';
+import 'package:cupertino_calendar_picker/cupertino_calendar_picker.dart';
 
-// Additional colors for add beneficiary specific styling
+// palette
 const kText = Color(0xFF111827);
 const kSubText = Color(0xFF6B7280);
 const kPrimaryLight = Color(0xFF3B82F6);
+const Color kNeutralText = Color(0xFF111827);
 const kAccentDark = Color(0xFF059669);
 const kCardBg = Color(0xFFFFFFFF);
 const kBorderColor = Color(0xFFE5E7EB);
@@ -23,42 +26,22 @@ class AddBeneficiaryPage extends StatefulWidget {
 }
 
 class _AddBeneficiaryPageState extends State<AddBeneficiaryPage> {
-  // Controllers
   final TextEditingController fullNameController = TextEditingController();
   final TextEditingController maritalController = TextEditingController();
-
-  // State
   final user = Supabase.instance.client.auth.currentUser;
   final _formKey = GlobalKey<FormState>();
+
   bool _isSubmitting = false;
   bool _isUploadingFile = false;
-  int? _selectedYear;
-  int? _selectedMonth;
-  int? _selectedDay;
 
   String? selectedRelationship;
-
-  String? birthCertificateFile; // public URL
+  String? birthCertificateFile;
   String? selectedMaritalStatus;
-
-  List<int> get _years {
-    final now = DateTime.now();
-    return List.generate(120, (i) => now.year - i);
-  }
-
-  List<int> get _months => List.generate(12, (i) => i + 1);
-
-  List<int> get _days {
-    if (_selectedYear != null && _selectedMonth != null) {
-      final lastDay = DateTime(_selectedYear!, _selectedMonth! + 1, 0).day;
-      return List.generate(lastDay, (i) => i + 1);
-    }
-    return List.generate(31, (i) => i + 1);
-  }
+  String? selectedSex;
 
   DateTime? _selectedDob;
 
-  final List<String> _relationships = const [
+  final List<String> _relationships = [
     'Spouse',
     'Child',
     'Parent',
@@ -71,7 +54,7 @@ class _AddBeneficiaryPageState extends State<AddBeneficiaryPage> {
     'Other',
   ];
 
-  final List<String> _maritalStatuses = const [
+  final List<String> _maritalStatuses = [
     'Single',
     'Married',
     'Widowed',
@@ -218,101 +201,124 @@ class _AddBeneficiaryPageState extends State<AddBeneficiaryPage> {
     contentPadding: const EdgeInsets.symmetric(vertical: 6, horizontal: 8),
   );
 
-  Widget _dobDropdowns() {
-    return Row(
-      children: [
-        // Month
-        Expanded(
-          flex: 1,
-          child: DropdownButtonFormField<int>(
-            initialValue: _selectedMonth,
-            decoration: _dropdownDec('Month'),
-            items: _months
-                .map(
-                  (m) => DropdownMenuItem(
-                    value: m,
-                    child: Text(
-                      m.toString().padLeft(2, '0'),
-                      style: const TextStyle(fontSize: 10),
+  Future<void> _showCalendarDialog(BuildContext context) async {
+    final now = DateTime.now();
+    final firstDate = DateTime(now.year - 120, 1, 1);
+    final lastDate = now;
+    final initialDate = _selectedDob ?? DateTime(now.year - 18, 1, 1);
+
+    final picked = await showModalBottomSheet<DateTime>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) {
+        DateTime temp = initialDate;
+        final size = MediaQuery.of(ctx).size;
+
+        return SafeArea(
+          child: CupertinoTheme(
+            data: const CupertinoThemeData(
+              brightness: Brightness.light,
+              primaryColor: Color(0xFF3B82F6),
+            ),
+            child: SizedBox(
+              height: size.height * 0.50,
+              child: Column(
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
+                    child: Row(
+                      children: [
+                        TextButton(
+                          onPressed: () => Navigator.pop(ctx),
+                          child: const Text(
+                            'Cancel',
+                            style: TextStyle(
+                              color: kDanger,
+                              fontSize: 15,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                        const Spacer(),
+                        const Text(
+                          'Select Date of Birth',
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            color: kText,
+                            fontSize: 16,
+                          ),
+                        ),
+                        const Spacer(),
+                        TextButton(
+                          onPressed: () => Navigator.pop(ctx, temp),
+                          child: const Text(
+                            'Done',
+                            style: TextStyle(
+                              color: kPrimary,
+                              fontSize: 15,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
-                )
-                .toList(),
-            onChanged: (v) => setState(() {
-              _selectedMonth = v;
-              // Check if current day is still valid for new month/year
-              if (_selectedYear != null) {
-                final lastDay = DateTime(
-                  _selectedYear!,
-                  _selectedMonth! + 1,
-                  0,
-                ).day;
-                if (_selectedDay != null && _selectedDay! > lastDay) {
-                  _selectedDay = null;
-                }
-              }
-            }),
-            validator: (v) => v == null ? 'Month' : null,
-          ),
-        ),
-        const SizedBox(width: 2),
-        // Day
-        Expanded(
-          flex: 1,
-          child: DropdownButtonFormField<int>(
-            initialValue: _selectedDay,
-            decoration: _dropdownDec('Day'),
-            items: _days
-                .map(
-                  (d) => DropdownMenuItem(
-                    value: d,
-                    child: Text(
-                      d.toString().padLeft(2, '0'),
-                      style: const TextStyle(fontSize: 10),
+                  const Divider(height: 1),
+                  Expanded(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 12),
+                      child: CupertinoCalendar(
+                        minimumDateTime: firstDate,
+                        maximumDateTime: lastDate,
+                        initialDateTime: temp,
+                        currentDateTime: _selectedDob ?? DateTime.now(),
+                        mode: CupertinoCalendarMode.date,
+                        onDateTimeChanged: (d) => temp = d,
+                      ),
                     ),
                   ),
-                )
-                .toList(),
-            onChanged: (v) => setState(() => _selectedDay = v),
-            validator: (v) => v == null ? 'Day' : null,
+                ],
+              ),
+            ),
           ),
-        ),
-        const SizedBox(width: 2),
-        // Year
-        Expanded(
-          flex: 2,
-          child: DropdownButtonFormField<int>(
-            initialValue: _selectedYear,
-            decoration: _dropdownDec('Year'),
-            items: _years
-                .map(
-                  (y) => DropdownMenuItem(
-                    value: y,
-                    child: Text(
-                      y.toString(),
-                      style: const TextStyle(fontSize: 10),
-                    ),
-                  ),
-                )
-                .toList(),
-            onChanged: (v) => setState(() {
-              _selectedYear = v;
-              // Check if current day is still valid for new year/month
-              if (_selectedMonth != null) {
-                final lastDay = DateTime(
-                  _selectedYear!,
-                  _selectedMonth! + 1,
-                  0,
-                ).day;
-                if (_selectedDay != null && _selectedDay! > lastDay) {
-                  _selectedDay = null;
-                }
-              }
-            }),
-            validator: (v) => v == null ? 'Year' : null,
+        );
+      },
+    );
+
+    if (picked != null) {
+      setState(() => _selectedDob = picked);
+    }
+  }
+
+  Widget _dobField(BuildContext rootContext) {
+    return GestureDetector(
+      onTap: () => _showCalendarDialog(rootContext),
+      child: AbsorbPointer(
+        child: TextFormField(
+          readOnly: true,
+          style: const TextStyle(
+            fontSize: 14,
+            color: kText,
+            fontWeight: FontWeight.w500,
           ),
+          decoration: _dec(
+            'Date of Birth',
+            hint: 'YYYY-MM-DD',
+            icon: Icons.calendar_today_rounded,
+          ),
+          controller: TextEditingController(
+            text: _selectedDob == null
+                ? ''
+                : '${_selectedDob!.year}-${_selectedDob!.month.toString().padLeft(2, '0')}-${_selectedDob!.day.toString().padLeft(2, '0')}',
+          ),
+          validator: (v) =>
+              _selectedDob == null ? 'Date of birth is required' : null,
         ),
-      ],
+      ),
     );
   }
 
@@ -374,14 +380,6 @@ class _AddBeneficiaryPageState extends State<AddBeneficiaryPage> {
       '${d.year.toString().padLeft(4, '0')}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
 
   Future<void> _submitBeneficiary() async {
-    if (_selectedYear != null &&
-        _selectedMonth != null &&
-        _selectedDay != null) {
-      _selectedDob = DateTime(_selectedYear!, _selectedMonth!, _selectedDay!);
-    } else {
-      _selectedDob = null;
-    }
-
     if (!_formKey.currentState!.validate()) return;
     if (user == null) {
       _showTopPopup(
@@ -405,7 +403,7 @@ class _AddBeneficiaryPageState extends State<AddBeneficiaryPage> {
     setState(() => _isSubmitting = true);
 
     final fullName = fullNameController.text.trim();
-    final maritalStatus = maritalController.text.trim();
+    final maritalStatus = selectedMaritalStatus?.trim();
     final relationship = selectedRelationship!.trim();
     final dob = _formatDob(_selectedDob!);
     final birthCertificate = birthCertificateFile;
@@ -455,7 +453,6 @@ class _AddBeneficiaryPageState extends State<AddBeneficiaryPage> {
     }
   }
 
-  // UI
   @override
   Widget build(BuildContext context) {
     final width = MediaQuery.of(context).size.width;
@@ -483,7 +480,6 @@ class _AddBeneficiaryPageState extends State<AddBeneficiaryPage> {
                 constraints: BoxConstraints(maxWidth: isWide ? 640 : 420),
                 child: Column(
                   children: [
-                    // Header
                     Container(
                       padding: const EdgeInsets.all(16),
                       child: Column(
@@ -519,7 +515,6 @@ class _AddBeneficiaryPageState extends State<AddBeneficiaryPage> {
                     ),
                     const SizedBox(height: 24),
 
-                    // Form Card
                     Container(
                       padding: EdgeInsets.all(isSmall ? 16 : 20),
                       decoration: BoxDecoration(
@@ -545,7 +540,6 @@ class _AddBeneficiaryPageState extends State<AddBeneficiaryPage> {
                                 ),
                               ),
 
-                            // Section: Personal Information
                             Row(
                               children: [
                                 const Icon(
@@ -568,7 +562,6 @@ class _AddBeneficiaryPageState extends State<AddBeneficiaryPage> {
                             ),
                             const SizedBox(height: 20),
 
-                            // Full Name
                             TextFormField(
                               controller: fullNameController,
                               textInputAction: TextInputAction.next,
@@ -588,79 +581,106 @@ class _AddBeneficiaryPageState extends State<AddBeneficiaryPage> {
                             ),
                             const SizedBox(height: 12),
 
-                            // Date of Birth
-                            _dobDropdowns(),
+                            _dobField(context),
                             const SizedBox(height: 12),
 
-                            // Relationship
-                            DropdownButtonFormField<String>(
-                              initialValue: selectedRelationship,
+                            DropdownButtonFormField2<String>(
+                              isExpanded: true,
                               decoration: _dropdownDec('Relationship'),
+                              value: selectedRelationship,
+                              style: const TextStyle(
+                                fontSize: 16,
+                                color: kText,
+                                fontWeight: FontWeight.w500,
+                              ),
                               items: _relationships
                                   .map(
-                                    (s) => DropdownMenuItem(
-                                      value: s,
+                                    (rel) => DropdownMenuItem<String>(
+                                      value: rel,
                                       child: Text(
-                                        s,
-                                        style: const TextStyle(fontSize: 14),
+                                        rel,
+
+                                        style: const TextStyle(
+                                          color: Colors.white,
+                                          fontSize: 16,
+                                          fontWeight: FontWeight.w500,
+                                        ),
                                       ),
                                     ),
                                   )
                                   .toList(),
-                              onChanged: (v) =>
-                                  setState(() => selectedRelationship = v),
-                              validator: (v) =>
-                                  v == null ? 'Relationship is required' : null,
+
+                              selectedItemBuilder: (context) => _relationships
+                                  .map(
+                                    (rel) => Align(
+                                      alignment: Alignment.centerLeft,
+                                      child: Text(
+                                        rel,
+                                        style: const TextStyle(
+                                          color: kText,
+                                          fontSize: 16,
+                                          fontWeight: FontWeight.w500,
+                                        ),
+                                      ),
+                                    ),
+                                  )
+                                  .toList(),
+                              onChanged: (value) =>
+                                  setState(() => selectedRelationship = value),
+                              validator: (value) => value == null
+                                  ? 'Relationship is required'
+                                  : null,
                             ),
                             const SizedBox(height: 12),
-
-                            // Marital Status
-                            DropdownButtonFormField<String>(
-                              initialValue: selectedMaritalStatus,
+                            DropdownButtonFormField2<String>(
+                              isExpanded: true,
                               decoration: _dropdownDec('Marital Status'),
+                              value: selectedMaritalStatus,
+                              style: const TextStyle(
+                                color: kText,
+                                fontSize: 16,
+                                fontWeight: FontWeight.w500,
+                              ),
                               items: _maritalStatuses
                                   .map(
-                                    (s) => DropdownMenuItem(
-                                      value: s,
+                                    (status) => DropdownMenuItem<String>(
+                                      value: status,
                                       child: Text(
-                                        s,
-                                        style: const TextStyle(fontSize: 14),
+                                        status,
+
+                                        style: const TextStyle(
+                                          fontSize: 16,
+                                          color: Colors.white,
+                                          fontWeight: FontWeight.w500,
+                                        ),
                                       ),
                                     ),
                                   )
                                   .toList(),
-                              onChanged: (v) =>
-                                  setState(() => selectedMaritalStatus = v),
-                              validator: (v) => v == null
+
+                              selectedItemBuilder: (context) => _maritalStatuses
+                                  .map(
+                                    (status) => Align(
+                                      alignment: Alignment.centerLeft,
+                                      child: Text(
+                                        status,
+                                        style: const TextStyle(
+                                          color: kText,
+                                          fontSize: 16,
+                                          fontWeight: FontWeight.w500,
+                                        ),
+                                      ),
+                                    ),
+                                  )
+                                  .toList(),
+                              onChanged: (value) =>
+                                  setState(() => selectedMaritalStatus = value),
+                              validator: (value) => value == null
                                   ? 'Marital status is required'
                                   : null,
                             ),
                             const SizedBox(height: 24),
 
-                            // Section: Documents
-                            Row(
-                              children: [
-                                const Icon(
-                                  Icons.description_rounded,
-                                  color: kPrimary,
-                                  size: 20,
-                                ),
-                                const SizedBox(width: 10),
-                                const Text(
-                                  'Documents',
-                                  style: TextStyle(
-                                    fontSize: 18,
-                                    fontWeight: FontWeight.w700,
-                                    color: kText,
-                                    fontFamily: 'Montserrat',
-                                    letterSpacing: 0.3,
-                                  ),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 20),
-
-                            // Birth Certificate Picker
                             Column(
                               children: [
                                 Row(

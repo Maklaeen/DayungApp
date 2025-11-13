@@ -21,6 +21,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:dropdown_button2/dropdown_button2.dart';
 import 'package:capstone_app/Auth/pinlock.dart' hide kAccent, kWarn, kPrimary;
 
 // color palette
@@ -2150,24 +2151,67 @@ class _ProfilePageState extends State<ProfilePage> {
           icon: Icons.person_outline_rounded,
           label: 'Sex',
           value: sex.isNotEmpty ? sex : 'Not provided',
-          editingChild: DropdownButtonFormField<String>(
+          editingChild: DropdownButtonFormField2<String>(
+            isExpanded: true,
             value: (_sexController.text.isNotEmpty
                 ? _sexController.text
                 : null),
-            items: const [
-              DropdownMenuItem(value: 'Male', child: Text('Male')),
-              DropdownMenuItem(value: 'Female', child: Text('Female')),
-              DropdownMenuItem(
-                value: 'Prefer not to say',
-                child: Text('Prefer not to say'),
-              ),
-            ],
-            onChanged: (val) => _sexController.text = val ?? '',
             decoration: _fieldDecoration(
               'Select sex',
             ).copyWith(filled: true, fillColor: themeField),
-            dropdownColor: themeField,
-            style: TextStyle(color: themeText),
+            // Selected value (in the field) style
+            style: TextStyle(
+              color: themeText,
+              fontSize: 16,
+              fontWeight: FontWeight.w500,
+            ),
+            // Dropdown list items (white), same as register/addbeneficiary
+            items: const ['Male', 'Female', 'Prefer not to say']
+                .map(
+                  (s) => DropdownMenuItem<String>(
+                    value: s,
+                    child: Text(
+                      s,
+                      style: const TextStyle(
+                        color: Colors.white, // list text
+                        fontSize: 16,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ),
+                )
+                .toList(),
+            // Field shows icon + black text (like register.dart)
+            selectedItemBuilder: (context) =>
+                ['Male', 'Female', 'Prefer not to say']
+                    .map(
+                      (s) => Align(
+                        alignment: Alignment.centerLeft,
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            if (s == 'Male')
+                              Icon(Icons.male, color: Colors.blue[700])
+                            else if (s == 'Female')
+                              Icon(Icons.female, color: Colors.pink[400])
+                            else
+                              const Icon(Icons.person_outline, color: kSubText),
+                            const SizedBox(width: 8),
+                            Text(
+                              s,
+                              style: TextStyle(
+                                color: themeText, // field text
+                                fontSize: 16,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    )
+                    .toList(),
+            onChanged: (val) => _sexController.text = val ?? '',
+            validator: (_) => null,
           ),
           themeCard: themeCard,
           themeText: themeText,
