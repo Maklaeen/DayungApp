@@ -196,7 +196,7 @@ class _SubmitClaimFormState extends State<SubmitClaimForm> {
       return;
     }
 
-    String _fmtDate(DateTime d) =>
+    String fmtDate(DateTime d) =>
         '${d.year.toString().padLeft(4, '0')}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
 
     setState(() => _submitting = true);
@@ -208,7 +208,7 @@ class _SubmitClaimFormState extends State<SubmitClaimForm> {
         'status': 'Pending',
         if (_selectedBeneficiaryId != null)
           'beneficiary_id': _selectedBeneficiaryId,
-        'date_of_death': _fmtDate(_dateOfDeath!),
+        'date_of_death': fmtDate(_dateOfDeath!),
         'dayung_unit_id': effectiveUnitId, // <- always the latest selected unit
         'vigil_latitude': _vigilPos?.latitude,
         'vigil_longitude': _vigilPos?.longitude,
@@ -294,12 +294,9 @@ class _SubmitClaimFormState extends State<SubmitClaimForm> {
         border: Border.all(color: Colors.grey.shade200),
       ),
       child: DropdownButtonFormField<String>(
-        value: _selectedDeceasedType,
+        initialValue: _selectedDeceasedType,
         items: [
-          const DropdownMenuItem(
-            value: 'member',
-            child: Text('I am the deceased'),
-          ),
+          const DropdownMenuItem(value: 'member', child: Text('This Member')),
           if (_beneficiaries.isNotEmpty)
             ..._beneficiaries.map(
               (b) => DropdownMenuItem(

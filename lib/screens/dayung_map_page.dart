@@ -128,9 +128,9 @@ class _DayungMapPageState extends State<DayungMapPage> {
   ml.Symbol? _userSymbol;
   ml.Line? _routeLine;
   List<ml.LatLng> _routePoints = [];
-  bool _addedDayungSource = false; 
-  bool _addedDayungLayer = false; 
-  bool _addedUserSource = false; 
+  bool _addedDayungSource = false;
+  bool _addedDayungLayer = false;
+  bool _addedUserSource = false;
   bool _addedUserLayer = false;
 
   Position? _pos;
@@ -152,11 +152,11 @@ class _DayungMapPageState extends State<DayungMapPage> {
     switch (m) {
       case NavMode.driving:
       case NavMode.motorcycle:
-        return 'driving-car'; 
+        return 'driving-car';
       case NavMode.walking:
         return 'foot-walking';
       case NavMode.transit:
-        return 'driving-car'; 
+        return 'driving-car';
     }
   }
 
@@ -192,6 +192,7 @@ class _DayungMapPageState extends State<DayungMapPage> {
     });
     _loadSavedMode();
     _initLocation();
+    _checkExistingApplication();
   }
 
   void _onCompass(CompassEvent event) {
@@ -203,6 +204,25 @@ class _DayungMapPageState extends State<DayungMapPage> {
       _lastCompassUpdateMs = now;
       setState(() => _compassHeading = heading);
     }
+  }
+
+  Future<void> _checkExistingApplication() async {
+    final sb = Supabase.instance.client;
+    final uid = sb.auth.currentUser?.id;
+    final rawId = widget.dayung['id'];
+    final dayungId = rawId is int ? rawId : int.tryParse('$rawId');
+    if (uid == null || dayungId == null) return;
+    try {
+      final existing = await sb
+          .from('applications')
+          .select('id,status')
+          .eq('user_id', uid)
+          .eq('dayung_unit_id', dayungId)
+          .maybeSingle();
+      if (mounted && existing != null) {
+        setState(() => _applied = true);
+      }
+    } catch (_) {}
   }
 
   Future<void> _onMapCreated(ml.MapLibreMapController c) async {
@@ -749,8 +769,8 @@ class _DayungMapPageState extends State<DayungMapPage> {
     } finally {
       if (!mounted) return;
       setState(() {
-        _pos = p; 
-        _loadingLoc = false; 
+        _pos = p;
+        _loadingLoc = false;
       });
       await _updateUserMarker();
       await _updateUserCircle();
@@ -1301,7 +1321,7 @@ class _DayungMapPageState extends State<DayungMapPage> {
         return _infoRow(Icons.verified, 'This is your Dayung', kAccent);
       }
       if (_applied) {
-        return _infoRow(Icons.check_circle, 'Application submitted', kWarn);
+        return _infoRow(Icons.check_circle, 'Application pending', kWarn);
       }
       return const SizedBox.shrink();
     }
@@ -1331,82 +1351,74 @@ class _DayungMapPageState extends State<DayungMapPage> {
     final dayungId = rawId is int ? rawId : int.tryParse('$rawId');
 
     if (uid == null || dayungId == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Cannot apply: missing user or unit.')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Missing user or unit.')));
       return;
     }
 
     setState(() => _submitting = true);
     try {
-      Map<String, dynamic>? existing;
-      try {
-        existing = await sb
-            .from('applications')
-            .select('id, status')
-            .eq('user_id', uid)
-            .eq('dayung_unit_id', dayungId)
-            .maybeSingle();
-      } catch (_) {
-        existing = null;
-      }
+      // PREVENT duplicate
+      final existing = await sb
+          .from('applications')
+          .select('id,status')
+          .eq('user_id', uid)
+          .eq('dayung_unit_id', dayungId)
+          .maybeSingle();
       if (existing != null) {
         setState(() => _applied = true);
-        if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Already ${existing['status'] ?? 'pending'}')),
+          SnackBar(content: Text('Already ${existing['status']}.')),
         );
-        Navigator.pop(context, {'applied': true, 'dayung_id': dayungId});
         return;
       }
 
-      await sb.from('applications').insert({
-        'user_id': uid,
-        'dayung_unit_id': dayungId,
-        'status': 'pending',
-      });
+      // Fetch dayung name + secretary_id
+      final unit = await sb
+          .from('dayung_units')
+          .select('name, secretary_id')
+          .eq('id', dayungId)
+          .maybeSingle();
+
+      final unitName = (unit?['name'] ?? widget.dayung['name'] ?? 'Dayung')
+          .toString();
+      final secretaryId = unit?['secretary_id'];
+
+      // Insert application WITH name
+      final inserted = await sb
+          .from('applications')
+          .insert({
+            'user_id': uid,
+            'dayung_unit_id': dayungId,
+            'status': 'pending',
+            'name': unitName,
+          })
+          .select('id')
+          .single();
+
+      // OPTIONAL secretary notification (create table first, see SQL below)
+      if (secretaryId != null) {
+        try {
+          await sb.from('dayung_application_notifications').insert({
+            'application_id': inserted['id'],
+            'dayung_unit_id': dayungId,
+            'secretary_id': secretaryId,
+          });
+        } catch (_) {}
+      }
 
       if (!mounted) return;
       setState(() => _applied = true);
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(const SnackBar(content: Text('Application submitted.')));
+      ).showSnackBar(SnackBar(content: Text('Application sent to $unitName.')));
       Navigator.pop(context, {'applied': true, 'dayung_id': dayungId});
-    } on PostgrestException catch (e) {
-      final code = e.code ?? '';
-      final msg = (e.message).toLowerCase();
-      if (code == '23505' ||
-          msg.contains('unique') ||
-          msg.contains('duplicate')) {
-        if (mounted) {
-          setState(() => _applied = true);
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('You already applied to this Dayung.'),
-            ),
-          );
-          Navigator.pop(context, {'applied': true, 'dayung_id': dayungId});
-        }
-      } else if (code == '23503' || msg.contains('foreign key')) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Profile not found. Complete registration first.'),
-            ),
-          );
-        }
-      } else {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Failed to apply: ${e.message}')),
-          );
-        }
-      }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(SnackBar(content: Text('Failed to apply: $e')));
+        ).showSnackBar(SnackBar(content: Text('Failed: $e')));
       }
     } finally {
       if (mounted) setState(() => _submitting = false);

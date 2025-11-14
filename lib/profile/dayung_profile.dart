@@ -42,8 +42,11 @@ class _DayungProfileState extends State<DayungProfile> {
   String? _prefFundSupportRange;
   bool _loadingRecs = false;
   List<Map<String, dynamic>> _recommendedUnits = [];
-  // Location was removed from suggestions; keep optional if you want to use it later:
   String? _prefLocation;
+
+  bool _loadingApplied = false;
+  List<Map<String, dynamic>> _appliedDayungs = [];
+  String? _appliedDebug;
 
   String _digits(String? s) => (s ?? '').replaceAll(RegExp(r'[^\d]'), '');
   String _trimLower(String? s) => (s ?? '').trim().toLowerCase();
@@ -56,7 +59,6 @@ class _DayungProfileState extends State<DayungProfile> {
       tags.add(_prefOpenForAll! ? 'Open for all' : 'Restricted');
     if ((_prefFundSupportRange ?? '').isNotEmpty)
       tags.add(_prefFundSupportRange!);
-    // if ((_prefLocation ?? '').isNotEmpty) tags.add(_prefLocation!);
     return tags.isEmpty ? ['No preferences set'] : tags;
   }
 
@@ -74,6 +76,64 @@ class _DayungProfileState extends State<DayungProfile> {
     super.initState();
     _loadCurrentDayung();
     _loadPreferences().then((_) => _loadRecommendations());
+    _loadAppliedDayungs();
+  }
+
+  Future<void> _loadAppliedDayungs() async {
+    setState(() {
+      _loadingApplied = true;
+      _appliedDebug = null;
+    });
+    final supabase = Supabase.instance.client;
+    final user = supabase.auth.currentUser;
+    if (user == null) {
+      setState(() {
+        _loadingApplied = false;
+        _appliedDayungs = [];
+        _appliedDebug = 'No user.';
+      });
+      return;
+    }
+
+    try {
+      final rows = await supabase
+          .from('applications')
+          .select('id,status,applied_at,name,dayung_unit_id,dayung_units(name)')
+          .eq('user_id', user.id)
+          .eq('status', 'pending')
+          .order('applied_at', ascending: false);
+
+      final list = (rows as List).map((r) => Map<String, dynamic>.from(r)).map((
+        r,
+      ) {
+        final fallback = (r['dayung_units'] is Map && r['dayung_units'] != null)
+            ? r['dayung_units']['name']
+            : null;
+        r['display_name'] = (r['name'] as String?)?.trim().isNotEmpty == true
+            ? r['name']
+            : (fallback ?? 'Unknown Dayung');
+        return r;
+      }).toList();
+
+      setState(() {
+        _appliedDayungs = list;
+        if (list.isEmpty) {
+          _appliedDebug = '0 pending rows. Either none or RLS blocks select.';
+        }
+      });
+    } on PostgrestException catch (e) {
+      setState(() {
+        _appliedDayungs = [];
+        _appliedDebug = 'Postgrest: ${e.message}';
+      });
+    } catch (e) {
+      setState(() {
+        _appliedDayungs = [];
+        _appliedDebug = 'Error: $e';
+      });
+    } finally {
+      setState(() => _loadingApplied = false);
+    }
   }
 
   Future<void> _loadRecommendations() async {
@@ -214,7 +274,6 @@ class _DayungProfileState extends State<DayungProfile> {
 
   void _showEditPreferencesSheet() {
     final formKey = GlobalKey<FormState>();
-    // Local edit copies
     String? feeRange = _prefFeeRange;
     String? paymentMethod = _prefPaymentMethod;
     bool? openForAll = _prefOpenForAll;
@@ -425,6 +484,140 @@ class _DayungProfileState extends State<DayungProfile> {
       if ((d['province'] ?? '').toString().isNotEmpty) d['province'],
     ];
     return parts.join(', ');
+  }
+
+  // Show requirements sheet for an applied Dayung
+  void _showRequirementsSheet(String dayungName, {List<String>? requirements}) {
+    final reqs =
+        requirements ??
+        const [
+          'Birth Certificate',
+          'Valid Government ID',
+          'Proof of Residency',
+          '2x2 ID Photo',
+        ];
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (ctx) {
+        return Padding(
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  margin: const EdgeInsets.only(bottom: 12),
+                  decoration: BoxDecoration(
+                    color: kSubText.withValues(alpha: 0.2),
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                ),
+              ),
+              Text(
+                'Upload Requirements',
+                style: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w700,
+                  fontFamily: 'Montserrat',
+                  color: kText,
+                ),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                'Your application for $dayungName is pending. Please upload the following:',
+                style: const TextStyle(
+                  fontSize: 12,
+                  fontFamily: 'OpenSans',
+                  color: kSubText,
+                ),
+              ),
+              const SizedBox(height: 12),
+              ...reqs.map(
+                (r) => Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 4),
+                  child: Row(
+                    children: [
+                      const Icon(
+                        Icons.description_rounded,
+                        size: 16,
+                        color: kPrimary,
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          r,
+                          style: const TextStyle(
+                            fontSize: 13,
+                            fontFamily: 'OpenSans',
+                            color: kText,
+                          ),
+                        ),
+                      ),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 4,
+                        ),
+                        decoration: BoxDecoration(
+                          color: kAccent.withValues(alpha: 0.08),
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: const Text(
+                          'Required',
+                          style: TextStyle(
+                            fontSize: 10,
+                            fontFamily: 'Montserrat',
+                            color: kAccent,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  icon: const Icon(
+                    Icons.upload_rounded,
+                    size: 16,
+                    color: Colors.white,
+                  ),
+                  label: const Text('Upload now'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: kPrimary,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                  ),
+                  onPressed: () {
+                    Navigator.of(ctx).pop();
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Navigate to upload screen...'),
+                      ),
+                    );
+                    // TODO: Navigate to your upload page if available.
+                    // Navigator.push(context, MaterialPageRoute(builder: (_) => UploadRequirementsPage(dayungName: dayungName)));
+                  },
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
   }
 
   @override
@@ -926,11 +1119,12 @@ class _DayungProfileState extends State<DayungProfile> {
                                   ScaffoldMessenger.of(context).showSnackBar(
                                     SnackBar(
                                       content: Text(
-                                        'Application sent to ${selectedDayung['name']}!',
+                                        'Application for ${selectedDayung['name']} sent!',
                                       ),
                                     ),
                                   );
                                   await _loadCurrentDayung(); // refresh in case approval was instant
+                                  await _loadAppliedDayungs(); // refresh pending list
                                 }
                               },
                               child: Row(
@@ -963,6 +1157,107 @@ class _DayungProfileState extends State<DayungProfile> {
                                 ],
                               ),
                             ),
+                          ),
+                        ),
+
+                        const SizedBox(height: 20),
+
+                        // Applied Dayung List
+                        Container(
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Applied Dayung (Pending)',
+                                style: sectionTitleStyle,
+                              ),
+                              const SizedBox(height: 12),
+                              if (_loadingApplied)
+                                const Center(
+                                  child: Padding(
+                                    padding: EdgeInsets.all(8.0),
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                    ),
+                                  ),
+                                )
+                              else if (_appliedDayungs.isEmpty) ...[
+                                Text(
+                                  'You have no pending applications.',
+                                  style: bodyTextStyle.copyWith(
+                                    color: kSubText,
+                                  ),
+                                ),
+                                if (_appliedDebug != null) ...[
+                                  const SizedBox(height: 6),
+                                  Text(
+                                    _appliedDebug!,
+                                    style: bodyTextStyle.copyWith(
+                                      color: kSubText,
+                                      fontSize: isWide ? 12 : 10,
+                                    ),
+                                  ),
+                                ],
+                              ] else
+                                ..._appliedDayungs.map((app) {
+                                  final dayungName =
+                                      (app['name'] as String?) ?? 'N/A';
+                                  return Material(
+                                    color: Colors.transparent,
+                                    child: InkWell(
+                                      borderRadius: BorderRadius.circular(6),
+                                      onTap: () =>
+                                          _showRequirementsSheet(dayungName),
+                                      child: Container(
+                                        width: double.infinity,
+                                        padding: const EdgeInsets.symmetric(
+                                          vertical: 8,
+                                          horizontal: 12,
+                                        ),
+                                        margin: const EdgeInsets.only(
+                                          bottom: 6,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          color: kSubText.withOpacity(0.05),
+                                          borderRadius: BorderRadius.circular(
+                                            6,
+                                          ),
+                                          border: Border.all(
+                                            color: kBorderColor,
+                                            width: 1,
+                                          ),
+                                        ),
+                                        child: Row(
+                                          children: [
+                                            Expanded(
+                                              child: Text(
+                                                dayungName,
+                                                style: bodyTextStyle.copyWith(
+                                                  fontWeight: FontWeight.w500,
+                                                  color: kPrimary,
+                                                  decoration:
+                                                      TextDecoration.underline,
+                                                ),
+                                              ),
+                                            ),
+                                            const SizedBox(width: 8),
+                                            const Icon(
+                                              Icons.upload_file_rounded,
+                                              size: 16,
+                                              color: kPrimary,
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ),
+                                  );
+                                }).toList(),
+                            ],
                           ),
                         ),
 

@@ -2329,7 +2329,6 @@ class _ProfilePageState extends State<ProfilePage> {
     } else {
       return Consumer<DayungRoleProvider>(
         builder: (_, roles, __) {
-          debugPrint('[RoleDebug] president=${roles.isPresident}');
           return Column(
             children: [
               if (roles.isPresident)

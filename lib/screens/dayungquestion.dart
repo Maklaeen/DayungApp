@@ -8,6 +8,7 @@ import 'package:capstone_app/screens/dayung_suggestions.dart';
 import 'package:flutter/material.dart';
 import 'package:maplibre_gl/maplibre_gl.dart' as ml;
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 
 const Color kPrimary = Color(0xFF3B82F6);
 const Color kPrimaryDark = Color(0xFF1E40AF);
@@ -60,143 +61,463 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
     });
   }
 
-  // numeric vector for pgvector
   List<double> _generatePreferenceVector() {
-    // Structural similarity components (normalized 0-1)
-    double fee = contribution_amount == null
-        ? 0.0
-        : double.tryParse(_digits(contribution_amount))?.clamp(0, 1000) ?? 0.0;
-
-    double membership = membership_payment == null
-        ? 0.0
-        : double.tryParse(_digits(membership_payment))?.clamp(0, 1000) ?? 0.0;
-
-    // Binary encodings for feature presence (1) or absence (0)
-    // Each option gets its own position in the vector
-
-    // Organizational Model - 3 positions
-    double orgRotational = organizational_model == 'Rotational Leadership'
+    // Organization Model (3 positions)
+    double orgRotational =
+        (organizational_model == 'Rotational Leadership' ||
+            organizational_model == 'Any')
         ? 1.0
         : 0.0;
-    double orgConsensus = organizational_model == 'Consensus-Based' ? 1.0 : 0.0;
-    double orgElected = organizational_model == 'Elected Committee / Leaders'
+    double orgConsensus =
+        (organizational_model == 'Consensus-Based' ||
+            organizational_model == 'Any')
+        ? 1.0
+        : 0.0;
+    double orgElected =
+        (organizational_model == 'Elected Committee / Leaders' ||
+            organizational_model == 'Any')
         ? 1.0
         : 0.0;
 
-    // Participation Method - 3 positions
-    double partVoluntary = participation_method == 'Voluntary' ? 1.0 : 0.0;
-    double partInvitation = participation_method == 'Invitation-Based'
+    // Participation Method (3 positions)
+    double partVoluntary =
+        (participation_method == 'Voluntary' || participation_method == 'Any')
         ? 1.0
         : 0.0;
-    double partCommunity = participation_method == 'Community-Based'
+    double partInvitation =
+        (participation_method == 'Invitation-Based' ||
+            participation_method == 'Any')
         ? 1.0
         : 0.0;
-
-    // Meeting Frequency - 3 positions
-    double meetWeekly = meeting_frequency == 'Weekly' ? 1.0 : 0.0;
-    double meetMonthly = meeting_frequency == 'Monthly' ? 1.0 : 0.0;
-    double meetAsNeeded = meeting_frequency == 'As Needed' ? 1.0 : 0.0;
-
-    // Payment Method - 3 positions
-    double payCash = payment_method == 'Cash' || payment_method == 'Both'
-        ? 1.0
-        : 0.0;
-    double payGcash = payment_method == 'GCash' || payment_method == 'Both'
+    double partCommunity =
+        (participation_method == 'Community-Based' ||
+            participation_method == 'Any')
         ? 1.0
         : 0.0;
 
-    double penaltyType = penalty_policy == null
-        ? 0.0
-        : penalty_policy == 'Small Fine'
-        ? 0.2
-        : penalty_policy == 'Warning'
-        ? 0.4
-        : penalty_policy == 'Counseling'
-        ? 0.6
-        : penalty_policy == 'Extra Contribution'
-        ? 0.8
-        : penalty_policy == 'Suspension'
+    // Meeting Frequency (3 positions)
+    double meetWeekly =
+        (meeting_frequency == 'Weekly' || meeting_frequency == 'Any')
+        ? 1.0
+        : 0.0;
+    double meetMonthly =
+        (meeting_frequency == 'Monthly' || meeting_frequency == 'Any')
+        ? 1.0
+        : 0.0;
+    double meetAsNeeded =
+        (meeting_frequency == 'As Needed' || meeting_frequency == 'Any')
         ? 1.0
         : 0.0;
 
-    // Attribute match indicator (1 if explicitly specified)
-    double hasPrefs =
-        (contribution_amount != null ||
-            membership_payment != null ||
-            organizational_model != null ||
-            participation_method != null ||
-            meeting_frequency != null ||
-            payment_method != null ||
-            penalty_policy != null)
+    // Payment Method (2 positions)
+    double payCash =
+        (payment_method == 'Cash' ||
+            payment_method == 'Both' ||
+            payment_method == 'Any')
+        ? 1.0
+        : 0.0;
+    double payGcash =
+        (payment_method == 'GCash' ||
+            payment_method == 'Both' ||
+            payment_method == 'Any')
         ? 1.0
         : 0.0;
 
-    // Final vector combines all binary features
+    // Contribution Amount (7 positions)
+    double contrib50_100 =
+        (contribution_amount == '50-100' || contribution_amount == 'Any')
+        ? 1.0
+        : 0.0;
+    double contrib100_150 =
+        (contribution_amount == '100-150' || contribution_amount == 'Any')
+        ? 1.0
+        : 0.0;
+    double contrib150_200 =
+        (contribution_amount == '150-200' || contribution_amount == 'Any')
+        ? 1.0
+        : 0.0;
+    double contrib250_300 =
+        (contribution_amount == '250-300' || contribution_amount == 'Any')
+        ? 1.0
+        : 0.0;
+    double contrib350_400 =
+        (contribution_amount == '350-400' || contribution_amount == 'Any')
+        ? 1.0
+        : 0.0;
+    double contrib450_500 =
+        (contribution_amount == '450-500' || contribution_amount == 'Any')
+        ? 1.0
+        : 0.0;
+    double contrib500_up =
+        (contribution_amount == '500 and up' || contribution_amount == 'Any')
+        ? 1.0
+        : 0.0;
+
+    // Penalty Policy (5 positions)
+    double penaltySmall =
+        (penalty_policy == 'Small Fine' || penalty_policy == 'Any') ? 1.0 : 0.0;
+    double penaltyWarning =
+        (penalty_policy == 'Warning' || penalty_policy == 'Any') ? 1.0 : 0.0;
+    double penaltyCounseling =
+        (penalty_policy == 'Counseling' || penalty_policy == 'Any') ? 1.0 : 0.0;
+    double penaltyExtra =
+        (penalty_policy == 'Extra Contribution' || penalty_policy == 'Any')
+        ? 1.0
+        : 0.0;
+    double penaltySuspension =
+        (penalty_policy == 'Suspension' || penalty_policy == 'Any') ? 1.0 : 0.0;
+
+    // Open For All (1 position)
+    double openAll = (openForAll == 'Yes' || openForAll == null) ? 1.0 : 0.0;
+
     return [
-      // Organization Model (3 positions)
-      organizational_model == 'Rotational Leadership' ? 1.0 : 0.0,
-      organizational_model == 'Consensus-Based' ? 1.0 : 0.0,
-      organizational_model == 'Elected Committee / Leaders' ? 1.0 : 0.0,
-
-      // Participation Method (3 positions)
-      participation_method == 'Voluntary' ? 1.0 : 0.0,
-      participation_method == 'Invitation-Based' ? 1.0 : 0.0,
-      participation_method == 'Community-Based' ? 1.0 : 0.0,
-
-      // Meeting Frequency (3 positions)
-      meeting_frequency == 'Weekly' ? 1.0 : 0.0,
-      meeting_frequency == 'Monthly' ? 1.0 : 0.0,
-      meeting_frequency == 'As Needed' ? 1.0 : 0.0,
-
-      // Payment Method (2 positions)
-      payment_method == 'Cash' || payment_method == 'Both' ? 1.0 : 0.0,
-      payment_method == 'GCash' || payment_method == 'Both' ? 1.0 : 0.0,
-
-      // Contribution Amount Range Indicators (7 positions)
-      contribution_amount == '50-100' ? 1.0 : 0.0,
-      contribution_amount == '100-150' ? 1.0 : 0.0,
-      contribution_amount == '150-200' ? 1.0 : 0.0,
-      contribution_amount == '250-300' ? 1.0 : 0.0,
-      contribution_amount == '350-400' ? 1.0 : 0.0,
-      contribution_amount == '450-500' ? 1.0 : 0.0,
-      contribution_amount == '500 and up' ? 1.0 : 0.0,
-
-      // Penalty Policy (5 positions)
-      penalty_policy == 'Small Fine' ? 1.0 : 0.0,
-      penalty_policy == 'Warning' ? 1.0 : 0.0,
-      penalty_policy == 'Counseling' ? 1.0 : 0.0,
-      penalty_policy == 'Extra Contribution' ? 1.0 : 0.0,
-      penalty_policy == 'Suspension' ? 1.0 : 0.0,
-
-      // Open For All (1 position)
-      openForAll == 'Yes' ? 1.0 : 0.0,
+      orgRotational,
+      orgConsensus,
+      orgElected,
+      partVoluntary,
+      partInvitation,
+      partCommunity,
+      meetWeekly,
+      meetMonthly,
+      meetAsNeeded,
+      payCash,
+      payGcash,
+      contrib50_100,
+      contrib100_150,
+      contrib150_200,
+      contrib250_300,
+      contrib350_400,
+      contrib450_500,
+      contrib500_up,
+      penaltySmall,
+      penaltyWarning,
+      penaltyCounseling,
+      penaltyExtra,
+      penaltySuspension,
+      openAll,
     ];
   }
 
-  // pgvector
-  Future<void> _fetchSuggestions() async {
+  /// Computes the cosine similarity between the user's preference vector `u`
+  /// and a Dayung unit's vector `d`.
+  ///
+  /// Formula:
+  /// cosine_similarity(U, D) = (U ⋅ D) / (||U|| * ||D||)
+  ///
+  /// Where:
+  /// - U ⋅ D is the dot product of the two vectors
+  /// - ||U|| and ||D|| are the magnitudes (lengths) of the vectors
+  ///
+  /// The result ranges from -1 to 1:
+  /// - 1 → vectors are very similar
+  /// - 0 → vectors are orthogonal (no relation)
+  /// - -1 → vectors are opposite
+  ///
+  /// This is used to rank Dayung units based on how closely they match
+  /// the user's preferences
+
+  double cosineSimilarity(List<double> u, List<double> d) {
+    if (u.length != d.length || u.isEmpty) return 0.0;
+    double dot = 0, magU = 0, magD = 0;
+    for (int i = 0; i < u.length; i++) {
+      dot += u[i] * d[i];
+      magU += u[i] * u[i];
+      magD += d[i] * d[i];
+    }
+    const eps = 1e-10;
+    if (magU < eps || magD < eps) return 0.0;
+    return dot / (sqrt(magU) * sqrt(magD));
+  }
+
+  //various vector shapes from PostgREST
+  List<double> _parseVector(dynamic v) {
+    if (v == null) return [];
+    try {
+      if (v is List) return v.map((e) => (e as num).toDouble()).toList();
+      if (v is String) {
+        final s = v.replaceAll(RegExp(r'[\[\]\(\)\s]'), '');
+        return s.isEmpty
+            ? []
+            : s.split(',').map((e) => double.parse(e)).toList();
+      }
+      if (v is Map && v['data'] != null) {
+        return _parseVector(v['data']);
+      }
+    } catch (e, st) {
+      debugPrint('DEBUG: _parseVector failed: $e\n$st\nraw=$v');
+    }
+    return [];
+  }
+
+  List<double> _buildUnitVectorFromRow(Map<String, dynamic> m) {
+    String norm(String? s) => (s ?? '').trim().toLowerCase();
+    String clean(String? s) => norm(s).replaceAll(RegExp(r'[^a-z0-9]+'), ' ');
+
+    final orgKey = clean(m['organizational_model']?.toString());
+    final partKey = clean(m['participation_method']?.toString());
+    final meetKey = clean(m['meeting_frequency']?.toString());
+    final payKey = clean(m['payment_method']?.toString());
+    final contribKey = clean(m['contribution_amount']?.toString());
+    final penKey = clean(m['penalty_policy']?.toString());
+
+    // open_for_all can be bool, string, or number
+    final openRaw = m['open_for_all'];
+    bool open = false;
+    if (openRaw is bool) {
+      open = openRaw;
+    } else if (openRaw is num) {
+      open = openRaw != 0;
+    } else if (openRaw is String) {
+      final s = norm(openRaw);
+      open = s == 'yes' || s == 'true' || s == '1' || s == 'y';
+    }
+
+    // Organizational Model (neutral if unknown)
+    double orgRot = 0, orgCon = 0, orgElec = 0;
+    if (orgKey.isEmpty) {
+      orgRot = orgCon = orgElec = 1;
+    } else {
+      if (orgKey.contains('rotational')) orgRot = 1;
+      if (orgKey.contains('consensus')) orgCon = 1;
+      if (orgKey.contains('elected') ||
+          orgKey.contains('committee') ||
+          orgKey.contains('leader'))
+        orgElec = 1;
+      if (orgRot + orgCon + orgElec == 0) orgRot = orgCon = orgElec = 1;
+    }
+
+    // Participation Method
+    double partVol = 0, partInv = 0, partComm = 0;
+    if (partKey.isEmpty) {
+      partVol = partInv = partComm = 1;
+    } else {
+      if (partKey.contains('voluntar')) partVol = 1;
+      if (partKey.contains('invitation') || partKey.contains('invite'))
+        partInv = 1;
+      if (partKey.contains('community')) partComm = 1;
+      if (partVol + partInv + partComm == 0) partVol = partInv = partComm = 1;
+    }
+
+    // Meeting Frequency
+    double meetW = 0, meetM = 0, meetN = 0;
+    if (meetKey.isEmpty) {
+      meetW = meetM = meetN = 1;
+    } else {
+      if (meetKey.contains('weekly') || meetKey.contains('week')) meetW = 1;
+      if (meetKey.contains('monthly') || meetKey.contains('month')) meetM = 1;
+      if (meetKey.contains('needed') || meetKey.contains('need')) meetN = 1;
+      if (meetW + meetM + meetN == 0) meetW = meetM = meetN = 1;
+    }
+
+    // Payment Method
+    double payCash = 0, payGcash = 0;
+    if (payKey.isEmpty) {
+      payCash = payGcash = 1;
+    } else {
+      if (payKey.contains('both')) {
+        payCash = 1;
+        payGcash = 1;
+      }
+      if (payKey.contains('cash')) payCash = 1;
+      if (payKey.contains('gcash') || payKey.contains('g cash')) payGcash = 1;
+      if (payCash + payGcash == 0) payCash = payGcash = 1;
+    }
+
+    // Contribution Amount buckets
+    double c50_100 = 0,
+        c100_150 = 0,
+        c150_200 = 0,
+        c250_300 = 0,
+        c350_400 = 0,
+        c450_500 = 0,
+        c500_up = 0;
+    double pickRange(String key) {
+      final nums = RegExp(
+        r'\d+',
+      ).allMatches(key).map((m) => int.tryParse(m.group(0)!) ?? 0).toList();
+      if (nums.isEmpty) return -1;
+      final lo = nums.first;
+      final hi = nums.length > 1 ? nums[1] : lo;
+      final mid = ((lo + hi) / 2).toDouble();
+      return mid;
+    }
+
+    if (contribKey.isEmpty) {
+      c50_100 = c100_150 = c150_200 = c250_300 = c350_400 = c450_500 = c500_up =
+          1;
+    } else {
+      final mid = pickRange(contribKey);
+      if (mid < 0) {
+        c50_100 = c100_150 = c150_200 = c250_300 = c350_400 = c450_500 =
+            c500_up = 1;
+      } else {
+        if (mid <= 100)
+          c50_100 = 1;
+        else if (mid <= 150)
+          c100_150 = 1;
+        else if (mid <= 200)
+          c150_200 = 1;
+        else if (mid <= 300)
+          c250_300 = 1;
+        else if (mid <= 400)
+          c350_400 = 1;
+        else if (mid <= 500)
+          c450_500 = 1;
+        else
+          c500_up = 1;
+      }
+    }
+
+    // Penalty Policy
+    double pSmall = 0, pWarn = 0, pCouns = 0, pExtra = 0, pSusp = 0;
+    if (penKey.isEmpty) {
+      pSmall = pWarn = pCouns = pExtra = pSusp = 1;
+    } else {
+      if (penKey.contains('small') && penKey.contains('fine')) pSmall = 1;
+      if (penKey.contains('warning') || penKey.contains('warn')) pWarn = 1;
+      if (penKey.contains('counsel')) pCouns = 1;
+      if (penKey.contains('extra') || penKey.contains('contribution'))
+        pExtra = 1;
+      if (penKey.contains('susp')) pSusp = 1;
+      if (pSmall + pWarn + pCouns + pExtra + pSusp == 0)
+        pSmall = pWarn = pCouns = pExtra = pSusp = 1;
+    }
+
+    final openAll = open ? 1.0 : 0.0;
+
+    return [
+      orgRot.toDouble(),
+      orgCon.toDouble(),
+      orgElec.toDouble(),
+      partVol.toDouble(),
+      partInv.toDouble(),
+      partComm.toDouble(),
+      meetW.toDouble(),
+      meetM.toDouble(),
+      meetN.toDouble(),
+      payCash.toDouble(),
+      payGcash.toDouble(),
+      c50_100.toDouble(),
+      c100_150.toDouble(),
+      c150_200.toDouble(),
+      c250_300.toDouble(),
+      c350_400.toDouble(),
+      c450_500.toDouble(),
+      c500_up.toDouble(),
+      pSmall.toDouble(),
+      pWarn.toDouble(),
+      pCouns.toDouble(),
+      pExtra.toDouble(),
+      pSusp.toDouble(),
+      openAll,
+    ];
+  }
+
+  Future<void> _fetchSuggestionsLocal() async {
     setState(() => isLoading = true);
     try {
-      final vector = _generatePreferenceVector();
-      print('User vector: $vector');
-      final response = await Supabase.instance.client.rpc(
-        'match_dayung_units',
-        params: {'user_vector': vector, 'match_count': 10},
+      final userVector = _generatePreferenceVector();
+      debugPrint(
+        'DEBUG: User Preference Vector len=${userVector.length}: $userVector',
       );
-      if (response is List) {
-        setState(() {
-          suggestedUnits = response;
-        });
+
+      final resp = await Supabase.instance.client
+          .from('dayung_units')
+          .select(
+            'id,name,barangay,city,province,latitude,longitude,vector,organizational_model,participation_method,meeting_frequency,payment_method,contribution_amount,penalty_policy,open_for_all',
+          );
+
+      debugPrint('DEBUG: dayung_units resp type=${resp.runtimeType}');
+      if (resp is! List) {
+        debugPrint('DEBUG: Unexpected resp: $resp');
+        setState(() => suggestedUnits = []);
+        return;
       }
 
-      print('pgvector suggestions: ${suggestedUnits.length}');
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error fetching pgvector suggestions: $e')),
+      debugPrint('DEBUG: Total rows fetched: ${resp.length}');
+      final units = <Map<String, dynamic>>[];
+      int nullVectorCount = 0;
+      int derivedCount = 0;
+      int badLengthCount = 0;
+
+      for (final raw in resp) {
+        final m = Map<String, dynamic>.from(raw as Map);
+        final rawVector = m['vector'];
+        final parsed = _parseVector(rawVector);
+
+        if (parsed.isEmpty) {
+          nullVectorCount++;
+          final derived = _buildUnitVectorFromRow(m);
+          if (derived.length == userVector.length) {
+            m['__parsedVector'] = derived;
+            m['__vectorStatus'] = 'derived_from_fields';
+            derivedCount++;
+            debugPrint(
+              'DEBUG: Derived vector for id=${m['id']} name=${m['name']}: $derived',
+            );
+          } else {
+            m['__parsedVector'] = List<double>.filled(userVector.length, 0.0);
+            m['__vectorStatus'] = 'fallback_zero';
+          }
+          units.add(m);
+          continue;
+        }
+
+        if (parsed.length != userVector.length) {
+          badLengthCount++;
+          debugPrint(
+            'DEBUG: Length mismatch id=${m['id']} name=${m['name']} parsedLen=${parsed.length} expected=${userVector.length}',
+          );
+          // Keep anyway; similarity will be 0
+        }
+
+        m['__parsedVector'] = parsed;
+        m['__vectorStatus'] = 'ok';
+        units.add(m);
+      }
+
+      debugPrint(
+        'DEBUG: Kept units=${units.length} | null/empty=${nullVectorCount} | derived=${derivedCount} | len-mismatch=${badLengthCount}',
       );
+
+      for (var u in units) {
+        final vec = (u['__parsedVector'] as List<double>? ?? []);
+        final sim = cosineSimilarity(userVector, vec);
+        debugPrint(
+          'DEBUG: Unit "${u['name']}" status=${u['__vectorStatus']} sim=${sim.toStringAsFixed(3)} vecLen=${vec.length}',
+        );
+      }
+
+      units.sort((a, b) {
+        final va = (a['__parsedVector'] as List<double>? ?? const []);
+        final vb = (b['__parsedVector'] as List<double>? ?? const []);
+        final simA = cosineSimilarity(userVector, va);
+        final simB = cosineSimilarity(userVector, vb);
+        return simB.compareTo(simA);
+      });
+
+      setState(() => suggestedUnits = units);
+
+      debugPrint('DEBUG: Suggested count=${suggestedUnits.length}');
+      for (var u in suggestedUnits) {
+        final vec = (u['__parsedVector'] as List<double>? ?? const []);
+        final sim = cosineSimilarity(userVector, vec);
+        debugPrint(
+          ' - ID:${u['id']} "${u['name']}" status=${u['__vectorStatus']} sim=${sim.toStringAsFixed(3)}',
+        );
+      }
+    } catch (e) {
+      debugPrint('DEBUG: Local fetch error: $e');
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Local similarity error: $e')));
     } finally {
-      setState(() => isLoading = false);
+      if (mounted) setState(() => isLoading = false);
     }
+  }
+
+  Future<void> _fetchSuggestions() async {
+    await _fetchSuggestionsLocal();
   }
 
   Future<void> _savePreferences({int? selectedUnitId}) async {
@@ -612,7 +933,7 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
                           return const SizedBox.shrink();
                         },
                       ),
-                      // --- Action buttons ---
+
                       Row(
                         mainAxisAlignment: MainAxisAlignment.end,
                         children: [
@@ -743,7 +1064,7 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
   }
 }
 
-class DayungMapPreview extends StatelessWidget {
+class DayungMapPreview extends StatefulWidget {
   final double latitude;
   final double longitude;
 
@@ -754,22 +1075,42 @@ class DayungMapPreview extends StatelessWidget {
   });
 
   @override
+  State<DayungMapPreview> createState() => _DayungMapPreviewState();
+}
+
+class _DayungMapPreviewState extends State<DayungMapPreview> {
+  ml.MaplibreMapController? _controller;
+
+  @override
   Widget build(BuildContext context) {
+    if (kIsWeb) {
+      return _StaticOsmTilePreview(
+        latitude: widget.latitude,
+        longitude: widget.longitude,
+        height: 120,
+        zoom: 14,
+      );
+    }
+
     return SizedBox(
       height: 120,
       child: ClipRRect(
         borderRadius: BorderRadius.circular(12),
         child: ml.MapLibreMap(
-          styleString: 'https://demotiles.maplibre.org/style.json',
+          styleString:
+              'https://api.maptiler.com/maps/basic-v2/style.json?key=ZgS5pYNNGTrRGUAnlS71',
           initialCameraPosition: ml.CameraPosition(
-            target: ml.LatLng(latitude, longitude),
+            target: ml.LatLng(widget.latitude, widget.longitude),
             zoom: 14,
           ),
-          onMapCreated: (ml.MaplibreMapController controller) async {
-            await controller.addSymbol(
+          onMapCreated: (ml.MaplibreMapController controller) {
+            _controller = controller;
+          },
+          onStyleLoadedCallback: () {
+            _controller?.addSymbol(
               ml.SymbolOptions(
-                geometry: ml.LatLng(latitude, longitude),
-                iconImage: "marker-15",
+                geometry: ml.LatLng(widget.latitude, widget.longitude),
+                iconImage: 'marker-15',
                 iconSize: 1.4,
               ),
             );
@@ -782,6 +1123,63 @@ class DayungMapPreview extends StatelessWidget {
           zoomGesturesEnabled: false,
           attributionButtonMargins: const Point(8, 8),
           logoViewMargins: const Point(8, 8),
+        ),
+      ),
+    );
+  }
+}
+
+class _StaticOsmTilePreview extends StatelessWidget {
+  final double latitude;
+  final double longitude;
+  final double height;
+  final int zoom;
+
+  const _StaticOsmTilePreview({
+    required this.latitude,
+    required this.longitude,
+    this.height = 120,
+    this.zoom = 14,
+  });
+
+  (int x, int y) _latLngToTile(double lat, double lon, int z) {
+    final n = pow(2.0, z).toDouble();
+    final xtile = ((lon + 180.0) / 360.0 * n).floor();
+    final latRad = lat * pi / 180.0;
+    final ytile = ((1.0 - (log(tan(latRad) + 1 / cos(latRad)) / pi)) / 2.0 * n)
+        .floor();
+    return (xtile, ytile);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final (x, y) = _latLngToTile(latitude, longitude, zoom);
+    final url = 'https://tile.openstreetmap.org/$zoom/$x/$y.png';
+
+    return SizedBox(
+      height: height,
+      width: double.infinity,
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(12),
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            Image.network(
+              url,
+              fit: BoxFit.cover,
+              filterQuality: FilterQuality.low,
+            ),
+            // Center marker overlay
+            const IgnorePointer(
+              child: Center(
+                child: Icon(
+                  Icons.location_on,
+                  color: Colors.redAccent,
+                  size: 28,
+                ),
+              ),
+            ),
+          ],
         ),
       ),
     );

@@ -409,6 +409,17 @@ class _NotificationPageState extends State<NotificationPage> {
     );
   }
 
+  Future<void> _markApplicationNotifSeen(int id) async {
+    final sb = Supabase.instance.client;
+    try {
+      await sb
+          .from('dayung_application_notifications')
+          .update({'seen': true})
+          .eq('id', id)
+          .eq('seen', false);
+    } catch (_) {}
+  }
+
   Future<void> _fetchAll({int? unitId}) async {
     setState(() => _loading = true);
     final sb = Supabase.instance.client;
@@ -487,14 +498,46 @@ class _NotificationPageState extends State<NotificationPage> {
           })
           .toList();
 
+      List<Map<String, dynamic>> appNotifs = [];
+      if (scopedUnitId != null) {
+        final raw = await sb
+            .from('dayung_application_notifications')
+            .select(
+              'id, application_id, dayung_unit_id, created_at, seen, applications(name,status,user_id)',
+            )
+            .eq('secretary_id', uid)
+            .eq('dayung_unit_id', scopedUnitId)
+            .order('created_at', ascending: false);
+        appNotifs = List<Map<String, dynamic>>.from(raw)
+            .map(
+              (r) => {
+                'id': r['id'],
+                'type': 'application_new',
+                'title': 'New Application',
+                'body':
+                    '${(r['applications']?['name'] ?? 'Applicant')}: ${(r['applications']?['status'] ?? 'pending')}',
+                'created_at': r['created_at'],
+                'read_at': r['seen'] == true ? r['created_at'] : null,
+                'is_read': r['seen'] == true,
+                'dayung_unit_id': r['dayung_unit_id'],
+                'app_notif_id': r['id'],
+                'application_id': r['application_id'],
+              },
+            )
+            .toList();
+      }
+
       // 5) Merge and sort by created_at desc
       final merged =
-          <Map<String, dynamic>>[...notifData, ...mappedAnnouncements]
-            ..sort((a, b) {
-              final ta = DateTime.tryParse('${a['created_at']}') ?? DateTime(0);
-              final tb = DateTime.tryParse('${b['created_at']}') ?? DateTime(0);
-              return tb.compareTo(ta);
-            });
+          <Map<String, dynamic>>[
+            ...notifData,
+            ...mappedAnnouncements,
+            ...appNotifs,
+          ]..sort((a, b) {
+            final ta = DateTime.tryParse('${a['created_at']}') ?? DateTime(0);
+            final tb = DateTime.tryParse('${b['created_at']}') ?? DateTime(0);
+            return tb.compareTo(ta);
+          });
 
       if (!mounted) return;
       setState(() {
@@ -693,9 +736,12 @@ class _NotificationPageState extends State<NotificationPage> {
                             n['type'] == 'announcement' ||
                             n['type'] == 'announcement_direct';
                         final isDirect = n['type'] == 'announcement_direct';
-                        final isUnread = isDirect
+                        final isApplication = n['type'] == 'application_new';
+                        final isUnread = isApplication
                             ? (n['is_read'] != true)
-                            : (n['read_at'] == null);
+                            : (isDirect
+                                  ? (n['is_read'] != true)
+                                  : (n['read_at'] == null));
 
                         return Material(
                           color: Colors.transparent,
@@ -712,11 +758,18 @@ class _NotificationPageState extends State<NotificationPage> {
                               bool ok = true;
                               try {
                                 if (isDirect) {
-                                  if (isUnread) {
-                                    final id = n['id'];
-                                    ok = await _markAnnouncementRead(
-                                      id is num ? id.toInt() : int.parse('$id'),
-                                    );
+                                  if (isApplication && isUnread) {
+                                    final id = n['app_notif_id'];
+                                    if (id != null) {
+                                      await _markApplicationNotifSeen(
+                                        id is num
+                                            ? id.toInt()
+                                            : int.parse('$id'),
+                                      );
+                                      setState(() {
+                                        _items[i] = {...n, 'is_read': true};
+                                      });
+                                    }
                                   }
                                 } else {
                                   final sb = Supabase.instance.client;

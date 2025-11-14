@@ -9,7 +9,6 @@ import 'package:capstone_app/Secretary/deathnotice.dart';
 import 'package:capstone_app/Secretary/manage_applications.dart';
 import 'package:capstone_app/Secretary/secretarymemberspage.dart';
 import 'package:capstone_app/Secretary/service_tracker.dart';
-import 'package:capstone_app/pages/dayung_profile.dart';
 import 'package:capstone_app/pages/notification.dart';
 import 'package:capstone_app/pages/recentdeathnotices.dart';
 import 'package:capstone_app/pages/reports.dart';
@@ -42,23 +41,31 @@ class _SecretaryDashboardPageState extends State<SecretaryDashboardPage> {
 
   String _fullName = '';
   String _selectedDayungUnit = 'Dayung Unit';
-  int _currentIndex = 0;
-  bool _showNavBar = true;
-
-  int _activeMembersCount = 0;
-  bool _loadingActiveMembers = true;
-  int? _dayungUnitId;
-  int? _lastRoleUnitId;
-  List<Map<String, dynamic>> _recentCertificates = [];
+  // ignore: unused_field
+  String? _unitBarangay;
+  // ignore: unused_field
+  String? _unitCity;
 
   double _pendingPaymentsAmount = 0;
-  int _pendingPaymentsMembers = 0;
+
+  bool _showNavBar = true;
+  bool _loadingActiveMembers = true;
   bool _loadingPendingPayments = true;
-  int _unreadNotifCount = 0; // NEW
-  RealtimeChannel? _notifBadgeChannel; // NEW
-  RealtimeChannel? _annBadgeChannel; // NEW
-  String? _unitBarangay; // NEW
-  String? _unitCity;
+
+  int _currentIndex = 0;
+  int _activeMembersCount = 0;
+  int? _dayungUnitId;
+  int? _lastRoleUnitId;
+  // ignore: unused_field
+  int _pendingPaymentsMembers = 0;
+  int _unreadNotifCount = 0;
+  int _unseenAppNotifs = 0;
+
+  RealtimeChannel? _notifBadgeChannel;
+  RealtimeChannel? _annBadgeChannel;
+  RealtimeChannel? _appNotifChannel;
+
+  List<Map<String, dynamic>> _recentCertificates = [];
 
   @override
   void initState() {
@@ -77,7 +84,9 @@ class _SecretaryDashboardPageState extends State<SecretaryDashboardPage> {
       final provUnit = context.read<DayungRoleProvider>().unitId;
       _maybeOnProviderUnitChanged(provUnit);
       _fetchUnreadNotifCount();
+      _fetchUnseenAppNotifs();
       _subscribeNotifBadgeRealtime();
+      _subscribeApplicationRealtime();
     });
 
     _initLoad();
@@ -104,18 +113,87 @@ class _SecretaryDashboardPageState extends State<SecretaryDashboardPage> {
     ]);
   }
 
+  Future<void> _fetchUnseenAppNotifs() async {
+    final sb = Supabase.instance.client;
+    final uid = sb.auth.currentUser?.id;
+    final unitId = _dayungUnitId;
+    if (uid == null || unitId == null) {
+      if (mounted) setState(() => _unseenAppNotifs = 0);
+      return;
+    }
+    try {
+      final rows = await sb
+          .from('dayung_application_notifications')
+          .select('id')
+          .eq('secretary_id', uid)
+          .eq('dayung_unit_id', unitId)
+          .eq('seen', false);
+      if (mounted) setState(() => _unseenAppNotifs = (rows as List).length);
+    } catch (_) {
+      if (mounted) setState(() => _unseenAppNotifs = 0);
+    }
+  }
+
+  void _subscribeApplicationRealtime() {
+    final sb = Supabase.instance.client;
+    final uid = sb.auth.currentUser?.id;
+    final unitId = _dayungUnitId;
+    if (uid == null || unitId == null) return;
+    try {
+      _appNotifChannel?.unsubscribe();
+    } catch (_) {}
+    _appNotifChannel = sb.channel('sec_app_notifs_$unitId');
+    _appNotifChannel!
+        .onPostgresChanges(
+          event: PostgresChangeEvent.insert,
+          schema: 'public',
+          table: 'dayung_application_notifications',
+          filter: PostgresChangeFilter(
+            type: PostgresChangeFilterType.eq,
+            column: 'dayung_unit_id',
+            value: unitId,
+          ),
+          callback: (payload) async {
+            final rec = payload.newRecord;
+            // ignore: unnecessary_null_comparison
+            if (rec != null &&
+                rec['secretary_id'] == uid &&
+                rec['seen'] == false) {
+              await _fetchUnseenAppNotifs();
+            }
+          },
+        )
+        .subscribe();
+  }
+
   void _maybeOnProviderUnitChanged(int? newUnitId) async {
     if (newUnitId == null || newUnitId == _lastRoleUnitId) return;
     _lastRoleUnitId = newUnitId;
     setState(() => _dayungUnitId = newUnitId);
-    await _loadSecretaryInfo(); // updates label from prefs if changed
-    await _refreshAll(); // reload counts/panels
-    await _fetchUnreadNotifCount(); // NEW: refresh badge for new unit
+    await _loadSecretaryInfo();
+    await _refreshAll();
+    await _fetchUnreadNotifCount();
+    await _fetchUnseenAppNotifs();
+    _subscribeApplicationRealtime();
     _subscribeNotifBadgeRealtime();
   }
 
+  Future<void> _markAllAppNotifsSeen() async {
+    final sb = Supabase.instance.client;
+    final uid = sb.auth.currentUser?.id;
+    final unitId = _dayungUnitId;
+    if (uid == null || unitId == null) return;
+    try {
+      await sb
+          .from('dayung_application_notifications')
+          .update({'seen': true})
+          .eq('secretary_id', uid)
+          .eq('dayung_unit_id', unitId)
+          .eq('seen', false);
+    } catch (_) {}
+  }
+
   Future<void> _fetchUnreadNotifCount() async {
-    // NEW
     final sb = Supabase.instance.client;
     final uid = sb.auth.currentUser?.id;
     final unitId = _dayungUnitId;
@@ -124,7 +202,6 @@ class _SecretaryDashboardPageState extends State<SecretaryDashboardPage> {
       return;
     }
     try {
-      // Unread notifications addressed to the secretary for this unit
       final notifRows = await sb
           .from('notifications')
           .select('id')
@@ -133,7 +210,6 @@ class _SecretaryDashboardPageState extends State<SecretaryDashboardPage> {
           .isFilter('read_at', null);
       final notifCount = (notifRows as List).length;
 
-      // Unread announcements for this unit (not yet marked read by this user)
       final annRows = await sb
           .from('announcements')
           .select('id')
@@ -163,13 +239,11 @@ class _SecretaryDashboardPageState extends State<SecretaryDashboardPage> {
   }
 
   void _subscribeNotifBadgeRealtime() {
-    // NEW
     final sb = Supabase.instance.client;
     final uid = sb.auth.currentUser?.id;
     final unitId = _dayungUnitId;
     if (uid == null || unitId == null) return;
 
-    // Cleanup old channels
     try {
       _notifBadgeChannel?.unsubscribe();
     } catch (_) {}
@@ -179,7 +253,6 @@ class _SecretaryDashboardPageState extends State<SecretaryDashboardPage> {
     _notifBadgeChannel = null;
     _annBadgeChannel = null;
 
-    // Notifications inserts to this recipient; guard by unit in callback
     final ch1 = sb.channel('sec_badge_notifications_$uid');
     ch1.onPostgresChanges(
       event: PostgresChangeEvent.insert,
@@ -201,7 +274,6 @@ class _SecretaryDashboardPageState extends State<SecretaryDashboardPage> {
     ch1.subscribe();
     _notifBadgeChannel = ch1;
 
-    // Announcements inserts for current unit
     final ch2 = sb.channel('sec_badge_announcements_$unitId');
     ch2.onPostgresChanges(
       event: PostgresChangeEvent.insert,
@@ -970,6 +1042,7 @@ class _SecretaryDashboardPageState extends State<SecretaryDashboardPage> {
                     title: "Create Death Notice",
                     subtitle: "Record new death",
                     color: const Color(0xFFEF4444),
+                    height: 150,
                     onTap: () {
                       if (_dayungUnitId == null) {
                         ScaffoldMessenger.of(context).showSnackBar(
@@ -994,9 +1067,10 @@ class _SecretaryDashboardPageState extends State<SecretaryDashboardPage> {
                 Expanded(
                   child: _modernActionCard(
                     icon: Icons.family_restroom_rounded,
-                    title: "Manage Beneficiaries",
-                    subtitle: "View & edit beneficiaries",
+                    title: "Manage",
+                    subtitle: "Beneficiaries                     ",
                     color: const Color(0xFF3B82F6),
+                    height: 150,
                     onTap: () {
                       if (_dayungUnitId == null) {
                         ScaffoldMessenger.of(context).showSnackBar(
@@ -1025,16 +1099,21 @@ class _SecretaryDashboardPageState extends State<SecretaryDashboardPage> {
                 Expanded(
                   child: _modernActionCard(
                     icon: Icons.assignment_rounded,
-                    title: "Manage Applications",
-                    subtitle: "Review applications",
+                    title: "Manage",
+                    subtitle: "Applications                   ",
                     color: const Color(0xFF10B981),
-                    onTap: () {
+                    height: 150,
+                    badgeCount: _unseenAppNotifs,
+                    onTap: () async {
                       Navigator.push(
                         context,
                         MaterialPageRoute(
                           builder: (_) => const SecretaryApplicationsPage(),
                         ),
-                      );
+                      ).then((_) async {
+                        await _markAllAppNotifsSeen();
+                        await _fetchUnseenAppNotifs();
+                      });
                     },
                   ),
                 ),
@@ -1042,9 +1121,10 @@ class _SecretaryDashboardPageState extends State<SecretaryDashboardPage> {
                 Expanded(
                   child: _modernActionCard(
                     icon: Icons.track_changes_rounded,
-                    title: "Service Tracking",
+                    title: "Service Tracking       ",
                     subtitle: "Monitor services",
                     color: const Color(0xFF8B5CF6),
+                    height: 150,
                     onTap: () {
                       if (_dayungUnitId == null) {
                         ScaffoldMessenger.of(context).showSnackBar(
@@ -1078,48 +1158,83 @@ class _SecretaryDashboardPageState extends State<SecretaryDashboardPage> {
     required String subtitle,
     required Color color,
     VoidCallback? onTap,
+    int badgeCount = 0,
+    double height = 150,
   }) {
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(16),
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(16),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.05),
-              blurRadius: 10,
-              offset: const Offset(0, 4),
+      child: Stack(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(16),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.05),
+                  blurRadius: 10,
+                  offset: const Offset(0, 4),
+                ),
+              ],
             ),
-          ],
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Icon(icon, color: color, size: 20),
-            const SizedBox(height: 12),
-            Text(
-              title,
-              style: const TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.w700,
-                color: branding.kNeutralText,
-                fontFamily: 'Montserrat',
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Icon(icon, color: color, size: 20),
+                const SizedBox(height: 12),
+                Text(
+                  title,
+                  maxLines: 1,
+                  style: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
+                    color: branding.kNeutralText,
+                    fontFamily: 'Montserrat',
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  subtitle,
+                  maxLines: 1,
+                  style: const TextStyle(
+                    fontSize: 12,
+                    color: Color(0xFF6B7280),
+                    fontFamily: 'OpenSans',
+                  ),
+                ),
+              ],
+            ),
+          ),
+          if (badgeCount > 0)
+            Positioned(
+              right: 10,
+              top: 10,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFDC2626),
+                  borderRadius: BorderRadius.circular(12),
+                  boxShadow: [
+                    BoxShadow(
+                      color: const Color(0xFFDC2626).withValues(alpha: 0.3),
+                      blurRadius: 6,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
+                ),
+                child: Text(
+                  '$badgeCount',
+                  style: const TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                    color: Colors.white,
+                  ),
+                ),
               ),
             ),
-            const SizedBox(height: 4),
-            Text(
-              subtitle,
-              style: const TextStyle(
-                fontSize: 12,
-                color: Color(0xFF6B7280),
-                fontFamily: 'OpenSans',
-              ),
-            ),
-          ],
-        ),
+        ],
       ),
     );
   }

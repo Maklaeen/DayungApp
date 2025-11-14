@@ -41,7 +41,6 @@ class _RegisterState extends State<Register> {
   String get password => passwordController.text.trim();
 
   bool _obscurePassword = true;
-  bool _obscureConfirmPassword = true;
   String? _confirmPasswordError;
   bool _isSubmitting = false;
   DateTime? _selectedDob;
@@ -635,7 +634,7 @@ class _RegisterState extends State<Register> {
                                             sex,
 
                                             style: const TextStyle(
-                                              color: Colors.white,
+                                              color: kNeutralText,
                                               fontSize: 16,
                                               fontWeight: FontWeight.w500,
                                             ),
@@ -794,7 +793,6 @@ class _RegisterState extends State<Register> {
                                 ),
                                 const SizedBox(height: 16),
 
-                                // Password
                                 TextFormField(
                                   controller: passwordController,
                                   obscureText: _obscurePassword,
@@ -816,21 +814,7 @@ class _RegisterState extends State<Register> {
                                           fontSize: 12,
                                           fontWeight: FontWeight.w500,
                                         ),
-                                        suffixIcon: IconButton(
-                                          tooltip: _obscurePassword
-                                              ? 'Show password'
-                                              : 'Hide password',
-                                          icon: Icon(
-                                            _obscurePassword
-                                                ? Icons.visibility_off_rounded
-                                                : Icons.visibility_rounded,
-                                            color: kSubtleText,
-                                          ),
-                                          onPressed: () => setState(
-                                            () => _obscurePassword =
-                                                !_obscurePassword,
-                                          ),
-                                        ),
+                                        // No suffixIcon here!
                                       ),
                                   validator: (v) {
                                     if (v == null || v.trim().isEmpty) {
@@ -843,9 +827,11 @@ class _RegisterState extends State<Register> {
                                   },
                                 ),
                                 const SizedBox(height: 16),
+                                // Confirm Password
                                 TextFormField(
                                   controller: confirmPasswordController,
-                                  obscureText: _obscureConfirmPassword,
+                                  obscureText:
+                                      _obscurePassword, // Use the same variable!
                                   textInputAction: TextInputAction.done,
                                   style: TextStyle(
                                     fontSize: isWide ? 18 : 16,
@@ -859,21 +845,7 @@ class _RegisterState extends State<Register> {
                                         icon: Icons.lock_person_rounded,
                                       ).copyWith(
                                         errorText: _confirmPasswordError,
-                                        suffixIcon: IconButton(
-                                          tooltip: _obscureConfirmPassword
-                                              ? 'Show password'
-                                              : 'Hide password',
-                                          icon: Icon(
-                                            _obscureConfirmPassword
-                                                ? Icons.visibility_off_rounded
-                                                : Icons.visibility_rounded,
-                                            color: kSubtleText,
-                                          ),
-                                          onPressed: () => setState(
-                                            () => _obscureConfirmPassword =
-                                                !_obscureConfirmPassword,
-                                          ),
-                                        ),
+                                        // No suffixIcon here!
                                       ),
                                   validator: (v) {
                                     if (v == null || v.trim().isEmpty) {
@@ -885,8 +857,43 @@ class _RegisterState extends State<Register> {
                                     return null;
                                   },
                                 ),
+                                Align(
+                                  alignment: Alignment.centerRight,
+                                  child: TextButton.icon(
+                                    icon: Icon(
+                                      _obscurePassword
+                                          ? Icons.visibility_off_rounded
+                                          : Icons.visibility_rounded,
+                                      color: kSubtleText,
+                                    ),
+                                    label: Text(
+                                      _obscurePassword
+                                          ? 'Show password'
+                                          : 'Hide password',
+                                      style: TextStyle(
+                                        color: kSubtleText,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                    onPressed: () {
+                                      setState(() {
+                                        _obscurePassword = !_obscurePassword;
+                                      });
+                                    },
+                                    style: TextButton.styleFrom(
+                                      foregroundColor: kSubtleText,
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 8,
+                                        vertical: 0,
+                                      ),
+                                      minimumSize: Size(0, 36),
+                                      tapTargetSize:
+                                          MaterialTapTargetSize.shrinkWrap,
+                                    ),
+                                  ),
+                                ),
 
-                                const SizedBox(height: 28),
+                                const SizedBox(height: 15),
                                 Container(
                                   width: double.infinity,
                                   height: 56,

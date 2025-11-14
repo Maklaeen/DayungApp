@@ -22,6 +22,7 @@ class DayungSuggestionsPage extends StatefulWidget {
 
 class _DayungSuggestionsPageState extends State<DayungSuggestionsPage> {
   final _sb = Supabase.instance.client;
+  final alreadyApplied = false;
 
   List<Map<String, dynamic>> _allDayungs = [];
   bool _loading = false;
@@ -266,48 +267,50 @@ class _DayungSuggestionsPageState extends State<DayungSuggestionsPage> {
                       ),
                       const SizedBox(width: 8),
                       OutlinedButton.icon(
-                        icon: const Icon(Icons.map),
-                        label: const Text('Map'),
+                        icon: Icon(
+                          alreadyApplied ? Icons.check_circle : Icons.map,
+                        ),
+                        label: Text(alreadyApplied ? 'Applied' : 'Map'),
                         style: OutlinedButton.styleFrom(
-                          foregroundColor: kPrimary,
-                          side: const BorderSide(color: kPrimary),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
+                          foregroundColor: alreadyApplied ? kSubText : kPrimary,
+                          side: BorderSide(
+                            color: alreadyApplied ? kSubText : kPrimary,
                           ),
                         ),
-                        onPressed: () async {
-                          final normalized = _normalizeDayung(
-                            Map<String, dynamic>.from(d),
-                          );
+                        onPressed: alreadyApplied
+                            ? null
+                            : () async {
+                                final normalized = _normalizeDayung(
+                                  Map<String, dynamic>.from(d),
+                                );
+                                final lat = normalized['latitude'] as double?;
+                                final lng = normalized['longitude'] as double?;
+                                if (lat == null || lng == null) {
+                                  if (!mounted) return;
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(
+                                      content: Text(
+                                        'No location set for this Dayung.',
+                                      ),
+                                    ),
+                                  );
+                                  return;
+                                }
 
-                          final lat = normalized['latitude'] as double?;
-                          final lng = normalized['longitude'] as double?;
-                          if (lat == null || lng == null) {
-                            if (!mounted) return;
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text(
-                                  'No location set for this Dayung.',
-                                ),
-                              ),
-                            );
-                            return;
-                          }
-
-                          final result = await Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) => DayungMapPage(
-                                dayung: normalized,
-                                isApplied: false,
-                                isMember: false,
-                              ),
-                            ),
-                          );
-                          if (result != null && mounted) {
-                            Navigator.pop(context, result);
-                          }
-                        },
+                                final result = await Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (_) => DayungMapPage(
+                                      dayung: normalized,
+                                      isApplied: false,
+                                      isMember: false,
+                                    ),
+                                  ),
+                                );
+                                if (result != null && mounted) {
+                                  Navigator.pop(context, result);
+                                }
+                              },
                       ),
                     ],
                   ),

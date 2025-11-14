@@ -625,6 +625,144 @@ class _SecretaryApplicationsPageState extends State<SecretaryApplicationsPage> {
     }
   }
 
+  // New: fetch birth certificate URL (from applications first, then users)
+  Future<String?> _getBirthCertificateUrl({
+    required String userId,
+    int? applicationId,
+  }) async {
+    // Try from applications table (if present)
+    if (applicationId != null) {
+      try {
+        final row = await _supabase
+            .from('applications')
+            .select('birth_certificate_url')
+            .eq('id', applicationId)
+            .single();
+        final url = (row['birth_certificate_url'] ?? '').toString().trim();
+        if (url.isNotEmpty) return url;
+      } catch (_) {
+        // ignore and fallback to users
+      }
+    }
+
+    // Fallback: try from users table
+    try {
+      final row = await _supabase
+          .from('users')
+          .select('birth_certificate_url')
+          .eq('id', userId)
+          .single();
+      final url = (row['birth_certificate_url'] ?? '').toString().trim();
+      if (url.isNotEmpty) return url;
+    } catch (_) {
+      // ignore
+    }
+
+    return null;
+  }
+
+  // New: open tracking sheet for a user
+  Future<void> _openUserTracking({
+    required String userId,
+    required String userName,
+    int? applicationId,
+  }) async {
+    if (!mounted) return;
+    await showDialog(
+      context: context,
+      barrierDismissible: true,
+      builder: (ctx) {
+        return Dialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          insetPadding: const EdgeInsets.symmetric(
+            horizontal: 24,
+            vertical: 24,
+          ),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 520),
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+              child: FutureBuilder<String?>(
+                future: _getBirthCertificateUrl(
+                  userId: userId,
+                  applicationId: applicationId,
+                ),
+                builder: (context, snap) {
+                  final loading = snap.connectionState != ConnectionState.done;
+                  final birthUrl = snap.data;
+                  final uploaded = (birthUrl != null && birthUrl.isNotEmpty);
+
+                  return Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          IconButton(
+                            tooltip: 'Close',
+                            icon: const Icon(Icons.close),
+                            onPressed: () => Navigator.pop(ctx),
+                          ),
+                          const SizedBox(width: 4),
+                          Expanded(
+                            child: Text(
+                              'Application tracking • $userName',
+                              textAlign: TextAlign.center,
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w700,
+                                fontSize: 16,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 48),
+                        ],
+                      ),
+                      const Divider(),
+                      if (loading) ...[
+                        const SizedBox(height: 12),
+                        const Center(child: CircularProgressIndicator()),
+                        const SizedBox(height: 12),
+                      ] else ...[
+                        ListTile(
+                          contentPadding: EdgeInsets.zero,
+                          leading: Icon(
+                            uploaded
+                                ? Icons.check_circle
+                                : Icons.cancel_rounded,
+                            color: uploaded ? kSuccess : kDanger,
+                          ),
+                          title: const Text('Birth certificate'),
+                          subtitle: Text(
+                            uploaded ? 'Uploaded' : 'Not uploaded',
+                            style: TextStyle(
+                              color: uploaded ? kSuccess : kDanger,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          trailing: uploaded
+                              ? OutlinedButton.icon(
+                                  icon: const Icon(Icons.picture_as_pdf),
+                                  label: const Text('View'),
+                                  onPressed: () =>
+                                      _openCertificateViewer(birthUrl!),
+                                )
+                              : null,
+                        ),
+                        const SizedBox(height: 8),
+                      ],
+                    ],
+                  );
+                },
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final dayungName =
@@ -907,14 +1045,43 @@ class _SecretaryApplicationsPageState extends State<SecretaryApplicationsPage> {
                                         crossAxisAlignment:
                                             CrossAxisAlignment.start,
                                         children: [
-                                          Text(
-                                            user?['full_name'] ?? 'Member',
-                                            style: const TextStyle(
-                                              fontWeight: FontWeight.w700,
-                                              fontSize: 16,
-                                              color: kText,
-                                              fontFamily: 'Montserrat',
-                                            ),
+                                          // Replace the name Text with a clickable version for Pending
+                                          Builder(
+                                            builder: (_) {
+                                              final userName =
+                                                  (user?['full_name'] ??
+                                                          'Member')
+                                                      .toString();
+                                              final isPending =
+                                                  status == 'pending';
+                                              final appId = app['id'] as int;
+
+                                              final nameText = Text(
+                                                userName,
+                                                style: TextStyle(
+                                                  fontWeight: FontWeight.w700,
+                                                  fontSize: 16,
+                                                  color: isPending
+                                                      ? kPrimary
+                                                      : kText,
+                                                  fontFamily: 'Montserrat',
+                                                  decoration: isPending
+                                                      ? TextDecoration.underline
+                                                      : TextDecoration.none,
+                                                ),
+                                              );
+
+                                              if (!isPending) return nameText;
+
+                                              return InkWell(
+                                                onTap: () => _openUserTracking(
+                                                  userId: userIdStr,
+                                                  userName: userName,
+                                                  applicationId: appId,
+                                                ),
+                                                child: nameText,
+                                              );
+                                            },
                                           ),
                                           const SizedBox(height: 4),
                                           Text(
