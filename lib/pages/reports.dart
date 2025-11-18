@@ -11,6 +11,7 @@ const Color kSubText = Color(0xFF6B7280);
 class ReportsService {
   final sb = Supabase.instance.client;
 
+  // gina fetch ang total money collected per collector per month
   Future<List<Map<String, dynamic>>> fetchMoneyCollectedPerCollector({
     int? unitId,
   }) async {
@@ -52,8 +53,7 @@ class ReportsService {
   Future<List<Map<String, dynamic>>> fetchFundsReleasedPerMonth({
     int? unitId,
   }) async {
-    // TODO: Replace with your actual fund release table/query
-    // Example: SELECT released_at, amount FROM fund_releases WHERE ...
+    // blank
     return [];
   }
 

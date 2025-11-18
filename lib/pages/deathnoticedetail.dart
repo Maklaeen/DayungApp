@@ -538,7 +538,7 @@ class _DeathNoticeDetailState extends State<DeathNoticeDetail> {
                                 borderRadius: BorderRadius.circular(12),
                                 child: ml.MapLibreMap(
                                   styleString:
-                                      'https://demotiles.maplibre.org/style.json',
+                                      'https://api.maptiler.com/maps/basic-v2/style.json?key=ZgS5pYNNGTrRGUAnlS71',
                                   initialCameraPosition: ml.CameraPosition(
                                     target: ml.LatLng(_fLat!, _fLng!),
                                     zoom: 16,

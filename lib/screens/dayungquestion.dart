@@ -53,6 +53,7 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
   String _digits(String? s) => (s ?? '').replaceAll(RegExp(r'[^\d]'), '');
   String _trimLower(String? s) => (s ?? '').trim().toLowerCase();
 
+  // inserting application record to Supabase/PostgreSQL
   Future<void> applyToDayungUnit(String userId, int dayungUnitId) async {
     await Supabase.instance.client.from('applications').insert({
       'user_id': userId,
@@ -61,6 +62,7 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
     });
   }
 
+  // user preference vector generation, based on selected options
   List<double> _generatePreferenceVector() {
     // Organization Model (3 positions)
     double orgRotational =
@@ -215,7 +217,9 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
   ///
   /// This is used to rank Dayung units based on how closely they match
   /// the user's preferences
+  ///
 
+  /// ginagamit ni sya para i rank ang mga dayung base sa preferences sa user
   double cosineSimilarity(List<double> u, List<double> d) {
     if (u.length != d.length || u.isEmpty) return 0.0;
     double dot = 0, magU = 0, magD = 0;
@@ -229,7 +233,6 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
     return dot / (sqrt(magU) * sqrt(magD));
   }
 
-  //various vector shapes from PostgREST
   List<double> _parseVector(dynamic v) {
     if (v == null) return [];
     try {
@@ -413,6 +416,9 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
     ];
   }
 
+  // ginakuha ang tanan dayung gikan sa Supabase/PostgreSQL
+  // ginakuha ang ilang vector field ug gina compare sa user vectpr gamit ang cosine similarity
+  // ang resulta ay sorted list ng suggested units
   Future<void> _fetchSuggestionsLocal() async {
     setState(() => isLoading = true);
     try {

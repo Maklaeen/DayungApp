@@ -1102,6 +1102,7 @@ class _SecretaryApplicationsPageState extends State<SecretaryApplicationsPage> {
                                                 fontFamily: 'OpenSans',
                                               ),
                                             ),
+                                          // specific objectives - riverpod
                                           Consumer(
                                             builder: (context, ref, _) {
                                               final userId = app['user_id']

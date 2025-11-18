@@ -1,6 +1,8 @@
+import 'dart:convert';
+
 import 'package:auto_size_text/auto_size_text.dart';
 import 'package:bcrypt/bcrypt.dart';
-import 'package:capstone_app/Auth/utils_file.dart';
+import 'package:capstone_app/data/ph_address_data.dart';
 import 'package:capstone_app/screens/dayungquestion.dart'
     hide kPrimary, kBg, kAccent;
 import 'package:capstone_app/ui/theme/branding.dart';
@@ -9,6 +11,8 @@ import 'package:dropdown_button2/dropdown_button2.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:capstone_app/Auth/login.dart';
+import 'package:geolocator/geolocator.dart';
+import 'package:http/http.dart' as http;
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 // palette
@@ -39,10 +43,27 @@ class _RegisterState extends State<Register> {
   final confirmPasswordController = TextEditingController();
 
   String get password => passwordController.text.trim();
+  String? _confirmPasswordError;
+  String? selectedProvince;
+  String? selectedCity;
+  String? selectedBarangay;
+  String? selectedMonth;
+  String? selectedDay;
+  String? selectedYear;
+  String? selectedSex;
+
+  String _normalizePhone(String raw) {
+    final s = raw.replaceAll(RegExp(r'\s+'), '');
+    if (s.startsWith('+')) return s;
+    if (s.startsWith('09') && s.length == 11) {
+      return '+63${s.substring(1)}';
+    }
+    return s;
+  }
 
   bool _obscurePassword = true;
-  String? _confirmPasswordError;
   bool _isSubmitting = false;
+
   DateTime? _selectedDob;
 
   @override
@@ -66,18 +87,47 @@ class _RegisterState extends State<Register> {
     });
   }
 
-  String? selectedMonth;
-  String? selectedDay;
-  String? selectedYear;
-  String? selectedSex;
+  List<String> get provinceList =>
+      phProvinces.map((p) => p['name'] as String).toList();
 
-  String _normalizePhone(String raw) {
-    final s = raw.replaceAll(RegExp(r'\s+'), '');
-    if (s.startsWith('+')) return s;
-    if (s.startsWith('09') && s.length == 11) {
-      return '+63${s.substring(1)}';
-    }
-    return s;
+  List<String> get cityList {
+    if (selectedProvince == null) return [];
+    // Cast the top-level list to List<Map<String, dynamic>>
+    final provinces = phProvinces.cast<Map<String, dynamic>>();
+    final province = provinces.firstWhere(
+      (p) => p['name'] == selectedProvince,
+      orElse: () => <String, dynamic>{}, // empty map if not found
+    );
+    final rawCities = province['cities'];
+    if (rawCities is! List) return [];
+    final cities = rawCities.cast<Map<String, dynamic>>();
+    return cities
+        .map((c) => c['name'])
+        .where((name) => name is String && name.trim().isNotEmpty)
+        .cast<String>()
+        .toList();
+  }
+
+  List<String> get barangayList {
+    if (selectedProvince == null || selectedCity == null) return [];
+    final provinces = phProvinces.cast<Map<String, dynamic>>();
+    final province = provinces.firstWhere(
+      (p) => p['name'] == selectedProvince,
+      orElse: () => <String, dynamic>{},
+    );
+    final rawCities = province['cities'];
+    if (rawCities is! List) return [];
+    final cities = rawCities.cast<Map<String, dynamic>>();
+    final city = cities.firstWhere(
+      (c) => c['name'] == selectedCity,
+      orElse: () => <String, dynamic>{},
+    );
+    final rawBarangays = city['barangays'];
+    if (rawBarangays is! List) return [];
+    return rawBarangays
+        .where((b) => b is String && b.trim().isNotEmpty)
+        .cast<String>()
+        .toList();
   }
 
   // ignore: unused_field
@@ -209,6 +259,69 @@ class _RegisterState extends State<Register> {
     );
   }
 
+  Future<void> _useMyLocation() async {
+    try {
+      final hasPermission = await Geolocator.requestPermission();
+      if (hasPermission == LocationPermission.denied ||
+          hasPermission == LocationPermission.deniedForever) {
+        _showTopErrorDialog(context, 'Location permission denied.');
+        return;
+      }
+      final pos = await Geolocator.getCurrentPosition(
+        desiredAccuracy: LocationAccuracy.high,
+      );
+
+      final url =
+          'https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${pos.latitude}&lon=${pos.longitude}&zoom=18&addressdetails=1';
+      final resp = await http.get(
+        Uri.parse(url),
+        headers: {'User-Agent': 'capstone-app/1.0'},
+      );
+      if (resp.statusCode == 200) {
+        final data = json.decode(resp.body);
+        final address = data['address'] ?? {};
+        final province = address['state'] ?? address['province'];
+        final city =
+            address['city'] ??
+            address['municipality'] ??
+            address['town'] ??
+            address['village'];
+        final barangay =
+            address['suburb'] ??
+            address['neighbourhood'] ??
+            address['barangay'];
+
+        setState(() {
+          // Province
+          selectedProvince = provinceList.firstWhere(
+            (p) =>
+                p.toLowerCase().trim() ==
+                (province ?? '').toString().toLowerCase().trim(),
+            orElse: () => '',
+          );
+          // City
+          selectedCity = cityList.firstWhere(
+            (c) =>
+                c.toLowerCase().trim() ==
+                (city ?? '').toString().toLowerCase().trim(),
+            orElse: () => '',
+          );
+          // Barangay
+          selectedBarangay = barangayList.firstWhere(
+            (b) =>
+                b.toLowerCase().trim() ==
+                (barangay ?? '').toString().toLowerCase().trim(),
+            orElse: () => '',
+          );
+        });
+      } else {
+        _showTopErrorDialog(context, 'Failed to get location info.');
+      }
+    } catch (e) {
+      _showTopErrorDialog(context, 'Location error: $e');
+    }
+  }
+
   Future<void> _showCalendarDialog(BuildContext context) async {
     final now = DateTime.now();
     final firstDate = DateTime(now.year - 100, 1, 1);
@@ -338,7 +451,12 @@ class _RegisterState extends State<Register> {
         'sex': selectedSex,
         'mobile_number': rawPhone,
         'mobile_number_normalized': normalizedPhone,
-        'address': addressController.text.trim(),
+        // Save as "Barangay, City, Province"
+        'address': [
+          if (selectedBarangay != null) selectedBarangay,
+          if (selectedCity != null) selectedCity,
+          if (selectedProvince != null) selectedProvince,
+        ].join(', '),
         'role': role,
         'email': email,
       });
@@ -706,23 +824,101 @@ class _RegisterState extends State<Register> {
                                       : null,
                                 ),
                                 const SizedBox(height: 16),
-                                TextFormField(
-                                  controller: addressController,
-                                  textInputAction: TextInputAction.next,
-                                  style: TextStyle(
-                                    fontSize: isWide ? 18 : 16,
-                                    color: kNeutralText,
-                                    fontWeight: FontWeight.w500,
+                                // change
+                                Padding(
+                                  padding: const EdgeInsets.only(bottom: 8.0),
+                                  child: Row(
+                                    children: [
+                                      ElevatedButton.icon(
+                                        icon: const Icon(Icons.my_location),
+                                        label: const Text(
+                                          'Use My Current Location',
+                                          
+                                        ),
+                                        
+                                        style: ElevatedButton.styleFrom(
+                                          backgroundColor: kPrimary,
+                                          foregroundColor: Colors.white,
+                                        ),
+                                        onPressed: _useMyLocation,
+                                        
+                                      ),
+                                      
+                                    ],
                                   ),
-                                  decoration: _dec(
-                                    'Address',
-                                    hint: 'Purok, Barangay, City',
-                                    icon: Icons.home_rounded,
-                                  ),
+                                ),
+                                DropdownButtonFormField<String>(
+                                  decoration: _dropdownDec('Province'),
+                                  value: selectedProvince,
+                                  items: provinceList
+                                      .map(
+                                        (prov) => DropdownMenuItem(
+                                          value: prov,
+                                          child: Text(prov),
+                                        ),
+                                      )
+                                      .toList(),
+                                  onChanged: (val) {
+                                    setState(() {
+                                      selectedProvince = val;
+                                      selectedCity = null;
+                                      selectedBarangay = null;
+                                    });
+                                  },
                                   validator: (v) =>
-                                      (v == null || v.trim().isEmpty)
-                                      ? 'Address is required'
+                                      v == null ? 'Province is required' : null,
+                                ),
+                                const SizedBox(height: 12),
+                                DropdownButtonFormField<String>(
+                                  decoration: _dropdownDec(
+                                    'City / Municipality',
+                                  ),
+                                  value: selectedCity,
+                                  items: cityList
+                                      .map(
+                                        (city) => DropdownMenuItem(
+                                          value: city,
+                                          child: Text(city),
+                                        ),
+                                      )
+                                      .toList(),
+                                  onChanged: selectedProvince == null
+                                      ? null
+                                      : (val) {
+                                          setState(() {
+                                            selectedCity = val;
+                                            selectedBarangay = null;
+                                          });
+                                        },
+                                  validator: (v) => v == null
+                                      ? 'City/Municipality is required'
                                       : null,
+                                  disabledHint: const Text(
+                                    'Select province first',
+                                  ),
+                                ),
+                                const SizedBox(height: 12),
+                                DropdownButtonFormField<String>(
+                                  decoration: _dropdownDec('Barangay'),
+                                  value: selectedBarangay,
+                                  items: barangayList
+                                      .map(
+                                        (brgy) => DropdownMenuItem(
+                                          value: brgy,
+                                          child: Text(brgy),
+                                        ),
+                                      )
+                                      .toList(),
+                                  onChanged: selectedCity == null
+                                      ? null
+                                      : (val) {
+                                          setState(() {
+                                            selectedBarangay = val;
+                                          });
+                                        },
+                                  validator: (v) =>
+                                      v == null ? 'Barangay is required' : null,
+                                  disabledHint: const Text('Select city first'),
                                 ),
 
                                 const SizedBox(height: 28),
