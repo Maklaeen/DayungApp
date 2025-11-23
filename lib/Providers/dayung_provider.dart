@@ -64,6 +64,11 @@ class DayungUnitProvider extends ChangeNotifier {
     _currentUnitId = null;
     _currentName = null;
     _currentObj = null;
+    _dayungUnit = null;
+    _dayungUnitObj = null;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove('selectedDayungUnit');
+    await prefs.remove('selectedDayungUnitData');
     notifyListeners();
   }
 

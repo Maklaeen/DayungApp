@@ -216,7 +216,7 @@ class _DeathNoticeDetailState extends State<DeathNoticeDetail> {
     }
     if (!mounted) return;
     await _updateUserCircle();
-    _updateRouteFade(); // fade/remove line
+    _updateRouteFade();
     if (_autoFollow &&
         _mapController != null &&
         _userLat != null &&

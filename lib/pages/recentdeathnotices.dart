@@ -1,8 +1,11 @@
 import 'dart:async';
+import 'package:capstone_app/Providers/dayung_provider.dart';
+import 'package:capstone_app/Providers/dayung_role_provider.dart';
 import 'package:capstone_app/screens/dayung_suggestions.dart' hide kPrimary;
 import 'package:flutter/material.dart';
 import 'package:capstone_app/pages/deathnoticedetail.dart';
 import 'package:capstone_app/ui/theme/branding.dart';
+import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 // Additional colors for modern design
@@ -33,26 +36,40 @@ class _RecentDeathNoticesState extends State<RecentDeathNotices> {
 
   StreamSubscription<List<Map<String, dynamic>>>? _sub;
 
-  @override
+    @override
   void initState() {
     super.initState();
-
     if (widget.dayungUnitId == null) {
-      setState(() => _loading = false);
+      WidgetsBinding.instance.addPostFrameCallback((_) async {
+        if (!mounted) return;
+        final roleProv = context.read<DayungRoleProvider>();
+        final unitProv = context.read<DayungUnitProvider>();
+        int? fallback = roleProv.unitId ?? unitProv.currentUnitId;
+        if (fallback == null) {
+          fallback = await roleProv.ensureOfficerUnitSelection();
+          if (fallback != null) {
+            unitProv.setDayungUnit('Dayung', obj: {'id': fallback});
+          }
+        }
+        if (fallback != null) {
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(
+              builder: (_) => RecentDeathNotices(dayungUnitId: fallback),
+            ),
+          );
+        } else {
+          setState(() => _loading = false);
+        }
+      });
       return;
     }
-
     _fetchDeathNotices();
-
-    // Realtime stream filtered by dayung
-    final client = Supabase.instance.client;
-    _sub = client
+    _sub = Supabase.instance.client
         .from('death_notices')
         .stream(primaryKey: ['id'])
         .eq('dayung_unit_id', widget.dayungUnitId as Object)
-        .listen((data) {
-          _applySplit(List<Map<String, dynamic>>.from(data));
-        });
+        .listen((data) => _applySplit(List<Map<String, dynamic>>.from(data)));
   }
 
   @override

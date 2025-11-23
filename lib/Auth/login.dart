@@ -1,6 +1,5 @@
 import 'dart:convert';
 import 'package:bcrypt/bcrypt.dart';
-import 'package:capstone_app/Auth/pinlock.dart' hide kPrimary, kAccent;
 import 'package:capstone_app/Auth/utils_file.dart';
 import 'package:capstone_app/Collector/dashboard.dart';
 import 'package:capstone_app/President/dashboard.dart';
@@ -318,12 +317,6 @@ class _LoginState extends State<Login> {
         return;
       }
 
-      // Skip PIN on web (flutter_secure_storage not supported in your downgraded version)
-      if (!kIsWeb) {
-        final ok = await PinLock.ensurePinSetup(context);
-        if (!ok) return;
-      }
-
       await _routeAfterLogin({'id': res.user!.id});
     } on AuthException catch (e) {
       setState(() => _isLoading = false);
@@ -519,19 +512,28 @@ class _LoginState extends State<Login> {
     await prefs.setString('selectedDayungUnit', jsonEncode(selected));
     await prefs.setString('selectedDayungUnitData', jsonEncode(selected));
 
-    final unitId = selected['id'] as int?;
+    if (selected['id'] == null && allIds.isEmpty) {
+      // attempt officer fallback
+      final fallbackOfficerUnit = await context.read<DayungRoleProvider>().ensureOfficerUnitSelection();
+      if (fallbackOfficerUnit != null) {
+        selected['id'] = fallbackOfficerUnit;
+      }
+    }
+    
+    final unitId = selected['id'] is int ? selected['id'] as int : int.tryParse('${selected['id']}');
     if (unitId != null && mounted) {
-      await context.read<DayungRoleProvider>().refreshRoles(unitId);
       context.read<DayungUnitProvider>().setDayungUnit(
         '${selected['name'] ?? 'Dayung'}',
-        obj: {
-          'id': selected['id'],
-          'name': selected['name'],
-          'barangay': selected['barangay'],
-          'city': selected['city'],
-          'province': selected['province'],
-        },
+        obj: selected,
       );
+      await context.read<DayungRoleProvider>().refreshRoles(unitId);
+    } else {
+      // Last resort: officer fallback
+      final officerUnit = await context.read<DayungRoleProvider>().ensureOfficerUnitSelection();
+      if (mounted && officerUnit != null) {
+        context.read<DayungUnitProvider>().setDayungUnit('Dayung', obj: {'id': officerUnit});
+        await context.read<DayungRoleProvider>().refreshRoles(officerUnit);
+      }
     }
 
     if (!mounted) return;

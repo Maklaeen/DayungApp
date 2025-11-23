@@ -11,23 +11,55 @@ class DayungRoleProvider extends ChangeNotifier {
   bool isSecretary = false;
   bool isTreasurer = false;
   bool isCollector = false;
-  bool isMember = false;
+  bool isMember = false; // add this
 
+  int _reqCounter = 0;
+
+  // Convenience
+  bool get isAssigned =>
+      unitId != null &&
+      (isMember || isPresident || isSecretary || isTreasurer || isCollector);
+
+  Future<int?> ensureOfficerUnitSelection() async {
+    if (unitId != null) return unitId;
+    final uid = _sb.auth.currentUser?.id;
+    if (uid == null) return null;
+    try {
+      final rows = await _sb
+          .from('dayung_units')
+          .select('id')
+          .or('president_id.eq.$uid,secretary_id.eq.$uid,treasurer_id.eq.$uid')
+          .limit(1);
+      final list = List<Map<String, dynamic>>.from(rows);
+      if (list.isNotEmpty) {
+        unitId = list.first['id'] as int?;
+        notifyListeners();
+        return unitId;
+      }
+    } catch (_) {}
+    return null;
+  }
+  
   Future<void> refreshRoles(int? newUnitId) async {
+    if (loading && newUnitId == unitId) {
+      debugPrint('[ROLES] skip: already loading for unit=$unitId');
+      return;
+    }
+    final req = ++_reqCounter;
     unitId = newUnitId;
     loading = true;
     notifyListeners();
 
     final uid = _sb.auth.currentUser?.id;
     if (uid == null) {
-      isPresident = isSecretary = isTreasurer = isCollector = isMember = false;
+      _reset();
       loading = false;
       notifyListeners();
       return;
     }
 
     try {
-      // Always compute presidency across ANY unit (works even if unitId is not ready yet)
+      // President (any unit)
       try {
         final pres = await _sb
             .from('dayung_units')
@@ -39,7 +71,6 @@ class DayungRoleProvider extends ChangeNotifier {
         isPresident = false;
       }
 
-      // If a specific unit is selected, compute other flags for that unit
       if (newUnitId != null) {
         Map<String, dynamic>? du;
         try {
@@ -48,10 +79,7 @@ class DayungRoleProvider extends ChangeNotifier {
               .select('secretary_id, treasurer_id')
               .eq('id', newUnitId)
               .maybeSingle();
-        } catch (_) {
-          du = null;
-        }
-
+        } catch (_) {}
         isSecretary = (du?['secretary_id']?.toString() ?? '') == uid;
         isTreasurer = (du?['treasurer_id']?.toString() ?? '') == uid;
 
@@ -80,14 +108,18 @@ class DayungRoleProvider extends ChangeNotifier {
           isMember = false;
         }
       } else {
-        // No selected unit yet: reset per-unit roles
         isSecretary = isTreasurer = isCollector = isMember = false;
       }
     } catch (_) {
-      isPresident = isSecretary = isTreasurer = isCollector = isMember = false;
+      _reset();
     } finally {
+      if (req != _reqCounter) return; // stale
       loading = false;
       notifyListeners();
     }
+  }
+
+  void _reset() {
+    isPresident = isSecretary = isTreasurer = isCollector = isMember = false;
   }
 }

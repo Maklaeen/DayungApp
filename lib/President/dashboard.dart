@@ -214,11 +214,17 @@ class _PresidentDashboardPageState extends State<PresidentDashboardPage> {
 
   @override
   Widget build(BuildContext context) {
-    final unitId = context.watch<DayungUnitProvider>().currentUnitId;
-    final roles = context.watch<DayungRoleProvider>();
-    if (unitId != null && !roles.isPresident && !roles.loading) {
-      // Attempt silent refresh if president rights expected but missing
-      context.read<DayungRoleProvider>().refreshRoles(unitId);
+    final roleProv = context.watch<DayungRoleProvider>();
+    final unitProv = context.watch<DayungUnitProvider>();
+    final effectiveUnitId = roleProv.unitId ?? unitProv.currentUnitId;
+    // Debug
+    debugPrint('[PRES_DASH] roleUnit=${roleProv.unitId} provUnit=${unitProv.currentUnitId} effective=$effectiveUnitId isPresident=${roleProv.isPresident}');
+    // If we now have an effective unit not yet tracked, trigger load once.
+
+    if (effectiveUnitId != null && effectiveUnitId != _lastRoleUnitId) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _maybeOnProviderUnitChanged(effectiveUnitId);
+      });
     }
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final themeBg = isDark ? const Color(0xFF18181B) : const Color(0xFFF8FAFC);
@@ -635,21 +641,24 @@ class _PresidentDashboardPageState extends State<PresidentDashboardPage> {
     );
   }
 
-  Widget _buildOverviewRecentDeathsTile() {
+   Widget _buildOverviewRecentDeathsTile() {
     final hasDeaths = _recentDeaths.isNotEmpty;
     final subtitle = hasDeaths ? _recentDeaths.take(2).join(', ') : 'None';
+    final effectiveUnitId = context.read<DayungRoleProvider>().unitId ??
+        context.read<DayungUnitProvider>().currentUnitId;
     return InkWell(
       borderRadius: BorderRadius.circular(16),
-      onTap: () {
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (_) => RecentDeathNotices(
-              dayungUnitId: context.read<DayungRoleProvider>().unitId,
-            ),
-          ),
-        );
-      },
+       onTap: () {
+      final roleProv = context.read<DayungRoleProvider>();
+      final unitProv = context.read<DayungUnitProvider>();
+      final effId = roleProv.unitId ?? unitProv.currentUnitId;
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => RecentDeathNotices(dayungUnitId: effId),
+        ),
+      );
+    },
       child: Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
