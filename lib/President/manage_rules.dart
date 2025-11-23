@@ -37,12 +37,29 @@ class _ManageRulesPagePresState extends State<ManageRulesPagePres> {
   final _penaltypayment = TextEditingController();
   final _paymentmethod = TextEditingController();
 
+  // Add this controller for Membership Rules
+  final _membershipRules = TextEditingController();
+
   // New service rules list
   List<Map<String, dynamic>> _serviceRules = [];
+
+  // Add controllers for new multi-line fields
+  final _beneficiaryRule = TextEditingController();
+  final _fundCollectionRules = TextEditingController();
+  final _fundCollectionPenalty = TextEditingController();
+  final _meetings = TextEditingController();
+  final _election = TextEditingController();
+  final _penaltyMeetingAbsence = TextEditingController();
+  final _penaltyServices = TextEditingController();
+  final _documentationRules = TextEditingController();
+  final _receiveContributions = TextEditingController();
 
   @override
   void initState() {
     super.initState();
+    // Print current user ID for debugging
+    final uid = sb.auth.currentUser?.id;
+    print('[ManageRulesPagePres] Current user ID: $uid');
     _init();
   }
 
@@ -52,16 +69,32 @@ class _ManageRulesPagePresState extends State<ManageRulesPagePres> {
     _mempayment.dispose();
     _penaltypayment.dispose();
     _paymentmethod.dispose();
+    _membershipRules.dispose(); // <-- dispose the new controller
+    _beneficiaryRule.dispose();
+    _fundCollectionRules.dispose();
+    _fundCollectionPenalty.dispose();
+    _meetings.dispose();
+    _election.dispose();
+    _penaltyMeetingAbsence.dispose();
+    _penaltyServices.dispose();
+    _documentationRules.dispose();
+    _receiveContributions.dispose();
     super.dispose();
   }
 
   Future<void> _init() async {
     setState(() => _loading = true);
     try {
+      print('Loading units...');
       await _loadUnitsForPresident();
+      print('Units loaded: $_units');
       if (_unitId != null) {
+        print('Loading rules for unit $_unitId');
         await _loadRules(_unitId!);
+        print('Rules loaded');
       }
+    } catch (e, st) {
+      print('Error in _init: $e\n$st');
     } finally {
       if (mounted) setState(() => _loading = false);
     }
@@ -69,6 +102,11 @@ class _ManageRulesPagePresState extends State<ManageRulesPagePres> {
 
   Future<void> _loadUnitsForPresident() async {
     final uid = sb.auth.currentUser?.id;
+    if (uid == null) {
+      print('No current user!');
+      _units = [];
+      return;
+    }
     final res = await sb
         .from('dayung_units')
         .select('id,name')
@@ -81,80 +119,121 @@ class _ManageRulesPagePresState extends State<ManageRulesPagePres> {
   }
 
   Future<void> _loadRules(int unitId) async {
-    final row = await sb
-        .from('dayung_rules')
-        .select(
-          'contribution_amount, membership_payment, penalty_payment, payment_method, service_rules',
-        )
-        .eq('dayung_unit_id', unitId)
-        .maybeSingle();
-
-    _contrib.text = (row?['contribution_amount'] ?? '').toString();
-    _mempayment.text = (row?['membership_payment'] ?? '').toString();
-    _penaltypayment.text = (row?['penalty_payment'] ?? '').toString();
-    _paymentmethod.text = (row?['payment_method'] ?? '').toString();
-
-    _selectedMethods = _paymentmethod.text.isNotEmpty
-        ? _paymentmethod.text.split(',').map((e) => e.trim()).toList()
-        : [];
-
-    // Robustly parse service_rules as jsonb or text
-    final sr = row?['service_rules'];
     try {
-      if (sr is String) {
-        _serviceRules = List<Map<String, dynamic>>.from(jsonDecode(sr));
-      } else if (sr is List) {
-        _serviceRules = List<Map<String, dynamic>>.from(sr);
-      } else {
+      final row = await sb
+          .from('dayung_rules')
+          .select(
+            '''
+            contribution_amount, membership_payment, penalty_payment, payment_method, service_rules, membership_rules,
+            beneficiary_rule, fundcollection_rules, fundcollection_penalty, meetings, election, penalty_meeting_absence, penalty_services, documentation_rules, receive_contributions
+            '''
+          )
+          .eq('dayung_unit_id', unitId)
+          .maybeSingle();
+      print('Rules row: $row');
+
+      _contrib.text = (row?['contribution_amount'] ?? '').toString();
+      _mempayment.text = (row?['membership_payment'] ?? '').toString();
+      _penaltypayment.text = (row?['penalty_payment'] ?? '').toString();
+      _paymentmethod.text = (row?['payment_method'] ?? '').toString();
+      _membershipRules.text = (row?['membership_rules'] ?? '').toString(); // <-- load value
+      _beneficiaryRule.text = (row?['beneficiary_rule'] ?? '').toString();
+      _fundCollectionRules.text = (row?['fundcollection_rules'] ?? '').toString();
+      _fundCollectionPenalty.text = (row?['fundcollection_penalty'] ?? '').toString();
+      _meetings.text = (row?['meetings'] ?? '').toString();
+      _election.text = (row?['election'] ?? '').toString();
+      _penaltyMeetingAbsence.text = (row?['penalty_meeting_absence'] ?? '').toString();
+      _penaltyServices.text = (row?['penalty_services'] ?? '').toString();
+      _documentationRules.text = (row?['documentation_rules'] ?? '').toString();
+      _receiveContributions.text = (row?['receive_contributions'] ?? '').toString();
+
+      _selectedMethods = _paymentmethod.text.isNotEmpty
+          ? _paymentmethod.text.split(',').map((e) => e.trim()).toList()
+          : [];
+
+      // Robustly parse service_rules as jsonb or text
+      final sr = row?['service_rules'];
+      try {
+        if (sr is String) {
+          _serviceRules = List<Map<String, dynamic>>.from(jsonDecode(sr));
+        } else if (sr is List) {
+          _serviceRules = List<Map<String, dynamic>>.from(sr);
+        } else {
+          _serviceRules = [];
+        }
+      } catch (_) {
         _serviceRules = [];
       }
-    } catch (_) {
-      _serviceRules = [];
-    }
 
-    setState(() {});
+      setState(() {});
+    } catch (e, st) {
+      print('Error in _loadRules: $e\n$st');
+    }
   }
 
   Future<void> _save() async {
-    if (_unitId == null) return;
-    setState(() => _loading = true);
-    try {
-      final selectedUnit = _units.firstWhere(
-        (u) => int.tryParse('${u['id']}') == _unitId,
-        orElse: () => {},
-      );
-      final unitName = selectedUnit['name'] ?? '';
+  if (_unitId == null) return;
+  setState(() => _loading = true);
+  try {
+    final selectedUnit = _units.firstWhere(
+      (u) => int.tryParse('${u['id']}') == _unitId,
+      orElse: () => {},
+    );
+    final unitName = selectedUnit['name'] ?? '';
 
-      final payload = {
-        'dayung_unit_id': _unitId,
-        'dayung_unit_name': unitName, // requires column (see SQL)
-        'contribution_amount': _contrib.text.trim(),
-        'membership_payment': _mempayment.text.trim(),
-        'penalty_payment': _penaltypayment.text.trim(),
-        'payment_method': _selectedMethods.join(', '),
-        'service_rules': _serviceRules, // send JSON, not jsonEncode
-        'updated_by': sb.auth.currentUser?.id,
-      };
-
-      await sb
-          .from('dayung_rules')
-          .upsert(payload, onConflict: 'dayung_unit_id');
-
-      if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text('Rules saved')));
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Failed to save: $e')));
-      }
-    } finally {
-      if (mounted) setState(() => _loading = false);
+    // Fetch current user's fullname from 'users' table
+    final uid = sb.auth.currentUser?.id;
+    String? uiid;
+    if (uid != null) {
+      final userRes = await sb
+          .from('users')
+          .select('id')
+          .eq('id', uid)
+          .maybeSingle();
+      uiid = userRes?['id']?.toString();
     }
+
+    final payload = {
+      'dayung_unit_id': _unitId,
+      'dayung_unit_name': unitName,
+      'contribution_amount': _contrib.text.trim(),
+      'membership_payment': _mempayment.text.trim(),
+      'penalty_payment': _penaltypayment.text.trim(),
+      'payment_method': _selectedMethods.join(', '),
+      'service_rules': _serviceRules,
+      'membership_rules': _membershipRules.text.trim(),
+      'beneficiary_rule': _beneficiaryRule.text.trim(),
+      'fundcollection_rules': _fundCollectionRules.text.trim(),
+      'fundcollection_penalty': _fundCollectionPenalty.text.trim(),
+      'meetings': _meetings.text.trim(),
+      'election': _election.text.trim(),
+      'penalty_meeting_absence': _penaltyMeetingAbsence.text.trim(),
+      'penalty_services': _penaltyServices.text.trim(),
+      'documentation_rules': _documentationRules.text.trim(),
+      'receive_contributions': _receiveContributions.text.trim(),
+      'updated_by': uid,
+      'created_by': uiid ?? '', // <-- Save fullname here
+    };
+
+    await sb
+        .from('dayung_rules')
+        .upsert(payload, onConflict: 'dayung_unit_id');
+
+    if (mounted) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Rules saved')));
+    }
+  } catch (e) {
+    if (mounted) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Failed to save: $e')));
+    }
+  } finally {
+    if (mounted) setState(() => _loading = false);
   }
+}
 
   @override
   Widget build(BuildContext context) {
@@ -193,7 +272,7 @@ class _ManageRulesPagePresState extends State<ManageRulesPagePres> {
                   ),
                   const SizedBox(width: 8),
                   const Text(
-                    'Manage Rules',
+                    '',
                     style: TextStyle(
                       fontSize: 24,
                       fontWeight: FontWeight.w800,
@@ -275,6 +354,13 @@ class _ManageRulesPagePresState extends State<ManageRulesPagePres> {
                                   _mempayment,
                                   numbersOnly: true,
                                 ),
+                                // Add this field for Membership Rules
+                                _field(
+                                  'Membership Rules (Long Description)',
+                                  _membershipRules,
+                                  numbersOnly: false,
+                                  maxLines: 6, // <-- allow multi-line input
+                                ),
                                 _field(
                                   'Penalty Payment',
                                   _penaltypayment,
@@ -282,6 +368,15 @@ class _ManageRulesPagePresState extends State<ManageRulesPagePres> {
                                 ),
                                 _paymentMethodSelector(),
                                 _serviceRulesSection(),
+                                _field('Beneficiary Rule', _beneficiaryRule, maxLines: 6),
+                                _field('Fund Collection Rules', _fundCollectionRules, maxLines: 6),
+                                _field('Fund Collection Penalty', _fundCollectionPenalty, maxLines: 6),
+                                _field('Meetings', _meetings, maxLines: 6),
+                                _field('Election', _election, maxLines: 6),
+                                _field('Penalty for Meeting Absence', _penaltyMeetingAbsence, maxLines: 6),
+                                _field('Penalty for Services', _penaltyServices, maxLines: 6),
+                                _field('Documentation Rules', _documentationRules, maxLines: 6),
+                                _field('Receive Contributions', _receiveContributions, maxLines: 6),
                                 const SizedBox(height: 16),
                                 ElevatedButton.icon(
                                   onPressed: _save,
@@ -577,10 +672,12 @@ class _ManageRulesPagePresState extends State<ManageRulesPagePres> {
     );
   }
 
+  // Update the _field method to accept maxLines
   Widget _field(
     String label,
     TextEditingController c, {
     bool numbersOnly = false,
+    int maxLines = 1, // <-- add this default
   }) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
@@ -592,6 +689,7 @@ class _ManageRulesPagePresState extends State<ManageRulesPagePres> {
         inputFormatters: numbersOnly
             ? [FilteringTextInputFormatter.digitsOnly]
             : null,
+        maxLines: maxLines, // <-- support multi-line
         decoration: InputDecoration(
           labelText: label,
           labelStyle: const TextStyle(

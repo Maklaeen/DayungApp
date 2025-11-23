@@ -1,4 +1,3 @@
-import 'package:capstone_app/Auth/pinlock.dart' hide kPrimary;
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:capstone_app/ui/theme/branding.dart';
@@ -16,22 +15,6 @@ class _SplashScreenState extends State<SplashScreen> {
   @override
   void initState() {
     super.initState();
-    _checkSessionAndNavigate();
-  }
-
-  Future<void> _checkSessionAndNavigate() async {
-    // Wait for splash animation
-    await Future.delayed(const Duration(milliseconds: 1800));
-
-    final session = Supabase.instance.client.auth.currentSession;
-    if (session != null) {
-      // Logged in: ask for PIN (inside) then
-      // rehydrate Dayung selection + refresh roles and route properly
-      await PinLock.ensureUnlockAndRouteHome(context);
-      return; // Stop here; routing handled by PinLock
-    }
-
-    // Not logged in: stay and let user tap Get Started → /login
   }
 
   @override

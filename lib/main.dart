@@ -31,7 +31,7 @@ void main() async {
   runApp(ProviderScope(child: MyApp(appTheme: appTheme)));
 }
 
-class MyApp extends StatelessWidget { 
+class MyApp extends StatelessWidget {
   final AppTheme appTheme;
   const MyApp({super.key, required this.appTheme});
 

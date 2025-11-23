@@ -5,8 +5,10 @@ import 'package:capstone_app/Auth/utils_file.dart';
 import 'package:capstone_app/Collector/dashboard.dart';
 import 'package:capstone_app/President/dashboard.dart';
 import 'package:capstone_app/Providers/role_router.dart';
-import 'package:capstone_app/Secretary/dashboard.dart' hide kPrimary, kBg, kAccent;
-import 'package:capstone_app/Treasurer/dashboard.dart' hide kPrimary, kBg, kAccent;
+import 'package:capstone_app/Secretary/dashboard.dart'
+    hide kPrimary, kBg, kAccent;
+import 'package:capstone_app/Treasurer/dashboard.dart'
+    hide kPrimary, kBg, kAccent;
 import 'package:capstone_app/ui/theme/branding.dart';
 import 'package:capstone_app/Members/dashboard.dart' hide kAccent, kBg;
 import 'package:capstone_app/Providers/dayung_provider.dart';
@@ -444,9 +446,9 @@ class _LoginState extends State<Login> {
         .from('dayung_units')
         .select('id')
         .or('secretary_id.eq.$uid,treasurer_id.eq.$uid,president_id.eq.$uid');
-    final officerIds = List<Map<String, dynamic>>.from(officerUnits)
-        .map((o) => o['id'] as int)
-        .toSet();
+    final officerIds = List<Map<String, dynamic>>.from(
+      officerUnits,
+    ).map((o) => o['id'] as int).toSet();
 
     Set<int> collectorIds = {};
     try {
@@ -454,12 +456,16 @@ class _LoginState extends State<Login> {
           .from('dayung_collectors')
           .select('dayung_unit_id')
           .eq('user_id', uid);
-      collectorIds = List<Map<String, dynamic>>.from(cu)
-          .map((e) => e['dayung_unit_id'] as int)
-          .toSet();
+      collectorIds = List<Map<String, dynamic>>.from(
+        cu,
+      ).map((e) => e['dayung_unit_id'] as int).toSet();
     } catch (_) {}
 
-    final allIds = <int>{...approvedIds, ...officerIds, ...collectorIds}.toList();
+    final allIds = <int>{
+      ...approvedIds,
+      ...officerIds,
+      ...collectorIds,
+    }.toList();
 
     final prefs = await SharedPreferences.getInstance();
 
@@ -470,7 +476,9 @@ class _LoginState extends State<Login> {
     if (rawSaved != null) {
       try {
         saved = Map<String, dynamic>.from(jsonDecode(rawSaved));
-        savedId = saved['id'] is int ? saved['id'] as int : int.tryParse('${saved['id']}');
+        savedId = saved['id'] is int
+            ? saved['id'] as int
+            : int.tryParse('${saved['id']}');
       } catch (_) {}
     }
 
@@ -704,7 +712,7 @@ class _LoginState extends State<Login> {
 
                               TextFormField(
                                 controller: emailController,
-                                keyboardType: TextInputType.phone,
+                                keyboardType: TextInputType.emailAddress,
                                 textInputAction: TextInputAction.next,
                                 style: TextStyle(
                                   fontSize: isWide ? 20 : 18,

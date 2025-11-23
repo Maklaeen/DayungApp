@@ -1,7 +1,9 @@
 import 'dart:convert';
 import 'package:capstone_app/Collector/collect_cash.dart';
+import 'package:capstone_app/Collector/gcash_qr_page.dart';
 import 'package:capstone_app/Providers/dayung_role_provider.dart';
 import 'package:capstone_app/pages/claims.dart';
+import 'package:capstone_app/pages/members_page.dart';
 import 'package:capstone_app/pages/notification.dart';
 import 'package:capstone_app/pages/recentdeathnotices.dart';
 import 'package:capstone_app/profile/profile.dart';
@@ -9,6 +11,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+
 
 // Additional colors for collector-specific styling
 const kText = Color(0xFF111827);
@@ -907,8 +910,6 @@ class _CollectorDashboardPageState extends State<CollectorDashboardPage> {
     );
   }
 
-  // ...existing code...
-
   Widget _modernActionCards() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -944,7 +945,20 @@ class _CollectorDashboardPageState extends State<CollectorDashboardPage> {
           title: 'Open GCash QR',
           subtitle: 'Show payment QR',
           color: const Color(0xFFF59E0B),
-          onTap: _openGcashQr,
+          onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const GcashQrPage()),
+            );
+          },
+        ),
+        const SizedBox(height: 8),
+        _modernActionCard(
+          icon: Icons.people_alt_rounded,
+          title: 'Members Paid',
+          subtitle: 'View all members',
+          color: const Color(0xFF6366F1),
+          onTap: _showMembers, // Define this method in your class
         ),
         // Add more actions as needed, following the Treasurer's style
       ],
@@ -1027,7 +1041,6 @@ class _CollectorDashboardPageState extends State<CollectorDashboardPage> {
     );
   }
 
-  // ...existing code...
   Widget _modernRecentActivity() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1216,6 +1229,15 @@ class _CollectorDashboardPageState extends State<CollectorDashboardPage> {
     // TODO: open receipts page
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('Show Receipts (coming soon)')),
+    );
+  }
+
+  void _showMembers() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => MembersPage(dayungUnitId: _dayungUnitId), // Pass ID if needed
+      ),
     );
   }
 }

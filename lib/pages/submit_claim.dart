@@ -6,6 +6,8 @@ import 'package:file_picker/file_picker.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:geocoding/geocoding.dart';
 import 'dart:io';
+import 'package:flutter/foundation.dart'; // add for kIsWeb
+
 
 // Shared palette (aligned with claims page)
 const Color kPrimary = Color(0xFF0D47A1);
@@ -30,6 +32,13 @@ class _SubmitClaimFormState extends State<SubmitClaimForm> {
   String? _vigilBarangay;
   bool _submitting = false;
   File? _deathCertFile;
+  Uint8List? _deathCertBytes; // add
+  String? _deathCertOrigName; // add
+
+  // ADD: valid ID state
+  File? _validIdFile;
+  Uint8List? _validIdBytes;
+  String? _validIdOrigName;
   String? _selectedDeceasedType; // 'member' or 'beneficiary'
   int? _selectedBeneficiaryId;
   DateTime? _dateOfDeath;
@@ -67,12 +76,45 @@ class _SubmitClaimFormState extends State<SubmitClaimForm> {
     final result = await FilePicker.platform.pickFiles(
       type: FileType.custom,
       allowedExtensions: ['pdf', 'jpg', 'jpeg', 'png'],
+      withData: true, // ensure bytes on web
     );
-    if (result != null && result.files.single.path != null) {
-      setState(() {
-        _deathCertFile = File(result.files.single.path!);
-      });
-    }
+    if (result == null) return;
+    final picked = result.files.single;
+    setState(() {
+      _deathCertOrigName = picked.name;
+      if (kIsWeb) {
+        _deathCertBytes = picked.bytes;
+        _deathCertFile = null;
+      } else {
+        if (picked.path != null) {
+          _deathCertFile = File(picked.path!);
+          _deathCertBytes = _deathCertFile!.readAsBytesSync();
+        }
+      }
+    });
+  }
+
+  // ADD: pick valid ID (same allowed extensions)
+  Future<void> _pickValidId() async {
+    final result = await FilePicker.platform.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: ['pdf', 'jpg', 'jpeg', 'png'],
+      withData: true,
+    );
+    if (result == null) return;
+    final picked = result.files.single;
+    setState(() {
+      _validIdOrigName = picked.name;
+      if (kIsWeb) {
+        _validIdBytes = picked.bytes;
+        _validIdFile = null;
+      } else {
+        if (picked.path != null) {
+          _validIdFile = File(picked.path!);
+          _validIdBytes = _validIdFile!.readAsBytesSync();
+        }
+      }
+    });
   }
 
   Future<void> _pickVigilLocation() async {
@@ -125,15 +167,92 @@ class _SubmitClaimFormState extends State<SubmitClaimForm> {
   }
 
   Future<String?> _uploadDeathCert(String claimId) async {
-    if (_deathCertFile == null) return null;
+    // Use bytes (web safe)
+    final bytes = _deathCertBytes;
+    if (bytes == null) return null;
+
     final storage = Supabase.instance.client.storage;
+    const bucket = 'death_certificates';
+
+    final nameSource = _deathCertOrigName ??
+        (_deathCertFile != null ? _deathCertFile!.path.split('/').last : 'file');
+    final ext = nameSource.split('.').last.toLowerCase();
+    final mime = {
+      'jpg': 'image/jpeg',
+      'jpeg': 'image/jpeg',
+      'png': 'image/png',
+      'pdf': 'application/pdf',
+    }[ext] ?? 'application/octet-stream';
+
     final fileName =
-        'death_cert_${claimId}_${DateTime.now().millisecondsSinceEpoch}.${_deathCertFile!.path.split('.').last}';
-    final bucket = 'death_certificates';
-    final res = await storage.from(bucket).upload(fileName, _deathCertFile!);
-    if (res.error != null) throw Exception(res.error!.message);
-    return storage.from(bucket).getPublicUrl(fileName);
+        'claims/$claimId/death_cert_${DateTime.now().millisecondsSinceEpoch}.$ext';
+
+    try {
+      print('[UPLOAD] bucket=$bucket fileName=$fileName size=${bytes.length} mime=$mime');
+
+      final storedPath = await storage.from(bucket).uploadBinary(
+        fileName,
+        bytes,
+        fileOptions: FileOptions(contentType: mime, upsert: false),
+      );
+
+      print('[UPLOAD] stored path: $storedPath');
+
+      final publicUrl = storage.from(bucket).getPublicUrl(fileName);
+      print('[UPLOAD] public URL: $publicUrl');
+      return publicUrl;
+    } on StorageException catch (e, st) {
+      print('[UPLOAD][StorageException] ${e.message}\n$st');
+      rethrow;
+    } catch (e, st) {
+      print('[UPLOAD][GenericError] $e\n$st');
+      rethrow;
+    }
   }
+
+  // ADD: upload valid ID
+  
+  Future<String?> _uploadValidId(String claimId) async {
+  final bytes = _validIdBytes;
+  if (bytes == null) return null;
+
+  final storage = Supabase.instance.client.storage;
+  const bucket = 'valid_ids';
+
+  final nameSource = _validIdOrigName ??
+      (_validIdFile != null ? _validIdFile!.path.split('/').last : 'file');
+  final ext = nameSource.split('.').last.toLowerCase();
+  final mime = {
+    'jpg': 'image/jpeg',
+    'jpeg': 'image/jpeg',
+    'png': 'image/png',
+    'pdf': 'application/pdf',
+  }[ext] ?? 'application/octet-stream';
+
+  final fileName =
+      'claims/$claimId/valid_id_${DateTime.now().millisecondsSinceEpoch}.$ext';
+
+  try {
+    await storage.from(bucket).uploadBinary(
+      fileName,
+      bytes,
+      fileOptions: FileOptions(contentType: mime, upsert: false),
+    );
+    final publicUrl = storage.from(bucket).getPublicUrl(fileName);
+    return publicUrl;
+  } on StorageException catch (e) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Valid ID storage error: ${e.message}')),
+    );
+    return null;
+  } catch (e) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Valid ID upload failed: $e')),
+    );
+    return null;
+  }
+}
+
 
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
@@ -209,7 +328,7 @@ class _SubmitClaimFormState extends State<SubmitClaimForm> {
         if (_selectedBeneficiaryId != null)
           'beneficiary_id': _selectedBeneficiaryId,
         'date_of_death': fmtDate(_dateOfDeath!),
-        'dayung_unit_id': effectiveUnitId, // <- always the latest selected unit
+        'dayung_unit_id': effectiveUnitId,
         'vigil_latitude': _vigilPos?.latitude,
         'vigil_longitude': _vigilPos?.longitude,
         'vigil_address': _vigilAddress,
@@ -223,12 +342,37 @@ class _SubmitClaimFormState extends State<SubmitClaimForm> {
           .maybeSingle();
       final claimId = insertRes!['id'].toString();
 
-      if (_deathCertFile != null) {
-        final fileUrl = await _uploadDeathCert(claimId);
-        await sb
-            .from('claims')
-            .update({'death_certificate_url': fileUrl})
-            .eq('id', claimId);
+      Map<String, dynamic> updateFields = {};
+
+      if (_deathCertBytes != null) {
+        try {
+          final fileUrl = await _uploadDeathCert(claimId);
+          if (fileUrl != null) {
+            updateFields['death_certificate_url'] = fileUrl;
+          }
+        } catch (e) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Certificate upload failed: $e')),
+          );
+        }
+      }
+
+      // ADD: valid ID upload
+      if (_validIdBytes != null) {
+        try {
+          final validUrl = await _uploadValidId(claimId);
+            if (validUrl != null) {
+              updateFields['valid_ids_url'] = validUrl;
+            }
+        } catch (e) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Valid ID upload failed: $e')),
+          );
+        }
+      }
+
+      if (updateFields.isNotEmpty) {
+        await sb.from('claims').update(updateFields).eq('id', claimId);
       }
 
       if (!mounted) return;
@@ -237,7 +381,6 @@ class _SubmitClaimFormState extends State<SubmitClaimForm> {
         context,
       ).showSnackBar(const SnackBar(content: Text('Claim submitted.')));
     } catch (e, st) {
-      // ...existing error handling...
       print('CLAIM SUBMIT ERROR: $e\n$st');
       if (!mounted) return;
       ScaffoldMessenger.of(
@@ -396,31 +539,77 @@ class _SubmitClaimFormState extends State<SubmitClaimForm> {
               const SizedBox(width: 12),
               Expanded(
                 child: Text(
-                  _deathCertFile == null
+                  _deathCertOrigName == null
                       ? 'Attach death certificate'
-                      : _deathCertFile!.path.split('/').last,
+                      : _deathCertOrigName!,
                   style: TextStyle(
                     fontSize: 14,
-                    color: _deathCertFile == null
+                    color: _deathCertOrigName == null
                         ? Colors.grey.shade600
                         : kNeutralText,
                   ),
                   overflow: TextOverflow.ellipsis,
                 ),
               ),
-              if (_deathCertFile != null)
+              if (_deathCertOrigName != null)
                 IconButton(
-                  onPressed: () => setState(() => _deathCertFile = null),
-                  icon: Icon(
-                    Icons.close,
-                    color: Colors.grey.shade600,
-                    size: 18,
-                  ),
+                  onPressed: () => setState(() {
+                    _deathCertFile = null;
+                    _deathCertBytes = null;
+                    _deathCertOrigName = null;
+                  }),
+                  icon: Icon(Icons.close, color: Colors.grey.shade600, size: 18),
                   padding: EdgeInsets.zero,
-                  constraints: const BoxConstraints(
-                    minWidth: 24,
-                    minHeight: 24,
+                  constraints: const BoxConstraints(minWidth: 24, minHeight: 24),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ADD: valid ID upload widget
+  Widget _buildValidIdUpload() {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.grey.shade50,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.grey.shade200),
+      ),
+      child: InkWell(
+        onTap: _submitting ? null : _pickValidId,
+        borderRadius: BorderRadius.circular(12),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+          child: Row(
+            children: [
+              Icon(Icons.perm_identity, color: kPrimaryDark, size: 20),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  _validIdOrigName == null
+                      ? 'Attach valid ID'
+                      : _validIdOrigName!,
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: _validIdOrigName == null
+                        ? Colors.grey.shade600
+                        : kNeutralText,
                   ),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              if (_validIdOrigName != null)
+                IconButton(
+                  onPressed: () => setState(() {
+                    _validIdFile = null;
+                    _validIdBytes = null;
+                    _validIdOrigName = null;
+                  }),
+                  icon: Icon(Icons.close, color: Colors.grey.shade600, size: 18),
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(minWidth: 24, minHeight: 24),
                 ),
             ],
           ),
@@ -641,6 +830,10 @@ class _SubmitClaimFormState extends State<SubmitClaimForm> {
                     _buildModernFileUpload(),
                     const SizedBox(height: 16),
 
+                    // ADD: Valid ID
+                    _buildValidIdUpload(),
+                    const SizedBox(height: 16),
+
                     // Vigil Location
                     _buildModernVigilLocation(),
                     const SizedBox(height: 20),
@@ -672,8 +865,4 @@ class _SubmitClaimFormState extends State<SubmitClaimForm> {
       ),
     );
   }
-}
-
-extension on String {
-  get error => null;
 }

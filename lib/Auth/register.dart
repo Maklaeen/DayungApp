@@ -9,8 +9,10 @@ import 'package:capstone_app/ui/theme/branding.dart';
 import 'package:cupertino_calendar_picker/cupertino_calendar_picker.dart';
 import 'package:dropdown_button2/dropdown_button2.dart';
 import 'package:flutter/cupertino.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:capstone_app/Auth/login.dart';
+import 'package:geocoding/geocoding.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:http/http.dart' as http;
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -51,6 +53,7 @@ class _RegisterState extends State<Register> {
   String? selectedDay;
   String? selectedYear;
   String? selectedSex;
+  String? _addressDisplay;
 
   String _normalizePhone(String raw) {
     final s = raw.replaceAll(RegExp(r'\s+'), '');
@@ -60,6 +63,9 @@ class _RegisterState extends State<Register> {
     }
     return s;
   }
+
+  double? _latitude;
+  double? _longitude;
 
   bool _obscurePassword = true;
   bool _isSubmitting = false;
@@ -261,9 +267,9 @@ class _RegisterState extends State<Register> {
 
   Future<void> _useMyLocation() async {
     try {
-      final hasPermission = await Geolocator.requestPermission();
-      if (hasPermission == LocationPermission.denied ||
-          hasPermission == LocationPermission.deniedForever) {
+      final perm = await Geolocator.requestPermission();
+      if (perm == LocationPermission.denied ||
+          perm == LocationPermission.deniedForever) {
         _showTopErrorDialog(context, 'Location permission denied.');
         return;
       }
@@ -271,55 +277,122 @@ class _RegisterState extends State<Register> {
         desiredAccuracy: LocationAccuracy.high,
       );
 
+      String? composed;
+      String? street;
+      String? block;
+      String? purok;
+      String? barangay;
+      String? city;
+      String? province;
+
+      if (kIsWeb) {
+        composed = await _reverseViaNominatim(pos.latitude, pos.longitude);
+      } else {
+        // First: native placemark
+        try {
+          final placemarks = await placemarkFromCoordinates(
+            pos.latitude,
+            pos.longitude,
+          );
+          if (placemarks.isNotEmpty) {
+            final p = placemarks.first;
+            street = (p.street ?? '').trim();
+            barangay = (p.subLocality ?? '').trim();
+            city = (p.locality ?? '').trim();
+            province = (p.administrativeArea ?? '').trim();
+            composed = [
+              if (street != null && street!.isNotEmpty) street,
+              if (barangay != null && barangay!.isNotEmpty) barangay,
+              if (city != null && city!.isNotEmpty) city,
+              if (province != null && province!.isNotEmpty) province,
+            ].join(', ');
+          }
+        } catch (_) {}
+
+        // Fallback if missing key parts OR looks like Plus Code (contains '+')
+        final needsFallback =
+            composed == null ||
+            composed.isEmpty ||
+            composed.contains('+') ||
+            (barangay == null || barangay!.isEmpty) ||
+            (street == null || street!.isEmpty);
+
+        if (needsFallback) {
+          final nominatim = await _reverseViaNominatim(
+            pos.latitude,
+            pos.longitude,
+          );
+          if (nominatim != null && nominatim.isNotEmpty) composed = nominatim;
+        }
+      }
+
+      setState(() {
+        _latitude = pos.latitude;
+        _longitude = pos.longitude;
+        addressController.text = (composed != null && composed.isNotEmpty)
+            ? composed
+            : '(${pos.latitude}, ${pos.longitude})';
+        _addressDisplay = addressController.text;
+      });
+    } catch (e) {
+      _showTopErrorDialog(context, 'Location error: $e');
+    }
+  }
+
+  Future<String?> _reverseViaNominatim(double lat, double lng) async {
+    try {
       final url =
-          'https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${pos.latitude}&lon=${pos.longitude}&zoom=18&addressdetails=1';
+          'https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=$lat&lon=$lng&zoom=18&addressdetails=1';
       final resp = await http.get(
         Uri.parse(url),
         headers: {'User-Agent': 'capstone-app/1.0'},
       );
-      if (resp.statusCode == 200) {
-        final data = json.decode(resp.body);
-        final address = data['address'] ?? {};
-        final province = address['state'] ?? address['province'];
-        final city =
-            address['city'] ??
-            address['municipality'] ??
-            address['town'] ??
-            address['village'];
-        final barangay =
-            address['suburb'] ??
-            address['neighbourhood'] ??
-            address['barangay'];
+      if (resp.statusCode != 200) return null;
+      final data = json.decode(resp.body);
+      final a = (data['address'] ?? {}) as Map;
+      final street = _firstNonEmpty([
+        a['road'],
+        a['residential'],
+        a['pedestrian'],
+        a['path'],
+      ]);
+      final block = _firstNonEmpty([a['block'], a['quarter']]);
+      final purok = _firstNonEmpty([
+        a['neighbourhood'],
+        a['hamlet'],
+        a['subdivision'],
+      ]);
+      final barangay = _firstNonEmpty([a['suburb'], a['barangay']]);
+      final city = _firstNonEmpty([
+        a['city'],
+        a['municipality'],
+        a['town'],
+        a['village'],
+      ]);
+      final province = _firstNonEmpty([a['state'], a['province']]);
 
-        setState(() {
-          // Province
-          selectedProvince = provinceList.firstWhere(
-            (p) =>
-                p.toLowerCase().trim() ==
-                (province ?? '').toString().toLowerCase().trim(),
-            orElse: () => '',
-          );
-          // City
-          selectedCity = cityList.firstWhere(
-            (c) =>
-                c.toLowerCase().trim() ==
-                (city ?? '').toString().toLowerCase().trim(),
-            orElse: () => '',
-          );
-          // Barangay
-          selectedBarangay = barangayList.firstWhere(
-            (b) =>
-                b.toLowerCase().trim() ==
-                (barangay ?? '').toString().toLowerCase().trim(),
-            orElse: () => '',
-          );
-        });
-      } else {
-        _showTopErrorDialog(context, 'Failed to get location info.');
-      }
-    } catch (e) {
-      _showTopErrorDialog(context, 'Location error: $e');
+      final parts = [
+        if (street != null) street,
+        if (block != null) block,
+        if (purok != null) purok,
+        if (barangay != null) barangay,
+        if (city != null) city,
+        if (province != null) province,
+      ];
+      return parts.where((e) => e.trim().isNotEmpty).join(', ');
+    } catch (_) {
+      return null;
     }
+  }
+
+  String? _firstNonEmpty(List values) {
+    for (final v in values) {
+      if (v != null) {
+        final s = v.toString().trim();
+        if (s.isNotEmpty) return s;
+      }
+    }
+    return null;
   }
 
   Future<void> _showCalendarDialog(BuildContext context) async {
@@ -451,12 +524,9 @@ class _RegisterState extends State<Register> {
         'sex': selectedSex,
         'mobile_number': rawPhone,
         'mobile_number_normalized': normalizedPhone,
-        // Save as "Barangay, City, Province"
-        'address': [
-          if (selectedBarangay != null) selectedBarangay,
-          if (selectedCity != null) selectedCity,
-          if (selectedProvince != null) selectedProvince,
-        ].join(', '),
+        'latitude': _latitude,
+        'longitude': _longitude,
+        'address': addressController.text,
         'role': role,
         'email': email,
       });
@@ -833,92 +903,28 @@ class _RegisterState extends State<Register> {
                                         icon: const Icon(Icons.my_location),
                                         label: const Text(
                                           'Use My Current Location',
-                                          
                                         ),
-                                        
                                         style: ElevatedButton.styleFrom(
                                           backgroundColor: kPrimary,
                                           foregroundColor: Colors.white,
                                         ),
                                         onPressed: _useMyLocation,
-                                        
                                       ),
-                                      
                                     ],
                                   ),
                                 ),
-                                DropdownButtonFormField<String>(
-                                  decoration: _dropdownDec('Province'),
-                                  value: selectedProvince,
-                                  items: provinceList
-                                      .map(
-                                        (prov) => DropdownMenuItem(
-                                          value: prov,
-                                          child: Text(prov),
-                                        ),
-                                      )
-                                      .toList(),
-                                  onChanged: (val) {
-                                    setState(() {
-                                      selectedProvince = val;
-                                      selectedCity = null;
-                                      selectedBarangay = null;
-                                    });
-                                  },
-                                  validator: (v) =>
-                                      v == null ? 'Province is required' : null,
-                                ),
-                                const SizedBox(height: 12),
-                                DropdownButtonFormField<String>(
-                                  decoration: _dropdownDec(
-                                    'City / Municipality',
+                                TextFormField(
+                                  controller: addressController,
+                                  readOnly: true, // para hindi ma-edit manually
+                                  decoration: _dec(
+                                    'Address',
+                                    hint: 'Tap "Use My Current Location"',
+                                    icon: Icons.location_on_rounded,
                                   ),
-                                  value: selectedCity,
-                                  items: cityList
-                                      .map(
-                                        (city) => DropdownMenuItem(
-                                          value: city,
-                                          child: Text(city),
-                                        ),
-                                      )
-                                      .toList(),
-                                  onChanged: selectedProvince == null
-                                      ? null
-                                      : (val) {
-                                          setState(() {
-                                            selectedCity = val;
-                                            selectedBarangay = null;
-                                          });
-                                        },
-                                  validator: (v) => v == null
-                                      ? 'City/Municipality is required'
+                                  validator: (v) =>
+                                      (v == null || v.trim().isEmpty)
+                                      ? 'Address is required'
                                       : null,
-                                  disabledHint: const Text(
-                                    'Select province first',
-                                  ),
-                                ),
-                                const SizedBox(height: 12),
-                                DropdownButtonFormField<String>(
-                                  decoration: _dropdownDec('Barangay'),
-                                  value: selectedBarangay,
-                                  items: barangayList
-                                      .map(
-                                        (brgy) => DropdownMenuItem(
-                                          value: brgy,
-                                          child: Text(brgy),
-                                        ),
-                                      )
-                                      .toList(),
-                                  onChanged: selectedCity == null
-                                      ? null
-                                      : (val) {
-                                          setState(() {
-                                            selectedBarangay = val;
-                                          });
-                                        },
-                                  validator: (v) =>
-                                      v == null ? 'Barangay is required' : null,
-                                  disabledHint: const Text('Select city first'),
                                 ),
 
                                 const SizedBox(height: 28),

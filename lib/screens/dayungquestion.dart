@@ -6,6 +6,7 @@ import 'package:capstone_app/Members/dashboard.dart';
 import 'package:capstone_app/screens/dayung_map_page.dart';
 import 'package:capstone_app/screens/dayung_suggestions.dart';
 import 'package:flutter/material.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:maplibre_gl/maplibre_gl.dart' as ml;
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
@@ -49,9 +50,48 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
   List<dynamic> suggestedUnits = [];
   bool isLoading = false;
   bool isSubmitting = false;
+  double? userLat;
+  double? userLng;
 
   String _digits(String? s) => (s ?? '').replaceAll(RegExp(r'[^\d]'), '');
   String _trimLower(String? s) => (s ?? '').trim().toLowerCase();
+
+  String? selectedRadiusKm = '2';
+  final List<String> _radiusOptions = ['2', '4', '6', '8', '10'];
+
+  String _formatKm(double meters) {
+    if (meters < 950) return '${meters.toStringAsFixed(0)} m away';
+    return '${(meters / 1000).toStringAsFixed(2)} km away';
+  }
+
+  Future<void> _loadUserLocation() async {
+    try {
+      final rows = await Supabase.instance.client
+          .from('users')
+          .select('latitude,longitude')
+          .eq('id', widget.userId)
+          .limit(1);
+      if (rows is List && rows.isNotEmpty) {
+        final r = rows.first;
+        final lat = r['latitude'];
+        final lng = r['longitude'];
+        if (lat is num && lng is num) {
+          setState(() {
+            userLat = lat.toDouble();
+            userLng = lng.toDouble();
+          });
+        }
+      }
+    } catch (e) {
+      debugPrint('DEBUG: load user location failed: $e');
+    }
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _loadUserLocation();
+  }
 
   // inserting application record to Supabase/PostgreSQL
   Future<void> applyToDayungUnit(String userId, int dayungUnitId) async {
@@ -423,9 +463,9 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
     setState(() => isLoading = true);
     try {
       final userVector = _generatePreferenceVector();
-      debugPrint(
-        'DEBUG: User Preference Vector len=${userVector.length}: $userVector',
-      );
+      final radiusMeters = selectedRadiusKm == null
+          ? null
+          : (double.tryParse(selectedRadiusKm!) ?? 0) * 1000;
 
       final resp = await Supabase.instance.client
           .from('dayung_units')
@@ -433,85 +473,73 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
             'id,name,barangay,city,province,latitude,longitude,vector,organizational_model,participation_method,meeting_frequency,payment_method,contribution_amount,penalty_policy,open_for_all',
           );
 
-      debugPrint('DEBUG: dayung_units resp type=${resp.runtimeType}');
       if (resp is! List) {
-        debugPrint('DEBUG: Unexpected resp: $resp');
         setState(() => suggestedUnits = []);
         return;
       }
 
-      debugPrint('DEBUG: Total rows fetched: ${resp.length}');
       final units = <Map<String, dynamic>>[];
-      int nullVectorCount = 0;
-      int derivedCount = 0;
-      int badLengthCount = 0;
-
       for (final raw in resp) {
         final m = Map<String, dynamic>.from(raw as Map);
+
+        // Distance filtering
+        double? distM;
+        final lat = double.tryParse('${m['latitude']}');
+        final lng = double.tryParse('${m['longitude']}');
+        if (userLat != null &&
+            userLng != null &&
+            lat != null &&
+            lng != null &&
+            radiusMeters != null &&
+            radiusMeters > 0) {
+          distM = Geolocator.distanceBetween(userLat!, userLng!, lat, lng);
+          // Skip if outside radius
+          if (distM > radiusMeters) continue;
+          m['distance_m'] = distM;
+        } else if (userLat != null &&
+            userLng != null &&
+            lat != null &&
+            lng != null) {
+          // Distance computed even if radius not set (for display)
+          distM = Geolocator.distanceBetween(userLat!, userLng!, lat, lng);
+          m['distance_m'] = distM;
+        }
+
         final rawVector = m['vector'];
         final parsed = _parseVector(rawVector);
-
         if (parsed.isEmpty) {
-          nullVectorCount++;
           final derived = _buildUnitVectorFromRow(m);
-          if (derived.length == userVector.length) {
-            m['__parsedVector'] = derived;
-            m['__vectorStatus'] = 'derived_from_fields';
-            derivedCount++;
-            debugPrint(
-              'DEBUG: Derived vector for id=${m['id']} name=${m['name']}: $derived',
-            );
-          } else {
-            m['__parsedVector'] = List<double>.filled(userVector.length, 0.0);
-            m['__vectorStatus'] = 'fallback_zero';
-          }
-          units.add(m);
-          continue;
+          m['__parsedVector'] = derived.length == userVector.length
+              ? derived
+              : List<double>.filled(userVector.length, 0.0);
+          m['__vectorStatus'] = derived.length == userVector.length
+              ? 'derived'
+              : 'fallback_zero';
+        } else {
+          m['__parsedVector'] = parsed;
+          m['__vectorStatus'] = 'ok';
         }
-
-        if (parsed.length != userVector.length) {
-          badLengthCount++;
-          debugPrint(
-            'DEBUG: Length mismatch id=${m['id']} name=${m['name']} parsedLen=${parsed.length} expected=${userVector.length}',
-          );
-          // Keep anyway; similarity will be 0
-        }
-
-        m['__parsedVector'] = parsed;
-        m['__vectorStatus'] = 'ok';
         units.add(m);
       }
 
-      debugPrint(
-        'DEBUG: Kept units=${units.length} | null/empty=${nullVectorCount} | derived=${derivedCount} | len-mismatch=${badLengthCount}',
-      );
-
+      // Rank by similarity
       for (var u in units) {
         final vec = (u['__parsedVector'] as List<double>? ?? []);
-        final sim = cosineSimilarity(userVector, vec);
-        debugPrint(
-          'DEBUG: Unit "${u['name']}" status=${u['__vectorStatus']} sim=${sim.toStringAsFixed(3)} vecLen=${vec.length}',
-        );
+        u['similarity'] = cosineSimilarity(userVector, vec);
       }
-
       units.sort((a, b) {
-        final va = (a['__parsedVector'] as List<double>? ?? const []);
-        final vb = (b['__parsedVector'] as List<double>? ?? const []);
-        final simA = cosineSimilarity(userVector, va);
-        final simB = cosineSimilarity(userVector, vb);
-        return simB.compareTo(simA);
+        final sa = (a['similarity'] as double? ?? 0);
+        final sb = (b['similarity'] as double? ?? 0);
+        // Prefer nearer when similarity ties
+        if ((sb - sa).abs() < 1e-6) {
+          final da = (a['distance_m'] as double? ?? double.infinity);
+          final db = (b['distance_m'] as double? ?? double.infinity);
+          return da.compareTo(db);
+        }
+        return sb.compareTo(sa);
       });
 
       setState(() => suggestedUnits = units);
-
-      debugPrint('DEBUG: Suggested count=${suggestedUnits.length}');
-      for (var u in suggestedUnits) {
-        final vec = (u['__parsedVector'] as List<double>? ?? const []);
-        final sim = cosineSimilarity(userVector, vec);
-        debugPrint(
-          ' - ID:${u['id']} "${u['name']}" status=${u['__vectorStatus']} sim=${sim.toStringAsFixed(3)}',
-        );
-      }
     } catch (e) {
       debugPrint('DEBUG: Local fetch error: $e');
       ScaffoldMessenger.of(
@@ -847,6 +875,64 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
               ),
             ),
           ),
+          Card(
+            elevation: 2,
+            color: kCardBg,
+            margin: const EdgeInsets.only(bottom: 12),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Search Radius',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w700,
+                      fontSize: 16,
+                      color: kPrimaryDark,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  DropdownButtonFormField<String>(
+                    decoration: const InputDecoration(
+                      border: OutlineInputBorder(),
+                      labelText: 'Max Distance (km)',
+                    ),
+                    value: selectedRadiusKm,
+                    items: _radiusOptions
+                        .map(
+                          (r) =>
+                              DropdownMenuItem(value: r, child: Text('$r km')),
+                        )
+                        .toList(),
+                    onChanged: (val) {
+                      setState(() => selectedRadiusKm = val);
+                      _fetchSuggestions();
+                    },
+                  ),
+                  if (userLat == null || userLng == null)
+                    const Padding(
+                      padding: EdgeInsets.only(top: 8),
+                      child: Text(
+                        'User location missing; distance filter inactive.',
+                        style: TextStyle(fontSize: 12, color: kSubText),
+                      ),
+                    )
+                  else
+                    const Padding(
+                      padding: EdgeInsets.only(top: 8),
+                      child: Text(
+                        'Filtering units within selected radius.',
+                        style: TextStyle(fontSize: 12, color: kSubText),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ),
           if (suggestedUnits.isNotEmpty) ...[
             Padding(
               padding: const EdgeInsets.symmetric(vertical: 8),
@@ -861,6 +947,9 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
             ),
             const SizedBox(height: 8),
             ...suggestedUnits.map((unit) {
+              final distM = unit['distance_m'] is num
+                  ? (unit['distance_m'] as num).toDouble()
+                  : null;
               return Card(
                 elevation: 2,
                 color: kCardBg,
@@ -914,6 +1003,26 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
                                     fontSize: 13,
                                   ),
                                 ),
+                                if (distM != null) ...[
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    _formatKm(distM),
+                                    style: const TextStyle(
+                                      color: kAccent,
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ],
+                                if (unit['similarity'] != null)
+                                  Text(
+                                    'Match: ${(unit['similarity'] * 100).toStringAsFixed(1)}%',
+                                    style: const TextStyle(
+                                      color: kPrimaryDark,
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
                               ],
                             ),
                           ),
