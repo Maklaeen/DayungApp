@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -7,7 +8,6 @@ import 'package:geolocator/geolocator.dart';
 import 'package:geocoding/geocoding.dart';
 import 'dart:io';
 import 'package:flutter/foundation.dart'; // add for kIsWeb
-
 
 // Shared palette (aligned with claims page)
 const Color kPrimary = Color(0xFF0D47A1);
@@ -31,10 +31,12 @@ class _SubmitClaimFormState extends State<SubmitClaimForm> {
   String? _vigilAddress;
   String? _vigilBarangay;
   bool _submitting = false;
+  bool _locating = false;
   File? _deathCertFile;
-  Uint8List? _deathCertBytes; // add
-  String? _deathCertOrigName; // add
-
+  Uint8List? _deathCertBytes;
+  String? _deathCertOrigName;
+  double? _vigilLat;
+  double? _vigilLng;
   // ADD: valid ID state
   File? _validIdFile;
   Uint8List? _validIdBytes;
@@ -43,6 +45,15 @@ class _SubmitClaimFormState extends State<SubmitClaimForm> {
   int? _selectedBeneficiaryId;
   DateTime? _dateOfDeath;
   List<Map<String, dynamic>> _beneficiaries = [];
+  String? _firstNonEmpty(List values) {
+    for (final v in values) {
+      if (v != null) {
+        final s = v.toString().trim();
+        if (s.isNotEmpty) return s;
+      }
+    }
+    return null;
+  }
 
   @override
   void initState() {
@@ -55,6 +66,52 @@ class _SubmitClaimFormState extends State<SubmitClaimForm> {
     _title.dispose();
     _desc.dispose();
     super.dispose();
+  }
+
+  Future<String?> _reverseViaNominatim(double lat, double lng) async {
+    try {
+      final url =
+          'https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=$lat&lon=$lng&zoom=18&addressdetails=1';
+      final resp = await http.get(
+        Uri.parse(url),
+        headers: {'User-Agent': 'capstone-app/1.0'},
+      );
+      if (resp.statusCode != 200) return null;
+      final data = json.decode(resp.body);
+      final a = (data['address'] ?? {}) as Map;
+      final street = _firstNonEmpty([
+        a['road'],
+        a['residential'],
+        a['pedestrian'],
+        a['path'],
+      ]);
+      final block = _firstNonEmpty([a['block'], a['quarter']]);
+      final purok = _firstNonEmpty([
+        a['neighbourhood'],
+        a['hamlet'],
+        a['subdivision'],
+      ]);
+      final barangay = _firstNonEmpty([a['suburb'], a['barangay']]);
+      final city = _firstNonEmpty([
+        a['city'],
+        a['municipality'],
+        a['town'],
+        a['village'],
+      ]);
+      final province = _firstNonEmpty([a['state'], a['province']]);
+
+      final parts = [
+        if (street != null) street,
+        if (block != null) block,
+        if (purok != null) purok,
+        if (barangay != null) barangay,
+        if (city != null) city,
+        if (province != null) province,
+      ];
+      return parts.where((e) => e.trim().isNotEmpty).join(', ');
+    } catch (_) {
+      return null;
+    }
   }
 
   Future<void> _fetchBeneficiaries() async {
@@ -118,9 +175,12 @@ class _SubmitClaimFormState extends State<SubmitClaimForm> {
   }
 
   Future<void> _pickVigilLocation() async {
+    if (_locating) return;
+    setState(() => _locating = true);
     try {
-      LocationPermission perm = await Geolocator.checkPermission();
-      if (perm == LocationPermission.denied) {
+      var perm = await Geolocator.checkPermission();
+      if (perm == LocationPermission.denied ||
+          perm == LocationPermission.deniedForever) {
         perm = await Geolocator.requestPermission();
       }
       if (perm == LocationPermission.denied ||
@@ -130,39 +190,70 @@ class _SubmitClaimFormState extends State<SubmitClaimForm> {
         );
         return;
       }
+
       final pos = await Geolocator.getCurrentPosition(
         desiredAccuracy: LocationAccuracy.high,
       );
 
-      String? addr;
-      String? brgy;
-      final placemarks = await placemarkFromCoordinates(
-        pos.latitude,
-        pos.longitude,
-      );
-      if (placemarks.isNotEmpty) {
-        final p = placemarks.first;
-        addr = [
-          p.street,
-          p.subLocality,
-          p.locality,
-          p.administrativeArea,
-          p.postalCode,
-        ].where((e) => (e ?? '').toString().trim().isNotEmpty).join(', ');
-        brgy = (p.subLocality?.isNotEmpty ?? false)
-            ? p.subLocality
-            : p.locality;
+      _vigilLat = pos.latitude;
+      _vigilLng = pos.longitude;
+
+      String? composed;
+      String? street;
+      String? barangay;
+      String? city;
+      String? province;
+
+      if (kIsWeb) {
+        composed = await _reverseViaNominatim(pos.latitude, pos.longitude);
+      } else {
+        try {
+          final placemarks = await placemarkFromCoordinates(
+            pos.latitude,
+            pos.longitude,
+          );
+          if (placemarks.isNotEmpty) {
+            final p = placemarks.first;
+            street = (p.street ?? '').trim();
+            barangay = (p.subLocality ?? '').trim();
+            city = (p.locality ?? '').trim();
+            province = (p.administrativeArea ?? '').trim();
+            composed = [
+              if (street != null && street!.isNotEmpty) street,
+              if (barangay != null && barangay!.isNotEmpty) barangay,
+              if (city != null && city!.isNotEmpty) city,
+              if (province != null && province!.isNotEmpty) province,
+            ].join(', ');
+          }
+        } catch (_) {}
+
+        final needsFallback =
+            composed == null ||
+            composed.isEmpty ||
+            composed.contains('+') ||
+            (barangay == null || barangay.isEmpty) ||
+            (street == null || street.isEmpty);
+
+        if (needsFallback) {
+          final nominatim = await _reverseViaNominatim(
+            pos.latitude,
+            pos.longitude,
+          );
+          if (nominatim != null && nominatim.isNotEmpty) composed = nominatim;
+        }
       }
 
       setState(() {
         _vigilPos = pos;
-        _vigilAddress = addr;
-        _vigilBarangay = brgy;
+        _vigilAddress = composed ?? '(${pos.latitude}, ${pos.longitude})';
+        _vigilBarangay = barangay?.isNotEmpty == true ? barangay : city;
       });
     } catch (e) {
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text('Failed to get location: $e')));
+    } finally {
+      if (mounted) setState(() => _locating = false);
     }
   }
 
@@ -174,27 +265,36 @@ class _SubmitClaimFormState extends State<SubmitClaimForm> {
     final storage = Supabase.instance.client.storage;
     const bucket = 'death_certificates';
 
-    final nameSource = _deathCertOrigName ??
-        (_deathCertFile != null ? _deathCertFile!.path.split('/').last : 'file');
+    final nameSource =
+        _deathCertOrigName ??
+        (_deathCertFile != null
+            ? _deathCertFile!.path.split('/').last
+            : 'file');
     final ext = nameSource.split('.').last.toLowerCase();
-    final mime = {
-      'jpg': 'image/jpeg',
-      'jpeg': 'image/jpeg',
-      'png': 'image/png',
-      'pdf': 'application/pdf',
-    }[ext] ?? 'application/octet-stream';
+    final mime =
+        {
+          'jpg': 'image/jpeg',
+          'jpeg': 'image/jpeg',
+          'png': 'image/png',
+          'pdf': 'application/pdf',
+        }[ext] ??
+        'application/octet-stream';
 
     final fileName =
         'claims/$claimId/death_cert_${DateTime.now().millisecondsSinceEpoch}.$ext';
 
     try {
-      print('[UPLOAD] bucket=$bucket fileName=$fileName size=${bytes.length} mime=$mime');
-
-      final storedPath = await storage.from(bucket).uploadBinary(
-        fileName,
-        bytes,
-        fileOptions: FileOptions(contentType: mime, upsert: false),
+      print(
+        '[UPLOAD] bucket=$bucket fileName=$fileName size=${bytes.length} mime=$mime',
       );
+
+      final storedPath = await storage
+          .from(bucket)
+          .uploadBinary(
+            fileName,
+            bytes,
+            fileOptions: FileOptions(contentType: mime, upsert: false),
+          );
 
       print('[UPLOAD] stored path: $storedPath');
 
@@ -211,48 +311,52 @@ class _SubmitClaimFormState extends State<SubmitClaimForm> {
   }
 
   // ADD: upload valid ID
-  
+
   Future<String?> _uploadValidId(String claimId) async {
-  final bytes = _validIdBytes;
-  if (bytes == null) return null;
+    final bytes = _validIdBytes;
+    if (bytes == null) return null;
 
-  final storage = Supabase.instance.client.storage;
-  const bucket = 'valid_ids';
+    final storage = Supabase.instance.client.storage;
+    const bucket = 'valid_ids';
 
-  final nameSource = _validIdOrigName ??
-      (_validIdFile != null ? _validIdFile!.path.split('/').last : 'file');
-  final ext = nameSource.split('.').last.toLowerCase();
-  final mime = {
-    'jpg': 'image/jpeg',
-    'jpeg': 'image/jpeg',
-    'png': 'image/png',
-    'pdf': 'application/pdf',
-  }[ext] ?? 'application/octet-stream';
+    final nameSource =
+        _validIdOrigName ??
+        (_validIdFile != null ? _validIdFile!.path.split('/').last : 'file');
+    final ext = nameSource.split('.').last.toLowerCase();
+    final mime =
+        {
+          'jpg': 'image/jpeg',
+          'jpeg': 'image/jpeg',
+          'png': 'image/png',
+          'pdf': 'application/pdf',
+        }[ext] ??
+        'application/octet-stream';
 
-  final fileName =
-      'claims/$claimId/valid_id_${DateTime.now().millisecondsSinceEpoch}.$ext';
+    final fileName =
+        'claims/$claimId/valid_id_${DateTime.now().millisecondsSinceEpoch}.$ext';
 
-  try {
-    await storage.from(bucket).uploadBinary(
-      fileName,
-      bytes,
-      fileOptions: FileOptions(contentType: mime, upsert: false),
-    );
-    final publicUrl = storage.from(bucket).getPublicUrl(fileName);
-    return publicUrl;
-  } on StorageException catch (e) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Valid ID storage error: ${e.message}')),
-    );
-    return null;
-  } catch (e) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Valid ID upload failed: $e')),
-    );
-    return null;
+    try {
+      await storage
+          .from(bucket)
+          .uploadBinary(
+            fileName,
+            bytes,
+            fileOptions: FileOptions(contentType: mime, upsert: false),
+          );
+      final publicUrl = storage.from(bucket).getPublicUrl(fileName);
+      return publicUrl;
+    } on StorageException catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Valid ID storage error: ${e.message}')),
+      );
+      return null;
+    } catch (e) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Valid ID upload failed: $e')));
+      return null;
+    }
   }
-}
-
 
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
@@ -361,13 +465,13 @@ class _SubmitClaimFormState extends State<SubmitClaimForm> {
       if (_validIdBytes != null) {
         try {
           final validUrl = await _uploadValidId(claimId);
-            if (validUrl != null) {
-              updateFields['valid_ids_url'] = validUrl;
-            }
+          if (validUrl != null) {
+            updateFields['valid_ids_url'] = validUrl;
+          }
         } catch (e) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Valid ID upload failed: $e')),
-          );
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(SnackBar(content: Text('Valid ID upload failed: $e')));
         }
       }
 
@@ -558,9 +662,16 @@ class _SubmitClaimFormState extends State<SubmitClaimForm> {
                     _deathCertBytes = null;
                     _deathCertOrigName = null;
                   }),
-                  icon: Icon(Icons.close, color: Colors.grey.shade600, size: 18),
+                  icon: Icon(
+                    Icons.close,
+                    color: Colors.grey.shade600,
+                    size: 18,
+                  ),
                   padding: EdgeInsets.zero,
-                  constraints: const BoxConstraints(minWidth: 24, minHeight: 24),
+                  constraints: const BoxConstraints(
+                    minWidth: 24,
+                    minHeight: 24,
+                  ),
                 ),
             ],
           ),
@@ -607,9 +718,16 @@ class _SubmitClaimFormState extends State<SubmitClaimForm> {
                     _validIdBytes = null;
                     _validIdOrigName = null;
                   }),
-                  icon: Icon(Icons.close, color: Colors.grey.shade600, size: 18),
+                  icon: Icon(
+                    Icons.close,
+                    color: Colors.grey.shade600,
+                    size: 18,
+                  ),
                   padding: EdgeInsets.zero,
-                  constraints: const BoxConstraints(minWidth: 24, minHeight: 24),
+                  constraints: const BoxConstraints(
+                    minWidth: 24,
+                    minHeight: 24,
+                  ),
                 ),
             ],
           ),
@@ -619,45 +737,98 @@ class _SubmitClaimFormState extends State<SubmitClaimForm> {
   }
 
   Widget _buildModernVigilLocation() {
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.grey.shade50,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.grey.shade200),
-      ),
-      child: InkWell(
-        onTap: _submitting ? null : _pickVigilLocation,
-        borderRadius: BorderRadius.circular(12),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-          child: Row(
-            children: [
-              Icon(Icons.my_location, color: kPrimaryDark, size: 20),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Text(
-                  _vigilAddress == null
-                      ? 'Set vigil location'
-                      : 'Barangay: ${_vigilBarangay ?? '-'}\n$_vigilAddress',
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontSize: 13,
-                    color: _vigilAddress == null
-                        ? Colors.grey.shade600
-                        : kNeutralText,
+    final disabled = _submitting || _locating;
+    return Column(
+      children: [
+        // Align(
+        //   alignment: Alignment.centerLeft,
+        //   child: ElevatedButton.icon(
+        //     onPressed: disabled ? null : _pickVigilLocation,
+        //     style: ElevatedButton.styleFrom(
+        //       backgroundColor: kPrimaryDark,
+        //       foregroundColor: Colors.white,
+        //     ),
+        //     icon: _locating
+        //         ? const SizedBox(
+        //             width: 18,
+        //             height: 18,
+        //             child: CircularProgressIndicator(
+        //               strokeWidth: 2,
+        //               valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+        //             ),
+        //           )
+        //         : const Icon(Icons.my_location, size: 18),
+        //     label: Text(
+        //       _locating ? 'Setting location...' : 'Use My Current Location',
+        //       style: const TextStyle(fontWeight: FontWeight.w600),
+        //     ),
+        //   ),
+        // ),
+        // const SizedBox(height: 8),
+        Container(
+          decoration: BoxDecoration(
+            color: Colors.grey.shade50,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: Colors.grey.shade200),
+          ),
+          child: InkWell(
+            onTap: disabled ? null : _pickVigilLocation,
+            borderRadius: BorderRadius.circular(12),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.my_location,
+                    color: _locating ? Colors.orange : kPrimaryDark,
+                    size: 20,
                   ),
-                ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      _locating
+                          ? 'Setting location...'
+                          : (_vigilAddress == null
+                                ? 'Set vigil location'
+                                : 'Barangay: ${_vigilBarangay ?? '-'}\n$_vigilAddress'),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontStyle: _locating
+                            ? FontStyle.italic
+                            : FontStyle.normal,
+                        color: _locating
+                            ? Colors.orange
+                            : (_vigilAddress == null
+                                  ? Colors.grey.shade600
+                                  : kNeutralText),
+                      ),
+                    ),
+                  ),
+                  if (_locating)
+                    const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        valueColor: AlwaysStoppedAnimation<Color>(
+                          Colors.orange,
+                        ),
+                      ),
+                    )
+                  else
+                    Icon(
+                      Icons.arrow_forward_ios_rounded,
+                      color: Colors.grey.shade600,
+                      size: 16,
+                    ),
+                ],
               ),
-              Icon(
-                Icons.arrow_forward_ios_rounded,
-                color: Colors.grey.shade600,
-                size: 16,
-              ),
-            ],
+            ),
           ),
         ),
-      ),
+      ],
     );
   }
 
