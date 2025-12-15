@@ -33,9 +33,11 @@ class _AddBeneficiaryPageState extends State<AddBeneficiaryPage> {
 
   bool _isSubmitting = false;
   bool _isUploadingFile = false;
+  bool _isUploadingValidId = false;
 
   String? selectedRelationship;
   String? birthCertificateFile;
+  String? validIdFile;
   String? selectedMaritalStatus;
   String? selectedSex;
 
@@ -73,7 +75,6 @@ class _AddBeneficiaryPageState extends State<AddBeneficiaryPage> {
     IconData icon = Icons.check_circle,
   }) {
     final overlay = Overlay.of(context);
-    if (overlay == null) return;
 
     late OverlayEntry entry;
     final animationController = AnimationController(
@@ -376,6 +377,60 @@ class _AddBeneficiaryPageState extends State<AddBeneficiaryPage> {
     }
   }
 
+  Future<void> _pickAndUploadValidId() async {
+    setState(() => _isUploadingValidId = true);
+    try {
+      final result = await FilePicker.platform.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: ['jpg', 'jpeg', 'png', 'pdf'],
+        withData: true,
+      );
+
+      if (result == null || result.files.single.bytes == null) {
+        setState(() => _isUploadingValidId = false);
+        return;
+      }
+
+      final file = result.files.single;
+      final ext = (file.extension ?? 'jpg').toLowerCase();
+      final fileName =
+          '${user?.id}-${DateTime.now().millisecondsSinceEpoch}.$ext';
+      final filePath = 'valid_ids/$fileName';
+
+      await Supabase.instance.client.storage
+          .from('valid_ids')
+          .uploadBinary(
+            filePath,
+            file.bytes!,
+            fileOptions: const FileOptions(upsert: true),
+          );
+
+      final publicUrl = Supabase.instance.client.storage
+          .from('valid_ids')
+          .getPublicUrl(filePath);
+
+      setState(() {
+        validIdFile = publicUrl;
+      });
+
+      if (!mounted) return;
+      _showTopPopup(
+        'Valid ID uploaded successfully',
+        color: kAccent,
+        icon: Icons.check_circle,
+      );
+    } catch (e) {
+      if (!mounted) return;
+      _showTopPopup(
+        'Valid ID upload failed: $e',
+        color: kWarn,
+        icon: Icons.error_outline,
+      );
+    } finally {
+      if (mounted) setState(() => _isUploadingValidId = false);
+    }
+  }
+
   String _formatDob(DateTime d) =>
       '${d.year.toString().padLeft(4, '0')}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
 
@@ -397,8 +452,14 @@ class _AddBeneficiaryPageState extends State<AddBeneficiaryPage> {
       );
       return;
     }
-
-    setState(() => _isSubmitting = true);
+    if (validIdFile == null) {
+      _showTopPopup(
+        'Valid ID is required',
+        color: kWarn,
+        icon: Icons.error_outline,
+      );
+      return;
+    }
 
     setState(() => _isSubmitting = true);
 
@@ -419,6 +480,7 @@ class _AddBeneficiaryPageState extends State<AddBeneficiaryPage> {
               'marital_status': maritalStatus,
               'relationship': relationship,
               'birth_certificate': birthCertificate,
+              'valid_id': validIdFile,
               'status': 'Pending',
             },
           ])
@@ -443,6 +505,7 @@ class _AddBeneficiaryPageState extends State<AddBeneficiaryPage> {
           selectedMaritalStatus = null;
           _selectedDob = null;
           birthCertificateFile = null;
+          validIdFile = null;
         });
         Navigator.pop(context);
       }
@@ -590,7 +653,7 @@ class _AddBeneficiaryPageState extends State<AddBeneficiaryPage> {
                               value: selectedRelationship,
                               style: const TextStyle(
                                 fontSize: 16,
-                                color: kText,
+                                color: Colors.black, // changed from kText
                                 fontWeight: FontWeight.w500,
                               ),
                               items: _relationships
@@ -599,9 +662,8 @@ class _AddBeneficiaryPageState extends State<AddBeneficiaryPage> {
                                       value: rel,
                                       child: Text(
                                         rel,
-
                                         style: const TextStyle(
-                                          color: Colors.white,
+                                          color: Colors.black, // changed from Colors.white
                                           fontSize: 16,
                                           fontWeight: FontWeight.w500,
                                         ),
@@ -617,7 +679,7 @@ class _AddBeneficiaryPageState extends State<AddBeneficiaryPage> {
                                       child: Text(
                                         rel,
                                         style: const TextStyle(
-                                          color: kText,
+                                          color: Colors.black, // changed from kText
                                           fontSize: 16,
                                           fontWeight: FontWeight.w500,
                                         ),
@@ -625,11 +687,8 @@ class _AddBeneficiaryPageState extends State<AddBeneficiaryPage> {
                                     ),
                                   )
                                   .toList(),
-                              onChanged: (value) =>
-                                  setState(() => selectedRelationship = value),
-                              validator: (value) => value == null
-                                  ? 'Relationship is required'
-                                  : null,
+                              onChanged: (value) => setState(() => selectedRelationship = value),
+                              validator: (value) => value == null ? 'Relationship is required' : null,
                             ),
                             const SizedBox(height: 12),
                             DropdownButtonFormField2<String>(
@@ -637,7 +696,7 @@ class _AddBeneficiaryPageState extends State<AddBeneficiaryPage> {
                               decoration: _dropdownDec('Marital Status'),
                               value: selectedMaritalStatus,
                               style: const TextStyle(
-                                color: kText,
+                                color: Colors.black, // changed from kText
                                 fontSize: 16,
                                 fontWeight: FontWeight.w500,
                               ),
@@ -647,10 +706,9 @@ class _AddBeneficiaryPageState extends State<AddBeneficiaryPage> {
                                       value: status,
                                       child: Text(
                                         status,
-
                                         style: const TextStyle(
                                           fontSize: 16,
-                                          color: Colors.white,
+                                          color: Colors.black, // changed from Colors.white
                                           fontWeight: FontWeight.w500,
                                         ),
                                       ),
@@ -665,7 +723,7 @@ class _AddBeneficiaryPageState extends State<AddBeneficiaryPage> {
                                       child: Text(
                                         status,
                                         style: const TextStyle(
-                                          color: kText,
+                                          color: Colors.black, // changed from kText
                                           fontSize: 16,
                                           fontWeight: FontWeight.w500,
                                         ),
@@ -673,11 +731,8 @@ class _AddBeneficiaryPageState extends State<AddBeneficiaryPage> {
                                     ),
                                   )
                                   .toList(),
-                              onChanged: (value) =>
-                                  setState(() => selectedMaritalStatus = value),
-                              validator: (value) => value == null
-                                  ? 'Marital status is required'
-                                  : null,
+                              onChanged: (value) => setState(() => selectedMaritalStatus = value),
+                              validator: (value) => value == null ? 'Marital status is required' : null,
                             ),
                             const SizedBox(height: 24),
 
@@ -826,6 +881,153 @@ class _AddBeneficiaryPageState extends State<AddBeneficiaryPage> {
                               ),
                             ),
 
+                            const SizedBox(height: 24),
+
+                            // Valid ID upload section
+                            Column(
+                              children: [
+                                Row(
+                                  children: [
+                                    const Icon(
+                                      Icons.credit_card_rounded,
+                                      color: kPrimary,
+                                      size: 20,
+                                    ),
+                                    const SizedBox(width: 10),
+                                    const Text(
+                                      'Valid ID',
+                                      style: TextStyle(
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.w600,
+                                        color: kText,
+                                        fontFamily: 'Montserrat',
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 12),
+                                Row(
+                                  children: [
+                                    Expanded(
+                                      child: Container(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 12,
+                                          vertical: 12,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          color: Colors.white,
+                                          borderRadius: BorderRadius.circular(
+                                            8,
+                                          ),
+                                          border: Border.all(
+                                            color: kBorderColor,
+                                            width: 1,
+                                          ),
+                                        ),
+                                        child: Text(
+                                          validIdFile == null
+                                              ? 'No file selected'
+                                              : 'File uploaded successfully',
+                                          style: TextStyle(
+                                            color: validIdFile == null
+                                                ? kSubText
+                                                : kSuccess,
+                                            fontWeight: FontWeight.w500,
+                                            fontFamily: 'OpenSans',
+                                            fontSize: 14,
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    ElevatedButton.icon(
+                                      onPressed: _isUploadingValidId
+                                          ? null
+                                          : _pickAndUploadValidId,
+                                      icon: _isUploadingValidId
+                                          ? const SizedBox(
+                                              width: 18,
+                                              height: 18,
+                                              child: CircularProgressIndicator(
+                                                strokeWidth: 2,
+                                                color: Colors.white,
+                                              ),
+                                            )
+                                          : const Icon(
+                                              Icons.upload_rounded,
+                                              size: 18,
+                                            ),
+                                      label: Text(
+                                        _isUploadingValidId
+                                            ? 'Uploading...'
+                                            : 'Upload',
+                                        style: const TextStyle(
+                                          fontSize: 16,
+                                          fontWeight: FontWeight.w700,
+                                        ),
+                                      ),
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor: kPrimary,
+                                        foregroundColor: Colors.white,
+                                        elevation: 2,
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 20,
+                                          vertical: 14,
+                                        ),
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius: BorderRadius.circular(
+                                            8,
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                    if (validIdFile != null) ...[
+                                      const SizedBox(width: 8),
+                                      ElevatedButton.icon(
+                                        onPressed: () => setState(
+                                          () => validIdFile = null,
+                                        ),
+                                        icon: const Icon(
+                                          Icons.close_rounded,
+                                          size: 18,
+                                          color: Colors.white,
+                                        ),
+                                        label: const Text(
+                                          'Clear',
+                                          style: TextStyle(
+                                            color: Colors.white,
+                                            fontSize: 16,
+                                            fontWeight: FontWeight.w700,
+                                          ),
+                                        ),
+                                        style: ElevatedButton.styleFrom(
+                                          backgroundColor: kDanger,
+                                          foregroundColor: Colors.white,
+                                          elevation: 2,
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 16,
+                                            vertical: 14,
+                                          ),
+                                          shape: RoundedRectangleBorder(
+                                            borderRadius: BorderRadius.circular(
+                                              8,
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ],
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 4),
+                            const Align(
+                              alignment: Alignment.centerLeft,
+                              child: Text(
+                                'Accepted: JPG, PNG, PDF',
+                                style: TextStyle(color: kSubText, fontSize: 11),
+                              ),
+                            ),
                             const SizedBox(height: 24),
 
                             // Actions

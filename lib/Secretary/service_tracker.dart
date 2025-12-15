@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/legacy.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 const kText = Color(0xFF111827);
 const kSubText = Color(0xFF6B7280);
@@ -13,6 +15,59 @@ const kBorderColor = Color(0xFFE5E7EB);
 const kSuccess = Color(0xFF10B981);
 const kDanger = Color(0xFFEF4444);
 const double kEdge = 16;
+
+final serviceChecklistProvider =
+    StateNotifierProvider.family<
+      ServiceChecklistNotifier,
+      List<Map<String, dynamic>>,
+      int
+    >((ref, deathNoticeId) => ServiceChecklistNotifier(deathNoticeId));
+
+class ServiceChecklistNotifier
+    extends StateNotifier<List<Map<String, dynamic>>> {
+  final int deathNoticeId;
+  ServiceChecklistNotifier(this.deathNoticeId) : super([]) {
+    loadChecklist();
+  }
+
+  Future<void> loadChecklist() async {
+    final sb = Supabase.instance.client;
+    final checklist = await sb
+        .from('service_checklists')
+        .select('id, service_name, is_done, updated_at')
+        .eq('death_notice_id', deathNoticeId)
+        .order('updated_at', ascending: false);
+    state = List<Map<String, dynamic>>.from(checklist);
+  }
+
+  Future<void> toggleDone(int checklistId, bool isDone) async {
+    final sb = Supabase.instance.client;
+    await sb
+        .from('service_checklists')
+        .update({'is_done': isDone})
+        .eq('id', checklistId);
+    await loadChecklist();
+  }
+
+  Future<void> addService(String serviceName) async {
+    final sb = Supabase.instance.client;
+    await sb.from('service_checklists').insert({
+      'death_notice_id': deathNoticeId,
+      'service_name': serviceName,
+      'is_done': false,
+    });
+    await loadChecklist();
+  }
+
+  Future<void> editService(int checklistId, String newName) async {
+    final sb = Supabase.instance.client;
+    await sb
+        .from('service_checklists')
+        .update({'service_name': newName})
+        .eq('id', checklistId);
+    await loadChecklist();
+  }
+}
 
 class ServiceTrackerPage extends StatefulWidget {
   final int dayungUnitId;
@@ -232,7 +287,6 @@ class _ServiceTrackerPageState extends State<ServiceTrackerPage> {
                               const SizedBox(height: 8),
                           itemBuilder: (context, i) {
                             final n = _notices[i]['notice'];
-                            final checklist = _notices[i]['checklist'] as List;
                             return GestureDetector(
                               onTap: () => _showVigilLocationModal(context, n),
                               child: Container(
@@ -298,87 +352,274 @@ class _ServiceTrackerPageState extends State<ServiceTrackerPage> {
                                       ],
                                     ),
                                     const SizedBox(height: 12),
-                                    Container(
-                                      padding: const EdgeInsets.all(12),
-                                      decoration: BoxDecoration(
-                                        color: kBorderColor.withOpacity(0.1),
-                                        borderRadius: BorderRadius.circular(10),
-                                      ),
-                                      child: Column(
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.start,
-                                        children: [
-                                          const Text(
-                                            'Service Checklist:',
-                                            style: TextStyle(
-                                              fontWeight: FontWeight.w700,
-                                              fontSize: 13,
-                                              color: kText,
-                                              fontFamily: 'Montserrat',
+                                    Consumer(
+                                      builder: (context, ref, _) {
+                                        final checklist = ref.watch(
+                                          serviceChecklistProvider(n['id']),
+                                        );
+                                        final doneCount = checklist
+                                            .where((c) => c['is_done'] == true)
+                                            .length;
+                                        final total = checklist.length;
+                                        final progress = total == 0
+                                            ? 0.0
+                                            : doneCount / total;
+
+                                        return Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          children: [
+                                            const Text(
+                                              'Service Checklist:',
+                                              style: TextStyle(
+                                                fontWeight: FontWeight.w700,
+                                                fontSize: 13,
+                                                color: kText,
+                                                fontFamily: 'Montserrat',
+                                              ),
                                             ),
-                                          ),
-                                          const SizedBox(height: 8),
-                                          ...checklist.map((c) {
-                                            final done = c['is_done'] == true;
-                                            return Container(
-                                              margin: const EdgeInsets.only(
-                                                bottom: 6,
+                                            const SizedBox(height: 8),
+                                            LinearProgressIndicator(
+                                              value: progress,
+                                              backgroundColor: kBorderColor
+                                                  .withOpacity(0.2),
+                                              color: kSuccess,
+                                            ),
+                                            const SizedBox(height: 8),
+                                            Text(
+                                              '$doneCount of $total services completed',
+                                              style: const TextStyle(
+                                                fontSize: 12,
+                                                color: kSubText,
+                                                fontFamily: 'OpenSans',
                                               ),
-                                              padding:
-                                                  const EdgeInsets.symmetric(
-                                                    horizontal: 10,
-                                                    vertical: 8,
-                                                  ),
-                                              decoration: BoxDecoration(
-                                                color: done
-                                                    ? kSuccess.withOpacity(0.1)
-                                                    : kDanger.withOpacity(0.1),
-                                                borderRadius:
-                                                    BorderRadius.circular(8),
-                                                border: Border.all(
-                                                  color: done
-                                                      ? kSuccess.withOpacity(
-                                                          0.3,
+                                            ),
+                                            const SizedBox(height: 8),
+                                            ...checklist.map((c) {
+                                              final done = c['is_done'] == true;
+                                              final updatedAt = c['updated_at'];
+                                              String formattedDate = '';
+                                              if (updatedAt != null) {
+                                                try {
+                                                  final date = DateTime.parse(
+                                                    updatedAt,
+                                                  );
+                                                  formattedDate =
+                                                      '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
+                                                } catch (_) {}
+                                              }
+                                              return ListTile(
+                                                leading: Checkbox(
+                                                  value: done,
+                                                  onChanged: (val) {
+                                                    ref
+                                                        .read(
+                                                          serviceChecklistProvider(
+                                                            n['id'],
+                                                          ).notifier,
                                                         )
-                                                      : kDanger.withOpacity(
-                                                          0.3,
-                                                        ),
-                                                  width: 1,
+                                                        .toggleDone(
+                                                          c['id'],
+                                                          val ?? false,
+                                                        );
+                                                  },
+                                                  activeColor: kSuccess,
                                                 ),
-                                              ),
-                                              child: Row(
-                                                children: [
-                                                  Icon(
-                                                    done
-                                                        ? Icons
-                                                              .check_circle_rounded
-                                                        : Icons.cancel_rounded,
-                                                    color: done
-                                                        ? kSuccess
-                                                        : kDanger,
-                                                    size: 18,
-                                                  ),
-                                                  const SizedBox(width: 10),
-                                                  Expanded(
-                                                    child: Text(
-                                                      c['service_name'] ?? '',
-                                                      style: TextStyle(
-                                                        fontSize: 11,
-                                                        color: done
-                                                            ? kSuccess
-                                                            : kDanger,
-                                                        fontWeight:
-                                                            FontWeight.w600,
-                                                        fontFamily: 'OpenSans',
+                                                title: Row(
+                                                  children: [
+                                                    Expanded(
+                                                      child: Text(
+                                                        c['service_name'] ?? '',
+                                                        style: TextStyle(
+                                                          color: done
+                                                              ? kSuccess
+                                                              : kDanger,
+                                                          fontWeight:
+                                                              FontWeight.w600,
+                                                          fontFamily:
+                                                              'OpenSans',
+                                                        ),
                                                       ),
                                                     ),
+                                                    IconButton(
+                                                      icon: const Icon(
+                                                        Icons.edit,
+                                                        size: 18,
+                                                        color: kPrimary,
+                                                      ),
+                                                      tooltip: 'Edit Service',
+                                                      onPressed: () async {
+                                                        final controller =
+                                                            TextEditingController(
+                                                              text:
+                                                                  c['service_name'],
+                                                            );
+                                                        final result = await showDialog<String>(
+                                                          context: context,
+                                                          builder: (context) => AlertDialog(
+                                                            title: const Text(
+                                                              'Edit Service',
+                                                            ),
+                                                            content: TextField(
+                                                              controller:
+                                                                  controller,
+                                                              autofocus: true,
+                                                              decoration:
+                                                                  const InputDecoration(
+                                                                    labelText:
+                                                                        'Service Name',
+                                                                  ),
+                                                            ),
+                                                            actions: [
+                                                              TextButton(
+                                                                onPressed: () =>
+                                                                    Navigator.pop(
+                                                                      context,
+                                                                    ),
+                                                                child:
+                                                                    const Text(
+                                                                      'Cancel',
+                                                                    ),
+                                                              ),
+                                                              ElevatedButton(
+                                                                onPressed: () {
+                                                                  if (controller
+                                                                      .text
+                                                                      .trim()
+                                                                      .isNotEmpty) {
+                                                                    Navigator.pop(
+                                                                      context,
+                                                                      controller
+                                                                          .text
+                                                                          .trim(),
+                                                                    );
+                                                                  }
+                                                                },
+                                                                child:
+                                                                    const Text(
+                                                                      'Save',
+                                                                    ),
+                                                              ),
+                                                            ],
+                                                          ),
+                                                        );
+                                                        if (result != null &&
+                                                            result.isNotEmpty) {
+                                                          await ref
+                                                              .read(
+                                                                serviceChecklistProvider(
+                                                                  n['id'],
+                                                                ).notifier,
+                                                              )
+                                                              .editService(
+                                                                c['id'],
+                                                                result,
+                                                              );
+                                                        }
+                                                      },
+                                                    ),
+                                                    if (formattedDate
+                                                        .isNotEmpty)
+                                                      Padding(
+                                                        padding:
+                                                            const EdgeInsets.only(
+                                                              left: 8.0,
+                                                            ),
+                                                        child: Text(
+                                                          formattedDate,
+                                                          style:
+                                                              const TextStyle(
+                                                                fontSize: 10,
+                                                                color: kSubText,
+                                                                fontFamily:
+                                                                    'OpenSans',
+                                                              ),
+                                                        ),
+                                                      ),
+                                                  ],
+                                                ),
+                                              );
+                                            }),
+                                            // Add Service Button
+                                            Align(
+                                              alignment: Alignment.centerLeft,
+                                              child: TextButton.icon(
+                                                icon: const Icon(
+                                                  Icons.add,
+                                                  size: 18,
+                                                  color: kPrimary,
+                                                ),
+                                                label: const Text(
+                                                  'Add Service',
+                                                  style: TextStyle(
+                                                    color: kPrimary,
+                                                    fontWeight: FontWeight.w600,
+                                                    fontFamily: 'Montserrat',
                                                   ),
-                                                ],
+                                                ),
+                                                onPressed: () async {
+                                                  final controller =
+                                                      TextEditingController();
+                                                  final result = await showDialog<String>(
+                                                    context: context,
+                                                    builder: (context) => AlertDialog(
+                                                      title: const Text(
+                                                        'Add Service',
+                                                      ),
+                                                      content: TextField(
+                                                        controller: controller,
+                                                        autofocus: true,
+                                                        decoration:
+                                                            const InputDecoration(
+                                                              labelText:
+                                                                  'Service Name',
+                                                            ),
+                                                      ),
+                                                      actions: [
+                                                        TextButton(
+                                                          onPressed: () =>
+                                                              Navigator.pop(
+                                                                context,
+                                                              ),
+                                                          child: const Text(
+                                                            'Cancel',
+                                                          ),
+                                                        ),
+                                                        ElevatedButton(
+                                                          onPressed: () {
+                                                            if (controller.text
+                                                                .trim()
+                                                                .isNotEmpty) {
+                                                              Navigator.pop(
+                                                                context,
+                                                                controller.text
+                                                                    .trim(),
+                                                              );
+                                                            }
+                                                          },
+                                                          child: const Text(
+                                                            'Add',
+                                                          ),
+                                                        ),
+                                                      ],
+                                                    ),
+                                                  );
+                                                  if (result != null &&
+                                                      result.isNotEmpty) {
+                                                    await ref
+                                                        .read(
+                                                          serviceChecklistProvider(
+                                                            n['id'],
+                                                          ).notifier,
+                                                        )
+                                                        .addService(result);
+                                                  }
+                                                },
                                               ),
-                                            );
-                                          }),
-                                        ],
-                                      ),
+                                            ),
+                                          ],
+                                        );
+                                      },
                                     ),
                                   ],
                                 ),

@@ -55,10 +55,12 @@ class _DayungProfileState extends State<DayungProfile> {
     final tags = <String>[];
     if ((_prefFeeRange ?? '').isNotEmpty) tags.add(_prefFeeRange!);
     if ((_prefPaymentMethod ?? '').isNotEmpty) tags.add(_prefPaymentMethod!);
-    if (_prefOpenForAll != null)
+    if (_prefOpenForAll != null) {
       tags.add(_prefOpenForAll! ? 'Open for all' : 'Restricted');
-    if ((_prefFundSupportRange ?? '').isNotEmpty)
+    }
+    if ((_prefFundSupportRange ?? '').isNotEmpty) {
       tags.add(_prefFundSupportRange!);
+    }
     return tags.isEmpty ? ['No preferences set'] : tags;
   }
 
@@ -118,7 +120,7 @@ class _DayungProfileState extends State<DayungProfile> {
       setState(() {
         _appliedDayungs = list;
         if (list.isEmpty) {
-          _appliedDebug = '0 pending rows. Either none or RLS blocks select.';
+          _appliedDebug = '';
         }
       });
     } on PostgrestException catch (e) {
@@ -317,7 +319,7 @@ class _DayungProfileState extends State<DayungProfile> {
                 const SizedBox(height: 12),
 
                 DropdownButtonFormField<String>(
-                  value: feeRange,
+                  initialValue: feeRange,
                   decoration: const InputDecoration(
                     labelText: 'Registration Fee Range',
                     border: OutlineInputBorder(),
@@ -342,7 +344,7 @@ class _DayungProfileState extends State<DayungProfile> {
                 const SizedBox(height: 10),
 
                 DropdownButtonFormField<String>(
-                  value: paymentMethod,
+                  initialValue: paymentMethod,
                   decoration: const InputDecoration(
                     labelText: 'Preferred Payment Method',
                     border: OutlineInputBorder(),
@@ -355,7 +357,7 @@ class _DayungProfileState extends State<DayungProfile> {
                 const SizedBox(height: 10),
 
                 DropdownButtonFormField<String>(
-                  value: openForAll == null
+                  initialValue: openForAll == null
                       ? null
                       : (openForAll! ? 'Yes' : 'No'),
                   decoration: const InputDecoration(
@@ -370,7 +372,7 @@ class _DayungProfileState extends State<DayungProfile> {
                 const SizedBox(height: 10),
 
                 DropdownButtonFormField<String>(
-                  value: fundSupportRange,
+                  initialValue: fundSupportRange,
                   decoration: const InputDecoration(
                     labelText: 'Fund Support Range',
                     border: OutlineInputBorder(),
@@ -494,7 +496,7 @@ class _DayungProfileState extends State<DayungProfile> {
           'Birth Certificate',
           'Valid Government ID',
           'Proof of Residency',
-          '2x2 ID Photo',
+          'Marriage Certificate (if applicable)',
         ];
     showModalBottomSheet(
       context: context,
@@ -570,7 +572,7 @@ class _DayungProfileState extends State<DayungProfile> {
                           borderRadius: BorderRadius.circular(20),
                         ),
                         child: const Text(
-                          'Required',
+                          '',
                           style: TextStyle(
                             fontSize: 10,
                             fontFamily: 'Montserrat',
@@ -581,36 +583,6 @@ class _DayungProfileState extends State<DayungProfile> {
                       ),
                     ],
                   ),
-                ),
-              ),
-              const SizedBox(height: 16),
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton.icon(
-                  icon: const Icon(
-                    Icons.upload_rounded,
-                    size: 16,
-                    color: Colors.white,
-                  ),
-                  label: const Text('Upload now'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: kPrimary,
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(vertical: 12),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                  ),
-                  onPressed: () {
-                    Navigator.of(ctx).pop();
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('Navigate to upload screen...'),
-                      ),
-                    );
-                    // TODO: Navigate to your upload page if available.
-                    // Navigator.push(context, MaterialPageRoute(builder: (_) => UploadRequirementsPage(dayungName: dayungName)));
-                  },
                 ),
               ),
             ],
@@ -1159,7 +1131,110 @@ class _DayungProfileState extends State<DayungProfile> {
                             ),
                           ),
                         ),
-
+                        const SizedBox(height: 10),
+                        Container(
+                          width: double.infinity,
+                          height: 44,
+                          decoration: BoxDecoration(
+                            color: kPrimaryLight,
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Material(
+                            color: Colors.transparent,
+                            child: InkWell(
+                              borderRadius: BorderRadius.circular(8),
+                              onTap: () {
+                                showModalBottomSheet(
+                                  context: context,
+                                  shape: const RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+                                  ),
+                                  builder: (ctx) => Padding(
+                                    padding: const EdgeInsets.fromLTRB(20, 20, 20, 32),
+                                    child: Column(
+                                      mainAxisSize: MainAxisSize.min,
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Center(
+                                          child: Container(
+                                            width: 40,
+                                            height: 4,
+                                            margin: const EdgeInsets.only(bottom: 12),
+                                            decoration: BoxDecoration(
+                                              color: kSubText.withOpacity(0.2),
+                                              borderRadius: BorderRadius.circular(4),
+                                            ),
+                                          ),
+                                        ),
+                                        const Text(
+                                          'Requirements to Apply for a Dayung',
+                                          style: TextStyle(
+                                            fontSize: 16,
+                                            fontWeight: FontWeight.w700,
+                                            fontFamily: 'Montserrat',
+                                            color: kText,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 10),
+                                        const Text(
+                                          '',
+                                          style: TextStyle(
+                                            fontSize: 13,
+                                            fontFamily: 'OpenSans',
+                                            color: kSubText,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 18),
+                                        SizedBox(
+                                          width: double.infinity,
+                                          child: ElevatedButton(
+                                            onPressed: () => Navigator.of(ctx).pop(),
+                                            style: ElevatedButton.styleFrom(
+                                              backgroundColor: kPrimary,
+                                              foregroundColor: Colors.white,
+                                              shape: RoundedRectangleBorder(
+                                                borderRadius: BorderRadius.circular(8),
+                                              ),
+                                              padding: const EdgeInsets.symmetric(vertical: 12),
+                                            ),
+                                            child: const Text('Got it'),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                );
+                              },
+                              child: Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Container(
+                                    padding: const EdgeInsets.all(4),
+                                    decoration: BoxDecoration(
+                                      color: Colors.white.withOpacity(0.15),
+                                      borderRadius: BorderRadius.circular(4),
+                                    ),
+                                    child: const Icon(
+                                      Icons.info_outline_rounded,
+                                      color: Colors.white,
+                                      size: 14,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 12),
+                                  const Text(
+                                    'How to Apply?',
+                                    style: TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w600,
+                                      fontFamily: 'Montserrat',
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
                         const SizedBox(height: 20),
 
                         // Applied Dayung List
@@ -1175,6 +1250,91 @@ class _DayungProfileState extends State<DayungProfile> {
                               Text(
                                 'Applied Dayung (Pending)',
                                 style: sectionTitleStyle,
+                              ),
+                              // Add info button to show modal
+                              const SizedBox(height: 4),
+                              Align(
+                                alignment: Alignment.centerLeft,
+                                child: TextButton.icon(
+                                  icon: const Icon(Icons.info_outline_rounded, size: 18, color: kPrimary),
+                                  label: const Text(
+                                    'What does this mean?',
+                                    style: TextStyle(
+                                      color: kPrimary,
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w500,
+                                      fontFamily: 'Montserrat',
+                                    ),
+                                  ),
+                                  style: TextButton.styleFrom(
+                                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                    minimumSize: Size(0, 0),
+                                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                  ),
+                                  onPressed: () {
+                                    showModalBottomSheet(
+                                      context: context,
+                                      shape: const RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+                                      ),
+                                      builder: (ctx) => Padding(
+                                        padding: const EdgeInsets.fromLTRB(20, 20, 20, 32),
+                                        child: Column(
+                                          mainAxisSize: MainAxisSize.min,
+                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                          children: [
+                                            Center(
+                                              child: Container(
+                                                width: 40,
+                                                height: 4,
+                                                margin: const EdgeInsets.only(bottom: 12),
+                                                decoration: BoxDecoration(
+                                                  color: kSubText.withOpacity(0.2),
+                                                  borderRadius: BorderRadius.circular(4),
+                                                ),
+                                              ),
+                                            ),
+                                            const Text(
+                                              'Pending Applications',
+                                              style: TextStyle(
+                                                fontSize: 16,
+                                                fontWeight: FontWeight.w700,
+                                                fontFamily: 'Montserrat',
+                                                color: kText,
+                                              ),
+                                            ),
+                                            const SizedBox(height: 10),
+                                            const Text(
+                                              'These are Dayung units you have applied to join but are still awaiting approval. '
+                                              'You may need to upload requirements or wait for the Dayung admin to review your application.',
+                                              style: TextStyle(
+                                                fontSize: 13,
+                                                fontFamily: 'OpenSans',
+                                                color: kSubText,
+                                              ),
+                                            ),
+                                            const SizedBox(height: 18),
+                                            SizedBox(
+                                              width: double.infinity,
+                                              child: ElevatedButton(
+                                                onPressed: () => Navigator.of(ctx).pop(),
+                                                style: ElevatedButton.styleFrom(
+                                                  backgroundColor: kPrimary,
+                                                  foregroundColor: Colors.white,
+                                                  shape: RoundedRectangleBorder(
+                                                    borderRadius: BorderRadius.circular(8),
+                                                  ),
+                                                  padding: const EdgeInsets.symmetric(vertical: 12),
+                                                ),
+                                                child: const Text('Got it'),
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    );
+                                  },
+                                ),
                               ),
                               const SizedBox(height: 12),
                               if (_loadingApplied)
@@ -1256,7 +1416,7 @@ class _DayungProfileState extends State<DayungProfile> {
                                       ),
                                     ),
                                   );
-                                }).toList(),
+                                }),
                             ],
                           ),
                         ),

@@ -54,6 +54,7 @@ class _RegisterState extends State<Register> {
   String? selectedYear;
   String? selectedSex;
   String? _addressDisplay;
+  String? _pickedRegion, _pickedProvince, _pickedCity, _pickedBarangay;
 
   String _normalizePhone(String raw) {
     final s = raw.replaceAll(RegExp(r'\s+'), '');
@@ -131,7 +132,12 @@ class _RegisterState extends State<Register> {
     final rawBarangays = city['barangays'];
     if (rawBarangays is! List) return [];
     return rawBarangays
-        .where((b) => b is String && b.trim().isNotEmpty)
+        .where(
+          (b) =>
+              b is String &&
+              b.trim().isNotEmpty &&
+              !RegExp(r'^[A-Z]$').hasMatch(b.trim()),
+        )
         .cast<String>()
         .toList();
   }
@@ -263,6 +269,43 @@ class _RegisterState extends State<Register> {
         ),
       ),
     );
+  }
+
+  Future<void> _openAddressPicker() async {
+    final result = await showModalBottomSheet<_AddressPickResult>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => AddressPickerSheet(
+        onUseMyLocation: () async {
+          await _useMyLocation();
+          Navigator.pop(
+            ctx,
+            _AddressPickResult(rawText: addressController.text),
+          );
+        },
+        initialRegion: _pickedRegion,
+        initialProvince: _pickedProvince,
+        initialCity: _pickedCity,
+        initialBarangay: _pickedBarangay,
+      ),
+    );
+
+    if (result != null) {
+      setState(() {
+        addressController.text = result.rawText;
+        _addressDisplay = result.rawText;
+        _pickedRegion = result.region;
+        _pickedProvince = result.province;
+        _pickedCity = result.city;
+        _pickedBarangay = result.barangay;
+        _latitude = null;
+        _longitude = null;
+      });
+    }
   }
 
   Future<void> _useMyLocation() async {
@@ -884,47 +927,34 @@ class _RegisterState extends State<Register> {
                                     fontWeight: FontWeight.w500,
                                   ),
                                   decoration: _dec(
-                                    'Mobile Number',
+                                    'Phone Number',
                                     hint: '+63 9XXXXXXXXX',
                                     icon: Icons.phone_rounded,
                                   ),
                                   validator: (v) =>
                                       (v == null || v.trim().isEmpty)
-                                      ? 'Mobile number is required'
+                                      ? 'Phone number is required'
                                       : null,
                                 ),
                                 const SizedBox(height: 16),
-                                // change
-                                Padding(
-                                  padding: const EdgeInsets.only(bottom: 8.0),
-                                  child: Row(
-                                    children: [
-                                      ElevatedButton.icon(
-                                        icon: const Icon(Icons.my_location),
-                                        label: const Text(
-                                          'Use My Current Location',
-                                        ),
-                                        style: ElevatedButton.styleFrom(
-                                          backgroundColor: kPrimary,
-                                          foregroundColor: Colors.white,
-                                        ),
-                                        onPressed: _useMyLocation,
+                                GestureDetector(
+                                  onTap: _openAddressPicker,
+                                  child: AbsorbPointer(
+                                    child: TextFormField(
+                                      controller: addressController,
+                                      readOnly: true,
+                                      decoration: _dec(
+                                        'Address',
+                                        hint:
+                                            'Select Region, Province, City, Barangay',
+                                        icon: Icons.location_on_rounded,
                                       ),
-                                    ],
+                                      validator: (v) =>
+                                          (v == null || v.trim().isEmpty)
+                                          ? 'Address is required'
+                                          : null,
+                                    ),
                                   ),
-                                ),
-                                TextFormField(
-                                  controller: addressController,
-                                  readOnly: true, // para hindi ma-edit manually
-                                  decoration: _dec(
-                                    'Address',
-                                    hint: 'Tap "Use My Current Location"',
-                                    icon: Icons.location_on_rounded,
-                                  ),
-                                  validator: (v) =>
-                                      (v == null || v.trim().isEmpty)
-                                      ? 'Address is required'
-                                      : null,
                                 ),
 
                                 const SizedBox(height: 28),
@@ -1252,6 +1282,526 @@ class _RegisterState extends State<Register> {
           );
         },
       ),
+    );
+  }
+}
+
+class _AddressPickResult {
+  final String rawText;
+  final String? region, province, city, barangay;
+  _AddressPickResult({
+    required this.rawText,
+    this.region,
+    this.province,
+    this.city,
+    this.barangay,
+  });
+}
+
+class AddressPickerSheet extends StatefulWidget {
+  final Future<void> Function() onUseMyLocation;
+  final String? initialRegion, initialProvince, initialCity, initialBarangay;
+
+  const AddressPickerSheet({
+    super.key,
+    required this.onUseMyLocation,
+    this.initialRegion,
+    this.initialProvince,
+    this.initialCity,
+    this.initialBarangay,
+  });
+
+  @override
+  State<AddressPickerSheet> createState() => _AddressPickerSheetState();
+}
+
+class _AddressPickerSheetState extends State<AddressPickerSheet> {
+  // State
+  String? _region;
+  String? _province;
+  String? _city;
+  String? _barangay;
+
+  bool _locating = false;
+
+  int get _stepIndex {
+    if (_region == null) return 0;
+    if (_province == null) return 1;
+    if (_city == null) return 2;
+    return 3; // Always show Barangay step when Region/Province/City exist
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _region = widget.initialRegion;
+    _province = widget.initialProvince;
+    _city = widget.initialCity;
+    _barangay = widget.initialBarangay;
+  }
+
+  void _goBackOneStep() {
+    setState(() {
+      if (_stepIndex == 1) {
+        // Province -> Region
+        _region = null;
+        _province = null;
+        _city = null;
+        _barangay = null;
+      } else if (_stepIndex == 2) {
+        // City -> Province
+        _province = null;
+        _city = null;
+        _barangay = null;
+      } else if (_stepIndex == 3) {
+        // Barangay -> City
+        _city = null;
+        _barangay = null;
+      }
+    });
+  }
+
+  List<Map<String, dynamic>> get _mindanaoProvinces {
+    return phProvinces.cast<Map<String, dynamic>>();
+  }
+
+  List<Map<String, dynamic>> get _citiesInProvince {
+    if (_province == null) return const [];
+    final province = _mindanaoProvinces.firstWhere(
+      (p) => p['name'] == _province,
+      orElse: () => <String, dynamic>{},
+    );
+    final rawCities = province['cities'];
+    if (rawCities is! List) return const [];
+    return rawCities.cast<Map<String, dynamic>>();
+  }
+
+  List<String> get _barangaysInCity {
+    if (_city == null) return const [];
+    final city = _citiesInProvince.firstWhere(
+      (c) => c['name'] == _city,
+      orElse: () => <String, dynamic>{},
+    );
+    final rawBarangays = city['barangays'];
+    if (rawBarangays is! List) return const [];
+    return rawBarangays
+        .where(
+          (b) =>
+              b is String &&
+              b.trim().isNotEmpty &&
+              !RegExp(r'^[A-Z]$').hasMatch(b.trim()),
+        )
+        .cast<String>()
+        .toList();
+  }
+
+  String _composeAddress() {
+    return [
+      if (_barangay?.isNotEmpty == true) _barangay,
+      if (_city?.isNotEmpty == true) _city,
+      if (_province?.isNotEmpty == true) _province,
+      if (_region?.isNotEmpty == true) _region,
+    ].map((e) => e.toString()).join(', ');
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final size = MediaQuery.of(context).size;
+
+    return SafeArea(
+      child: SizedBox(
+        height: size.height * 0.75,
+        child: Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              child: Row(
+                children: [
+                  const Text(
+                    'Region Selected',
+                    style: TextStyle(color: kSubtleText),
+                  ),
+                  const Spacer(),
+                  TextButton(
+                    onPressed: () => setState(() {
+                      _region = null;
+                      _province = null;
+                      _city = null;
+                      _barangay = null;
+                    }),
+                    child: const Text(
+                      'Reset',
+                      style: TextStyle(
+                        color: kDanger,
+                        fontWeight: FontWeight.w500,
+                        fontSize: 16,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 8),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: _VerticalTrail(
+                region: _region,
+                province: _province,
+                city: _city,
+                barangay: _barangay,
+                activeStep: _stepIndex,
+              ),
+            ),
+
+            Expanded(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  children: [
+                    if (_stepIndex == 0) ...[
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        child: SizedBox(
+                          width: double.infinity,
+                          child: ElevatedButton.icon(
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: kPrimary,
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(
+                                vertical: 14,
+                                horizontal: 16,
+                              ),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                            ),
+                            icon: _locating
+                                ? SizedBox(
+                                    width: 20,
+                                    height: 20,
+                                    child: CircularProgressIndicator(
+                                      color: Colors.white,
+                                      strokeWidth: 2.5,
+                                    ),
+                                  )
+                                : const Icon(Icons.my_location_rounded),
+                            label: Text(
+                              _locating
+                                  ? 'Locating...'
+                                  : 'Use My Current Location',
+                            ),
+                            onPressed: _locating
+                                ? null
+                                : () async {
+                                    setState(() => _locating = true);
+                                    await widget.onUseMyLocation();
+                                    if (mounted) {
+                                      setState(() => _locating = false);
+                                    }
+                                  },
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      const Padding(
+                        padding: EdgeInsets.symmetric(horizontal: 16),
+                        child: Text(
+                          'Region',
+                          style: TextStyle(color: kSubtleText),
+                        ),
+                      ),
+                      ListTile(
+                        title: const Text('Mindanao'),
+                        onTap: () => setState(() {
+                          _region = 'Mindanao';
+                          _province = null;
+                          _city = null;
+                          _barangay = null;
+                        }),
+                      ),
+                    ],
+
+                    // Step 1: Province
+                    if (_stepIndex == 1) ...[
+                      const Padding(
+                        padding: EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 8,
+                        ),
+                        child: Text(
+                          'Province',
+                          style: TextStyle(color: kSubtleText),
+                        ),
+                      ),
+                      TextButton.icon(
+                        onPressed: _goBackOneStep,
+                        icon: const Icon(
+                          Icons.arrow_back_ios_new_rounded,
+                          size: 14,
+                          color: kSubtleText,
+                        ),
+                        label: const Text(
+                          'Back',
+                          style: TextStyle(color: kSubtleText),
+                        ),
+                      ),
+                      ..._mindanaoProvinces.map((p) {
+                        final name = (p['name'] ?? '').toString();
+                        return ListTile(
+                          title: Text(name),
+                          onTap: () => setState(() {
+                            _province = name;
+                            _city = null;
+                            _barangay = null;
+                          }),
+                        );
+                      }).toList(),
+                    ],
+
+                    // Step 2: City/Municipality
+                    if (_stepIndex == 2) ...[
+                      const Padding(
+                        padding: EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 8,
+                        ),
+                        child: Text(
+                          'City/Municipality',
+                          style: TextStyle(color: kSubtleText),
+                        ),
+                      ),
+                      TextButton.icon(
+                        onPressed: _goBackOneStep,
+                        icon: const Icon(
+                          Icons.arrow_back_ios_new_rounded,
+                          size: 14,
+                          color: kSubtleText,
+                        ),
+                        label: const Text(
+                          'Back',
+                          style: TextStyle(color: kSubtleText),
+                        ),
+                      ),
+                      ...(() {
+                        final cityNames = _citiesInProvince
+                            .map((c) => (c['name'] ?? '').toString().trim())
+                            .where((name) => name.isNotEmpty)
+                            .toList();
+
+                        cityNames.sort(
+                          (a, b) => a.toLowerCase().compareTo(b.toLowerCase()),
+                        );
+
+                        final Map<String, List<String>> grouped = {};
+                        for (final name in cityNames) {
+                          final letter = name.substring(0, 1).toUpperCase();
+                          grouped.putIfAbsent(letter, () => []).add(name);
+                        }
+
+                        return grouped.entries.map((entry) {
+                          final letter = entry.key;
+                          final items = entry.value;
+                          return Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 16,
+                                  vertical: 6,
+                                ),
+                                child: Text(
+                                  letter,
+                                  style: const TextStyle(
+                                    color: kSubtleText,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ),
+                              ...items.map((name) {
+                                return ListTile(
+                                  title: Text(name),
+                                  onTap: () => setState(() {
+                                    _city = name;
+                                    _barangay = null;
+                                  }),
+                                );
+                              }).toList(),
+                            ],
+                          );
+                        }).toList();
+                      })(),
+                    ],
+                    if (_stepIndex == 3) ...[
+                      const Padding(
+                        padding: EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 8,
+                        ),
+                        child: Text(
+                          'Barangay',
+                          style: TextStyle(color: kSubtleText),
+                        ),
+                      ),
+                      TextButton.icon(
+                        onPressed: _goBackOneStep,
+                        icon: const Icon(
+                          Icons.arrow_back_ios_new_rounded,
+                          size: 14,
+                          color: kSubtleText,
+                        ),
+                        label: const Text(
+                          'Back',
+                          style: TextStyle(color: kSubtleText),
+                        ),
+                      ),
+                      ...(() {
+                        final names = _barangaysInCity
+                            .map((b) => b.trim())
+                            .where((b) => b.isNotEmpty)
+                            .toList();
+                        names.sort(
+                          (a, b) => a.toLowerCase().compareTo(b.toLowerCase()),
+                        );
+                        final Map<String, List<String>> grouped = {};
+                        for (final name in names) {
+                          final letter = name.substring(0, 1).toUpperCase();
+                          grouped.putIfAbsent(letter, () => []).add(name);
+                        }
+                        return grouped.entries.map((entry) {
+                          final letter = entry.key;
+                          final items = entry.value;
+                          return Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 16,
+                                  vertical: 6,
+                                ),
+                                child: Text(
+                                  letter,
+                                  style: const TextStyle(
+                                    color: kSubtleText,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ),
+                              ...items.map((name) {
+                                return RadioListTile<String>(
+                                  value: name,
+                                  groupValue: _barangay,
+                                  title: Text(name),
+                                  activeColor: kPrimary,
+                                  onChanged: (val) {
+                                    if (val == null) return;
+                                    setState(() => _barangay = val);
+                                    Navigator.pop(
+                                      context,
+                                      _AddressPickResult(
+                                        rawText: _composeAddress(),
+                                        region: _region,
+                                        province: _province,
+                                        city: _city,
+                                        barangay: val,
+                                      ),
+                                    );
+                                  },
+                                );
+                              }).toList(),
+                            ],
+                          );
+                        }).toList();
+                      })(),
+                    ],
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _VerticalTrail extends StatelessWidget {
+  final String? region;
+  final String? province;
+  final String? city;
+  final String? barangay;
+  final int activeStep;
+  const _VerticalTrail({
+    required this.region,
+    required this.province,
+    required this.city,
+    required this.barangay,
+    required this.activeStep,
+  });
+
+  Widget _line({
+    required String label,
+    required bool highlight,
+    bool showConnector = true,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Container(
+              width: 8,
+              height: 8,
+              decoration: BoxDecoration(
+                color: highlight ? kPrimary : kBorderColor,
+                shape: BoxShape.circle,
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  color: highlight ? kNeutralText : kSubtleText,
+                  fontWeight: highlight ? FontWeight.w600 : FontWeight.w500,
+                ),
+              ),
+            ),
+          ],
+        ),
+        if (showConnector)
+          Container(
+            width: 1.5,
+            height: 18,
+            margin: const EdgeInsets.only(left: 3.5, top: 6, bottom: 6),
+            color: kBorderColor,
+          ),
+      ],
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final r = region ?? 'Region';
+    final p = province ?? 'Province';
+    final c = city ?? 'City/Municipality';
+    final b = barangay ?? 'Barangay';
+
+    // Map active step to highlighted line
+    final highlightRegion = activeStep == 0;
+    final highlightProvince = activeStep == 1;
+    final highlightCity = activeStep == 2;
+    final highlightBarangay = activeStep == 3;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _line(label: r, highlight: highlightRegion),
+        _line(label: p, highlight: highlightProvince),
+        _line(label: c, highlight: highlightCity),
+        _line(label: b, highlight: highlightBarangay, showConnector: false),
+      ],
     );
   }
 }

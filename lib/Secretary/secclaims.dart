@@ -9,7 +9,6 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:photo_view/photo_view.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:http/http.dart' as http;
-import 'package:capstone_app/ui/theme/branding.dart';
 
 // Old palette (kept so old logic/widgets compile)
 const Color kPrimary = Color(0xFF0D47A1);
@@ -125,7 +124,7 @@ class _SecretaryClaimsPageState extends State<SecretaryClaimsPage>
           .from('claims')
           .select(
             'id, user_id, title, description, status, date_submitted, '
-            'death_certificate_url, beneficiary_id, date_of_death, dayung_unit_id',
+            'death_certificate_url, beneficiary_id, date_of_death, dayung_unit_id, claimedmoney', // <— added
           )
           .eq('status', statusTitle)
           .eq('dayung_unit_id', unitId)
@@ -140,7 +139,7 @@ class _SecretaryClaimsPageState extends State<SecretaryClaimsPage>
             .from('claims')
             .select(
               'id, user_id, title, description, status, date_submitted, '
-              'death_certificate_url, beneficiary_id, date_of_death, dayung_unit_id',
+              'death_certificate_url, beneficiary_id, date_of_death, dayung_unit_id, claimedmoney', // <— added
             )
             .eq('status', statusTitle)
             .isFilter('dayung_unit_id', null)
@@ -292,6 +291,39 @@ class _SecretaryClaimsPageState extends State<SecretaryClaimsPage>
       return DateFormat('MMM d, yyyy • h:mm a').format(dt);
     } catch (_) {
       return v.toString();
+    }
+  }
+
+  // ===== Claimed money helpers =====
+  bool _isClaimed(dynamic v) {
+    if (v is bool) return v;
+    if (v is num) return v == 1;
+    final s = v?.toString().toLowerCase().trim();
+    if (s == null) return false;
+    return s == 'yes' || s == 'true' || s == '1';
+  }
+
+  dynamic _storeClaimedValue(bool value, dynamic existingColumnValue) {
+    // Preserve schema: if existing is bool -> write bool, else write "yes"/"no"
+    if (existingColumnValue is bool) return value;
+    return value ? 'yes' : 'no';
+  }
+
+  Future<void> _updateClaimed(
+    String claimId,
+    bool newValue,
+    dynamic existingColumnValue,
+  ) async {
+    if (_updating) return;
+    setState(() => _updating = true);
+    try {
+      final storeVal = _storeClaimedValue(newValue, existingColumnValue);
+      await supabase.from('claims').update({'claimedmoney': storeVal}).eq('id', claimId);
+      await _fetchClaims();
+    } catch (e) {
+      debugPrint("Error updating claimedmoney: $e");
+    } finally {
+      if (mounted) setState(() => _updating = false);
     }
   }
 
@@ -624,6 +656,7 @@ class _SecretaryClaimsPageState extends State<SecretaryClaimsPage>
     final title = (claim['title'] ?? 'Untitled').toString();
     final date = _formatDate(claim['date_submitted']);
     final desc = (claim['description'] ?? '').toString().trim();
+    final claimed = _isClaimed(claim['claimedmoney']); // <— existing
 
     return InkWell(
       onTap: () => _showDetail(claim),
@@ -645,7 +678,6 @@ class _SecretaryClaimsPageState extends State<SecretaryClaimsPage>
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Status + short id
             Row(
               children: [
                 Container(
@@ -675,6 +707,40 @@ class _SecretaryClaimsPageState extends State<SecretaryClaimsPage>
                     ],
                   ),
                 ),
+                // Only show claimed chip for Approved
+                if (status.toLowerCase() == 'approved') ...[
+                  const SizedBox(width: 8),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: (claimed ? kAccent : Colors.grey).withOpacity(.1),
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(
+                        color: (claimed ? kAccent : Colors.grey).withOpacity(.3),
+                      ),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          claimed ? Icons.payments : Icons.money_off,
+                          size: 12,
+                          color: claimed ? kAccent : Colors.grey,
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          claimed ? 'Claimed' : 'Not claimed',
+                          style: TextStyle(
+                            fontSize: 10,
+                            fontWeight: FontWeight.w600,
+                            fontFamily: 'Montserrat',
+                            color: claimed ? kAccent : Colors.grey,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
                 const Spacer(),
                 Text(
                   '#${claim['id'].toString().substring(0, 8)}...',
@@ -715,7 +781,7 @@ class _SecretaryClaimsPageState extends State<SecretaryClaimsPage>
               ),
             ],
             const SizedBox(height: 6),
-            // Deceased line (kept from old logic)
+            // Deceased line
             FutureBuilder<Map<String, dynamic>>(
               future: getDeceasedInfo(claim),
               builder: (context, snapshot) {
@@ -771,6 +837,7 @@ class _SecretaryClaimsPageState extends State<SecretaryClaimsPage>
     final submitter = (userInfo?['full_name'] ?? 'Member').toString();
     final dayungName =
         context.read<DayungUnitProvider>().dayungUnit ?? 'Dayung';
+    final claimed = _isClaimed(claim['claimedmoney']); // <— existing
 
     showModalBottomSheet(
       context: context,
@@ -902,7 +969,7 @@ class _SecretaryClaimsPageState extends State<SecretaryClaimsPage>
                         ),
                       const SizedBox(height: 20),
                       // Meta details
-                      _buildInfoRow(Icons.fingerprint, 'ID', '#${claim['id']}'),
+                      //_buildInfoRow(Icons.fingerprint, 'ID', '#${claim['id']}'),
                       _buildInfoRow(
                         Icons.schedule,
                         'Submitted',
@@ -914,6 +981,13 @@ class _SecretaryClaimsPageState extends State<SecretaryClaimsPage>
                         submitter,
                       ),
                       _buildInfoRow(Icons.business, 'Dayung', dayungName),
+                      // Only show Claimed Money row for Approved
+                      if (status.toLowerCase() == 'approved')
+                        _buildInfoRow(
+                          Icons.attach_money,
+                          'Claimed Money',
+                          claimed ? 'Yes' : 'No',
+                        ),
                       const SizedBox(height: 20),
                       // Deceased Info with age
                       FutureBuilder<Map<String, dynamic>>(
@@ -953,9 +1027,7 @@ class _SecretaryClaimsPageState extends State<SecretaryClaimsPage>
                       ),
                       const SizedBox(height: 16),
                       // Death Certificate Button
-                      if ((claim['death_certificate_url'] ?? '')
-                          .toString()
-                          .isNotEmpty)
+                      if ((claim['death_certificate_url'] ?? '').toString().isNotEmpty)
                         SizedBox(
                           width: double.infinity,
                           child: ElevatedButton.icon(
@@ -970,12 +1042,8 @@ class _SecretaryClaimsPageState extends State<SecretaryClaimsPage>
                               ),
                             ),
                             onPressed: () async {
-                              final url = claim['death_certificate_url']
-                                  .toString();
-                              final isImage =
-                                  url.endsWith('.jpg') ||
-                                  url.endsWith('.jpeg') ||
-                                  url.endsWith('.png');
+                              final url = claim['death_certificate_url'].toString();
+                              final isImage = url.endsWith('.jpg') || url.endsWith('.jpeg') || url.endsWith('.png');
                               final isPdf = url.endsWith('.pdf');
 
                               if (isImage) {
@@ -989,18 +1057,14 @@ class _SecretaryClaimsPageState extends State<SecretaryClaimsPage>
                                       backgroundDecoration: const BoxDecoration(
                                         color: Colors.black,
                                       ),
-                                      minScale:
-                                          PhotoViewComputedScale.contained,
-                                      maxScale:
-                                          PhotoViewComputedScale.covered * 3,
+                                      minScale: PhotoViewComputedScale.contained,
+                                      maxScale: PhotoViewComputedScale.covered * 3,
                                     ),
                                   ),
                                 );
                               } else if (isPdf) {
-                                // Note: This path won't work on Flutter Web.
                                 final tempDir = await getTemporaryDirectory();
-                                final filePath =
-                                    '${tempDir.path}/death_cert.pdf';
+                                final filePath = '${tempDir.path}/death_cert.pdf';
                                 final response = await http.get(Uri.parse(url));
                                 final file = File(filePath);
                                 await file.writeAsBytes(response.bodyBytes);
@@ -1014,27 +1078,18 @@ class _SecretaryClaimsPageState extends State<SecretaryClaimsPage>
                                       children: [
                                         PhotoView(
                                           imageProvider: NetworkImage(url),
-                                          backgroundDecoration:
-                                              const BoxDecoration(
-                                                color: Colors.black,
-                                              ),
-                                          minScale:
-                                              PhotoViewComputedScale.contained,
-                                          maxScale:
-                                              PhotoViewComputedScale.covered *
-                                              3,
+                                          backgroundDecoration: const BoxDecoration(
+                                            color: Colors.black,
+                                          ),
+                                          minScale: PhotoViewComputedScale.contained,
+                                          maxScale: PhotoViewComputedScale.covered * 3,
                                         ),
                                         Positioned(
                                           top: 12,
                                           right: 12,
                                           child: IconButton(
-                                            icon: const Icon(
-                                              Icons.close,
-                                              color: Colors.white,
-                                              size: 24,
-                                            ),
-                                            onPressed: () =>
-                                                Navigator.of(ctx).pop(),
+                                            icon: const Icon(Icons.close, color: Colors.white, size: 24),
+                                            onPressed: () => Navigator.of(ctx).pop(),
                                           ),
                                         ),
                                       ],
@@ -1056,6 +1111,96 @@ class _SecretaryClaimsPageState extends State<SecretaryClaimsPage>
                                 }
                               }
                             },
+                          ),
+                        ),
+                      // Add this block below for valid_ids_url
+                      if ((claim['valid_ids_url'] ?? '').toString().isNotEmpty)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 10.0),
+                          child: SizedBox(
+                            width: double.infinity,
+                            child: ElevatedButton.icon(
+                              icon: const Icon(Icons.credit_card, size: 20),
+                              label: const Text('View Valid IDs'),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: kPrimary,
+                                foregroundColor: Colors.white,
+                                padding: const EdgeInsets.symmetric(vertical: 16),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                              ),
+                              onPressed: () async {
+                                final url = claim['valid_ids_url'].toString();
+                                final isImage = url.endsWith('.jpg') || url.endsWith('.jpeg') || url.endsWith('.png');
+                                final isPdf = url.endsWith('.pdf');
+
+                                if (isImage) {
+                                  showDialog(
+                                    context: context,
+                                    builder: (ctx) => Dialog(
+                                      backgroundColor: Colors.black,
+                                      insetPadding: const EdgeInsets.all(12),
+                                      child: PhotoView(
+                                        imageProvider: NetworkImage(url),
+                                        backgroundDecoration: const BoxDecoration(
+                                          color: Colors.black,
+                                        ),
+                                        minScale: PhotoViewComputedScale.contained,
+                                        maxScale: PhotoViewComputedScale.covered * 3,
+                                      ),
+                                    ),
+                                  );
+                                } else if (isPdf) {
+                                  final tempDir = await getTemporaryDirectory();
+                                  final filePath = '${tempDir.path}/valid_ids.pdf';
+                                  final response = await http.get(Uri.parse(url));
+                                  final file = File(filePath);
+                                  await file.writeAsBytes(response.bodyBytes);
+
+                                  showDialog(
+                                    context: context,
+                                    builder: (ctx) => Dialog(
+                                      backgroundColor: Colors.black,
+                                      insetPadding: const EdgeInsets.all(12),
+                                      child: Stack(
+                                        children: [
+                                          PhotoView(
+                                            imageProvider: NetworkImage(url),
+                                            backgroundDecoration: const BoxDecoration(
+                                              color: Colors.black,
+                                            ),
+                                            minScale: PhotoViewComputedScale.contained,
+                                            maxScale: PhotoViewComputedScale.covered * 3,
+                                          ),
+                                          Positioned(
+                                            top: 12,
+                                            right: 12,
+                                            child: IconButton(
+                                              icon: const Icon(Icons.close, color: Colors.white, size: 24),
+                                              onPressed: () => Navigator.of(ctx).pop(),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  );
+                                } else {
+                                  if (await canLaunchUrl(Uri.parse(url))) {
+                                    await launchUrl(
+                                      Uri.parse(url),
+                                      mode: LaunchMode.externalApplication,
+                                    );
+                                  } else {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(
+                                        content: Text('Could not open file.'),
+                                      ),
+                                    );
+                                  }
+                                }
+                              },
+                            ),
                           ),
                         ),
                       const SizedBox(height: 20),
@@ -1121,7 +1266,10 @@ class _SecretaryClaimsPageState extends State<SecretaryClaimsPage>
   Widget _bottomSheetActions(String status, Map<String, dynamic> claim) {
     final sLower = status.toLowerCase();
     final id = claim['id'].toString();
+    final claimed = _isClaimed(claim['claimedmoney']); // <— existing
+
     if (sLower == 'pending') {
+      // Only Approve/Reject in Pending
       return Row(
         children: [
           Expanded(
@@ -1168,24 +1316,69 @@ class _SecretaryClaimsPageState extends State<SecretaryClaimsPage>
         ],
       );
     }
-    return SizedBox(
-      width: double.infinity,
-      child: ElevatedButton.icon(
-        onPressed: _updating
-            ? null
-            : () {
-                _updateStatus(id, 'Pending');
-                Navigator.pop(context);
-              },
-        icon: const Icon(Icons.restore, size: 20),
-        label: const Text("Set Pending"),
-        style: ElevatedButton.styleFrom(
-          backgroundColor: kWarn,
-          foregroundColor: Colors.white,
-          padding: const EdgeInsets.symmetric(vertical: 16),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
+
+    if (sLower == 'approved') {
+      // Approved: show claimed toggle + Set Pending
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          OutlinedButton.icon(
+            onPressed: _updating
+                ? null
+                : () {
+                    _updateClaimed(id, !claimed, claim['claimedmoney']);
+                    Navigator.pop(context);
+                  },
+            icon: Icon(claimed ? Icons.money_off : Icons.payments),
+            label: Text(claimed ? 'Mark Not Claimed' : 'Mark Claimed'),
+            style: OutlinedButton.styleFrom(
+              padding: const EdgeInsets.symmetric(vertical: 14),
+              side: BorderSide(color: claimed ? Colors.grey : kAccent),
+              foregroundColor: claimed ? Colors.grey.shade800 : kAccent,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
           ),
+          const SizedBox(height: 12),
+          ElevatedButton.icon(
+            onPressed: _updating
+                ? null
+                : () {
+                    _updateStatus(id, 'Pending');
+                    Navigator.pop(context);
+                  },
+            icon: const Icon(Icons.restore, size: 20),
+            label: const Text("Set Pending"),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: kWarn,
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(vertical: 16),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+          ),
+        ],
+      );
+    }
+
+   // Rejected: only Set Pending
+    return ElevatedButton.icon(
+      onPressed: _updating
+          ? null
+          : () {
+              _updateStatus(id, 'Pending');
+              Navigator.pop(context);
+            },
+      icon: const Icon(Icons.restore, size: 20),
+      label: const Text("Set Pending"),
+      style: ElevatedButton.styleFrom(
+        backgroundColor: kWarn,
+        foregroundColor: Colors.white,
+        padding: const EdgeInsets.symmetric(vertical: 16),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
         ),
       ),
     );

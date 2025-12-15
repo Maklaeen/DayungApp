@@ -1,20 +1,27 @@
+import 'dart:convert';
+
+import 'package:capstone_app/Auth/logout.dart';
+import 'package:capstone_app/Beneficiary/beneficiary.dart';
 import 'package:capstone_app/President/manage_roles.dart';
 import 'package:capstone_app/President/post_announcement.dart';
+import 'package:capstone_app/President/presclaims.dart';
+import 'package:capstone_app/President/prescontribution.dart';
 import 'package:capstone_app/President/presidentmemberspage.dart'
     hide kPrimary, kNeutralText;
+import 'package:capstone_app/Providers/apptheme_provider.dart';
 import 'package:capstone_app/Providers/dayung_provider.dart';
 import 'package:capstone_app/Providers/dayung_role_provider.dart';
 import 'package:capstone_app/pages/paymentmethod.dart';
 import 'package:capstone_app/pages/recentdeathnotices.dart';
+import 'package:capstone_app/settings/profsettings.dart';
 import 'package:capstone_app/ui/theme/branding.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:capstone_app/pages/notification.dart';
 import 'package:capstone_app/profile/profile.dart';
 import 'package:fl_chart/fl_chart.dart';
-import 'package:capstone_app/pages/contributionhistory.dart';
-import 'package:capstone_app/pages/claims.dart';
 
 // Palette aligned with Secretary
 const kText = Color(0xFF111827);
@@ -24,6 +31,7 @@ const kAccentDark = Color(0xFF059669);
 const kCardBg = Color(0xFFFFFFFF);
 const kBorderColor = Color(0xFFE5E7EB);
 const kSuccess = Color(0xFF10B981);
+const kNeutralText = Color(0xFF111827);
 const double kEdge = 16;
 
 class PresidentDashboardPage extends StatefulWidget {
@@ -35,26 +43,96 @@ class PresidentDashboardPage extends StatefulWidget {
 
 class _PresidentDashboardPageState extends State<PresidentDashboardPage> {
   final _sb = Supabase.instance.client;
-
+  final ScrollController _scrollController = ScrollController();
+  int? _lastRoleUnitId;
   bool _loading = true;
   int _activeMembersCount = 0;
   List<String> _recentDeaths = [];
-  int? _lastRoleUnitId;
   int _pendingMembers = 0;
   num _pendingAmount = 0;
   Map<String, dynamic>? _latestAnnouncement;
   bool _loadingAnnouncement = true;
-
   int _currentIndex = 0;
   bool _showNavBar = true;
+  int? _dayungUnitId;
+  List<int> _managedUnitIds = [];
+  int? get _primaryUnitId =>
+      _managedUnitIds.isNotEmpty ? _managedUnitIds.first : null;
+  String _fullName = '';
+  String _selectedDayungUnit = 'Dayung Unit';
 
   @override
   void initState() {
     super.initState();
-    _load();
+    _scrollController.addListener(() {
+      if (!_scrollController.hasClients) return;
+      final maxScroll = _scrollController.position.maxScrollExtent;
+      final current = _scrollController.position.pixels;
+      if (current >= maxScroll && _showNavBar) {
+        setState(() => _showNavBar = false);
+      } else if (current < maxScroll && !_showNavBar) {
+        setState(() => _showNavBar = true);
+      }
+    });
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final provUnit = context.read<DayungRoleProvider>().unitId;
       _maybeOnProviderUnitChanged(provUnit);
+    });
+    _initLoad();
+    _load();
+  }
+
+  void _maybeOnProviderUnitChanged(int? newUnitId) async {
+    if (newUnitId == null || newUnitId == _lastRoleUnitId) return;
+    _lastRoleUnitId = newUnitId;
+    setState(() => _dayungUnitId = newUnitId);
+    await _loadPresidentInfo();
+    await _load();
+  }
+
+  Future<void> _initLoad() async {
+    await _loadPresidentInfo();
+    await Future.wait([
+      _fetchActiveMembersCount(_managedUnitIds),
+      _fetchRecentDeaths(_managedUnitIds),
+      _fetchPendingPayments(_managedUnitIds),
+      _fetchLatestAnnouncement(_managedUnitIds),
+    ]);
+  }
+
+  Future<void> _loadPresidentInfo() async {
+    final prefs = await SharedPreferences.getInstance();
+    String name = prefs.getString('presidentFullName') ?? 'President';
+    String dayungLabelRaw =
+        prefs.getString('selectedDayungUnit') ?? 'Dayung Unit';
+    int? unitId;
+    String? jsonFull = prefs.getString('selectedDayungUnitData');
+    Map<String, dynamic>? parsed;
+    try {
+      if (jsonFull != null) {
+        parsed = jsonDecode(jsonFull);
+      }
+    } catch (_) {}
+    if (parsed == null &&
+        dayungLabelRaw.trim().startsWith('{') &&
+        dayungLabelRaw.contains('"name"')) {
+      try {
+        parsed = jsonDecode(dayungLabelRaw);
+      } catch (_) {}
+    }
+    String resolvedLabel = dayungLabelRaw;
+    if (parsed != null) {
+      if (parsed['id'] != null) {
+        unitId = int.tryParse(parsed['id'].toString());
+      }
+      if ((parsed['name'] ?? '').toString().trim().isNotEmpty) {
+        resolvedLabel = parsed['name'].toString();
+      }
+    }
+    setState(() {
+      _fullName = name;
+      _selectedDayungUnit = resolvedLabel;
+      _dayungUnitId = unitId ?? _dayungUnitId ?? 1;
     });
   }
 
@@ -65,18 +143,38 @@ class _PresidentDashboardPageState extends State<PresidentDashboardPage> {
     });
     try {
       final ids = await _managedDayungIds();
+      _managedUnitIds = ids;
+      if (ids.isEmpty) {
+        // No units to manage, stop loading and show placeholder
+        if (mounted) {
+          setState(() {
+            _loading = false;
+            _loadingAnnouncement = false;
+          });
+        }
+        return;
+      }
       await Future.wait([
         _fetchActiveMembersCount(ids),
         _fetchRecentDeaths(ids),
         _fetchPendingPayments(ids),
         _fetchLatestAnnouncement(ids),
       ]);
-    } finally {
-      if (mounted)
+    } catch (e) {
+      // Always set loading to false on error
+      if (mounted) {
         setState(() {
           _loading = false;
           _loadingAnnouncement = false;
         });
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _loading = false;
+          _loadingAnnouncement = false;
+        });
+      }
     }
   }
 
@@ -93,12 +191,6 @@ class _PresidentDashboardPageState extends State<PresidentDashboardPage> {
     if (list.isNotEmpty) {
       _latestAnnouncement = list.first;
     }
-  }
-
-  void _maybeOnProviderUnitChanged(int? newUnitId) {
-    if (newUnitId == _lastRoleUnitId) return;
-    _lastRoleUnitId = newUnitId;
-    _load(); // reload all stats (managed dayungs list may differ visually)
   }
 
   Future<List<int>> _managedDayungIds() async {
@@ -201,42 +293,38 @@ class _PresidentDashboardPageState extends State<PresidentDashboardPage> {
   }
 
   Future<void> _fetchPendingPayments(List<int> ids) async {
-    // TODO: Replace with your real query (e.g., dues/payments tables).
     _pendingMembers = 0;
     _pendingAmount = 0;
   }
 
   List<Widget> get _pages => [
     _buildHomePage(context),
-    const ContributionHistory(),
-    const ClaimsPage(),
+    if (_primaryUnitId == null)
+      const Center()
+    else
+      PresidentContributionsPage(dayungUnitId: _primaryUnitId!),
+    if (_primaryUnitId == null)
+      const SizedBox.shrink()
+    else
+      PresidentClaimsPage(dayungUnitId: _primaryUnitId!),
   ];
 
   @override
   Widget build(BuildContext context) {
-    final roleProv = context.watch<DayungRoleProvider>();
-    final unitProv = context.watch<DayungUnitProvider>();
-    final effectiveUnitId = roleProv.unitId ?? unitProv.currentUnitId;
-    // Debug
-    debugPrint('[PRES_DASH] roleUnit=${roleProv.unitId} provUnit=${unitProv.currentUnitId} effective=$effectiveUnitId isPresident=${roleProv.isPresident}');
-    // If we now have an effective unit not yet tracked, trigger load once.
-
-    if (effectiveUnitId != null && effectiveUnitId != _lastRoleUnitId) {
+    final provUnit = context.watch<DayungRoleProvider>().unitId;
+    if (provUnit != _lastRoleUnitId) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        _maybeOnProviderUnitChanged(effectiveUnitId);
+        _maybeOnProviderUnitChanged(provUnit);
       });
     }
+
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final themeBg = isDark ? const Color(0xFF18181B) : const Color(0xFFF8FAFC);
-    final themeCard = isDark ? const Color(0xFF23232A) : Colors.white;
-    final themeText = isDark ? Colors.white : const Color(0xFF111827);
-    final themeSubText = isDark ? Colors.white : const Color(0xFF111827);
-    final themeField = isDark ? const Color(0xFF23232A) : Colors.white;
-    final width = MediaQuery.of(context).size.width;
-    final wide = width > 820;
+    final wide = MediaQuery.of(context).size.width > 820;
 
     return Scaffold(
       backgroundColor: themeBg,
+      drawer: _buildSideDrawer(context),
       body: Container(
         decoration: const BoxDecoration(
           gradient: LinearGradient(
@@ -262,31 +350,156 @@ class _PresidentDashboardPageState extends State<PresidentDashboardPage> {
 
   /* ------------------------------- Modern UI Components ------------------------------- */
 
+  Widget _buildSideDrawer(BuildContext context) {
+    final isDarkMode = Theme.of(context).brightness == Brightness.dark;
+    return Drawer(
+      child: SafeArea(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            DrawerHeader(
+              decoration: BoxDecoration(
+                color: kPrimary.withOpacity(0.95),
+                borderRadius: const BorderRadius.only(
+                  bottomRight: Radius.circular(32),
+                  bottomLeft: Radius.circular(32),
+                ),
+              ),
+              child: Row(
+                children: [
+                  CircleAvatar(
+                    radius: 32,
+                    backgroundColor: Colors.white,
+                    // If you have a profile image URL for president, use it here:
+                    // backgroundImage: _profileUrl != null && _profileUrl!.isNotEmpty
+                    //     ? NetworkImage(_profileUrl!)
+                    //     : null,
+                    child: const Icon(Icons.person, size: 40, color: kPrimary),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: Text(
+                      _fullName,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w800,
+                        fontSize: 18,
+                        fontFamily: 'Montserrat',
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            _ModernDrawerTile(
+              icon: Icons.person,
+              label: 'Profile',
+              onTap: () async {
+                await Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const ProfilePage()),
+                );
+                if (!mounted) return;
+                setState(() {});
+              },
+            ),
+            _ModernDrawerTile(
+              icon: Icons.people_rounded,
+              label: 'Beneficiaries',
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const BeneficiaryPage()),
+                );
+              },
+            ),
+            _ModernDrawerTile(
+              icon: Icons.settings,
+              label: 'Settings',
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const ProfSettingsPage()),
+                );
+              },
+            ),
+            _ModernDrawerTile(
+              icon: isDarkMode ? Icons.light_mode : Icons.dark_mode,
+              label: isDarkMode ? 'Light Mode' : 'Dark Mode',
+              onTap: () {
+                context.read<AppTheme>().toggle();
+              },
+            ),
+            _ModernDrawerTile(
+              icon: Icons.translate,
+              label: 'Translate',
+              onTap: () {
+                Navigator.pop(context);
+                // TODO: Implement translator
+              },
+            ),
+            const Spacer(),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+              child: MouseRegion(
+                cursor: SystemMouseCursors.click,
+                child: ElevatedButton.icon(
+                  icon: const Icon(Icons.logout, color: Colors.white),
+                  label: const Text(
+                    'Logout',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w700,
+                      fontSize: 16,
+                      color: Colors.white,
+                    ),
+                  ),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.red,
+                    foregroundColor: Colors.white,
+                    minimumSize: const Size.fromHeight(48),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    elevation: 0,
+                  ),
+                  onPressed: () async {
+                    Navigator.pop(context);
+                    await showLogoutDialog(context);
+                  },
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildModernHeader() {
     return Container(
       padding: const EdgeInsets.fromLTRB(20, 20, 20, 40),
       child: Column(
         children: [
-          // Top bar with notifications and settings
           Row(
             children: [
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF1E40AF).withOpacity(0.8),
-                  borderRadius: BorderRadius.circular(16),
-                  boxShadow: [
-                    BoxShadow(
-                      color: const Color(0xFF1E40AF).withOpacity(0.3),
-                      blurRadius: 8,
-                      offset: const Offset(0, 2),
-                    ),
-                  ],
-                ),
-                child: const Icon(
-                  Icons.admin_panel_settings_rounded,
-                  color: Colors.white,
-                  size: 24,
+              Builder(
+                builder: (context) => Container(
+                  padding: const EdgeInsets.all(1),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF1E40AF).withOpacity(0.8),
+                    borderRadius: BorderRadius.circular(16),
+                    boxShadow: [
+                      BoxShadow(
+                        color: const Color(0xFF1E40AF).withOpacity(0.3),
+                        blurRadius: 8,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
+                  ),
+                  child: IconButton(
+                    icon: const Icon(Icons.menu_rounded, color: Colors.white),
+                    onPressed: () => Scaffold.of(context).openDrawer(),
+                  ),
                 ),
               ),
               const SizedBox(width: 16),
@@ -322,7 +535,7 @@ class _PresidentDashboardPageState extends State<PresidentDashboardPage> {
             children: [
               const Expanded(
                 child: Text(
-                  'Maayung buntag,\nPresident!',
+                  'Good Morning,\nPresident!',
                   style: TextStyle(
                     fontFamily: 'Montserrat',
                     fontSize: 28,
@@ -333,42 +546,47 @@ class _PresidentDashboardPageState extends State<PresidentDashboardPage> {
                   ),
                 ),
               ),
-              GestureDetector(
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (_) => const ProfilePage()),
-                  ).then((_) {
-                    final unitId = context
-                        .read<DayungUnitProvider>()
-                        .currentUnitId;
-                    context.read<DayungRoleProvider>().refreshRoles(unitId);
-                  });
-                },
-                child: Container(
-                  padding: const EdgeInsets.all(4),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.2),
-                    borderRadius: BorderRadius.circular(32),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withOpacity(0.1),
-                        blurRadius: 8,
-                        offset: const Offset(0, 2),
-                      ),
-                    ],
-                  ),
-                  child: const CircleAvatar(
-                    radius: 28,
-                    backgroundColor: Colors.white,
-                    child: Icon(
-                      Icons.person,
-                      size: 34,
-                      color: Color(0xFF1E40AF),
-                    ),
-                  ),
-                ),
-              ),
+              // GestureDetector(
+              //   onTap: () async {
+              //     final prevUnitId = context
+              //         .read<DayungUnitProvider>()
+              //         .currentUnitId;
+              //     await Navigator.push(
+              //       context,
+              //       MaterialPageRoute(builder: (_) => const ProfilePage()),
+              //     );
+              //     if (!mounted) return;
+              //     final newUnitId = context
+              //         .read<DayungUnitProvider>()
+              //         .currentUnitId;
+              //     if (prevUnitId != newUnitId) {
+              //       context.read<DayungRoleProvider>().refreshRoles(newUnitId);
+              //     }
+              //   },
+              //   child: Container(
+              //     padding: const EdgeInsets.all(4),
+              //     decoration: BoxDecoration(
+              //       color: Colors.white.withOpacity(0.2),
+              //       borderRadius: BorderRadius.circular(32),
+              //       boxShadow: [
+              //         BoxShadow(
+              //           color: Colors.black.withOpacity(0.1),
+              //           blurRadius: 8,
+              //           offset: const Offset(0, 2),
+              //         ),
+              //       ],
+              //     ),
+              //     child: const CircleAvatar(
+              //       radius: 28,
+              //       backgroundColor: Colors.white,
+              //       child: Icon(
+              //         Icons.person,
+              //         size: 34,
+              //         color: Color(0xFF1E40AF),
+              //       ),
+              //     ),
+              //   ),
+              // ),
             ],
           ),
         ],
@@ -398,9 +616,17 @@ class _PresidentDashboardPageState extends State<PresidentDashboardPage> {
             topLeft: Radius.circular(24),
             topRight: Radius.circular(24),
           ),
-          child: AnimatedSwitcher(
-            duration: const Duration(milliseconds: 300),
-            child: IndexedStack(index: _currentIndex, children: _pages),
+          child: RefreshIndicator(
+            onRefresh: _load, // or your refresh method
+            edgeOffset: 68,
+            child: AnimatedSwitcher(
+              duration: const Duration(milliseconds: 300),
+              child: IndexedStack(
+                key: ValueKey(_currentIndex),
+                index: _currentIndex,
+                children: _pages,
+              ),
+            ),
           ),
         ),
       ),
@@ -437,9 +663,9 @@ class _PresidentDashboardPageState extends State<PresidentDashboardPage> {
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                 children: [
-                  _buildNavItem(Icons.home_rounded, "Home", 0),
-                  _buildNavItem(Icons.public, "Contributions", 1),
-                  _buildNavItem(Icons.description, "Claims", 2),
+                  _buildNavItem(Icons.dashboard_rounded, "Home", 0),
+                  _buildNavItem(Icons.trending_up_rounded, "Contributions", 1),
+                  _buildNavItem(Icons.assignment_rounded, "Claims", 2),
                 ],
               ),
             ),
@@ -641,24 +867,25 @@ class _PresidentDashboardPageState extends State<PresidentDashboardPage> {
     );
   }
 
-   Widget _buildOverviewRecentDeathsTile() {
+  Widget _buildOverviewRecentDeathsTile() {
     final hasDeaths = _recentDeaths.isNotEmpty;
     final subtitle = hasDeaths ? _recentDeaths.take(2).join(', ') : 'None';
-    final effectiveUnitId = context.read<DayungRoleProvider>().unitId ??
+    final effectiveUnitId =
+        context.read<DayungRoleProvider>().unitId ??
         context.read<DayungUnitProvider>().currentUnitId;
     return InkWell(
       borderRadius: BorderRadius.circular(16),
-       onTap: () {
-      final roleProv = context.read<DayungRoleProvider>();
-      final unitProv = context.read<DayungUnitProvider>();
-      final effId = roleProv.unitId ?? unitProv.currentUnitId;
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (_) => RecentDeathNotices(dayungUnitId: effId),
-        ),
-      );
-    },
+      onTap: () {
+        final roleProv = context.read<DayungRoleProvider>();
+        final unitProv = context.read<DayungUnitProvider>();
+        final effId = roleProv.unitId ?? unitProv.currentUnitId;
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => RecentDeathNotices(dayungUnitId: effId),
+          ),
+        );
+      },
       child: Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
@@ -1539,6 +1766,60 @@ class _UpcomingAnnouncementCard extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _ModernDrawerTile extends StatefulWidget {
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+
+  const _ModernDrawerTile({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+  });
+
+  @override
+  State<_ModernDrawerTile> createState() => _ModernDrawerTileState();
+}
+
+class _ModernDrawerTileState extends State<_ModernDrawerTile> {
+  bool _hovering = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final hoverColor = kPrimary.withOpacity(0.08);
+    return MouseRegion(
+      onEnter: (_) => setState(() => _hovering = true),
+      onExit: (_) => setState(() => _hovering = false),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(14),
+        onTap: widget.onTap,
+        child: Container(
+          decoration: BoxDecoration(
+            color: _hovering ? hoverColor : Colors.transparent,
+            borderRadius: BorderRadius.circular(14),
+          ),
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+          child: Row(
+            children: [
+              Icon(widget.icon, color: kPrimary),
+              const SizedBox(width: 18),
+              Text(
+                widget.label,
+                style: const TextStyle(
+                  fontWeight: FontWeight.w600,
+                  fontSize: 15,
+                  color: kPrimary,
+                  fontFamily: 'Montserrat',
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

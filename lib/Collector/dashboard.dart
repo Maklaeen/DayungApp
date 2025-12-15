@@ -1,17 +1,21 @@
 import 'dart:convert';
+import 'package:capstone_app/Auth/logout.dart';
+import 'package:capstone_app/Beneficiary/beneficiary.dart';
 import 'package:capstone_app/Collector/collect_cash.dart';
-import 'package:capstone_app/Collector/gcash_qr_page.dart';
+import 'package:capstone_app/Collector/gcash_qr_page.dart' hide kPrimary;
+import 'package:capstone_app/Members/memclaims.dart';
+import 'package:capstone_app/Providers/apptheme_provider.dart';
 import 'package:capstone_app/Providers/dayung_role_provider.dart';
-import 'package:capstone_app/pages/claims.dart';
 import 'package:capstone_app/pages/members_page.dart';
 import 'package:capstone_app/pages/notification.dart';
 import 'package:capstone_app/pages/recentdeathnotices.dart';
 import 'package:capstone_app/profile/profile.dart';
+import 'package:capstone_app/settings/profsettings.dart';
+import 'package:capstone_app/ui/theme/branding.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-
 
 // Additional colors for collector-specific styling
 const kText = Color(0xFF111827);
@@ -36,6 +40,8 @@ class _CollectorDashboardPageState extends State<CollectorDashboardPage> {
 
   String _dayungLabel = 'Dayung';
   int? _dayungUnitId;
+  String _fullName = 'Collector';
+  String? _profileUrl;
   int? _lastRoleUnitId;
   bool _loading = true;
   int _activeMembers = 0;
@@ -82,9 +88,29 @@ class _CollectorDashboardPageState extends State<CollectorDashboardPage> {
   }
 
   Future<void> _init() async {
+    await _loadUserData();
     await _loadDayungFromPrefs();
     await _ensureDayungId();
     await _fetchAll();
+  }
+
+  Future<void> _loadUserData() async {
+    final currentUser = sb.auth.currentUser;
+    if (currentUser == null) return;
+    try {
+      final res = await sb
+          .from('users')
+          .select('full_name, profile_url')
+          .eq('id', currentUser.id)
+          .maybeSingle();
+      if (!mounted) return;
+      setState(() {
+        _fullName = ((res?['full_name'] ?? 'Collector') as String).trim();
+        _profileUrl = (res?['profile_url'] as String?)?.trim();
+      });
+    } catch (_) {
+      // ignore
+    }
   }
 
   Future<void> _ensureDayungId() async {
@@ -270,7 +296,7 @@ class _CollectorDashboardPageState extends State<CollectorDashboardPage> {
   List<Widget> get _pages => [
     _homePage(),
     const Placeholder(), // Contributions
-    ClaimsPage(onNavBarVisible: (v) => setState(() => _showNavBar = v)),
+    // ClaimsPage(onNavBarVisible: (v) => setState(() => _showNavBar = v)),
   ];
 
   @override
@@ -285,6 +311,7 @@ class _CollectorDashboardPageState extends State<CollectorDashboardPage> {
     }
     return Scaffold(
       backgroundColor: const Color(0xFFF8FAFC),
+      drawer: _buildSideDrawer(context),
       body: Container(
         decoration: const BoxDecoration(
           gradient: LinearGradient(
@@ -308,6 +335,114 @@ class _CollectorDashboardPageState extends State<CollectorDashboardPage> {
 
   /* ------------------------------- UI parts ------------------------------- */
 
+  Widget _buildSideDrawer(BuildContext context) {
+    final isDarkMode = Theme.of(context).brightness == Brightness.dark;
+    return Drawer(
+      child: SafeArea(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            DrawerHeader(
+              decoration: BoxDecoration(
+                color: kPrimary.withOpacity(0.95),
+                borderRadius: const BorderRadius.only(
+                  bottomRight: Radius.circular(32),
+                  bottomLeft: Radius.circular(32),
+                ),
+              ),
+              child: Row(
+                children: [
+                  const CircleAvatar(
+                    radius: 32,
+                    backgroundColor: Colors.white,
+                    child: Icon(Icons.person, size: 40, color: kPrimary),
+                  ),
+                  const SizedBox(width: 16),
+                  // You can add name here if available
+                ],
+              ),
+            ),
+            _ModernDrawerTile(
+              icon: Icons.person,
+              label: 'Profile',
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const ProfilePage()),
+                );
+              },
+            ),
+            _ModernDrawerTile(
+              icon: Icons.people_rounded,
+              label: 'Beneficiaries',
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const BeneficiaryPage()),
+                );
+              },
+            ),
+            _ModernDrawerTile(
+              icon: Icons.settings,
+              label: 'Settings',
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const ProfSettingsPage()),
+                );
+              },
+            ),
+            _ModernDrawerTile(
+              icon: isDarkMode ? Icons.light_mode : Icons.dark_mode,
+              label: isDarkMode ? 'Light Mode' : 'Dark Mode',
+              onTap: () {
+                context.read<AppTheme>().toggle();
+              },
+            ),
+            _ModernDrawerTile(
+              icon: Icons.translate,
+              label: 'Translate',
+              onTap: () {
+                // TODO: Implement translator
+              },
+            ),
+            const Spacer(),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+              child: MouseRegion(
+                cursor: SystemMouseCursors.click,
+                child: ElevatedButton.icon(
+                  icon: const Icon(Icons.logout, color: Colors.white),
+                  label: const Text(
+                    'Logout',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w700,
+                      fontSize: 16,
+                      color: Colors.white,
+                    ),
+                  ),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.red,
+                    foregroundColor: Colors.white,
+                    minimumSize: const Size.fromHeight(48),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    elevation: 0,
+                  ),
+                  onPressed: () async {
+                    Navigator.pop(context);
+                    await showLogoutDialog(context);
+                  },
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _topBar() {
     return Container(
       padding: const EdgeInsets.fromLTRB(20, 20, 20, 40),
@@ -316,23 +451,24 @@ class _CollectorDashboardPageState extends State<CollectorDashboardPage> {
           // Top bar
           Row(
             children: [
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.2),
-                  borderRadius: BorderRadius.circular(16),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.1),
-                      blurRadius: 8,
-                      offset: const Offset(0, 2),
-                    ),
-                  ],
-                ),
-                child: const Icon(
-                  Icons.account_balance_wallet_rounded,
-                  color: Colors.white,
-                  size: 24,
+              Builder(
+                builder: (context) => Container(
+                  padding: const EdgeInsets.all(1),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.2),
+                    borderRadius: BorderRadius.circular(16),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.1),
+                        blurRadius: 8,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
+                  ),
+                  child: IconButton(
+                    icon: const Icon(Icons.menu_rounded, color: Colors.white),
+                    onPressed: () => Scaffold.of(context).openDrawer(),
+                  ),
                 ),
               ),
               const SizedBox(width: 16),
@@ -342,6 +478,7 @@ class _CollectorDashboardPageState extends State<CollectorDashboardPage> {
                   children: [
                     Text(
                       _dayungLabel,
+                      maxLines: 1,
                       style: const TextStyle(
                         fontFamily: 'Montserrat',
                         fontSize: 24,
@@ -369,7 +506,7 @@ class _CollectorDashboardPageState extends State<CollectorDashboardPage> {
             children: [
               const Expanded(
                 child: Text(
-                  'Maayung buntag,\nCollector!',
+                  'Good Morning,\nCollector!',
                   style: TextStyle(
                     fontFamily: 'Montserrat',
                     fontSize: 28,
@@ -380,37 +517,37 @@ class _CollectorDashboardPageState extends State<CollectorDashboardPage> {
                   ),
                 ),
               ),
-              GestureDetector(
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (_) => const ProfilePage()),
-                  );
-                },
-                child: Container(
-                  padding: const EdgeInsets.all(4),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.2),
-                    borderRadius: BorderRadius.circular(32),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.1),
-                        blurRadius: 8,
-                        offset: const Offset(0, 2),
-                      ),
-                    ],
-                  ),
-                  child: const CircleAvatar(
-                    radius: 28,
-                    backgroundColor: Colors.white,
-                    child: Icon(
-                      Icons.person,
-                      size: 34,
-                      color: Color(0xFF1E40AF),
-                    ),
-                  ),
-                ),
-              ),
+              // GestureDetector(
+              //   onTap: () {
+              //     Navigator.push(
+              //       context,
+              //       MaterialPageRoute(builder: (_) => const ProfilePage()),
+              //     );
+              //   },
+              //   child: Container(
+              //     padding: const EdgeInsets.all(4),
+              //     decoration: BoxDecoration(
+              //       color: Colors.white.withValues(alpha: 0.2),
+              //       borderRadius: BorderRadius.circular(32),
+              //       boxShadow: [
+              //         BoxShadow(
+              //           color: Colors.black.withValues(alpha: 0.1),
+              //           blurRadius: 8,
+              //           offset: const Offset(0, 2),
+              //         ),
+              //       ],
+              //     ),
+              //     child: const CircleAvatar(
+              //       radius: 28,
+              //       backgroundColor: Colors.white,
+              //       child: Icon(
+              //         Icons.person,
+              //         size: 34,
+              //         color: Color(0xFF1E40AF),
+              //       ),
+              //     ),
+              //   ),
+              // ),
             ],
           ),
         ],
@@ -1236,7 +1373,8 @@ class _CollectorDashboardPageState extends State<CollectorDashboardPage> {
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (_) => MembersPage(dayungUnitId: _dayungUnitId), // Pass ID if needed
+        builder: (_) =>
+            MembersPage(dayungUnitId: _dayungUnitId), // Pass ID if needed
       ),
     );
   }
@@ -1268,6 +1406,61 @@ class _ActivityRow extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+// Modern drawer tile with hover effect
+class _ModernDrawerTile extends StatefulWidget {
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+
+  const _ModernDrawerTile({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+  });
+
+  @override
+  State<_ModernDrawerTile> createState() => _ModernDrawerTileState();
+}
+
+class _ModernDrawerTileState extends State<_ModernDrawerTile> {
+  bool _hovering = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final hoverColor = kPrimary.withOpacity(0.08);
+    return MouseRegion(
+      onEnter: (_) => setState(() => _hovering = true),
+      onExit: (_) => setState(() => _hovering = false),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(14),
+        onTap: widget.onTap,
+        child: Container(
+          decoration: BoxDecoration(
+            color: _hovering ? hoverColor : Colors.transparent,
+            borderRadius: BorderRadius.circular(14),
+          ),
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+          child: Row(
+            children: [
+              Icon(widget.icon, color: kPrimary),
+              const SizedBox(width: 18),
+              Text(
+                widget.label,
+                style: const TextStyle(
+                  fontWeight: FontWeight.w600,
+                  fontSize: 15,
+                  color: kPrimary,
+                  fontFamily: 'Montserrat',
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }

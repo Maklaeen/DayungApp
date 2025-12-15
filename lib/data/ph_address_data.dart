@@ -1,52 +1,198 @@
 const List<Map<String, dynamic>> phProvinces = [
+  // ===================== DAVAO REGION =====================
   {
     "name": "Davao del Sur",
     "cities": [
       {
         "name": "Davao City",
         "barangays": <String>[
+          "Acacia",
+          "Agdao",
+          "Alambre",
+          "Alejandra Navarro (Lasang)",
+          "Alfonso Angliongto Sr.",
+          "Angalan",
+          "Atan-Awe",
+          "Baganihan",
           "Bago Aplaya",
+          "Bago Gallera",
+          "Bago Oshiro",
+          "Baguio (Pob.)",
+          "Balengaeng",
           "Baliok",
+          "Bangkas Heights",
+          "Bantol",
+          "Baracatan",
+          "Barangay 1-A (Pob.)",
+          "Barangay 10-A (Pob.)",
+          "Barangay 11-B (Pob.)",
+          "Barangay 12-B (Pob.)",
+          "Barangay 13-B (Pob.)",
+          "Barangay 14-B (Pob.)",
+          "Barangay 15-B (Pob.)",
+          "Barangay 16-B (Pob.)",
+          "Barangay 17-B (Pob.)",
+          "Barangay 18-B (Pob.)",
+          "Barangay 19-B (Pob.)",
+          "Barangay 2-A (Pob.)",
+          "Barangay 20-B (Pob.)",
+          "Barangay 21-C (Pob.)",
+          "Barangay 22-C (Pob.)",
+          "Barangay 23-C (Pob.)",
+          "Barangay 24-C (Pob.)",
+          "Barangay 25-C (Pob.)",
+          "Barangay 26-C (Pob)",
+          "Barangay 27- (Pob,)",
+          "Barangay Z8-C (Pob.)",
+          "Barangay 29-C (Pob.)",
+          "Barangay 3-A (Pob,)",
+          "Barangay 30-C (Pob.)",
+          "Barangay 31-D (Pob.)",
+          "Barangay 32-D (Pob,)",
+          "Barangay 53-D (Pob.)",
+          "Barangay 34-D (Pob.)",
+          "Barangay 35-D (Pob.)",
+          "Barangay 36-D (Pob.)",
+          "Barangay 37-D (Pob.)",
+          "Barangay 38-D (Pob.)",
+          "Barangay 39-D (Pob.)",
+          "Barangay 4-A (Pob.)",
+          "Barangay 40-D (Pob.)",
+          "Barangay 5-A (Pob.)",
+          "Barangay 6-A (Pob.)",
+          "Barangay 7-A (Pob.)",
+          "Barangay 8-A (Pob.)",
+          "Barangay 9-A (Pob.)",
+          "Bato",
+          "Bayabas",
+          "Biao Escuela",
+          "Biao Guianga",
+          "Biao Joaquin",
+          "Binugao",
           "Bucana",
+          "Buda",
+          "Buhangin (Pob.)",
+          "Bunawan (Pob.)",
+          "Cabantian",
+          "Cadalian",
+          "Calinan (Pob.)",
+          "Callawa",
+          "Camansi",
+          "Carmen",
           "Catalunan Grande",
+          "Catalunan Pequeno",
+          "Catigan",
+          "Cawayan",
+          "Centro (San Juan)",
+          "Colosas",
+          "Communal",
+          "Crossing Bayabas",
+          "Dacudao",
+          "Dalag",
+          "Dalagdag",
+          "Daliao",
+          "Daliaon Plantation",
+          "Datu Salumay",
+          "Dominga",
+          "Dumoy",
+          "Eden",
+          "Fatima (Benowang)",
+          "Gatungan",
+          "Gov. Paciano Bangoy",
+          "Gov. Vicente Duterte",
+          "Gumalang",
+          "Gumitan",
+          "Ilang",
+          "Inayangan",
+          "Indangan",
+          "Kap. Tomas Monteverde",
+          "Kilate",
+          "Lacson",
+          "Lamanan",
+          "Lampianao",
+          "Langub",
+          "Lapu-Lapu",
+          "Leon Garcia",
+          "Lizada",
+          "Los Amigos",
+          "Lubogan",
+          "Lumiad",
+          "Ma-A",
+          "Mabuhay",
+          "Magsaysay",
+          "Magtuod",
+          "Mahayag",
+          "Malabog",
+          "Malagos",
+          "Malamba",
+          "Manambulan",
+          "Mandug",
+          "Manuel Guianga",
+          "Mapula",
+          "Marapangi",
+          "Marilog",
           "Matina Aplaya",
-          "Talomo",
-        ]
+          "Matina Biao",
+          "Matina Crossing",
+          "Matina Pangi",
+          "Megkawayan",
+          "Mintal",
+          "Mudiang",
+          "Mulig",
+          "New Carmen",
+          "New Valencia",
+          "Pampanga",
+          "Panacan",
+          "Panalum",
+          "Pandaitan",
+          "Pangyan",
+          "Paquibato (Pob.)",
+          "Paradise Embak",
+          "Rafael Castillo",
+          "Riverside",
+          "Salapawan",
+          "Salaysay",
+          "Saloy",
+          "San Antonio",
+          "San Isidro (Licanan)",
+          "Santo Nino",
+          "Sasa",
+          "Sibulan",
+          "Sirawan",
+          "Sirib",
+          "Suawan (Tuli)",
+          "Subasta",
+          "Sumimao",
+          "Tacunan",
+          "Tagakpan",
+          "Tagluno",
+          "Tagurano",
+          "Talandang",
+          "Talomo (Pob.)",
+          "Talomo River",
+          "Tamayong",
+          "Tambobong",
+          "Tamugan",
+          "Tapak",
+          "Tawan-Tawan",
+          "Tibuloy",
+          "Tibungco",
+          "Tigatto",
+          "Toril (Pob.)",
+          "Tugbok (Pob.)",
+          "Tungakalan",
+          "Ubalde",
+          "Ula",
+          "Vicente Hizon Sr",
+          "Waan",
+          "Wangan",
+          "Wilfredo Aquina",
+          "Wines",
+        ],
       },
-      {
-        "name": "Digos City",
-        "barangays": <String>[
-          "Aplaya",
-          "Balabag",
-          "Binaton",
-          "Dawis",
-          "Goma",
-        ]
-      }
-    ]
+    ],
   },
-  {
-    "name": "Davao de Oro",
-    "cities": [
-      {
-        "name": "Nabunturan",
-        "barangays": <String>[
-          "Basak",
-          "Bukal",
-          "Cabacungan",
-          "Katipunan",
-        ]
-      },
-      {
-        "name": "Mabini",
-        "barangays": <String>[
-          "Cadunan",
-          "Cuambog",
-          "Libodon",
-        ]
-      }
-    ]
-  },
+
   {
     "name": "Davao del Norte",
     "cities": [
@@ -57,9 +203,130 @@ const List<Map<String, dynamic>> phProvinces = [
           "Bincungan",
           "Canocotan",
           "Magugpo East",
-        ]
-      }
-    ]
-  }
-  // ... dagdagan pa para sa ibang provinces/cities/barangays
+          "Magugpo West",
+        ],
+      },
+      {
+        "name": "Panabo City",
+        "barangays": <String>[
+          "Cagangohan",
+          "Gredu",
+          "J.P. Laurel",
+          "Little Panay",
+        ],
+      },
+    ],
+  },
+
+  {
+    "name": "Davao de Oro",
+    "cities": [
+      {
+        "name": "Nabunturan",
+        "barangays": <String>["Basak", "Bukal", "Cabacungan", "Katipunan"],
+      },
+      {
+        "name": "Mabini",
+        "barangays": <String>["Cadunan", "Cuambog", "Libodon"],
+      },
+    ],
+  },
+
+  // ===================== NORTHERN MINDANAO =====================
+  {
+    "name": "Misamis Oriental",
+    "cities": [
+      {
+        "name": "Cagayan de Oro City",
+        "barangays": <String>[
+          "Balulang",
+          "Carmen",
+          "Lapasan",
+          "Nazareth",
+          "Puntod",
+        ],
+      },
+      {
+        "name": "Gingoog City",
+        "barangays": <String>["Agay-ayan", "Bakidbakid", "Binakalan"],
+      },
+    ],
+  },
+
+  {
+    "name": "Bukidnon",
+    "cities": [
+      {
+        "name": "Malaybalay City",
+        "barangays": <String>["Aglayan", "Bangcud", "Casisang"],
+      },
+      {
+        "name": "Valencia City",
+        "barangays": <String>["Bagontaas", "Colonia", "Poblacion"],
+      },
+    ],
+  },
+
+  // ===================== SOCCSKSARGEN =====================
+  {
+    "name": "South Cotabato",
+    "cities": [
+      {
+        "name": "Koronadal City",
+        "barangays": <String>["Zone I", "Zone II", "Zone III", "San Isidro"],
+      },
+    ],
+  },
+
+  {
+    "name": "General Santos",
+    "cities": [
+      {
+        "name": "General Santos City",
+        "barangays": <String>[
+          "Apopong",
+          "Calumpang",
+          "Dadiangas East",
+          "Lagao",
+        ],
+      },
+    ],
+  },
+
+  // ===================== ZAMBOANGA PENINSULA =====================
+  {
+    "name": "Zamboanga del Sur",
+    "cities": [
+      {
+        "name": "Zamboanga City",
+        "barangays": <String>["Ayala", "Calarian", "Guiwan", "Putik"],
+      },
+      {
+        "name": "Pagadian City",
+        "barangays": <String>["Balangasan", "Gatas", "San Jose"],
+      },
+    ],
+  },
+
+  // ===================== CARAGA =====================
+  {
+    "name": "Agusan del Norte",
+    "cities": [
+      {
+        "name": "Butuan City",
+        "barangays": <String>["Ampayon", "Baan", "Holy Redeemer", "Libertad"],
+      },
+    ],
+  },
+
+  // ===================== BARMM =====================
+  {
+    "name": "Maguindanao del Sur",
+    "cities": [
+      {
+        "name": "Buluan",
+        "barangays": <String>["Digal", "Maslabeng", "Poblacion"],
+      },
+    ],
+  },
 ];

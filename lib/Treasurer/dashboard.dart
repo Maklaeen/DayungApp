@@ -1,11 +1,14 @@
 import 'dart:convert';
+import 'package:capstone_app/Auth/logout.dart';
+import 'package:capstone_app/Beneficiary/beneficiary.dart';
+import 'package:capstone_app/Providers/apptheme_provider.dart';
 import 'package:capstone_app/Providers/dayung_role_provider.dart';
 import 'package:capstone_app/Treasurer/collected.dart';
 import 'package:capstone_app/Treasurer/manage_fund.dart';
-import 'package:capstone_app/pages/claims.dart';
 import 'package:capstone_app/pages/notification.dart';
 import 'package:capstone_app/pages/recentdeathnotices.dart';
 import 'package:capstone_app/profile/profile.dart';
+import 'package:capstone_app/settings/profsettings.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -33,6 +36,10 @@ class TreasurerDashboardPage extends StatefulWidget {
 class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
   final sb = Supabase.instance.client;
   final ScrollController _scrollController = ScrollController();
+
+  String _fullName = 'Treasurer';
+  String? _profileUrl;
+
   Future<List<Map<String, dynamic>>>? _deathNoticesFutureCached;
   Future<Map<int, Map<String, dynamic>>>? _paymentStatsFutureCached;
   List<int> _lastNoticeIds = const [];
@@ -90,8 +97,26 @@ class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
   }
 
   Future<void> _init() async {
+    await _loadUserData();
     await _ensureDayungId();
     await _fetchAll();
+  }
+
+  Future<void> _loadUserData() async {
+    final currentUser = sb.auth.currentUser;
+    if (currentUser == null) return;
+    try {
+      final res = await sb
+          .from('users')
+          .select('full_name, profile_url')
+          .eq('id', currentUser.id)
+          .maybeSingle();
+      if (!mounted) return;
+      setState(() {
+        _fullName = ((res?['full_name'] ?? 'Treasurer') as String).trim();
+        _profileUrl = (res?['profile_url'] as String?)?.trim();
+      });
+    } catch (_) {}
   }
 
   void _ensureStatsFuture(List<int> noticeIds, int dayungUnitId) {
@@ -487,7 +512,7 @@ class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
   List<Widget> get _pages => [
     _homePage(),
     const Placeholder(), // Contributions
-    ClaimsPage(onNavBarVisible: (v) => setState(() => _showNavBar = v)),
+    // ClaimsPage(onNavBarVisible: (v) => setState(() => _showNavBar = v)),
   ];
 
   @override
@@ -503,6 +528,7 @@ class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
 
     return Scaffold(
       backgroundColor: const Color(0xFFF8FAFC),
+      drawer: _buildSideDrawer(context),
       body: Container(
         decoration: const BoxDecoration(
           gradient: LinearGradient(
@@ -535,23 +561,24 @@ class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
         children: [
           Row(
             children: [
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF1E40AF).withOpacity(0.8),
-                  borderRadius: BorderRadius.circular(16),
-                  boxShadow: [
-                    BoxShadow(
-                      color: const Color(0xFF1E40AF).withOpacity(0.3),
-                      blurRadius: 8,
-                      offset: const Offset(0, 2),
-                    ),
-                  ],
-                ),
-                child: const Icon(
-                  Icons.account_balance_wallet_rounded,
-                  color: Colors.white,
-                  size: 24,
+              Builder(
+                builder: (context) => Container(
+                  padding: const EdgeInsets.all(1),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF1E40AF).withOpacity(0.8),
+                    borderRadius: BorderRadius.circular(16),
+                    boxShadow: [
+                      BoxShadow(
+                        color: const Color(0xFF1E40AF).withOpacity(0.3),
+                        blurRadius: 8,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
+                  ),
+                  child: IconButton(
+                    icon: const Icon(Icons.menu_rounded, color: Colors.white),
+                    onPressed: () => Scaffold.of(context).openDrawer(),
+                  ),
                 ),
               ),
               const SizedBox(width: 16),
@@ -561,7 +588,7 @@ class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
                   children: [
                     Text(
                       _dayungLabel,
-                      overflow: TextOverflow.ellipsis,
+                      maxLines: 1,
                       style: const TextStyle(
                         fontFamily: 'Montserrat',
                         fontSize: 24,
@@ -599,37 +626,37 @@ class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
                   ),
                 ),
               ),
-              GestureDetector(
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (_) => const ProfilePage()),
-                  );
-                },
-                child: Container(
-                  padding: const EdgeInsets.all(4),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.2),
-                    borderRadius: BorderRadius.circular(32),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withOpacity(0.1),
-                        blurRadius: 8,
-                        offset: const Offset(0, 2),
-                      ),
-                    ],
-                  ),
-                  child: const CircleAvatar(
-                    radius: 28,
-                    backgroundColor: Colors.white,
-                    child: Icon(
-                      Icons.person,
-                      size: 34,
-                      color: Color(0xFF1E40AF),
-                    ),
-                  ),
-                ),
-              ),
+              // GestureDetector(
+              //   onTap: () {
+              //     Navigator.push(
+              //       context,
+              //       MaterialPageRoute(builder: (_) => const ProfilePage()),
+              //     );
+              //   },
+              //   child: Container(
+              //     padding: const EdgeInsets.all(4),
+              //     decoration: BoxDecoration(
+              //       color: Colors.white.withOpacity(0.2),
+              //       borderRadius: BorderRadius.circular(32),
+              //       boxShadow: [
+              //         BoxShadow(
+              //           color: Colors.black.withOpacity(0.1),
+              //           blurRadius: 8,
+              //           offset: const Offset(0, 2),
+              //         ),
+              //       ],
+              //     ),
+              //     child: const CircleAvatar(
+              //       radius: 28,
+              //       backgroundColor: Colors.white,
+              //       child: Icon(
+              //         Icons.person,
+              //         size: 34,
+              //         color: Color(0xFF1E40AF),
+              //       ),
+              //     ),
+              //   ),
+              // ),
             ],
           ),
         ],
@@ -698,13 +725,144 @@ class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                 children: [
-                  _buildNavItem(Icons.home_rounded, "Home", 0),
-                  _buildNavItem(Icons.public, "Contributions", 1),
-                  _buildNavItem(Icons.description, "Claims", 2),
+                  _buildNavItem(Icons.dashboard_rounded, "Home", 0),
+                  _buildNavItem(Icons.trending_up_rounded, "Contributions", 1),
+                  _buildNavItem(Icons.assignment_rounded, "Claims", 2),
                 ],
               ),
             ),
           ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSideDrawer(BuildContext context) {
+    final isDarkMode = Theme.of(context).brightness == Brightness.dark;
+    return Drawer(
+      child: SafeArea(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            DrawerHeader(
+              decoration: BoxDecoration(
+                color: kPrimary.withOpacity(0.95),
+                borderRadius: const BorderRadius.only(
+                  bottomRight: Radius.circular(32),
+                  bottomLeft: Radius.circular(32),
+                ),
+              ),
+              child: Row(
+                children: [
+                  CircleAvatar(
+                    radius: 32,
+                    backgroundColor: Colors.white,
+                    backgroundImage:
+                        _profileUrl != null && _profileUrl!.isNotEmpty
+                        ? NetworkImage(_profileUrl!)
+                        : null,
+                    child: (_profileUrl == null || _profileUrl!.isEmpty)
+                        ? const Icon(Icons.person, size: 40, color: kPrimary)
+                        : null,
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: Text(
+                      _fullName,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w800,
+                        fontSize: 18,
+                        fontFamily: 'Montserrat',
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            _ModernDrawerTile(
+              icon: Icons.person,
+              label: 'Profile',
+              onTap: () async {
+                await Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const ProfilePage()),
+                );
+                await _loadUserData();
+              },
+            ),
+            _ModernDrawerTile(
+              icon: Icons.people_rounded,
+              label: 'Beneficiaries',
+              onTap: () {
+                Navigator.pop(context);
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const BeneficiaryPage()),
+                );
+              },
+            ),
+            _ModernDrawerTile(
+              icon: Icons.settings,
+              label: 'Settings',
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const ProfSettingsPage()),
+                );
+              },
+            ),
+            _ModernDrawerTile(
+              icon: isDarkMode ? Icons.light_mode : Icons.dark_mode,
+              label: isDarkMode ? 'Light Mode' : 'Dark Mode',
+              onTap: () {
+                try {
+                  context.read<AppTheme>().toggle();
+                } catch (_) {}
+              },
+            ),
+            _ModernDrawerTile(
+              icon: Icons.translate,
+              label: 'Translate',
+              onTap: () {
+                Navigator.pop(context);
+                // TODO: Implement translator
+              },
+            ),
+            const Spacer(),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+              child: MouseRegion(
+                cursor: SystemMouseCursors.click,
+                child: ElevatedButton.icon(
+                  icon: const Icon(Icons.logout, color: Colors.white),
+                  label: const Text(
+                    'Logout',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w700,
+                      fontSize: 16,
+                      color: Colors.white,
+                    ),
+                  ),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.red,
+                    foregroundColor: Colors.white,
+                    minimumSize: const Size.fromHeight(48),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    elevation: 0,
+                  ),
+                  onPressed: () async {
+                    Navigator.pop(context);
+                    await showLogoutDialog(context);
+                  },
+                ),
+              ),
+            ),
+          ],
         ),
       ),
     );
@@ -812,88 +970,6 @@ class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
       ),
     );
   }
-
-  // Widget _topBar() {
-  //   return Container(
-  //     padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
-  //     color: Colors.white,
-  //     child: Row(
-  //       children: [
-  //         Expanded(
-  //           child: Text(
-  //             _dayungLabel,
-  //             overflow: TextOverflow.ellipsis,
-  //             style: const TextStyle(
-  //               fontFamily: 'Montserrat',
-  //               fontSize: 28,
-  //               fontWeight: FontWeight.w800,
-  //               color: kPrimaryDark,
-  //               letterSpacing: .4,
-  //             ),
-  //           ),
-  //         ),
-  //         _iconBtn(
-  //           icon: Icons.notifications_active_rounded,
-  //           color: kWarn,
-  //           tooltip: 'Notifications',
-  //           onTap: () => Navigator.push(
-  //             context,
-  //             MaterialPageRoute(builder: (_) => const NotificationPage()),
-  //           ),
-  //           badge: '1',
-  //         ),
-  //         const SizedBox(width: 6),
-  //         _iconBtn(
-  //           icon: Icons.settings_rounded,
-  //           color: kPrimary,
-  //           tooltip: 'Profile & Settings',
-  //           onTap: () {
-  //             Navigator.push(
-  //               context,
-  //               MaterialPageRoute(builder: (_) => const ProfilePage()),
-  //             );
-  //           },
-  //         ),
-  //       ],
-  //     ),
-  //   );
-  // }
-
-  // Widget _greeting() {
-  //   return Padding(
-  //     padding: const EdgeInsets.fromLTRB(20, 12, 20, 8),
-  //     child: Row(
-  //       children: [
-  //         const Expanded(
-  //           child: Text(
-  //             'Maayung buntag,\nTreasurer!',
-  //             style: TextStyle(
-  //               fontFamily: 'Montserrat',
-  //               fontSize: 26,
-  //               fontWeight: FontWeight.w800,
-  //               height: 1.05,
-  //               color: kNeutralText,
-  //             ),
-  //           ),
-  //         ),
-  //         InkWell(
-  //           borderRadius: BorderRadius.circular(28),
-  //           onTap: () {
-  //             Navigator.push(
-  //               context,
-  //               MaterialPageRoute(builder: (_) => const ProfilePage()),
-  //             );
-  //           },
-  //           child: const CircleAvatar(
-  //             radius: 28,
-  //             backgroundColor: kPrimary,
-  //             child: Icon(Icons.person, size: 34, color: Colors.white),
-  //           ),
-  //         ),
-  //       ],
-  //     ),
-  //   );
-  // }
 
   Widget _homePage() {
     return RefreshIndicator(
@@ -2049,353 +2125,6 @@ class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
     );
   }
 
-  // Widget _tripleCards() {
-  //   final cards = <Widget>[
-  //     _statCard(
-  //       color: const Color(0xFFD8EEFF),
-  //       icon: Icons.groups,
-  //       iconColor: Colors.blue[700],
-  //       title: "Total Members",
-  //       bigText: _loading ? '—' : _activeMembers.toString(),
-  //     ),
-  //     _recentDeathsCard(),
-  //     _statCard(
-  //       color: const Color(0xFFFEFBDC),
-  //       icon: Icons.account_balance_wallet,
-  //       iconColor: Colors.orange[700],
-  //       title: "Pending\nPayments",
-  //       bigText: _loading ? '—' : '₱ ${_pendingAmount.toStringAsFixed(0)}',
-  //       smallSubtitle: _loading
-  //           ? ''
-  //           : (_pendingMembers > 0 ? 'From $_pendingMembers' : 'All settled'),
-  //     ),
-  //   ];
-
-  //   return LayoutBuilder(
-  //     builder: (context, c) {
-  //       if (c.maxWidth < 360) {
-  //         return Column(
-  //           children: [
-  //             for (int i = 0; i < cards.length; i++) ...[
-  //               cards[i],
-  //               if (i != cards.length - 1) const SizedBox(height: 12),
-  //             ],
-  //           ],
-  //         );
-  //       }
-  //       return Row(
-  //         children: [
-  //           Expanded(child: cards[0]),
-  //           const SizedBox(width: 12),
-  //           Expanded(child: cards[1]),
-  //           const SizedBox(width: 12),
-  //           Expanded(child: cards[2]),
-  //         ],
-  //       );
-  //     },
-  //   );
-  // }
-
-  // Widget _recentDeathsCard() {
-  //   final names = _recentDeaths;
-  //   final display = names.take(2).toList();
-  //   final extra = names.length - display.length;
-
-  //   return _statShell(
-  //     color: const Color(0xFFFFDAF6),
-  //     child: Column(
-  //       crossAxisAlignment:
-  //           CrossAxisAlignment.center, // <-- Center horizontally
-  //       children: [
-  //         Icon(FontAwesomeIcons.dove, size: 30, color: Colors.purple[400]),
-  //         const SizedBox(height: 8),
-  //         const Text(
-  //           "Recent Death Notices",
-  //           textAlign: TextAlign.center, // <-- Center text
-  //           style: TextStyle(
-  //             fontWeight: FontWeight.w800,
-  //             fontSize: 16,
-  //             fontFamily: 'Montserrat',
-  //             color: kNeutralText,
-  //             height: 1.15,
-  //           ),
-  //         ),
-  //         const SizedBox(height: 6),
-  //         Expanded(
-  //           child: names.isEmpty
-  //               ? const Center(
-  //                   child: Text(
-  //                     "None",
-  //                     textAlign: TextAlign.center, // <-- Center text
-  //                     style: TextStyle(
-  //                       fontWeight: FontWeight.w600,
-  //                       fontSize: 14,
-  //                       fontFamily: 'Montserrat',
-  //                       color: kNeutralText,
-  //                     ),
-  //                   ),
-  //                 )
-  //               : Column(
-  //                   mainAxisAlignment: MainAxisAlignment.center,
-  //                   children: [
-  //                     for (final n in display)
-  //                       Padding(
-  //                         padding: const EdgeInsets.only(bottom: 4),
-  //                         child: Row(
-  //                           mainAxisAlignment:
-  //                               MainAxisAlignment.center, // <-- Center row
-  //                           children: [
-  //                             const Icon(
-  //                               FontAwesomeIcons.dove,
-  //                               size: 14,
-  //                               color: Colors.black87,
-  //                             ),
-  //                             const SizedBox(width: 6),
-  //                             Expanded(
-  //                               child: Text(
-  //                                 n,
-  //                                 textAlign:
-  //                                     TextAlign.center, // <-- Center text
-  //                                 overflow: TextOverflow.ellipsis,
-  //                                 style: const TextStyle(
-  //                                   fontWeight: FontWeight.bold,
-  //                                   fontSize: 14,
-  //                                   fontFamily: 'Montserrat',
-  //                                   color: Colors.black,
-  //                                 ),
-  //                               ),
-  //                             ),
-  //                           ],
-  //                         ),
-  //                       ),
-  //                     if (extra > 0)
-  //                       Text(
-  //                         'View All',
-  //                         textAlign: TextAlign.center, // <-- Center text
-  //                         style: TextStyle(
-  //                           fontSize: 13.5,
-  //                           fontWeight: FontWeight.w800,
-  //                           fontFamily: 'OpenSans',
-  //                           color: Colors.blue[700],
-  //                         ),
-  //                       ),
-  //                   ],
-  //                 ),
-  //         ),
-  //       ],
-  //     ),
-  //   );
-  // }
-
-  // Widget _statCard({
-  //   required Color color,
-  //   required IconData icon,
-  //   required Color? iconColor,
-  //   required String title,
-  //   required String bigText,
-  //   String smallSubtitle = '',
-  // }) {
-  //   return _statShell(
-  //     color: color,
-  //     child: Column(
-  //       crossAxisAlignment:
-  //           CrossAxisAlignment.center, // <-- Center horizontally
-  //       children: [
-  //         Icon(icon, size: 32, color: iconColor),
-  //         const SizedBox(height: 8),
-  //         Text(
-  //           title,
-  //           textAlign: TextAlign.center, // <-- Center text
-  //           style: const TextStyle(
-  //             fontWeight: FontWeight.w800,
-  //             fontSize: 16,
-  //             fontFamily: 'Montserrat',
-  //             color: kNeutralText,
-  //             height: 1.15,
-  //           ),
-  //           maxLines: 2,
-  //           overflow: TextOverflow.ellipsis,
-  //         ),
-  //         const SizedBox(height: 6),
-  //         Expanded(
-  //           child: Center(
-  //             child: Column(
-  //               mainAxisAlignment: MainAxisAlignment.center,
-  //               children: [
-  //                 FittedBox(
-  //                   fit: BoxFit.scaleDown,
-  //                   child: Text(
-  //                     bigText,
-  //                     textAlign: TextAlign.center, // <-- Center text
-  //                     style: const TextStyle(
-  //                       fontWeight: FontWeight.w800,
-  //                       fontSize: 32,
-  //                       fontFamily: 'Montserrat',
-  //                       color: kNeutralText,
-  //                     ),
-  //                   ),
-  //                 ),
-  //                 if (smallSubtitle.isNotEmpty) ...[
-  //                   const SizedBox(height: 4),
-  //                   Text(
-  //                     smallSubtitle,
-  //                     textAlign: TextAlign.center, // <-- Center text
-  //                     style: const TextStyle(
-  //                       fontSize: 12.5,
-  //                       fontWeight: FontWeight.w600,
-  //                       fontFamily: 'OpenSans',
-  //                       color: kSubtleText,
-  //                     ),
-  //                   ),
-  //                 ],
-  //               ],
-  //             ),
-  //           ),
-  //         ),
-  //       ],
-  //     ),
-  //   );
-  // }
-
-  // Widget _statShell({required Color color, required Widget child}) {
-  //   return Container(
-  //     height: 220,
-  //     padding: const EdgeInsets.all(16),
-  //     decoration: BoxDecoration(
-  //       color: color,
-  //       borderRadius: BorderRadius.circular(18),
-  //       border: Border.all(color: Colors.grey.shade300, width: 2),
-  //     ),
-  //     child: child,
-  //   );
-  // }
-
-  // Widget _primaryAction(String label, IconData icon, VoidCallback onTap) {
-  //   return SizedBox(
-  //     width: double.infinity,
-  //     child: OutlinedButton.icon(
-  //       onPressed: onTap,
-  //       icon: Icon(icon, size: 26, color: kPrimary),
-  //       label: Padding(
-  //         padding: const EdgeInsets.symmetric(vertical: 8),
-  //         child: Text(
-  //           label,
-  //           style: const TextStyle(
-  //             fontSize: 18,
-  //             fontWeight: FontWeight.w700,
-  //             fontFamily: 'Montserrat',
-  //             color: kPrimaryDark,
-  //           ),
-  //         ),
-  //       ),
-  //       style: OutlinedButton.styleFrom(
-  //         padding: const EdgeInsets.symmetric(vertical: 16),
-  //         minimumSize: const Size.fromHeight(60),
-  //         side: const BorderSide(color: kPrimary, width: 1.8),
-  //         shape: RoundedRectangleBorder(
-  //           borderRadius: BorderRadius.circular(16),
-  //         ),
-  //         backgroundColor: Colors.white,
-  //       ),
-  //     ),
-  //   );
-  // }
-
-  // Widget _collectedPanel() {
-  //   return Container(
-  //     width: double.infinity,
-  //     padding: const EdgeInsets.fromLTRB(20, 20, 20, 16),
-  //     decoration: BoxDecoration(
-  //       color: const Color(0xFFE7F8D9),
-  //       borderRadius: BorderRadius.circular(18),
-  //       border: Border.all(color: kAccent.withOpacity(.35)),
-  //     ),
-  //     child: Column(
-  //       children: [
-  //         const Text(
-  //           'Collected from the Collectors',
-  //           textAlign: TextAlign.center,
-  //           style: TextStyle(
-  //             fontSize: 18,
-  //             fontWeight: FontWeight.w700,
-  //             fontFamily: 'Montserrat',
-  //             color: kNeutralText,
-  //           ),
-  //         ),
-  //         const SizedBox(height: 10),
-  //         SizedBox(
-  //           width: 160,
-  //           child: ElevatedButton(
-  //             onPressed: () {
-  //               Navigator.push(
-  //                 context,
-  //                 MaterialPageRoute(
-  //                   builder: (_) => CollectedFromCollectorsPage(
-  //                     dayungUnitId: _dayungUnitId!,
-  //                   ),
-  //                 ),
-  //               );
-  //             },
-  //             style: ElevatedButton.styleFrom(
-  //               backgroundColor: kPrimary,
-  //               foregroundColor: Colors.white,
-  //               shape: RoundedRectangleBorder(
-  //                 borderRadius: BorderRadius.circular(12),
-  //               ),
-  //             ),
-  //             child: const Text(
-  //               'View',
-  //               style: TextStyle(fontWeight: FontWeight.w700),
-  //             ),
-  //           ),
-  //         ),
-  //       ],
-  //     ),
-  //   );
-  // }
-
-  // Widget _bottomNav(bool wide) {
-  //   return Positioned(
-  //     left: 0,
-  //     right: 0,
-  //     bottom: 16,
-  //     child: Center(
-  //       child: IgnorePointer(
-  //         ignoring: !_showNavBar,
-  //         child: AnimatedOpacity(
-  //           duration: const Duration(milliseconds: 250),
-  //           opacity: _showNavBar ? 1 : 0,
-  //           child: Container(
-  //             height: 86,
-  //             margin: EdgeInsets.symmetric(horizontal: wide ? 170 : 20),
-  //             padding: const EdgeInsets.symmetric(horizontal: 14),
-  //             decoration: BoxDecoration(
-  //               color: Colors.white,
-  //               borderRadius: BorderRadius.circular(44),
-  //               border: Border.all(color: Colors.grey.shade300),
-  //               boxShadow: [
-  //                 BoxShadow(
-  //                   color: Colors.black.withOpacity(.08),
-  //                   blurRadius: 18,
-  //                   offset: const Offset(0, 6),
-  //                 ),
-  //               ],
-  //             ),
-  //             child: Row(
-  //               mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-  //               children: [
-  //                 _navItem(Icons.home_rounded, "Home", 0),
-  //                 _navItem(Icons.public, "Contributions", 1),
-  //                 _navItem(Icons.description, "Claims", 2),
-  //               ],
-  //             ),
-  //           ),
-  //         ),
-  //       ),
-  //     ),
-  //   );
-  // }
-
   Future<void> _showPaymentStatusSheet(int noticeId, int dayungUnitId) async {
     final sb = Supabase.instance.client;
     try {
@@ -2606,88 +2335,58 @@ class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
       ),
     );
   }
+}
 
-  // Widget _navItem(IconData icon, String label, int index) {
-  //   final selected = _tab == index;
-  //   return TextButton(
-  //     onPressed: () => setState(() => _tab = index),
-  //     style: TextButton.styleFrom(
-  //       foregroundColor: selected ? kPrimary : kNeutralText,
-  //       padding: const EdgeInsets.symmetric(horizontal: 12),
-  //       shape: const RoundedRectangleBorder(
-  //         borderRadius: BorderRadius.all(Radius.circular(18)),
-  //       ),
-  //     ),
-  //     child: Column(
-  //       mainAxisAlignment: MainAxisAlignment.center,
-  //       children: [
-  //         Icon(icon, size: 30, color: selected ? kPrimary : kNeutralText),
-  //         const SizedBox(height: 4),
-  //         Text(
-  //           label,
-  //           style: TextStyle(
-  //             fontSize: 13,
-  //             fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
-  //             fontFamily: 'OpenSans',
-  //             letterSpacing: .3,
-  //           ),
-  //         ),
-  //       ],
-  //     ),
-  //   );
-  // }
+class _ModernDrawerTile extends StatefulWidget {
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
 
-  //   Widget _iconBtn({
-  //     required IconData icon,
-  //     required Color color,
-  //     required VoidCallback onTap,
-  //     String? tooltip,
-  //     String? badge,
-  //   }) {
-  //     return Semantics(
-  //       label: tooltip,
-  //       button: true,
-  //       child: Stack(
-  //         clipBehavior: Clip.none,
-  //         children: [
-  //           InkWell(
-  //             borderRadius: BorderRadius.circular(12),
-  //             onTap: onTap,
-  //             child: Container(
-  //               width: 40,
-  //               height: 40,
-  //               alignment: Alignment.center,
-  //               decoration: BoxDecoration(
-  //                 color: color.withOpacity(.10),
-  //                 borderRadius: BorderRadius.circular(12),
-  //               ),
-  //               child: Icon(icon, color: color, size: 22),
-  //             ),
-  //           ),
-  //           if (badge != null)
-  //             Positioned(
-  //               right: -2,
-  //               top: -2,
-  //               child: Container(
-  //                 padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-  //                 decoration: BoxDecoration(
-  //                   color: kDanger,
-  //                   borderRadius: BorderRadius.circular(10),
-  //                 ),
-  //                 child: Text(
-  //                   badge,
-  //                   style: const TextStyle(
-  //                     fontFamily: 'OpenSans',
-  //                     fontSize: 10,
-  //                     fontWeight: FontWeight.w700,
-  //                     color: Colors.white,
-  //                   ),
-  //                 ),
-  //               ),
-  //             ),
-  //         ],
-  //       ),
-  //     );
-  //   }
-  // }
+  const _ModernDrawerTile({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+  });
+
+  @override
+  State<_ModernDrawerTile> createState() => _ModernDrawerTileState();
+}
+
+class _ModernDrawerTileState extends State<_ModernDrawerTile> {
+  bool _hovering = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final hoverColor = kPrimary.withOpacity(0.08);
+    return MouseRegion(
+      onEnter: (_) => setState(() => _hovering = true),
+      onExit: (_) => setState(() => _hovering = false),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(14),
+        onTap: widget.onTap,
+        child: Container(
+          decoration: BoxDecoration(
+            color: _hovering ? hoverColor : Colors.transparent,
+            borderRadius: BorderRadius.circular(14),
+          ),
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+          child: Row(
+            children: [
+              Icon(widget.icon, color: kPrimary),
+              const SizedBox(width: 18),
+              Text(
+                widget.label,
+                style: const TextStyle(
+                  fontWeight: FontWeight.w600,
+                  fontSize: 15,
+                  color: kPrimary,
+                  fontFamily: 'Montserrat',
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 }

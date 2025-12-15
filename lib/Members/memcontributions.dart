@@ -273,7 +273,8 @@ class _MembersContributionHistoryState
             .select('id, full_name')
             .inFilter('id', userDeceasedIds);
         for (final u in users) {
-          userDeceasedNames[u['id'].toString()] = (u['full_name'] ?? '').toString();
+          userDeceasedNames[u['id'].toString()] = (u['full_name'] ?? '')
+              .toString();
         }
       }
 
@@ -299,7 +300,9 @@ class _MembersContributionHistoryState
         final nid = p['death_notice_id'] as int?;
         final n = nid != null ? noticeById[nid] : null;
         final userDeceasedId = p['userdeceased']?.toString();
-        final userDeceasedName = (userDeceasedId != null && userDeceasedNames[userDeceasedId]?.isNotEmpty == true)
+        final userDeceasedName =
+            (userDeceasedId != null &&
+                userDeceasedNames[userDeceasedId]?.isNotEmpty == true)
             ? userDeceasedNames[userDeceasedId]
             : userDeceasedId ?? 'Unknown';
         return {
@@ -504,7 +507,8 @@ class _MembersContributionHistoryState
                             final contrib = _paidContributions[index];
                             final amount = contrib['amount'] ?? 0.0;
                             // Display userdeceased id from payments
-                            final userDeceasedId = contrib['userdeceased'] ?? 'Unknown';
+                            final userDeceasedId =
+                                contrib['userdeceased'] ?? 'Unknown';
                             final date = _fmtDate(contrib['date'] ?? '');
 
                             return Container(
@@ -537,7 +541,9 @@ class _MembersContributionHistoryState
                                     ),
                                     if (date.isNotEmpty)
                                       Padding(
-                                        padding: const EdgeInsets.only(top: 6.0),
+                                        padding: const EdgeInsets.only(
+                                          top: 6.0,
+                                        ),
                                         child: Text(
                                           'Date: $date',
                                           style: const TextStyle(

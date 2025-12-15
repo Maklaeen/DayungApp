@@ -219,10 +219,10 @@ class _SubmitClaimFormState extends State<SubmitClaimForm> {
             city = (p.locality ?? '').trim();
             province = (p.administrativeArea ?? '').trim();
             composed = [
-              if (street != null && street!.isNotEmpty) street,
-              if (barangay != null && barangay!.isNotEmpty) barangay,
-              if (city != null && city!.isNotEmpty) city,
-              if (province != null && province!.isNotEmpty) province,
+              if (street.isNotEmpty) street,
+              if (barangay.isNotEmpty) barangay,
+              if (city.isNotEmpty) city,
+              if (province.isNotEmpty) province,
             ].join(', ');
           }
         } catch (_) {}

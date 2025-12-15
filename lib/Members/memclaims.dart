@@ -9,19 +9,27 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:capstone_app/providers/claim_tracking_provider.dart';
+import 'package:provider/provider.dart' hide Consumer;
+import 'package:flutter_riverpod/flutter_riverpod.dart' as r;
 
 const double kCardRadius = 18;
 
-class ClaimsPage extends StatefulWidget {
-  const ClaimsPage({super.key, this.onNavBarVisible});
+class MembersClaimsPage extends StatefulWidget {
+  final int dayungUnitId;
+  const MembersClaimsPage({
+    super.key,
+    required this.dayungUnitId,
+    this.onNavBarVisible,
+  });
 
   final ValueChanged<bool>? onNavBarVisible;
 
   @override
-  State<ClaimsPage> createState() => _ClaimsPageState();
+  State<MembersClaimsPage> createState() => _MembersClaimsPageState();
 }
 
-class _ClaimsPageState extends State<ClaimsPage>
+class _MembersClaimsPageState extends State<MembersClaimsPage>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
   RealtimeChannel? _notifChannel;
@@ -42,7 +50,6 @@ class _ClaimsPageState extends State<ClaimsPage>
   String _dayungName = 'Dayung';
   String? _barangay;
   String? _city;
-  int? _dayungId;
   int _unreadNotifCount = 0;
 
   Future<void> _goApplyDayung() async {
@@ -50,7 +57,7 @@ class _ClaimsPageState extends State<ClaimsPage>
     await Navigator.of(
       context,
     ).push(MaterialPageRoute(builder: (_) => const DayungSuggestionsPage()));
-    await _loadDayungUnit();
+    //await _loadDayungUnit();
     await _fetchClaims();
   }
 
@@ -68,11 +75,12 @@ class _ClaimsPageState extends State<ClaimsPage>
       widget.onNavBarVisible?.call(true);
     });
 
-    _tabController = TabController(length: 2, vsync: this)
-      ..addListener(() {
-        if (_tabController.indexIsChanging) return;
-        _fetchClaims();
-      });
+    _tabController =
+        TabController(length: 3, vsync: this) // CHANGED: 2 -> 3
+          ..addListener(() {
+            if (_tabController.indexIsChanging) return;
+            _fetchClaims();
+          });
 
     _init();
   }
@@ -139,7 +147,7 @@ class _ClaimsPageState extends State<ClaimsPage>
 
   Future<void> _init() async {
     _safeSetState(() => _loading = true);
-    await _loadDayungUnit();
+    // await _loadDayungUnit();
     await _loadProfileImage();
     await _fetchClaims();
     if (!mounted) return;
@@ -148,7 +156,7 @@ class _ClaimsPageState extends State<ClaimsPage>
 
   Future<void> _refresh() async {
     _safeSetState(() => _loading = true);
-    await _loadDayungUnit();
+    // await _loadDayungUnit();
     await _fetchClaims();
     await _loadProfileImage();
     if (!mounted) return;
@@ -165,40 +173,40 @@ class _ClaimsPageState extends State<ClaimsPage>
     }
   }
 
-  Future<void> _loadDayungUnit() async {
-    final prefs = await SharedPreferences.getInstance();
-    final unitJson = prefs.getString('selectedDayungUnit');
-    if (unitJson != null) {
-      try {
-        final map = Map<String, dynamic>.from(jsonDecode(unitJson));
-        _safeSetState(() {
-          _dayungId = map['id'] is int
-              ? map['id'] as int
-              : int.tryParse('${map['id']}');
-          _dayungName = (map['name'] ?? 'Dayung').toString();
-          _barangay = map['barangay'];
-          _city = map['city'];
-        });
-        await _fetchUnreadNotifCount();
-      } catch (_) {
-        _safeSetState(() {
-          _dayungId = null;
-          _unreadNotifCount = 0;
-        });
-      }
-    } else {
-      _safeSetState(() {
-        _dayungId = null;
-        _unreadNotifCount = 0;
-      });
-    }
-  }
+  // Future<void> _loadDayungUnit() async {
+  //   final prefs = await SharedPreferences.getInstance();
+  //   final unitJson = prefs.getString('selectedDayungUnit');
+  //   if (unitJson != null) {
+  //     try {
+  //       final map = Map<String, dynamic>.from(jsonDecode(unitJson));
+  //       _safeSetState(() {
+  //         _dayungId = map['id'] is int
+  //             ? map['id'] as int
+  //             : int.tryParse('${map['id']}');
+  //         _dayungName = (map['name'] ?? 'Dayung').toString();
+  //         _barangay = map['barangay'];
+  //         _city = map['city'];
+  //       });
+  //       await _fetchUnreadNotifCount();
+  //     } catch (_) {
+  //       _safeSetState(() {
+  //         _dayungId = null;
+  //         _unreadNotifCount = 0;
+  //       });
+  //     }
+  //   } else {
+  //     _safeSetState(() {
+  //       _dayungId = null;
+  //       _unreadNotifCount = 0;
+  //     });
+  //   }
+  // }
 
   Future<void> _fetchUnreadNotifCount() async {
     // NEW
     final sb = Supabase.instance.client;
     final uid = sb.auth.currentUser?.id;
-    final unitId = _dayungId;
+    final unitId = widget.dayungUnitId;
     if (uid == null || unitId == null) {
       if (mounted) setState(() => _unreadNotifCount = 0);
       return;
@@ -278,8 +286,9 @@ class _ClaimsPageState extends State<ClaimsPage>
     if (birthIso == null ||
         birthIso.isEmpty ||
         deathIso == null ||
-        deathIso.isEmpty)
+        deathIso.isEmpty) {
       return null;
+    }
     final b =
         DateTime.tryParse(birthIso) ??
         DateTime.tryParse('${birthIso}T00:00:00');
@@ -323,7 +332,7 @@ class _ClaimsPageState extends State<ClaimsPage>
         return;
       }
 
-      if (_dayungId == null) {
+      if (widget.dayungUnitId == null) {
         _safeSetState(() {
           _allClaims = [];
           _pending = [];
@@ -336,15 +345,33 @@ class _ClaimsPageState extends State<ClaimsPage>
       final data = await Supabase.instance.client
           .from('claims')
           .select(
-            'id, title, description, status, date_submitted, dayung_unit_id, user_id, beneficiary_id, death_certificate_url, date_of_death',
+            'id, title, description, status, date_submitted, dayung_unit_id, user_id, beneficiary_id, death_certificate_url, date_of_death, claimedmoney', // ADDED claimedmoney
           )
           .eq('user_id', user.id)
-          .eq('dayung_unit_id', _dayungId as Object)
+          .eq('dayung_unit_id', widget.dayungUnitId as Object)
           .order('date_submitted', ascending: false);
 
-      final claims = List<Map<String, dynamic>>.from(
-        data as List<dynamic>,
-      ).map((c) => Map<String, dynamic>.from(c)).toList();
+      final claims = List<Map<String, dynamic>>.from(data as List<dynamic>).map(
+        (c) {
+          final map = Map<String, dynamic>.from(c);
+
+          // Normalize claimed status:
+          // Treat as claimed if claimedmoney is truthy or equals 'yes'
+          final rawStatus = (map['status'] ?? '').toString();
+          final claimedMoneyVal = map['claimedmoney'];
+          final claimedMoneyYes =
+              claimedMoneyVal == true ||
+              claimedMoneyVal == 1 ||
+              (claimedMoneyVal is String &&
+                  claimedMoneyVal.toLowerCase() == 'yes');
+
+          if (rawStatus.toLowerCase() == 'approved' && claimedMoneyYes) {
+            map['status'] = 'claimed'; // OVERRIDE
+          }
+
+          return map;
+        },
+      ).toList();
 
       final pending = claims
           .where(
@@ -373,75 +400,114 @@ class _ClaimsPageState extends State<ClaimsPage>
     }
   }
 
-  String _formatDate(dynamic v) {
-    if (v == null) return '';
-    try {
-      final dt = DateTime.parse(v.toString()).toLocal();
-      const months = [
-        'Jan',
-        'Feb',
-        'Mar',
-        'Apr',
-        'May',
-        'Jun',
-        'Jul',
-        'Aug',
-        'Sep',
-        'Oct',
-        'Nov',
-        'Dec',
-      ];
-      return '${months[dt.month - 1]} ${dt.day}, ${dt.year}';
-    } catch (_) {
-      return v.toString();
-    }
+  // ...existing code...
+  String _displayStatus(String s) {
+    // NEW (extended)
+    final low = s.toLowerCase();
+    if (low == 'approved') return 'Approved ✓';
+    if (low == 'claimed') return 'Claimed ✓'; // already handled
+    if (low == 'rejected') return 'Rejected';
+    if (low == 'pending') return 'Pending';
+    return s.isNotEmpty ? s[0].toUpperCase() + s.substring(1) : s;
   }
 
-  Color _statusColor(String s) {
-    switch (s.toLowerCase()) {
-      case 'approved':
-        return kAccent;
-      case 'rejected':
-        return kDanger;
-      case 'pending':
-        return kWarn;
-      default:
-        return kWarn;
-    }
+  Color _statusColor(String status) {
+    final low = status.toLowerCase();
+    if (low == 'approved' || low == 'claimed') return kAccent;
+    if (low == 'rejected') return kDanger;
+    if (low == 'pending') return kWarn;
+    return kSubtleText;
   }
 
-  IconData _statusIcon(String s) {
-    switch (s.toLowerCase()) {
-      case 'approved':
-        return Icons.verified;
-      case 'rejected':
-        return Icons.cancel_outlined;
-      case 'pending':
-      default:
-        return Icons.pending_actions;
+  IconData _statusIcon(String status) {
+    final low = status.toLowerCase();
+    if (low == 'approved' || low == 'claimed') return Icons.check_circle;
+    if (low == 'rejected') return Icons.cancel;
+    if (low == 'pending') return Icons.pending;
+    return Icons.info;
+  }
+
+  String _formatDate(dynamic date) {
+    if (date == null) return 'N/A';
+    final dt = DateTime.tryParse(date.toString());
+    if (dt == null) return date.toString();
+    return '${dt.year}-${dt.month.toString().padLeft(2, '0')}-${dt.day.toString().padLeft(2, '0')}';
+  }
+
+  Color trackingStepColor(String status, int currentIndex, int stepIndex) {
+    if (stepIndex < currentIndex) return kAccent;
+    if (stepIndex == currentIndex) {
+      final low = status.toLowerCase();
+      if (low == 'pending') return kWarn;
+      if (low == 'approved' || low == 'claimed') return kAccent;
+      if (low == 'rejected') return kDanger;
     }
+    return kSubtleText.withOpacity(.3);
+  }
+
+  IconData trackingStepIcon(String status, int currentIndex, int stepIndex) {
+    if (stepIndex < currentIndex) return Icons.check_circle;
+    if (stepIndex == currentIndex) return Icons.radio_button_checked;
+    return Icons.radio_button_unchecked;
   }
 
   List<Map<String, dynamic>> _filteredList(bool ongoing) {
     final base = ongoing ? _pending : _history;
-    if (_search.trim().isEmpty) return base;
-    final q = _search.toLowerCase();
-    return base.where((c) {
-      final title = (c['title'] ?? '').toString().toLowerCase();
-      final id = (c['id'] ?? '').toString().toLowerCase();
-      final status = (c['status'] ?? '').toString().toLowerCase();
-      final desc = (c['description'] ?? '').toString().toLowerCase();
-      return title.contains(q) ||
-          id.contains(q) ||
-          status.contains(q) ||
-          desc.contains(q);
-    }).toList();
+    final q = _search.trim().toLowerCase();
+    final filtered = q.isEmpty
+        ? List<Map<String, dynamic>>.from(base)
+        : base.where((c) {
+            final title = (c['title'] ?? '').toString().toLowerCase();
+            final id = (c['id'] ?? '').toString().toLowerCase();
+            final status = (c['status'] ?? '').toString().toLowerCase();
+            final desc = (c['description'] ?? '').toString().toLowerCase();
+            return title.contains(q) ||
+                id.contains(q) ||
+                status.contains(q) ||
+                desc.contains(q);
+          }).toList();
+
+    filtered.sort((a, b) {
+      final ad = DateTime.tryParse('${a['date_submitted']}');
+      final bd = DateTime.tryParse('${b['date_submitted']}');
+      if (ad == null && bd == null) return 0;
+      if (ad == null) return 1;
+      if (bd == null) return -1;
+      return bd.compareTo(ad); // newest first
+    });
+    return filtered;
+  }
+
+  List<Map<String, dynamic>> _filteredTrackingList() {
+    final q = _search.trim().toLowerCase();
+    final filtered = q.isEmpty
+        ? List<Map<String, dynamic>>.from(_allClaims)
+        : _allClaims.where((c) {
+            final title = (c['title'] ?? '').toString().toLowerCase();
+            final id = (c['id'] ?? '').toString().toLowerCase();
+            final status = (c['status'] ?? '').toString().toLowerCase();
+            final desc = (c['description'] ?? '').toString().toLowerCase();
+            return title.contains(q) ||
+                id.contains(q) ||
+                status.contains(q) ||
+                desc.contains(q);
+          }).toList();
+
+    filtered.sort((a, b) {
+      final ad = DateTime.tryParse('${a['date_submitted']}');
+      final bd = DateTime.tryParse('${b['date_submitted']}');
+      if (ad == null && bd == null) return 0;
+      if (ad == null) return 1;
+      if (bd == null) return -1;
+      return bd.compareTo(ad);
+    });
+    return filtered;
   }
 
   void _openSubmitSheet() async {
     if (_submittingModalOpen) return;
     // Ensure we have the latest selected unit before opening the form
-    await _loadDayungUnit();
+    // await _loadDayungUnit();
 
     _submittingModalOpen = true;
     showModalBottomSheet(
@@ -456,11 +522,10 @@ class _ClaimsPageState extends State<ClaimsPage>
         padding: EdgeInsets.only(
           bottom: MediaQuery.of(context).viewInsets.bottom,
         ),
-        child: SubmitClaimForm(dayungUnitId: _dayungId),
+        child: SubmitClaimForm(dayungUnitId: widget.dayungUnitId),
       ),
     ).whenComplete(() {
       _submittingModalOpen = false;
-      _fetchClaims();
     });
   }
 
@@ -469,183 +534,285 @@ class _ClaimsPageState extends State<ClaimsPage>
     final color = _statusColor(status);
     showModalBottomSheet(
       context: context,
-      showDragHandle: true,
-      isScrollControlled: true,
-      backgroundColor: Colors.white,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(26)),
-      ),
       builder: (ctx) {
-        return Padding(
-          padding: EdgeInsets.fromLTRB(
-            20,
-            8,
-            20,
-            MediaQuery.of(ctx).viewInsets.bottom + 26,
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 6,
-                    ),
-                    decoration: BoxDecoration(
-                      color: color.withOpacity(.12),
-                      borderRadius: BorderRadius.circular(30),
-                      border: Border.all(color: color.withOpacity(.45)),
-                    ),
-                    child: Row(
-                      children: [
-                        Icon(_statusIcon(status), size: 16, color: color),
-                        const SizedBox(width: 6),
-                        Text(
-                          status[0].toUpperCase() + status.substring(1),
+        return r.Consumer(
+          builder: (ctx, ref, child) {
+            final tracking = ref.watch(claimTrackingProvider(status));
+
+            Widget trackingSection() {
+              if (tracking.rejected) {
+                return Container(
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    color: kDanger.withOpacity(.08),
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(color: kDanger.withOpacity(.4)),
+                  ),
+                  child: Row(
+                    children: const [
+                      Icon(Icons.cancel, color: kDanger, size: 20),
+                      SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          'This claim was rejected.',
                           style: TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w700,
-                            fontFamily: 'Montserrat',
-                            color: color,
+                            fontSize: 13.5,
+                            fontFamily: 'OpenSans',
+                            fontWeight: FontWeight.w600,
+                            color: kDanger,
                           ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const Spacer(),
-                  Text(
-                    '#${claim['id']}',
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                      fontFamily: 'OpenSans',
-                      color: kSubtleText.withOpacity(.8),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 14),
-              Text(
-                (claim['title'] ?? 'Untitled').toString(),
-                style: const TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.w800,
-                  fontFamily: 'Montserrat',
-                  height: 1.15,
-                  color: kNeutralText,
-                ),
-              ),
-              const SizedBox(height: 10),
-              Row(
-                children: [
-                  const Icon(Icons.access_time, size: 16, color: kSubtleText),
-                  const SizedBox(width: 6),
-                  Text(
-                    _formatDate(claim['date_submitted']),
-                    style: const TextStyle(
-                      fontSize: 13,
-                      fontFamily: 'OpenSans',
-                      fontWeight: FontWeight.w600,
-                      color: kSubtleText,
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 16),
-              if ((claim['description'] ?? '').toString().trim().isNotEmpty)
-                Text(
-                  (claim['description'] ?? '').toString(),
-                  style: const TextStyle(
-                    fontSize: 14.2,
-                    fontFamily: 'OpenSans',
-                    height: 1.32,
-                  ),
-                )
-              else
-                Text(
-                  'No description provided.',
-                  style: TextStyle(
-                    fontSize: 13.2,
-                    fontFamily: 'OpenSans',
-                    fontStyle: FontStyle.italic,
-                    color: kSubtleText.withOpacity(.8),
-                  ),
-                ),
-              const SizedBox(height: 18),
-              FutureBuilder<Map<String, dynamic>>(
-                future: getDeceasedInfo(claim),
-                builder: (context, snapshot) {
-                  if (!snapshot.hasData) return const SizedBox.shrink();
-                  final deceased = snapshot.data!;
-                  final dob = (deceased['dob'] ?? '').toString();
-                  final dod = (deceased['date_of_death'] ?? '').toString();
-                  final age = _computeAge(dob, dod);
-                  return Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Deceased: ${deceased['name']}',
-                        style: const TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w600,
-                          color: kNeutralText,
                         ),
                       ),
-                      if (dob.isNotEmpty)
-                        Text(
-                          'Date of Birth: $dob',
-                          style: const TextStyle(
-                            fontSize: 13,
-                            color: kSubtleText,
-                          ),
-                        ),
-                      if (dod.isNotEmpty)
-                        Text(
-                          'Date of Death: $dod',
-                          style: const TextStyle(
-                            fontSize: 13,
-                            color: kSubtleText,
-                          ),
-                        ),
-                      if (age != null)
-                        Text(
-                          'Age at death: $age years',
-                          style: const TextStyle(
-                            fontSize: 13,
-                            color: kSubtleText,
-                          ),
-                        ),
                     ],
-                  );
-                },
-              ),
-              const SizedBox(height: 18),
+                  ),
+                );
+              }
 
-              SizedBox(
-                width: double.infinity,
-                child: OutlinedButton.icon(
-                  icon: const Icon(Icons.close),
-                  label: const Text(
-                    'Close',
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Tracking Status',
                     style: TextStyle(
+                      fontSize: 14.5,
+                      fontWeight: FontWeight.w700,
                       fontFamily: 'Montserrat',
-                      fontWeight: FontWeight.w600,
+                      color: kNeutralText,
                     ),
                   ),
-                  onPressed: () => Navigator.pop(ctx),
-                  style: OutlinedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(vertical: 14),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(14),
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      for (int i = 0; i < tracking.steps.length; i++) ...[
+                        Expanded(
+                          child: Column(
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 10,
+                                  vertical: 8,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: trackingStepColor(
+                                    status,
+                                    tracking.currentIndex,
+                                    i,
+                                  ).withOpacity(.12),
+                                  borderRadius: BorderRadius.circular(40),
+                                  border: Border.all(
+                                    color: trackingStepColor(
+                                      status,
+                                      tracking.currentIndex,
+                                      i,
+                                    ).withOpacity(.5),
+                                    width: 1,
+                                  ),
+                                ),
+                                child: Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Icon(
+                                      trackingStepIcon(
+                                        status,
+                                        tracking.currentIndex,
+                                        i,
+                                      ),
+                                      size: 16,
+                                      color: trackingStepColor(
+                                        status,
+                                        tracking.currentIndex,
+                                        i,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 6),
+                                    Flexible(
+                                      child: Text(
+                                        tracking.steps[i],
+                                        overflow: TextOverflow.ellipsis,
+                                        style: TextStyle(
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.w700,
+                                          fontFamily: 'Montserrat',
+                                          color: trackingStepColor(
+                                            status,
+                                            tracking.currentIndex,
+                                            i,
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              if (i < tracking.steps.length - 1)
+                                Container(
+                                  height: 4,
+                                  margin: const EdgeInsets.only(top: 6),
+                                  decoration: BoxDecoration(
+                                    gradient: LinearGradient(
+                                      colors: [
+                                        trackingStepColor(
+                                          status,
+                                          tracking.currentIndex,
+                                          i,
+                                        ),
+                                        trackingStepColor(
+                                          status,
+                                          tracking.currentIndex,
+                                          i + 1,
+                                        ),
+                                      ],
+                                    ),
+                                    borderRadius: BorderRadius.circular(2),
+                                  ),
+                                ),
+                            ],
+                          ),
+                        ),
+                        if (i < tracking.steps.length - 1)
+                          const SizedBox(width: 8),
+                      ],
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  if (tracking.helperText.isNotEmpty)
+                    Text(
+                      tracking.helperText,
+                      style: TextStyle(
+                        fontSize: 12.5,
+                        fontFamily: 'OpenSans',
+                        fontWeight: FontWeight.w600,
+                        color: status.toLowerCase() == 'pending'
+                            ? kWarn.withOpacity(.9)
+                            : kAccent,
+                      ),
+                    ),
+                ],
+              );
+            }
+
+            return Padding(
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 6,
+                        ),
+                        decoration: BoxDecoration(
+                          color: color.withOpacity(.12),
+                          borderRadius: BorderRadius.circular(40),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(_statusIcon(status), size: 16, color: color),
+                            const SizedBox(width: 6),
+                            Text(
+                              _displayStatus(status),
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w700,
+                                fontFamily: 'Montserrat',
+                                color: color,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const Spacer(),
+                      Text(
+                        '#${claim['id']}',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          fontFamily: 'OpenSans',
+                          color: kSubtleText.withOpacity(.8),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 14),
+                  Text(
+                    (claim['title'] ?? 'Untitled').toString(),
+                    style: const TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.w800,
+                      fontFamily: 'Montserrat',
+                      height: 1.15,
+                      color: kNeutralText,
                     ),
                   ),
-                ),
+                  const SizedBox(height: 10),
+                  Row(
+                    children: [
+                      const Icon(
+                        Icons.access_time,
+                        size: 16,
+                        color: kSubtleText,
+                      ),
+                      const SizedBox(width: 6),
+                      Text(
+                        _formatDate(claim['date_submitted']),
+                        style: const TextStyle(
+                          fontSize: 13,
+                          fontFamily: 'OpenSans',
+                          fontWeight: FontWeight.w600,
+                          color: kSubtleText,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  if ((claim['description'] ?? '').toString().trim().isNotEmpty)
+                    Text(
+                      (claim['description'] ?? '').toString(),
+                      style: const TextStyle(
+                        fontSize: 14.2,
+                        fontFamily: 'OpenSans',
+                        height: 1.32,
+                      ),
+                    )
+                  else
+                    Text(
+                      'No description provided.',
+                      style: TextStyle(
+                        fontSize: 13.2,
+                        fontFamily: 'OpenSans',
+                        fontStyle: FontStyle.italic,
+                        color: kSubtleText.withOpacity(.8),
+                      ),
+                    ),
+                  const SizedBox(height: 18),
+                  trackingSection(), // Riverpod-driven
+                  const SizedBox(height: 22),
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton.icon(
+                      icon: const Icon(Icons.close),
+                      label: const Text(
+                        'Close',
+                        style: TextStyle(
+                          fontFamily: 'Montserrat',
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      onPressed: () => Navigator.pop(ctx),
+                      style: OutlinedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
               ),
-            ],
-          ),
+            );
+          },
         );
       },
     );
@@ -653,17 +820,18 @@ class _ClaimsPageState extends State<ClaimsPage>
 
   @override
   Widget build(BuildContext context) {
-    final providerName = context.watch<DayungUnitProvider>().dayungUnit;
-    if (providerName != null && providerName != _dayungName) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!mounted) return;
-        _loadDayungUnit();
-      });
-    }
+    // final providerName = context.watch<DayungUnitProvider>().dayungUnit;
+    // if (providerName != null && providerName != _dayungName) {
+    //   WidgetsBinding.instance.addPostFrameCallback((_) {
+    //     if (!mounted) return;
+    //     _loadDayungUnit();
+    //   });
+    // }
 
     final isWide = MediaQuery.of(context).size.width > 700;
     final ongoingList = _filteredList(true);
     final historyList = _filteredList(false);
+    final trackingList = _filteredTrackingList(); // NEW
 
     // Compute a safe bottom offset so the FAB clears the bottom nav
     final bottomSafeInset = MediaQuery.of(context).viewPadding.bottom;
@@ -678,10 +846,14 @@ class _ClaimsPageState extends State<ClaimsPage>
         child: Padding(
           padding: EdgeInsets.only(bottom: fabBottom),
           child: FloatingActionButton.extended(
-            onPressed: _dayungId == null ? _goApplyDayung : _openSubmitSheet,
-            icon: Icon(_dayungId == null ? Icons.how_to_reg : Icons.add),
+            onPressed: widget.dayungUnitId == null
+                ? _goApplyDayung
+                : _openSubmitSheet,
+            icon: Icon(
+              widget.dayungUnitId == null ? Icons.how_to_reg : Icons.add,
+            ),
             label: Text(
-              _dayungId == null ? 'Apply Dayung' : 'New Claim',
+              widget.dayungUnitId == null ? 'Apply Dayung' : 'New Claim',
               style: const TextStyle(
                 fontWeight: FontWeight.w700,
                 fontFamily: 'Montserrat',
@@ -744,6 +916,7 @@ class _ClaimsPageState extends State<ClaimsPage>
                     tabs: const [
                       Tab(text: 'Ongoing'),
                       Tab(text: 'History'),
+                      Tab(text: 'Tracking'), // NEW
                     ],
                   ),
                 ),
@@ -792,6 +965,7 @@ class _ClaimsPageState extends State<ClaimsPage>
                   children: [
                     _claimListView(ongoingList, true),
                     _claimListView(historyList, false),
+                    _trackingListView(trackingList), // NEW
                   ],
                 ),
         ),
@@ -864,8 +1038,8 @@ class _ClaimsPageState extends State<ClaimsPage>
   }
 
   Widget _claimListView(List<Map<String, dynamic>> list, bool ongoing) {
-    // NEW: if no dayung selected, show apply message
-    if (_dayungId == null) {
+    // Use widget.dayungUnitId instead of _dayungId
+    if (widget.dayungUnitId == null) {
       return _wrapWithRefreshAndNav(
         ListView(
           physics: const AlwaysScrollableScrollPhysics(
@@ -890,20 +1064,51 @@ class _ClaimsPageState extends State<ClaimsPage>
                 ),
               ),
             ),
-            const SizedBox(height: 10),
-            // Center(
-            //   child: TextButton.icon(
-            //     onPressed: _goApplyDayung,
-            //     icon: const Icon(Icons.how_to_reg, color: kPrimary),
-            //     label: const Text(
-            //       'Apply Dayung',
-            //       style: TextStyle(
-            //         color: kPrimaryDark,
-            //         fontWeight: FontWeight.w700,
-            //       ),
-            //     ),
-            //   ),
-            // ),
+          ],
+        ),
+      );
+    }
+
+    return _wrapWithRefreshAndNav(
+      ListView.separated(
+        physics: const AlwaysScrollableScrollPhysics(
+          parent: BouncingScrollPhysics(),
+        ),
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 120),
+        itemCount: list.length,
+        separatorBuilder: (_, __) => const SizedBox(height: 14),
+        itemBuilder: (_, i) => _claimCard(list[i]),
+      ),
+    );
+  }
+
+  Widget _trackingListView(List<Map<String, dynamic>> list) {
+    if (widget.dayungUnitId == null) {
+      // Reuse apply prompt
+      return _wrapWithRefreshAndNav(
+        ListView(
+          physics: const AlwaysScrollableScrollPhysics(
+            parent: BouncingScrollPhysics(),
+          ),
+          padding: const EdgeInsets.fromLTRB(16, 60, 16, 120),
+          children: [
+            Icon(
+              Icons.track_changes,
+              size: 64,
+              color: kSubtleText.withOpacity(.35),
+            ),
+            const SizedBox(height: 16),
+            const Center(
+              child: Text(
+                'Apply dayung first',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontFamily: 'OpenSans',
+                  fontWeight: FontWeight.w700,
+                  color: kSubtleText,
+                ),
+              ),
+            ),
           ],
         ),
       );
@@ -918,15 +1123,15 @@ class _ClaimsPageState extends State<ClaimsPage>
           padding: const EdgeInsets.fromLTRB(16, 60, 16, 120),
           children: [
             Icon(
-              ongoing ? Icons.pending_actions : Icons.inbox_outlined,
+              Icons.track_changes,
               size: 60,
               color: kSubtleText.withOpacity(.35),
             ),
             const SizedBox(height: 18),
-            Center(
+            const Center(
               child: Text(
-                ongoing ? 'No pending claims' : 'No claim history',
-                style: const TextStyle(
+                'No claims to track',
+                style: TextStyle(
                   fontSize: 16,
                   fontFamily: 'OpenSans',
                   fontWeight: FontWeight.w600,
@@ -935,17 +1140,16 @@ class _ClaimsPageState extends State<ClaimsPage>
               ),
             ),
             const SizedBox(height: 10),
-            if (ongoing)
-              Center(
-                child: Text(
-                  'Tap "New Claim" to submit one.',
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontFamily: 'OpenSans',
-                    color: kSubtleText.withOpacity(.75),
-                  ),
+            Center(
+              child: Text(
+                'Submit a claim to start tracking.',
+                style: TextStyle(
+                  fontSize: 13,
+                  fontFamily: 'OpenSans',
+                  color: kSubtleText.withOpacity(.75),
                 ),
               ),
+            ),
           ],
         ),
       );
@@ -966,50 +1170,48 @@ class _ClaimsPageState extends State<ClaimsPage>
 
   Widget _claimCard(Map<String, dynamic> claim) {
     final status = (claim['status'] ?? '').toString();
-    final color = _statusColor(status);
     final title = (claim['title'] ?? 'Untitled').toString();
-    final date = _formatDate(claim['date_submitted']);
     final desc = (claim['description'] ?? '').toString().trim();
+    final date = _formatDate(claim['date_submitted']);
+    final color = _statusColor(status);
 
     return InkWell(
       onTap: () => _openDetail(claim),
       borderRadius: BorderRadius.circular(kCardRadius),
       child: Container(
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, 14),
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(kCardRadius),
-          border: Border.all(color: color.withOpacity(.35), width: 1.2),
+          border: Border.all(color: Colors.grey.shade200),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(.05),
-              blurRadius: 10,
+              color: Colors.black.withOpacity(.04),
+              blurRadius: 8,
               offset: const Offset(0, 4),
             ),
           ],
         ),
-        padding: const EdgeInsets.fromLTRB(16, 16, 16, 14),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // ...status, title, desc, etc...
             Row(
               children: [
                 Container(
                   padding: const EdgeInsets.symmetric(
                     horizontal: 10,
-                    vertical: 5,
+                    vertical: 6,
                   ),
                   decoration: BoxDecoration(
                     color: color.withOpacity(.12),
-                    borderRadius: BorderRadius.circular(30),
-                    border: Border.all(color: color.withOpacity(.45)),
+                    borderRadius: BorderRadius.circular(40),
                   ),
                   child: Row(
                     children: [
                       Icon(_statusIcon(status), size: 14, color: color),
                       const SizedBox(width: 4),
                       Text(
-                        status[0].toUpperCase() + status.substring(1),
+                        _displayStatus(status),
                         style: TextStyle(
                           fontSize: 12,
                           fontWeight: FontWeight.w700,
@@ -1059,7 +1261,6 @@ class _ClaimsPageState extends State<ClaimsPage>
                 ),
               ),
             ],
-            // --- INSERT THE FUTUREBUILDER HERE ---
             const SizedBox(height: 10),
             FutureBuilder<Map<String, dynamic>>(
               future: getDeceasedInfo(claim),
@@ -1108,11 +1309,10 @@ class _ClaimsPageState extends State<ClaimsPage>
                 );
               },
             ),
-            // --- END FUTUREBUILDER ---
             const SizedBox(height: 10),
             Row(
               children: [
-                Icon(Icons.access_time, size: 14, color: kSubtleText),
+                const Icon(Icons.access_time, size: 14, color: kSubtleText),
                 const SizedBox(width: 4),
                 Expanded(
                   child: Text(

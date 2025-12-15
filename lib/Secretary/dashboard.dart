@@ -1,10 +1,12 @@
 import 'dart:convert';
+import 'package:capstone_app/Auth/logout.dart';
+import 'package:capstone_app/Beneficiary/beneficiary.dart';
+import 'package:capstone_app/Providers/apptheme_provider.dart';
 import 'package:capstone_app/Providers/dayung_role_provider.dart';
-import 'package:capstone_app/Secretary/beneficiaries_tab.dart'
-    show SecretaryBeneficiariesTab;
+import 'package:capstone_app/Secretary/beneficiaries_tab.dart';
 import 'package:capstone_app/Secretary/certificates.dart';
-import 'package:capstone_app/Secretary/claims.dart';
-import 'package:capstone_app/Secretary/contributions.dart';
+import 'package:capstone_app/Secretary/secclaims.dart';
+import 'package:capstone_app/Secretary/seccontributions.dart';
 import 'package:capstone_app/Secretary/deathnotice.dart';
 import 'package:capstone_app/Secretary/manage_applications.dart';
 import 'package:capstone_app/Secretary/secretarymemberspage.dart';
@@ -13,12 +15,14 @@ import 'package:capstone_app/pages/notification.dart';
 import 'package:capstone_app/pages/recentdeathnotices.dart';
 import 'package:capstone_app/pages/reports.dart';
 import 'package:capstone_app/profile/profile.dart';
+import 'package:capstone_app/settings/profsettings.dart';
 import 'package:capstone_app/ui/theme/branding.dart' as branding;
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+// color palette
 const Color kBg = Color(0xFFFAFAF7);
 const Color kPrimary = Color(0xFF0D47A1);
 const Color kPrimaryDark = Color(0xFF083366);
@@ -45,6 +49,7 @@ class _SecretaryDashboardPageState extends State<SecretaryDashboardPage> {
   String? _unitBarangay;
   // ignore: unused_field
   String? _unitCity;
+  String? _profileUrl;
 
   double _pendingPaymentsAmount = 0;
 
@@ -510,6 +515,7 @@ class _SecretaryDashboardPageState extends State<SecretaryDashboardPage> {
 
     return Scaffold(
       backgroundColor: const Color(0xFFF8FAFC),
+      drawer: _buildSideDrawer(context),
       body: Container(
         decoration: const BoxDecoration(
           gradient: LinearGradient(
@@ -541,23 +547,24 @@ class _SecretaryDashboardPageState extends State<SecretaryDashboardPage> {
           // Top bar
           Row(
             children: [
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.2),
-                  borderRadius: BorderRadius.circular(16),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.1),
-                      blurRadius: 8,
-                      offset: const Offset(0, 2),
-                    ),
-                  ],
-                ),
-                child: const Icon(
-                  Icons.dashboard_rounded,
-                  color: Colors.white,
-                  size: 24,
+              Builder(
+                builder: (context) => Container(
+                  padding: const EdgeInsets.all(1),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.2),
+                    borderRadius: BorderRadius.circular(16),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.1),
+                        blurRadius: 8,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
+                  ),
+                  child: IconButton(
+                    icon: const Icon(Icons.menu_rounded, color: Colors.white),
+                    onPressed: () => Scaffold.of(context).openDrawer(),
+                  ),
                 ),
               ),
               const SizedBox(width: 16),
@@ -568,7 +575,6 @@ class _SecretaryDashboardPageState extends State<SecretaryDashboardPage> {
                     Text(
                       _selectedDayungUnit,
                       maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
                         fontFamily: 'Montserrat',
                         fontSize: 24,
@@ -599,7 +605,7 @@ class _SecretaryDashboardPageState extends State<SecretaryDashboardPage> {
             children: [
               Expanded(
                 child: Text(
-                  'Maayung buntag,\n${_fullName.isEmpty ? 'Secretary' : _fullName}!',
+                  'Good Morning,\n${_fullName.isEmpty ? 'Secretary' : _fullName}!',
                   style: const TextStyle(
                     fontFamily: 'Montserrat',
                     fontSize: 28,
@@ -610,40 +616,160 @@ class _SecretaryDashboardPageState extends State<SecretaryDashboardPage> {
                   ),
                 ),
               ),
-              GestureDetector(
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (_) => const ProfilePage()),
-                  );
-                },
-                child: Container(
-                  padding: const EdgeInsets.all(4),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.2),
-                    borderRadius: BorderRadius.circular(32),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.1),
-                        blurRadius: 8,
-                        offset: const Offset(0, 2),
-                      ),
-                    ],
-                  ),
-                  child: const CircleAvatar(
-                    radius: 28,
-                    backgroundColor: Colors.white,
-                    child: Icon(
-                      Icons.person,
-                      size: 34,
-                      color: Color(0xFF1E40AF),
-                    ),
-                  ),
-                ),
-              ),
+              // GestureDetector(
+              //   onTap: () {
+              //     Navigator.push(
+              //       context,
+              //       MaterialPageRoute(builder: (_) => const ProfilePage()),
+              //     );
+              //   },
+              //   child: Container(
+              //     padding: const EdgeInsets.all(4),
+              //     decoration: BoxDecoration(
+              //       color: Colors.white.withValues(alpha: 0.2),
+              //       borderRadius: BorderRadius.circular(32),
+              //       boxShadow: [
+              //         BoxShadow(
+              //           color: Colors.black.withValues(alpha: 0.1),
+              //           blurRadius: 8,
+              //           offset: const Offset(0, 2),
+              //         ),
+              //       ],
+              //     ),
+              //     child: const CircleAvatar(
+              //       radius: 28,
+              //       backgroundColor: Colors.white,
+              //       child: Icon(
+              //         Icons.person,
+              //         size: 34,
+              //         color: Color(0xFF1E40AF),
+              //       ),
+              //     ),
+              //   ),
+              // ),
             ],
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildSideDrawer(BuildContext context) {
+    final isDarkMode = Theme.of(context).brightness == Brightness.dark;
+    return Drawer(
+      child: SafeArea(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            DrawerHeader(
+              decoration: BoxDecoration(
+                color: kPrimary.withOpacity(0.95),
+                borderRadius: const BorderRadius.only(
+                  bottomRight: Radius.circular(32),
+                  bottomLeft: Radius.circular(32),
+                ),
+              ),
+              child: Row(
+                children: [
+                  const CircleAvatar(
+                    radius: 32,
+                    backgroundColor: Colors.white,
+                    child: Icon(Icons.person, size: 40, color: kPrimary),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: Text(
+                      _fullName,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w800,
+                        fontSize: 18,
+                        fontFamily: 'Montserrat',
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            _ModernDrawerTile(
+              icon: Icons.person,
+              label: 'Profile',
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const ProfilePage()),
+                );
+                if (!mounted) return;
+                setState(() {});
+              },
+            ),
+            _ModernDrawerTile(
+              icon: Icons.people_rounded,
+              label: 'Beneficiaries',
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const BeneficiaryPage()),
+                );
+              },
+            ),
+            _ModernDrawerTile(
+              icon: Icons.settings,
+              label: 'Settings',
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const ProfSettingsPage()),
+                );
+              },
+            ),
+            _ModernDrawerTile(
+              icon: isDarkMode ? Icons.light_mode : Icons.dark_mode,
+              label: isDarkMode ? 'Light Mode' : 'Dark Mode',
+              onTap: () {
+                context.read<AppTheme>().toggle();
+              },
+            ),
+            _ModernDrawerTile(
+              icon: Icons.translate,
+              label: 'Translate',
+              onTap: () {
+                // TODO: Implement translator
+              },
+            ),
+            const Spacer(),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+              child: MouseRegion(
+                cursor: SystemMouseCursors.click,
+                child: ElevatedButton.icon(
+                  icon: const Icon(Icons.logout, color: Colors.white),
+                  label: const Text(
+                    'Logout',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w700,
+                      fontSize: 16,
+                      color: Colors.white,
+                    ),
+                  ),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.red,
+                    foregroundColor: Colors.white,
+                    minimumSize: const Size.fromHeight(48),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    elevation: 0,
+                  ),
+                  onPressed: () async {
+                    Navigator.pop(context);
+                    await showLogoutDialog(context);
+                  },
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -1595,6 +1721,60 @@ class _SecretaryDashboardPageState extends State<SecretaryDashboardPage> {
                 ],
               ),
             ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ModernDrawerTile extends StatefulWidget {
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+
+  const _ModernDrawerTile({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+  });
+
+  @override
+  State<_ModernDrawerTile> createState() => _ModernDrawerTileState();
+}
+
+class _ModernDrawerTileState extends State<_ModernDrawerTile> {
+  bool _hovering = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final hoverColor = kPrimary.withOpacity(0.08);
+    return MouseRegion(
+      onEnter: (_) => setState(() => _hovering = true),
+      onExit: (_) => setState(() => _hovering = false),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(14),
+        onTap: widget.onTap,
+        child: Container(
+          decoration: BoxDecoration(
+            color: _hovering ? hoverColor : Colors.transparent,
+            borderRadius: BorderRadius.circular(14),
+          ),
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+          child: Row(
+            children: [
+              Icon(widget.icon, color: kPrimary),
+              const SizedBox(width: 18),
+              Text(
+                widget.label,
+                style: const TextStyle(
+                  fontWeight: FontWeight.w600,
+                  fontSize: 15,
+                  color: kPrimary,
+                  fontFamily: 'Montserrat',
+                ),
+              ),
+            ],
           ),
         ),
       ),

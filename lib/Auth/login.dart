@@ -9,7 +9,7 @@ import 'package:capstone_app/Secretary/dashboard.dart'
 import 'package:capstone_app/Treasurer/dashboard.dart'
     hide kPrimary, kBg, kAccent;
 import 'package:capstone_app/ui/theme/branding.dart';
-import 'package:capstone_app/Members/dashboard.dart' hide kAccent, kBg;
+import 'package:capstone_app/Members/dashboard.dart' hide kAccent, kBg, kPrimary;
 import 'package:capstone_app/Providers/dayung_provider.dart';
 import 'package:capstone_app/Providers/dayung_role_provider.dart';
 import 'package:capstone_app/screens/selectdayung.dart'
@@ -21,7 +21,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:auto_size_text/auto_size_text.dart';
 
-// Additional colors for login-specific styling
+// color palette
 const Color kPrimaryLight = Color(0xFF3B82F6);
 const Color kWarn = Color(0xFFF59E0B);
 const Color kDanger = Color(0xFFEF4444);
@@ -414,22 +414,28 @@ class _LoginState extends State<Login> {
   Future<void> _routeAfterLogin(PostgrestMap userRow) async {
     final sb = Supabase.instance.client;
     final uid = sb.auth.currentUser?.id;
-    if (uid == null) {
+
+    // 1. Check if user is SuperAdmin
+    final userRowRole = await sb
+        .from('users')
+        .select('role')
+        .eq('id', uid as Object)
+        .maybeSingle();
+    if (userRowRole?['role'] == 'superadmin') {
+      await context.read<DayungRoleProvider>().refreshRoles(null);
       if (!mounted) return;
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!mounted) return;
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (_) => const RoleRouter()),
-        );
-      });
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (_) => const RoleRouter()),
+      );
       return;
     }
 
+    // 2. Proceed with your existing logic for officers/members
     final approvedApps = await sb
         .from('applications')
         .select('dayung_unit_id, approved_at')
-        .eq('user_id', uid)
+        .eq('user_id', uid as Object)
         .eq('status', 'approved')
         .order('approved_at', ascending: false);
     final appList = List<Map<String, dynamic>>.from(approvedApps);
@@ -448,7 +454,7 @@ class _LoginState extends State<Login> {
       final cu = await sb
           .from('dayung_collectors')
           .select('dayung_unit_id')
-          .eq('user_id', uid);
+          .eq('user_id', uid as Object);
       collectorIds = List<Map<String, dynamic>>.from(
         cu,
       ).map((e) => e['dayung_unit_id'] as int).toSet();
@@ -514,13 +520,17 @@ class _LoginState extends State<Login> {
 
     if (selected['id'] == null && allIds.isEmpty) {
       // attempt officer fallback
-      final fallbackOfficerUnit = await context.read<DayungRoleProvider>().ensureOfficerUnitSelection();
+      final fallbackOfficerUnit = await context
+          .read<DayungRoleProvider>()
+          .ensureOfficerUnitSelection();
       if (fallbackOfficerUnit != null) {
         selected['id'] = fallbackOfficerUnit;
       }
     }
-    
-    final unitId = selected['id'] is int ? selected['id'] as int : int.tryParse('${selected['id']}');
+
+    final unitId = selected['id'] is int
+        ? selected['id'] as int
+        : int.tryParse('${selected['id']}');
     if (unitId != null && mounted) {
       context.read<DayungUnitProvider>().setDayungUnit(
         '${selected['name'] ?? 'Dayung'}',
@@ -529,37 +539,24 @@ class _LoginState extends State<Login> {
       await context.read<DayungRoleProvider>().refreshRoles(unitId);
     } else {
       // Last resort: officer fallback
-      final officerUnit = await context.read<DayungRoleProvider>().ensureOfficerUnitSelection();
+      final officerUnit = await context
+          .read<DayungRoleProvider>()
+          .ensureOfficerUnitSelection();
       if (mounted && officerUnit != null) {
-        context.read<DayungUnitProvider>().setDayungUnit('Dayung', obj: {'id': officerUnit});
+        context.read<DayungUnitProvider>().setDayungUnit(
+          'Dayung',
+          obj: {'id': officerUnit},
+        );
         await context.read<DayungRoleProvider>().refreshRoles(officerUnit);
       }
     }
 
     if (!mounted) return;
 
-    // Direct role-based routing (avoid stale role state)
-    final roles = context.read<DayungRoleProvider>();
-    Widget home;
-    if (roles.isPresident) {
-      home = const PresidentDashboardPage();
-    } else if (roles.isSecretary) {
-      home = const SecretaryDashboardPage();
-    } else if (roles.isTreasurer) {
-      home = const TreasurerDashboardPage();
-    } else if (roles.isCollector) {
-      home = const CollectorDashboardPage();
-    } else {
-      home = const MemberDashboardPage();
-    }
-
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (_) => home),
-      );
-    });
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(builder: (_) => const RoleRouter()),
+    );
   }
 
   @override

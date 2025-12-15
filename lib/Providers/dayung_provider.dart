@@ -87,6 +87,7 @@ class DayungUnitProvider extends ChangeNotifier {
 
   // ---------------- Existing persistence ----------------
   Future<void> loadDayungUnit() async {
+    print('[DEBUG] loadDayungUnit started');
     final prefs = await SharedPreferences.getInstance();
     final unitJson =
         prefs.getString('selectedDayungUnitData') ??
@@ -113,12 +114,14 @@ class DayungUnitProvider extends ChangeNotifier {
       _currentUnitId = _asInt(normalized['id']);
       _currentName = _dayungUnit;
       _currentObj = Map<String, dynamic>.from(normalized);
-    } catch (_) {
+      print('[DEBUG] loadDayungUnit finished');
+    } catch (e) {
       _dayungUnit = null;
       _dayungUnitObj = null;
       _currentUnitId = null; // NEW
-      _currentName = null;   // NEW
-      _currentObj = null;    // NEW
+      _currentName = null; // NEW
+      _currentObj = null; // NEW
+      print('[DEBUG] loadDayungUnit error: $e');
       await prefs.remove('selectedDayungUnit');
       await prefs.remove('selectedDayungUnitData');
     }
@@ -161,7 +164,9 @@ class DayungUnitProvider extends ChangeNotifier {
     // NEW: sync current fields
     _currentUnitId = _asInt(_dayungUnitObj?['id']);
     _currentName = _dayungUnit;
-    _currentObj = _dayungUnitObj == null ? null : Map<String, dynamic>.from(_dayungUnitObj!);
+    _currentObj = _dayungUnitObj == null
+        ? null
+        : Map<String, dynamic>.from(_dayungUnitObj!);
 
     final prefs = await SharedPreferences.getInstance();
     if (_dayungUnitObj == null) {
@@ -184,7 +189,9 @@ class DayungUnitProvider extends ChangeNotifier {
     // NEW: sync current fields
     _currentUnitId = _asInt(_dayungUnitObj?['id']);
     _currentName = _dayungUnit;
-    _currentObj = _dayungUnitObj == null ? null : Map<String, dynamic>.from(_dayungUnitObj!);
+    _currentObj = _dayungUnitObj == null
+        ? null
+        : Map<String, dynamic>.from(_dayungUnitObj!);
 
     notifyListeners();
   }

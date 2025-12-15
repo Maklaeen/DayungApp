@@ -1,7 +1,6 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:flutter/services.dart';
 
 // Modern UI colors
 const kText = Color(0xFF111827);
@@ -9,7 +8,6 @@ const kSubText = Color(0xFF6B7280);
 const kPrimary = Color(0xFF3B82F6);
 const kCardBg = Color(0xFFFFFFFF);
 const kBorderColor = Color(0xFFE5E7EB);
-const kDanger = Color(0xFFEF4444);
 
 class ManageRulesPagePres extends StatefulWidget {
   const ManageRulesPagePres({super.key});
@@ -20,81 +18,45 @@ class ManageRulesPagePres extends StatefulWidget {
 
 class _ManageRulesPagePresState extends State<ManageRulesPagePres> {
   final sb = Supabase.instance.client;
-  final List<String> _paymentMethods = [
-    'GCash',
-    'Paymaya',
-    'Bank Transfer',
-    'Cash',
+
+  // Only the required dropdowns and switch
+  final List<String> _meetingFrequencies = ['Weekly', 'Monthly', 'Needed'];
+  final List<String> _feeRanges = [
+    '50-100',
+    '100-150',
+    '150-200',
+    '200-250',
+    '250-300',
+    '300-350',
+    '400 plus',
   ];
-  List<String> _selectedMethods = [];
+  final List<String> _paymentMethodsDropdown = ['Cash', 'GCash', 'Both'];
+
+  String? _selectedMeetingFrequency;
+  String? _selectedRegistrationFeeRange;
+  String? _selectedMembershipPayment;
+  String? _selectedPenaltyPayment;
+  String? _selectedPaymentMethodDropdown;
+  bool _openForAll = false;
 
   bool _loading = true;
   List<Map<String, dynamic>> _units = [];
   int? _unitId;
 
-  final _contrib = TextEditingController();
-  final _mempayment = TextEditingController();
-  final _penaltypayment = TextEditingController();
-  final _paymentmethod = TextEditingController();
-
-  // Add this controller for Membership Rules
-  final _membershipRules = TextEditingController();
-
-  // New service rules list
-  List<Map<String, dynamic>> _serviceRules = [];
-
-  // Add controllers for new multi-line fields
-  final _beneficiaryRule = TextEditingController();
-  final _fundCollectionRules = TextEditingController();
-  final _fundCollectionPenalty = TextEditingController();
-  final _meetings = TextEditingController();
-  final _election = TextEditingController();
-  final _penaltyMeetingAbsence = TextEditingController();
-  final _penaltyServices = TextEditingController();
-  final _documentationRules = TextEditingController();
-  final _receiveContributions = TextEditingController();
-
   @override
   void initState() {
     super.initState();
-    // Print current user ID for debugging
-    final uid = sb.auth.currentUser?.id;
-    print('[ManageRulesPagePres] Current user ID: $uid');
     _init();
-  }
-
-  @override
-  void dispose() {
-    _contrib.dispose();
-    _mempayment.dispose();
-    _penaltypayment.dispose();
-    _paymentmethod.dispose();
-    _membershipRules.dispose(); // <-- dispose the new controller
-    _beneficiaryRule.dispose();
-    _fundCollectionRules.dispose();
-    _fundCollectionPenalty.dispose();
-    _meetings.dispose();
-    _election.dispose();
-    _penaltyMeetingAbsence.dispose();
-    _penaltyServices.dispose();
-    _documentationRules.dispose();
-    _receiveContributions.dispose();
-    super.dispose();
   }
 
   Future<void> _init() async {
     setState(() => _loading = true);
     try {
-      print('Loading units...');
       await _loadUnitsForPresident();
-      print('Units loaded: $_units');
       if (_unitId != null) {
-        print('Loading rules for unit $_unitId');
         await _loadRules(_unitId!);
-        print('Rules loaded');
       }
-    } catch (e, st) {
-      print('Error in _init: $e\n$st');
+    } catch (_) {
     } finally {
       if (mounted) setState(() => _loading = false);
     }
@@ -103,7 +65,6 @@ class _ManageRulesPagePresState extends State<ManageRulesPagePres> {
   Future<void> _loadUnitsForPresident() async {
     final uid = sb.auth.currentUser?.id;
     if (uid == null) {
-      print('No current user!');
       _units = [];
       return;
     }
@@ -122,118 +83,65 @@ class _ManageRulesPagePresState extends State<ManageRulesPagePres> {
     try {
       final row = await sb
           .from('dayung_rules')
-          .select(
-            '''
-            contribution_amount, membership_payment, penalty_payment, payment_method, service_rules, membership_rules,
-            beneficiary_rule, fundcollection_rules, fundcollection_penalty, meetings, election, penalty_meeting_absence, penalty_services, documentation_rules, receive_contributions
-            '''
-          )
+          .select('''
+            meeting_frequency, registration_fee_range, membership_payment, penalty_payment, payment_method, open_for_all
+            ''')
           .eq('dayung_unit_id', unitId)
           .maybeSingle();
-      print('Rules row: $row');
 
-      _contrib.text = (row?['contribution_amount'] ?? '').toString();
-      _mempayment.text = (row?['membership_payment'] ?? '').toString();
-      _penaltypayment.text = (row?['penalty_payment'] ?? '').toString();
-      _paymentmethod.text = (row?['payment_method'] ?? '').toString();
-      _membershipRules.text = (row?['membership_rules'] ?? '').toString(); // <-- load value
-      _beneficiaryRule.text = (row?['beneficiary_rule'] ?? '').toString();
-      _fundCollectionRules.text = (row?['fundcollection_rules'] ?? '').toString();
-      _fundCollectionPenalty.text = (row?['fundcollection_penalty'] ?? '').toString();
-      _meetings.text = (row?['meetings'] ?? '').toString();
-      _election.text = (row?['election'] ?? '').toString();
-      _penaltyMeetingAbsence.text = (row?['penalty_meeting_absence'] ?? '').toString();
-      _penaltyServices.text = (row?['penalty_services'] ?? '').toString();
-      _documentationRules.text = (row?['documentation_rules'] ?? '').toString();
-      _receiveContributions.text = (row?['receive_contributions'] ?? '').toString();
-
-      _selectedMethods = _paymentmethod.text.isNotEmpty
-          ? _paymentmethod.text.split(',').map((e) => e.trim()).toList()
-          : [];
-
-      // Robustly parse service_rules as jsonb or text
-      final sr = row?['service_rules'];
-      try {
-        if (sr is String) {
-          _serviceRules = List<Map<String, dynamic>>.from(jsonDecode(sr));
-        } else if (sr is List) {
-          _serviceRules = List<Map<String, dynamic>>.from(sr);
-        } else {
-          _serviceRules = [];
-        }
-      } catch (_) {
-        _serviceRules = [];
-      }
+      _selectedMeetingFrequency = row?['meeting_frequency'];
+      _selectedRegistrationFeeRange = row?['registration_fee_range'];
+      _selectedMembershipPayment = row?['membership_payment'];
+      _selectedPenaltyPayment = row?['penalty_payment'];
+      _selectedPaymentMethodDropdown = row?['payment_method'];
+      _openForAll = row?['open_for_all'] == true;
 
       setState(() {});
-    } catch (e, st) {
-      print('Error in _loadRules: $e\n$st');
-    }
+    } catch (_) {}
   }
 
   Future<void> _save() async {
-  if (_unitId == null) return;
-  setState(() => _loading = true);
-  try {
-    final selectedUnit = _units.firstWhere(
-      (u) => int.tryParse('${u['id']}') == _unitId,
-      orElse: () => {},
-    );
-    final unitName = selectedUnit['name'] ?? '';
+    if (_unitId == null) return;
+    setState(() => _loading = true);
+    try {
+      final selectedUnit = _units.firstWhere(
+        (u) => int.tryParse('${u['id']}') == _unitId,
+        orElse: () => {},
+      );
+      final unitName = selectedUnit['name'] ?? '';
+      final uid = sb.auth.currentUser?.id;
 
-    // Fetch current user's fullname from 'users' table
-    final uid = sb.auth.currentUser?.id;
-    String? uiid;
-    if (uid != null) {
-      final userRes = await sb
-          .from('users')
-          .select('id')
-          .eq('id', uid)
-          .maybeSingle();
-      uiid = userRes?['id']?.toString();
+      final payload = {
+        'dayung_unit_id': _unitId,
+        'dayung_unit_name': unitName,
+        'meeting_frequency': _selectedMeetingFrequency,
+        'registration_fee_range': _selectedRegistrationFeeRange,
+        'membership_payment': _selectedMembershipPayment,
+        'penalty_payment': _selectedPenaltyPayment,
+        'payment_method': _selectedPaymentMethodDropdown,
+        'open_for_all': _openForAll,
+        'updated_by': uid,
+      };
+
+      await sb
+          .from('dayung_rules')
+          .upsert(payload, onConflict: 'dayung_unit_id');
+
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('Rules saved')));
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Failed to save: $e')));
+      }
+    } finally {
+      if (mounted) setState(() => _loading = false);
     }
-
-    final payload = {
-      'dayung_unit_id': _unitId,
-      'dayung_unit_name': unitName,
-      'contribution_amount': _contrib.text.trim(),
-      'membership_payment': _mempayment.text.trim(),
-      'penalty_payment': _penaltypayment.text.trim(),
-      'payment_method': _selectedMethods.join(', '),
-      'service_rules': _serviceRules,
-      'membership_rules': _membershipRules.text.trim(),
-      'beneficiary_rule': _beneficiaryRule.text.trim(),
-      'fundcollection_rules': _fundCollectionRules.text.trim(),
-      'fundcollection_penalty': _fundCollectionPenalty.text.trim(),
-      'meetings': _meetings.text.trim(),
-      'election': _election.text.trim(),
-      'penalty_meeting_absence': _penaltyMeetingAbsence.text.trim(),
-      'penalty_services': _penaltyServices.text.trim(),
-      'documentation_rules': _documentationRules.text.trim(),
-      'receive_contributions': _receiveContributions.text.trim(),
-      'updated_by': uid,
-      'created_by': uiid ?? '', // <-- Save fullname here
-    };
-
-    await sb
-        .from('dayung_rules')
-        .upsert(payload, onConflict: 'dayung_unit_id');
-
-    if (mounted) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Rules saved')));
-    }
-  } catch (e) {
-    if (mounted) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Failed to save: $e')));
-    }
-  } finally {
-    if (mounted) setState(() => _loading = false);
   }
-}
 
   @override
   Widget build(BuildContext context) {
@@ -344,39 +252,47 @@ class _ManageRulesPagePresState extends State<ManageRulesPagePres> {
                           Expanded(
                             child: ListView(
                               children: [
-                                _field(
-                                  'Contribution Amount',
-                                  _contrib,
-                                  numbersOnly: true,
+                                _dropdownField(
+                                  'Meeting Frequency',
+                                  _meetingFrequencies,
+                                  _selectedMeetingFrequency,
+                                  (v) => setState(
+                                    () => _selectedMeetingFrequency = v,
+                                  ),
                                 ),
-                                _field(
+                                _dropdownField(
+                                  'Registration Fee Range',
+                                  _feeRanges,
+                                  _selectedRegistrationFeeRange,
+                                  (v) => setState(
+                                    () => _selectedRegistrationFeeRange = v,
+                                  ),
+                                ),
+                                _dropdownField(
                                   'Membership Payment',
-                                  _mempayment,
-                                  numbersOnly: true,
+                                  _feeRanges,
+                                  _selectedMembershipPayment,
+                                  (v) => setState(
+                                    () => _selectedMembershipPayment = v,
+                                  ),
                                 ),
-                                // Add this field for Membership Rules
-                                _field(
-                                  'Membership Rules (Long Description)',
-                                  _membershipRules,
-                                  numbersOnly: false,
-                                  maxLines: 6, // <-- allow multi-line input
-                                ),
-                                _field(
+                                _dropdownField(
                                   'Penalty Payment',
-                                  _penaltypayment,
-                                  numbersOnly: true,
+                                  _feeRanges,
+                                  _selectedPenaltyPayment,
+                                  (v) => setState(
+                                    () => _selectedPenaltyPayment = v,
+                                  ),
                                 ),
-                                _paymentMethodSelector(),
-                                _serviceRulesSection(),
-                                _field('Beneficiary Rule', _beneficiaryRule, maxLines: 6),
-                                _field('Fund Collection Rules', _fundCollectionRules, maxLines: 6),
-                                _field('Fund Collection Penalty', _fundCollectionPenalty, maxLines: 6),
-                                _field('Meetings', _meetings, maxLines: 6),
-                                _field('Election', _election, maxLines: 6),
-                                _field('Penalty for Meeting Absence', _penaltyMeetingAbsence, maxLines: 6),
-                                _field('Penalty for Services', _penaltyServices, maxLines: 6),
-                                _field('Documentation Rules', _documentationRules, maxLines: 6),
-                                _field('Receive Contributions', _receiveContributions, maxLines: 6),
+                                _dropdownField(
+                                  'Payment Method',
+                                  _paymentMethodsDropdown,
+                                  _selectedPaymentMethodDropdown,
+                                  (v) => setState(
+                                    () => _selectedPaymentMethodDropdown = v,
+                                  ),
+                                ),
+                                _openForAllSwitch(),
                                 const SizedBox(height: 16),
                                 ElevatedButton.icon(
                                   onPressed: _save,
@@ -450,7 +366,7 @@ class _ManageRulesPagePresState extends State<ManageRulesPagePres> {
           const SizedBox(width: 8),
           Expanded(
             child: DropdownButtonFormField<int>(
-              initialValue: _unitId,
+              value: _unitId,
               isExpanded: true,
               decoration: InputDecoration(
                 filled: true,
@@ -501,195 +417,17 @@ class _ManageRulesPagePresState extends State<ManageRulesPagePres> {
     );
   }
 
-  Widget _paymentMethodSelector() {
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: kCardBg,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: kBorderColor, width: 1),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text(
-            'Payment Methods',
-            style: TextStyle(
-              fontFamily: 'Montserrat',
-              fontWeight: FontWeight.w700,
-              fontSize: 16,
-              color: kText,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: _paymentMethods.map((method) {
-              final selected = _selectedMethods.contains(method);
-              return FilterChip(
-                label: Text(
-                  method,
-                  style: TextStyle(
-                    fontFamily: 'OpenSans',
-                    fontWeight: FontWeight.w600,
-                    color: selected ? Colors.white : kText,
-                  ),
-                ),
-                selected: selected,
-                selectedColor: kPrimary,
-                backgroundColor: kCardBg,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(10),
-                  side: BorderSide(color: selected ? kPrimary : kBorderColor),
-                ),
-                onSelected: (value) {
-                  setState(() {
-                    if (value) {
-                      _selectedMethods.add(method);
-                    } else {
-                      _selectedMethods.remove(method);
-                    }
-                  });
-                },
-              );
-            }).toList(),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _serviceRulesSection() {
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: kCardBg,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: kBorderColor, width: 1),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text(
-            'Service Rules',
-            style: TextStyle(
-              fontFamily: 'Montserrat',
-              fontWeight: FontWeight.w700,
-              fontSize: 16,
-              color: kText,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Column(
-            children: [
-              for (int i = 0; i < _serviceRules.length; i++)
-                _serviceRuleItem(i),
-              const SizedBox(height: 8),
-              TextButton.icon(
-                onPressed: () {
-                  setState(() {
-                    _serviceRules.add({'rule': '', 'required': false});
-                  });
-                },
-                icon: const Icon(Icons.add_circle, color: kPrimary),
-                label: const Text(
-                  'Add Rule',
-                  style: TextStyle(
-                    fontFamily: 'OpenSans',
-                    fontWeight: FontWeight.w600,
-                    color: kPrimary,
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _serviceRuleItem(int index) {
-    final rule = _serviceRules[index];
-    return Container(
-      margin: const EdgeInsets.only(bottom: 8),
-      padding: const EdgeInsets.all(8),
-      decoration: BoxDecoration(
-        color: kCardBg,
-        border: Border.all(color: kBorderColor),
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 5,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Row(
-        children: [
-          Expanded(
-            child: TextFormField(
-              initialValue: rule['rule'],
-              onChanged: (v) => _serviceRules[index]['rule'] = v,
-              decoration: const InputDecoration(
-                labelText: 'Rule',
-                border: OutlineInputBorder(),
-              ),
-            ),
-          ),
-          const SizedBox(width: 8),
-          Column(
-            children: [
-              const Text(
-                'Required',
-                style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                  fontFamily: 'OpenSans',
-                ),
-              ),
-              Checkbox(
-                value: rule['required'],
-                onChanged: (v) {
-                  setState(() {
-                    _serviceRules[index]['required'] = v ?? false;
-                  });
-                },
-              ),
-            ],
-          ),
-          IconButton(
-            icon: const Icon(Icons.delete, color: kDanger),
-            onPressed: () {
-              setState(() {
-                _serviceRules.removeAt(index);
-              });
-            },
-          ),
-        ],
-      ),
-    );
-  }
-
-  // Update the _field method to accept maxLines
-  Widget _field(
+  Widget _dropdownField(
     String label,
-    TextEditingController c, {
-    bool numbersOnly = false,
-    int maxLines = 1, // <-- add this default
-  }) {
+    List<String> options,
+    String? selectedValue,
+    ValueChanged<String?> onChanged,
+  ) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
-      child: TextFormField(
-        controller: c,
-        keyboardType: numbersOnly
-            ? TextInputType.number
-            : TextInputType.multiline,
-        inputFormatters: numbersOnly
-            ? [FilteringTextInputFormatter.digitsOnly]
-            : null,
-        maxLines: maxLines, // <-- support multi-line
+      child: DropdownButtonFormField<String>(
+        value: selectedValue,
+        isExpanded: true,
         decoration: InputDecoration(
           labelText: label,
           labelStyle: const TextStyle(
@@ -712,12 +450,57 @@ class _ManageRulesPagePresState extends State<ManageRulesPagePres> {
             borderSide: const BorderSide(color: kPrimary, width: 2),
           ),
         ),
-        style: const TextStyle(
-          fontFamily: 'OpenSans',
-          fontWeight: FontWeight.w600,
-          fontSize: 15,
-          color: kText,
-        ),
+        items: options
+            .map(
+              (o) => DropdownMenuItem<String>(
+                value: o,
+                child: Text(
+                  o,
+                  style: const TextStyle(
+                    fontFamily: 'OpenSans',
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            )
+            .toList(),
+        onChanged: onChanged,
+      ),
+    );
+  }
+
+  Widget _openForAllSwitch() {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Row(
+        children: [
+          const Text(
+            'Open for all?',
+            style: TextStyle(
+              fontFamily: 'Montserrat',
+              fontWeight: FontWeight.w700,
+              fontSize: 16,
+              color: kText,
+            ),
+          ),
+          const SizedBox(width: 16),
+          Row(
+            children: [
+              Radio<bool>(
+                value: true,
+                groupValue: _openForAll,
+                onChanged: (v) => setState(() => _openForAll = v ?? false),
+              ),
+              const Text('Yes'),
+              Radio<bool>(
+                value: false,
+                groupValue: _openForAll,
+                onChanged: (v) => setState(() => _openForAll = v ?? false),
+              ),
+              const Text('No'),
+            ],
+          ),
+        ],
       ),
     );
   }

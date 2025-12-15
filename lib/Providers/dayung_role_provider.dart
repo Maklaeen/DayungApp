@@ -7,6 +7,7 @@ class DayungRoleProvider extends ChangeNotifier {
   int? unitId;
   bool loading = false;
 
+  bool isSuperAdmin = false;
   bool isPresident = false;
   bool isSecretary = false;
   bool isTreasurer = false;
@@ -39,7 +40,7 @@ class DayungRoleProvider extends ChangeNotifier {
     } catch (_) {}
     return null;
   }
-  
+
   Future<void> refreshRoles(int? newUnitId) async {
     if (loading && newUnitId == unitId) {
       debugPrint('[ROLES] skip: already loading for unit=$unitId');
@@ -59,6 +60,27 @@ class DayungRoleProvider extends ChangeNotifier {
     }
 
     try {
+      // --- SUPERADMIN CHECK ---
+      try {
+        final user = await _sb
+            .from('users')
+            .select('role')
+            .eq('id', uid)
+            .maybeSingle();
+        isSuperAdmin = user?['role'] == 'superadmin';
+        debugPrint('[ROLES] isSuperAdmin=$isSuperAdmin');
+      } catch (_) {
+        isSuperAdmin = false;
+      }
+
+      // If superadmin, skip the rest
+      if (isSuperAdmin) {
+        isPresident = isSecretary = isTreasurer = isCollector = isMember = false;
+        loading = false;
+        notifyListeners();
+        return;
+      }
+
       // President (any unit)
       try {
         final pres = await _sb
@@ -110,16 +132,19 @@ class DayungRoleProvider extends ChangeNotifier {
       } else {
         isSecretary = isTreasurer = isCollector = isMember = false;
       }
-    } catch (_) {
+    } catch (e) {
       _reset();
+      print('[ROLES] error: $e');
     } finally {
       if (req != _reqCounter) return; // stale
       loading = false;
       notifyListeners();
+      debugPrint('[ROLES] refreshRoles finished for unit=$unitId');
     }
   }
 
   void _reset() {
+    isSuperAdmin = false;
     isPresident = isSecretary = isTreasurer = isCollector = isMember = false;
   }
 }

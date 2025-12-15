@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'set_amounts_tab.dart'; // <-- Add this import
 
 const kBg = Color(0xFFFAFAF7);
 const kText = Color(0xFF1F2937);
@@ -20,11 +20,45 @@ class _CollectCashPageState extends State<CollectCashPage> {
   bool _loading = true;
   String? _error;
   List<Map<String, dynamic>> _approvedMembers = [];
+  List<Map<String, dynamic>> _setAmounts = [];
+  List<Map<String, dynamic>> _payments = [];
+  Map<String, dynamic>? _selectedMember;
+  int? _selectedSetAmountIndex;
 
   @override
   void initState() {
     super.initState();
     _load();
+    _loadSetAmounts();
+    _loadPayments(); // <-- Add this
+  }
+
+  Future<void> _loadSetAmounts() async {
+    try {
+      final res = await sb
+          .from('set_amount')
+          .select('id, userdeceased, amount') // <-- include id
+          .eq('dayung_unit_id', widget.dayungUnitId);
+      setState(() {
+        _setAmounts = List<Map<String, dynamic>>.from(res);
+      });
+    } catch (e) {
+      // Optionally handle error
+    }
+  }
+
+  Future<void> _loadPayments() async {
+    try {
+      final res = await sb
+          .from('payments')
+          .select('*')
+          .eq('dayung_unit_id', widget.dayungUnitId);
+      setState(() {
+        _payments = List<Map<String, dynamic>>.from(res);
+      });
+    } catch (e) {
+      // Optionally handle error
+    }
   }
 
   Future<void> _load() async {
@@ -33,17 +67,15 @@ class _CollectCashPageState extends State<CollectCashPage> {
       _error = null;
     });
     try {
-      // 1. Get all approved applications for this dayung
       final appsRes = await sb
           .from('applications')
           .select('user_id')
           .eq('dayung_unit_id', widget.dayungUnitId)
           .eq('status', 'approved');
-      final userIds = List<Map<String, dynamic>>.from(appsRes)
-          .map((a) => a['user_id'])
-          .toList();
+      final userIds = List<Map<String, dynamic>>.from(
+        appsRes,
+      ).map((a) => a['user_id']).toList();
 
-      // 2. Fetch user info
       List<Map<String, dynamic>> members = [];
       if (userIds.isNotEmpty) {
         final usersRes = await sb
@@ -65,48 +97,12 @@ class _CollectCashPageState extends State<CollectCashPage> {
     }
   }
 
-  void _showInputDialog(Map<String, dynamic> member) async {
-    final controller = TextEditingController();
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text('Enter Payment for ${member['full_name']}'),
-        content: TextField(
-          controller: controller,
-          keyboardType: TextInputType.numberWithOptions(decimal: true),
-          inputFormatters: [
-            FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d{0,2}')),
-          ],
-          decoration: const InputDecoration(
-            labelText: 'Amount (₱)',
-          ),
-        ),
-        actions: [
-          TextButton(
-            child: const Text('Cancel'),
-            onPressed: () => Navigator.pop(ctx, false),
-          ),
-          ElevatedButton(
-            child: const Text('Save Payment'),
-            onPressed: () => Navigator.pop(ctx, true),
-          ),
-        ],
-      ),
-    );
-
-    if (confirmed == true) {
-      final amount = double.tryParse(controller.text);
-      if (amount == null || amount <= 0) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Please enter a valid amount.')),
-        );
-        return;
-      }
-      await _savePayment(member['id'], amount);
-    }
-  }
-
-  Future<void> _savePayment(String userId, double amount) async {
+  // Update _savePayment to accept setAmountId
+  Future<void> _savePayment(
+    String userId,
+    double amount,
+    String setAmountId,
+  ) async {
     try {
       final collectorId = sb.auth.currentUser?.id;
       if (collectorId == null) {
@@ -115,23 +111,37 @@ class _CollectCashPageState extends State<CollectCashPage> {
         );
         return;
       }
+
+      // Get set_amount row for userdeceased
+      final setAmount = _setAmounts.firstWhere(
+        (a) => a['id'].toString() == setAmountId,
+        orElse: () => <String, dynamic>{},
+      );
+
       final now = DateTime.now().toUtc().toIso8601String();
-      await sb.from('payments').insert({
+      final paymentData = {
+        'userdeceased': setAmount['userdeceased'],
         'user_id': userId,
         'amount': amount,
+        'datepaidamount': now,
         'dayung_unit_id': widget.dayungUnitId,
         'status': 'paid',
         'paid_at': now,
         'collected_by': collectorId,
-      });
+      };
+
+      await sb.from('payments').insert(paymentData);
+
+      // Reload payments so isPaid will be true in debug
+      await _loadPayments();
+
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Payment recorded!')),
+        const SnackBar(content: Text('Payment saved successfully!')),
       );
-      _load();
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to save payment: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Failed to save payment: $e')));
     }
   }
 
@@ -155,47 +165,103 @@ class _CollectCashPageState extends State<CollectCashPage> {
       body: _loading
           ? const Center(child: CircularProgressIndicator())
           : _error != null
-              ? Center(
-                  child: Text(
-                    _error!,
-                    style: const TextStyle(color: Colors.red, fontSize: 18),
-                  ),
-                )
-              : _approvedMembers.isEmpty
-                  ? const Center(
-                      child: Text(
-                        'No approved members assigned.',
-                        style: TextStyle(
-                          fontSize: 22,
-                          color: kSubText,
-                          fontWeight: FontWeight.w600,
-                        ),
+          ? Center(
+              child: Text(
+                _error!,
+                style: const TextStyle(color: Colors.red, fontSize: 18),
+              ),
+            )
+          : _selectedMember == null
+          ? _approvedMembers.isEmpty
+                ? const Center(
+                    child: Text(
+                      'No approved members assigned.',
+                      style: TextStyle(
+                        fontSize: 22,
+                        color: kSubText,
+                        fontWeight: FontWeight.w600,
                       ),
-                    )
-                  : ListView.separated(
-                      padding: const EdgeInsets.all(18),
-                      itemCount: _approvedMembers.length,
-                      separatorBuilder: (_, __) => const SizedBox(height: 14),
-                      itemBuilder: (context, i) {
-                        final member = _approvedMembers[i];
-                        return ListTile(
-                          title: Text(
-                            member['full_name'] ?? 'Member',
-                            style: const TextStyle(
-                              fontSize: 20,
-                              fontWeight: FontWeight.w800,
-                              color: kText,
+                    ),
+                  )
+                : Padding(
+                    padding: const EdgeInsets.all(18),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Padding(
+                          padding: EdgeInsets.only(bottom: 12.0, left: 4.0),
+                          child: Text(
+                            'MEMBERS',
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                              color: kAccent,
+                              letterSpacing: 1.2,
                             ),
                           ),
-                          tileColor: Colors.white,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(16),
-                            side: BorderSide(color: kAccent.withOpacity(0.10)),
+                        ),
+                        Expanded(
+                          child: ListView.separated(
+                            itemCount: _approvedMembers.length,
+                            separatorBuilder: (_, __) =>
+                                const SizedBox(height: 14),
+                            itemBuilder: (context, i) {
+                              final member = _approvedMembers[i];
+                              return ListTile(
+                                title: Text(
+                                  member['full_name'] ?? 'Member',
+                                  style: const TextStyle(
+                                    fontSize: 20,
+                                    fontWeight: FontWeight.w800,
+                                    color: kText,
+                                  ),
+                                ),
+                                tileColor: Colors.white,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(16),
+                                  side: BorderSide(
+                                    color: kAccent.withOpacity(0.10),
+                                  ),
+                                ),
+                                onTap: () {
+                                  final userId =
+                                      member['id'] ?? member['user_id'];
+                                  debugPrint('MEMBERS TAPPED: $userId');
+                                  setState(() {
+                                    _selectedMember = member;
+                                    _selectedSetAmountIndex = null;
+                                  });
+                                },
+                              );
+                            },
                           ),
-                          onTap: () => _showInputDialog(member),
-                        );
-                      },
+                        ),
+                      ],
                     ),
+                  )
+          : SetAmountsTab(
+              setAmounts: _setAmounts,
+              selectedMember: _selectedMember,
+              selectedSetAmountIndex: _selectedSetAmountIndex,
+              onSetAmount: (index, amount, setAmountId) async {
+                final userId =
+                    _selectedMember?['id'] ?? _selectedMember?['user_id'];
+                if (userId != null) {
+                  await _savePayment(userId, amount, setAmountId);
+                }
+                setState(() {
+                  _selectedMember = null;
+                  _selectedSetAmountIndex = null;
+                });
+              },
+              onSavePayment: (userId, amount) async {
+                await _savePayment(userId, amount, '');
+              },
+              users: _approvedMembers,
+              paymentList: _payments
+                  .where((p) => p['user_id'] == _selectedMember?['id'])
+                  .toList(), // <-- Use correct parameter name
+            ),
     );
   }
 }

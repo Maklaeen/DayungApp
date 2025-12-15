@@ -625,12 +625,12 @@ class _SecretaryApplicationsPageState extends State<SecretaryApplicationsPage> {
     }
   }
 
-  // New: fetch birth certificate URL (from applications first, then users)
+
+  // Fetch birth certificate URL (from applications first, then users)
   Future<String?> _getBirthCertificateUrl({
     required String userId,
     int? applicationId,
   }) async {
-    // Try from applications table (if present)
     if (applicationId != null) {
       try {
         final row = await _supabase
@@ -640,12 +640,8 @@ class _SecretaryApplicationsPageState extends State<SecretaryApplicationsPage> {
             .single();
         final url = (row['birth_certificate_url'] ?? '').toString().trim();
         if (url.isNotEmpty) return url;
-      } catch (_) {
-        // ignore and fallback to users
-      }
+      } catch (_) {}
     }
-
-    // Fallback: try from users table
     try {
       final row = await _supabase
           .from('users')
@@ -654,10 +650,63 @@ class _SecretaryApplicationsPageState extends State<SecretaryApplicationsPage> {
           .single();
       final url = (row['birth_certificate_url'] ?? '').toString().trim();
       if (url.isNotEmpty) return url;
-    } catch (_) {
-      // ignore
-    }
+    } catch (_) {}
+    return null;
+  }
 
+  // Fetch valid ID URL (from applications first, then users)
+  Future<String?> _getValidIdUrl({
+    required String userId,
+    int? applicationId,
+  }) async {
+    if (applicationId != null) {
+      try {
+        final row = await _supabase
+            .from('applications')
+            .select('valid_id_url')
+            .eq('id', applicationId)
+            .single();
+        final url = (row['valid_id_url'] ?? '').toString().trim();
+        if (url.isNotEmpty) return url;
+      } catch (_) {}
+    }
+    try {
+      final row = await _supabase
+          .from('users')
+          .select('valid_id_url')
+          .eq('id', userId)
+          .single();
+      final url = (row['valid_id_url'] ?? '').toString().trim();
+      if (url.isNotEmpty) return url;
+    } catch (_) {}
+    return null;
+  }
+
+  // Fetch proof of residency URL (from applications first, then users)
+  Future<String?> _getProofOfResidencyUrl({
+    required String userId,
+    int? applicationId,
+  }) async {
+    if (applicationId != null) {
+      try {
+        final row = await _supabase
+            .from('applications')
+            .select('proof_of_residency_url')
+            .eq('id', applicationId)
+            .single();
+        final url = (row['proof_of_residency_url'] ?? '').toString().trim();
+        if (url.isNotEmpty) return url;
+      } catch (_) {}
+    }
+    try {
+      final row = await _supabase
+          .from('users')
+          .select('proof_of_residency_url')
+          .eq('id', userId)
+          .single();
+      final url = (row['proof_of_residency_url'] ?? '').toString().trim();
+      if (url.isNotEmpty) return url;
+    } catch (_) {}
     return null;
   }
 
@@ -684,15 +733,50 @@ class _SecretaryApplicationsPageState extends State<SecretaryApplicationsPage> {
             constraints: const BoxConstraints(maxWidth: 520),
             child: Padding(
               padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
-              child: FutureBuilder<String?>(
-                future: _getBirthCertificateUrl(
-                  userId: userId,
-                  applicationId: applicationId,
-                ),
+              child: FutureBuilder<List<String?>>(
+                future: Future.wait([
+                  _getBirthCertificateUrl(
+                    userId: userId,
+                    applicationId: applicationId,
+                  ),
+                  () async {
+                    // Try to get 'valid_id' from users table first
+                    try {
+                      final row = await _supabase
+                          .from('users')
+                          .select('valid_id')
+                          .eq('id', userId)
+                          .single();
+                      final url = (row['valid_id'] ?? '').toString().trim();
+                      if (url.isNotEmpty) return url;
+                    } catch (_) {}
+                    // Fallback to _getValidIdUrl
+                    return await _getValidIdUrl(
+                      userId: userId,
+                      applicationId: applicationId,
+                    );
+                  }(),
+                  _getProofOfResidencyUrl(
+                    userId: userId,
+                    applicationId: applicationId,
+                  ),
+                ]),
                 builder: (context, snap) {
                   final loading = snap.connectionState != ConnectionState.done;
-                  final birthUrl = snap.data;
-                  final uploaded = (birthUrl != null && birthUrl.isNotEmpty);
+                  final birthUrl = snap.data != null ? snap.data![0] : null;
+                  final validIdUrl = snap.data != null ? snap.data![1] : null;
+                  final residencyUrl = snap.data != null ? snap.data![2] : null;
+                  final uploadedBirth = (birthUrl != null && birthUrl.isNotEmpty);
+                  final uploadedValidId = (validIdUrl != null && validIdUrl.isNotEmpty);
+                  final uploadedResidency = (residencyUrl != null && residencyUrl.isNotEmpty);
+
+                  // Progress calculation
+                  int completed = 0;
+                  if (uploadedBirth) completed++;
+                  if (uploadedValidId) completed++;
+                  if (uploadedResidency) completed++;
+                  const total = 3;
+                  double progress = completed / total;
 
                   return Column(
                     mainAxisSize: MainAxisSize.min,
@@ -708,7 +792,7 @@ class _SecretaryApplicationsPageState extends State<SecretaryApplicationsPage> {
                           const SizedBox(width: 4),
                           Expanded(
                             child: Text(
-                              'Application tracking • $userName',
+                              'Application Progress • $userName',
                               textAlign: TextAlign.center,
                               style: const TextStyle(
                                 fontWeight: FontWeight.w700,
@@ -725,30 +809,96 @@ class _SecretaryApplicationsPageState extends State<SecretaryApplicationsPage> {
                         const Center(child: CircularProgressIndicator()),
                         const SizedBox(height: 12),
                       ] else ...[
-                        ListTile(
-                          contentPadding: EdgeInsets.zero,
-                          leading: Icon(
-                            uploaded
-                                ? Icons.check_circle
-                                : Icons.cancel_rounded,
-                            color: uploaded ? kSuccess : kDanger,
+                        // Progress bar
+                        Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              LinearProgressIndicator(
+                                value: progress,
+                                minHeight: 8,
+                                backgroundColor: kBorderColor,
+                                color: progress == 1.0 ? kSuccess : kPrimary,
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              const SizedBox(height: 8),
+                              Text(
+                                'Progress: $completed of $total steps completed',
+                                style: TextStyle(
+                                  color: progress == 1.0 ? kSuccess : kPrimary,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ],
                           ),
-                          title: const Text('Birth certificate'),
-                          subtitle: Text(
-                            uploaded ? 'Uploaded' : 'Not uploaded',
-                            style: TextStyle(
-                              color: uploaded ? kSuccess : kDanger,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                          trailing: uploaded
-                              ? OutlinedButton.icon(
-                                  icon: const Icon(Icons.picture_as_pdf),
-                                  label: const Text('View'),
-                                  onPressed: () =>
-                                      _openCertificateViewer(birthUrl!),
-                                )
+                        ),
+                        const SizedBox(height: 8),
+                        // Step 1: Birth Certificate
+                        _TrackingStepTile(
+                          stepNumber: 1,
+                          title: 'Birth Certificate',
+                          completed: uploadedBirth,
+                          url: birthUrl,
+                          onView: uploadedBirth
+                              ? () => _openCertificateViewer(birthUrl)
                               : null,
+                        ),
+                        const SizedBox(height: 8),
+                        // Step 2: Valid ID
+                        _TrackingStepTile(
+                          stepNumber: 2,
+                          title: 'Valid ID',
+                          completed: uploadedValidId,
+                          url: validIdUrl,
+                          onView: uploadedValidId
+                              ? () => _openCertificateViewer(validIdUrl)
+                              : null,
+                        ),
+                        const SizedBox(height: 8),
+                        // Step 3: Proof of Residency
+                        _TrackingStepTile(
+                          stepNumber: 3,
+                          title: 'Proof of Residency',
+                          completed: uploadedResidency,
+                          url: residencyUrl,
+                          onView: uploadedResidency
+                              ? () => _openCertificateViewer(residencyUrl)
+                              : null,
+                        ),
+                        const SizedBox(height: 16),
+                        // Approve/Reject buttons
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.end,
+                          children: [
+                            OutlinedButton.icon(
+                              icon: const Icon(Icons.close, color: Colors.red),
+                              label: const Text('Reject', style: TextStyle(color: Colors.red)),
+                              onPressed: () {
+                                Navigator.pop(ctx);
+                                if (applicationId != null) {
+                                  _reject(applicationId);
+                                }
+                              },
+                              style: OutlinedButton.styleFrom(
+                                side: const BorderSide(color: Colors.red),
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            OutlinedButton.icon(
+                              icon: const Icon(Icons.check_circle, color: Colors.green),
+                              label: const Text('Approve', style: TextStyle(color: Colors.green)),
+                              onPressed: () {
+                                Navigator.pop(ctx);
+                                if (applicationId != null) {
+                                  _approve(applicationId, deceasedElsewhere: _deceasedUserIds.contains(userId));
+                                }
+                              },
+                              style: OutlinedButton.styleFrom(
+                                side: const BorderSide(color: Colors.green),
+                              ),
+                            ),
+                          ],
                         ),
                         const SizedBox(height: 8),
                       ],
@@ -911,10 +1061,10 @@ class _SecretaryApplicationsPageState extends State<SecretaryApplicationsPage> {
                             child: Column(
                               mainAxisSize: MainAxisSize.min,
                               children: [
-                                CircularProgressIndicator(
-                                  color: kPrimary,
-                                  strokeWidth: 3,
-                                ),
+                                // CircularProgressIndicator(
+                                //   color: kPrimary,
+                                //   strokeWidth: 3,
+                                // ),
                                 const SizedBox(height: 16),
                                 const Text(
                                   'Loading applications...',
@@ -1133,7 +1283,8 @@ class _SecretaryApplicationsPageState extends State<SecretaryApplicationsPage> {
                                                         ),
                                                       ),
                                                 loading: () =>
-                                                    const CircularProgressIndicator(),
+                                                    // const CircularProgressIndicator(),
+                                                    const SizedBox.shrink(),
                                                 error: (e, _) =>
                                                     Text('Error: $e'),
                                               );
@@ -1211,24 +1362,6 @@ class _SecretaryApplicationsPageState extends State<SecretaryApplicationsPage> {
     int applicationId, [
     bool deceasedElsewhere = false,
   ]) {
-    if (status == 'pending') {
-      return Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          IconButton(
-            tooltip: 'Reject',
-            icon: const Icon(Icons.close, color: Colors.red),
-            onPressed: () => _reject(applicationId),
-          ),
-          IconButton(
-            tooltip: 'Approve',
-            icon: const Icon(Icons.check_circle, color: Colors.green),
-            onPressed: () =>
-                _approve(applicationId, deceasedElsewhere: deceasedElsewhere),
-          ),
-        ],
-      );
-    }
     if (status == 'approved') {
       return const Icon(Icons.verified, color: Colors.green);
     }
@@ -1294,7 +1427,7 @@ class _NavTab extends StatelessWidget {
 
 class _PdfViewer extends StatelessWidget {
   final Uint8List bytes;
-  const _PdfViewer({super.key, required this.bytes});
+  const _PdfViewer({required this.bytes});
 
   @override
   Widget build(BuildContext context) {
@@ -1304,7 +1437,7 @@ class _PdfViewer extends StatelessWidget {
 
 class _PdfViewerInner extends StatefulWidget {
   final Uint8List bytes;
-  const _PdfViewerInner({super.key, required this.bytes});
+  const _PdfViewerInner({required this.bytes});
 
   @override
   State<_PdfViewerInner> createState() => _PdfViewerInnerState();
@@ -1339,6 +1472,85 @@ class _PdfViewerInnerState extends State<_PdfViewerInner> {
             const Center(child: CircularProgressIndicator()),
         errorBuilder: (_, err) => Center(child: Text('PDF error: $err')),
       ),
+    );
+  }
+}
+
+// Add this widget below _NavTab class or at the end of the file
+class _TrackingStepTile extends StatelessWidget {
+  final int stepNumber;
+  final String title;
+  final bool completed;
+  final String? url;
+  final VoidCallback? onView;
+
+  const _TrackingStepTile({
+    required this.stepNumber,
+    required this.title,
+    required this.completed,
+    this.url,
+    this.onView,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        // Step circle
+        Container(
+          width: 28,
+          height: 28,
+          decoration: BoxDecoration(
+            color: completed ? kSuccess : kBorderColor,
+            shape: BoxShape.circle,
+            border: Border.all(
+              color: completed ? kSuccess : kBorderColor,
+              width: 2,
+            ),
+          ),
+          child: Center(
+            child: completed
+                ? const Icon(Icons.check, color: Colors.white, size: 18)
+                : Text(
+                    '$stepNumber',
+                    style: const TextStyle(
+                      color: kSubText,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+          ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                title,
+                style: TextStyle(
+                  fontWeight: FontWeight.w600,
+                  fontSize: 15,
+                  color: completed ? kSuccess : kText,
+                ),
+              ),
+              Text(
+                completed ? 'Uploaded' : 'Not uploaded',
+                style: TextStyle(
+                  color: completed ? kSuccess : kDanger,
+                  fontWeight: FontWeight.w500,
+                  fontSize: 13,
+                ),
+              ),
+            ],
+          ),
+        ),
+        if (completed && onView != null)
+          OutlinedButton.icon(
+            icon: const Icon(Icons.picture_as_pdf, size: 18),
+            label: const Text('View'),
+            onPressed: onView,
+          ),
+      ],
     );
   }
 }

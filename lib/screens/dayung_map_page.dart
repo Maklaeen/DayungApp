@@ -1005,7 +1005,9 @@ class _DayungMapPageState extends State<DayungMapPage> {
   }
 
   Widget _infoPanel(double? dist) {
-    final name = (widget.dayung['name'] ?? 'Dayung').toString();
+    final name =
+        (widget.dayung['name'] ?? widget.dayung['dayung_unit_name'] ?? 'Dayung')
+            .toString();
     final address = _address(widget.dayung);
     return Container(
       width: double.infinity,
@@ -1214,15 +1216,15 @@ class _DayungMapPageState extends State<DayungMapPage> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          "Nearby Dayungs",
-          style: TextStyle(
-            fontSize: 14,
-            fontWeight: FontWeight.w700,
-            fontFamily: 'Montserrat',
-            color: kSubtleText.withOpacity(.9),
-          ),
-        ),
+        // Text(
+        //   "Nearby Dayungs",
+        //   style: TextStyle(
+        //     fontSize: 14,
+        //     fontWeight: FontWeight.w700,
+        //     fontFamily: 'Montserrat',
+        //     color: kSubtleText.withOpacity(.9),
+        //   ),
+        // ),
         const SizedBox(height: 8),
         SizedBox(
           height: 86,
@@ -1233,7 +1235,8 @@ class _DayungMapPageState extends State<DayungMapPage> {
             separatorBuilder: (_, __) => const SizedBox(width: 12),
             itemBuilder: (_, i) {
               final d = list[i];
-              final dName = (d['name'] ?? 'Dayung').toString();
+              final dName = (d['name'] ?? d['dayung_unit_name'] ?? 'Dayung')
+                  .toString();
               final dist = d['_dist'] as double;
               return InkWell(
                 onTap: () {

@@ -1,31 +1,39 @@
 import 'dart:convert';
+import 'dart:ui';
+import 'package:capstone_app/Auth/logout.dart';
+import 'package:capstone_app/Beneficiary/beneficiary.dart';
+import 'package:capstone_app/Members/gcash_payment_page.dart';
+import 'package:capstone_app/Members/memclaims.dart';
+import 'package:capstone_app/Members/memcontributions.dart';
+import 'package:capstone_app/Providers/apptheme_provider.dart';
 import 'package:capstone_app/Providers/dayung_provider.dart';
 import 'package:capstone_app/Providers/dayung_role_provider.dart';
-import 'package:capstone_app/pages/claims.dart';
-import 'package:capstone_app/pages/notification.dart'
-    hide kPrimary, kNeutralText, kPrimaryDark, kSubtleText, kWarn, kDanger;
+import 'package:capstone_app/pages/notification.dart';
 import 'package:capstone_app/pages/paymentmethod.dart';
-import 'package:capstone_app/pages/contributionhistory.dart';
-import 'package:capstone_app/pages/recentdeathnotices.dart' hide kDanger;
-import 'package:capstone_app/profile/profile.dart' hide kPrimary, kWarn;
-import 'package:capstone_app/screens/selectdayung.dart'
-    hide kPrimary, kWarn, kPrimaryDark, kDanger;
-import 'package:capstone_app/Auth/login.dart'
-    hide kPrimary, kNeutralText, kSubtleText, kPrimaryDark, kWarn, kDanger;
-import 'package:auto_size_text/auto_size_text.dart';
-import 'package:capstone_app/ui/theme/branding.dart';
+import 'package:capstone_app/pages/recentdeathnotices.dart';
+import 'package:capstone_app/profile/profile.dart';
+import 'package:capstone_app/screens/selectdayung.dart';
+import 'package:capstone_app/Auth/login.dart';
+import 'package:capstone_app/settings/profsettings.dart';
 import 'package:flutter/material.dart';
-import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:capstone_app/Members/top_notification.dart';
+import 'package:url_launcher/url_launcher.dart';
+import 'package:file_picker/file_picker.dart';
 
-// Shared palette aligned to Secretary
+// Color palette
 const kBg = Color(0xFFFAFAF7);
 const kText = Color(0xFF1F2937);
 const kSubText = Color(0xFF4B5563);
 const kAccent = Color(0xFF0D47A1);
+const kPrimary = Color(0xFF0D47A1);
+const kPrimaryDark = Color(0xFF083366);
+const kWarn = Color(0xFFF57C00);
+const kDanger = Color(0xFFC62828);
+const kNeutralText = Color(0xFF1F2937);
+const kSubtleText = Color(0xFF4B5563);
 
 class MemberDashboardPage extends StatefulWidget {
   const MemberDashboardPage({super.key});
@@ -35,102 +43,173 @@ class MemberDashboardPage extends StatefulWidget {
 
 class _MemberDashboardPageState extends State<MemberDashboardPage> {
   final supabase = Supabase.instance.client;
-  RealtimeChannel? _notifChannel;
   final List<RealtimeChannel> _announcementChannels = [];
-  final ScrollController _scrollController = ScrollController();
-  int _unreadNotifCount = 0;
-
-  Map<String, dynamic>? _selectedDayungUnitObj;
-  String _selectedDayungUnit = 'Dayung Unit'; // align with Secretary
-  String? _unitBarangay; // align with Secretary
-  String? _unitCity; // align with Secretary
-  // ignore: unused_field
   int? _dayungUnitId;
-  int? _lastRoleUnitId;
-  int? _lastProviderUnitId;
-
-  int? _lastHandledUnitId; // ADD
-  bool _pendingUnitChange = false; // ADD
-  bool _handlingOverlay = false;
-
-  // ignore: unused_field
-  User? _user;
-  String _fullName = 'Member';
-  // ignore: unused_field
-  String? _profileUrl;
-
-  bool _showNavBar = true;
-  // ignore: unused_field
-  bool _loadingUser = true;
-  int _currentIndex = 0;
-
-  // Dynamic stats
-  int _activeMembersCount = 0;
-  bool _loadingActiveMembers = true;
-
-  List<Map<String, dynamic>> _recentCertificates = [];
-  bool _loadingCertificates = true;
-
-  List<Map<String, dynamic>> _pendingPaymentsByDeathNotice = [];
-
-  double _pendingPaymentsAmount = 0;
-  int _pendingPaymentCount = 0;
-  bool _loadingPending = true;
-
-  bool _loadingActivity = true;
-  List<Map<String, dynamic>> _latestActivities = [];
-
-  int? _asInt(dynamic v) => v == null ? null : int.tryParse(v.toString());
+  final ScrollController _scrollController = ScrollController();
+  RealtimeChannel? _notifChannel;
 
   void _afterFrame(VoidCallback fn) {
-    // ADD
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) fn();
-    });
+    WidgetsBinding.instance.addPostFrameCallback((_) => fn());
   }
+
+  User? _user;
+
+  Map<String, dynamic>? _selectedDayungUnitObj;
+
+  String _fullName = 'Member';
+  String? _profileUrl;
+  String _selectedDayungUnit = 'Dayung Unit';
+  String? _unitBarangay;
+  String? _unitCity;
+  String? birthCertificateUrl;
+  String? marriageCertificateUrl;
+
+  bool _loadingUnit = true;
+  bool _loadingUser = true;
+  bool _loadingActiveMembers = true;
+  bool _loadingCertificates = true;
+  bool _pendingUnitChange = false;
+  bool _handlingOverlay = false;
+  bool _loadingPending = true;
+  bool _loadingActivity = true;
+  bool _uploadingImage = false;
+  bool _loading = true;
+
+  List<Map<String, dynamic>> _recentCertificates = [];
+  List<Map<String, dynamic>> _pendingPaymentsByDeathNotice = [];
+  List<Map<String, dynamic>> _latestActivities = [];
+
+  double _pendingPaymentsAmount = 0;
+
+  int _pendingPaymentCount = 0;
+  int _unreadNotifCount = 0;
+  int? _lastHandledUnitId; // ADD
+  int? _lastProviderUnitId;
+  int _activeMembersCount = 0;
+  int? _asInt(dynamic v) => v == null ? null : int.tryParse(v.toString());
+  List<int> _managedUnitIds = [];
+  int? get _primaryUnitId =>
+      _managedUnitIds.isNotEmpty ? _managedUnitIds.first : null;
+  int? _lastRoleUnitId;
+  int _currentIndex = 0;
+  bool _showNavBar = true;
 
   @override
   void initState() {
     super.initState();
-    _subscribeNotificationsRealtime();
-    _loadOrAskDayung();
-    _fetchUnreadNotifCount();
-    _loadUserData();
-    // Defer bootstrapping to after first frame to avoid setState during build
-    _afterFrame(() async {
-      if (!mounted) return;
-      await _bootstrapOnce();
-      if (!mounted) return;
-      _subscribeNotificationsRealtime();
-      await _loadUserData();
-      if (!mounted) return;
-      await _loadOrAskDayung();
-      if (!mounted) return;
-      await _fetchUnreadNotifCount();
-    });
     _scrollController.addListener(() {
       if (!_scrollController.hasClients || !mounted) return;
       final maxScroll = _scrollController.position.maxScrollExtent;
       final current = _scrollController.position.pixels;
       if (current >= maxScroll && _showNavBar) {
-        if (!mounted) return;
         setState(() => _showNavBar = false);
       } else if (current < maxScroll && !_showNavBar) {
-        if (!mounted) return;
         setState(() => _showNavBar = true);
       }
     });
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final provUnit = context.read<DayungUnitProvider>().currentUnitId;
+      _maybeOnProviderUnitChanged(provUnit);
+      _fetchUnreadNotifCount();
+      _subscribeNotificationsRealtime();
+      _subscribeAnnouncementsRealtime();
+    });
+    _load();
+    _initLoad();
   }
 
-  Future<void> _bootstrapOnce() async {
-    await _loadUserData();
-    await _reloadDayungFromPrefs();
-    if (!mounted) return;
+  void _maybeOnProviderUnitChanged(int? newUnitId) async {
+    if (newUnitId == null || newUnitId == _lastRoleUnitId) return;
+    _lastRoleUnitId = newUnitId;
+    setState(() => _dayungUnitId = newUnitId);
+    await _refreshAll();
     await _fetchUnreadNotifCount();
-    await _fetchAllStats();
     _subscribeNotificationsRealtime();
     await _subscribeAnnouncementsRealtime();
+    await _load();
   }
+
+  // Future<void> _load() async {
+  //   await Future.wait([
+  //     _fetchActiveMembers(),
+  //     _fetchRecentDeaths(),
+  //     _fetchPendingPayments(),
+  //     _fetchRecentActivity(),
+  //   ]);
+  // }
+
+  Future<List<int>> _managedDayungIds() async {
+    final uid = supabase.auth.currentUser?.id;
+    if (uid == null) return <int>[];
+
+    final rows = await supabase
+        .from('dayung_units')
+        .select('id')
+        .eq('president_id', uid)
+        .order('id');
+
+    return List<Map<String, dynamic>>.from(
+      rows,
+    ).map((e) => e['id'] as int).toList();
+  }
+
+  Future<void> _load() async {
+    setState(() {
+      _loading = true;
+    });
+    try {
+      final ids = await _managedDayungIds();
+      _managedUnitIds = ids;
+      if (ids.isEmpty) {
+        // No units to manage, stop loading and show placeholder
+        if (mounted) {
+          setState(() {
+            _loading = false;
+          });
+        }
+        return;
+      }
+      await Future.wait([
+        _fetchActiveMembers(),
+        _fetchRecentDeaths(),
+        _fetchPendingPayments(),
+        _fetchRecentActivity(),
+      ]);
+    } catch (e) {
+      // Always set loading to false on erroro
+      if (mounted) {
+        setState(() {
+          _loading = false;
+        });
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _loading = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _initLoad() async {
+    await _loadUserData();
+    await Future.wait([
+      _fetchActiveMembers(),
+      _fetchRecentDeaths(),
+      _fetchPendingPayments(),
+      _fetchRecentActivity(),
+    ]);
+  }
+
+  // Future<void> _bootstrapOnce() async {
+  //   await _loadUserData();
+  //   await _reloadDayungFromPrefs();
+  //   if (!mounted) return;
+  //   await _fetchUnreadNotifCount();
+  //   await _fetchAllStats();
+  //   _subscribeNotificationsRealtime();
+  //   await _subscribeAnnouncementsRealtime();
+  // }
 
   Future<void> _fetchUnreadNotifCount() async {
     final sb = Supabase.instance.client;
@@ -219,6 +298,200 @@ class _MemberDashboardPageState extends State<MemberDashboardPage> {
         _showAnnouncementDialog(notif);
       }
     }
+  }
+
+  Future<void> _uploadCertificate({required String type}) async {
+    final result = await FilePicker.platform.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: ['pdf', 'png', 'jpg', 'jpeg'],
+      allowMultiple: false,
+      withData: true,
+    );
+    if (result == null) return;
+
+    final file = result.files.first;
+    final bytes = file.bytes;
+    final ext = file.extension ?? 'pdf';
+    if (bytes == null) return;
+
+    setState(() => _uploadingImage = true);
+    try {
+      final userId = supabase.auth.currentUser!.id;
+      final fileName = '$userId-${type}_certificate.${ext.toLowerCase()}';
+
+      final bucket = type == 'birth'
+          ? 'birth_certificates'
+          : 'marriage_certificates';
+
+      await supabase.storage
+          .from(bucket)
+          .uploadBinary(
+            fileName,
+            bytes,
+            fileOptions: const FileOptions(upsert: true),
+          );
+
+      final publicUrl = supabase.storage.from(bucket).getPublicUrl(fileName);
+
+      await supabase
+          .from('users')
+          .update({
+            if (type == 'birth') 'birth_certificate_url': publicUrl,
+            if (type == 'marriage') 'marriage_certificate_url': publicUrl,
+          })
+          .eq('id', userId)
+          .select()
+          .maybeSingle();
+
+      if (!mounted) return;
+      setState(() {
+        if (type == 'birth') birthCertificateUrl = publicUrl;
+        if (type == 'marriage') marriageCertificateUrl = publicUrl;
+        _uploadingImage = false;
+      });
+      _showTopPopup(
+        '${type[0].toUpperCase()}${type.substring(1)} certificate uploaded!',
+        color: kAccent,
+        icon: Icons.check_circle,
+      );
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _uploadingImage = false);
+      _showTopPopup(
+        'Upload error: $e',
+        color: kWarn,
+        icon: Icons.error_outline,
+      );
+    }
+  }
+
+  void _openCertificate(String? url) {
+    if (url == null || url.isEmpty) return;
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Certificate'),
+        content: url.endsWith('.pdf')
+            ? const Text('Open this PDF in browser?')
+            : Image.network(url, fit: BoxFit.contain, height: 300),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Close'),
+          ),
+          if (url.endsWith('.pdf'))
+            TextButton(
+              onPressed: () {
+                Navigator.pop(ctx);
+                launchUrl(Uri.parse(url));
+              },
+              child: const Text('Open PDF'),
+            ),
+        ],
+      ),
+    );
+  }
+
+  void _showTopPopup(
+    String message, {
+    Color color = kAccent,
+    IconData icon = Icons.check_circle,
+  }) {
+    final overlay = Overlay.of(context);
+    if (overlay == null) return;
+
+    late OverlayEntry entry;
+    final animationController = AnimationController(
+      vsync: Navigator.of(context),
+      duration: const Duration(milliseconds: 350),
+    );
+    final curved = CurvedAnimation(
+      parent: animationController,
+      curve: Curves.easeOutCubic,
+      reverseCurve: Curves.easeInCubic,
+    );
+
+    entry = OverlayEntry(
+      builder: (context) => Positioned(
+        top: MediaQuery.of(context).padding.top + 16,
+        left: 24,
+        right: 24,
+        child: AnimatedBuilder(
+          animation: curved,
+          builder: (context, child) {
+            return Opacity(
+              opacity: curved.value,
+              child: Transform.translate(
+                offset: Offset(0, -40 * (1 - curved.value)),
+                child: child,
+              ),
+            );
+          },
+          child: Material(
+            color: Colors.transparent,
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(18),
+              child: BackdropFilter(
+                filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 18,
+                    vertical: 14,
+                  ),
+                  decoration: BoxDecoration(
+                    color: color.withOpacity(0.38),
+                    borderRadius: BorderRadius.circular(18),
+                    border: Border.all(
+                      color: Colors.white.withOpacity(0.18),
+                      width: 1.2,
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: color.withOpacity(0.18),
+                        blurRadius: 12,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(icon, color: Colors.white, size: 22),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          message,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w600,
+                            fontSize: 15,
+                            shadows: [
+                              Shadow(
+                                color: Colors.black26,
+                                blurRadius: 8,
+                                offset: Offset(0, 2),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    overlay.insert(entry);
+    animationController.forward();
+
+    Future.delayed(const Duration(seconds: 5), () async {
+      await animationController.reverse();
+      entry.remove();
+      animationController.dispose();
+    });
   }
 
   void _showAnnouncementDialog(Map<String, dynamic> notif) {
@@ -310,31 +583,19 @@ class _MemberDashboardPageState extends State<MemberDashboardPage> {
   }
 
   Future<void> _reloadDayungFromPrefs() async {
+    setState(() => _loadingUnit = true);
     final prefs = await SharedPreferences.getInstance();
     final unitJson = prefs.getString('selectedDayungUnit');
-
-    if (unitJson == null) {
-      if (!mounted) return;
-      setState(() {
-        _selectedDayungUnit = 'Dayung Unit';
-        _selectedDayungUnitObj = null;
-        _unitBarangay = null;
-        _unitCity = null;
-        _dayungUnitId = null;
-        _unreadNotifCount = 0;
-      });
-      return;
-    }
-
+    if (unitJson == null) return;
     try {
       final decoded = jsonDecode(unitJson);
-      if (decoded is! Map) throw 'bad_json';
+      if (decoded is! Map) return;
       final unit = Map<String, dynamic>.from(decoded);
       final id = _asInt(unit['id']);
-
-      if (id != null && await _isApprovedForUnit(id)) {
-        if (!mounted) return;
+      if (id != null && id != _dayungUnitId) {
         setState(() {
+          _dayungUnitId = id;
+          _loadingUnit = false;
           _selectedDayungUnit = (unit['name'] ?? 'Dayung Unit').toString();
           _selectedDayungUnitObj = unit;
           _unitBarangay = (unit['barangay'] ?? '').toString().trim().isEmpty
@@ -345,118 +606,96 @@ class _MemberDashboardPageState extends State<MemberDashboardPage> {
               : unit['city'].toString();
           _dayungUnitId = id;
         });
-      } else {
-        await prefs.remove('selectedDayungUnit');
-        if (!mounted) return;
-        setState(() {
-          _selectedDayungUnit = 'Dayung Unit';
-          _selectedDayungUnitObj = null;
-          _unitBarangay = null;
-          _unitCity = null;
-          _dayungUnitId = null;
-          _unreadNotifCount = 0;
-        });
-      }
-    } catch (_) {
-      await prefs.remove('selectedDayungUnit');
-      if (!mounted) return;
-      setState(() {
-        _selectedDayungUnit = 'Dayung Unit';
-        _selectedDayungUnitObj = null;
-        _unitBarangay = null;
-        _unitCity = null;
-        _dayungUnitId = null;
-        _unreadNotifCount = 0;
-      });
-    }
-  }
-
-  Future<void> _loadOrAskDayung() async {
-    final prefs = await SharedPreferences.getInstance();
-    final unitJson = prefs.getString('selectedDayungUnit');
-    if (unitJson != null) {
-      try {
-        final unit = jsonDecode(unitJson);
-        final id = _asInt((unit as Map)['id']);
-        if (id != null && await _isApprovedForUnit(id)) {
-          if (!mounted) return;
-          setState(() {
-            _selectedDayungUnit = (unit['name'] ?? 'Dayung Unit').toString();
-            _selectedDayungUnitObj = Map<String, dynamic>.from(unit);
-            _unitBarangay = (unit['barangay'] ?? '').toString().trim().isEmpty
-                ? null
-                : unit['barangay'].toString();
-            _unitCity = (unit['city'] ?? '').toString().trim().isEmpty
-                ? null
-                : unit['city'].toString();
-            _dayungUnitId = id;
-          });
-          return;
-        } else {
-          await prefs.setString('selectedDayungUnit', jsonEncode(unit));
-          if (!mounted) return;
-          setState(() {
-            _selectedDayungUnitObj = Map<String, dynamic>.from(unit);
-            _selectedDayungUnit = (unit['name'] ?? 'Dayung Unit').toString();
-            _dayungUnitId = _asInt(unit['id']);
-            _unitBarangay = (unit['barangay'] ?? '').toString().trim().isEmpty
-                ? null
-                : unit['barangay'].toString();
-            _unitCity = (unit['city'] ?? '').toString().trim().isEmpty
-                ? null
-                : unit['city'].toString();
-          });
-          return;
-        }
-      } catch (_) {
-        await prefs.remove('selectedDayungUnit');
-      }
-    }
-    try {
-      final uid = supabase.auth.currentUser?.id;
-      if (uid != null) {
-        final apps = await supabase
-            .from('applications')
-            .select('dayung_unit_id, approved_at')
-            .eq('user_id', uid)
-            .eq('status', 'approved')
-            .order('approved_at', ascending: false)
-            .limit(1);
-
-        final list = (apps as List);
-        if (list.isNotEmpty) {
-          final dId = _asInt((list.first as Map)['dayung_unit_id']);
-          if (dId != null) {
-            final unit = await supabase
-                .from('dayung_units')
-                .select('id, name, barangay, city')
-                .eq('id', dId)
-                .maybeSingle();
-            if (unit != null) {
-              await prefs.setString('selectedDayungUnit', jsonEncode(unit));
-              if (!mounted) return;
-              setState(() {
-                _selectedDayungUnitObj = Map<String, dynamic>.from(unit);
-                _selectedDayungUnit = (unit['name'] ?? 'Dayung Unit')
-                    .toString();
-                _unitBarangay =
-                    (unit['barangay'] ?? '').toString().trim().isEmpty
-                    ? null
-                    : unit['barangay'].toString();
-                _unitCity = (unit['city'] ?? '').toString().trim().isEmpty
-                    ? null
-                    : unit['city'].toString();
-                _dayungUnitId = dId;
-              });
-              return;
-            }
-          }
-        }
       }
     } catch (_) {}
-    if (!mounted) return;
-    await _navigateAndPickUnit();
   }
+
+  // Future<void> _loadOrAskDayung() async {
+  //   final prefs = await SharedPreferences.getInstance();
+  //   final unitJson = prefs.getString('selectedDayungUnit');
+  //   if (unitJson != null) {
+  //     try {
+  //       final unit = jsonDecode(unitJson);
+  //       final id = _asInt((unit as Map)['id']);
+  //       if (id != null && await _isApprovedForUnit(id)) {
+  //         if (!mounted) return;
+  //         setState(() {
+  //           _selectedDayungUnit = (unit['name'] ?? 'Dayung Unit').toString();
+  //           _selectedDayungUnitObj = Map<String, dynamic>.from(unit);
+  //           _unitBarangay = (unit['barangay'] ?? '').toString().trim().isEmpty
+  //               ? null
+  //               : unit['barangay'].toString();
+  //           _unitCity = (unit['city'] ?? '').toString().trim().isEmpty
+  //               ? null
+  //               : unit['city'].toString();
+  //           _dayungUnitId = id;
+  //         });
+  //         return;
+  //       } else {
+  //         await prefs.setString('selectedDayungUnit', jsonEncode(unit));
+  //         if (!mounted) return;
+  //         setState(() {
+  //           _selectedDayungUnitObj = Map<String, dynamic>.from(unit);
+  //           _selectedDayungUnit = (unit['name'] ?? 'Dayung Unit').toString();
+  //           _dayungUnitId = _asInt(unit['id']);
+  //           _unitBarangay = (unit['barangay'] ?? '').toString().trim().isEmpty
+  //               ? null
+  //               : unit['barangay'].toString();
+  //           _unitCity = (unit['city'] ?? '').toString().trim().isEmpty
+  //               ? null
+  //               : unit['city'].toString();
+  //         });
+  //         return;
+  //       }
+  //     } catch (_) {
+  //       await prefs.remove('selectedDayungUnit');
+  //     }
+  //   }
+  //   try {
+  //     final uid = supabase.auth.currentUser?.id;
+  //     if (uid != null) {
+  //       final apps = await supabase
+  //           .from('applications')
+  //           .select('dayung_unit_id, approved_at')
+  //           .eq('user_id', uid)
+  //           .eq('status', 'approved')
+  //           .order('approved_at', ascending: false)
+  //           .limit(1);
+
+  //       final list = (apps as List);
+  //       if (list.isNotEmpty) {
+  //         final dId = _asInt((list.first as Map)['dayung_unit_id']);
+  //         if (dId != null) {
+  //           final unit = await supabase
+  //               .from('dayung_units')
+  //               .select('id, name, barangay, city')
+  //               .eq('id', dId)
+  //               .maybeSingle();
+  //           if (unit != null) {
+  //             await prefs.setString('selectedDayungUnit', jsonEncode(unit));
+  //             if (!mounted) return;
+  //             setState(() {
+  //               _selectedDayungUnitObj = Map<String, dynamic>.from(unit);
+  //               _selectedDayungUnit = (unit['name'] ?? 'Dayung Unit')
+  //                   .toString();
+  //               _unitBarangay =
+  //                   (unit['barangay'] ?? '').toString().trim().isEmpty
+  //                   ? null
+  //                   : unit['barangay'].toString();
+  //               _unitCity = (unit['city'] ?? '').toString().trim().isEmpty
+  //                   ? null
+  //                   : unit['city'].toString();
+  //               _dayungUnitId = dId;
+  //             });
+  //             return;
+  //           }
+  //         }
+  //       }
+  //     }
+  //   } catch (_) {}
+  //   if (!mounted) return;
+  //   await _navigateAndPickUnit();
+  // }
 
   Future<void> _fetchAllStats() async {
     await Future.wait([
@@ -788,12 +1027,6 @@ class _MemberDashboardPageState extends State<MemberDashboardPage> {
     return '${months[now.month - 1]} ${now.day}, ${now.year}';
   }
 
-  Future<void> _refreshDashboard() async {
-    await _loadUserData();
-    await _reloadDayungFromPrefs();
-    await _fetchAllStats();
-  }
-
   Future<void> _loadUserData() async {
     final currentUser = supabase.auth.currentUser;
     if (currentUser == null) {
@@ -877,7 +1110,7 @@ class _MemberDashboardPageState extends State<MemberDashboardPage> {
     if (!mounted) return;
     setState(() => _loadingActiveMembers = true);
     try {
-      final id = _asInt(_selectedDayungUnitObj?['id']);
+      final id = _dayungUnitId;
       if (id == null) {
         _activeMembersCount = 0;
       } else {
@@ -1003,13 +1236,6 @@ class _MemberDashboardPageState extends State<MemberDashboardPage> {
     }
   }
 
-  void _redirectToLogin() {
-    Navigator.pushReplacement(
-      context,
-      MaterialPageRoute(builder: (_) => const Login()),
-    );
-  }
-
   @override
   void dispose() {
     _notifChannel?.unsubscribe();
@@ -1020,117 +1246,6 @@ class _MemberDashboardPageState extends State<MemberDashboardPage> {
     _scrollController.dispose();
     super.dispose();
   }
-
-  List<Widget> get _pages => [_homePage(), ContributionHistory(), ClaimsPage()];
-
-  // Widget _topBar() {
-  //   return Container(
-  //     padding: const EdgeInsets.fromLTRB(20, 20, 20, 40),
-  //     child: Column(
-  //       children: [
-  //         Row(
-  //           children: [
-  //             Container(
-  //               padding: const EdgeInsets.all(12),
-  //               decoration: BoxDecoration(
-  //                 color: Colors.white.withOpacity(0.2),
-  //                 borderRadius: BorderRadius.circular(16),
-  //                 boxShadow: [
-  //                   BoxShadow(
-  //                     color: Colors.black.withOpacity(0.1),
-  //                     blurRadius: 8,
-  //                     offset: const Offset(0, 2),
-  //                   ),
-  //                 ],
-  //               ),
-  //               child: const Icon(
-  //                 Icons.account_balance_wallet_rounded,
-  //                 color: Colors.white,
-  //                 size: 24,
-  //               ),
-  //             ),
-  //             const SizedBox(width: 16),
-  //             Expanded(
-  //               child: Column(
-  //                 crossAxisAlignment: CrossAxisAlignment.start,
-  //                 children: [
-  //                   Text(
-  //                     _selectedDayungUnit,
-  //                     style: const TextStyle(
-  //                       fontFamily: 'Montserrat',
-  //                       fontSize: 24,
-  //                       fontWeight: FontWeight.w900,
-  //                       color: Colors.white,
-  //                       letterSpacing: 0.5,
-  //                     ),
-  //                   ),
-  //                 ],
-  //               ),
-  //             ),
-  //             _iconBtn(
-  //               icon: Icons.notifications_rounded,
-  //               color: kPrimary,
-  //               onTap: () => Navigator.push(
-  //                 context,
-  //                 MaterialPageRoute(builder: (_) => const NotificationPage()),
-  //               ),
-  //               badge: _unreadNotifCount > 0 ? '$_unreadNotifCount' : null,
-  //             ),
-  //           ],
-  //         ),
-  //         const SizedBox(height: 24),
-  //         Row(
-  //           children: [
-  //             Expanded(
-  //               child: Text(
-  //                 'Maayung buntag,\n$_fullName!',
-  //                 style: const TextStyle(
-  //                   fontFamily: 'Montserrat',
-  //                   fontSize: 28,
-  //                   fontWeight: FontWeight.w900,
-  //                   height: 1.1,
-  //                   color: Colors.white,
-  //                   letterSpacing: 0.5,
-  //                 ),
-  //               ),
-  //             ),
-  //             GestureDetector(
-  //               onTap: () {
-  //                 Navigator.push(
-  //                   context,
-  //                   MaterialPageRoute(builder: (_) => const ProfilePage()),
-  //                 );
-  //               },
-  //               child: Container(
-  //                 padding: const EdgeInsets.all(4),
-  //                 decoration: BoxDecoration(
-  //                   color: Colors.white.withOpacity(0.2),
-  //                   borderRadius: BorderRadius.circular(32),
-  //                   boxShadow: [
-  //                     BoxShadow(
-  //                       color: Colors.black.withOpacity(0.1),
-  //                       blurRadius: 8,
-  //                       offset: const Offset(0, 2),
-  //                     ),
-  //                   ],
-  //                 ),
-  //                 child: const CircleAvatar(
-  //                   radius: 28,
-  //                   backgroundColor: Colors.white,
-  //                   child: Icon(
-  //                     Icons.person,
-  //                     size: 34,
-  //                     color: Color(0xFF1E40AF),
-  //                   ),
-  //                 ),
-  //               ),
-  //             ),
-  //           ],
-  //         ),
-  //       ],
-  //     ),
-  //   );
-  // }
 
   Widget _buildContentArea(bool wide) {
     return Expanded(
@@ -1154,86 +1269,22 @@ class _MemberDashboardPageState extends State<MemberDashboardPage> {
             topLeft: Radius.circular(24),
             topRight: Radius.circular(24),
           ),
-          child: AnimatedSwitcher(
-            duration: const Duration(milliseconds: 300),
-            child: IndexedStack(
-              key: ValueKey(_currentIndex), // <-- Add this line
-              index: _currentIndex,
-              children: _pages,
+          child: RefreshIndicator(
+            onRefresh: _load,
+            edgeOffset: 68,
+            child: AnimatedSwitcher(
+              duration: const Duration(milliseconds: 300),
+              child: IndexedStack(
+                key: ValueKey(_currentIndex),
+                index: _currentIndex,
+                children: _pages,
+              ),
             ),
           ),
         ),
       ),
     );
   }
-
-  // Widget _bottomNav(bool wide) {
-  //   return Positioned(
-  //     left: 0,
-  //     right: 0,
-  //     bottom: 16,
-  //     child: Center(
-  //       child: IgnorePointer(
-  //         ignoring: !_showNavBar,
-  //         child: AnimatedOpacity(
-  //           duration: const Duration(milliseconds: 300),
-  //           opacity: _showNavBar ? 1.0 : 0.0,
-  //           child: Container(
-  //             constraints: const BoxConstraints(minHeight: 80, maxHeight: 90),
-  //             margin: EdgeInsets.symmetric(
-  //               horizontal: wide
-  //                   ? MediaQuery.of(context).size.width * 0.15
-  //                   : 16,
-  //             ),
-  //             decoration: BoxDecoration(
-  //               color: Colors.white,
-  //               borderRadius: BorderRadius.circular(40),
-  //               boxShadow: [
-  //                 BoxShadow(
-  //                   color: Colors.black.withOpacity(0.08),
-  //                   blurRadius: 20,
-  //                   offset: const Offset(0, 8),
-  //                 ),
-  //                 BoxShadow(
-  //                   color: Colors.black.withOpacity(0.02),
-  //                   blurRadius: 6,
-  //                   offset: const Offset(0, 2),
-  //                 ),
-  //               ],
-  //               border: Border.all(color: Colors.grey.shade300, width: 1),
-  //             ),
-  //             child: Padding(
-  //               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-  //               child: Row(
-  //                 mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-  //                 children: [
-  //                   _navBarItem(
-  //                     icon: Icons.dashboard_rounded,
-  //                     label: 'Dashboard',
-  //                     selected: _currentIndex == 0,
-  //                     onTap: () => setState(() => _currentIndex = 0),
-  //                   ),
-  //                   _navBarItem(
-  //                     icon: Icons.trending_up_rounded,
-  //                     label: 'Contributions',
-  //                     selected: _currentIndex == 1,
-  //                     onTap: () => setState(() => _currentIndex = 1),
-  //                   ),
-  //                   _navBarItem(
-  //                     icon: Icons.assignment_rounded,
-  //                     label: 'Claims',
-  //                     selected: _currentIndex == 2,
-  //                     onTap: () => setState(() => _currentIndex = 2),
-  //                   ),
-  //                 ],
-  //               ),
-  //             ),
-  //           ),
-  //         ),
-  //       ),
-  //     ),
-  //   );
-  // }
 
   Widget _iconBtn({
     required IconData icon,
@@ -1298,105 +1349,29 @@ class _MemberDashboardPageState extends State<MemberDashboardPage> {
     );
   }
 
-  // Widget _navBarItem({
-  //   required IconData icon,
-  //   required String label,
-  //   required bool selected,
-  //   required VoidCallback onTap,
-  // }) {
-  //   return Semantics(
-  //     button: true,
-  //     label: label,
-  //     child: Container(
-  //       margin: const EdgeInsets.symmetric(horizontal: 2),
-  //       child: Material(
-  //         color: Colors.transparent,
-  //         child: InkWell(
-  //           onTap: onTap,
-  //           borderRadius: BorderRadius.circular(20),
-  //           child: Container(
-  //             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-  //             constraints: const BoxConstraints(minHeight: 60, maxHeight: 70),
-  //             decoration: BoxDecoration(
-  //               color: selected
-  //                   ? const Color(0xFF1E40AF).withOpacity(0.12)
-  //                   : Colors.transparent,
-  //               borderRadius: BorderRadius.circular(20),
-  //               border: selected
-  //                   ? Border.all(
-  //                       color: const Color(0xFF1E40AF).withOpacity(0.3),
-  //                       width: 1,
-  //                     )
-  //                   : null,
-  //             ),
-  //             child: Column(
-  //               mainAxisAlignment: MainAxisAlignment.center,
-  //               mainAxisSize: MainAxisSize.min,
-  //               children: [
-  //                 Container(
-  //                   padding: const EdgeInsets.all(8),
-  //                   decoration: BoxDecoration(
-  //                     color: selected
-  //                         ? const Color(0xFF1E40AF)
-  //                         : Colors.grey.shade400,
-  //                     borderRadius: BorderRadius.circular(16),
-  //                     boxShadow: selected
-  //                         ? [
-  //                             BoxShadow(
-  //                               color: const Color(0xFF1E40AF).withOpacity(0.4),
-  //                               blurRadius: 12,
-  //                               offset: const Offset(0, 3),
-  //                             ),
-  //                           ]
-  //                         : null,
-  //                   ),
-  //                   child: Icon(
-  //                     icon,
-  //                     color: selected ? Colors.white : Colors.grey[700],
-  //                     size: 20,
-  //                   ),
-  //                 ),
-  //                 const SizedBox(height: 4),
-  //                 Text(
-  //                   label,
-  //                   style: TextStyle(
-  //                     color: selected
-  //                         ? const Color(0xFF1E40AF)
-  //                         : Colors.grey[700],
-  //                     fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
-  //                     fontSize: 12,
-  //                     letterSpacing: 0.2,
-  //                     fontFamily: 'Montserrat',
-  //                   ),
-  //                   maxLines: 1,
-  //                   overflow: TextOverflow.ellipsis,
-  //                 ),
-  //               ],
-  //             ),
-  //           ),
-  //         ),
-  //       ),
-  //     ),
-  //   );
-  // }
-
-  Widget _homePage() {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(20),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _overviewSection(),
-          const SizedBox(height: 24),
-          _buildNextPaymentCard(false), // Keep your Next Payment Due card here
-          const SizedBox(height: 24),
-          _modernActionCards(),
-          const SizedBox(height: 24),
-          _modernRecentActivity(),
-          const SizedBox(height: 24),
-          _modernQuickActions(),
-          const SizedBox(height: 100), // Space for bottom nav
-        ],
+  Widget _buildHomePage(BuildContext context) {
+    return RefreshIndicator(
+      onRefresh: _load,
+      edgeOffset: 68,
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _overviewSection(),
+            const SizedBox(height: 24),
+            _buildNextPaymentCard(
+              false,
+            ), // Keep your Next Payment Due card here
+            const SizedBox(height: 24),
+            _modernActionCards(),
+            const SizedBox(height: 24),
+            _modernRecentActivity(),
+            const SizedBox(height: 24),
+            _modernQuickActions(),
+            const SizedBox(height: 100), // Space for bottom nav
+          ],
+        ),
       ),
     );
   }
@@ -1408,23 +1383,24 @@ class _MemberDashboardPageState extends State<MemberDashboardPage> {
         children: [
           Row(
             children: [
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: kPrimary.withOpacity(0.8),
-                  borderRadius: BorderRadius.circular(16),
-                  boxShadow: [
-                    BoxShadow(
-                      color: kPrimary.withOpacity(0.3),
-                      blurRadius: 8,
-                      offset: const Offset(0, 2),
-                    ),
-                  ],
-                ),
-                child: const Icon(
-                  Icons.account_balance_wallet_rounded,
-                  color: Colors.white,
-                  size: 24,
+              Builder(
+                builder: (context) => Container(
+                  padding: const EdgeInsets.all(1),
+                  decoration: BoxDecoration(
+                    color: kPrimary.withOpacity(0.8),
+                    borderRadius: BorderRadius.circular(15),
+                    boxShadow: [
+                      BoxShadow(
+                        color: kPrimary.withOpacity(0.3),
+                        blurRadius: 8,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
+                  ),
+                  child: IconButton(
+                    icon: const Icon(Icons.menu_rounded, color: Colors.white),
+                    onPressed: () => Scaffold.of(context).openDrawer(),
+                  ),
                 ),
               ),
               const SizedBox(width: 16),
@@ -1434,7 +1410,7 @@ class _MemberDashboardPageState extends State<MemberDashboardPage> {
                   children: [
                     Text(
                       _selectedDayungUnit,
-                      overflow: TextOverflow.ellipsis,
+                      maxLines: 1,
                       style: const TextStyle(
                         fontFamily: 'Montserrat',
                         fontSize: 24,
@@ -1463,7 +1439,7 @@ class _MemberDashboardPageState extends State<MemberDashboardPage> {
             children: [
               Expanded(
                 child: Text(
-                  'Maayung buntag,\n$_fullName!',
+                  'Good Morning!\n$_fullName',
                   style: const TextStyle(
                     fontFamily: 'Montserrat',
                     fontSize: 28,
@@ -1474,37 +1450,37 @@ class _MemberDashboardPageState extends State<MemberDashboardPage> {
                   ),
                 ),
               ),
-              GestureDetector(
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (_) => const ProfilePage()),
-                  );
-                },
-                child: Container(
-                  padding: const EdgeInsets.all(4),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.2),
-                    borderRadius: BorderRadius.circular(32),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withOpacity(0.1),
-                        blurRadius: 8,
-                        offset: const Offset(0, 2),
-                      ),
-                    ],
-                  ),
-                  child: const CircleAvatar(
-                    radius: 28,
-                    backgroundColor: Colors.white,
-                    child: Icon(
-                      Icons.person,
-                      size: 34,
-                      color: Color(0xFF1E40AF),
-                    ),
-                  ),
-                ),
-              ),
+              // GestureDetector(
+              //   onTap: () {
+              //     Navigator.push(
+              //       context,
+              //       MaterialPageRoute(builder: (_) => const ProfilePage()),
+              //     );
+              //   },
+              //   child: Container(
+              //     padding: const EdgeInsets.all(4),
+              //     decoration: BoxDecoration(
+              //       color: Colors.white.withOpacity(0.2),
+              //       borderRadius: BorderRadius.circular(32),
+              //       boxShadow: [
+              //         BoxShadow(
+              //           color: Colors.black.withOpacity(0.1),
+              //           blurRadius: 8,
+              //           offset: const Offset(0, 2),
+              //         ),
+              //       ],
+              //     ),
+              //     child: const CircleAvatar(
+              //       radius: 28,
+              //       backgroundColor: Colors.white,
+              //       child: Icon(
+              //         Icons.person,
+              //         size: 34,
+              //         color: Color(0xFF1E40AF),
+              //       ),
+              //     ),
+              //   ),
+              // ),
             ],
           ),
         ],
@@ -1724,17 +1700,6 @@ class _MemberDashboardPageState extends State<MemberDashboardPage> {
                 )
                 .toList(),
           ),
-          // if (extra > 0)
-          //   Text(
-          //     'View All',
-          //     textAlign: TextAlign.center,
-          //     style: TextStyle(
-          //       fontSize: 13.5,
-          //       fontWeight: FontWeight.w800,
-          //       fontFamily: 'OpenSans',
-          //       color: Colors.blue[700],
-          //     ),
-          //   ),
         ],
       ),
     );
@@ -1755,26 +1720,40 @@ class _MemberDashboardPageState extends State<MemberDashboardPage> {
           ),
         ),
         const SizedBox(height: 12),
-        // _modernActionCard(
-        //   icon: Icons.account_balance_wallet_rounded,
-        //   title: 'Pay Contribution',
-        //   subtitle: 'Make a payment',
-        //   color: const Color(0xFF3B82F6),
-        //   onTap: () {
-        //     // Implement payment action
-        //   },
-        // ),
         const SizedBox(height: 8),
         _modernActionCard(
           icon: Icons.receipt_long_rounded,
           title: 'View Receipts',
           subtitle: 'See your payment receipts',
           color: const Color(0xFF10B981),
+          onTap: () {},
+        ),
+        const SizedBox(height: 8),
+        _modernActionCard(
+          icon: Icons.qr_code_rounded,
+          title: 'Pay via GCash',
+          subtitle: 'Quick GCash payment',
+          color: const Color(0xFF3B82F6),
           onTap: () {
-            // Implement view receipts action
+            final user = Supabase.instance.client.auth.currentUser;
+            if (user != null) {
+              // Print user info to debug console
+              print(
+                'Pay via GCash clicked by user: ${user.id} (${user.email})',
+              );
+            } else {
+              print('Pay via GCash clicked by unknown user');
+            }
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => GCashPaymentPage(
+                  dayungUnitId: _asInt(_selectedDayungUnitObj?['id']),
+                ),
+              ),
+            );
           },
         ),
-        // Add more actions as needed
       ],
     );
   }
@@ -1981,62 +1960,76 @@ class _MemberDashboardPageState extends State<MemberDashboardPage> {
     );
   }
 
-  Future<void> _maybeOnProviderUnitChanged(int? newUnitId) async {
-    if (!mounted) return;
-    if (newUnitId == null) return;
-    if (newUnitId == _dayungUnitId || newUnitId == _lastHandledUnitId) return;
-    if (_pendingUnitChange) return;
+  //   List<Widget> get _pages => [
+  //   _buildHomePage(context),
+  //   _dayungUnitId == null
+  //       ? const Center(child: Text('Select a Dayung unit first'))
+  //       : MembersContributionHistory(dayungUnitId: _dayungUnitId!),
+  //   _dayungUnitId == null
+  //       ? const SizedBox.shrink()
+  //       : MembersClaimsPage(dayungUnitId: _dayungUnitId!),
+  // ];
 
-    _pendingUnitChange = true;
-    _lastHandledUnitId = newUnitId;
-    _dayungUnitId = newUnitId;
+  // List<Widget> get _pages => [
+  //   _buildHomePage(context),
+  //   if (_primaryUnitId == null)
+  //     const Center()
+  //   else
+  //     MembersContributionHistory(dayungUnitId: _primaryUnitId!),
+  //   if (_primaryUnitId == null)
+  //     const SizedBox.shrink()
+  //   else
+  //     MembersClaimsPage(dayungUnitId: _primaryUnitId!),
+  // ];
 
-    // Refresh roles for this unit here (we don't listen to role provider in build)
-    try {
-      await context.read<DayungRoleProvider>().refreshRoles(newUnitId);
-    } catch (_) {}
+  List<Widget> get _pages => [
+    _buildHomePage(context),
+    _loadingUnit
+        ? const Center(child: CircularProgressIndicator())
+        : (_dayungUnitId == null
+              ? const Center(child: Text('Select a Dayung unit first'))
+              : MembersContributionHistory(dayungUnitId: _dayungUnitId!)),
+    _loadingUnit
+        ? const SizedBox.shrink()
+        : (_dayungUnitId == null
+              ? const SizedBox.shrink()
+              : MembersClaimsPage(dayungUnitId: _dayungUnitId!)),
+  ];
 
-    await _reloadDayungFromPrefs();
-    if (mounted) await _fetchUnreadNotifCount();
-    if (mounted) await _fetchAllStats();
-    if (mounted) await _subscribeAnnouncementsRealtime();
-    if (!mounted) {
-      _pendingUnitChange = false;
-      return;
-    }
-    setState(() {});
-    _pendingUnitChange = false;
-  }
+  // List<Widget> get _pages => [
+  //   _buildHomePage(context),
+  //   if (_dayungUnitId == null)
+  //     const Center()
+  //   else
+  //     MembersContributionHistory(dayungUnitId: _dayungUnitId!),
+  //   if (_dayungUnitId == null)
+  //     const SizedBox.shrink()
+  //   else
+  //     MembersClaimsPage(dayungUnitId: _dayungUnitId!),
+  // ];
 
   @override
   Widget build(BuildContext context) {
-    final width = MediaQuery.of(context).size.width;
-    final wide = width > 820;
-
-    // Single source of truth: only watch DayungUnitProvider here
-    final providerUnitId = context.watch<DayungUnitProvider>().currentUnitId;
-    final newUnitId = providerUnitId;
-
-    if (newUnitId != null &&
-        newUnitId != _dayungUnitId &&
-        newUnitId != _lastHandledUnitId &&
-        !_pendingUnitChange) {
+    final provUnit = context.watch<DayungUnitProvider>().currentUnitId;
+    if (provUnit != _lastRoleUnitId) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) {
-          _maybeOnProviderUnitChanged(newUnitId);
-        }
+        _maybeOnProviderUnitChanged(provUnit);
       });
     }
 
+    final width = MediaQuery.of(context).size.width;
+    final bool wide = width > 820;
+
     return Scaffold(
       backgroundColor: const Color(0xFFF8FAFC),
+      drawer: _buildSideDrawer(context),
       body: Container(
         decoration: const BoxDecoration(
           gradient: LinearGradient(
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
             colors: [Color(0xFF1E40AF), Color(0xFF3B82F6), Color(0xFFF8FAFC)],
-            stops: [0.0, 0.3, 0.3],
+            stops: [0.0, 0.29, 0.39],
           ),
         ),
         child: Stack(
@@ -2084,13 +2077,140 @@ class _MemberDashboardPageState extends State<MemberDashboardPage> {
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                 children: [
-                  _buildNavItem(Icons.home_rounded, "Home", 0),
-                  _buildNavItem(Icons.public, "Contributions", 1),
-                  _buildNavItem(Icons.description, "Claims", 2),
+                  _buildNavItem(Icons.dashboard_rounded, "Home", 0),
+                  _buildNavItem(Icons.trending_up_rounded, "Contributions", 1),
+                  _buildNavItem(Icons.assignment_rounded, "Claims", 2),
                 ],
               ),
             ),
           ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSideDrawer(BuildContext context) {
+    final isDarkMode = Theme.of(context).brightness == Brightness.dark;
+    return Drawer(
+      child: SafeArea(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            DrawerHeader(
+              decoration: BoxDecoration(
+                color: kPrimary.withOpacity(0.95),
+                borderRadius: const BorderRadius.only(
+                  bottomRight: Radius.circular(32),
+                  bottomLeft: Radius.circular(32),
+                ),
+              ),
+              child: Row(
+                children: [
+                  CircleAvatar(
+                    radius: 32,
+                    backgroundColor: Colors.white,
+                    backgroundImage:
+                        _profileUrl != null && _profileUrl!.isNotEmpty
+                        ? NetworkImage(_profileUrl!)
+                        : null,
+                    child: _profileUrl == null || _profileUrl!.isEmpty
+                        ? const Icon(Icons.person, size: 40, color: kPrimary)
+                        : null,
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: Text(
+                      _fullName,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w800,
+                        fontSize: 18,
+                        fontFamily: 'Montserrat',
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            _ModernDrawerTile(
+              icon: Icons.person,
+              label: 'Profile',
+              onTap: () async {
+                await Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const ProfilePage()),
+                );
+                await _loadUserData();
+                if (!mounted) return;
+                setState(() {});
+              },
+            ),
+            _ModernDrawerTile(
+              icon: Icons.people_rounded,
+              label: 'Beneficiaries',
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const BeneficiaryPage()),
+                );
+              },
+            ),
+            _ModernDrawerTile(
+              icon: Icons.settings,
+              label: 'Settings',
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const ProfSettingsPage()),
+                );
+              },
+            ),
+            _ModernDrawerTile(
+              icon: isDarkMode ? Icons.light_mode : Icons.dark_mode,
+              label: isDarkMode ? 'Light Mode' : 'Dark Mode',
+              onTap: () {
+                context.read<AppTheme>().toggle();
+              },
+            ),
+            _ModernDrawerTile(
+              icon: Icons.translate,
+              label: 'Translate',
+              onTap: () {
+                // TODO: Implement translator
+              },
+            ),
+            const Spacer(),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+              child: MouseRegion(
+                cursor: SystemMouseCursors.click,
+                child: ElevatedButton.icon(
+                  icon: const Icon(Icons.logout, color: Colors.white),
+                  label: const Text(  
+                    'Logout',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w700,
+                      fontSize: 16,
+                      color: Colors.white,
+                    ),
+                  ),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.red,
+                    foregroundColor: Colors.white,
+                    minimumSize: const Size.fromHeight(48),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    elevation: 0,
+                  ),
+                  onPressed: () async {
+                    Navigator.pop(context);
+                    await showLogoutDialog(context);
+                  },
+                ),
+              ),
+            ),
+          ],
         ),
       ),
     );
@@ -2137,436 +2257,6 @@ class _MemberDashboardPageState extends State<MemberDashboardPage> {
       ),
     );
   }
-
-  // Widget _buildHomePage(BuildContext context) {
-  //   final width = MediaQuery.of(context).size.width;
-  //   final bool wide = width > 820;
-  //   final dayungName = _selectedDayungUnitObj?['name'] ?? 'Dayung';
-  //   final barangay = _selectedDayungUnitObj?['barangay'];
-  //   final city = _selectedDayungUnitObj?['city'];
-  //   final subtitle = (barangay != null)
-  //       ? '$barangay${city != null ? ', $city' : ''}'
-  //       : null;
-
-  //   return RefreshIndicator(
-  //     onRefresh: _refreshDashboard,
-  //     child: SingleChildScrollView(
-  //       controller: _scrollController,
-  //       physics: const AlwaysScrollableScrollPhysics(),
-  //       padding: const EdgeInsets.symmetric(vertical: 16),
-  //       child: Column(
-  //         crossAxisAlignment: CrossAxisAlignment.start,
-  //         children: [
-  //           const SizedBox(height: 12),
-  //           Padding(
-  //             padding: const EdgeInsets.symmetric(horizontal: 16),
-  //             child: _buildCards(wide),
-  //           ),
-  //           const SizedBox(height: 24),
-  //           Padding(
-  //             padding: const EdgeInsets.symmetric(horizontal: 16),
-  //             child: _buildNextPaymentCard(wide),
-  //           ),
-  //           const SizedBox(height: 32),
-  //           Padding(
-  //             padding: const EdgeInsets.symmetric(horizontal: 16),
-  //             child: _buildRecentActivity(wide),
-  //           ),
-  //         ],
-  //       ),
-  //     ),
-  //   );
-  // }
-
-  // Widget _greetingSection() {
-  //   return Padding(
-  //     padding: const EdgeInsets.fromLTRB(20, 12, 20, 6),
-  //     child: Row(
-  //       children: [
-  //         Expanded(
-  //           child: Text(
-  //             'Maayung buntag, $_fullName!',
-  //             style: const TextStyle(
-  //               fontSize: 22,
-  //               fontWeight: FontWeight.w700,
-  //               fontFamily: 'Montserrat',
-  //               color: kNeutralText,
-  //               height: 1.15,
-  //             ),
-  //           ),
-  //         ),
-  //       ],
-  //     ),
-  //   );
-  // }
-
-  // Widget _buildCards(bool isWide) {
-  //   final activeValue = _loadingActiveMembers
-  //       ? '…'
-  //       : _activeMembersCount.toString();
-
-  //   String recentDeathsValue;
-  //   if (_loadingCertificates) {
-  //     recentDeathsValue = 'Loading…';
-  //   } else if (_recentCertificates.isEmpty) {
-  //     recentDeathsValue = 'None';
-  //   } else {
-  //     final names = _recentCertificates
-  //         .map((e) => (e['deceased_name'] ?? '').toString())
-  //         .where((s) => s.isNotEmpty)
-  //         .toList();
-  //     if (names.length <= 2) {
-  //       recentDeathsValue = names.join('\n');
-  //     } else {
-  //       recentDeathsValue =
-  //           '${names.take(2).join('\n')}\n+${names.length - 2} more';
-  //     }
-  //   }
-
-  //   final pendingValue = _loadingPending
-  //       ? '…'
-  //       : '₱ ${_pendingPaymentsAmount.toStringAsFixed(0)}';
-  //   final pendingSubtitle = _loadingPending
-  //       ? ''
-  //       : (_pendingPaymentCount > 0
-  //             ? '$_pendingPaymentCount pending'
-  //             : 'No pending');
-
-  //   final cards = [
-  //     _dashboardCard(
-  //       color: const Color(0xFFD8EEFF),
-  //       icon: Icons.groups,
-  //       iconColor: Colors.blue[700],
-  //       title: "Total Active\nMembers",
-  //       value: activeValue,
-  //     ),
-  //     _dashboardCard(
-  //       color: const Color(0xFFFFDAF6),
-  //       icon: FontAwesomeIcons.dove,
-  //       iconColor: Colors.purple[400],
-  //       title: "Recent Deaths",
-  //       value: recentDeathsValue,
-  //       isDeathNotice: true,
-  //       context: context,
-  //       onTap: () {
-  //         final id = _asInt(_selectedDayungUnitObj?['id']);
-  //         Navigator.push(
-  //           context,
-  //           MaterialPageRoute(
-  //             builder: (_) => RecentDeathNotices(dayungUnitId: id),
-  //           ),
-  //         );
-  //       },
-  //     ),
-  //     _dashboardCard(
-  //       color: const Color(0xFFFEFBDC),
-  //       icon: Icons.account_balance_wallet,
-  //       iconColor: Colors.orange[700],
-  //       title: "Pending\nPayments",
-  //       value: pendingValue,
-  //       subtitle: pendingSubtitle,
-  //     ),
-  //   ];
-
-  //   return LayoutBuilder(
-  //     builder: (context, constraints) {
-  //       if (constraints.maxWidth < 360) {
-  //         return Column(
-  //           children: cards
-  //               .map(
-  //                 (c) => Padding(
-  //                   padding: const EdgeInsets.only(bottom: 12),
-  //                   child: c,
-  //                 ),
-  //               )
-  //               .toList(),
-  //         );
-  //       }
-  //       return Row(
-  //         crossAxisAlignment: CrossAxisAlignment.start,
-  //         children: [
-  //           Expanded(child: cards[0]),
-  //           const SizedBox(width: 12),
-  //           Expanded(child: cards[1]),
-  //           const SizedBox(width: 12),
-  //           Expanded(child: cards[2]),
-  //         ],
-  //       );
-  //     },
-  //   );
-  // }
-
-  // Widget _dashboardCard({
-  //   required Color color,
-  //   required IconData icon,
-  //   required Color? iconColor,
-  //   required String title,
-  //   required String value,
-  //   String subtitle = "",
-  //   double iconSize = 30,
-  //   bool isDeathNotice = false,
-  //   BuildContext? context,
-  //   VoidCallback? onTap,
-  // }) {
-  //   return SizedBox(
-  //     height: 220,
-  //     child: InkWell(
-  //       onTap: onTap,
-  //       borderRadius: BorderRadius.circular(18),
-  //       splashColor: kPrimary.withOpacity(.12), // NEW ripple color
-  //       highlightColor: kPrimary.withOpacity(.05),
-  //       child: Container(
-  //         padding: const EdgeInsets.all(16),
-  //         decoration: BoxDecoration(
-  //           color: color,
-  //           borderRadius: BorderRadius.circular(18),
-  //           border: Border.all(color: Colors.grey.shade300, width: 2),
-  //         ),
-  //         child: Column(
-  //           crossAxisAlignment: CrossAxisAlignment.stretch,
-  //           children: [
-  //             Icon(icon, size: iconSize, color: iconColor),
-  //             const SizedBox(height: 8),
-  //             AutoSizeText(
-  //               title,
-  //               textAlign: TextAlign.center,
-  //               style: const TextStyle(
-  //                 fontWeight: FontWeight.w800,
-  //                 fontSize: 16,
-  //                 color: kNeutralText,
-  //                 fontFamily: 'Montserrat',
-  //                 height: 1.15,
-  //               ),
-  //               maxLines: 2,
-  //               minFontSize: 11,
-  //               overflow: TextOverflow.ellipsis,
-  //             ),
-  //             const SizedBox(height: 8),
-  //             Expanded(
-  //               child: isDeathNotice
-  //                   ? _recentDeathsValueWidget(value, context)
-  //                   : Column(
-  //                       mainAxisAlignment: MainAxisAlignment.center,
-  //                       children: [
-  //                         AutoSizeText(
-  //                           value,
-  //                           style: const TextStyle(
-  //                             fontWeight: FontWeight.w800,
-  //                             fontSize: 30,
-  //                             color: kNeutralText,
-  //                             fontFamily: 'Montserrat',
-  //                           ),
-  //                           maxLines: 2,
-  //                           minFontSize: 12,
-  //                           overflow: TextOverflow.ellipsis,
-  //                           textAlign: TextAlign.center,
-  //                         ),
-  //                         if (subtitle.isNotEmpty)
-  //                           Padding(
-  //                             padding: const EdgeInsets.only(top: 4),
-  //                             child: AutoSizeText(
-  //                               subtitle,
-  //                               textAlign: TextAlign.center,
-  //                               style: TextStyle(
-  //                                 fontWeight: FontWeight.w600,
-  //                                 fontSize: 12,
-  //                                 color: kSubtleText.withOpacity(.9),
-  //                                 fontFamily: 'OpenSans',
-  //                               ),
-  //                               maxLines: 2,
-  //                               minFontSize: 10,
-  //                               overflow: TextOverflow.ellipsis,
-  //                             ),
-  //                           ),
-  //                       ],
-  //                     ),
-  //             ),
-  //           ],
-  //         ),
-  //       ),
-  //     ),
-  //   );
-  // }
-
-  // Widget _recentDeathsValueWidget(String raw, BuildContext ctx) {
-  //   if (raw == 'Loading…') {
-  //     return const Center(
-  //       child: SizedBox(
-  //         height: 24,
-  //         width: 24,
-  //         child: CircularProgressIndicator(strokeWidth: 3, color: kPrimary),
-  //       ),
-  //     );
-  //   }
-  //   if (raw == 'None') {
-  //     return const Center(
-  //       child: Text(
-  //         "None",
-  //         style: TextStyle(
-  //           fontWeight: FontWeight.w600,
-  //           fontSize: 14,
-  //           fontFamily: 'Montserrat',
-  //           color: kNeutralText,
-  //         ),
-  //       ),
-  //     );
-  //   }
-  //   final lines = raw.split('\n');
-  //   return Column(
-  //     mainAxisAlignment: MainAxisAlignment.center,
-  //     children: [
-  //       ...lines
-  //           .where((l) => !l.startsWith('+'))
-  //           .map(
-  //             (name) => Padding(
-  //               padding: const EdgeInsets.only(bottom: 4),
-  //               child: Row(
-  //                 children: [
-  //                   const Icon(
-  //                     FontAwesomeIcons.dove,
-  //                     size: 14,
-  //                     color: kNeutralText,
-  //                   ),
-  //                   const SizedBox(width: 6),
-  //                   Expanded(
-  //                     child: Text(
-  //                       name,
-  //                       overflow: TextOverflow.ellipsis,
-  //                       style: const TextStyle(
-  //                         fontWeight: FontWeight.w700,
-  //                         fontSize: 14,
-  //                         color: kNeutralText,
-  //                         fontFamily: 'Montserrat',
-  //                       ),
-  //                     ),
-  //                   ),
-  //                 ],
-  //               ),
-  //             ),
-  //           ),
-  //       if (lines.any((l) => l.startsWith('+')))
-  //         Text(
-  //           lines.firstWhere((l) => l.startsWith('+')),
-  //           style: const TextStyle(
-  //             fontSize: 12,
-  //             fontWeight: FontWeight.w600,
-  //             fontFamily: 'OpenSans',
-  //             color: kSubtleText,
-  //           ),
-  //         ),
-  //       TextButton(
-  //         onPressed: () {
-  //           final id = _asInt(_selectedDayungUnitObj?['id']);
-  //           Navigator.push(
-  //             ctx,
-  //             MaterialPageRoute(
-  //               builder: (_) => RecentDeathNotices(dayungUnitId: id),
-  //             ),
-  //           );
-  //         },
-  //         style: TextButton.styleFrom(
-  //           foregroundColor: kPrimary,
-  //           padding: EdgeInsets.zero,
-  //           minimumSize: const Size(0, 0),
-  //           tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-  //         ),
-  //         child: const Text(
-  //           "View All",
-  //           style: TextStyle(
-  //             fontWeight: FontWeight.w700,
-  //             fontSize: 13,
-  //             fontFamily: 'Montserrat',
-  //           ),
-  //         ),
-  //       ),
-  //     ],
-  //   );
-  // }
-
-  // Widget _topHeader(bool wide) {
-  //   return Padding(
-  //     padding: const EdgeInsets.fromLTRB(20, 12, 16, 8),
-  //     child: Row(
-  //       children: [
-  //         Expanded(
-  //           child: Column(
-  //             crossAxisAlignment: CrossAxisAlignment.start,
-  //             children: [
-  //               Text(
-  //                 _selectedDayungUnit, // same as Secretary header
-  //                 maxLines: 1,
-  //                 overflow: TextOverflow.ellipsis,
-  //                 style: const TextStyle(
-  //                   fontSize: 22,
-  //                   fontWeight: FontWeight.w800,
-  //                   fontFamily: 'Montserrat',
-  //                   color: kNeutralText,
-  //                   height: 1.1,
-  //                 ),
-  //               ),
-  //               const SizedBox(height: 2),
-  //               if (_unitBarangay != null || _unitCity != null)
-  //                 Row(
-  //                   mainAxisSize: MainAxisSize.min,
-  //                   children: [
-  //                     const Icon(
-  //                       Icons.location_on_outlined,
-  //                       size: 14,
-  //                       color: kSubtleText,
-  //                     ),
-  //                     const SizedBox(width: 4),
-  //                     Flexible(
-  //                       child: Text(
-  //                         [
-  //                           if (_unitBarangay != null) _unitBarangay!,
-  //                           if (_unitCity != null) _unitCity!,
-  //                         ].join(', '),
-  //                         maxLines: 1,
-  //                         overflow: TextOverflow.ellipsis,
-  //                         style: const TextStyle(
-  //                           fontSize: 12.5,
-  //                           fontWeight: FontWeight.w600,
-  //                           fontFamily: 'OpenSans',
-  //                           color: kSubtleText,
-  //                           height: 1.1,
-  //                         ),
-  //                       ),
-  //                     ),
-  //                   ],
-  //                 ),
-  //             ],
-  //           ),
-  //         ),
-  //         // Replace settings with Profile icon
-  //         _iconBtn(
-  //           tooltip: 'Profile',
-  //           icon: Icons.person,
-  //           color: kPrimary,
-  //           onTap: () async {
-  //             await Navigator.push(
-  //               context,
-  //               MaterialPageRoute(builder: (_) => const ProfilePage()),
-  //             );
-  //             await _loadUserData(); // refresh name/avatar after returning
-  //           },
-  //         ),
-  //         _iconBtn(
-  //           tooltip: 'Notifications',
-  //           icon: Icons.notifications,
-  //           color: kWarn,
-  //           badge: _unreadNotifCount > 0 ? '$_unreadNotifCount' : null,
-  //           onTap: () async {
-  //             await Navigator.push(
-  //               context,
-  //               MaterialPageRoute(builder: (_) => const NotificationPage()),
-  //             );
-  //             await _fetchUnreadNotifCount();
-  //           },
-  //         ),
-  //       ],
-  //     ),
-  //   );
-  // }
 
   Widget _buildNextPaymentCard(bool isWide) {
     final loading = _loadingPending;
@@ -2677,16 +2367,17 @@ class _MemberDashboardPageState extends State<MemberDashboardPage> {
               onPressed: loading
                   ? null
                   : () {
+                      final id = _asInt(_selectedDayungUnitObj?['id']);
+                      if (id == null) {
+                        // Show an error, fallback, or prevent navigation
+                        return;
+                      }
                       Navigator.push(
                         context,
                         MaterialPageRoute(
-                          builder: (context) => PaymentMethodPage(
-                            dayungUnitId: _asInt(_selectedDayungUnitObj?['id']),
-                          ),
+                          builder: (_) => PaymentMethodPage(dayungUnitId: id),
                         ),
-                      ).then((_) {
-                        _refreshDashboard();
-                      });
+                      );
                     },
               icon: loading
                   ? const SizedBox(
@@ -2722,75 +2413,6 @@ class _MemberDashboardPageState extends State<MemberDashboardPage> {
       ),
     );
   }
-
-  // Widget _buildRecentActivity(bool isWide) {
-  //   return Column(
-  //     crossAxisAlignment: CrossAxisAlignment.start,
-  //     children: [
-  //       Text(
-  //         'Recent Activity',
-  //         style: TextStyle(
-  //           fontSize: 20,
-  //           fontWeight: FontWeight.w800,
-  //           color: kPrimaryDark,
-  //           fontFamily: 'Montserrat',
-  //           letterSpacing: .2,
-  //         ),
-  //       ),
-  //       const SizedBox(height: 16),
-  //       Container(
-  //         padding: EdgeInsets.symmetric(
-  //           horizontal: isWide ? 40 : 20,
-  //           vertical: isWide ? 24 : 16,
-  //         ),
-  //         decoration: BoxDecoration(
-  //           color: Colors.white,
-  //           borderRadius: BorderRadius.circular(16),
-  //           border: Border.all(color: Colors.grey.shade300, width: 1.3),
-  //           boxShadow: [
-  //             BoxShadow(
-  //               color: Colors.black.withOpacity(.04),
-  //               blurRadius: 10,
-  //               offset: const Offset(0, 4),
-  //             ),
-  //           ],
-  //         ),
-  //         child: _loadingActivity
-  //             ? const Center(child: CircularProgressIndicator())
-  //             : _latestActivities.isEmpty ||
-  //                   _latestActivities.length <=
-  //                       1 // Updated condition
-  //             ? const Center(
-  //                 child: Padding(
-  //                   padding: EdgeInsets.symmetric(vertical: 20),
-  //                   child: Text(
-  //                     'No recent activity',
-  //                     style: TextStyle(
-  //                       fontSize: 16,
-  //                       color: kSubtleText,
-  //                       fontWeight: FontWeight.w600,
-  //                       fontFamily: 'OpenSans',
-  //                     ),
-  //                   ),
-  //                 ),
-  //               )
-  //             : Column(
-  //                 children: [
-  //                   for (int i = 0; i < _latestActivities.length; i++) ...[
-  //                     _ActivityRow(
-  //                       icon: _latestActivities[i]['icon'],
-  //                       color: _latestActivities[i]['color'],
-  //                       text: _latestActivities[i]['text'],
-  //                     ),
-  //                     if (i < _latestActivities.length - 1)
-  //                       const SizedBox(height: 12),
-  //                   ],
-  //                 ],
-  //               ),
-  //       ),
-  //     ],
-  //   );
-  // }
 }
 
 class _ActivityRow extends StatelessWidget {
@@ -2823,65 +2445,57 @@ class _ActivityRow extends StatelessWidget {
   }
 }
 
-// Widget _iconBtn({
-//   required IconData icon,
-//   required Color color,
-//   required VoidCallback onTap,
-//   String? tooltip,
-//   String? badge,
-// }) {
-//   return Semantics(
-//     button: true,
-//     label: tooltip,
-//     child: Padding(
-//       padding: const EdgeInsets.only(left: 6),
-//       child: InkWell(
-//         borderRadius: BorderRadius.circular(16),
-//         onTap: onTap,
-//         child: Stack(
-//           clipBehavior: Clip.none,
-//           children: [
-//             Container(
-//               padding: const EdgeInsets.all(12),
-//               decoration: BoxDecoration(
-//                 color: color.withOpacity(.10),
-//                 borderRadius: BorderRadius.circular(16),
-//               ),
-//               child: Icon(icon, size: 28, color: color),
-//             ),
-//             if (badge != null)
-//               Positioned(
-//                 right: -2,
-//                 top: -2,
-//                 child: Container(
-//                   padding: const EdgeInsets.symmetric(
-//                     horizontal: 6,
-//                     vertical: 2,
-//                   ),
-//                   decoration: BoxDecoration(
-//                     color: kDanger,
-//                     borderRadius: BorderRadius.circular(12),
-//                     boxShadow: [
-//                       BoxShadow(
-//                         color: Colors.black.withOpacity(.25),
-//                         blurRadius: 4,
-//                         offset: const Offset(0, 2),
-//                       ),
-//                     ],
-//                   ),
-//                   child: Text(
-//                     badge,
-//                     style: const TextStyle(
-//                       fontSize: 10,
-//                       fontWeight: FontWeight.w700,
-//                       color: Colors.white,
-//                     ),
-//                   ),
-//                 ),
-//               ),
-//           ],
-//         ),
-//       ),
-//     ),
-//   );
-// }
+// Modern drawer tile with hover effect
+class _ModernDrawerTile extends StatefulWidget {
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+
+  const _ModernDrawerTile({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+  });
+
+  @override
+  State<_ModernDrawerTile> createState() => _ModernDrawerTileState();
+}
+
+class _ModernDrawerTileState extends State<_ModernDrawerTile> {
+  bool _hovering = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final hoverColor = kPrimary.withOpacity(0.08);
+    return MouseRegion(
+      onEnter: (_) => setState(() => _hovering = true),
+      onExit: (_) => setState(() => _hovering = false),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(14),
+        onTap: widget.onTap,
+        child: Container(
+          decoration: BoxDecoration(
+            color: _hovering ? hoverColor : Colors.transparent,
+            borderRadius: BorderRadius.circular(14),
+          ),
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+          child: Row(
+            children: [
+              Icon(widget.icon, color: kPrimary),
+              const SizedBox(width: 18),
+              Text(
+                widget.label,
+                style: const TextStyle(
+                  fontWeight: FontWeight.w600,
+                  fontSize: 15,
+                  color: kPrimary,
+                  fontFamily: 'Montserrat',
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}

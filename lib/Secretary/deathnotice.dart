@@ -158,8 +158,9 @@ class _CreateDeathNoticePageState extends State<CreateDeathNoticePage> {
         final isBen = c['beneficiary_id'] != null;
         if (isBen) {
           final id = c['beneficiary_id']?.toString();
-          if (id != null && deceasedBenIds.contains(id))
+          if (id != null && deceasedBenIds.contains(id)) {
             continue; // only skip if that beneficiary already has a notice
+          }
           out.add({
             ...c,
             'users': userMap[c['user_id']?.toString()],
@@ -167,8 +168,9 @@ class _CreateDeathNoticePageState extends State<CreateDeathNoticePage> {
           });
         } else {
           final uid = c['user_id']?.toString();
-          if (uid != null && deceasedMemberUserIds.contains(uid))
+          if (uid != null && deceasedMemberUserIds.contains(uid)) {
             continue; // only skip if the MEMBER already has a member-type notice
+          }
           out.add({...c, 'users': userMap[uid], 'beneficiaries': null});
         }
       }
@@ -456,32 +458,19 @@ class _CreateDeathNoticePageState extends State<CreateDeathNoticePage> {
                                                 top: 8.0,
                                               ),
                                               child: TextButton.icon(
-                                                icon: const Icon(
-                                                  Icons.picture_as_pdf,
-                                                  color: kPrimaryDark,
-                                                ),
-                                                label: const Text(
-                                                  'View Death Certificate',
-                                                ),
+                                                icon: const SizedBox.shrink(), // No icon
+                                                label: const SizedBox.shrink(), // No label text
                                                 onPressed: () async {
-                                                  final url = deathCert
-                                                      .toString();
-                                                  if (await canLaunchUrl(
-                                                    Uri.parse(url),
-                                                  )) {
+                                                  final url = deathCert.toString();
+                                                  if (await canLaunchUrl(Uri.parse(url))) {
                                                     await launchUrl(
                                                       Uri.parse(url),
-                                                      mode: LaunchMode
-                                                          .externalApplication,
+                                                      mode: LaunchMode.externalApplication,
                                                     );
                                                   } else {
-                                                    ScaffoldMessenger.of(
-                                                      context,
-                                                    ).showSnackBar(
+                                                    ScaffoldMessenger.of(context).showSnackBar(
                                                       const SnackBar(
-                                                        content: Text(
-                                                          'Could not open file.',
-                                                        ),
+                                                        content: Text('Could not open file.'),
                                                       ),
                                                     );
                                                   }
@@ -495,7 +484,7 @@ class _CreateDeathNoticePageState extends State<CreateDeathNoticePage> {
                                           Align(
                                             alignment: Alignment.centerRight,
                                             child: ElevatedButton.icon(
-                                              onPressed: () => _setDeceased(c),
+                                              onPressed: () => _showAmountDialogAndSetDeceased(c),
                                               style: ElevatedButton.styleFrom(
                                                 backgroundColor: kPrimary,
                                                 foregroundColor: Colors.white,
@@ -584,7 +573,7 @@ class _CreateDeathNoticePageState extends State<CreateDeathNoticePage> {
     final isBeneficiary = claim['beneficiary_id'] != null;
     final dod = claim['date_of_death'];
     final deathCert = claim['death_certificate_url'];
-    final dayungId = claim['dayung_unit_id'];
+   final dayungId = claim['dayung_unit_id'] ?? widget.dayungUnitId;
 
     final Map<String, dynamic>? user = claim['users'] as Map<String, dynamic>?;
     final Map<String, dynamic>? ben =
@@ -660,7 +649,7 @@ class _CreateDeathNoticePageState extends State<CreateDeathNoticePage> {
       try {
         await supabase
             .from('claims')
-            .update({'status': 'Done'})
+            .update({'status': 'Approved'})
             .eq('id', (claim['id'] ?? '').toString());
       } catch (_) {}
 
@@ -674,6 +663,113 @@ class _CreateDeathNoticePageState extends State<CreateDeathNoticePage> {
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text('Error: $e')));
+    }
+  }
+
+  Future<void> _showAmountDialogAndSetDeceased(Map<String, dynamic> claim) async {
+    final TextEditingController amountController = TextEditingController();
+    final isBeneficiary = claim['beneficiary_id'] != null;
+    final userId = isBeneficiary
+        ? (claim['beneficiaries']?['user_id'] ?? claim['user_id'])
+        : claim['user_id'];
+    final paymentId = claim['id'];
+    final fullName = isBeneficiary
+        ? (claim['beneficiaries']?['full_name'] ?? '')
+        : (claim['users']?['full_name'] ?? '');
+
+    final parentContext = context;
+
+    // Fetch secretary_id before showing the dialog
+    final unit = await supabase
+        .from('dayung_units')
+        .select('secretary_id')
+        .eq('id', widget.dayungUnitId)
+        .maybeSingle();
+    final secretaryId = unit?['secretary_id'];
+
+    final result = await showDialog<double>(
+      context: parentContext,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(
+          'Set Amount for $fullName'
+        ),
+        content: TextField(
+          controller: amountController,
+          keyboardType: TextInputType.numberWithOptions(decimal: true),
+          decoration: const InputDecoration(
+            labelText: 'Amount',
+            prefixIcon: Icon(Icons.attach_money),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, null),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              final amount = double.tryParse(amountController.text);
+              if (amount == null) {
+                ScaffoldMessenger.of(parentContext).showSnackBar(
+                  const SnackBar(content: Text('Please enter a valid amount.')),
+                );
+                return;
+              }
+              Navigator.pop(dialogContext, amount);
+            },
+            child: const Text('Save'),
+          ),
+        ],
+      ),
+    );
+
+    if (result != null) {
+      showDialog(
+        context: parentContext,
+        barrierDismissible: false,
+        builder: (_) => const Center(child: CircularProgressIndicator()),
+      );
+      try {
+        await supabase.from('set_amount').insert({
+          'userdeceased': userId,
+          'payment_id': paymentId,
+          'amount': result,
+          'secretary_id': secretaryId,
+          'dayung_unit_id': widget.dayungUnitId,
+        });
+
+        // Fetch all approved applications for the unit
+        final approvedApplications = await supabase
+          .from('applications')
+          .select('user_id')
+          .eq('dayung_unit_id', widget.dayungUnitId)
+          .eq('status', 'approved');
+
+        final now = DateTime.now().toIso8601String();
+        final notificationBody = '$fullName passed away. Amount: ₱${result.toStringAsFixed(2)}';
+
+        // Insert notification for each approved user
+        for (final app in List<Map<String, dynamic>>.from(approvedApplications)) {
+          await supabase.from('notifications').insert({
+            'recipient_id': app['user_id'],
+            'body': notificationBody,
+            'type': 'announcement',
+            'title': 'Payment Reminder',
+            'dayung_unit_id': widget.dayungUnitId,
+            'read_at': null,
+            'created_at': now,
+            'sender_id': secretaryId,
+          });
+        }
+
+        Navigator.of(parentContext, rootNavigator: true).pop(); // Close loading
+        await _setDeceased(claim);
+      } catch (e) {
+        Navigator.of(parentContext, rootNavigator: true).pop(); // Close loading
+        ScaffoldMessenger.of(parentContext).showSnackBar(
+          SnackBar(content: Text('Failed to save amount: $e')),
+        );
+      }
     }
   }
 }

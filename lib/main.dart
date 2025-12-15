@@ -1,4 +1,4 @@
-import 'package:capstone_app/Admin/dashboard.dart';
+import 'package:capstone_app/SuperAdmin/dashboard.dart';
 import 'package:capstone_app/Collector/dashboard.dart';
 import 'package:capstone_app/Members/dashboard.dart';
 import 'package:capstone_app/President/dashboard.dart';
@@ -84,7 +84,6 @@ class MyApp extends StatelessWidget {
             ),
             themeMode: mode,
             themeAnimationDuration: const Duration(milliseconds: 400),
-
             initialRoute: '/',
             routes: {
               '/': (context) => SplashScreen(),
@@ -92,11 +91,12 @@ class MyApp extends StatelessWidget {
               '/register': (context) => Register(),
               '/reapply': (context) => Reapply(),
               '/dashboard': (context) => MemberDashboardPage(),
-              '/president-dashboard': (context) => PresidentDashboardPage(),
+              '/president-dashboard': (context) =>
+                  PresidentDashboardPage(),
               '/secretary-dashboard': (context) => SecretaryDashboardPage(),
               '/treasurer-dashboard': (context) => TreasurerDashboardPage(),
               '/collector-dashboard': (context) => CollectorDashboardPage(),
-              '/admin-dashboard': (context) => AdminDashboardPage(),
+              '/superadmin-dashboard': (context) => SuperAdminDashboardPage(),
             },
           );
         },

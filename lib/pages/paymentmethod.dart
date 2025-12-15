@@ -8,8 +8,8 @@ const kSubText = Color(0xFF4B5563);
 const kAccent = Color(0xFF0D47A1);
 
 class PaymentMethodPage extends StatefulWidget {
-  final int? dayungUnitId; // selected dayung
-  const PaymentMethodPage({super.key, this.dayungUnitId});
+  final int dayungUnitId;
+  const PaymentMethodPage({super.key, required this.dayungUnitId});
 
   @override
   State<PaymentMethodPage> createState() => _PaymentMethodPageState();
