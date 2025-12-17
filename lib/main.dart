@@ -1,3 +1,4 @@
+import 'package:capstone_app/Auth/idle_timeout_manage.dart';
 import 'package:capstone_app/SuperAdmin/dashboard.dart';
 import 'package:capstone_app/Collector/dashboard.dart';
 import 'package:capstone_app/Members/dashboard.dart';
@@ -19,6 +20,9 @@ import 'Auth/register.dart';
 import 'Auth/reapply.dart';
 import 'package:provider/provider.dart';
 
+final GlobalKey<NavigatorState> globalNavigatorKey =
+    GlobalKey<NavigatorState>();
+
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   final appTheme = AppTheme();
@@ -37,69 +41,79 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MultiProvider(
-      providers: [
-        ChangeNotifierProvider.value(value: appTheme),
-        ChangeNotifierProvider(create: (_) => UserProvider()),
-        ChangeNotifierProvider(
-          create: (_) => DayungUnitProvider()..loadDayungUnit(),
-        ),
-        ChangeNotifierProxyProvider<DayungUnitProvider, DayungRoleProvider>(
-          create: (_) => DayungRoleProvider(),
-          update: (context, unitProv, roleProv) {
-            roleProv ??= DayungRoleProvider();
-            final newId = unitProv.currentUnitId;
-            if (newId != roleProv.unitId) {
-              roleProv.refreshRoles(newId);
-            }
-            return roleProv;
+    return Listener(
+      behavior: HitTestBehavior.translucent,
+      onPointerDown: (_) => IdleTimeoutManager().reset(),
+      onPointerMove: (_) => IdleTimeoutManager().reset(),
+      onPointerUp: (_) => IdleTimeoutManager().reset(),
+      child: MultiProvider(
+        providers: [
+          ChangeNotifierProvider.value(value: appTheme),
+          ChangeNotifierProvider(create: (_) => UserProvider()),
+          ChangeNotifierProvider(
+            create: (_) => DayungUnitProvider()..loadDayungUnit(),
+          ),
+          ChangeNotifierProxyProvider<DayungUnitProvider, DayungRoleProvider>(
+            create: (_) => DayungRoleProvider(),
+            update: (context, unitProv, roleProv) {
+              roleProv ??= DayungRoleProvider();
+              final newId = unitProv.currentUnitId;
+              if (newId != roleProv.unitId) {
+                roleProv.refreshRoles(newId);
+              }
+              return roleProv;
+            },
+          ),
+        ],
+        child: Builder(
+          builder: (context) {
+            // Start the idle timer when the app is built
+            // WidgetsBinding.instance.addPostFrameCallback((_) {
+            //   IdleTimeoutManager().start(context);
+            // });
+            final mode = context.watch<AppTheme>().mode;
+            return MaterialApp(
+              navigatorKey: globalNavigatorKey,
+              debugShowCheckedModeBanner: false,
+              scrollBehavior: NoGlowScrollBehavior(),
+              title: 'Dayung',
+              navigatorObservers: [appRouteObserver],
+              theme: ThemeData(
+                useMaterial3: true,
+                brightness: Brightness.light,
+                colorScheme: ColorScheme.fromSeed(
+                  seedColor: const Color(0xFF3B82F6),
+                  brightness: Brightness.light,
+                ),
+                scaffoldBackgroundColor: const Color(0xFFF8FAFC),
+              ),
+              darkTheme: ThemeData(
+                useMaterial3: true,
+                brightness: Brightness.dark,
+                colorScheme: ColorScheme.fromSeed(
+                  seedColor: const Color(0xFF3B82F6),
+                  brightness: Brightness.dark,
+                ),
+                scaffoldBackgroundColor: const Color(0xFF18181B),
+              ),
+              themeMode: mode,
+              themeAnimationDuration: const Duration(milliseconds: 400),
+              initialRoute: '/',
+              routes: {
+                '/': (context) => SplashScreen(),
+                '/login': (context) => Login(),
+                '/register': (context) => Register(),
+                '/reapply': (context) => Reapply(),
+                '/dashboard': (context) => MemberDashboardPage(),
+                '/president-dashboard': (context) => PresidentDashboardPage(),
+                '/secretary-dashboard': (context) => SecretaryDashboardPage(),
+                '/treasurer-dashboard': (context) => TreasurerDashboardPage(),
+                '/collector-dashboard': (context) => CollectorDashboardPage(),
+                '/superadmin-dashboard': (context) => SuperAdminDashboardPage(),
+              },
+            );
           },
         ),
-      ],
-      child: Builder(
-        builder: (context) {
-          final mode = context.watch<AppTheme>().mode;
-          return MaterialApp(
-            debugShowCheckedModeBanner: false,
-            scrollBehavior: NoGlowScrollBehavior(),
-            title: 'Dayung',
-            navigatorObservers: [appRouteObserver],
-            theme: ThemeData(
-              useMaterial3: true,
-              brightness: Brightness.light,
-              colorScheme: ColorScheme.fromSeed(
-                seedColor: const Color(0xFF3B82F6),
-                brightness: Brightness.light,
-              ),
-              scaffoldBackgroundColor: const Color(0xFFF8FAFC),
-            ),
-            darkTheme: ThemeData(
-              useMaterial3: true,
-              brightness: Brightness.dark,
-              colorScheme: ColorScheme.fromSeed(
-                seedColor: const Color(0xFF3B82F6),
-                brightness: Brightness.dark,
-              ),
-              scaffoldBackgroundColor: const Color(0xFF18181B),
-            ),
-            themeMode: mode,
-            themeAnimationDuration: const Duration(milliseconds: 400),
-            initialRoute: '/',
-            routes: {
-              '/': (context) => SplashScreen(),
-              '/login': (context) => Login(),
-              '/register': (context) => Register(),
-              '/reapply': (context) => Reapply(),
-              '/dashboard': (context) => MemberDashboardPage(),
-              '/president-dashboard': (context) =>
-                  PresidentDashboardPage(),
-              '/secretary-dashboard': (context) => SecretaryDashboardPage(),
-              '/treasurer-dashboard': (context) => TreasurerDashboardPage(),
-              '/collector-dashboard': (context) => CollectorDashboardPage(),
-              '/superadmin-dashboard': (context) => SuperAdminDashboardPage(),
-            },
-          );
-        },
       ),
     );
   }

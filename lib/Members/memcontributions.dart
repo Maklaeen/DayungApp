@@ -233,7 +233,10 @@ class _MembersContributionHistoryState
         return;
       }
 
-      final dayungId = _selectedDayungUnitObj?['id'];
+      // Use the ID passed from dashboard
+      final int? dayungId = widget.dayungUnitId;
+      debugPrint('Contrib: using dayungUnitId=$dayungId');
+
       var q = supabase
           .from('payments')
           .select(
@@ -249,6 +252,7 @@ class _MembersContributionHistoryState
       final payments = List<Map<String, dynamic>>.from(
         await q.order('created_at', ascending: false),
       );
+      debugPrint('Paid contributions fetched: ${payments.length}');
 
       if (payments.isEmpty) {
         _setStateSafe(() {
@@ -344,13 +348,6 @@ class _MembersContributionHistoryState
 
   @override
   Widget build(BuildContext context) {
-    final providerName = context.watch<DayungUnitProvider>().dayungUnit;
-    final dayungName =
-        providerName ?? _selectedDayungUnitObj?['name'] ?? 'Dayung';
-    final addr = _selectedDayungUnitObj != null
-        ? _address(_selectedDayungUnitObj!)
-        : null;
-
     return Scaffold(
       backgroundColor: kBg,
       body: SafeArea(
@@ -423,7 +420,7 @@ class _MembersContributionHistoryState
                     ),
                   )
                 // ADD: Show "Apply dayung first" when no dayung selected
-                : (_dayungId == null
+                : (widget.dayungUnitId == null
                       ? ListView(
                           physics: const AlwaysScrollableScrollPhysics(),
                           padding: const EdgeInsets.fromLTRB(16, 60, 16, 32),

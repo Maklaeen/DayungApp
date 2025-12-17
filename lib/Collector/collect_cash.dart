@@ -72,9 +72,9 @@ class _CollectCashPageState extends State<CollectCashPage> {
           .select('user_id')
           .eq('dayung_unit_id', widget.dayungUnitId)
           .eq('status', 'approved');
-      final userIds = List<Map<String, dynamic>>.from(
-        appsRes,
-      ).map((a) => a['user_id']).toList();
+      final userIds = List<Map<String, dynamic>>.from(appsRes)
+          .map((a) => a['user_id'])
+          .toList();
 
       List<Map<String, dynamic>> members = [];
       if (userIds.isNotEmpty) {
@@ -98,11 +98,7 @@ class _CollectCashPageState extends State<CollectCashPage> {
   }
 
   // Update _savePayment to accept setAmountId
-  Future<void> _savePayment(
-    String userId,
-    double amount,
-    String setAmountId,
-  ) async {
+  Future<void> _savePayment(String userId, double amount, String setAmountId) async {
     try {
       final collectorId = sb.auth.currentUser?.id;
       if (collectorId == null) {
@@ -139,9 +135,9 @@ class _CollectCashPageState extends State<CollectCashPage> {
         const SnackBar(content: Text('Payment saved successfully!')),
       );
     } catch (e) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Failed to save payment: $e')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to save payment: $e')),
+      );
     }
   }
 
@@ -165,103 +161,99 @@ class _CollectCashPageState extends State<CollectCashPage> {
       body: _loading
           ? const Center(child: CircularProgressIndicator())
           : _error != null
-          ? Center(
-              child: Text(
-                _error!,
-                style: const TextStyle(color: Colors.red, fontSize: 18),
-              ),
-            )
-          : _selectedMember == null
-          ? _approvedMembers.isEmpty
-                ? const Center(
-                    child: Text(
-                      'No approved members assigned.',
-                      style: TextStyle(
-                        fontSize: 22,
-                        color: kSubText,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  )
-                : Padding(
-                    padding: const EdgeInsets.all(18),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Padding(
-                          padding: EdgeInsets.only(bottom: 12.0, left: 4.0),
+              ? Center(
+                  child: Text(
+                    _error!,
+                    style: const TextStyle(color: Colors.red, fontSize: 18),
+                  ),
+                )
+              : _selectedMember == null
+                  ? _approvedMembers.isEmpty
+                      ? const Center(
                           child: Text(
-                            'MEMBERS',
+                            'No approved members assigned.',
                             style: TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold,
-                              color: kAccent,
-                              letterSpacing: 1.2,
+                              fontSize: 22,
+                              color: kSubText,
+                              fontWeight: FontWeight.w600,
                             ),
                           ),
-                        ),
-                        Expanded(
-                          child: ListView.separated(
-                            itemCount: _approvedMembers.length,
-                            separatorBuilder: (_, __) =>
-                                const SizedBox(height: 14),
-                            itemBuilder: (context, i) {
-                              final member = _approvedMembers[i];
-                              return ListTile(
-                                title: Text(
-                                  member['full_name'] ?? 'Member',
-                                  style: const TextStyle(
-                                    fontSize: 20,
-                                    fontWeight: FontWeight.w800,
-                                    color: kText,
+                        )
+                      : Padding(
+                          padding: const EdgeInsets.all(18),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Padding(
+                                padding: EdgeInsets.only(bottom: 12.0, left: 4.0),
+                                child: Text(
+                                  'MEMBERS',
+                                  style: TextStyle(
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.bold,
+                                    color: kAccent,
+                                    letterSpacing: 1.2,
                                   ),
                                 ),
-                                tileColor: Colors.white,
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(16),
-                                  side: BorderSide(
-                                    color: kAccent.withOpacity(0.10),
-                                  ),
+                              ),
+                              Expanded(
+                                child: ListView.separated(
+                                  itemCount: _approvedMembers.length,
+                                  separatorBuilder: (_, __) => const SizedBox(height: 14),
+                                  itemBuilder: (context, i) {
+                                    final member = _approvedMembers[i];
+                                    return ListTile(
+                                      title: Text(
+                                        member['full_name'] ?? 'Member',
+                                        style: const TextStyle(
+                                          fontSize: 20,
+                                          fontWeight: FontWeight.w800,
+                                          color: kText,
+                                        ),
+                                      ),
+                                      tileColor: Colors.white,
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(16),
+                                        side: BorderSide(color: kAccent.withOpacity(0.10)),
+                                      ),
+                                      onTap: () {
+                                        final userId = member['id'] ?? member['user_id'];
+                                        debugPrint('MEMBERS TAPPED: $userId');
+                                        setState(() {
+                                          _selectedMember = member;
+                                          _selectedSetAmountIndex = null;
+                                        });
+                                      },
+                                    );
+                                  },
                                 ),
-                                onTap: () {
-                                  final userId =
-                                      member['id'] ?? member['user_id'];
-                                  debugPrint('MEMBERS TAPPED: $userId');
-                                  setState(() {
-                                    _selectedMember = member;
-                                    _selectedSetAmountIndex = null;
-                                  });
-                                },
-                              );
-                            },
+                              ),
+                            ],
                           ),
-                        ),
-                      ],
+                        )
+                  : SetAmountsTab(
+                      setAmounts: _setAmounts,
+                      selectedMember: _selectedMember,
+                      selectedSetAmountIndex: _selectedSetAmountIndex,
+                      onSetAmount: (index, amount, setAmountId) async {
+                        final userId = _selectedMember?['id'] ?? _selectedMember?['user_id'];
+                        if (userId != null) {
+                          await _savePayment(userId, amount, setAmountId);
+                        }
+                        setState(() {
+                          _selectedMember = null;
+                          _selectedSetAmountIndex = null;
+                        });
+                      },
+                      onSavePayment: (user) async {
+                        final userId = user['id'] ?? user['user_id'];
+                        if (userId != null) {
+                          await _savePayment(userId.toString(), 0.0, '');
+                        }
+                      },
+                      users: _approvedMembers,
+                      payments: _payments.where((p) => p['user_id'] == _selectedMember?['id']).toList(), // <-- Filter here
                     ),
-                  )
-          : SetAmountsTab(
-              setAmounts: _setAmounts,
-              selectedMember: _selectedMember,
-              selectedSetAmountIndex: _selectedSetAmountIndex,
-              onSetAmount: (index, amount, setAmountId) async {
-                final userId =
-                    _selectedMember?['id'] ?? _selectedMember?['user_id'];
-                if (userId != null) {
-                  await _savePayment(userId, amount, setAmountId);
-                }
-                setState(() {
-                  _selectedMember = null;
-                  _selectedSetAmountIndex = null;
-                });
-              },
-              onSavePayment: (userId, amount) async {
-                await _savePayment(userId, amount, '');
-              },
-              users: _approvedMembers,
-              paymentList: _payments
-                  .where((p) => p['user_id'] == _selectedMember?['id'])
-                  .toList(), // <-- Use correct parameter name
-            ),
     );
   }
 }

@@ -105,6 +105,15 @@ class _ProfilePageState extends State<ProfilePage> {
     super.dispose();
   }
 
+  Future<void> _logAudit(String action) async {
+    final user = supabase.auth.currentUser;
+    if (user == null) return;
+    await supabase.from('audit_logs').insert({
+      'action': action,
+      'user_id': user.id,
+    });
+  }
+
   Future<void> _loadUnitAtEntry() async {
     final prefs = await SharedPreferences.getInstance();
     final raw = prefs.getString('selectedDayungUnit');
@@ -116,398 +125,6 @@ class _ProfilePageState extends State<ProfilePage> {
     }
     if (mounted) setState(() => _unitAtEntry = id);
   }
-
-  // Future<bool> _handleBackNavigate() async {
-  //   final prefs = await SharedPreferences.getInstance();
-  //   final raw = prefs.getString('selectedDayungUnit');
-  //   int? currentId;
-  //   if (raw != null) {
-  //     try {
-  //       currentId = (jsonDecode(raw) as Map)['id'] as int?;
-  //     } catch (_) {}
-  //   }
-
-  //   if (currentId != null && currentId != _unitAtEntry) {
-  //     final roles = context.read<DayungRoleProvider>();
-  //     final Widget home = roles.isPresident
-  //         ? const PresidentDashboardPage()
-  //         : roles.isSecretary
-  //         ? const SecretaryDashboardPage()
-  //         : roles.isTreasurer
-  //         ? const TreasurerDashboardPage()
-  //         : roles.isCollector
-  //         ? const CollectorDashboardPage()
-  //         : const MemberDashboardPage();
-
-  //     if (!mounted) return false;
-  //     Navigator.of(context).pushAndRemoveUntil(
-  //       MaterialPageRoute(builder: (_) => home),
-  //       (route) => false,
-  //     );
-  //     return false; // we handled navigation
-  //   }
-  //   return true; // normal back
-  // }
-
-  // void _openCertificate(String url) {
-  //   showDialog(
-  //     context: context,
-  //     builder: (ctx) => AlertDialog(
-  //       title: const Text('Certificate'),
-  //       content: url.endsWith('.pdf')
-  //           ? Text('Open this PDF in browser?')
-  //           : Image.network(url, fit: BoxFit.contain, height: 300),
-  //       actions: [
-  //         TextButton(
-  //           onPressed: () => Navigator.pop(ctx),
-  //           child: const Text('Close'),
-  //         ),
-  //         if (url.endsWith('.pdf'))
-  //           TextButton(
-  //             onPressed: () {
-  //               Navigator.pop(ctx);
-  //               launchUrl(Uri.parse(url));
-  //             },
-  //             child: const Text('Open PDF'),
-  //           ),
-  //       ],
-  //     ),
-  //   );
-  // }
-
-  // Widget _certificateRow({
-  //   required String label,
-  //   required String? url,
-  //   required VoidCallback onUpload,
-  //   required VoidCallback onView,
-  //   required Color labelColor,
-  // }) {
-  //   return Row(
-  //     children: [
-  //       Icon(
-  //         url != null && url.isNotEmpty
-  //             ? Icons.check_circle
-  //             : Icons.warning_amber_rounded,
-  //         color: url != null && url.isNotEmpty ? Colors.green : Colors.red,
-  //       ),
-  //       const SizedBox(width: 8),
-  //       Expanded(
-  //         child: Text(
-  //           label,
-  //           style: TextStyle(
-  //             fontSize: 15,
-  //             fontWeight: FontWeight.w600,
-  //             color: labelColor,
-  //           ),
-  //         ),
-  //       ),
-  //       if (url != null && url.isNotEmpty)
-  //         IconButton(
-  //           icon: const Icon(Icons.open_in_new, color: kAccent),
-  //           tooltip: 'View',
-  //           onPressed: () => _openCertificate(url),
-  //         ),
-  //       // Always show the upload/replace button
-  //       ElevatedButton.icon(
-  //         icon: const Icon(Icons.upload_file),
-  //         label: Text(url != null && url.isNotEmpty ? 'Replace' : 'Add'),
-  //         style: ElevatedButton.styleFrom(
-  //           backgroundColor: kAccent,
-  //           foregroundColor: Colors.white,
-  //           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-  //           shape: RoundedRectangleBorder(
-  //             borderRadius: BorderRadius.circular(10),
-  //           ),
-  //         ),
-  //         onPressed: onUpload,
-  //       ),
-  //     ],
-  //   );
-  // }
-
-  // Future<void> _showPinModal({required bool hasPin}) async {
-  //   String? err;
-  //   final pinController = TextEditingController();
-  //   final confirmController = TextEditingController();
-  //   final oldPinController = TextEditingController();
-  //   bool saving = false;
-
-  //   await showGeneralDialog<void>(
-  //     context: context,
-  //     barrierDismissible: !saving,
-  //     barrierColor: Colors.black.withOpacity(0.35),
-  //     barrierLabel: hasPin ? 'Change PIN' : 'Set up PIN',
-  //     transitionDuration: const Duration(milliseconds: 220),
-  //     pageBuilder: (_, __, ___) => const SizedBox.shrink(),
-  //     transitionBuilder: (ctx, anim, __, ___) {
-  //       final curved = CurvedAnimation(
-  //         parent: anim,
-  //         curve: Curves.easeOutCubic,
-  //         reverseCurve: Curves.easeInCubic,
-  //       );
-  //       return FadeTransition(
-  //         opacity: curved,
-  //         child: ScaleTransition(
-  //           scale: Tween<double>(begin: 0.96, end: 1.0).animate(curved),
-  //           child: Center(
-  //             child: StatefulBuilder(
-  //               builder: (ctx, setD) {
-  //                 return Material(
-  //                   color: Colors.transparent,
-  //                   child: ConstrainedBox(
-  //                     constraints: const BoxConstraints(maxWidth: 420),
-  //                     child: Container(
-  //                       margin: EdgeInsets.fromLTRB(
-  //                         24,
-  //                         0,
-  //                         24,
-  //                         MediaQuery.of(ctx).viewInsets.bottom + 24,
-  //                       ),
-  //                       padding: const EdgeInsets.symmetric(
-  //                         horizontal: 20,
-  //                         vertical: 24,
-  //                       ),
-  //                       decoration: BoxDecoration(
-  //                         color: Colors.white,
-  //                         borderRadius: BorderRadius.circular(18),
-  //                         border: Border.all(
-  //                           color: Colors.black12.withOpacity(0.45),
-  //                         ),
-  //                         boxShadow: const [
-  //                           BoxShadow(
-  //                             color: Colors.black26,
-  //                             blurRadius: 18,
-  //                             offset: Offset(0, 12),
-  //                           ),
-  //                         ],
-  //                       ),
-  //                       child: Column(
-  //                         mainAxisSize: MainAxisSize.min,
-  //                         children: [
-  //                           Row(
-  //                             children: [
-  //                               Container(
-  //                                 width: 40,
-  //                                 height: 40,
-  //                                 decoration: BoxDecoration(
-  //                                   color: kAccent.withOpacity(0.12),
-  //                                   borderRadius: BorderRadius.circular(12),
-  //                                 ),
-  //                                 child: const Icon(
-  //                                   Icons.pin_rounded,
-  //                                   color: kAccent,
-  //                                 ),
-  //                               ),
-  //                               const SizedBox(width: 12),
-  //                               Expanded(
-  //                                 child: Text(
-  //                                   hasPin
-  //                                       ? 'Change App PIN'
-  //                                       : 'Set up App PIN',
-  //                                   style: const TextStyle(
-  //                                     color: kText,
-  //                                     fontSize: 18,
-  //                                     fontWeight: FontWeight.w800,
-  //                                   ),
-  //                                 ),
-  //                               ),
-  //                               IconButton(
-  //                                 onPressed: saving
-  //                                     ? null
-  //                                     : () => Navigator.of(ctx).pop(),
-  //                                 icon: const Icon(
-  //                                   Icons.close,
-  //                                   color: kSubText,
-  //                                 ),
-  //                                 tooltip: 'Close',
-  //                               ),
-  //                             ],
-  //                           ),
-  //                           const SizedBox(height: 18),
-  //                           if (hasPin)
-  //                             Column(
-  //                               children: [
-  //                                 TextField(
-  //                                   controller: oldPinController,
-  //                                   keyboardType: TextInputType.number,
-  //                                   maxLength: 6,
-  //                                   obscureText: true,
-  //                                   decoration: InputDecoration(
-  //                                     labelText: 'Current PIN',
-  //                                     filled: true,
-  //                                     fillColor: Colors.white,
-  //                                     contentPadding:
-  //                                         const EdgeInsets.symmetric(
-  //                                           horizontal: 14,
-  //                                           vertical: 14,
-  //                                         ),
-  //                                     border: OutlineInputBorder(
-  //                                       borderRadius: BorderRadius.circular(12),
-  //                                     ),
-  //                                   ),
-  //                                 ),
-  //                                 const SizedBox(height: 12),
-  //                               ],
-  //                             ),
-  //                           TextField(
-  //                             controller: pinController,
-  //                             keyboardType: TextInputType.number,
-  //                             maxLength: 6,
-  //                             obscureText: true,
-  //                             decoration: InputDecoration(
-  //                               labelText: 'Enter 6-digit PIN',
-  //                               filled: true,
-  //                               fillColor: Colors.white,
-  //                               contentPadding: const EdgeInsets.symmetric(
-  //                                 horizontal: 14,
-  //                                 vertical: 14,
-  //                               ),
-  //                               border: OutlineInputBorder(
-  //                                 borderRadius: BorderRadius.circular(12),
-  //                               ),
-  //                             ),
-  //                           ),
-  //                           const SizedBox(height: 8),
-  //                           TextField(
-  //                             controller: confirmController,
-  //                             keyboardType: TextInputType.number,
-  //                             maxLength: 6,
-  //                             obscureText: true,
-  //                             decoration: InputDecoration(
-  //                               labelText: 'Confirm PIN',
-  //                               filled: true,
-  //                               fillColor: Colors.white,
-  //                               contentPadding: const EdgeInsets.symmetric(
-  //                                 horizontal: 14,
-  //                                 vertical: 14,
-  //                               ),
-  //                               border: OutlineInputBorder(
-  //                                 borderRadius: BorderRadius.circular(12),
-  //                               ),
-  //                             ),
-  //                           ),
-  //                           if (err != null)
-  //                             Padding(
-  //                               padding: const EdgeInsets.only(top: 6),
-  //                               child: Row(
-  //                                 crossAxisAlignment: CrossAxisAlignment.start,
-  //                                 children: [
-  //                                   const Icon(
-  //                                     Icons.error_outline,
-  //                                     color: kWarn,
-  //                                     size: 18,
-  //                                   ),
-  //                                   const SizedBox(width: 6),
-  //                                   Expanded(
-  //                                     child: Text(
-  //                                       err!,
-  //                                       style: const TextStyle(
-  //                                         color: kWarn,
-  //                                         fontSize: 13.5,
-  //                                         height: 1.2,
-  //                                       ),
-  //                                     ),
-  //                                   ),
-  //                                 ],
-  //                               ),
-  //                             ),
-  //                           const SizedBox(height: 24),
-  //                           SizedBox(
-  //                             width: double.infinity,
-  //                             height: 48,
-  //                             child: ElevatedButton(
-  //                               onPressed: saving
-  //                                   ? null
-  //                                   : () async {
-  //                                       setD(() => err = null);
-  //                                       final pin = pinController.text.trim();
-  //                                       final confirm = confirmController.text
-  //                                           .trim();
-  //                                       if (pin.length != 6 ||
-  //                                           confirm.length != 6) {
-  //                                         setD(
-  //                                           () => err = 'PIN must be 6 digits.',
-  //                                         );
-  //                                         return;
-  //                                       }
-  //                                       if (pin != confirm) {
-  //                                         setD(
-  //                                           () => err = 'PINs do not match.',
-  //                                         );
-  //                                         return;
-  //                                       }
-  //                                       if (hasPin) {
-  //                                         final oldPin = oldPinController.text
-  //                                             .trim();
-  //                                         if (oldPin.length != 6) {
-  //                                           setD(
-  //                                             () => err =
-  //                                                 'Enter your current PIN.',
-  //                                           );
-  //                                           return;
-  //                                         }
-  //                                         final valid = await PinLock.verify(
-  //                                           oldPin,
-  //                                         );
-  //                                         if (!valid) {
-  //                                           setD(
-  //                                             () => err =
-  //                                                 'Current PIN is incorrect.',
-  //                                           );
-  //                                           return;
-  //                                         }
-  //                                       }
-  //                                       setD(() => saving = true);
-  //                                       await PinLock.setPin(pin);
-  //                                       if (!ctx.mounted) return;
-  //                                       setD(() => saving = false);
-  //                                       Navigator.of(ctx).pop();
-  //                                       _showTopPopup(
-  //                                         hasPin
-  //                                             ? 'PIN updated successfully'
-  //                                             : 'PIN set successfully',
-  //                                         color: kAccent,
-  //                                         icon: Icons.check_circle,
-  //                                       );
-  //                                     },
-  //                               style: ElevatedButton.styleFrom(
-  //                                 backgroundColor: kAccent,
-  //                                 foregroundColor: Colors.white,
-  //                                 shape: RoundedRectangleBorder(
-  //                                   borderRadius: BorderRadius.circular(12),
-  //                                 ),
-  //                                 elevation: 0,
-  //                               ),
-  //                               child: saving
-  //                                   ? const SizedBox(
-  //                                       width: 22,
-  //                                       height: 22,
-  //                                       child: CircularProgressIndicator(
-  //                                         color: Colors.white,
-  //                                         strokeWidth: 2.5,
-  //                                       ),
-  //                                     )
-  //                                   : Text(
-  //                                       hasPin ? 'Change PIN' : 'Set PIN',
-  //                                       style: const TextStyle(
-  //                                         fontWeight: FontWeight.w700,
-  //                                       ),
-  //                                     ),
-  //                             ),
-  //                           ),
-  //                         ],
-  //                       ),
-  //                     ),
-  //                   ),
-  //                 );
-  //               },
-  //             ),
-  //           ),
-  //         ),
-  //       );
-  //     },
-  //   );
-  // }
 
   Future<void> _openChangePasswordDialog() async {
     _currentPwController.clear();
@@ -882,6 +499,9 @@ class _ProfilePageState extends State<ProfilePage> {
 
                                                 if (!mounted) return;
                                                 Navigator.of(ctx).pop();
+                                                await _logAudit(
+                                                  'Changed password',
+                                                );
                                                 _showTopPopup(
                                                   'Password updated successfully',
                                                   color: kAccent,
@@ -1474,6 +1094,7 @@ class _ProfilePageState extends State<ProfilePage> {
         if (fileName != null && fileName.isNotEmpty) {
           await supabase.storage.from('avatars').remove([fileName]);
         }
+        await _logAudit('Updated profile picture');
       }
 
       // 2. Upload new image
@@ -1577,86 +1198,6 @@ class _ProfilePageState extends State<ProfilePage> {
     );
   }
 
-  // Future<void> _uploadCertificate({required String type}) async {
-  //   final result = await FilePicker.platform.pickFiles(
-  //     type: FileType.custom,
-  //     allowedExtensions: ['pdf', 'png', 'jpg', 'jpeg'],
-  //     allowMultiple: false,
-  //     withData: true,
-  //   );
-  //   if (result == null) return;
-
-  //   final file = result.files.first;
-  //   final bytes = file.bytes;
-  //   final ext = file.extension ?? 'pdf';
-  //   if (bytes == null) return;
-
-  //   setState(() => _uploadingImage = true);
-  //   try {
-  //     final userId = supabase.auth.currentUser!.id;
-  //     late String fileName;
-  //     late String bucket;
-  //     Map<String, dynamic> updateFields = {};
-
-  //     if (type == 'birth') {
-  //       fileName = '$userId-birth_certificate.${ext.toLowerCase()}';
-  //       bucket = 'birth_certificates';
-  //       updateFields = {'birth_certificate_url': supabase.storage.from(bucket).getPublicUrl(fileName)};
-  //     } else if (type == 'marriage') {
-  //       fileName = '$userId-marriage_certificate.${ext.toLowerCase()}';
-  //       bucket = 'marriage_certificates';
-  //       updateFields = {'marriage_certificate_url': supabase.storage.from(bucket).getPublicUrl(fileName)};
-  //     } else if (type == 'valid') {
-  //       fileName = '$userId-valid_id.${ext.toLowerCase()}';
-  //       bucket = 'valid_ids';
-  //       updateFields = {'valid_id': supabase.storage.from(bucket).getPublicUrl(fileName)};
-  //     } else if (type == 'residency') {
-  //       fileName = '$userId-proof_of_residency.${ext.toLowerCase()}';
-  //       bucket = 'proof_of_residency';
-  //       updateFields = {'proof_of_residency_url': supabase.storage.from(bucket).getPublicUrl(fileName)};
-  //     } else {
-  //       throw Exception('Unknown certificate type');
-  //     }
-
-  //     await supabase.storage
-  //         .from(bucket)
-  //         .uploadBinary(
-  //           fileName,
-  //           bytes,
-  //           fileOptions: const FileOptions(upsert: true),
-  //         );
-
-  //     await supabase
-  //         .from('users')
-  //         .update(updateFields)
-  //         .eq('id', userId)
-  //         .select()
-  //         .maybeSingle();
-
-  //     if (!mounted) return;
-  //     setState(() {
-  //       if (type == 'birth') birthCertificateUrl = updateFields['birth_certificate_url'];
-  //       if (type == 'marriage') marriageCertificateUrl = updateFields['marriage_certificate_url'];
-  //       if (type == 'valid') validIdUrl = updateFields['valid_id'];
-  //       if (type == 'residency') proofOfResidencyUrl = updateFields['proof_of_residency_url'];
-  //       _uploadingImage = false;
-  //     });
-  //     _showTopPopup(
-  //       '${type[0].toUpperCase()}${type.substring(1)} uploaded!',
-  //       color: kAccent,
-  //       icon: Icons.check_circle,
-  //     );
-  //   } catch (e) {
-  //     if (!mounted) return;
-  //     setState(() => _uploadingImage = false);
-  //     _showTopPopup(
-  //       'Upload error: $e',
-  //       color: kWarn,
-  //       icon: Icons.error_outline,
-  //     );
-  //   }
-  // }
-
   Future<void> _saveProfile() async {
     if (!_formKey.currentState!.validate()) return;
     setState(() => _saving = true);
@@ -1706,6 +1247,7 @@ class _ProfilePageState extends State<ProfilePage> {
     } finally {
       if (mounted) setState(() => _saving = false);
     }
+    await _logAudit('Updated profile information');
   }
 
   Future<void> _confirmLogout() async {
@@ -2393,39 +1935,9 @@ class _ProfilePageState extends State<ProfilePage> {
                   textColor: Colors.white,
                 ),
               if (roles.isPresident) const SizedBox(height: 8),
-              // _buildActionButton(
-              //   icon: Icons.people_rounded,
-              //   label: 'Beneficiaries',
-              //   color: themeButtonBeneficiary,
-              //   onTap: () {
-              //     Navigator.push(
-              //       context,
-              //       MaterialPageRoute(builder: (_) => const BeneficiaryPage()),
-              //     );
-              //   },
-              //   textColor: textColor,
-              // ),
+
               const SizedBox(height: 10),
-              // FutureBuilder<bool>(
-              //   future: PinLock.hasPin(),
-              //   builder: (context, snapshot) {
-              //     final hasPin = snapshot.data ?? false;
-              //     return Column(
-              //       children: [
-              //         _buildActionButton(
-              //           icon: Icons.pin_rounded,
-              //           label: hasPin ? 'Change App PIN' : 'Set up App PIN',
-              //           color: themeButtonPin,
-              //           onTap: () async {
-              //             await _showPinModal(hasPin: hasPin);
-              //           },
-              //           textColor: textColor,
-              //         ),
-              //       ],
-              //     );
-              //   },
-              // ),
-              // const SizedBox(height: 8),
+
               _buildActionButton(
                 icon: Icons.lock_reset_rounded,
                 label: 'Change Password',
@@ -2434,22 +1946,6 @@ class _ProfilePageState extends State<ProfilePage> {
                 textColor: textColor,
               ),
               const SizedBox(height: 8),
-              // _buildActionButton(
-              //   icon: Icons.logout_rounded,
-              //   label: _loggingOut ? '' : 'Logout',
-              //   color: themeButtonLogout,
-              //   onTap: _loggingOut ? null : () => handleLogout(context),
-              //   trailing: _loggingOut
-              //       ? const SizedBox(
-              //           width: 18,
-              //           height: 18,
-              //           child: CircularProgressIndicator(
-              //             color: Colors.white,
-              //             strokeWidth: 2.5,
-              //           ),
-              //         )
-              //       : null,
-              // ),
             ],
           );
         },
@@ -2499,142 +1995,6 @@ class _ProfilePageState extends State<ProfilePage> {
       ),
     );
   }
-
-  // Widget _buildCertificatesSection(Color themeCard, Color themeText) {
-  //   return Column(
-  //     crossAxisAlignment: CrossAxisAlignment.start,
-  //     children: [
-  //       Text(
-  //         'Certificates',
-  //         style: TextStyle(
-  //           fontSize: 14,
-  //           fontWeight: FontWeight.w600,
-  //           color: themeText,
-  //           fontFamily: 'Montserrat',
-  //         ),
-  //       ),
-  //       const SizedBox(height: 12),
-  //       Container(
-  //         padding: const EdgeInsets.all(16),
-  //         decoration: BoxDecoration(
-  //           color: themeCard,
-  //           borderRadius: BorderRadius.circular(8),
-  //         ),
-  //         child: Column(
-  //           children: [
-  //             _certificateRow(
-  //               label: 'Birth Certificate',
-  //               url: birthCertificateUrl,
-  //               onUpload: () => _uploadCertificate(type: 'birth'),
-  //               onView: () => _openCertificate(birthCertificateUrl ?? ''),
-  //               labelColor: themeText,
-  //             ),
-  //             const SizedBox(height: 8),
-  //             _certificateRow(
-  //               label: 'Marriage Certificate',
-  //               url: marriageCertificateUrl,
-  //               onUpload: () => _uploadCertificate(type: 'marriage'),
-  //               onView: () => _openCertificate(marriageCertificateUrl ?? ''),
-  //               labelColor: themeText,
-  //             ),
-  //             const SizedBox(height: 8),
-  //             _certificateRow(
-  //               label: 'Valid ID',
-  //               url: validIdUrl,
-  //               onUpload: () => _uploadCertificate(type: 'valid'),
-  //               onView: () => _openCertificate(validIdUrl ?? ''),
-  //               labelColor: themeText,
-  //             ),
-  //             const SizedBox(height: 8),
-  //             _certificateRow(
-  //               label: 'Proof of Residency',
-  //               url: proofOfResidencyUrl,
-  //               onUpload: () => _uploadCertificate(type: 'residency'),
-  //               onView: () => _openCertificate(proofOfResidencyUrl ?? ''),
-  //               labelColor: themeText,
-  //             ),
-  //           ],
-  //         ),
-  //       ),
-  //     ],
-  //   );
-  // }
-
-  //   Widget _buildDayungManagement(
-  //     Color themeCard,
-  //     Color themeText,
-  //     Color themeSubText,
-  //   ) {
-  //     return Column(
-  //       children: [
-  //         Container(
-  //           padding: const EdgeInsets.all(16),
-  //           decoration: BoxDecoration(
-  //             color: themeCard,
-  //             borderRadius: BorderRadius.circular(8),
-  //           ),
-
-  //           child: InkWell(
-  //             onTap: () {
-  //               Navigator.push(
-  //                 context,
-  //                                MaterialPageRoute(builder: (_) => const DayungProfile()),
-  //               );
-  //             },
-  //             borderRadius: BorderRadius.circular(8),
-  //             child: Row(
-  //               children: [
-  //                 Container(
-  //                   padding: const EdgeInsets.all(8),
-  //                   decoration: BoxDecoration(
-  //                     color: kPrimary.withOpacity(0.08),
-  //                     borderRadius: BorderRadius.circular(6),
-  //                   ),
-  //                   child: const Icon(
-  //                     Icons.home_rounded,
-  //                     color: kPrimary,
-  //                     size: 18,
-  //                   ),
-  //                 ),
-  //                 const SizedBox(width: 12),
-  //                 Expanded(
-  //                   child: Column(
-  //                     crossAxisAlignment: CrossAxisAlignment.start,
-  //                     children: [
-  //                       Text(
-  //                         'Manage Dayung',
-  //                         style: TextStyle(
-  //                           fontSize: 14,
-  //                           fontWeight: FontWeight.w600,
-  //                           color: themeText,
-  //                           fontFamily: 'Montserrat',
-  //                         ),
-  //                       ),
-  //                       const SizedBox(height: 4),
-  //                       Text(
-  //                         'View current Dayung, apply or change',
-  //                         style: TextStyle(
-  //                           color: themeSubText,
-  //                           fontSize: 12,
-  //                           fontFamily: 'OpenSans',
-  //                         ),
-  //                       ),
-  //                     ],
-  //                   ),
-  //                 ),
-  //                 const Icon(
-  //                   Icons.chevron_right_rounded,
-  //                   color: kPrimary,
-  //                   size: 18,
-  //                 ),
-  //               ],
-  //             ),
-  //           ),
-  //         ),
-  //       ],
-  //     );
-  //   }
-  // }
 }
 
 enum _PickSource { camera, gallery }

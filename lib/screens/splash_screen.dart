@@ -1,8 +1,8 @@
+import 'package:capstone_app/Auth/idle_timeout_manage.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:capstone_app/ui/theme/branding.dart';
 import 'package:lottie/lottie.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -13,8 +13,9 @@ class SplashScreen extends StatefulWidget {
 
 class _SplashScreenState extends State<SplashScreen> {
   @override
-  void initState() {
-    super.initState();
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    IdleTimeoutManager().start(context);
   }
 
   @override

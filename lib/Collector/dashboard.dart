@@ -2,7 +2,7 @@ import 'dart:convert';
 import 'package:capstone_app/Auth/logout.dart';
 import 'package:capstone_app/Beneficiary/beneficiary.dart';
 import 'package:capstone_app/Collector/collect_cash.dart';
-import 'package:capstone_app/Collector/gcash_qr_page.dart' hide kPrimary;
+import 'package:capstone_app/Collector/gcash_qr_page.dart';
 import 'package:capstone_app/Members/memclaims.dart';
 import 'package:capstone_app/Providers/apptheme_provider.dart';
 import 'package:capstone_app/Providers/dayung_role_provider.dart';
@@ -40,8 +40,6 @@ class _CollectorDashboardPageState extends State<CollectorDashboardPage> {
 
   String _dayungLabel = 'Dayung';
   int? _dayungUnitId;
-  String _fullName = 'Collector';
-  String? _profileUrl;
   int? _lastRoleUnitId;
   bool _loading = true;
   int _activeMembers = 0;
@@ -88,29 +86,9 @@ class _CollectorDashboardPageState extends State<CollectorDashboardPage> {
   }
 
   Future<void> _init() async {
-    await _loadUserData();
     await _loadDayungFromPrefs();
     await _ensureDayungId();
     await _fetchAll();
-  }
-
-  Future<void> _loadUserData() async {
-    final currentUser = sb.auth.currentUser;
-    if (currentUser == null) return;
-    try {
-      final res = await sb
-          .from('users')
-          .select('full_name, profile_url')
-          .eq('id', currentUser.id)
-          .maybeSingle();
-      if (!mounted) return;
-      setState(() {
-        _fullName = ((res?['full_name'] ?? 'Collector') as String).trim();
-        _profileUrl = (res?['profile_url'] as String?)?.trim();
-      });
-    } catch (_) {
-      // ignore
-    }
   }
 
   Future<void> _ensureDayungId() async {
@@ -296,7 +274,10 @@ class _CollectorDashboardPageState extends State<CollectorDashboardPage> {
   List<Widget> get _pages => [
     _homePage(),
     const Placeholder(), // Contributions
-    // ClaimsPage(onNavBarVisible: (v) => setState(() => _showNavBar = v)),
+    MembersClaimsPage(
+      onNavBarVisible: (v) => setState(() => _showNavBar = v),
+      dayungUnitId: _dayungUnitId ?? 0,
+    ),
   ];
 
   @override
@@ -335,114 +316,6 @@ class _CollectorDashboardPageState extends State<CollectorDashboardPage> {
 
   /* ------------------------------- UI parts ------------------------------- */
 
-  Widget _buildSideDrawer(BuildContext context) {
-    final isDarkMode = Theme.of(context).brightness == Brightness.dark;
-    return Drawer(
-      child: SafeArea(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            DrawerHeader(
-              decoration: BoxDecoration(
-                color: kPrimary.withOpacity(0.95),
-                borderRadius: const BorderRadius.only(
-                  bottomRight: Radius.circular(32),
-                  bottomLeft: Radius.circular(32),
-                ),
-              ),
-              child: Row(
-                children: [
-                  const CircleAvatar(
-                    radius: 32,
-                    backgroundColor: Colors.white,
-                    child: Icon(Icons.person, size: 40, color: kPrimary),
-                  ),
-                  const SizedBox(width: 16),
-                  // You can add name here if available
-                ],
-              ),
-            ),
-            _ModernDrawerTile(
-              icon: Icons.person,
-              label: 'Profile',
-              onTap: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (_) => const ProfilePage()),
-                );
-              },
-            ),
-            _ModernDrawerTile(
-              icon: Icons.people_rounded,
-              label: 'Beneficiaries',
-              onTap: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (_) => const BeneficiaryPage()),
-                );
-              },
-            ),
-            _ModernDrawerTile(
-              icon: Icons.settings,
-              label: 'Settings',
-              onTap: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (_) => const ProfSettingsPage()),
-                );
-              },
-            ),
-            _ModernDrawerTile(
-              icon: isDarkMode ? Icons.light_mode : Icons.dark_mode,
-              label: isDarkMode ? 'Light Mode' : 'Dark Mode',
-              onTap: () {
-                context.read<AppTheme>().toggle();
-              },
-            ),
-            _ModernDrawerTile(
-              icon: Icons.translate,
-              label: 'Translate',
-              onTap: () {
-                // TODO: Implement translator
-              },
-            ),
-            const Spacer(),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-              child: MouseRegion(
-                cursor: SystemMouseCursors.click,
-                child: ElevatedButton.icon(
-                  icon: const Icon(Icons.logout, color: Colors.white),
-                  label: const Text(
-                    'Logout',
-                    style: TextStyle(
-                      fontWeight: FontWeight.w700,
-                      fontSize: 16,
-                      color: Colors.white,
-                    ),
-                  ),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.red,
-                    foregroundColor: Colors.white,
-                    minimumSize: const Size.fromHeight(48),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(14),
-                    ),
-                    elevation: 0,
-                  ),
-                  onPressed: () async {
-                    Navigator.pop(context);
-                    await showLogoutDialog(context);
-                  },
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
   Widget _topBar() {
     return Container(
       padding: const EdgeInsets.fromLTRB(20, 20, 20, 40),
@@ -455,11 +328,11 @@ class _CollectorDashboardPageState extends State<CollectorDashboardPage> {
                 builder: (context) => Container(
                   padding: const EdgeInsets.all(1),
                   decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.2),
-                    borderRadius: BorderRadius.circular(16),
+                    color: kPrimary.withOpacity(0.8),
+                    borderRadius: BorderRadius.circular(15),
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.1),
+                        color: kPrimary.withOpacity(0.3),
                         blurRadius: 8,
                         offset: const Offset(0, 2),
                       ),
@@ -478,7 +351,6 @@ class _CollectorDashboardPageState extends State<CollectorDashboardPage> {
                   children: [
                     Text(
                       _dayungLabel,
-                      maxLines: 1,
                       style: const TextStyle(
                         fontFamily: 'Montserrat',
                         fontSize: 24,
@@ -506,7 +378,7 @@ class _CollectorDashboardPageState extends State<CollectorDashboardPage> {
             children: [
               const Expanded(
                 child: Text(
-                  'Good Morning,\nCollector!',
+                  'Maayung buntag,\nCollector!',
                   style: TextStyle(
                     fontFamily: 'Montserrat',
                     fontSize: 28,
@@ -517,37 +389,37 @@ class _CollectorDashboardPageState extends State<CollectorDashboardPage> {
                   ),
                 ),
               ),
-              // GestureDetector(
-              //   onTap: () {
-              //     Navigator.push(
-              //       context,
-              //       MaterialPageRoute(builder: (_) => const ProfilePage()),
-              //     );
-              //   },
-              //   child: Container(
-              //     padding: const EdgeInsets.all(4),
-              //     decoration: BoxDecoration(
-              //       color: Colors.white.withValues(alpha: 0.2),
-              //       borderRadius: BorderRadius.circular(32),
-              //       boxShadow: [
-              //         BoxShadow(
-              //           color: Colors.black.withValues(alpha: 0.1),
-              //           blurRadius: 8,
-              //           offset: const Offset(0, 2),
-              //         ),
-              //       ],
-              //     ),
-              //     child: const CircleAvatar(
-              //       radius: 28,
-              //       backgroundColor: Colors.white,
-              //       child: Icon(
-              //         Icons.person,
-              //         size: 34,
-              //         color: Color(0xFF1E40AF),
-              //       ),
-              //     ),
-              //   ),
-              // ),
+              GestureDetector(
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const ProfilePage()),
+                  );
+                },
+                child: Container(
+                  padding: const EdgeInsets.all(4),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.2),
+                    borderRadius: BorderRadius.circular(32),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.1),
+                        blurRadius: 8,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
+                  ),
+                  child: const CircleAvatar(
+                    radius: 28,
+                    backgroundColor: Colors.white,
+                    child: Icon(
+                      Icons.person,
+                      size: 34,
+                      color: Color(0xFF1E40AF),
+                    ),
+                  ),
+                ),
+              ),
             ],
           ),
         ],
@@ -1066,8 +938,60 @@ class _CollectorDashboardPageState extends State<CollectorDashboardPage> {
           title: 'Collect Cash',
           subtitle: 'Record cash payment',
           color: const Color(0xFF3B82F6),
-          onTap: _recordCashPayment,
+          onTap: () {
+            showModalBottomSheet(
+              context: context,
+              shape: const RoundedRectangleBorder(
+                borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+              ),
+              builder: (ctx) => Padding(
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Text(
+                      'Select Payment Method',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        fontFamily: 'Montserrat',
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+                    ListTile(
+                      leading: const Icon(
+                        Icons.money_rounded,
+                        color: Color(0xFF3B82F6),
+                      ),
+                      title: const Text('Cash'),
+                      onTap: () {
+                        Navigator.pop(ctx);
+                        _recordCashPayment();
+                      },
+                    ),
+                    ListTile(
+                      leading: const Icon(
+                        Icons.qr_code_2_rounded,
+                        color: Color(0xFFF59E0B),
+                      ),
+                      title: const Text('GCash'),
+                      onTap: () {
+                        Navigator.pop(ctx);
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => const GcashQrPage(),
+                          ),
+                        );
+                      },
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
         ),
+
         const SizedBox(height: 8),
         _modernActionCard(
           icon: Icons.receipt_long_rounded,
@@ -1331,6 +1255,133 @@ class _CollectorDashboardPageState extends State<CollectorDashboardPage> {
                   fontWeight: FontWeight.w600,
                   color: color,
                   fontFamily: 'Montserrat',
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSideDrawer(BuildContext context) {
+    final isDarkMode = Theme.of(context).brightness == Brightness.dark;
+    return Drawer(
+      child: SafeArea(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            DrawerHeader(
+              decoration: BoxDecoration(
+                color: kPrimary.withOpacity(0.95),
+                borderRadius: const BorderRadius.only(
+                  bottomRight: Radius.circular(32),
+                  bottomLeft: Radius.circular(32),
+                ),
+              ),
+              child: Row(
+                // children: [
+                //   CircleAvatar(
+                //     radius: 32,
+                //     backgroundColor: Colors.white,
+                //     backgroundImage:
+                //         _profileUrl != null && _profileUrl!.isNotEmpty
+                //         ? NetworkImage(_profileUrl!)
+                //         : null,
+                //     child: _profileUrl == null || _profileUrl!.isEmpty
+                //         ? const Icon(Icons.person, size: 40, color: kPrimary)
+                //         : null,
+                //   ),
+                //   const SizedBox(width: 16),
+                //   Expanded(
+                //     child: Text(
+                //       _fullName,
+                //       style: const TextStyle(
+                //         color: Colors.white,
+                //         fontWeight: FontWeight.w800,
+                //         fontSize: 18,
+                //         fontFamily: 'Montserrat',
+                //       ),
+                //     ),
+                //   ),
+                // ],
+              ),
+            ),
+            _ModernDrawerTile(
+              icon: Icons.person,
+              label: 'Profile',
+              onTap: () async {
+                await Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const ProfilePage()),
+                );
+                // await _loadUserData();
+                if (!mounted) return;
+                setState(() {});
+              },
+            ),
+            _ModernDrawerTile(
+              icon: Icons.people_rounded,
+              label: 'Beneficiaries',
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const BeneficiaryPage()),
+                );
+              },
+            ),
+            _ModernDrawerTile(
+              icon: Icons.settings,
+              label: 'Settings',
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const ProfSettingsPage()),
+                );
+              },
+            ),
+            _ModernDrawerTile(
+              icon: isDarkMode ? Icons.light_mode : Icons.dark_mode,
+              label: isDarkMode ? 'Light Mode' : 'Dark Mode',
+              onTap: () {
+                context.read<AppTheme>().toggle();
+              },
+            ),
+            _ModernDrawerTile(
+              icon: Icons.translate,
+              label: 'Translate',
+              onTap: () {
+                // TODO: Implement translator
+              },
+            ),
+            const Spacer(),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+              child: MouseRegion(
+                cursor: SystemMouseCursors.click,
+                child: ElevatedButton.icon(
+                  icon: const Icon(Icons.logout, color: Colors.white),
+                  label: const Text(
+                    'Logout',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w700,
+                      fontSize: 16,
+                      color: Colors.white,
+                    ),
+                  ),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.red,
+                    foregroundColor: Colors.white,
+                    minimumSize: const Size.fromHeight(48),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    elevation: 0,
+                  ),
+                  onPressed: () async {
+                    Navigator.pop(context);
+                    await showLogoutDialog(context);
+                  },
                 ),
               ),
             ),

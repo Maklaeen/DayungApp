@@ -70,6 +70,11 @@ class _RegisterState extends State<Register> {
 
   bool _obscurePassword = true;
   bool _isSubmitting = false;
+  bool _isValidPHPhone(String input) {
+    final normalized = input.replaceAll(RegExp(r'\s+|-'), '');
+    final regex = RegExp(r'^(09\d{9}|\+639\d{9})$');
+    return regex.hasMatch(normalized);
+  }
 
   DateTime? _selectedDob;
 
@@ -931,10 +936,15 @@ class _RegisterState extends State<Register> {
                                     hint: '+63 9XXXXXXXXX',
                                     icon: Icons.phone_rounded,
                                   ),
-                                  validator: (v) =>
-                                      (v == null || v.trim().isEmpty)
-                                      ? 'Phone number is required'
-                                      : null,
+                                  validator: (v) {
+                                    if (v == null || v.trim().isEmpty) {
+                                      return 'Phone number is required';
+                                    }
+                                    if (!_isValidPHPhone(v.trim())) {
+                                      return 'Invalid phone number';
+                                    }
+                                    return null;
+                                  },
                                 ),
                                 const SizedBox(height: 16),
                                 GestureDetector(
@@ -1328,7 +1338,7 @@ class _AddressPickerSheetState extends State<AddressPickerSheet> {
     if (_region == null) return 0;
     if (_province == null) return 1;
     if (_city == null) return 2;
-    return 3; // Always show Barangay step when Region/Province/City exist
+    return 3;
   }
 
   @override

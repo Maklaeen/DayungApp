@@ -345,33 +345,35 @@ class _MembersClaimsPageState extends State<MembersClaimsPage>
       final data = await Supabase.instance.client
           .from('claims')
           .select(
-            'id, title, description, status, date_submitted, dayung_unit_id, user_id, beneficiary_id, death_certificate_url, date_of_death, claimedmoney', // ADDED claimedmoney
+            'id, title, description, status, date_submitted, dayung_unit_id, user_id, beneficiary_id, death_certificate_url, date_of_death, claimedmoney',
           )
           .eq('user_id', user.id)
-          .eq('dayung_unit_id', widget.dayungUnitId as Object)
+          .eq('dayung_unit_id', widget.dayungUnitId)
           .order('date_submitted', ascending: false);
 
-      final claims = List<Map<String, dynamic>>.from(data as List<dynamic>).map(
-        (c) {
-          final map = Map<String, dynamic>.from(c);
+      debugPrint('Claims fetched: ${(data as List).length}');
 
-          // Normalize claimed status:
-          // Treat as claimed if claimedmoney is truthy or equals 'yes'
-          final rawStatus = (map['status'] ?? '').toString();
-          final claimedMoneyVal = map['claimedmoney'];
-          final claimedMoneyYes =
-              claimedMoneyVal == true ||
-              claimedMoneyVal == 1 ||
-              (claimedMoneyVal is String &&
-                  claimedMoneyVal.toLowerCase() == 'yes');
+      final claims = List<Map<String, dynamic>>.from(data).map((c) {
+        final map = Map<String, dynamic>.from(c);
 
-          if (rawStatus.toLowerCase() == 'approved' && claimedMoneyYes) {
-            map['status'] = 'claimed'; // OVERRIDE
-          }
+        // Treat as claimed if approved + claimedmoney truthy
+        final rawStatus = (map['status'] ?? '').toString();
+        final claimedMoneyVal = map['claimedmoney'];
 
-          return map;
-        },
-      ).toList();
+        final claimedMoneyYes = (() {
+          if (claimedMoneyVal == null) return false;
+          if (claimedMoneyVal is bool) return claimedMoneyVal;
+          if (claimedMoneyVal is num) return claimedMoneyVal != 0;
+          final s = claimedMoneyVal.toString().toLowerCase();
+          return s == 'yes' || s == 'true' || s == '1';
+        })();
+
+        if (rawStatus.toLowerCase() == 'approved' && claimedMoneyYes) {
+          map['status'] = 'claimed';
+        }
+
+        return map;
+      }).toList();
 
       final pending = claims
           .where(
@@ -820,14 +822,6 @@ class _MembersClaimsPageState extends State<MembersClaimsPage>
 
   @override
   Widget build(BuildContext context) {
-    // final providerName = context.watch<DayungUnitProvider>().dayungUnit;
-    // if (providerName != null && providerName != _dayungName) {
-    //   WidgetsBinding.instance.addPostFrameCallback((_) {
-    //     if (!mounted) return;
-    //     _loadDayungUnit();
-    //   });
-    // }
-
     final isWide = MediaQuery.of(context).size.width > 700;
     final ongoingList = _filteredList(true);
     final historyList = _filteredList(false);

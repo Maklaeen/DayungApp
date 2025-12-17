@@ -97,6 +97,7 @@ class _MemberDashboardPageState extends State<MemberDashboardPage> {
   @override
   void initState() {
     super.initState();
+    _reloadDayungFromPrefs();
     _scrollController.addListener(() {
       if (!_scrollController.hasClients || !mounted) return;
       final maxScroll = _scrollController.position.maxScrollExtent;
@@ -583,31 +584,30 @@ class _MemberDashboardPageState extends State<MemberDashboardPage> {
   }
 
   Future<void> _reloadDayungFromPrefs() async {
-    setState(() => _loadingUnit = true);
-    final prefs = await SharedPreferences.getInstance();
-    final unitJson = prefs.getString('selectedDayungUnit');
-    if (unitJson == null) return;
     try {
-      final decoded = jsonDecode(unitJson);
-      if (decoded is! Map) return;
-      final unit = Map<String, dynamic>.from(decoded);
-      final id = _asInt(unit['id']);
-      if (id != null && id != _dayungUnitId) {
+      setState(() => _loadingUnit = true);
+      final prefs = await SharedPreferences.getInstance();
+      final unitJson = prefs.getString('selectedDayungUnit');
+      if (unitJson == null) {
+        debugPrint('No selectedDayungUnit in prefs.');
+        return;
+      }
+      final map = Map<String, dynamic>.from(jsonDecode(unitJson));
+      final rawId = map['id'];
+      final id = rawId is int ? rawId : int.tryParse('$rawId');
+      if (id != null) {
+        debugPrint('Loaded Dayung unit from prefs: id=$id');
         setState(() {
-          _dayungUnitId = id;
-          _loadingUnit = false;
-          _selectedDayungUnit = (unit['name'] ?? 'Dayung Unit').toString();
-          _selectedDayungUnitObj = unit;
-          _unitBarangay = (unit['barangay'] ?? '').toString().trim().isEmpty
-              ? null
-              : unit['barangay'].toString();
-          _unitCity = (unit['city'] ?? '').toString().trim().isEmpty
-              ? null
-              : unit['city'].toString();
+          _selectedDayungUnitObj = map;
+          _selectedDayungUnit = (map['name'] ?? 'Dayung Unit').toString();
           _dayungUnitId = id;
         });
       }
-    } catch (_) {}
+    } catch (e) {
+      debugPrint('Failed to reload Dayung from prefs: $e');
+    } finally {
+      if (mounted) setState(() => _loadingUnit = false);
+    }
   }
 
   // Future<void> _loadOrAskDayung() async {
@@ -1960,53 +1960,24 @@ class _MemberDashboardPageState extends State<MemberDashboardPage> {
     );
   }
 
-  //   List<Widget> get _pages => [
+  // List<Widget> get _pages => [
   //   _buildHomePage(context),
   //   _dayungUnitId == null
   //       ? const Center(child: Text('Select a Dayung unit first'))
   //       : MembersContributionHistory(dayungUnitId: _dayungUnitId!),
   //   _dayungUnitId == null
-  //       ? const SizedBox.shrink()
+  //       ? const Center(child: Text('Select a Dayung unit first'))
   //       : MembersClaimsPage(dayungUnitId: _dayungUnitId!),
-  // ];
-
-  // List<Widget> get _pages => [
-  //   _buildHomePage(context),
-  //   if (_primaryUnitId == null)
-  //     const Center()
-  //   else
-  //     MembersContributionHistory(dayungUnitId: _primaryUnitId!),
-  //   if (_primaryUnitId == null)
-  //     const SizedBox.shrink()
-  //   else
-  //     MembersClaimsPage(dayungUnitId: _primaryUnitId!),
   // ];
 
   List<Widget> get _pages => [
     _buildHomePage(context),
-    _loadingUnit
-        ? const Center(child: CircularProgressIndicator())
-        : (_dayungUnitId == null
-              ? const Center(child: Text('Select a Dayung unit first'))
-              : MembersContributionHistory(dayungUnitId: _dayungUnitId!)),
-    _loadingUnit
-        ? const SizedBox.shrink()
-        : (_dayungUnitId == null
-              ? const SizedBox.shrink()
-              : MembersClaimsPage(dayungUnitId: _dayungUnitId!)),
+    const Placeholder(), // Contributions
+    MembersClaimsPage(
+      onNavBarVisible: (v) => setState(() => _showNavBar = v),
+      dayungUnitId: _dayungUnitId ?? 0,
+    ),
   ];
-
-  // List<Widget> get _pages => [
-  //   _buildHomePage(context),
-  //   if (_dayungUnitId == null)
-  //     const Center()
-  //   else
-  //     MembersContributionHistory(dayungUnitId: _dayungUnitId!),
-  //   if (_dayungUnitId == null)
-  //     const SizedBox.shrink()
-  //   else
-  //     MembersClaimsPage(dayungUnitId: _dayungUnitId!),
-  // ];
 
   @override
   Widget build(BuildContext context) {
@@ -2186,7 +2157,7 @@ class _MemberDashboardPageState extends State<MemberDashboardPage> {
                 cursor: SystemMouseCursors.click,
                 child: ElevatedButton.icon(
                   icon: const Icon(Icons.logout, color: Colors.white),
-                  label: const Text(  
+                  label: const Text(
                     'Logout',
                     style: TextStyle(
                       fontWeight: FontWeight.w700,
