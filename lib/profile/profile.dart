@@ -5,12 +5,14 @@ import 'dart:ui';
 
 import 'package:capstone_app/Auth/login.dart' hide kWarn;
 import 'package:capstone_app/Beneficiary/beneficiary.dart' hide kPrimaryLight;
-import 'package:capstone_app/President/manage_rules.dart' hide kPrimary;
+import 'package:capstone_app/President/manage_rules.dart'
+    hide kPrimary, kAccent;
 import 'package:capstone_app/Providers/apptheme_provider.dart';
 import 'package:capstone_app/Providers/dayung_provider.dart';
 import 'package:capstone_app/Providers/dayung_role_provider.dart';
 import 'package:capstone_app/profile/dayung_profile.dart';
-import 'package:capstone_app/profile/required_application_page.dart';
+import 'package:capstone_app/profile/required_application_page.dart'
+    hide kAccent;
 import 'package:capstone_app/ui/theme/branding.dart';
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';

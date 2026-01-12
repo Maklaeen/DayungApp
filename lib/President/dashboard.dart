@@ -13,7 +13,7 @@ import 'package:capstone_app/Providers/dayung_provider.dart';
 import 'package:capstone_app/Providers/dayung_role_provider.dart';
 import 'package:capstone_app/pages/paymentmethod.dart';
 import 'package:capstone_app/pages/recentdeathnotices.dart';
-import 'package:capstone_app/settings/profsettings.dart';
+import 'package:capstone_app/settings/profsettings.dart' hide kPrimary;
 import 'package:capstone_app/ui/theme/branding.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';

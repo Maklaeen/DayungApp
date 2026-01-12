@@ -1,5 +1,4 @@
 import 'dart:ui';
-
 import 'package:capstone_app/ui/theme/branding.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
@@ -7,6 +6,15 @@ import 'package:capstone_app/profile/dayung_profile.dart';
 import 'package:photo_view/photo_view.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
+
+// Color palette
+const kBg = Color(0xFFFAFAF7);
+const kText = Color(0xFF1F2937);
+const kSubText = Color(0xFF4B5563);
+const kAccent = Color(0xFF0D47A1);
+const kPrimary = Color(0xFF0D47A1);
+const kSuccess = Color(0xFF059669);
+const kWarn = Color(0xFFF57C00);
 
 class ProfSettingsPage extends StatefulWidget {
   const ProfSettingsPage({super.key});
@@ -217,12 +225,10 @@ class _ProfSettingsPageState extends State<ProfSettingsPage> {
     if (url == null || url.isEmpty) return;
 
     if (url.endsWith('.pdf')) {
-      // For PDF, open in browser
       launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
       return;
     }
 
-    // For images, show zoomable dialog
     showDialog(
       context: context,
       builder: (ctx) => Dialog(
@@ -257,123 +263,177 @@ class _ProfSettingsPageState extends State<ProfSettingsPage> {
   @override
   Widget build(BuildContext context) {
     final themeCard = Colors.white;
-    final themeText = const Color(0xFF111827);
+    final themeText = kText;
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Profile Settings'),
-        backgroundColor: const Color(0xFF1E40AF),
-      ),
-      backgroundColor: const Color(0xFFF8FAFC),
-      body: loading
-          ? const Center(child: CircularProgressIndicator())
-          : ListView(
-              padding: const EdgeInsets.all(20),
-              children: [
-                Text(
-                  'Certificates',
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                    color: themeText,
-                    fontFamily: 'Montserrat',
-                  ),
+      backgroundColor: kBg,
+      body: SafeArea(
+        child: Column(
+          children: [
+            // Curved Header
+            Container(
+              padding: const EdgeInsets.fromLTRB(20, 36, 20, 28),
+              decoration: const BoxDecoration(
+                color: kAccent,
+                borderRadius: BorderRadius.only(
+                  bottomLeft: Radius.circular(28),
+                  bottomRight: Radius.circular(28),
                 ),
-                const SizedBox(height: 12),
-                Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: themeCard,
-                    borderRadius: BorderRadius.circular(8),
+                boxShadow: [
+                  BoxShadow(
+                    color: kAccent,
+                    blurRadius: 18,
+                    offset: Offset(0, 8),
                   ),
-                  child: Column(
-                    children: [
-                      _certificateRow(
-                        label: 'Birth Certificate',
-                        url: birthCertificateUrl,
-                        onUpload: () => _uploadCertificate(type: 'birth'),
-                        onView: () => _openCertificate(birthCertificateUrl),
-                        labelColor: themeText,
+                ],
+              ),
+              child: Row(
+                children: [
+                  IconButton(
+                    icon: const Icon(
+                      Icons.arrow_back_ios_new,
+                      color: Colors.white,
+                      size: 24,
+                    ),
+                    onPressed: () => Navigator.pop(context),
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(),
+                  ),
+                  const SizedBox(width: 16),
+                  const Expanded(
+                    child: Text(
+                      'Profile Settings',
+                      style: TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.w800,
+                        color: Colors.white,
+                        fontFamily: 'Montserrat',
+                        letterSpacing: 0.3,
                       ),
-                      const SizedBox(height: 8),
-                      _certificateRow(
-                        label: 'Marriage Certificate',
-                        url: marriageCertificateUrl,
-                        onUpload: () => _uploadCertificate(type: 'marriage'),
-                        onView: () => _openCertificate(marriageCertificateUrl),
-                        labelColor: themeText,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 24),
+            // Certificates Card
+            Card(
+              elevation: 3,
+              color: themeCard,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.all(18),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Certificates',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: kText,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    _certificateRow(
+                      label: 'Birth Certificate',
+                      url: birthCertificateUrl,
+                      onUpload: () => _uploadCertificate(type: 'birth'),
+                      onView: () => _openCertificate(birthCertificateUrl),
+                      labelColor: themeText,
+                    ),
+                    const SizedBox(height: 8),
+                    _certificateRow(
+                      label: 'Marriage Certificate',
+                      url: marriageCertificateUrl,
+                      onUpload: () => _uploadCertificate(type: 'marriage'),
+                      onView: () => _openCertificate(marriageCertificateUrl),
+                      labelColor: themeText,
+                    ),
+                    if (_uploadingImage)
+                      const Padding(
+                        padding: EdgeInsets.only(top: 12),
+                        child: Center(
+                          child: CircularProgressIndicator(color: kAccent),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 24),
+            // Manage Dayung Card
+            Card(
+              elevation: 3,
+              color: themeCard,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: InkWell(
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const DayungProfile()),
+                  );
+                },
+                borderRadius: BorderRadius.circular(16),
+                child: Padding(
+                  padding: const EdgeInsets.all(18),
+                  child: Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: kAccent.withOpacity(0.08),
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: const Icon(
+                          Icons.home_rounded,
+                          color: kAccent,
+                          size: 18,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Manage Dayung',
+                              style: TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w600,
+                                color: themeText,
+                                fontFamily: 'Montserrat',
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              'View current Dayung, apply or change',
+                              style: TextStyle(
+                                color: themeText.withOpacity(0.7),
+                                fontSize: 12,
+                                fontFamily: 'OpenSans',
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const Icon(
+                        Icons.chevron_right_rounded,
+                        color: kAccent,
+                        size: 18,
                       ),
                     ],
                   ),
                 ),
-                const SizedBox(height: 24),
-                Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: themeCard,
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: InkWell(
-                    onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => const DayungProfile(),
-                        ),
-                      );
-                    },
-                    borderRadius: BorderRadius.circular(8),
-                    child: Row(
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.all(8),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFF1E40AF).withOpacity(0.08),
-                            borderRadius: BorderRadius.circular(6),
-                          ),
-                          child: const Icon(
-                            Icons.home_rounded,
-                            color: Color(0xFF1E40AF),
-                            size: 18,
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                'Manage Dayung',
-                                style: TextStyle(
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.w600,
-                                  color: themeText,
-                                  fontFamily: 'Montserrat',
-                                ),
-                              ),
-                              const SizedBox(height: 4),
-                              Text(
-                                'View current Dayung, apply or change',
-                                style: TextStyle(
-                                  color: themeText.withOpacity(0.7),
-                                  fontSize: 12,
-                                  fontFamily: 'OpenSans',
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        const Icon(
-                          Icons.chevron_right_rounded,
-                          color: Color(0xFF1E40AF),
-                          size: 18,
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ],
+              ),
             ),
+          ],
+        ),
+      ),
     );
   }
 
@@ -390,7 +450,7 @@ class _ProfSettingsPageState extends State<ProfSettingsPage> {
           url != null && url.isNotEmpty
               ? Icons.check_circle
               : Icons.warning_amber_rounded,
-          color: url != null && url.isNotEmpty ? Colors.green : Colors.red,
+          color: url != null && url.isNotEmpty ? kSuccess : kWarn,
         ),
         const SizedBox(width: 8),
         Expanded(
@@ -405,7 +465,7 @@ class _ProfSettingsPageState extends State<ProfSettingsPage> {
         ),
         if (url != null && url.isNotEmpty)
           IconButton(
-            icon: const Icon(Icons.open_in_new, color: Color(0xFF059669)),
+            icon: const Icon(Icons.open_in_new, color: kSuccess),
             tooltip: 'View',
             onPressed: onView,
           )
@@ -414,7 +474,7 @@ class _ProfSettingsPageState extends State<ProfSettingsPage> {
             icon: const Icon(Icons.upload_file),
             label: const Text('Add'),
             style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF059669),
+              backgroundColor: kSuccess,
               foregroundColor: Colors.white,
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
               shape: RoundedRectangleBorder(

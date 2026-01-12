@@ -2,10 +2,12 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
-// Modern UI colors
-const kText = Color(0xFF111827);
-const kSubText = Color(0xFF6B7280);
-const kPrimary = Color(0xFF3B82F6);
+// Collor palette
+const kBg = Color(0xFFFAFAF7);
+const kText = Color(0xFF1F2937);
+const kSubText = Color(0xFF4B5563);
+const kAccent = Color(0xFF0D47A1);
+const kPrimary = Color(0xFF0D47A1);
 const kCardBg = Color(0xFFFFFFFF);
 const kBorderColor = Color(0xFFE5E7EB);
 
@@ -146,24 +148,24 @@ class _ManageRulesPagePresState extends State<ManageRulesPagePres> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF8FAFC),
+      backgroundColor: kBg,
       body: SafeArea(
         child: Column(
           children: [
-            // Custom App Bar
+            // Curved Header
             Container(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-              decoration: BoxDecoration(
-                color: kPrimary,
-                borderRadius: const BorderRadius.only(
-                  bottomLeft: Radius.circular(24),
-                  bottomRight: Radius.circular(24),
+              padding: const EdgeInsets.fromLTRB(20, 36, 20, 28),
+              decoration: const BoxDecoration(
+                color: kAccent,
+                borderRadius: BorderRadius.only(
+                  bottomLeft: Radius.circular(28),
+                  bottomRight: Radius.circular(28),
                 ),
                 boxShadow: [
                   BoxShadow(
-                    color: kPrimary.withOpacity(0.3),
-                    blurRadius: 20,
-                    offset: const Offset(0, 8),
+                    color: kAccent,
+                    blurRadius: 18,
+                    offset: Offset(0, 8),
                   ),
                 ],
               ),
@@ -171,30 +173,36 @@ class _ManageRulesPagePresState extends State<ManageRulesPagePres> {
                 children: [
                   IconButton(
                     icon: const Icon(
-                      Icons.arrow_back_ios_rounded,
-                      size: 24,
+                      Icons.arrow_back_ios_new,
                       color: Colors.white,
+                      size: 24,
                     ),
                     onPressed: () => Navigator.pop(context),
-                    tooltip: 'Back',
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(),
                   ),
-                  const SizedBox(width: 8),
-                  const Text(
-                    '',
-                    style: TextStyle(
-                      fontSize: 24,
-                      fontWeight: FontWeight.w800,
-                      color: Colors.white,
-                      fontFamily: 'Montserrat',
-                      letterSpacing: 0.3,
+                  const SizedBox(width: 16),
+                  const Expanded(
+                    child: Text(
+                      'User Preferences',
+                      style: TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.w800,
+                        color: Colors.white,
+                        fontFamily: 'Montserrat',
+                        letterSpacing: 0.3,
+                      ),
                     ),
                   ),
                 ],
               ),
             ),
+            const SizedBox(height: 24),
             Expanded(
               child: _loading
-                  ? const Center(child: CircularProgressIndicator())
+                  ? const Center(
+                      child: CircularProgressIndicator(color: kAccent),
+                    )
                   : _units.isEmpty
                   ? Center(
                       child: Container(
@@ -244,74 +252,89 @@ class _ManageRulesPagePresState extends State<ManageRulesPagePres> {
                       ),
                     )
                   : Padding(
-                      padding: const EdgeInsets.all(20),
-                      child: Column(
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      child: ListView(
                         children: [
-                          _unitPicker(),
-                          const SizedBox(height: 20),
-                          Expanded(
-                            child: ListView(
-                              children: [
-                                _dropdownField(
-                                  'Meeting Frequency',
-                                  _meetingFrequencies,
-                                  _selectedMeetingFrequency,
-                                  (v) => setState(
-                                    () => _selectedMeetingFrequency = v,
-                                  ),
-                                ),
-                                _dropdownField(
-                                  'Registration Fee Range',
-                                  _feeRanges,
-                                  _selectedRegistrationFeeRange,
-                                  (v) => setState(
-                                    () => _selectedRegistrationFeeRange = v,
-                                  ),
-                                ),
-                                _dropdownField(
-                                  'Membership Payment',
-                                  _feeRanges,
-                                  _selectedMembershipPayment,
-                                  (v) => setState(
-                                    () => _selectedMembershipPayment = v,
-                                  ),
-                                ),
-                                _dropdownField(
-                                  'Penalty Payment',
-                                  _feeRanges,
-                                  _selectedPenaltyPayment,
-                                  (v) => setState(
-                                    () => _selectedPenaltyPayment = v,
-                                  ),
-                                ),
-                                _dropdownField(
-                                  'Payment Method',
-                                  _paymentMethodsDropdown,
-                                  _selectedPaymentMethodDropdown,
-                                  (v) => setState(
-                                    () => _selectedPaymentMethodDropdown = v,
-                                  ),
-                                ),
-                                _openForAllSwitch(),
-                                const SizedBox(height: 16),
-                                ElevatedButton.icon(
-                                  onPressed: _save,
-                                  icon: const Icon(Icons.save),
-                                  label: const Text('Save Rules'),
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: kPrimary,
-                                    foregroundColor: Colors.white,
-                                    elevation: 0,
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 24,
-                                      vertical: 16,
-                                    ),
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(12),
+                          const SizedBox(height: 8),
+                          // Card for unit picker and rules
+                          Card(
+                            elevation: 3,
+                            color: kCardBg,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(18),
+                            ),
+                            child: Padding(
+                              padding: const EdgeInsets.all(20),
+                              child: Column(
+                                children: [
+                                  _unitPicker(),
+                                  const SizedBox(height: 20),
+                                  _dropdownField(
+                                    'Meeting Frequency',
+                                    _meetingFrequencies,
+                                    _selectedMeetingFrequency,
+                                    (v) => setState(
+                                      () => _selectedMeetingFrequency = v,
                                     ),
                                   ),
-                                ),
-                              ],
+                                  _dropdownField(
+                                    'Registration Fee Range',
+                                    _feeRanges,
+                                    _selectedRegistrationFeeRange,
+                                    (v) => setState(
+                                      () => _selectedRegistrationFeeRange = v,
+                                    ),
+                                  ),
+                                  _dropdownField(
+                                    'Membership Payment',
+                                    _feeRanges,
+                                    _selectedMembershipPayment,
+                                    (v) => setState(
+                                      () => _selectedMembershipPayment = v,
+                                    ),
+                                  ),
+                                  _dropdownField(
+                                    'Penalty Payment',
+                                    _feeRanges,
+                                    _selectedPenaltyPayment,
+                                    (v) => setState(
+                                      () => _selectedPenaltyPayment = v,
+                                    ),
+                                  ),
+                                  _dropdownField(
+                                    'Payment Method',
+                                    _paymentMethodsDropdown,
+                                    _selectedPaymentMethodDropdown,
+                                    (v) => setState(
+                                      () => _selectedPaymentMethodDropdown = v,
+                                    ),
+                                  ),
+                                  _openForAllSwitch(),
+                                  const SizedBox(height: 16),
+                                  SizedBox(
+                                    width: double.infinity,
+                                    child: ElevatedButton.icon(
+                                      onPressed: _save,
+                                      icon: const Icon(Icons.save),
+                                      label: const Text('Save Rules'),
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor: kAccent,
+                                        foregroundColor: Colors.white,
+                                        elevation: 0,
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 24,
+                                          vertical: 16,
+                                        ),
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius: BorderRadius.circular(
+                                            12,
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
                             ),
                           ),
                         ],
