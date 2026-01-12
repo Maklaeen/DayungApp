@@ -3,8 +3,8 @@ import 'package:capstone_app/Auth/logout.dart';
 import 'package:capstone_app/Beneficiary/beneficiary.dart';
 import 'package:capstone_app/Collector/collect_cash.dart';
 import 'package:capstone_app/Collector/gcash_qr_page.dart' hide kPrimary;
-import 'package:capstone_app/Members/memclaims.dart';
-import 'package:capstone_app/Members/memcontributions.dart';
+import 'package:capstone_app/Members/memclaims.dart' hide kPrimary;
+import 'package:capstone_app/Members/memcontributions.dart' hide kPrimary;
 import 'package:capstone_app/Providers/apptheme_provider.dart';
 import 'package:capstone_app/Providers/dayung_provider.dart';
 import 'package:capstone_app/Providers/dayung_role_provider.dart';
@@ -272,29 +272,6 @@ class _CollectorDashboardPageState extends State<CollectorDashboardPage> {
       _recentDeaths = [];
     }
   }
-
-  // List<Widget> get _pages => [
-  //   _homePage(),
-  //   const Placeholder(), // Contributions
-  //   MembersClaimsPage(
-  //     onNavBarVisible: (v) => setState(() => _showNavBar = v),
-  //     dayungUnitId: _dayungUnitId ?? 0,
-  //   ),
-  // ];
-
-  // List<Widget> get _pages => [
-  //   _homePage(),
-  //   (_dayungUnitId != null && _dayungUnitId != 0)
-  //       ? MembersContributionHistory(
-  //           dayungUnitId: _dayungUnitId!,
-  //           onNavBarVisible: (v) => setState(() => _showNavBar = v),
-  //         )
-  //       : const Center(child: Text('Select a Dayung unit first')),
-  //   MembersClaimsPage(
-  //     onNavBarVisible: (v) => setState(() => _showNavBar = v),
-  //     dayungUnitId: _dayungUnitId ?? 0,
-  //   ),
-  // ];
 
   List<Widget> get _pages => [
     _homePage(),

@@ -14,6 +14,16 @@ import 'package:provider/provider.dart' hide Consumer;
 import 'package:flutter_riverpod/flutter_riverpod.dart' as r;
 
 const double kCardRadius = 18;
+const kBg = Color(0xFFFAFAF7);
+const kText = Color(0xFF1F2937);
+const kSubText = Color(0xFF4B5563);
+const kAccent = Color(0xFF0D47A1);
+const kPrimary = Color(0xFF0D47A1);
+const kPrimaryDark = Color(0xFF083366);
+const kWarn = Color(0xFFF57C00);
+const kDanger = Color(0xFFC62828);
+const kNeutralText = Color(0xFF1F2937);
+const kSubtleText = Color(0xFF4B5563);
 
 class MembersClaimsPage extends StatefulWidget {
   final int dayungUnitId;
@@ -531,9 +541,17 @@ class _MembersClaimsPageState extends State<MembersClaimsPage>
     });
   }
 
-  void _openDetail(Map<String, dynamic> claim) {
+  void _openDetail(Map<String, dynamic> claim) async {
     final status = (claim['status'] ?? '').toString();
     final color = _statusColor(status);
+
+    final deceasedInfo = await getDeceasedInfo(claim);
+    final deceasedName = deceasedInfo['name'] ?? '';
+    final deceasedDob = deceasedInfo['dob'] ?? '';
+    final deceasedDod = deceasedInfo['date_of_death'] ?? '';
+    final deceasedType = deceasedInfo['type'] ?? '';
+    final deceasedAge = _computeAge(deceasedDob, deceasedDod);
+
     showModalBottomSheet(
       context: context,
       builder: (ctx) {
@@ -695,123 +713,225 @@ class _MembersClaimsPageState extends State<MembersClaimsPage>
 
             return Padding(
               padding: const EdgeInsets.all(24),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Row(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 10,
-                          vertical: 6,
-                        ),
-                        decoration: BoxDecoration(
-                          color: color.withOpacity(.12),
-                          borderRadius: BorderRadius.circular(40),
-                        ),
-                        child: Row(
-                          children: [
-                            Icon(_statusIcon(status), size: 16, color: color),
-                            const SizedBox(width: 6),
-                            Text(
-                              _displayStatus(status),
-                              style: TextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.w700,
-                                fontFamily: 'Montserrat',
-                                color: color,
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 6,
+                          ),
+                          decoration: BoxDecoration(
+                            color: color.withOpacity(.12),
+                            borderRadius: BorderRadius.circular(40),
+                          ),
+                          child: Row(
+                            children: [
+                              Icon(_statusIcon(status), size: 16, color: color),
+                              const SizedBox(width: 6),
+                              Text(
+                                _displayStatus(status),
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w700,
+                                  fontFamily: 'Montserrat',
+                                  color: color,
+                                ),
                               ),
+                            ],
+                          ),
+                        ),
+                        const Spacer(),
+                        // Show only short claim ID (first 6 chars) or remove if you want
+                        Text(
+                          '#${claim['id'].toString().substring(0, 6)}',
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            fontFamily: 'OpenSans',
+                            color: kSubtleText.withOpacity(.8),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 14),
+                    Text(
+                      (claim['title'] ?? 'Untitled').toString(),
+                      style: const TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.w800,
+                        fontFamily: 'Montserrat',
+                        height: 1.15,
+                        color: kNeutralText,
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    Row(
+                      children: [
+                        const Icon(
+                          Icons.access_time,
+                          size: 16,
+                          color: kSubtleText,
+                        ),
+                        const SizedBox(width: 6),
+                        Text(
+                          _formatDate(claim['date_submitted']),
+                          style: const TextStyle(
+                            fontSize: 13,
+                            fontFamily: 'OpenSans',
+                            fontWeight: FontWeight.w600,
+                            color: kSubtleText,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    // Deceased details section
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(14),
+                      margin: const EdgeInsets.only(bottom: 10),
+                      decoration: BoxDecoration(
+                        color: kBg,
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(color: kAccent.withOpacity(.12)),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            deceasedType == 'beneficiary'
+                                ? 'Beneficiary Details'
+                                : 'Member Details',
+                            style: TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w700,
+                              fontFamily: 'Montserrat',
+                              color: kAccent,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Row(
+                            children: [
+                              Icon(Icons.person, color: kAccent, size: 18),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  deceasedName,
+                                  style: TextStyle(
+                                    fontSize: 15,
+                                    fontWeight: FontWeight.w600,
+                                    fontFamily: 'OpenSans',
+                                    color: kText,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 6),
+                          Row(
+                            children: [
+                              Icon(Icons.cake, color: kSubText, size: 16),
+                              const SizedBox(width: 8),
+                              Text(
+                                deceasedDob.isNotEmpty
+                                    ? 'Born: ${_formatDate(deceasedDob)}'
+                                    : 'Born: N/A',
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  fontFamily: 'OpenSans',
+                                  color: kSubText,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 6),
+                          Row(
+                            children: [
+                              Icon(Icons.event, color: kDanger, size: 16),
+                              const SizedBox(width: 8),
+                              Text(
+                                deceasedDod.isNotEmpty
+                                    ? 'Died: ${_formatDate(deceasedDod)}'
+                                    : 'Died: N/A',
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  fontFamily: 'OpenSans',
+                                  color: kDanger,
+                                ),
+                              ),
+                            ],
+                          ),
+                          if (deceasedAge != null) ...[
+                            const SizedBox(height: 6),
+                            Row(
+                              children: [
+                                Icon(Icons.timeline, color: kAccent, size: 16),
+                                const SizedBox(width: 8),
+                                Text(
+                                  'Age at death: $deceasedAge',
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    fontFamily: 'OpenSans',
+                                    color: kAccent,
+                                  ),
+                                ),
+                              ],
                             ),
                           ],
-                        ),
+                        ],
                       ),
-                      const Spacer(),
+                    ),
+                    if ((claim['description'] ?? '')
+                        .toString()
+                        .trim()
+                        .isNotEmpty)
                       Text(
-                        '#${claim['id']}',
-                        style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
+                        (claim['description'] ?? '').toString(),
+                        style: const TextStyle(
+                          fontSize: 14.2,
                           fontFamily: 'OpenSans',
+                          height: 1.32,
+                        ),
+                      )
+                    else
+                      Text(
+                        'No description provided.',
+                        style: TextStyle(
+                          fontSize: 13.2,
+                          fontFamily: 'OpenSans',
+                          fontStyle: FontStyle.italic,
                           color: kSubtleText.withOpacity(.8),
                         ),
                       ),
-                    ],
-                  ),
-                  const SizedBox(height: 14),
-                  Text(
-                    (claim['title'] ?? 'Untitled').toString(),
-                    style: const TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.w800,
-                      fontFamily: 'Montserrat',
-                      height: 1.15,
-                      color: kNeutralText,
-                    ),
-                  ),
-                  const SizedBox(height: 10),
-                  Row(
-                    children: [
-                      const Icon(
-                        Icons.access_time,
-                        size: 16,
-                        color: kSubtleText,
-                      ),
-                      const SizedBox(width: 6),
-                      Text(
-                        _formatDate(claim['date_submitted']),
-                        style: const TextStyle(
-                          fontSize: 13,
-                          fontFamily: 'OpenSans',
-                          fontWeight: FontWeight.w600,
-                          color: kSubtleText,
+                    const SizedBox(height: 18),
+                    trackingSection(),
+                    const SizedBox(height: 22),
+                    SizedBox(
+                      width: double.infinity,
+                      child: OutlinedButton.icon(
+                        icon: const Icon(Icons.close),
+                        label: const Text(
+                          'Close',
+                          style: TextStyle(
+                            fontFamily: 'Montserrat',
+                            fontWeight: FontWeight.w600,
+                          ),
                         ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-                  if ((claim['description'] ?? '').toString().trim().isNotEmpty)
-                    Text(
-                      (claim['description'] ?? '').toString(),
-                      style: const TextStyle(
-                        fontSize: 14.2,
-                        fontFamily: 'OpenSans',
-                        height: 1.32,
-                      ),
-                    )
-                  else
-                    Text(
-                      'No description provided.',
-                      style: TextStyle(
-                        fontSize: 13.2,
-                        fontFamily: 'OpenSans',
-                        fontStyle: FontStyle.italic,
-                        color: kSubtleText.withOpacity(.8),
-                      ),
-                    ),
-                  const SizedBox(height: 18),
-                  trackingSection(), // Riverpod-driven
-                  const SizedBox(height: 22),
-                  SizedBox(
-                    width: double.infinity,
-                    child: OutlinedButton.icon(
-                      icon: const Icon(Icons.close),
-                      label: const Text(
-                        'Close',
-                        style: TextStyle(
-                          fontFamily: 'Montserrat',
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                      onPressed: () => Navigator.pop(ctx),
-                      style: OutlinedButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(14),
+                        onPressed: () => Navigator.pop(ctx),
+                        style: OutlinedButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(14),
+                          ),
                         ),
                       ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             );
           },
@@ -822,148 +942,111 @@ class _MembersClaimsPageState extends State<MembersClaimsPage>
 
   @override
   Widget build(BuildContext context) {
-    final isWide = MediaQuery.of(context).size.width > 700;
     final ongoingList = _filteredList(true);
     final historyList = _filteredList(false);
-    final trackingList = _filteredTrackingList(); // NEW
-
-    // Compute a safe bottom offset so the FAB clears the bottom nav
-    final bottomSafeInset = MediaQuery.of(context).viewPadding.bottom;
-    final double fabBottom =
-        (_navBarVisible ? 90.0 : 24.0) + bottomSafeInset; // tweak 76 as needed
+    final trackingList = _filteredTrackingList();
 
     return Scaffold(
       backgroundColor: kBg,
-      floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
-      floatingActionButton: SafeArea(
-        top: false,
-        child: Padding(
-          padding: EdgeInsets.only(bottom: fabBottom),
-          child: FloatingActionButton.extended(
-            onPressed: widget.dayungUnitId == null
-                ? _goApplyDayung
-                : _openSubmitSheet,
-            icon: Icon(
-              widget.dayungUnitId == null ? Icons.how_to_reg : Icons.add,
-            ),
-            label: Text(
-              widget.dayungUnitId == null ? 'Apply Dayung' : 'New Claim',
-              style: const TextStyle(
-                fontWeight: FontWeight.w700,
-                fontFamily: 'Montserrat',
-              ),
-            ),
-            backgroundColor: kPrimary,
-            foregroundColor: Colors.white,
+      appBar: AppBar(
+        backgroundColor: kBg,
+        elevation: 0,
+        title: Text(
+          'Claims',
+          style: TextStyle(
+            color: kText,
+            fontWeight: FontWeight.bold,
+            fontSize: 24,
+            fontFamily: 'Montserrat',
           ),
         ),
+        actions: [
+          Padding(
+            padding: const EdgeInsets.only(right: 16),
+            child: Stack(
+              children: [
+                CircleAvatar(
+                  backgroundColor: Colors.white,
+                  backgroundImage:
+                      _profileUrl != null && _profileUrl!.isNotEmpty
+                      ? NetworkImage(_profileUrl!)
+                      : null,
+                  child: _profileUrl == null
+                      ? Icon(Icons.person, color: kAccent)
+                      : null,
+                  radius: 20,
+                ),
+                if (_unreadNotifCount > 0)
+                  Positioned(
+                    right: 0,
+                    top: 0,
+                    child: Container(
+                      padding: EdgeInsets.all(4),
+                      decoration: BoxDecoration(
+                        color: kAccent,
+                        shape: BoxShape.circle,
+                      ),
+                      child: Text(
+                        '$_unreadNotifCount',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 10,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ],
       ),
       body: SafeArea(
-        // ensure header not under status bar
-        child: NestedScrollView(
-          headerSliverBuilder: (_, __) => [
-            SliverToBoxAdapter(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [const SizedBox(height: 16)],
-              ),
+        child: Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              child: _searchField(),
             ),
-
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
-                child: _searchField(),
+            TabBar(
+              controller: _tabController,
+              labelColor: kAccent,
+              unselectedLabelColor: kSubText,
+              indicatorColor: kAccent,
+              labelStyle: TextStyle(
+                fontWeight: FontWeight.bold,
+                fontFamily: 'Montserrat',
               ),
+              tabs: [
+                Tab(text: 'Pending'),
+                Tab(text: 'History'),
+                Tab(text: 'Tracking'),
+              ],
             ),
-            SliverAppBar(
-              pinned: true,
-              backgroundColor: kBg,
-              elevation: 0,
-              toolbarHeight: 0,
-              bottom: PreferredSize(
-                preferredSize: const Size.fromHeight(52),
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 12),
-                  child: TabBar(
-                    controller: _tabController,
-                    labelColor: kPrimaryDark,
-                    unselectedLabelColor: kSubtleText,
-                    indicator: UnderlineTabIndicator(
-                      borderSide: const BorderSide(
-                        color: kPrimaryDark,
-                        width: 3,
-                      ),
-                      insets: EdgeInsets.symmetric(
-                        horizontal: isWide ? 120 : 40,
-                      ),
-                    ),
-                    labelStyle: const TextStyle(
-                      fontWeight: FontWeight.w700,
-                      fontSize: 16,
-                      fontFamily: 'Montserrat',
-                    ),
-                    unselectedLabelStyle: const TextStyle(
-                      fontWeight: FontWeight.w500,
-                      fontSize: 16,
-                      fontFamily: 'Montserrat',
-                    ),
-                    tabs: const [
-                      Tab(text: 'Ongoing'),
-                      Tab(text: 'History'),
-                      Tab(text: 'Tracking'), // NEW
-                    ],
-                  ),
-                ),
+            Expanded(
+              child: TabBarView(
+                controller: _tabController,
+                children: [
+                  _claimListView(ongoingList, true),
+                  _claimListView(historyList, false),
+                  _trackingListView(trackingList),
+                ],
               ),
             ),
           ],
-          body: _loading
-              ? Center(
-                  child: Container(
-                    padding: const EdgeInsets.all(24),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(20),
-                      border: Border.all(color: Colors.grey.shade300, width: 1),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withOpacity(0.05),
-                          blurRadius: 15,
-                          offset: const Offset(0, 6),
-                        ),
-                      ],
-                    ),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        CircularProgressIndicator(
-                          color: kPrimary,
-                          strokeWidth: 3,
-                        ),
-                        const SizedBox(height: 16),
-                        const Text(
-                          'Loading claims...',
-                          style: TextStyle(
-                            color: kSubtleText,
-                            fontSize: 16,
-                            fontFamily: 'OpenSans',
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                )
-              : TabBarView(
-                  controller: _tabController,
-                  children: [
-                    _claimListView(ongoingList, true),
-                    _claimListView(historyList, false),
-                    _trackingListView(trackingList), // NEW
-                  ],
-                ),
         ),
       ),
+      floatingActionButton: FloatingActionButton.extended(
+        backgroundColor: kAccent,
+        foregroundColor: Colors.white,
+        icon: Icon(Icons.add),
+        label: Text(
+          'Submit Claim',
+          style: TextStyle(fontWeight: FontWeight.bold),
+        ),
+        onPressed: _openSubmitSheet,
+      ),
+      floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
     );
   }
 
@@ -1169,164 +1252,79 @@ class _MembersClaimsPageState extends State<MembersClaimsPage>
     final date = _formatDate(claim['date_submitted']);
     final color = _statusColor(status);
 
-    return InkWell(
-      onTap: () => _openDetail(claim),
-      borderRadius: BorderRadius.circular(kCardRadius),
-      child: Container(
-        padding: const EdgeInsets.fromLTRB(16, 16, 16, 14),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(kCardRadius),
-          border: Border.all(color: Colors.grey.shade200),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(.04),
-              blurRadius: 8,
-              offset: const Offset(0, 4),
-            ),
-          ],
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 10,
-                    vertical: 6,
-                  ),
-                  decoration: BoxDecoration(
-                    color: color.withOpacity(.12),
-                    borderRadius: BorderRadius.circular(40),
-                  ),
-                  child: Row(
-                    children: [
-                      Icon(_statusIcon(status), size: 14, color: color),
-                      const SizedBox(width: 4),
-                      Text(
-                        _displayStatus(status),
-                        style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w700,
-                          fontFamily: 'Montserrat',
-                          color: color,
-                        ),
+    return Card(
+      margin: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      elevation: 2,
+      color: Colors.white,
+      child: InkWell(
+        onTap: () => _openDetail(claim),
+        borderRadius: BorderRadius.circular(16),
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Icon(_statusIcon(status), color: color, size: 28),
+                  SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      title,
+                      style: TextStyle(
+                        fontFamily: 'Montserrat',
+                        fontWeight: FontWeight.bold,
+                        fontSize: 18,
+                        color: kText,
                       ),
-                    ],
+                    ),
                   ),
-                ),
-                const Spacer(),
+                  Container(
+                    padding: EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: color.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Text(
+                      _displayStatus(status),
+                      style: TextStyle(
+                        color: color,
+                        fontWeight: FontWeight.w600,
+                        fontSize: 13,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              if (desc.isNotEmpty) ...[
+                SizedBox(height: 8),
                 Text(
-                  '#${claim['id']}',
+                  desc,
                   style: TextStyle(
-                    fontSize: 11,
                     fontFamily: 'OpenSans',
-                    fontWeight: FontWeight.w600,
-                    color: kSubtleText.withOpacity(.65),
+                    fontSize: 15,
+                    color: kSubText,
                   ),
                 ),
               ],
-            ),
-            const SizedBox(height: 12),
-            Text(
-              title,
-              style: const TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w800,
-                fontFamily: 'Montserrat',
-                height: 1.15,
-                color: kNeutralText,
-              ),
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-            ),
-            if (desc.isNotEmpty) ...[
-              const SizedBox(height: 6),
-              Text(
-                desc,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                  fontSize: 13,
-                  fontFamily: 'OpenSans',
-                  height: 1.3,
-                  color: kSubtleText,
-                ),
+              SizedBox(height: 12),
+              Row(
+                children: [
+                  Icon(Icons.calendar_today, size: 16, color: kSubText),
+                  SizedBox(width: 6),
+                  Text(
+                    date,
+                    style: TextStyle(
+                      fontFamily: 'OpenSans',
+                      fontSize: 13,
+                      color: kSubText,
+                    ),
+                  ),
+                ],
               ),
             ],
-            const SizedBox(height: 10),
-            FutureBuilder<Map<String, dynamic>>(
-              future: getDeceasedInfo(claim),
-              builder: (context, snapshot) {
-                if (!snapshot.hasData) return const SizedBox.shrink();
-                final deceased = snapshot.data!;
-                final dob = (deceased['dob'] ?? '').toString();
-                final dod = (deceased['date_of_death'] ?? '').toString();
-                final age = _computeAge(dob, dod);
-                return Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Deceased: ${deceased['name']}',
-                      style: const TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
-                        color: kNeutralText,
-                      ),
-                    ),
-                    if (dob.isNotEmpty)
-                      Text(
-                        'Date of Birth: $dob',
-                        style: const TextStyle(
-                          fontSize: 13,
-                          color: kSubtleText,
-                        ),
-                      ),
-                    if (dod.isNotEmpty)
-                      Text(
-                        'Date of Death: $dod',
-                        style: const TextStyle(
-                          fontSize: 13,
-                          color: kSubtleText,
-                        ),
-                      ),
-                    if (age != null)
-                      Text(
-                        'Age at death: $age years',
-                        style: const TextStyle(
-                          fontSize: 13,
-                          color: kSubtleText,
-                        ),
-                      ),
-                  ],
-                );
-              },
-            ),
-            const SizedBox(height: 10),
-            Row(
-              children: [
-                const Icon(Icons.access_time, size: 14, color: kSubtleText),
-                const SizedBox(width: 4),
-                Expanded(
-                  child: Text(
-                    date,
-                    style: const TextStyle(
-                      fontSize: 12,
-                      fontFamily: 'OpenSans',
-                      fontWeight: FontWeight.w600,
-                      color: kSubtleText,
-                    ),
-                  ),
-                ),
-                const Icon(
-                  Icons.chevron_right,
-                  size: 20,
-                  color: Colors.black38,
-                ),
-              ],
-            ),
-          ],
+          ),
         ),
       ),
     );

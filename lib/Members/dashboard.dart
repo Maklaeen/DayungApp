@@ -1960,25 +1960,6 @@ class _MemberDashboardPageState extends State<MemberDashboardPage> {
     );
   }
 
-  // List<Widget> get _pages => [
-  //   _buildHomePage(context),
-  //   _dayungUnitId == null
-  //       ? const Center(child: Text('Select a Dayung unit first'))
-  //       : MembersContributionHistory(dayungUnitId: _dayungUnitId!),
-  //   _dayungUnitId == null
-  //       ? const Center(child: Text('Select a Dayung unit first'))
-  //       : MembersClaimsPage(dayungUnitId: _dayungUnitId!),
-  // ];
-
-  // List<Widget> get _pages => [
-  //   _buildHomePage(context),
-  //   const Placeholder(), // Contributions
-  //   MembersClaimsPage(
-  //     onNavBarVisible: (v) => setState(() => _showNavBar = v),
-  //     dayungUnitId: _dayungUnitId ?? 0,
-  //   ),
-  // ];
-
   List<Widget> get _pages => [
     _buildHomePage(context),
     _dayungUnitId == null

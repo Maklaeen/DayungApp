@@ -1,7 +1,10 @@
 import 'dart:convert';
 import 'package:capstone_app/Auth/logout.dart';
 import 'package:capstone_app/Beneficiary/beneficiary.dart';
+import 'package:capstone_app/Members/memclaims.dart';
+import 'package:capstone_app/Members/memcontributions.dart';
 import 'package:capstone_app/Providers/apptheme_provider.dart';
+import 'package:capstone_app/Providers/dayung_provider.dart';
 import 'package:capstone_app/Providers/dayung_role_provider.dart';
 import 'package:capstone_app/Treasurer/collected.dart';
 import 'package:capstone_app/Treasurer/manage_fund.dart';
@@ -511,20 +514,36 @@ class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
 
   List<Widget> get _pages => [
     _homePage(),
-    const Placeholder(), // Contributions
-    // ClaimsPage(onNavBarVisible: (v) => setState(() => _showNavBar = v)),
+    _dayungUnitId == null
+        ? const Center(child: Text('Select a Dayung unit first'))
+        : MembersContributionHistory(dayungUnitId: _dayungUnitId!),
+    _dayungUnitId == null
+        ? const Center(child: Text('Select a Dayung unit first'))
+        : MembersClaimsPage(dayungUnitId: _dayungUnitId!),
   ];
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final provUnit = context.watch<DayungUnitProvider>().currentUnitId;
+    if (provUnit != _lastRoleUnitId) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        _maybeOnProviderUnitChanged(provUnit);
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     final width = MediaQuery.of(context).size.width;
     final wide = width > 820;
-    final provUnit = context.watch<DayungRoleProvider>().unitId;
-    if (provUnit != _lastRoleUnitId) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        _maybeOnProviderUnitChanged(provUnit);
-      });
-    }
+    // final provUnit = context.watch<DayungRoleProvider>().unitId;
+    // if (provUnit != _lastRoleUnitId) {
+    //   WidgetsBinding.instance.addPostFrameCallback((_) {
+    //     _maybeOnProviderUnitChanged(provUnit);
+    //   });
+    // }
 
     return Scaffold(
       backgroundColor: const Color(0xFFF8FAFC),
