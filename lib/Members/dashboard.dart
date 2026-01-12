@@ -1970,23 +1970,47 @@ class _MemberDashboardPageState extends State<MemberDashboardPage> {
   //       : MembersClaimsPage(dayungUnitId: _dayungUnitId!),
   // ];
 
+  // List<Widget> get _pages => [
+  //   _buildHomePage(context),
+  //   const Placeholder(), // Contributions
+  //   MembersClaimsPage(
+  //     onNavBarVisible: (v) => setState(() => _showNavBar = v),
+  //     dayungUnitId: _dayungUnitId ?? 0,
+  //   ),
+  // ];
+
   List<Widget> get _pages => [
     _buildHomePage(context),
-    const Placeholder(), // Contributions
-    MembersClaimsPage(
-      onNavBarVisible: (v) => setState(() => _showNavBar = v),
-      dayungUnitId: _dayungUnitId ?? 0,
-    ),
+    _dayungUnitId == null
+        ? const Center(child: Text('Select a Dayung unit first'))
+        : MembersContributionHistory(dayungUnitId: _dayungUnitId!),
+    _dayungUnitId == null
+        ? const Center(child: Text('Select a Dayung unit first'))
+        : MembersClaimsPage(dayungUnitId: _dayungUnitId!),
   ];
 
   @override
-  Widget build(BuildContext context) {
+  void didChangeDependencies() {
+    super.didChangeDependencies();
     final provUnit = context.watch<DayungUnitProvider>().currentUnitId;
     if (provUnit != _lastRoleUnitId) {
+      _lastRoleUnitId = provUnit;
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        _maybeOnProviderUnitChanged(provUnit);
+        if (mounted) {
+          _maybeOnProviderUnitChanged(provUnit);
+        }
       });
     }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    // final provUnit = context.watch<DayungUnitProvider>().currentUnitId;
+    // if (provUnit != _lastRoleUnitId) {
+    //   WidgetsBinding.instance.addPostFrameCallback((_) {
+    //     _maybeOnProviderUnitChanged(provUnit);
+    //   });
+    // }
 
     final width = MediaQuery.of(context).size.width;
     final bool wide = width > 820;

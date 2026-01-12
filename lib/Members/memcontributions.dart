@@ -14,7 +14,13 @@ const kAccent = Color(0xFF3E8E7E); // muted teal
 
 class MembersContributionHistory extends StatefulWidget {
   final int dayungUnitId;
-  const MembersContributionHistory({super.key, required this.dayungUnitId});
+  const MembersContributionHistory({
+    super.key,
+    required this.dayungUnitId,
+    this.onNavBarVisible,
+  });
+
+  final ValueChanged<bool>? onNavBarVisible;
 
   @override
   State<MembersContributionHistory> createState() =>
@@ -48,6 +54,7 @@ class _MembersContributionHistoryState
     _loadDayungUnit();
     _loadProfileImage();
     _fetchPaidContributions();
+    widget.onNavBarVisible?.call(true);
   }
 
   @override
@@ -60,6 +67,7 @@ class _MembersContributionHistoryState
       }
     } catch (_) {}
     _notifChannel = null;
+    widget.onNavBarVisible?.call(true);
     super.dispose();
   }
 
