@@ -19,17 +19,17 @@ class RequiredApplicationsPage extends StatefulWidget {
 class _RequiredApplicationsPageState extends State<RequiredApplicationsPage> {
   final TextEditingController _titleController = TextEditingController();
   final TextEditingController _descController = TextEditingController();
-  final List<Map<String, dynamic>> _applications = [];
+  Map<String, dynamic>? _application;
   bool _loading = false;
-  int? _editingIndex;
+  bool _editing = false;
 
   @override
   void initState() {
     super.initState();
-    _fetchApplications();
+    _fetchApplication();
   }
 
-  Future<void> _fetchApplications() async {
+  Future<void> _fetchApplication() async {
     setState(() => _loading = true);
     try {
       final userId = Supabase.instance.client.auth.currentUser?.id;
@@ -38,10 +38,13 @@ class _RequiredApplicationsPageState extends State<RequiredApplicationsPage> {
           .from('required_applications')
           .select('id, title, description')
           .eq('user_id', userId)
-          .order('id', ascending: false);
+          .maybeSingle();
       setState(() {
-        _applications.clear();
-        _applications.addAll(List<Map<String, dynamic>>.from(data));
+        _application = data;
+        if (_application != null) {
+          _titleController.text = _application?['title'] ?? '';
+          _descController.text = _application?['description'] ?? '';
+        }
       });
     } catch (e) {
       ScaffoldMessenger.of(
@@ -63,7 +66,7 @@ class _RequiredApplicationsPageState extends State<RequiredApplicationsPage> {
       final userId = Supabase.instance.client.auth.currentUser?.id;
       if (userId == null) return;
 
-      if (_editingIndex == null) {
+      if (_application == null) {
         // Add new
         final inserted = await Supabase.instance.client
             .from('required_applications')
@@ -75,27 +78,24 @@ class _RequiredApplicationsPageState extends State<RequiredApplicationsPage> {
             .select()
             .single();
         setState(() {
-          _applications.insert(0, inserted);
+          _application = inserted;
         });
       } else {
-        // Edit existing
-        final app = _applications[_editingIndex!];
-        final id = app['id'];
+        // Update existing
+        final id = _application!['id'];
         await Supabase.instance.client
             .from('required_applications')
             .update({'title': title, 'description': description})
             .eq('id', id);
         setState(() {
-          _applications[_editingIndex!] = {
-            ...app,
+          _application = {
+            ..._application!,
             'title': title,
             'description': description,
           };
         });
       }
-      _titleController.clear();
-      _descController.clear();
-      _editingIndex = null;
+      _editing = false;
     } catch (e) {
       ScaffoldMessenger.of(
         context,
@@ -105,11 +105,11 @@ class _RequiredApplicationsPageState extends State<RequiredApplicationsPage> {
     }
   }
 
-  void _startEdit(int index) {
+  void _startEdit() {
     setState(() {
-      _editingIndex = index;
-      _titleController.text = _applications[index]['title'] ?? '';
-      _descController.text = _applications[index]['description'] ?? '';
+      _editing = true;
+      _titleController.text = _application?['title'] ?? '';
+      _descController.text = _application?['description'] ?? '';
     });
   }
 
@@ -152,7 +152,7 @@ class _RequiredApplicationsPageState extends State<RequiredApplicationsPage> {
                   const SizedBox(width: 16),
                   const Expanded(
                     child: Text(
-                      'Required Applications',
+                      'Required Application',
                       style: TextStyle(
                         fontSize: 20,
                         fontWeight: FontWeight.w800,
@@ -166,125 +166,186 @@ class _RequiredApplicationsPageState extends State<RequiredApplicationsPage> {
               ),
             ),
             const SizedBox(height: 24),
-            // Application Form Card
-            Card(
-              elevation: 3,
-              color: Colors.white,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(16),
-              ),
-              margin: const EdgeInsets.symmetric(horizontal: 16),
-              child: Padding(
-                padding: const EdgeInsets.all(18),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    TextField(
-                      controller: _titleController,
-                      decoration: const InputDecoration(
-                        labelText: 'Title',
-                        border: OutlineInputBorder(),
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    TextField(
-                      controller: _descController,
-                      decoration: const InputDecoration(
-                        labelText: 'Description',
-                        alignLabelWithHint: true,
-                        border: OutlineInputBorder(),
-                      ),
-                      minLines: 6,
-                      maxLines: 12,
-                      keyboardType: TextInputType.multiline,
-                    ),
-                    const SizedBox(height: 12),
-                    Row(
-                      children: [
-                        _loading
-                            ? const CircularProgressIndicator()
-                            : ElevatedButton.icon(
-                                icon: Icon(
-                                  _editingIndex == null
-                                      ? Icons.send
-                                      : Icons.edit,
-                                ),
-                                label: Text(
-                                  _editingIndex == null ? 'Add' : 'Update',
-                                ),
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: kSuccess,
-                                  foregroundColor: Colors.white,
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(10),
-                                  ),
-                                ),
-                                onPressed: _addOrUpdateApplication,
-                              ),
-                        if (_editingIndex != null)
-                          TextButton(
-                            onPressed: () {
-                              setState(() {
-                                _editingIndex = null;
-                                _titleController.clear();
-                                _descController.clear();
-                              });
-                            },
-                            child: const Text('Cancel'),
-                          ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            const SizedBox(height: 24),
-            // Applications List Card
+            // Make the rest scrollable
             Expanded(
-              child: Card(
-                elevation: 3,
-                color: Colors.white,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                margin: const EdgeInsets.symmetric(horizontal: 16),
-                child: Padding(
-                  padding: const EdgeInsets.all(12),
-                  child: _loading
-                      ? const Center(child: CircularProgressIndicator())
-                      : _applications.isEmpty
-                      ? const Center(child: Text('No applications added yet.'))
-                      : ListView.builder(
-                          itemCount: _applications.length,
-                          itemBuilder: (context, index) => Card(
-                            elevation: 1,
-                            color: Colors.white,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
+              child: SingleChildScrollView(
+                padding: EdgeInsets.zero,
+                child: Column(
+                  children: [
+                    // Application Form Card
+                    Card(
+                      elevation: 4,
+                      color: Colors.white,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      margin: const EdgeInsets.symmetric(horizontal: 20),
+                      child: Padding(
+                        padding: const EdgeInsets.all(22),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              _application == null
+                                  ? 'Add your required application'
+                                  : _editing
+                                      ? 'Update your application'
+                                      : 'Your application',
+                              style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 30,
+                                color: kAccent,
+                                fontFamily: 'Montserrat',
+                              ),
                             ),
-                            margin: const EdgeInsets.symmetric(
-                              vertical: 6,
-                              horizontal: 2,
+                            const SizedBox(height: 18),
+                            TextField(
+                              controller: _titleController,
+                              enabled: _application == null || _editing,
+                              decoration: InputDecoration(
+                                labelText: 'Title',
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                filled: true,
+                                fillColor: kBg,
+                              ),
                             ),
-                            child: ListTile(
-                              title: Text(
-                                _applications[index]['title'] ?? '',
+                            const SizedBox(height: 16),
+                            TextField(
+                              controller: _descController,
+                              enabled: _application == null || _editing,
+                              decoration: InputDecoration(
+                                labelText: 'Description',
+                                alignLabelWithHint: true,
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                filled: true,
+                                fillColor: kBg,
+                              ),
+                              minLines: 5,
+                              maxLines: 10,
+                              keyboardType: TextInputType.multiline,
+                            ),
+                            const SizedBox(height: 16),
+                            Row(
+                              children: [
+                                _loading
+                                    ? const CircularProgressIndicator()
+                                    : (_application == null || _editing)
+                                        ? ElevatedButton.icon(
+                                            icon: Icon(
+                                              _application == null
+                                                  ? Icons.send
+                                                  : Icons.save,
+                                            ),
+                                            label: Text(
+                                              _application == null
+                                                  ? 'Add'
+                                                  : 'Update',
+                                            ),
+                                            style: ElevatedButton.styleFrom(
+                                              backgroundColor: kSuccess,
+                                              foregroundColor: Colors.white,
+                                              shape: RoundedRectangleBorder(
+                                                borderRadius:
+                                                    BorderRadius.circular(10),
+                                              ),
+                                            ),
+                                            onPressed: _addOrUpdateApplication,
+                                          )
+                                        : ElevatedButton.icon(
+                                            icon: const Icon(Icons.edit),
+                                            label: const Text('Edit'),
+                                            style: ElevatedButton.styleFrom(
+                                              backgroundColor: kAccent,
+                                              foregroundColor: Colors.white,
+                                              shape: RoundedRectangleBorder(
+                                                borderRadius:
+                                                    BorderRadius.circular(10),
+                                              ),
+                                            ),
+                                            onPressed: _startEdit,
+                                          ),
+                                if (_editing)
+                                  TextButton(
+                                    onPressed: () {
+                                      setState(() {
+                                        _editing = false;
+                                        _titleController.text =
+                                            _application?['title'] ?? '';
+                                        _descController.text =
+                                            _application?['description'] ?? '';
+                                      });
+                                    },
+                                    child: const Text('Cancel'),
+                                  ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 32),
+                    // Application Display Card
+                    if (_application != null && !_editing)
+                      Card(
+                        elevation: 2,
+                        color: kBg,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                        margin: const EdgeInsets.symmetric(horizontal: 20),
+                        child: Padding(
+                          padding: const EdgeInsets.all(18),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                _application?['title'] ?? '',
                                 style: const TextStyle(
                                   fontWeight: FontWeight.bold,
+                                  fontSize: 30,
                                   color: kText,
                                 ),
                               ),
-                              subtitle: Text(
-                                _applications[index]['description'] ?? '',
-                                style: const TextStyle(color: kSubText),
+                              const SizedBox(height: 8),
+                              // Make description scrollable if too long
+                              LayoutBuilder(
+                                builder: (context, constraints) {
+                                  final desc = _application?['description'] ?? '';
+                                  if (desc.length > 1000) {
+                                    return Container(
+                                      height: 200,
+                                      child: Scrollbar(
+                                        child: SingleChildScrollView(
+                                          child: Text(
+                                            desc,
+                                            style: const TextStyle(
+                                              color: kSubText,
+                                              fontSize: 25,
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    );
+                                  } else {
+                                    return Text(
+                                      desc,
+                                      style: const TextStyle(
+                                        color: kSubText,
+                                        fontSize: 20,
+                                      ),
+                                    );
+                                  }
+                                },
                               ),
-                              trailing: IconButton(
-                                icon: const Icon(Icons.edit, color: kAccent),
-                                onPressed: () => _startEdit(index),
-                              ),
-                            ),
+                            ],
                           ),
                         ),
+                      ),
+                  ],
                 ),
               ),
             ),
@@ -292,5 +353,4 @@ class _RequiredApplicationsPageState extends State<RequiredApplicationsPage> {
         ),
       ),
     );
-  }
-}
+  }}

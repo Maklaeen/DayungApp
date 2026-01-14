@@ -414,7 +414,7 @@ class _MembersClaimsPageState extends State<MembersClaimsPage>
 
   // ...existing code...
   String _displayStatus(String s) {
-    // NEW (extended)
+    // f(extended)
     final low = s.toLowerCase();
     if (low == 'approved') return 'Approved ✓';
     if (low == 'claimed') return 'Claimed ✓'; // already handled

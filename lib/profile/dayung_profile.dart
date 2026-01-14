@@ -1177,11 +1177,43 @@ class _DayungProfileState extends State<DayungProfile> {
                                         ),
                                         const SizedBox(height: 10),
                                         const Text(
-                                          '',
+                                          'You will need to upload the following documents when applying for a Dayung:',
                                           style: TextStyle(
                                             fontSize: 13,
                                             fontFamily: 'OpenSans',
                                             color: kSubText,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 18),
+                                        // Show requirements list (same as _showRequirementsSheet)
+                                        ...const [
+                                          'Birth Certificate',
+                                          'Valid Government ID',
+                                          'Proof of Residency',
+                                          'Marriage Certificate (if applicable)',
+                                        ].map(
+                                          (r) => Padding(
+                                            padding: const EdgeInsets.symmetric(vertical: 4),
+                                            child: Row(
+                                              children: [
+                                                const Icon(
+                                                  Icons.description_rounded,
+                                                  size: 16,
+                                                  color: kPrimary,
+                                                ),
+                                                const SizedBox(width: 8),
+                                                Expanded(
+                                                  child: Text(
+                                                    r,
+                                                    style: const TextStyle(
+                                                      fontSize: 13,
+                                                      fontFamily: 'OpenSans',
+                                                      color: kText,
+                                                    ),
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
                                           ),
                                         ),
                                         const SizedBox(height: 18),

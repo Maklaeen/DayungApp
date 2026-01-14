@@ -349,10 +349,10 @@ class _RegisterState extends State<Register> {
             city = (p.locality ?? '').trim();
             province = (p.administrativeArea ?? '').trim();
             composed = [
-              if (street != null && street!.isNotEmpty) street,
-              if (barangay != null && barangay!.isNotEmpty) barangay,
-              if (city != null && city!.isNotEmpty) city,
-              if (province != null && province!.isNotEmpty) province,
+              if (street != null && street.isNotEmpty) street,
+              if (barangay != null && barangay.isNotEmpty) barangay,
+              if (city != null && city.isNotEmpty) city,
+              if (province != null && province.isNotEmpty) province,
             ].join(', ');
           }
         } catch (_) {}
@@ -362,8 +362,8 @@ class _RegisterState extends State<Register> {
             composed == null ||
             composed.isEmpty ||
             composed.contains('+') ||
-            (barangay == null || barangay!.isEmpty) ||
-            (street == null || street!.isEmpty);
+            (barangay == null || barangay.isEmpty) ||
+            (street == null || street.isEmpty);
 
         if (needsFallback) {
           final nominatim = await _reverseViaNominatim(

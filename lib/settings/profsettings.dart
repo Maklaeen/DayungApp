@@ -27,6 +27,9 @@ class _ProfSettingsPageState extends State<ProfSettingsPage> {
   final supabase = Supabase.instance.client;
   String? birthCertificateUrl;
   String? marriageCertificateUrl;
+  String? proofOfResidencyUrl; 
+  String? valididUrl;
+
   bool loading = true;
   bool _uploadingImage = false;
 
@@ -144,13 +147,15 @@ class _ProfSettingsPageState extends State<ProfSettingsPage> {
     if (userId == null) return;
     final response = await supabase
         .from('users')
-        .select('birth_certificate_url, marriage_certificate_url')
+        .select('birth_certificate_url, marriage_certificate_url, proof_of_residency_url, valid_id' )
         .eq('id', userId)
         .maybeSingle();
     if (!mounted) return;
     setState(() {
       birthCertificateUrl = response?['birth_certificate_url'] as String?;
       marriageCertificateUrl = response?['marriage_certificate_url'] as String?;
+      proofOfResidencyUrl = response?['proof_of_residency_url'] as String?;
+      valididUrl = response?['valid_id'] as String?;
       loading = false;
     });
   }
@@ -174,9 +179,18 @@ class _ProfSettingsPageState extends State<ProfSettingsPage> {
       final userId = supabase.auth.currentUser!.id;
       final fileName = '$userId-${type}_certificate.${ext.toLowerCase()}';
 
-      final bucket = type == 'birth'
-          ? 'birth_certificates'
-          : 'marriage_certificates';
+      String bucket;
+      if (type == 'birth') {
+        bucket = 'birth_certificates';
+      } else if (type == 'marriage') {
+        bucket = 'marriage_certificates';
+      } else if (type == 'proof_of_residency') {
+        bucket = 'proof_of_residency';
+      }else if (type == 'valid_id') {
+        bucket = 'valid_ids';
+      } else {
+        throw Exception('Unknown certificate type');
+      }
 
       await supabase.storage
           .from(bucket)
@@ -193,6 +207,8 @@ class _ProfSettingsPageState extends State<ProfSettingsPage> {
           .update({
             if (type == 'birth') 'birth_certificate_url': publicUrl,
             if (type == 'marriage') 'marriage_certificate_url': publicUrl,
+            if (type == 'proof_of_residency') 'proof_of_residency_url': publicUrl,
+            if (type == 'valid_id') 'valid_id': publicUrl,
           })
           .eq('id', userId)
           .select()
@@ -202,10 +218,12 @@ class _ProfSettingsPageState extends State<ProfSettingsPage> {
       setState(() {
         if (type == 'birth') birthCertificateUrl = publicUrl;
         if (type == 'marriage') marriageCertificateUrl = publicUrl;
+        if (type == 'proof_of_residency') proofOfResidencyUrl = publicUrl;
+        if (type == 'valid_id') valididUrl = publicUrl;
         _uploadingImage = false;
       });
       _showTopPopup(
-        '${type[0].toUpperCase()}${type.substring(1)} certificate uploaded!',
+        'Update image done',
         color: kAccent,
         icon: Icons.check_circle,
       );
@@ -224,8 +242,13 @@ class _ProfSettingsPageState extends State<ProfSettingsPage> {
   void _openCertificate(String? url) {
     if (url == null || url.isEmpty) return;
 
-    if (url.endsWith('.pdf')) {
-      launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
+       String displayUrl = url;
+    if (!url.endsWith('.pdf')) {
+      displayUrl = '$url?cb=${DateTime.now().millisecondsSinceEpoch}';
+    }
+
+    if (displayUrl.endsWith('.pdf')) {
+      launchUrl(Uri.parse(displayUrl), mode: LaunchMode.externalApplication);
       return;
     }
 
@@ -240,7 +263,7 @@ class _ProfSettingsPageState extends State<ProfSettingsPage> {
           child: Stack(
             children: [
               PhotoView(
-                imageProvider: NetworkImage(url),
+                imageProvider: NetworkImage(displayUrl),
                 backgroundDecoration: const BoxDecoration(color: Colors.black),
                 minScale: PhotoViewComputedScale.contained,
                 maxScale: PhotoViewComputedScale.covered * 3,
@@ -344,6 +367,7 @@ class _ProfSettingsPageState extends State<ProfSettingsPage> {
                       onView: () => _openCertificate(birthCertificateUrl),
                       labelColor: themeText,
                     ),
+                    
                     const SizedBox(height: 8),
                     _certificateRow(
                       label: 'Marriage Certificate',
@@ -352,6 +376,23 @@ class _ProfSettingsPageState extends State<ProfSettingsPage> {
                       onView: () => _openCertificate(marriageCertificateUrl),
                       labelColor: themeText,
                     ),
+                    const SizedBox(height: 8),
+                    _certificateRow(
+                      label: 'Proof of Residency',
+                      url: proofOfResidencyUrl,
+                      onUpload: () => _uploadCertificate(type: 'proof_of_residency'),
+                      onView: () => _openCertificate(proofOfResidencyUrl),
+                      labelColor: themeText,
+                    ),
+                    const SizedBox(height: 8),
+                    _certificateRow(
+                      label: 'Valid ID',
+                      url: valididUrl,
+                      onUpload: () => _uploadCertificate(type: 'valid_id'),
+                      onView: () => _openCertificate(valididUrl),
+                      labelColor: themeText,
+                    ),
+                    const SizedBox(height: 8),
                     if (_uploadingImage)
                       const Padding(
                         padding: EdgeInsets.only(top: 12),
@@ -438,52 +479,65 @@ class _ProfSettingsPageState extends State<ProfSettingsPage> {
   }
 
   Widget _certificateRow({
-    required String label,
-    required String? url,
-    required VoidCallback onUpload,
-    required VoidCallback onView,
-    required Color labelColor,
-  }) {
-    return Row(
-      children: [
-        Icon(
-          url != null && url.isNotEmpty
-              ? Icons.check_circle
-              : Icons.warning_amber_rounded,
-          color: url != null && url.isNotEmpty ? kSuccess : kWarn,
-        ),
-        const SizedBox(width: 8),
-        Expanded(
-          child: Text(
-            label,
-            style: TextStyle(
-              fontSize: 15,
-              fontWeight: FontWeight.w600,
-              color: labelColor,
-            ),
+  required String label,
+  required String? url,
+  required VoidCallback onUpload,
+  required VoidCallback onView,
+  required Color labelColor,
+}) {
+  return Row(
+    children: [
+      Icon(
+        url != null && url.isNotEmpty
+            ? Icons.check_circle
+            : Icons.warning_amber_rounded,
+        color: url != null && url.isNotEmpty ? kSuccess : kWarn,
+      ),
+      const SizedBox(width: 8),
+      Expanded(
+        child: Text(
+          label,
+          style: TextStyle(
+            fontSize: 15,
+            fontWeight: FontWeight.w600,
+            color: labelColor,
           ),
         ),
-        if (url != null && url.isNotEmpty)
-          IconButton(
-            icon: const Icon(Icons.open_in_new, color: kSuccess),
-            tooltip: 'View',
-            onPressed: onView,
-          )
-        else
-          ElevatedButton.icon(
-            icon: const Icon(Icons.upload_file),
-            label: const Text('Add'),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: kSuccess,
-              foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(10),
-              ),
+      ),
+      if (url != null && url.isNotEmpty) ...[
+        IconButton(
+          icon: const Icon(Icons.open_in_new, color: kSuccess),
+          tooltip: 'View',
+          onPressed: onView,
+        ),
+        ElevatedButton.icon(
+          icon: const Icon(Icons.upload_file),
+          label: const Text('Update'),
+          style: ElevatedButton.styleFrom(
+            backgroundColor: kAccent,
+            foregroundColor: Colors.white,
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(10),
             ),
-            onPressed: onUpload,
           ),
-      ],
-    );
-  }
+          onPressed: onUpload,
+        ),
+      ] else
+        ElevatedButton.icon(
+          icon: const Icon(Icons.upload_file),
+          label: const Text('Add'),
+          style: ElevatedButton.styleFrom(
+            backgroundColor: kSuccess,
+            foregroundColor: Colors.white,
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(10),
+            ),
+          ),
+          onPressed: onUpload,
+        ),
+    ],
+  );
+}
 }

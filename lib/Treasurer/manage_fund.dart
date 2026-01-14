@@ -165,7 +165,7 @@ class _ManageFundPageState extends State<ManageFundPage> {
         _totalGoal = totalGoal;
         _loading = false;
       });
-    } on PostgrestException catch (e) {
+    } on PostgrestException {
       // ...existing code...
     } catch (e) {
       // ...existing code...

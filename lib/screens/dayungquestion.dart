@@ -9,8 +9,6 @@ import 'package:flutter/material.dart';
 import 'package:maplibre_gl/maplibre_gl.dart' as ml;
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
-import 'package:geolocator/geolocator.dart';
-import 'package:geocoding/geocoding.dart';
 
 const Color kPrimary = Color(0xFF3B82F6);
 const Color kPrimaryDark = Color(0xFF1E40AF);
@@ -54,10 +52,6 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
   double? userLng; // <-- Set this to the user's longitude
 
   double? selectedDistanceKm; // <-- Add this for distance filter
-  static const double _defaultRadiusKm = 10.0;
-
-  bool _locating = false;
-  String? _currentAddress;
 
   String _digits(String? s) => (s ?? '').replaceAll(RegExp(r'[^\d]'), '');
   String _trimLower(String? s) => (s ?? '').trim().toLowerCase();
@@ -72,6 +66,15 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
 
   // Ang mosunod nga function nag-encode sa user preferences ngadto sa binary vector.
   // Gigamit kini para sa cosine similarity matching sa Dayung units.
+  /* 28 positions
+3 for meeting frequency
+3 for payment method
+7 for registration fee
+7 for membership payment
+7 for penalty payment
+1 for open for all*/
+
+
   List<double> _generatePreferenceVector() {
     // Meeting Frequency (3 positions)
     double meetWeekly = meeting_frequency == 'Weekly' ? 1.0 : 0.0;
@@ -114,12 +117,8 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
     double openAll = openForAll == 'Yes' ? 1.0 : 0.0;
 
     return [
-      meetWeekly,
-      meetMonthly,
-      meetNeeded,
-      payCash,
-      payGcash,
-      payBoth,
+      meetWeekly, meetMonthly, meetNeeded,
+      payCash, payGcash, payBoth,
       ...regFee,
       ...memFee,
       ...penFee,
@@ -129,19 +128,19 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
 
   /// Nag-compute sa cosine similarity tali sa user preference vector `u`
   /// ug sa Dayung unit vector `d`.
-  ///
+  /// 
   /// Formula:
   /// cosine_similarity(U, D) = (U ⋅ D) / (||U|| * ||D||)
-  ///
+  /// 
   /// Asa:
   /// - U ⋅ D mao ang dot product sa duha ka vectors
   /// - ||U|| ug ||D|| mao ang magnitudes (gitas-on) sa vectors
-  ///
+  /// 
   /// Ang resulta kay gikan -1 hangtod 1:
   /// - 1 → parehas kaayo (dako og similarity)
   /// - 0 → walay kalabotan
   /// - -1 → supak kaayo (opposite)
-  ///
+  /// 
   /// Gigamit kini para i-ranggo ang Dayung units base sa kaparehas sa user preferences.
   double cosineSimilarity(List<double> u, List<double> d) {
     if (u.length != d.length || u.isEmpty) return 0.0;
@@ -163,7 +162,7 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
     String clean(String? s) => norm(s).replaceAll(RegExp(r'[^a-z0-9]+'), ' ');
 
     final meetKey = clean(m['meeting_frequency']?.toString());
-    final payKey = clean(m['payment_method']?.toString());
+    final payKey  = clean(m['payment_method']?.toString());
     final regKey = clean(m['contribution_amount']?.toString());
     final memKey = clean(m['membership_payment']?.toString());
     final penKey = clean(m['penalty_payment']?.toString());
@@ -202,7 +201,7 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
       '200-250',
       '250-300',
       '300-350',
-      '400 plus',
+      '400 plus'
     ];
     List<double> bucket(String key) {
       List<double> out = List.filled(feeRanges.length, 0.0);
@@ -220,12 +219,8 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
     final openAll = open ? 1.0 : 0.0;
 
     return [
-      meetW,
-      meetM,
-      meetN,
-      payCash,
-      payGcash,
-      payBoth,
+      meetW, meetM, meetN,
+      payCash, payGcash, payBoth,
       ...regFee,
       ...memFee,
       ...penFee,
@@ -281,12 +276,8 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
     double openAll = norm(m['open_for_all']) == 'yes' ? 1.0 : 0.0;
 
     return [
-      meetWeekly,
-      meetMonthly,
-      meetNeeded,
-      payCash,
-      payGcash,
-      payBoth,
+      meetWeekly, meetMonthly, meetNeeded,
+      payCash, payGcash, payBoth,
       ...regFee,
       ...memFee,
       ...penFee,
@@ -298,68 +289,63 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
   // ug mosort base sa cosine similarity sa user preference vector.
   // Dinhi gyud mahitabo ang matching ug ranking.
   Future<void> _fetchSuggestionsLocal() async {
-    debugPrint(
-      'DEBUG: User "${widget.userId}" (role: ${widget.role}) is searching for Dayung rules',
-    );
-    setState(() => isLoading = true);
-    try {
-      final userVector = _generatePreferenceVector();
-      debugPrint(
-        'DEBUG: User Preference Vector len=${userVector.length}: $userVector',
-      );
+  debugPrint('DEBUG: User "${widget.userId}" (role: ${widget.role}) is searching for Dayung rules');
+  setState(() => isLoading = true);
+  try {
+    final userVector = _generatePreferenceVector();
+    debugPrint('DEBUG: User Preference Vector len=${userVector.length}: $userVector');
 
-      // Fetch rules joined with unit info for location
-      final resp = await Supabase.instance.client
-          .from('dayung_rules')
-          .select(
-            'id,dayung_unit_id,dayung_unit_name,meeting_frequency,registration_fee_range,membership_payment,penalty_payment,payment_method,open_for_all,'
-            'dayung_units(latitude,longitude,barangay,city,province)',
-          );
+    // Fetch rules joined with unit info for location
+    final resp = await Supabase.instance.client
+        .from('dayung_rules')
+        .select('id,dayung_unit_id,dayung_unit_name,meeting_frequency,registration_fee_range,membership_payment,penalty_payment,payment_method,open_for_all,'
+            'dayung_units(latitude,longitude,barangay,city,province)');
 
-      final rules = <Map<String, dynamic>>[];
-      for (final raw in resp) {
-        final m = Map<String, dynamic>.from(raw as Map);
+    final rules = <Map<String, dynamic>>[];
+    for (final raw in resp) {
+      final m = Map<String, dynamic>.from(raw as Map);
 
-        // Merge unit info for location
-        final unit = m['dayung_units'];
-        if (unit is Map) {
-          m['latitude'] = unit['latitude'];
-          m['longitude'] = unit['longitude'];
-          m['barangay'] = unit['barangay'];
-          m['city'] = unit['city'];
-          m['province'] = unit['province'];
-        }
-
-        // Build vector from rule columns
-        m['__parsedVector'] = _buildRuleVector(m);
-        rules.add(m);
+      // Merge unit info for location
+      final unit = m['dayung_units'];
+      if (unit is Map) {
+        m['latitude'] = unit['latitude'];
+        m['longitude'] = unit['longitude'];
+        m['barangay'] = unit['barangay'];
+        m['city'] = unit['city'];
+        m['province'] = unit['province'];
       }
 
-      // Sort by similarity * attribute match boost
-      // Dinhi gigamit ang cosine similarity ug ang attributeMatchBoost para i-ranggo ang Dayung units.
-      // Ang resulta kay mas taas ang score sa units nga daghan og exact match sa gipili sa user.
-      rules.sort((a, b) {
-        final va = (a['__parsedVector'] as List<double>? ?? const []);
-        final vb = (b['__parsedVector'] as List<double>? ?? const []);
-        final simA =
-            cosineSimilarity(userVector, va) *
-            attributeMatchBoost(userVector, va);
-        final simB =
-            cosineSimilarity(userVector, vb) *
-            attributeMatchBoost(userVector, vb);
-        return simB.compareTo(simA);
-      });
+      // Build vector from rule columns
+      m['__parsedVector'] = _buildRuleVector(m);
 
-      setState(() => suggestedUnits = rules);
-    } catch (e) {
-      debugPrint('DEBUG: Local fetch error: $e');
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Local similarity error: $e')));
-    } finally {
-      if (mounted) setState(() => isLoading = false);
+      // ADD THIS DEBUG PRINT:
+      debugPrint('DEBUG: Unit ID:${m['id']} Vector: ${m['__parsedVector']}');
+
+      rules.add(m);
     }
+
+    // Sort by similarity * attribute match boost
+    // Dinhi gigamit ang cosine similarity ug ang attributeMatchBoost para i-ranggo ang Dayung units.
+    // Ang resulta kay mas taas ang score sa units nga daghan og exact match sa gipili sa user.
+    rules.sort((a, b) {
+      final va = (a['__parsedVector'] as List<double>? ?? const []);
+      final vb = (b['__parsedVector'] as List<double>? ?? const []);
+      final simA = cosineSimilarity(userVector, va) * attributeMatchBoost(userVector, va);
+      final simB = cosineSimilarity(userVector, vb) * attributeMatchBoost(userVector, vb);
+      return simB.compareTo(simA);
+    });
+
+    setState(() => suggestedUnits = rules);
+
+  } catch (e) {
+    debugPrint('DEBUG: Local fetch error: $e');
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Local similarity error: $e')),
+    );
+  } finally {
+    if (mounted) setState(() => isLoading = false);
   }
+}
 
   Future<void> _fetchSuggestions() async {
     await _fetchSuggestionsLocal();
@@ -368,7 +354,7 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
   Future<void> _savePreferences({int? selectedUnitId}) async {
     final payload = {
       'user_id': widget.userId,
-
+  
       'meeting_frequency': meeting_frequency,
       'penalty_policy': penalty_policy,
       'contribution_amount': contribution_amount,
@@ -422,113 +408,14 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
     }
   }
 
-  Future<void> _initDeviceLocation() async {
-    setState(() => _locating = true);
-    try {
-      var perm = await Geolocator.checkPermission();
-      if (perm == LocationPermission.denied) {
-        perm = await Geolocator.requestPermission();
-      }
-      if (perm == LocationPermission.denied) {
-        // Show dialog to explain and re-request
-        if (mounted) {
-          await showDialog(
-            context: context,
-            builder: (ctx) => AlertDialog(
-              title: const Text('Location Required'),
-              content: const Text(
-                'This feature needs your location to show nearby Dayung units. Please allow location access.',
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () async {
-                    Navigator.of(ctx).pop();
-                    await Geolocator.requestPermission();
-                    _initDeviceLocation(); // Try again
-                  },
-                  child: const Text('Allow'),
-                ),
-                TextButton(
-                  onPressed: () => Navigator.of(ctx).pop(),
-                  child: const Text('Cancel'),
-                ),
-              ],
-            ),
-          );
-        }
-        return;
-      }
-      if (perm == LocationPermission.deniedForever) {
-        // Show dialog to open app settings
-        if (mounted) {
-          await showDialog(
-            context: context,
-            builder: (ctx) => AlertDialog(
-              title: const Text('Location Permanently Denied'),
-              content: const Text(
-                'Location permission is permanently denied. Please enable it in your device settings.',
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () async {
-                    Navigator.of(ctx).pop();
-                    await Geolocator.openAppSettings();
-                  },
-                  child: const Text('Open Settings'),
-                ),
-                TextButton(
-                  onPressed: () => Navigator.of(ctx).pop(),
-                  child: const Text('Cancel'),
-                ),
-              ],
-            ),
-          );
-        }
-        return;
-      }
-      final pos = await Geolocator.getCurrentPosition(
-        desiredAccuracy: LocationAccuracy.high,
-      );
-      setState(() {
-        userLat = pos.latitude;
-        userLng = pos.longitude;
-      });
-
-      // Optional: reverse geocode for display only
-      try {
-        final placemarks = await placemarkFromCoordinates(
-          pos.latitude,
-          pos.longitude,
-        );
-        if (placemarks.isNotEmpty) {
-          final p = placemarks.first;
-          final parts = [
-            if ((p.street ?? '').trim().isNotEmpty) p.street!.trim(),
-            if ((p.subLocality ?? '').trim().isNotEmpty) p.subLocality!.trim(),
-            if ((p.locality ?? '').trim().isNotEmpty) p.locality!.trim(),
-            if ((p.administrativeArea ?? '').trim().isNotEmpty)
-              p.administrativeArea!.trim(),
-          ];
-          setState(() => _currentAddress = parts.join(', '));
-        }
-      } catch (_) {
-        /* non-fatal */
-      }
-    } catch (_) {
-      // non-fatal; keep fallback from DB
-    } finally {
-      if (mounted) setState(() => _locating = false);
-    }
-  }
-
   @override
   void initState() {
     super.initState();
+    selectedDistanceKm = 5; 
     _fetchUserAddress();
     _fetchSuggestions();
     _fetchUserLatitude();
     _fetchUserLongitude();
-    _initDeviceLocation();
   }
 
   String? userBarangay, userCity, userProvince;
@@ -537,21 +424,22 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
     try {
       final resp = await Supabase.instance.client
           .from('users')
-          .select('address,latitude,longitude')
+          .select('barangay,city,province,latitude,longitude')
           .eq('id', widget.userId)
           .single();
       setState(() {
-        _currentAddress = resp['address'];
-        userLat = resp['latitude'] != null
-            ? double.tryParse('${resp['latitude']}')
-            : null;
-        userLng = resp['longitude'] != null
-            ? double.tryParse('${resp['longitude']}')
-            : null;
+        userBarangay = resp['barangay'];
+        userCity = resp['city'];
+        userProvince = resp['province'];
+        // Add latitude and longitude from users table
+        userLat = resp['latitude'] != null ? double.tryParse('${resp['latitude']}') : null;
+        userLng = resp['longitude'] != null ? double.tryParse('${resp['longitude']}') : null;
       });
+      // Display in debug console
       debugPrint(
         'DEBUG: User Address for ID ${widget.userId}: '
-        'Address: $_currentAddress, Latitude: $userLat, Longitude: $userLng',
+        'Barangay: $userBarangay, City: $userCity, Province: $userProvince, '
+        'Latitude: $userLat, Longitude: $userLng'
       );
     } catch (e) {
       debugPrint('Failed to fetch user address: $e');
@@ -566,9 +454,7 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
           .eq('id', widget.userId)
           .single();
       setState(() {
-        userLat = resp['latitude'] != null
-            ? double.tryParse('${resp['latitude']}')
-            : null;
+        userLat = resp['latitude'] != null ? double.tryParse('${resp['latitude']}') : null;
       });
       debugPrint('DEBUG: User Latitude for ID ${widget.userId}: $userLat');
     } catch (e) {
@@ -584,9 +470,7 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
           .eq('id', widget.userId)
           .single();
       setState(() {
-        userLng = resp['longitude'] != null
-            ? double.tryParse('${resp['longitude']}')
-            : null;
+        userLng = resp['longitude'] != null ? double.tryParse('${resp['longitude']}') : null;
       });
       debugPrint('DEBUG: User Longitude for ID ${widget.userId}: $userLng');
     } catch (e) {
@@ -681,8 +565,7 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
     const R = 6371.0;
     final dLat = (lat2 - lat1) * pi / 180.0;
     final dLng = (lng2 - lng1) * pi / 180.0;
-    final a =
-        sin(dLat / 2) * sin(dLat / 2) +
+    final a = sin(dLat / 2) * sin(dLat / 2) +
         cos(lat1 * pi / 180.0) *
             cos(lat2 * pi / 180.0) *
             sin(dLng / 2) *
@@ -700,11 +583,7 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
   // - #selected = total nga 1s sa user vector (user-selected features)
   // - λ = boost factor (default 0.25)
   // Ang resulta kay gamultiply sa cosine similarity score para mahatagan og extra weight ang units nga daghan og exact match sa gipili sa user.
-  double attributeMatchBoost(
-    List<double> user,
-    List<double> unit, {
-    double lambda = 0.25,
-  }) {
+  double attributeMatchBoost(List<double> user, List<double> unit, {double lambda = 0.25}) {
     int selected = 0;
     int matched = 0;
     for (int i = 0; i < user.length; i++) {
@@ -723,42 +602,27 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
     }
 
     // Filter units by distance if user location and filter are set
-    List<dynamic> filteredUnits = [];
-    if (userLat != null && userLng != null) {
-      final radiusKm = _defaultRadiusKm;
-      debugPrint(
-        'DEBUG: Using location lat=$userLat lng=$userLng, radiusKm=$radiusKm',
-      );
-
+    List<dynamic> filteredUnits = suggestedUnits;
+    if (userLat != null &&
+        userLng != null &&
+        selectedDistanceKm != null &&
+        selectedDistanceKm! > 0) {
       filteredUnits = suggestedUnits.where((unit) {
         final lat = double.tryParse('${unit['latitude']}');
         final lng = double.tryParse('${unit['longitude']}');
         if (lat == null || lng == null) return false;
         final dist = _distanceKm(userLat!, userLng!, lat, lng);
-        debugPrint(
-          'DEBUG: Unit ID:${unit['id']} dist=${dist.toStringAsFixed(3)} km',
-        );
-        return dist <= radiusKm;
-      }).toList();
 
-      // Sort nearest first
-      filteredUnits.sort((a, b) {
-        final latA = double.tryParse('${a['latitude']}');
-        final lngA = double.tryParse('${a['longitude']}');
-        final latB = double.tryParse('${b['latitude']}');
-        final lngB = double.tryParse('${b['longitude']}');
-        final dA = (latA == null || lngA == null)
-            ? double.infinity
-            : _distanceKm(userLat!, userLng!, latA, lngA);
-        final dB = (latB == null || lngB == null)
-            ? double.infinity
-            : _distanceKm(userLat!, userLng!, latB, lngB);
-        return dA.compareTo(dB);
-      });
-    } else {
-      debugPrint(
-        'DEBUG: No user location available; skipping distance filter.',
-      );
+        // DEBUG: Show distance computation for each unit
+        debugPrint(
+          'DEBUG: Distance filter: User (${userLat!.toStringAsFixed(6)}, ${userLng!.toStringAsFixed(6)}) '
+          '→ Unit ID:${unit['id']} (${lat.toStringAsFixed(6)}, ${lng.toStringAsFixed(6)}) = '
+          '${dist.toStringAsFixed(2)} km (threshold: ${selectedDistanceKm!.toStringAsFixed(2)} km) '
+          '${dist <= selectedDistanceKm! ? "[INCLUDED]" : "[EXCLUDED]"}'
+        );
+
+        return dist <= selectedDistanceKm!;
+      }).toList();
     }
 
     // Filter out units with similarity below threshold
@@ -799,6 +663,7 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
                 key: _formKey,
                 child: Column(
                   children: [
+                    
                     _buildDropdown(
                       label: 'Meeting Frequency',
                       value: meeting_frequency,
@@ -880,22 +745,32 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
                         _fetchSuggestions();
                       },
                     ),
-
-                    // _buildDropdown(
-                    //   label: 'Distance (km)',
-                    //   value: selectedDistanceKm?.toString(),
-                    //   items: ['Any', '1', '3', '5', '10', '20', '50'],
-                    //   onChanged: (val) {
-                    //     setState(() {
-                    //       if (val == 'Any') {
-                    //         selectedDistanceKm = null;
-                    //       } else {
-                    //         selectedDistanceKm = double.tryParse(val ?? '');
-                    //       }
-                    //     });
-                    //     _fetchSuggestions();
-                    //   },
-                    // ),
+                    _buildDropdown(
+                      label: 'Distance (km)',
+                      value: selectedDistanceKm == null ? 'Any' : selectedDistanceKm!.toStringAsFixed(0),
+                      items: [
+                        'Any',
+                        '1',
+                        '3',
+                        '5',
+                        '10',
+                        '20',
+                        '50',
+                      ],
+                      onChanged: (val) {
+                        setState(() {
+                          if (val == 'Any') {
+                            selectedDistanceKm = null;
+                          } else {
+                            selectedDistanceKm = double.tryParse(val ?? '');
+                          }
+                        });
+                        _fetchSuggestions();
+                      },
+                    ),
+                  
+                   
+                
                     const SizedBox(height: 8),
                     SizedBox(
                       width: double.infinity,
@@ -911,7 +786,8 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
                           ),
                         ),
                         onPressed: () {
-                          if (meeting_frequency == null &&
+                          if (
+                              meeting_frequency == null &&
                               contribution_amount == null &&
                               membership_payment == null &&
                               penalty_payment == null &&
@@ -936,38 +812,30 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
               ),
             ),
           ),
-          if (userLat == null || userLng == null) ...[
+          if (filteredUnits.isNotEmpty) ...[
             Padding(
               padding: const EdgeInsets.symmetric(vertical: 8),
-              child: Text(
-                'Location unavailable. Enable permissions to filter by 1 km.',
-                style: const TextStyle(color: kWarn),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Your Address:',
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color: kPrimaryDark,
+                    ),
+                  ),
+                  Text(
+                    [
+                      if (userBarangay != null) userBarangay,
+                      if (userCity != null) userCity,
+                      if (userProvince != null) userProvince,
+                    ].where((e) => (e ?? '').toString().isNotEmpty).join(', '),
+                    style: const TextStyle(color: kSubText),
+                  ),
+                ],
               ),
             ),
-          ],
-          if (filteredUnits.isNotEmpty) ...[
-            // Padding(
-            //   padding: const EdgeInsets.symmetric(vertical: 8),
-            //   child: Column(
-            //     crossAxisAlignment: CrossAxisAlignment.start,
-            //     children: [
-            //       Text(
-            //         'Your Address:',
-            //         style: TextStyle(
-            //           fontWeight: FontWeight.bold,
-            //           color: kPrimaryDark,
-            //         ),
-            //       ),
-            //       Text(
-            //         (_currentAddress != null &&
-            //                 _currentAddress!.trim().isNotEmpty)
-            //             ? _currentAddress!
-            //             : 'Not set',
-            //         style: const TextStyle(color: kSubText),
-            //       ),
-            //     ],
-            //   ),
-            // ),
             const SizedBox(height: 8),
             ...filteredUnits.map((unit) {
               return Card(
@@ -1023,49 +891,55 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
                                     fontSize: 13,
                                   ),
                                 ),
-                                // --- Distance display ---
-                                Builder(
-                                  builder: (context) {
-                                    final lat = double.tryParse(
-                                      '${unit['latitude']}',
-                                    );
-                                    final lng = double.tryParse(
-                                      '${unit['longitude']}',
-                                    );
-                                    double? km;
-                                    if (lat != null &&
-                                        lng != null &&
-                                        userLat != null &&
-                                        userLng != null) {
-                                      km = _distanceKm(
-                                        userLat!,
-                                        userLng!,
-                                        lat,
-                                        lng,
-                                      );
-                                    }
-                                    return km != null
-                                        ? Padding(
-                                            padding: const EdgeInsets.only(
-                                              top: 2.0,
-                                            ),
-                                            child: Text(
-                                              '${km.toStringAsFixed(2)} km away',
-                                              style: const TextStyle(
-                                                color: kPrimaryDark,
-                                                fontSize: 13,
-                                                fontWeight: FontWeight.w500,
-                                              ),
-                                            ),
-                                          )
-                                        : const SizedBox.shrink();
-                                  },
-                                ),
                               ],
                             ),
                           ),
                         ],
                       ),
+                      // --- Map preview here ---
+                      Builder(
+                        builder: (context) {
+                          final lat = double.tryParse('${unit['latitude']}');
+                          final lng = double.tryParse('${unit['longitude']}');
+                          if (lat != null && lng != null) {
+                            return Padding(
+                              padding: const EdgeInsets.only(
+                                top: 10.0,
+                                bottom: 8.0,
+                              ),
+                              child: DayungMapPreview(
+                                latitude: lat,
+                                longitude: lng,
+                              ),
+                            );
+                          }
+                          return const SizedBox.shrink();
+                        },
+                      ),
+            
+                      Padding(
+                        padding: const EdgeInsets.only(top: 4, bottom: 4),
+                        child: Builder(
+                          builder: (context) {
+                            final lat = double.tryParse('${unit['latitude']}');
+                            final lng = double.tryParse('${unit['longitude']}');
+                   
+                            double? km;
+                            if (lat != null && lng != null && userLat != null && userLng != null) {
+                              km = _distanceKm(userLat!, userLng!, lat, lng);
+                            }
+                            final address = [
+                              if (unit['barangay'] != null) unit['barangay'],
+                              if (unit['city'] != null) unit['city'],
+                              if (unit['province'] != null) unit['province'],
+                            ].where((e) => (e ?? '').toString().isNotEmpty).join(', ');
+return Text(
+  ''
+);
+                          },
+                        ),
+                      ),
+            
                       Row(
                         mainAxisAlignment: MainAxisAlignment.end,
                         children: [
@@ -1132,13 +1006,6 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
                 ),
               );
             }),
-          ] else if (userLat != null && userLng != null) ...[
-            const SizedBox(height: 8),
-            const Text(
-              'No suggestions found within 1 km.',
-              style: TextStyle(color: kSubText),
-              textAlign: TextAlign.center,
-            ),
           ] else if (contribution_amount != null ||
               membership_payment != null ||
               penalty_payment != null ||
@@ -1191,7 +1058,7 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 8),
       child: DropdownButtonFormField<String>(
-        initialValue: value,
+       initialValue: value ?? items.first,
         decoration: InputDecoration(
           labelText: label,
           border: const OutlineInputBorder(),
@@ -1224,6 +1091,7 @@ class DayungMapPreview extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+
     if (kIsWeb) {
       return _StaticOsmTilePreview(
         latitude: latitude,
@@ -1235,23 +1103,24 @@ class DayungMapPreview extends StatelessWidget {
 
     return SizedBox(
       height: 120,
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(12),
-        child: ml.MapLibreMap(
-          styleString: 'https://demotiles.maplibre.org/style.json',
-          initialCameraPosition: ml.CameraPosition(
-            target: ml.LatLng(latitude, longitude),
-            zoom: 14,
+  child: ClipRRect(
+    borderRadius: BorderRadius.circular(12),
+    child: ml.MapLibreMap(
+      styleString: 'https://demotiles.maplibre.org/style.json',
+      initialCameraPosition: ml.CameraPosition(
+        target: ml.LatLng(latitude, longitude),
+        zoom: 14,
           ),
-          onMapCreated: (ml.MaplibreMapController controller) async {
-            await controller.addSymbol(
-              ml.SymbolOptions(
-                geometry: ml.LatLng(latitude, longitude),
-                iconImage: "marker-15",
-                iconSize: 1.4,
-              ),
-            );
-          },
+        onMapCreated: (ml.MaplibreMapController? controller) async {
+  if (controller == null) return;
+  await controller.addSymbol(
+    ml.SymbolOptions(
+      geometry: ml.LatLng(latitude, longitude),
+      iconImage: "marker-15",
+      iconSize: 1.4,
+    ),
+  );
+},
           myLocationEnabled: false,
           compassEnabled: false,
           rotateGesturesEnabled: false,
@@ -1279,12 +1148,12 @@ class _StaticOsmTilePreview extends StatelessWidget {
     this.zoom = 14,
   });
 
+
   (int x, int y) _latLngToTile(double lat, double lon, int z) {
     final n = pow(2.0, z).toDouble();
     final xtile = ((lon + 180.0) / 360.0 * n).floor();
     final latRad = lat * pi / 180.0;
-    final ytile = ((1.0 - (log(tan(latRad) + 1 / cos(latRad)) / pi)) / 2.0 * n)
-        .floor();
+    final ytile = ((1.0 - (log(tan(latRad) + 1 / cos(latRad)) / pi)) / 2.0 * n).floor();
     return (xtile, ytile);
   }
 
@@ -1323,48 +1192,6 @@ class _StaticOsmTilePreview extends StatelessWidget {
   }
 }
 
-
-/*
-  EXPLANATION SA DEBUG OUTPUT:
-
-  Pananglitan:
-  DEBUG: User Preference Vector len=28: [0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
-  DEBUG: Unit ID:1 Similarity=0.632 Boost=1.250 Combined=0.791
-
-  - Ang "User Preference Vector" nagpakita sa mga gipili sa user nga features (1 = gipili, 0 = wala).
-  - Ang "Similarity" (0.632) mao ang cosine similarity score tali sa user vector ug sa unit vector, nagbase kung pila ka features ang nagmatch.
-    > Gikuha ang dot product sa user vector ug unit vector (pila ka positions nga pareho og 1).
-    > Gidivide sa product sa ilang magnitudes (gitas-on sa vector).
-    > Pananglitan, kung ang unit vector kay [0, 1, 0, 0, 0, 0, 1, ...] pud:
-    > Dot product = 1 (sa pos 1) + 1 (sa pos 6) = 2
-    > Magnitude sa user vector = √(1² + 1²) = √2 ≈ 1.414
-    > Magnitude sa unit vector = depende sa pila ka 1s, pananglitan √5 ≈ 2.236
-    > Cosine similarity = 2 / (1.414 × 2.236) ≈ 0.632
-  - Ang "Boost" (1.250) kay extra factor nga nagdepende kung pila ka gipili sa user nga na-match gyud sa unit (formula: 1 + λ * 
-  (#matched_selected / #selected), default λ=0.25).
-  - Ang "Combined" (0.791) mao ang final score nga gigamit para i-ranggo ug i-filter ang units: Similarity × Boost.
-  - Mas taas ang combined score, mas dako ang posibilidad nga ang unit mo-fit sa user preferences.
-*/
-
-
-/*GET THE KM
-
-EXAMPLE:
-
-lat2 − lat1 = 7.103253 − 7.058006 = 0.045247°
-Distance ≈ 0.045247 × 111 ≈ 5.022 km   
-lon2 − lon1 = 125.607820 − 125.608528 = -0.000708°
-Distance ≈ 0.000708 × (111 × cos(7°)) ≈ 0.078 km   
-
-Comparison:
-Latitude difference → ~5.02 km
-Longitude difference → ~0.08 km  
-
-Conclusion:
-The distance is almost entirely determined by the latitude difference. 
-The longitude difference has a very small effect.*/
-
-// ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 
 /*
   EXPLANATION SA DEBUG OUTPUT:

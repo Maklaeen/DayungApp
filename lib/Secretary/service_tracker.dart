@@ -119,6 +119,27 @@ class _ServiceTrackerPageState extends State<ServiceTrackerPage> {
     }
   }
 
+  Future<void> _addServiceForAll(String serviceName) async {
+    final sb = Supabase.instance.client;
+    final deathNoticeIds = _notices.map((n) => n['notice']['id']).toList();
+    if (deathNoticeIds.isEmpty) return;
+    final inserts = deathNoticeIds
+        .map((id) => {
+              'death_notice_id': id,
+              'service_name': serviceName,
+              'is_done': false,
+            })
+        .toList();
+    await sb.from('service_checklists').insert(inserts);
+    // Reload all checklists
+    for (final id in deathNoticeIds) {
+      // Use the provider's notifier to reload checklist
+      final container = ProviderScope.containerOf(context);
+      container.read(serviceChecklistProvider(id).notifier).loadChecklist();
+    }
+    await _fetchData();
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -185,6 +206,58 @@ class _ServiceTrackerPageState extends State<ServiceTrackerPage> {
                   ],
                 ),
               ),
+              // ADD THIS BLOCK BELOW THE HEADER CONTAINER
+              if (!_loading && _notices.isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(24, 16, 24, 0),
+                  child: Align(
+                    alignment: Alignment.centerLeft,
+                    child: TextButton.icon(
+                      icon: const Icon(Icons.add, color: kPrimary),
+                      label: const Text(
+                        'Add Service for All',
+                        style: TextStyle(
+                          color: kPrimary,
+                          fontWeight: FontWeight.w600,
+                          fontFamily: 'Montserrat',
+                        ),
+                      ),
+                      onPressed: () async {
+                        final controller = TextEditingController();
+                        final result = await showDialog<String>(
+                          context: context,
+                          builder: (context) => AlertDialog(
+                            title: const Text('Add Service for All'),
+                            content: TextField(
+                              controller: controller,
+                              autofocus: true,
+                              decoration: const InputDecoration(
+                                labelText: 'Service Name',
+                              ),
+                            ),
+                            actions: [
+                              TextButton(
+                                onPressed: () => Navigator.pop(context),
+                                child: const Text('Cancel'),
+                              ),
+                              ElevatedButton(
+                                onPressed: () {
+                                  if (controller.text.trim().isNotEmpty) {
+                                    Navigator.pop(context, controller.text.trim());
+                                  }
+                                },
+                                child: const Text('Add'),
+                              ),
+                            ],
+                          ),
+                        );
+                        if (result != null && result.isNotEmpty) {
+                          await _addServiceForAll(result);
+                        }
+                      },
+                    ),
+                  ),
+                ),
               // Content
               Expanded(
                 child: _loading
@@ -540,83 +613,7 @@ class _ServiceTrackerPageState extends State<ServiceTrackerPage> {
                                                 ),
                                               );
                                             }),
-                                            // Add Service Button
-                                            Align(
-                                              alignment: Alignment.centerLeft,
-                                              child: TextButton.icon(
-                                                icon: const Icon(
-                                                  Icons.add,
-                                                  size: 18,
-                                                  color: kPrimary,
-                                                ),
-                                                label: const Text(
-                                                  'Add Service',
-                                                  style: TextStyle(
-                                                    color: kPrimary,
-                                                    fontWeight: FontWeight.w600,
-                                                    fontFamily: 'Montserrat',
-                                                  ),
-                                                ),
-                                                onPressed: () async {
-                                                  final controller =
-                                                      TextEditingController();
-                                                  final result = await showDialog<String>(
-                                                    context: context,
-                                                    builder: (context) => AlertDialog(
-                                                      title: const Text(
-                                                        'Add Service',
-                                                      ),
-                                                      content: TextField(
-                                                        controller: controller,
-                                                        autofocus: true,
-                                                        decoration:
-                                                            const InputDecoration(
-                                                              labelText:
-                                                                  'Service Name',
-                                                            ),
-                                                      ),
-                                                      actions: [
-                                                        TextButton(
-                                                          onPressed: () =>
-                                                              Navigator.pop(
-                                                                context,
-                                                              ),
-                                                          child: const Text(
-                                                            'Cancel',
-                                                          ),
-                                                        ),
-                                                        ElevatedButton(
-                                                          onPressed: () {
-                                                            if (controller.text
-                                                                .trim()
-                                                                .isNotEmpty) {
-                                                              Navigator.pop(
-                                                                context,
-                                                                controller.text
-                                                                    .trim(),
-                                                              );
-                                                            }
-                                                          },
-                                                          child: const Text(
-                                                            'Add',
-                                                          ),
-                                                        ),
-                                                      ],
-                                                    ),
-                                                  );
-                                                  if (result != null &&
-                                                      result.isNotEmpty) {
-                                                    await ref
-                                                        .read(
-                                                          serviceChecklistProvider(
-                                                            n['id'],
-                                                          ).notifier,
-                                                        )
-                                                        .addService(result);
-                                                  }
-                                                },
-                                              ),
-                                            ),
+                                            // Removed per-member Add Service button here
                                           ],
                                         );
                                       },

@@ -40,6 +40,7 @@ class _ManageRulesPagePresState extends State<ManageRulesPagePres> {
   String? _selectedPenaltyPayment;
   String? _selectedPaymentMethodDropdown;
   bool _openForAll = false;
+  bool _hasService = false; // <-- Add this line
 
   bool _loading = true;
   List<Map<String, dynamic>> _units = [];
@@ -86,7 +87,7 @@ class _ManageRulesPagePresState extends State<ManageRulesPagePres> {
       final row = await sb
           .from('dayung_rules')
           .select('''
-            meeting_frequency, registration_fee_range, membership_payment, penalty_payment, payment_method, open_for_all
+            meeting_frequency, registration_fee_range, membership_payment, penalty_payment, payment_method, open_for_all, has_service
             ''')
           .eq('dayung_unit_id', unitId)
           .maybeSingle();
@@ -97,6 +98,7 @@ class _ManageRulesPagePresState extends State<ManageRulesPagePres> {
       _selectedPenaltyPayment = row?['penalty_payment'];
       _selectedPaymentMethodDropdown = row?['payment_method'];
       _openForAll = row?['open_for_all'] == true;
+      _hasService = row?['has_service'] == true; // <-- Add this line
 
       setState(() {});
     } catch (_) {}
@@ -122,6 +124,7 @@ class _ManageRulesPagePresState extends State<ManageRulesPagePres> {
         'penalty_payment': _selectedPenaltyPayment,
         'payment_method': _selectedPaymentMethodDropdown,
         'open_for_all': _openForAll,
+        'has_service': _hasService, // <-- Add this line
         'updated_by': uid,
       };
 
@@ -130,9 +133,23 @@ class _ManageRulesPagePresState extends State<ManageRulesPagePres> {
           .upsert(payload, onConflict: 'dayung_unit_id');
 
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text('Rules saved')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: const [
+                Icon(Icons.check_circle, color: Colors.white),
+                SizedBox(width: 12),
+                Text('Rules saved', style: TextStyle(fontWeight: FontWeight.bold)),
+              ],
+            ),
+            backgroundColor: kAccent,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+            duration: const Duration(seconds: 2),
+          ),
+        );
       }
     } catch (e) {
       if (mounted) {
@@ -310,6 +327,7 @@ class _ManageRulesPagePresState extends State<ManageRulesPagePres> {
                                     ),
                                   ),
                                   _openForAllSwitch(),
+                                  _hasServiceSwitch(), // <-- Add this line
                                   const SizedBox(height: 16),
                                   SizedBox(
                                     width: double.infinity,
@@ -519,6 +537,42 @@ class _ManageRulesPagePresState extends State<ManageRulesPagePres> {
                 value: false,
                 groupValue: _openForAll,
                 onChanged: (v) => setState(() => _openForAll = v ?? false),
+              ),
+              const Text('No'),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _hasServiceSwitch() {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Row(
+        children: [
+          const Text(
+            'Has Service?',
+            style: TextStyle(
+              fontFamily: 'Montserrat',
+              fontWeight: FontWeight.w700,
+              fontSize: 16,
+              color: kText,
+            ),
+          ),
+          const SizedBox(width: 16),
+          Row(
+            children: [
+              Radio<bool>(
+                value: true,
+                groupValue: _hasService,
+                onChanged: (v) => setState(() => _hasService = v ?? false),
+              ),
+              const Text('Yes'),
+              Radio<bool>(
+                value: false,
+                groupValue: _hasService,
+                onChanged: (v) => setState(() => _hasService = v ?? false),
               ),
               const Text('No'),
             ],
