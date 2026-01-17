@@ -9,7 +9,8 @@ import 'package:capstone_app/Secretary/dashboard.dart'
 import 'package:capstone_app/Treasurer/dashboard.dart'
     hide kPrimary, kBg, kAccent;
 import 'package:capstone_app/ui/theme/branding.dart';
-import 'package:capstone_app/Members/dashboard.dart' hide kAccent, kBg, kPrimary;
+import 'package:capstone_app/Members/dashboard.dart'
+    hide kAccent, kBg, kPrimary;
 import 'package:capstone_app/Providers/dayung_provider.dart';
 import 'package:capstone_app/Providers/dayung_role_provider.dart';
 import 'package:capstone_app/screens/selectdayung.dart'

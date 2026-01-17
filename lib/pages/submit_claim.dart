@@ -18,7 +18,12 @@ const double kRadius = 18;
 
 class SubmitClaimForm extends StatefulWidget {
   final int? dayungUnitId;
-  const SubmitClaimForm({super.key, this.dayungUnitId});
+  final bool requireMembership;
+  const SubmitClaimForm({
+    super.key,
+    this.dayungUnitId,
+    this.requireMembership = false,
+  });
   @override
   State<SubmitClaimForm> createState() => _SubmitClaimFormState();
 }
@@ -417,6 +422,23 @@ class _SubmitClaimFormState extends State<SubmitClaimForm> {
         const SnackBar(content: Text('You are not a member of this Dayung.')),
       );
       return;
+    }
+
+    // Validate membership in the selected unit via applications (approved)
+    if (widget.requireMembership) {
+      final apps = await sb
+          .from('applications')
+          .select('id')
+          .eq('user_id', user.id)
+          .eq('dayung_unit_id', effectiveUnitId)
+          .eq('status', 'approved')
+          .limit(1);
+      if ((apps as List).isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('You are not a member of this Dayung.')),
+        );
+        return;
+      }
     }
 
     String fmtDate(DateTime d) =>

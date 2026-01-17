@@ -13,6 +13,7 @@ import 'package:capstone_app/providers/claim_tracking_provider.dart';
 import 'package:provider/provider.dart' hide Consumer;
 import 'package:flutter_riverpod/flutter_riverpod.dart' as r;
 
+// Collor palette
 const double kCardRadius = 18;
 const kBg = Color(0xFFFAFAF7);
 const kText = Color(0xFF1F2937);

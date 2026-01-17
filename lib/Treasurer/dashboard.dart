@@ -8,6 +8,8 @@ import 'package:capstone_app/Providers/dayung_provider.dart';
 import 'package:capstone_app/Providers/dayung_role_provider.dart';
 import 'package:capstone_app/Treasurer/collected.dart';
 import 'package:capstone_app/Treasurer/manage_fund.dart';
+import 'package:capstone_app/Treasurer/treasclaims.dart';
+import 'package:capstone_app/Treasurer/treascontributions.dart';
 import 'package:capstone_app/pages/notification.dart';
 import 'package:capstone_app/pages/recentdeathnotices.dart';
 import 'package:capstone_app/profile/profile.dart';
@@ -512,14 +514,24 @@ class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
     return stats;
   }
 
+  // List<Widget> get _pages => [
+  //   _homePage(),
+  //   _dayungUnitId == null
+  //       ? const Center(child: Text('Select a Dayung unit first'))
+  //       : MembersContributionHistory(dayungUnitId: _dayungUnitId!),
+  //   _dayungUnitId == null
+  //       ? const Center(child: Text('Select a Dayung unit first'))
+  //       : MembersClaimsPage(dayungUnitId: _dayungUnitId!),
+  // ];
+
   List<Widget> get _pages => [
     _homePage(),
     _dayungUnitId == null
-        ? const Center(child: Text('Select a Dayung unit first'))
-        : MembersContributionHistory(dayungUnitId: _dayungUnitId!),
+        ? const Center()
+        : TreasurerContributionsPage(dayungUnitId: _dayungUnitId!),
     _dayungUnitId == null
-        ? const Center(child: Text('Select a Dayung unit first'))
-        : MembersClaimsPage(dayungUnitId: _dayungUnitId!),
+        ? const SizedBox.shrink()
+        : TreasurerClaimsPage(dayungUnitId: _dayungUnitId!),
   ];
 
   @override

@@ -1,6 +1,8 @@
 import 'dart:convert';
 import 'package:capstone_app/Auth/logout.dart';
 import 'package:capstone_app/Beneficiary/beneficiary.dart' hide kPrimary;
+import 'package:capstone_app/Collector/collclaims.dart' hide kPrimary;
+import 'package:capstone_app/Collector/collcontributions.dart';
 import 'package:capstone_app/Collector/collect_cash.dart';
 import 'package:capstone_app/Collector/gcash_qr_page.dart' hide kPrimary;
 import 'package:capstone_app/Members/memclaims.dart' hide kPrimary;
@@ -273,14 +275,24 @@ class _CollectorDashboardPageState extends State<CollectorDashboardPage> {
     }
   }
 
+  // List<Widget> get _pages => [
+  //   _homePage(),
+  //   _dayungUnitId == null
+  //       ? const Center(child: Text('Select a Dayung unit first'))
+  //       : MembersContributionHistory(dayungUnitId: _dayungUnitId!),
+  //   _dayungUnitId == null
+  //       ? const Center(child: Text('Select a Dayung unit first'))
+  //       : MembersClaimsPage(dayungUnitId: _dayungUnitId!),
+  // ];
+
   List<Widget> get _pages => [
     _homePage(),
     _dayungUnitId == null
         ? const Center(child: Text('Select a Dayung unit first'))
-        : MembersContributionHistory(dayungUnitId: _dayungUnitId!),
+        : CollectorContributionsPage(dayungUnitId: _dayungUnitId!),
     _dayungUnitId == null
         ? const Center(child: Text('Select a Dayung unit first'))
-        : MembersClaimsPage(dayungUnitId: _dayungUnitId!),
+        : CollectorClaimsPage(dayungUnitId: _dayungUnitId!),
   ];
 
   @override

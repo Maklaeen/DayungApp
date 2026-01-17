@@ -4,8 +4,9 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:capstone_app/ui/theme/branding.dart';
 import 'package:cupertino_calendar_picker/cupertino_calendar_picker.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'dart:convert';
 
 // Modern palette
 const kBg = Color(0xFFFAFAF7);
@@ -197,8 +198,8 @@ class _AddBeneficiaryPageState extends State<AddBeneficiaryPage> {
   }
 
   InputDecoration _dropdownDec(String label) => _dec(label).copyWith(
-        contentPadding: const EdgeInsets.symmetric(vertical: 6, horizontal: 8),
-      );
+    contentPadding: const EdgeInsets.symmetric(vertical: 6, horizontal: 8),
+  );
 
   Future<void> _showCalendarDialog(BuildContext context) async {
     final now = DateTime.now();
@@ -458,7 +459,19 @@ class _AddBeneficiaryPageState extends State<AddBeneficiaryPage> {
       );
       return;
     }
+    int? unitFromPrefs;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final raw = prefs.getString('selectedDayungUnit');
+      if (raw != null) {
+        final map = Map<String, dynamic>.from(jsonDecode(raw));
+        unitFromPrefs = map['id'] is int
+            ? map['id'] as int
+            : int.tryParse('${map['id']}');
+      }
+    } catch (_) {}
 
+    final String? unitText = unitFromPrefs?.toString();
     setState(() => _isSubmitting = true);
 
     final fullName = fullNameController.text.trim();
@@ -480,6 +493,7 @@ class _AddBeneficiaryPageState extends State<AddBeneficiaryPage> {
               'birth_certificate': birthCertificate,
               'valid_id': validIdFile,
               'status': 'Pending',
+              'dayung_unit_id': unitText,
             },
           ])
           .select()
@@ -549,11 +563,19 @@ class _AddBeneficiaryPageState extends State<AddBeneficiaryPage> {
                           Row(
                             children: [
                               IconButton(
-                                icon: const Icon(Icons.chevron_left, color: kAccent, size: 28),
+                                icon: const Icon(
+                                  Icons.chevron_left,
+                                  color: kAccent,
+                                  size: 28,
+                                ),
                                 onPressed: () => Navigator.pop(context),
                               ),
                               const SizedBox(width: 8),
-                              const Icon(Icons.person_add_rounded, color: kAccent, size: 32),
+                              const Icon(
+                                Icons.person_add_rounded,
+                                color: kAccent,
+                                size: 32,
+                              ),
                               const SizedBox(width: 12),
                               const Expanded(
                                 child: Text(
@@ -625,7 +647,8 @@ class _AddBeneficiaryPageState extends State<AddBeneficiaryPage> {
                                   hint: 'e.g., Jane Doe',
                                   icon: Icons.badge_outlined,
                                 ),
-                                validator: (v) => (v == null || v.trim().isEmpty)
+                                validator: (v) =>
+                                    (v == null || v.trim().isEmpty)
                                     ? 'Full Name is required'
                                     : null,
                               ),
@@ -649,8 +672,12 @@ class _AddBeneficiaryPageState extends State<AddBeneficiaryPage> {
                                       ),
                                     )
                                     .toList(),
-                                onChanged: (value) => setState(() => selectedRelationship = value),
-                                validator: (value) => value == null ? 'Relationship is required' : null,
+                                onChanged: (value) => setState(
+                                  () => selectedRelationship = value,
+                                ),
+                                validator: (value) => value == null
+                                    ? 'Relationship is required'
+                                    : null,
                               ),
                               const SizedBox(height: 14),
                               DropdownButtonFormField2<String>(
@@ -670,8 +697,12 @@ class _AddBeneficiaryPageState extends State<AddBeneficiaryPage> {
                                       ),
                                     )
                                     .toList(),
-                                onChanged: (value) => setState(() => selectedMaritalStatus = value),
-                                validator: (value) => value == null ? 'Marital status is required' : null,
+                                onChanged: (value) => setState(
+                                  () => selectedMaritalStatus = value,
+                                ),
+                                validator: (value) => value == null
+                                    ? 'Marital status is required'
+                                    : null,
                               ),
                               const SizedBox(height: 24),
                               // Birth Certificate Upload
@@ -680,7 +711,8 @@ class _AddBeneficiaryPageState extends State<AddBeneficiaryPage> {
                                 isUploading: _isUploadingFile,
                                 fileUrl: birthCertificateFile,
                                 onUpload: _pickAndUploadFile,
-                                onClear: () => setState(() => birthCertificateFile = null),
+                                onClear: () =>
+                                    setState(() => birthCertificateFile = null),
                               ),
                               const SizedBox(height: 18),
                               // Valid ID Upload
@@ -689,7 +721,8 @@ class _AddBeneficiaryPageState extends State<AddBeneficiaryPage> {
                                 isUploading: _isUploadingValidId,
                                 fileUrl: validIdFile,
                                 onUpload: _pickAndUploadValidId,
-                                onClear: () => setState(() => validIdFile = null),
+                                onClear: () =>
+                                    setState(() => validIdFile = null),
                                 required: true,
                               ),
                               const SizedBox(height: 24),
@@ -697,7 +730,10 @@ class _AddBeneficiaryPageState extends State<AddBeneficiaryPage> {
                                 width: double.infinity,
                                 height: 48,
                                 child: ElevatedButton.icon(
-                                  icon: const Icon(Icons.check_circle, size: 20),
+                                  icon: const Icon(
+                                    Icons.check_circle,
+                                    size: 20,
+                                  ),
                                   label: const Text(
                                     'Submit',
                                     style: TextStyle(
@@ -713,7 +749,9 @@ class _AddBeneficiaryPageState extends State<AddBeneficiaryPage> {
                                     ),
                                     elevation: 2,
                                   ),
-                                  onPressed: _isSubmitting ? null : _submitBeneficiary,
+                                  onPressed: _isSubmitting
+                                      ? null
+                                      : _submitBeneficiary,
                                 ),
                               ),
                             ],
@@ -769,7 +807,11 @@ class _AddBeneficiaryPageState extends State<AddBeneficiaryPage> {
                     )
                   : Row(
                       children: [
-                        const Icon(Icons.check_circle, color: kSuccess, size: 20),
+                        const Icon(
+                          Icons.check_circle,
+                          color: kSuccess,
+                          size: 20,
+                        ),
                         const SizedBox(width: 8),
                         Expanded(
                           child: Text(
@@ -781,7 +823,11 @@ class _AddBeneficiaryPageState extends State<AddBeneficiaryPage> {
                           ),
                         ),
                         IconButton(
-                          icon: const Icon(Icons.clear, color: kDanger, size: 20),
+                          icon: const Icon(
+                            Icons.clear,
+                            color: kDanger,
+                            size: 20,
+                          ),
                           onPressed: onClear,
                         ),
                       ],

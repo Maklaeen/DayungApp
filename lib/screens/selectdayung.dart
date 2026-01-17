@@ -128,9 +128,11 @@ class _SelectDayungPageState extends State<SelectDayungPage> {
           .toList();
       final officerRows = await _sb
           .from('dayung_units')
-          .select('id, secretary_id, treasurer_id, president_id')
+          .select(
+            'id, secretary_id, treasurer_id, president_id, latitude, longitude, collector_id',
+          )
           .or(
-            'secretary_id.eq.${user.id},treasurer_id.eq.${user.id},president_id.eq.${user.id}',
+            'secretary_id.eq.${user.id},treasurer_id.eq.${user.id},president_id.eq.${user.id},collector_id.eq.${user.id}',
           );
       final officerIds = (officerRows as List<dynamic>)
           .map((e) => (e as Map)['id'] as int)

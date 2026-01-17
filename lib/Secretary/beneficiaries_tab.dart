@@ -101,17 +101,26 @@ class _SecretaryBeneficiariesTabState extends State<SecretaryBeneficiariesTab> {
       }
 
       // 5. Get beneficiaries for these users in this unit
-      final beneficiariesData = allUserIds.isEmpty
+      final beneficiariesData = await supabase
+          .from('beneficiaries')
+          .select(
+            'id, user_id, full_name, relationship, dob, status, birth_certificate, marital_status, valid_id',
+          )
+          .eq('dayung_unit_id', widget.dayungUnitId.toString())
+          .inFilter('status', ['Approved', 'Pending'])
+          .order('full_name', ascending: true);
+
+      final ids = {
+        for (final b in (beneficiariesData as List))
+          (b as Map)['user_id'].toString(),
+      }.where((id) => id.isNotEmpty).toList();
+
+      final usersData = ids.isEmpty
           ? []
           : await supabase
-                .from('beneficiaries')
-                .select(
-                  'id, user_id, full_name, relationship, dob, status, birth_certificate, marital_status, valid_id',
-                )
-                .inFilter('user_id', allUserIds)
-                .eq('dayung_unit_id', widget.dayungUnitId.toString())
-                .inFilter('status', ['Approved', 'Pending'])
-                .order('full_name', ascending: true);
+                .from('users')
+                .select('id, full_name')
+                .inFilter('id', ids);
 
       // Group beneficiaries by user and status
       final pendingByUser = <String, List<dynamic>>{};
