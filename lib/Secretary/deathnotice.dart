@@ -207,314 +207,309 @@ class _CreateDeathNoticePageState extends State<CreateDeathNoticePage> {
 
     return Scaffold(
       backgroundColor: kBg,
-      body: LayoutBuilder(
-        builder: (context, constraints) {
-          final isWide = constraints.maxWidth > 700;
-          final horizontalPadding = isWide ? constraints.maxWidth * 0.15 : 20.0;
-          final headerFontSize = isWide ? 28.0 : 20.0;
+      body: SafeArea(
+        child: Column(
+          children: [
+            // Header
+            Container(
+              padding: const EdgeInsets.fromLTRB(20, 36, 20, 28),
 
-          return Column(
-            children: [
-              // Header
-              Container(
-                padding: EdgeInsets.fromLTRB(
-                  horizontalPadding,
-                  isWide ? 60 : 32,
-                  horizontalPadding,
-                  isWide ? 48 : 32,
+              decoration: BoxDecoration(
+                color: kPrimaryDark,
+                borderRadius: const BorderRadius.only(
+                  bottomLeft: Radius.circular(24),
+                  bottomRight: Radius.circular(24),
                 ),
-                decoration: BoxDecoration(
-                  color: kPrimaryDark,
-                  borderRadius: const BorderRadius.only(
-                    bottomLeft: Radius.circular(24),
-                    bottomRight: Radius.circular(24),
+                boxShadow: [
+                  BoxShadow(
+                    color: kPrimaryDark.withOpacity(0.3),
+                    blurRadius: 20,
+                    offset: const Offset(0, 8),
                   ),
-                  boxShadow: [
-                    BoxShadow(
-                      color: kPrimaryDark.withOpacity(0.3),
-                      blurRadius: 20,
-                      offset: const Offset(0, 8),
-                    ),
-                  ],
-                ),
-                child: Row(
-                  children: [
-                    IconButton(
-                      icon: const Icon(
-                        Icons.chevron_left_rounded,
-                        color: Colors.white,
-                        size: 28,
-                      ),
-                      onPressed: () => Navigator.pop(context),
-                    ),
-                    const Icon(
-                      Icons.person_off_rounded,
+                ],
+              ),
+              child: Row(
+                children: [
+                  IconButton(
+                    icon: const Icon(
+                      Icons.chevron_left_rounded,
                       color: Colors.white,
                       size: 28,
                     ),
-                    const SizedBox(width: 16),
+                    onPressed: () => Navigator.pop(context),
+                  ),
+                  const Icon(
+                    Icons.person_off_rounded,
+                    color: Colors.white,
+                    size: 28,
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: Text(
+                      'Set Deceased',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w800,
+                        color: Colors.white,
+                        fontFamily: 'Montserrat',
+                        letterSpacing: 0.3,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            // Search Bar
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 18, 20, 10),
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 12,
+                ),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(
+                      Icons.search_rounded,
+                      color: kPrimaryDark,
+                      size: 20,
+                    ),
+                    const SizedBox(width: 12),
                     Expanded(
-                      child: Text(
-                        'Set Deceased',
-                        style: TextStyle(
-                          fontSize: headerFontSize,
-                          fontWeight: FontWeight.w800,
-                          color: Colors.white,
-                          fontFamily: 'Montserrat',
-                          letterSpacing: 0.3,
+                      child: TextField(
+                        decoration: const InputDecoration(
+                          hintText: 'Search member or beneficiary',
+                          border: InputBorder.none,
+                          isDense: true,
                         ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 16,
+                          color: kNeutralText,
+                        ),
+                        onChanged: (q) => setState(() => _search = q),
                       ),
                     ),
                   ],
                 ),
               ),
-              // Search Bar
-              Padding(
-                padding: const EdgeInsets.fromLTRB(20, 18, 20, 10),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 12,
-                  ),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Row(
-                    children: [
-                      const Icon(
-                        Icons.search_rounded,
-                        color: kPrimaryDark,
-                        size: 20,
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: TextField(
-                          decoration: const InputDecoration(
-                            hintText: 'Search member or beneficiary',
-                            border: InputBorder.none,
-                            isDense: true,
-                          ),
-                          style: const TextStyle(
-                            fontSize: 16,
-                            color: kNeutralText,
-                          ),
-                          onChanged: (q) => setState(() => _search = q),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-              // Content
-              Expanded(
-                child: _loading
-                    ? const Center(
-                        child: CircularProgressIndicator(color: kPrimary),
-                      )
-                    : RefreshIndicator(
-                        onRefresh: _fetchApprovedClaims,
-                        child: filteredClaims.isEmpty
-                            ? ListView(
-                                children: [
-                                  const SizedBox(height: 120),
-                                  Center(
-                                    child: Column(
-                                      children: [
-                                        Icon(
-                                          Icons.info_outline,
-                                          color: kSubText,
-                                          size: 48,
+            ),
+            // Content
+            Expanded(
+              child: _loading
+                  ? const Center(
+                      child: CircularProgressIndicator(color: kPrimary),
+                    )
+                  : RefreshIndicator(
+                      onRefresh: _fetchApprovedClaims,
+                      child: filteredClaims.isEmpty
+                          ? ListView(
+                              children: [
+                                const SizedBox(height: 120),
+                                Center(
+                                  child: Column(
+                                    children: [
+                                      Icon(
+                                        Icons.info_outline,
+                                        color: kSubText,
+                                        size: 48,
+                                      ),
+                                      const SizedBox(height: 16),
+                                      const Text(
+                                        "No approved claims to process.",
+                                        style: TextStyle(
+                                          fontSize: 16,
+                                          color: kSubtleText,
+                                          fontWeight: FontWeight.w600,
                                         ),
-                                        const SizedBox(height: 16),
-                                        const Text(
-                                          "No approved claims to process.",
-                                          style: TextStyle(
-                                            fontSize: 16,
-                                            color: kSubtleText,
-                                            fontWeight: FontWeight.w600,
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            )
+                          : ListView.builder(
+                              itemCount: filteredClaims.length,
+                              itemBuilder: (_, i) {
+                                final c = filteredClaims[i];
+                                final isBeneficiary =
+                                    c['beneficiary_id'] != null;
+                                final deceased = isBeneficiary
+                                    ? c['beneficiaries']
+                                    : c['users'];
+                                final name = deceased?['full_name'] ?? '';
+                                final dob = deceased?['dob'];
+                                final dod = c['date_of_death'];
+                                final deathCert = c['death_certificate_url'];
+                                final age = (dob != null && dod != null)
+                                    ? _calculateAge(
+                                        DateTime.parse(dob),
+                                        DateTime.parse(dod),
+                                      )
+                                    : null;
+
+                                return Card(
+                                  margin: const EdgeInsets.symmetric(
+                                    horizontal: 16,
+                                    vertical: 10,
+                                  ),
+                                  elevation: 3,
+                                  color: kCardBg,
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(16),
+                                  ),
+                                  child: Padding(
+                                    padding: const EdgeInsets.symmetric(
+                                      vertical: 16,
+                                      horizontal: 18,
+                                    ),
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Row(
+                                          children: [
+                                            CircleAvatar(
+                                              backgroundColor: isBeneficiary
+                                                  ? Colors.purple.shade100
+                                                  : kPrimary.withOpacity(0.18),
+                                              child: Icon(
+                                                Icons.person,
+                                                color: isBeneficiary
+                                                    ? Colors.purple
+                                                    : kPrimary,
+                                              ),
+                                            ),
+                                            const SizedBox(width: 12),
+                                            Expanded(
+                                              child: Text(
+                                                name,
+                                                style: const TextStyle(
+                                                  fontWeight: FontWeight.bold,
+                                                  fontSize: 18,
+                                                  color: kPrimaryDark,
+                                                ),
+                                              ),
+                                            ),
+                                            Container(
+                                              padding:
+                                                  const EdgeInsets.symmetric(
+                                                    horizontal: 10,
+                                                    vertical: 4,
+                                                  ),
+                                              decoration: BoxDecoration(
+                                                color: isBeneficiary
+                                                    ? Colors.purple.shade50
+                                                    : kPrimary.withOpacity(
+                                                        0.08,
+                                                      ),
+                                                borderRadius:
+                                                    BorderRadius.circular(8),
+                                              ),
+                                              child: Text(
+                                                isBeneficiary
+                                                    ? 'Beneficiary'
+                                                    : 'Member',
+                                                style: TextStyle(
+                                                  color: isBeneficiary
+                                                      ? Colors.purple
+                                                      : kPrimaryDark,
+                                                  fontWeight: FontWeight.w600,
+                                                  fontSize: 13,
+                                                ),
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                        const SizedBox(height: 10),
+                                        _infoRow(
+                                          Icons.cake,
+                                          'DOB: ${_formatDate(dob)}',
+                                        ),
+                                        _infoRow(
+                                          Icons.event,
+                                          'Date of Death: ${_formatDate(dod)}',
+                                        ),
+                                        if (age != null)
+                                          _infoRow(Icons.numbers, 'Age: $age'),
+                                        if (deathCert != null &&
+                                            deathCert.toString().isNotEmpty)
+                                          Padding(
+                                            padding: const EdgeInsets.only(
+                                              top: 8.0,
+                                            ),
+                                            child: TextButton.icon(
+                                              icon:
+                                                  const SizedBox.shrink(), // No icon
+                                              label:
+                                                  const SizedBox.shrink(), // No label text
+                                              onPressed: () async {
+                                                final url = deathCert
+                                                    .toString();
+                                                if (await canLaunchUrl(
+                                                  Uri.parse(url),
+                                                )) {
+                                                  await launchUrl(
+                                                    Uri.parse(url),
+                                                    mode: LaunchMode
+                                                        .externalApplication,
+                                                  );
+                                                } else {
+                                                  ScaffoldMessenger.of(
+                                                    context,
+                                                  ).showSnackBar(
+                                                    const SnackBar(
+                                                      content: Text(
+                                                        'Could not open file.',
+                                                      ),
+                                                    ),
+                                                  );
+                                                }
+                                              },
+                                              style: TextButton.styleFrom(
+                                                foregroundColor: kPrimaryDark,
+                                              ),
+                                            ),
+                                          ),
+                                        const SizedBox(height: 10),
+                                        Align(
+                                          alignment: Alignment.centerRight,
+                                          child: ElevatedButton.icon(
+                                            onPressed: () =>
+                                                _showAmountDialogAndSetDeceased(
+                                                  c,
+                                                ),
+                                            style: ElevatedButton.styleFrom(
+                                              backgroundColor: kPrimary,
+                                              foregroundColor: Colors.white,
+                                              minimumSize: const Size(120, 40),
+                                              shape: RoundedRectangleBorder(
+                                                borderRadius:
+                                                    BorderRadius.circular(8),
+                                              ),
+                                            ),
+                                            icon: const Icon(
+                                              Icons.check,
+                                              size: 18,
+                                            ),
+                                            label: const Text('Set Deceased'),
                                           ),
                                         ),
                                       ],
                                     ),
                                   ),
-                                ],
-                              )
-                            : ListView.builder(
-                                itemCount: filteredClaims.length,
-                                itemBuilder: (_, i) {
-                                  final c = filteredClaims[i];
-                                  final isBeneficiary =
-                                      c['beneficiary_id'] != null;
-                                  final deceased = isBeneficiary
-                                      ? c['beneficiaries']
-                                      : c['users'];
-                                  final name = deceased?['full_name'] ?? '';
-                                  final dob = deceased?['dob'];
-                                  final dod = c['date_of_death'];
-                                  final deathCert = c['death_certificate_url'];
-                                  final age = (dob != null && dod != null)
-                                      ? _calculateAge(
-                                          DateTime.parse(dob),
-                                          DateTime.parse(dod),
-                                        )
-                                      : null;
-
-                                  return Card(
-                                    margin: const EdgeInsets.symmetric(
-                                      horizontal: 16,
-                                      vertical: 10,
-                                    ),
-                                    elevation: 3,
-                                    color: kCardBg,
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(16),
-                                    ),
-                                    child: Padding(
-                                      padding: const EdgeInsets.symmetric(
-                                        vertical: 16,
-                                        horizontal: 18,
-                                      ),
-                                      child: Column(
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.start,
-                                        children: [
-                                          Row(
-                                            children: [
-                                              CircleAvatar(
-                                                backgroundColor: isBeneficiary
-                                                    ? Colors.purple.shade100
-                                                    : kPrimary.withOpacity(
-                                                        0.18,
-                                                      ),
-                                                child: Icon(
-                                                  Icons.person,
-                                                  color: isBeneficiary
-                                                      ? Colors.purple
-                                                      : kPrimary,
-                                                ),
-                                              ),
-                                              const SizedBox(width: 12),
-                                              Expanded(
-                                                child: Text(
-                                                  name,
-                                                  style: const TextStyle(
-                                                    fontWeight: FontWeight.bold,
-                                                    fontSize: 18,
-                                                    color: kPrimaryDark,
-                                                  ),
-                                                ),
-                                              ),
-                                              Container(
-                                                padding:
-                                                    const EdgeInsets.symmetric(
-                                                      horizontal: 10,
-                                                      vertical: 4,
-                                                    ),
-                                                decoration: BoxDecoration(
-                                                  color: isBeneficiary
-                                                      ? Colors.purple.shade50
-                                                      : kPrimary.withOpacity(
-                                                          0.08,
-                                                        ),
-                                                  borderRadius:
-                                                      BorderRadius.circular(8),
-                                                ),
-                                                child: Text(
-                                                  isBeneficiary
-                                                      ? 'Beneficiary'
-                                                      : 'Member',
-                                                  style: TextStyle(
-                                                    color: isBeneficiary
-                                                        ? Colors.purple
-                                                        : kPrimaryDark,
-                                                    fontWeight: FontWeight.w600,
-                                                    fontSize: 13,
-                                                  ),
-                                                ),
-                                              ),
-                                            ],
-                                          ),
-                                          const SizedBox(height: 10),
-                                          _infoRow(
-                                            Icons.cake,
-                                            'DOB: ${_formatDate(dob)}',
-                                          ),
-                                          _infoRow(
-                                            Icons.event,
-                                            'Date of Death: ${_formatDate(dod)}',
-                                          ),
-                                          if (age != null)
-                                            _infoRow(
-                                              Icons.numbers,
-                                              'Age: $age',
-                                            ),
-                                          if (deathCert != null &&
-                                              deathCert.toString().isNotEmpty)
-                                            Padding(
-                                              padding: const EdgeInsets.only(
-                                                top: 8.0,
-                                              ),
-                                              child: TextButton.icon(
-                                                icon: const SizedBox.shrink(), // No icon
-                                                label: const SizedBox.shrink(), // No label text
-                                                onPressed: () async {
-                                                  final url = deathCert.toString();
-                                                  if (await canLaunchUrl(Uri.parse(url))) {
-                                                    await launchUrl(
-                                                      Uri.parse(url),
-                                                      mode: LaunchMode.externalApplication,
-                                                    );
-                                                  } else {
-                                                    ScaffoldMessenger.of(context).showSnackBar(
-                                                      const SnackBar(
-                                                        content: Text('Could not open file.'),
-                                                      ),
-                                                    );
-                                                  }
-                                                },
-                                                style: TextButton.styleFrom(
-                                                  foregroundColor: kPrimaryDark,
-                                                ),
-                                              ),
-                                            ),
-                                          const SizedBox(height: 10),
-                                          Align(
-                                            alignment: Alignment.centerRight,
-                                            child: ElevatedButton.icon(
-                                              onPressed: () => _showAmountDialogAndSetDeceased(c),
-                                              style: ElevatedButton.styleFrom(
-                                                backgroundColor: kPrimary,
-                                                foregroundColor: Colors.white,
-                                                minimumSize: const Size(
-                                                  120,
-                                                  40,
-                                                ),
-                                                shape: RoundedRectangleBorder(
-                                                  borderRadius:
-                                                      BorderRadius.circular(8),
-                                                ),
-                                              ),
-                                              icon: const Icon(
-                                                Icons.check,
-                                                size: 18,
-                                              ),
-                                              label: const Text('Set Deceased'),
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                  );
-                                },
-                              ),
-                      ),
-              ),
-            ],
-          );
-        },
+                                );
+                              },
+                            ),
+                    ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -573,7 +568,7 @@ class _CreateDeathNoticePageState extends State<CreateDeathNoticePage> {
     final isBeneficiary = claim['beneficiary_id'] != null;
     final dod = claim['date_of_death'];
     final deathCert = claim['death_certificate_url'];
-   final dayungId = claim['dayung_unit_id'] ?? widget.dayungUnitId;
+    final dayungId = claim['dayung_unit_id'] ?? widget.dayungUnitId;
 
     final Map<String, dynamic>? user = claim['users'] as Map<String, dynamic>?;
     final Map<String, dynamic>? ben =
@@ -666,7 +661,9 @@ class _CreateDeathNoticePageState extends State<CreateDeathNoticePage> {
     }
   }
 
-  Future<void> _showAmountDialogAndSetDeceased(Map<String, dynamic> claim) async {
+  Future<void> _showAmountDialogAndSetDeceased(
+    Map<String, dynamic> claim,
+  ) async {
     final TextEditingController amountController = TextEditingController();
     final isBeneficiary = claim['beneficiary_id'] != null;
     final userId = isBeneficiary
@@ -690,9 +687,7 @@ class _CreateDeathNoticePageState extends State<CreateDeathNoticePage> {
     final result = await showDialog<double>(
       context: parentContext,
       builder: (dialogContext) => AlertDialog(
-        title: Text(
-          'Set Amount for $fullName'
-        ),
+        title: Text('Set Amount for $fullName'),
         content: TextField(
           controller: amountController,
           keyboardType: TextInputType.numberWithOptions(decimal: true),
@@ -740,16 +735,19 @@ class _CreateDeathNoticePageState extends State<CreateDeathNoticePage> {
 
         // Fetch all approved applications for the unit
         final approvedApplications = await supabase
-          .from('applications')
-          .select('user_id')
-          .eq('dayung_unit_id', widget.dayungUnitId)
-          .eq('status', 'approved');
+            .from('applications')
+            .select('user_id')
+            .eq('dayung_unit_id', widget.dayungUnitId)
+            .eq('status', 'approved');
 
         final now = DateTime.now().toIso8601String();
-        final notificationBody = '$fullName passed away. Amount: ₱${result.toStringAsFixed(2)}';
+        final notificationBody =
+            '$fullName passed away. Amount: ₱${result.toStringAsFixed(2)}';
 
         // Insert notification for each approved user
-        for (final app in List<Map<String, dynamic>>.from(approvedApplications)) {
+        for (final app in List<Map<String, dynamic>>.from(
+          approvedApplications,
+        )) {
           await supabase.from('notifications').insert({
             'recipient_id': app['user_id'],
             'body': notificationBody,
@@ -766,9 +764,9 @@ class _CreateDeathNoticePageState extends State<CreateDeathNoticePage> {
         await _setDeceased(claim);
       } catch (e) {
         Navigator.of(parentContext, rootNavigator: true).pop(); // Close loading
-        ScaffoldMessenger.of(parentContext).showSnackBar(
-          SnackBar(content: Text('Failed to save amount: $e')),
-        );
+        ScaffoldMessenger.of(
+          parentContext,
+        ).showSnackBar(SnackBar(content: Text('Failed to save amount: $e')));
       }
     }
   }

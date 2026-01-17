@@ -7,16 +7,16 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:capstone_app/ui/theme/branding.dart';
 import 'package:cupertino_calendar_picker/cupertino_calendar_picker.dart';
 
-// palette
-const kText = Color(0xFF111827);
-const kSubText = Color(0xFF6B7280);
-const kPrimaryLight = Color(0xFF3B82F6);
-const Color kNeutralText = Color(0xFF111827);
-const kAccentDark = Color(0xFF059669);
-const kCardBg = Color(0xFFFFFFFF);
-const kBorderColor = Color(0xFFE5E7EB);
+// Modern palette
+const kBg = Color(0xFFFAFAF7);
+const kText = Color(0xFF1F2937);
+const kSubText = Color(0xFF4B5563);
+const kAccent = Color(0xFF0D47A1);
+const kPrimary = Color(0xFF0D47A1);
+const kWarn = Color(0xFFF57C00);
+const kDanger = Color(0xFFC62828);
 const kSuccess = Color(0xFF10B981);
-const double kEdge = 18;
+const kCardBg = Color(0xFFFFFFFF);
 
 class AddBeneficiaryPage extends StatefulWidget {
   const AddBeneficiaryPage({super.key});
@@ -27,7 +27,6 @@ class AddBeneficiaryPage extends StatefulWidget {
 
 class _AddBeneficiaryPageState extends State<AddBeneficiaryPage> {
   final TextEditingController fullNameController = TextEditingController();
-  final TextEditingController maritalController = TextEditingController();
   final user = Supabase.instance.client.auth.currentUser;
   final _formKey = GlobalKey<FormState>();
 
@@ -39,7 +38,6 @@ class _AddBeneficiaryPageState extends State<AddBeneficiaryPage> {
   String? birthCertificateFile;
   String? validIdFile;
   String? selectedMaritalStatus;
-  String? selectedSex;
 
   DateTime? _selectedDob;
 
@@ -181,11 +179,11 @@ class _AddBeneficiaryPageState extends State<AddBeneficiaryPage> {
       contentPadding: const EdgeInsets.symmetric(vertical: 14, horizontal: 12),
       enabledBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(8),
-        borderSide: const BorderSide(color: kBorderColor, width: 1),
+        borderSide: const BorderSide(color: kSubText, width: 1),
       ),
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(8),
-        borderSide: const BorderSide(color: kPrimary, width: 1.5),
+        borderSide: const BorderSide(color: kAccent, width: 1.5),
       ),
       errorBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(8),
@@ -199,8 +197,8 @@ class _AddBeneficiaryPageState extends State<AddBeneficiaryPage> {
   }
 
   InputDecoration _dropdownDec(String label) => _dec(label).copyWith(
-    contentPadding: const EdgeInsets.symmetric(vertical: 6, horizontal: 8),
-  );
+        contentPadding: const EdgeInsets.symmetric(vertical: 6, horizontal: 8),
+      );
 
   Future<void> _showCalendarDialog(BuildContext context) async {
     final now = DateTime.now();
@@ -223,7 +221,7 @@ class _AddBeneficiaryPageState extends State<AddBeneficiaryPage> {
           child: CupertinoTheme(
             data: const CupertinoThemeData(
               brightness: Brightness.light,
-              primaryColor: Color(0xFF3B82F6),
+              primaryColor: kAccent,
             ),
             child: SizedBox(
               height: size.height * 0.50,
@@ -259,7 +257,7 @@ class _AddBeneficiaryPageState extends State<AddBeneficiaryPage> {
                           child: const Text(
                             'Done',
                             style: TextStyle(
-                              color: kPrimary,
+                              color: kAccent,
                               fontSize: 15,
                               fontWeight: FontWeight.w600,
                             ),
@@ -362,7 +360,7 @@ class _AddBeneficiaryPageState extends State<AddBeneficiaryPage> {
       if (!mounted) return;
       _showTopPopup(
         'File uploaded successfully',
-        color: kAccent,
+        color: kSuccess,
         icon: Icons.check_circle,
       );
     } catch (e) {
@@ -416,7 +414,7 @@ class _AddBeneficiaryPageState extends State<AddBeneficiaryPage> {
       if (!mounted) return;
       _showTopPopup(
         'Valid ID uploaded successfully',
-        color: kAccent,
+        color: kSuccess,
         icon: Icons.check_circle,
       );
     } catch (e) {
@@ -496,7 +494,7 @@ class _AddBeneficiaryPageState extends State<AddBeneficiaryPage> {
       } else {
         _showTopPopup(
           'Beneficiary added',
-          color: kAccent,
+          color: kSuccess,
           icon: Icons.check_circle,
         );
         fullNameController.clear();
@@ -543,580 +541,183 @@ class _AddBeneficiaryPageState extends State<AddBeneficiaryPage> {
                 constraints: BoxConstraints(maxWidth: isWide ? 640 : 420),
                 child: Column(
                   children: [
+                    // Modern Curved Header
                     Container(
-                      padding: const EdgeInsets.all(16),
+                      padding: const EdgeInsets.fromLTRB(0, 0, 0, 16),
                       child: Column(
                         children: [
-                          const Icon(
-                            Icons.person_add_rounded,
-                            color: kPrimary,
-                            size: 32,
-                          ),
-                          const SizedBox(height: 12),
-                          const Text(
-                            'Add Beneficiary',
-                            style: TextStyle(
-                              fontSize: 24,
-                              fontWeight: FontWeight.w800,
-                              color: kText,
-                              fontFamily: 'Montserrat',
-                              letterSpacing: 0.3,
-                            ),
-                          ),
-                          const SizedBox(height: 6),
-                          const Text(
-                            'Provide beneficiary details below',
-                            style: TextStyle(
-                              color: kSubText,
-                              fontSize: 16,
-                              fontFamily: 'OpenSans',
-                              fontWeight: FontWeight.w500,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 24),
-
-                    Container(
-                      padding: EdgeInsets.all(isSmall ? 16 : 20),
-                      decoration: BoxDecoration(
-                        color: kCardBg,
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Form(
-                        key: _formKey,
-                        child: Column(
-                          children: [
-                            if (_isSubmitting)
-                              Container(
-                                margin: const EdgeInsets.only(bottom: 20),
-                                padding: const EdgeInsets.all(16),
-                                decoration: BoxDecoration(
-                                  color: kPrimary.withOpacity(0.1),
-                                  borderRadius: BorderRadius.circular(12),
-                                ),
-                                child: const LinearProgressIndicator(
-                                  color: kPrimary,
-                                  backgroundColor: Color(0xFFEFF2F7),
-                                  minHeight: 4,
-                                ),
+                          Row(
+                            children: [
+                              IconButton(
+                                icon: const Icon(Icons.chevron_left, color: kAccent, size: 28),
+                                onPressed: () => Navigator.pop(context),
                               ),
-
-                            Row(
-                              children: [
-                                const Icon(
-                                  Icons.person_rounded,
-                                  color: kPrimary,
-                                  size: 20,
-                                ),
-                                const SizedBox(width: 10),
-                                const Text(
-                                  'Personal Information',
+                              const SizedBox(width: 8),
+                              const Icon(Icons.person_add_rounded, color: kAccent, size: 32),
+                              const SizedBox(width: 12),
+                              const Expanded(
+                                child: Text(
+                                  'Add Beneficiary',
                                   style: TextStyle(
-                                    fontSize: 18,
-                                    fontWeight: FontWeight.w700,
+                                    fontSize: 24,
+                                    fontWeight: FontWeight.w800,
                                     color: kText,
                                     fontFamily: 'Montserrat',
                                     letterSpacing: 0.3,
                                   ),
                                 ),
-                              ],
-                            ),
-                            const SizedBox(height: 20),
-
-                            TextFormField(
-                              controller: fullNameController,
-                              textInputAction: TextInputAction.next,
-                              style: const TextStyle(
-                                fontSize: 14,
-                                color: kText,
-                                fontWeight: FontWeight.w500,
                               ),
-                              decoration: _dec(
-                                'Full Name',
-                                hint: 'e.g., Jane Doe',
-                                icon: Icons.badge_outlined,
-                              ),
-                              validator: (v) => (v == null || v.trim().isEmpty)
-                                  ? 'Full Name is required'
-                                  : null,
-                            ),
-                            const SizedBox(height: 12),
-
-                            _dobField(context),
-                            const SizedBox(height: 12),
-
-                            DropdownButtonFormField2<String>(
-                              isExpanded: true,
-                              decoration: _dropdownDec('Relationship'),
-                              value: selectedRelationship,
-                              style: const TextStyle(
+                            ],
+                          ),
+                          const SizedBox(height: 6),
+                          const Align(
+                            alignment: Alignment.centerLeft,
+                            child: Text(
+                              'Provide beneficiary details below',
+                              style: TextStyle(
+                                color: kSubText,
                                 fontSize: 16,
-                                color: Colors.black, // changed from kText
+                                fontFamily: 'OpenSans',
                                 fontWeight: FontWeight.w500,
                               ),
-                              items: _relationships
-                                  .map(
-                                    (rel) => DropdownMenuItem<String>(
-                                      value: rel,
-                                      child: Text(
-                                        rel,
-                                        style: const TextStyle(
-                                          color: Colors.black, // changed from Colors.white
-                                          fontSize: 16,
-                                          fontWeight: FontWeight.w500,
-                                        ),
-                                      ),
-                                    ),
-                                  )
-                                  .toList(),
-
-                              selectedItemBuilder: (context) => _relationships
-                                  .map(
-                                    (rel) => Align(
-                                      alignment: Alignment.centerLeft,
-                                      child: Text(
-                                        rel,
-                                        style: const TextStyle(
-                                          color: Colors.black, // changed from kText
-                                          fontSize: 16,
-                                          fontWeight: FontWeight.w500,
-                                        ),
-                                      ),
-                                    ),
-                                  )
-                                  .toList(),
-                              onChanged: (value) => setState(() => selectedRelationship = value),
-                              validator: (value) => value == null ? 'Relationship is required' : null,
                             ),
-                            const SizedBox(height: 12),
-                            DropdownButtonFormField2<String>(
-                              isExpanded: true,
-                              decoration: _dropdownDec('Marital Status'),
-                              value: selectedMaritalStatus,
-                              style: const TextStyle(
-                                color: Colors.black, // changed from kText
-                                fontSize: 16,
-                                fontWeight: FontWeight.w500,
-                              ),
-                              items: _maritalStatuses
-                                  .map(
-                                    (status) => DropdownMenuItem<String>(
-                                      value: status,
-                                      child: Text(
-                                        status,
-                                        style: const TextStyle(
-                                          fontSize: 16,
-                                          color: Colors.black, // changed from Colors.white
-                                          fontWeight: FontWeight.w500,
-                                        ),
-                                      ),
-                                    ),
-                                  )
-                                  .toList(),
-
-                              selectedItemBuilder: (context) => _maritalStatuses
-                                  .map(
-                                    (status) => Align(
-                                      alignment: Alignment.centerLeft,
-                                      child: Text(
-                                        status,
-                                        style: const TextStyle(
-                                          color: Colors.black, // changed from kText
-                                          fontSize: 16,
-                                          fontWeight: FontWeight.w500,
-                                        ),
-                                      ),
-                                    ),
-                                  )
-                                  .toList(),
-                              onChanged: (value) => setState(() => selectedMaritalStatus = value),
-                              validator: (value) => value == null ? 'Marital status is required' : null,
-                            ),
-                            const SizedBox(height: 24),
-
-                            Column(
-                              children: [
-                                Row(
-                                  children: [
-                                    const Icon(
-                                      Icons.upload_file_rounded,
-                                      color: kPrimary,
-                                      size: 20,
-                                    ),
-                                    const SizedBox(width: 10),
-                                    const Text(
-                                      'Birth Certificate',
-                                      style: TextStyle(
-                                        fontSize: 16,
-                                        fontWeight: FontWeight.w600,
-                                        color: kText,
-                                        fontFamily: 'Montserrat',
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                                const SizedBox(height: 12),
-                                Row(
-                                  children: [
-                                    Expanded(
-                                      child: Container(
-                                        padding: const EdgeInsets.symmetric(
-                                          horizontal: 12,
-                                          vertical: 12,
-                                        ),
-                                        decoration: BoxDecoration(
-                                          color: Colors.white,
-                                          borderRadius: BorderRadius.circular(
-                                            8,
-                                          ),
-                                          border: Border.all(
-                                            color: kBorderColor,
-                                            width: 1,
-                                          ),
-                                        ),
-                                        child: Text(
-                                          birthCertificateFile == null
-                                              ? 'No file selected'
-                                              : 'File uploaded successfully',
-                                          style: TextStyle(
-                                            color: birthCertificateFile == null
-                                                ? kSubText
-                                                : kSuccess,
-                                            fontWeight: FontWeight.w500,
-                                            fontFamily: 'OpenSans',
-                                            fontSize: 14,
-                                          ),
-                                        ),
-                                      ),
-                                    ),
-                                    const SizedBox(width: 8),
-                                    ElevatedButton.icon(
-                                      onPressed: _isUploadingFile
-                                          ? null
-                                          : _pickAndUploadFile,
-                                      icon: _isUploadingFile
-                                          ? const SizedBox(
-                                              width: 18,
-                                              height: 18,
-                                              child: CircularProgressIndicator(
-                                                strokeWidth: 2,
-                                                color: Colors.white,
-                                              ),
-                                            )
-                                          : const Icon(
-                                              Icons.upload_rounded,
-                                              size: 18,
-                                            ),
-                                      label: Text(
-                                        _isUploadingFile
-                                            ? 'Uploading...'
-                                            : 'Upload',
-                                        style: const TextStyle(
-                                          fontSize: 16,
-                                          fontWeight: FontWeight.w700,
-                                        ),
-                                      ),
-                                      style: ElevatedButton.styleFrom(
-                                        backgroundColor: kPrimary,
-                                        foregroundColor: Colors.white,
-                                        elevation: 2,
-                                        padding: const EdgeInsets.symmetric(
-                                          horizontal: 20,
-                                          vertical: 14,
-                                        ),
-                                        shape: RoundedRectangleBorder(
-                                          borderRadius: BorderRadius.circular(
-                                            8,
-                                          ),
-                                        ),
-                                      ),
-                                    ),
-                                    if (birthCertificateFile != null) ...[
-                                      const SizedBox(width: 8),
-                                      ElevatedButton.icon(
-                                        onPressed: () => setState(
-                                          () => birthCertificateFile = null,
-                                        ),
-                                        icon: const Icon(
-                                          Icons.close_rounded,
-                                          size: 18,
-                                          color: Colors.white,
-                                        ),
-                                        label: const Text(
-                                          'Clear',
-                                          style: TextStyle(
-                                            color: Colors.white,
-                                            fontSize: 16,
-                                            fontWeight: FontWeight.w700,
-                                          ),
-                                        ),
-                                        style: ElevatedButton.styleFrom(
-                                          backgroundColor: kDanger,
-                                          foregroundColor: Colors.white,
-                                          elevation: 2,
-                                          padding: const EdgeInsets.symmetric(
-                                            horizontal: 16,
-                                            vertical: 14,
-                                          ),
-                                          shape: RoundedRectangleBorder(
-                                            borderRadius: BorderRadius.circular(
-                                              8,
-                                            ),
-                                          ),
-                                        ),
-                                      ),
-                                    ],
-                                  ],
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 4),
-                            const Align(
-                              alignment: Alignment.centerLeft,
-                              child: Text(
-                                'Accepted: JPG, PNG, PDF',
-                                style: TextStyle(color: kSubText, fontSize: 11),
-                              ),
-                            ),
-
-                            const SizedBox(height: 24),
-
-                            // Valid ID upload section
-                            Column(
-                              children: [
-                                Row(
-                                  children: [
-                                    const Icon(
-                                      Icons.credit_card_rounded,
-                                      color: kPrimary,
-                                      size: 20,
-                                    ),
-                                    const SizedBox(width: 10),
-                                    const Text(
-                                      'Valid ID',
-                                      style: TextStyle(
-                                        fontSize: 16,
-                                        fontWeight: FontWeight.w600,
-                                        color: kText,
-                                        fontFamily: 'Montserrat',
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                                const SizedBox(height: 12),
-                                Row(
-                                  children: [
-                                    Expanded(
-                                      child: Container(
-                                        padding: const EdgeInsets.symmetric(
-                                          horizontal: 12,
-                                          vertical: 12,
-                                        ),
-                                        decoration: BoxDecoration(
-                                          color: Colors.white,
-                                          borderRadius: BorderRadius.circular(
-                                            8,
-                                          ),
-                                          border: Border.all(
-                                            color: kBorderColor,
-                                            width: 1,
-                                          ),
-                                        ),
-                                        child: Text(
-                                          validIdFile == null
-                                              ? 'No file selected'
-                                              : 'File uploaded successfully',
-                                          style: TextStyle(
-                                            color: validIdFile == null
-                                                ? kSubText
-                                                : kSuccess,
-                                            fontWeight: FontWeight.w500,
-                                            fontFamily: 'OpenSans',
-                                            fontSize: 14,
-                                          ),
-                                        ),
-                                      ),
-                                    ),
-                                    const SizedBox(width: 8),
-                                    ElevatedButton.icon(
-                                      onPressed: _isUploadingValidId
-                                          ? null
-                                          : _pickAndUploadValidId,
-                                      icon: _isUploadingValidId
-                                          ? const SizedBox(
-                                              width: 18,
-                                              height: 18,
-                                              child: CircularProgressIndicator(
-                                                strokeWidth: 2,
-                                                color: Colors.white,
-                                              ),
-                                            )
-                                          : const Icon(
-                                              Icons.upload_rounded,
-                                              size: 18,
-                                            ),
-                                      label: Text(
-                                        _isUploadingValidId
-                                            ? 'Uploading...'
-                                            : 'Upload',
-                                        style: const TextStyle(
-                                          fontSize: 16,
-                                          fontWeight: FontWeight.w700,
-                                        ),
-                                      ),
-                                      style: ElevatedButton.styleFrom(
-                                        backgroundColor: kPrimary,
-                                        foregroundColor: Colors.white,
-                                        elevation: 2,
-                                        padding: const EdgeInsets.symmetric(
-                                          horizontal: 20,
-                                          vertical: 14,
-                                        ),
-                                        shape: RoundedRectangleBorder(
-                                          borderRadius: BorderRadius.circular(
-                                            8,
-                                          ),
-                                        ),
-                                      ),
-                                    ),
-                                    if (validIdFile != null) ...[
-                                      const SizedBox(width: 8),
-                                      ElevatedButton.icon(
-                                        onPressed: () => setState(
-                                          () => validIdFile = null,
-                                        ),
-                                        icon: const Icon(
-                                          Icons.close_rounded,
-                                          size: 18,
-                                          color: Colors.white,
-                                        ),
-                                        label: const Text(
-                                          'Clear',
-                                          style: TextStyle(
-                                            color: Colors.white,
-                                            fontSize: 16,
-                                            fontWeight: FontWeight.w700,
-                                          ),
-                                        ),
-                                        style: ElevatedButton.styleFrom(
-                                          backgroundColor: kDanger,
-                                          foregroundColor: Colors.white,
-                                          elevation: 2,
-                                          padding: const EdgeInsets.symmetric(
-                                            horizontal: 16,
-                                            vertical: 14,
-                                          ),
-                                          shape: RoundedRectangleBorder(
-                                            borderRadius: BorderRadius.circular(
-                                              8,
-                                            ),
-                                          ),
-                                        ),
-                                      ),
-                                    ],
-                                  ],
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 4),
-                            const Align(
-                              alignment: Alignment.centerLeft,
-                              child: Text(
-                                'Accepted: JPG, PNG, PDF',
-                                style: TextStyle(color: kSubText, fontSize: 11),
-                              ),
-                            ),
-                            const SizedBox(height: 24),
-
-                            // Actions
-                            Row(
-                              children: [
-                                Expanded(
-                                  child: SizedBox(
-                                    height: 56,
-                                    child: ElevatedButton(
-                                      onPressed: _isSubmitting
-                                          ? null
-                                          : () => Navigator.of(context).pop(),
-                                      style: ElevatedButton.styleFrom(
-                                        backgroundColor: kDanger,
-                                        foregroundColor: Colors.white,
-                                        shape: RoundedRectangleBorder(
-                                          borderRadius: BorderRadius.circular(
-                                            8,
-                                          ),
-                                        ),
-                                        elevation: 2,
-                                        padding: const EdgeInsets.symmetric(
-                                          horizontal: 20,
-                                          vertical: 16,
-                                        ),
-                                      ),
-                                      child: const Text(
-                                        'Cancel',
-                                        style: TextStyle(
-                                          fontSize: 16,
-                                          fontWeight: FontWeight.w700,
-                                          fontFamily: 'Montserrat',
-                                        ),
-                                      ),
-                                    ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 18),
+                    // Modern Card Form
+                    Card(
+                      elevation: 4,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(18),
+                      ),
+                      child: Padding(
+                        padding: EdgeInsets.all(isSmall ? 14 : 24),
+                        child: Form(
+                          key: _formKey,
+                          child: Column(
+                            children: [
+                              if (_isSubmitting)
+                                Container(
+                                  margin: const EdgeInsets.only(bottom: 20),
+                                  padding: const EdgeInsets.all(16),
+                                  decoration: BoxDecoration(
+                                    color: kAccent.withOpacity(0.08),
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  child: const LinearProgressIndicator(
+                                    color: kAccent,
+                                    backgroundColor: Color(0xFFEFF2F7),
+                                    minHeight: 4,
                                   ),
                                 ),
-                                const SizedBox(width: 12),
-                                Expanded(
-                                  flex: 2,
-                                  child: SizedBox(
-                                    height: 56,
-                                    child: ElevatedButton.icon(
-                                      onPressed: _isSubmitting
-                                          ? null
-                                          : _submitBeneficiary,
-                                      icon: _isSubmitting
-                                          ? const SizedBox(
-                                              width: 18,
-                                              height: 18,
-                                              child: CircularProgressIndicator(
-                                                color: Colors.white,
-                                                strokeWidth: 2,
-                                              ),
-                                            )
-                                          : const Icon(
-                                              Icons.person_add_rounded,
-                                              size: 18,
-                                            ),
-                                      label: Text(
-                                        _isSubmitting
-                                            ? 'Submitting...'
-                                            : 'Submit',
-                                        style: const TextStyle(
-                                          fontSize: 16,
-                                          fontWeight: FontWeight.w700,
-                                          fontFamily: 'Montserrat',
-                                        ),
+                              TextFormField(
+                                controller: fullNameController,
+                                textInputAction: TextInputAction.next,
+                                style: const TextStyle(
+                                  fontSize: 14,
+                                  color: kText,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                                decoration: _dec(
+                                  'Full Name',
+                                  hint: 'e.g., Jane Doe',
+                                  icon: Icons.badge_outlined,
+                                ),
+                                validator: (v) => (v == null || v.trim().isEmpty)
+                                    ? 'Full Name is required'
+                                    : null,
+                              ),
+                              const SizedBox(height: 14),
+                              _dobField(context),
+                              const SizedBox(height: 14),
+                              DropdownButtonFormField2<String>(
+                                isExpanded: true,
+                                decoration: _dropdownDec('Relationship'),
+                                value: selectedRelationship,
+                                style: const TextStyle(
+                                  fontSize: 16,
+                                  color: kText,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                                items: _relationships
+                                    .map(
+                                      (rel) => DropdownMenuItem<String>(
+                                        value: rel,
+                                        child: Text(rel),
                                       ),
-                                      style: ElevatedButton.styleFrom(
-                                        backgroundColor: kPrimary,
-                                        foregroundColor: Colors.white,
-                                        shape: RoundedRectangleBorder(
-                                          borderRadius: BorderRadius.circular(
-                                            8,
-                                          ),
-                                        ),
-                                        elevation: 2,
-                                        padding: const EdgeInsets.symmetric(
-                                          horizontal: 20,
-                                          vertical: 16,
-                                        ),
+                                    )
+                                    .toList(),
+                                onChanged: (value) => setState(() => selectedRelationship = value),
+                                validator: (value) => value == null ? 'Relationship is required' : null,
+                              ),
+                              const SizedBox(height: 14),
+                              DropdownButtonFormField2<String>(
+                                isExpanded: true,
+                                decoration: _dropdownDec('Marital Status'),
+                                value: selectedMaritalStatus,
+                                style: const TextStyle(
+                                  color: kText,
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                                items: _maritalStatuses
+                                    .map(
+                                      (status) => DropdownMenuItem<String>(
+                                        value: status,
+                                        child: Text(status),
                                       ),
+                                    )
+                                    .toList(),
+                                onChanged: (value) => setState(() => selectedMaritalStatus = value),
+                                validator: (value) => value == null ? 'Marital status is required' : null,
+                              ),
+                              const SizedBox(height: 24),
+                              // Birth Certificate Upload
+                              _fileUploadSection(
+                                label: 'Birth Certificate (optional)',
+                                isUploading: _isUploadingFile,
+                                fileUrl: birthCertificateFile,
+                                onUpload: _pickAndUploadFile,
+                                onClear: () => setState(() => birthCertificateFile = null),
+                              ),
+                              const SizedBox(height: 18),
+                              // Valid ID Upload
+                              _fileUploadSection(
+                                label: 'Valid ID (required)',
+                                isUploading: _isUploadingValidId,
+                                fileUrl: validIdFile,
+                                onUpload: _pickAndUploadValidId,
+                                onClear: () => setState(() => validIdFile = null),
+                                required: true,
+                              ),
+                              const SizedBox(height: 24),
+                              SizedBox(
+                                width: double.infinity,
+                                height: 48,
+                                child: ElevatedButton.icon(
+                                  icon: const Icon(Icons.check_circle, size: 20),
+                                  label: const Text(
+                                    'Submit',
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 16,
                                     ),
                                   ),
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: kAccent,
+                                    foregroundColor: Colors.white,
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                    elevation: 2,
+                                  ),
+                                  onPressed: _isSubmitting ? null : _submitBeneficiary,
                                 ),
-                              ],
-                            ),
-                          ],
+                              ),
+                            ],
+                          ),
                         ),
                       ),
                     ),
@@ -1127,6 +728,114 @@ class _AddBeneficiaryPageState extends State<AddBeneficiaryPage> {
           ),
         ),
       ),
+    );
+  }
+
+  Widget _fileUploadSection({
+    required String label,
+    required bool isUploading,
+    required String? fileUrl,
+    required VoidCallback onUpload,
+    required VoidCallback onClear,
+    bool required = false,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label + (required ? ' *' : ''),
+          style: const TextStyle(
+            fontWeight: FontWeight.w600,
+            color: kText,
+            fontSize: 15,
+          ),
+        ),
+        const SizedBox(height: 8),
+        Row(
+          children: [
+            Expanded(
+              child: fileUrl == null
+                  ? OutlinedButton.icon(
+                      icon: const Icon(Icons.upload_file, color: kAccent),
+                      label: Text(isUploading ? 'Uploading...' : 'Upload File'),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: kAccent,
+                        side: const BorderSide(color: kAccent),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                      ),
+                      onPressed: isUploading ? null : onUpload,
+                    )
+                  : Row(
+                      children: [
+                        const Icon(Icons.check_circle, color: kSuccess, size: 20),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            'File uploaded',
+                            style: const TextStyle(
+                              color: kSuccess,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.clear, color: kDanger, size: 20),
+                          onPressed: onClear,
+                        ),
+                      ],
+                    ),
+            ),
+            if (fileUrl != null)
+              IconButton(
+                icon: const Icon(Icons.visibility, color: kAccent),
+                onPressed: () {
+                  showDialog(
+                    context: context,
+                    builder: (context) => Dialog(
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      child: Container(
+                        padding: const EdgeInsets.all(16),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Image.network(
+                              fileUrl,
+                              fit: BoxFit.contain,
+                              errorBuilder: (context, error, stackTrace) =>
+                                  const Text('Could not load image'),
+                            ),
+                            const SizedBox(height: 16),
+                            ElevatedButton.icon(
+                              icon: const Icon(Icons.close, size: 18),
+                              label: const Text('Close'),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: kAccent,
+                                foregroundColor: Colors.white,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                              ),
+                              onPressed: () => Navigator.pop(context),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  );
+                },
+              ),
+          ],
+        ),
+        const SizedBox(height: 4),
+        const Text(
+          'Accepted: JPG, PNG, PDF',
+          style: TextStyle(color: kSubText, fontSize: 11),
+        ),
+      ],
     );
   }
 }

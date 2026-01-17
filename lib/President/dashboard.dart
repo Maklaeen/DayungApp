@@ -1,7 +1,7 @@
 import 'dart:convert';
 
 import 'package:capstone_app/Auth/logout.dart';
-import 'package:capstone_app/Beneficiary/beneficiary.dart';
+import 'package:capstone_app/Beneficiary/beneficiary.dart' hide kPrimary;
 import 'package:capstone_app/President/manage_roles.dart';
 import 'package:capstone_app/President/post_announcement.dart';
 import 'package:capstone_app/President/presclaims.dart';

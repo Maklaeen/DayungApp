@@ -4,7 +4,7 @@ import 'dart:typed_data';
 import 'dart:ui';
 
 import 'package:capstone_app/Auth/login.dart' hide kWarn;
-import 'package:capstone_app/Beneficiary/beneficiary.dart' hide kPrimaryLight;
+import 'package:capstone_app/Beneficiary/beneficiary.dart' hide kPrimaryLight, kPrimary, kAccent, kWarn;
 import 'package:capstone_app/President/manage_rules.dart'
     hide kPrimary, kAccent;
 import 'package:capstone_app/Providers/apptheme_provider.dart';

@@ -1,6 +1,6 @@
 import 'dart:convert';
 import 'package:capstone_app/Auth/logout.dart';
-import 'package:capstone_app/Beneficiary/beneficiary.dart';
+import 'package:capstone_app/Beneficiary/beneficiary.dart' hide kPrimary;
 import 'package:capstone_app/Collector/collect_cash.dart';
 import 'package:capstone_app/Collector/gcash_qr_page.dart' hide kPrimary;
 import 'package:capstone_app/Members/memclaims.dart' hide kPrimary;

@@ -124,11 +124,13 @@ class _ServiceTrackerPageState extends State<ServiceTrackerPage> {
     final deathNoticeIds = _notices.map((n) => n['notice']['id']).toList();
     if (deathNoticeIds.isEmpty) return;
     final inserts = deathNoticeIds
-        .map((id) => {
-              'death_notice_id': id,
-              'service_name': serviceName,
-              'is_done': false,
-            })
+        .map(
+          (id) => {
+            'death_notice_id': id,
+            'service_name': serviceName,
+            'is_done': false,
+          },
+        )
         .toList();
     await sb.from('service_checklists').insert(inserts);
     // Reload all checklists
@@ -144,770 +146,757 @@ class _ServiceTrackerPageState extends State<ServiceTrackerPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: kBg,
-      body: LayoutBuilder(
-        builder: (context, constraints) {
-          final isWide = constraints.maxWidth > 700;
-          final horizontalPadding = isWide ? constraints.maxWidth * 0.15 : 20.0;
-          final headerFontSize = isWide ? 28.0 : 20.0;
+      body: SafeArea(
+        child: Column(
+          children: [
+            Container(
+              padding: const EdgeInsets.fromLTRB(20, 36, 20, 28),
 
-          return Column(
-            children: [
-              Container(
-                padding: EdgeInsets.fromLTRB(
-                  horizontalPadding,
-                  isWide ? 60 : 32,
-                  horizontalPadding,
-                  isWide ? 48 : 32,
+              decoration: BoxDecoration(
+                color: kPrimary,
+                borderRadius: const BorderRadius.only(
+                  bottomLeft: Radius.circular(24),
+                  bottomRight: Radius.circular(24),
                 ),
-                decoration: BoxDecoration(
-                  color: kPrimary,
-                  borderRadius: const BorderRadius.only(
-                    bottomLeft: Radius.circular(24),
-                    bottomRight: Radius.circular(24),
+                boxShadow: [
+                  BoxShadow(
+                    color: kPrimary.withOpacity(0.3),
+                    blurRadius: 20,
+                    offset: const Offset(0, 8),
                   ),
-                  boxShadow: [
-                    BoxShadow(
-                      color: kPrimary.withOpacity(0.3),
-                      blurRadius: 20,
-                      offset: const Offset(0, 8),
-                    ),
-                  ],
-                ),
-                child: Row(
-                  children: [
-                    IconButton(
-                      icon: const Icon(
-                        Icons.chevron_left_rounded,
-                        color: Colors.white,
-                        size: 28,
-                      ),
-                      onPressed: () => Navigator.pop(context),
-                    ),
-                    const Icon(
-                      Icons.track_changes_rounded,
+                ],
+              ),
+              child: Row(
+                children: [
+                  IconButton(
+                    icon: const Icon(
+                      Icons.chevron_left_rounded,
                       color: Colors.white,
                       size: 28,
                     ),
-                    const SizedBox(width: 16),
-                    Expanded(
-                      child: Text(
-                        'Service Tracker',
-                        style: TextStyle(
-                          fontSize: headerFontSize,
-                          fontWeight: FontWeight.w800,
-                          color: Colors.white,
-                          fontFamily: 'Montserrat',
-                          letterSpacing: 0.3,
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
+                    onPressed: () => Navigator.pop(context),
+                  ),
+                  const Icon(
+                    Icons.track_changes_rounded,
+                    color: Colors.white,
+                    size: 28,
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: Text(
+                      'Service Tracker',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w800,
+                        color: Colors.white,
+                        fontFamily: 'Montserrat',
+                        letterSpacing: 0.3,
                       ),
-                    ),
-                  ],
-                ),
-              ),
-              // ADD THIS BLOCK BELOW THE HEADER CONTAINER
-              if (!_loading && _notices.isNotEmpty)
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(24, 16, 24, 0),
-                  child: Align(
-                    alignment: Alignment.centerLeft,
-                    child: TextButton.icon(
-                      icon: const Icon(Icons.add, color: kPrimary),
-                      label: const Text(
-                        'Add Service for All',
-                        style: TextStyle(
-                          color: kPrimary,
-                          fontWeight: FontWeight.w600,
-                          fontFamily: 'Montserrat',
-                        ),
-                      ),
-                      onPressed: () async {
-                        final controller = TextEditingController();
-                        final result = await showDialog<String>(
-                          context: context,
-                          builder: (context) => AlertDialog(
-                            title: const Text('Add Service for All'),
-                            content: TextField(
-                              controller: controller,
-                              autofocus: true,
-                              decoration: const InputDecoration(
-                                labelText: 'Service Name',
-                              ),
-                            ),
-                            actions: [
-                              TextButton(
-                                onPressed: () => Navigator.pop(context),
-                                child: const Text('Cancel'),
-                              ),
-                              ElevatedButton(
-                                onPressed: () {
-                                  if (controller.text.trim().isNotEmpty) {
-                                    Navigator.pop(context, controller.text.trim());
-                                  }
-                                },
-                                child: const Text('Add'),
-                              ),
-                            ],
-                          ),
-                        );
-                        if (result != null && result.isNotEmpty) {
-                          await _addServiceForAll(result);
-                        }
-                      },
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                     ),
                   ),
+                ],
+              ),
+            ),
+            // ADD THIS BLOCK BELOW THE HEADER CONTAINER
+            if (!_loading && _notices.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(24, 16, 24, 0),
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: TextButton.icon(
+                    icon: const Icon(Icons.add, color: kPrimary),
+                    label: const Text(
+                      'Add Service for All',
+                      style: TextStyle(
+                        color: kPrimary,
+                        fontWeight: FontWeight.w600,
+                        fontFamily: 'Montserrat',
+                      ),
+                    ),
+                    onPressed: () async {
+                      final controller = TextEditingController();
+                      final result = await showDialog<String>(
+                        context: context,
+                        builder: (context) => AlertDialog(
+                          title: const Text('Add Service for All'),
+                          content: TextField(
+                            controller: controller,
+                            autofocus: true,
+                            decoration: const InputDecoration(
+                              labelText: 'Service Name',
+                            ),
+                          ),
+                          actions: [
+                            TextButton(
+                              onPressed: () => Navigator.pop(context),
+                              child: const Text('Cancel'),
+                            ),
+                            ElevatedButton(
+                              onPressed: () {
+                                if (controller.text.trim().isNotEmpty) {
+                                  Navigator.pop(
+                                    context,
+                                    controller.text.trim(),
+                                  );
+                                }
+                              },
+                              child: const Text('Add'),
+                            ),
+                          ],
+                        ),
+                      );
+                      if (result != null && result.isNotEmpty) {
+                        await _addServiceForAll(result);
+                      }
+                    },
+                  ),
                 ),
-              // Content
-              Expanded(
-                child: _loading
-                    ? Center(
-                        child: Container(
-                          padding: const EdgeInsets.all(24),
-                          decoration: BoxDecoration(
-                            color: kCardBg,
-                            borderRadius: BorderRadius.circular(20),
-                            border: Border.all(
-                              color: kBorderColor.withOpacity(0.3),
-                              width: 1,
+              ),
+            // Content
+            Expanded(
+              child: _loading
+                  ? Center(
+                      child: Container(
+                        padding: const EdgeInsets.all(24),
+                        decoration: BoxDecoration(
+                          color: kCardBg,
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(
+                            color: kBorderColor.withOpacity(0.3),
+                            width: 1,
+                          ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withOpacity(0.05),
+                              blurRadius: 15,
+                              offset: const Offset(0, 6),
                             ),
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.black.withOpacity(0.05),
-                                blurRadius: 15,
-                                offset: const Offset(0, 6),
-                              ),
-                            ],
-                          ),
-                          child: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              CircularProgressIndicator(
-                                color: kPrimary,
-                                strokeWidth: 3,
-                              ),
-                              const SizedBox(height: 16),
-                              const Text(
-                                'Loading service tracker...',
-                                style: TextStyle(
-                                  color: kSubText,
-                                  fontSize: 12,
-                                  fontFamily: 'OpenSans',
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                            ],
-                          ),
+                          ],
                         ),
-                      )
-                    : _notices.isEmpty
-                    ? Center(
-                        child: Container(
-                          margin: const EdgeInsets.all(20),
-                          padding: const EdgeInsets.all(24),
-                          decoration: BoxDecoration(
-                            color: kCardBg,
-                            borderRadius: BorderRadius.circular(20),
-                            border: Border.all(
-                              color: kBorderColor.withOpacity(0.3),
-                              width: 1,
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            CircularProgressIndicator(
+                              color: kPrimary,
+                              strokeWidth: 3,
                             ),
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.black.withOpacity(0.05),
-                                blurRadius: 15,
-                                offset: const Offset(0, 6),
-                              ),
-                            ],
-                          ),
-                          child: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(
-                                Icons.track_changes_rounded,
-                                size: 48,
+                            const SizedBox(height: 16),
+                            const Text(
+                              'Loading service tracker...',
+                              style: TextStyle(
                                 color: kSubText,
+                                fontSize: 12,
+                                fontFamily: 'OpenSans',
+                                fontWeight: FontWeight.w600,
                               ),
-                              const SizedBox(height: 16),
-                              const Text(
-                                'No service records found',
-                                style: TextStyle(
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.w700,
-                                  color: kText,
-                                  fontFamily: 'Montserrat',
-                                ),
-                              ),
-                              const SizedBox(height: 8),
-                              const Text(
-                                'No death notices have been recorded yet',
-                                style: TextStyle(
-                                  fontSize: 10,
-                                  color: kSubText,
-                                  fontFamily: 'OpenSans',
-                                ),
-                                textAlign: TextAlign.center,
-                              ),
-                            ],
-                          ),
+                            ),
+                          ],
                         ),
-                      )
-                    : Padding(
-                        padding: const EdgeInsets.all(12),
-                        child: ListView.separated(
-                          itemCount: _notices.length,
-                          separatorBuilder: (_, __) =>
-                              const SizedBox(height: 8),
-                          itemBuilder: (context, i) {
-                            final n = _notices[i]['notice'];
-                            return GestureDetector(
-                              onTap: () => _showVigilLocationModal(context, n),
-                              child: Container(
-                                padding: const EdgeInsets.all(12),
-                                decoration: BoxDecoration(
-                                  color: kCardBg,
-                                  borderRadius: BorderRadius.circular(10),
-                                  border: Border.all(
-                                    color: kBorderColor.withOpacity(0.3),
-                                    width: 1,
-                                  ),
-                                  boxShadow: [
-                                    BoxShadow(
-                                      color: Colors.black.withOpacity(0.02),
-                                      blurRadius: 6,
-                                      offset: const Offset(0, 1),
-                                    ),
-                                  ],
+                      ),
+                    )
+                  : _notices.isEmpty
+                  ? Center(
+                      child: Container(
+                        margin: const EdgeInsets.all(20),
+                        padding: const EdgeInsets.all(24),
+                        decoration: BoxDecoration(
+                          color: kCardBg,
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(
+                            color: kBorderColor.withOpacity(0.3),
+                            width: 1,
+                          ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withOpacity(0.05),
+                              blurRadius: 15,
+                              offset: const Offset(0, 6),
+                            ),
+                          ],
+                        ),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              Icons.track_changes_rounded,
+                              size: 48,
+                              color: kSubText,
+                            ),
+                            const SizedBox(height: 16),
+                            const Text(
+                              'No service records found',
+                              style: TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w700,
+                                color: kText,
+                                fontFamily: 'Montserrat',
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            const Text(
+                              'No death notices have been recorded yet',
+                              style: TextStyle(
+                                fontSize: 10,
+                                color: kSubText,
+                                fontFamily: 'OpenSans',
+                              ),
+                              textAlign: TextAlign.center,
+                            ),
+                          ],
+                        ),
+                      ),
+                    )
+                  : Padding(
+                      padding: const EdgeInsets.all(12),
+                      child: ListView.separated(
+                        itemCount: _notices.length,
+                        separatorBuilder: (_, __) => const SizedBox(height: 8),
+                        itemBuilder: (context, i) {
+                          final n = _notices[i]['notice'];
+                          return GestureDetector(
+                            onTap: () => _showVigilLocationModal(context, n),
+                            child: Container(
+                              padding: const EdgeInsets.all(12),
+                              decoration: BoxDecoration(
+                                color: kCardBg,
+                                borderRadius: BorderRadius.circular(10),
+                                border: Border.all(
+                                  color: kBorderColor.withOpacity(0.3),
+                                  width: 1,
                                 ),
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Row(
-                                      children: [
-                                        const Icon(
-                                          Icons.person_rounded,
-                                          color: kPrimary,
-                                          size: 18,
-                                        ),
-                                        const SizedBox(width: 12),
-                                        Expanded(
-                                          child: Column(
-                                            crossAxisAlignment:
-                                                CrossAxisAlignment.start,
-                                            children: [
-                                              Text(
-                                                n['name'] ?? '',
-                                                style: const TextStyle(
-                                                  fontWeight: FontWeight.w700,
-                                                  fontSize: 14,
-                                                  color: kText,
-                                                  fontFamily: 'Montserrat',
-                                                ),
-                                              ),
-                                              const SizedBox(height: 2),
-                                              Text(
-                                                n['date_of_death'] ?? '',
-                                                style: const TextStyle(
-                                                  fontSize: 11,
-                                                  color: kSubText,
-                                                  fontFamily: 'OpenSans',
-                                                  fontWeight: FontWeight.w500,
-                                                ),
-                                              ),
-                                            ],
-                                          ),
-                                        ),
-                                        const Icon(
-                                          Icons.chevron_right,
-                                          color: kSubText,
-                                          size: 18,
-                                        ),
-                                      ],
-                                    ),
-                                    const SizedBox(height: 12),
-                                    Consumer(
-                                      builder: (context, ref, _) {
-                                        final checklist = ref.watch(
-                                          serviceChecklistProvider(n['id']),
-                                        );
-                                        final doneCount = checklist
-                                            .where((c) => c['is_done'] == true)
-                                            .length;
-                                        final total = checklist.length;
-                                        final progress = total == 0
-                                            ? 0.0
-                                            : doneCount / total;
-
-                                        return Column(
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.black.withOpacity(0.02),
+                                    blurRadius: 6,
+                                    offset: const Offset(0, 1),
+                                  ),
+                                ],
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Row(
+                                    children: [
+                                      const Icon(
+                                        Icons.person_rounded,
+                                        color: kPrimary,
+                                        size: 18,
+                                      ),
+                                      const SizedBox(width: 12),
+                                      Expanded(
+                                        child: Column(
                                           crossAxisAlignment:
                                               CrossAxisAlignment.start,
                                           children: [
-                                            const Text(
-                                              'Service Checklist:',
-                                              style: TextStyle(
+                                            Text(
+                                              n['name'] ?? '',
+                                              style: const TextStyle(
                                                 fontWeight: FontWeight.w700,
-                                                fontSize: 13,
+                                                fontSize: 14,
                                                 color: kText,
                                                 fontFamily: 'Montserrat',
                                               ),
                                             ),
-                                            const SizedBox(height: 8),
-                                            LinearProgressIndicator(
-                                              value: progress,
-                                              backgroundColor: kBorderColor
-                                                  .withOpacity(0.2),
-                                              color: kSuccess,
-                                            ),
-                                            const SizedBox(height: 8),
+                                            const SizedBox(height: 2),
                                             Text(
-                                              '$doneCount of $total services completed',
+                                              n['date_of_death'] ?? '',
                                               style: const TextStyle(
-                                                fontSize: 12,
+                                                fontSize: 11,
                                                 color: kSubText,
                                                 fontFamily: 'OpenSans',
+                                                fontWeight: FontWeight.w500,
                                               ),
                                             ),
-                                            const SizedBox(height: 8),
-                                            ...checklist.map((c) {
-                                              final done = c['is_done'] == true;
-                                              final updatedAt = c['updated_at'];
-                                              String formattedDate = '';
-                                              if (updatedAt != null) {
-                                                try {
-                                                  final date = DateTime.parse(
-                                                    updatedAt,
-                                                  );
-                                                  formattedDate =
-                                                      '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
-                                                } catch (_) {}
-                                              }
-                                              return ListTile(
-                                                leading: Checkbox(
-                                                  value: done,
-                                                  onChanged: (val) {
-                                                    ref
-                                                        .read(
-                                                          serviceChecklistProvider(
-                                                            n['id'],
-                                                          ).notifier,
-                                                        )
-                                                        .toggleDone(
-                                                          c['id'],
-                                                          val ?? false,
-                                                        );
-                                                  },
-                                                  activeColor: kSuccess,
-                                                ),
-                                                title: Row(
-                                                  children: [
-                                                    Expanded(
+                                          ],
+                                        ),
+                                      ),
+                                      const Icon(
+                                        Icons.chevron_right,
+                                        color: kSubText,
+                                        size: 18,
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 12),
+                                  Consumer(
+                                    builder: (context, ref, _) {
+                                      final checklist = ref.watch(
+                                        serviceChecklistProvider(n['id']),
+                                      );
+                                      final doneCount = checklist
+                                          .where((c) => c['is_done'] == true)
+                                          .length;
+                                      final total = checklist.length;
+                                      final progress = total == 0
+                                          ? 0.0
+                                          : doneCount / total;
+
+                                      return Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          const Text(
+                                            'Service Checklist:',
+                                            style: TextStyle(
+                                              fontWeight: FontWeight.w700,
+                                              fontSize: 13,
+                                              color: kText,
+                                              fontFamily: 'Montserrat',
+                                            ),
+                                          ),
+                                          const SizedBox(height: 8),
+                                          LinearProgressIndicator(
+                                            value: progress,
+                                            backgroundColor: kBorderColor
+                                                .withOpacity(0.2),
+                                            color: kSuccess,
+                                          ),
+                                          const SizedBox(height: 8),
+                                          Text(
+                                            '$doneCount of $total services completed',
+                                            style: const TextStyle(
+                                              fontSize: 12,
+                                              color: kSubText,
+                                              fontFamily: 'OpenSans',
+                                            ),
+                                          ),
+                                          const SizedBox(height: 8),
+                                          ...checklist.map((c) {
+                                            final done = c['is_done'] == true;
+                                            final updatedAt = c['updated_at'];
+                                            String formattedDate = '';
+                                            if (updatedAt != null) {
+                                              try {
+                                                final date = DateTime.parse(
+                                                  updatedAt,
+                                                );
+                                                formattedDate =
+                                                    '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
+                                              } catch (_) {}
+                                            }
+                                            return ListTile(
+                                              leading: Checkbox(
+                                                value: done,
+                                                onChanged: (val) {
+                                                  ref
+                                                      .read(
+                                                        serviceChecklistProvider(
+                                                          n['id'],
+                                                        ).notifier,
+                                                      )
+                                                      .toggleDone(
+                                                        c['id'],
+                                                        val ?? false,
+                                                      );
+                                                },
+                                                activeColor: kSuccess,
+                                              ),
+                                              title: Row(
+                                                children: [
+                                                  Expanded(
+                                                    child: Text(
+                                                      c['service_name'] ?? '',
+                                                      style: TextStyle(
+                                                        color: done
+                                                            ? kSuccess
+                                                            : kDanger,
+                                                        fontWeight:
+                                                            FontWeight.w600,
+                                                        fontFamily: 'OpenSans',
+                                                      ),
+                                                    ),
+                                                  ),
+                                                  IconButton(
+                                                    icon: const Icon(
+                                                      Icons.edit,
+                                                      size: 18,
+                                                      color: kPrimary,
+                                                    ),
+                                                    tooltip: 'Edit Service',
+                                                    onPressed: () async {
+                                                      final controller =
+                                                          TextEditingController(
+                                                            text:
+                                                                c['service_name'],
+                                                          );
+                                                      final result = await showDialog<String>(
+                                                        context: context,
+                                                        builder: (context) => AlertDialog(
+                                                          title: const Text(
+                                                            'Edit Service',
+                                                          ),
+                                                          content: TextField(
+                                                            controller:
+                                                                controller,
+                                                            autofocus: true,
+                                                            decoration:
+                                                                const InputDecoration(
+                                                                  labelText:
+                                                                      'Service Name',
+                                                                ),
+                                                          ),
+                                                          actions: [
+                                                            TextButton(
+                                                              onPressed: () =>
+                                                                  Navigator.pop(
+                                                                    context,
+                                                                  ),
+                                                              child: const Text(
+                                                                'Cancel',
+                                                              ),
+                                                            ),
+                                                            ElevatedButton(
+                                                              onPressed: () {
+                                                                if (controller
+                                                                    .text
+                                                                    .trim()
+                                                                    .isNotEmpty) {
+                                                                  Navigator.pop(
+                                                                    context,
+                                                                    controller
+                                                                        .text
+                                                                        .trim(),
+                                                                  );
+                                                                }
+                                                              },
+                                                              child: const Text(
+                                                                'Save',
+                                                              ),
+                                                            ),
+                                                          ],
+                                                        ),
+                                                      );
+                                                      if (result != null &&
+                                                          result.isNotEmpty) {
+                                                        await ref
+                                                            .read(
+                                                              serviceChecklistProvider(
+                                                                n['id'],
+                                                              ).notifier,
+                                                            )
+                                                            .editService(
+                                                              c['id'],
+                                                              result,
+                                                            );
+                                                      }
+                                                    },
+                                                  ),
+                                                  if (formattedDate.isNotEmpty)
+                                                    Padding(
+                                                      padding:
+                                                          const EdgeInsets.only(
+                                                            left: 8.0,
+                                                          ),
                                                       child: Text(
-                                                        c['service_name'] ?? '',
-                                                        style: TextStyle(
-                                                          color: done
-                                                              ? kSuccess
-                                                              : kDanger,
-                                                          fontWeight:
-                                                              FontWeight.w600,
+                                                        formattedDate,
+                                                        style: const TextStyle(
+                                                          fontSize: 10,
+                                                          color: kSubText,
                                                           fontFamily:
                                                               'OpenSans',
                                                         ),
                                                       ),
                                                     ),
-                                                    IconButton(
-                                                      icon: const Icon(
-                                                        Icons.edit,
-                                                        size: 18,
-                                                        color: kPrimary,
-                                                      ),
-                                                      tooltip: 'Edit Service',
-                                                      onPressed: () async {
-                                                        final controller =
-                                                            TextEditingController(
-                                                              text:
-                                                                  c['service_name'],
-                                                            );
-                                                        final result = await showDialog<String>(
-                                                          context: context,
-                                                          builder: (context) => AlertDialog(
-                                                            title: const Text(
-                                                              'Edit Service',
-                                                            ),
-                                                            content: TextField(
-                                                              controller:
-                                                                  controller,
-                                                              autofocus: true,
-                                                              decoration:
-                                                                  const InputDecoration(
-                                                                    labelText:
-                                                                        'Service Name',
-                                                                  ),
-                                                            ),
-                                                            actions: [
-                                                              TextButton(
-                                                                onPressed: () =>
-                                                                    Navigator.pop(
-                                                                      context,
-                                                                    ),
-                                                                child:
-                                                                    const Text(
-                                                                      'Cancel',
-                                                                    ),
-                                                              ),
-                                                              ElevatedButton(
-                                                                onPressed: () {
-                                                                  if (controller
-                                                                      .text
-                                                                      .trim()
-                                                                      .isNotEmpty) {
-                                                                    Navigator.pop(
-                                                                      context,
-                                                                      controller
-                                                                          .text
-                                                                          .trim(),
-                                                                    );
-                                                                  }
-                                                                },
-                                                                child:
-                                                                    const Text(
-                                                                      'Save',
-                                                                    ),
-                                                              ),
-                                                            ],
-                                                          ),
-                                                        );
-                                                        if (result != null &&
-                                                            result.isNotEmpty) {
-                                                          await ref
-                                                              .read(
-                                                                serviceChecklistProvider(
-                                                                  n['id'],
-                                                                ).notifier,
-                                                              )
-                                                              .editService(
-                                                                c['id'],
-                                                                result,
-                                                              );
-                                                        }
-                                                      },
-                                                    ),
-                                                    if (formattedDate
-                                                        .isNotEmpty)
-                                                      Padding(
-                                                        padding:
-                                                            const EdgeInsets.only(
-                                                              left: 8.0,
-                                                            ),
-                                                        child: Text(
-                                                          formattedDate,
-                                                          style:
-                                                              const TextStyle(
-                                                                fontSize: 10,
-                                                                color: kSubText,
-                                                                fontFamily:
-                                                                    'OpenSans',
-                                                              ),
-                                                        ),
-                                                      ),
-                                                  ],
-                                                ),
-                                              );
-                                            }),
-                                            // Removed per-member Add Service button here
-                                          ],
-                                        );
-                                      },
-                                    ),
-                                  ],
-                                ),
+                                                ],
+                                              ),
+                                            );
+                                          }),
+                                          // Removed per-member Add Service button here
+                                        ],
+                                      );
+                                    },
+                                  ),
+                                ],
                               ),
-                            );
-                          },
-                        ),
+                            ),
+                          );
+                        },
                       ),
-              ),
-            ],
-          );
-        },
+                    ),
+            ),
+          ],
+        ),
       ),
     );
   }
-}
 
-void _showVigilLocationModal(
-  BuildContext context,
-  Map<String, dynamic> notice,
-) {
-  showModalBottomSheet(
-    context: context,
-    isScrollControlled: true,
-    backgroundColor: Colors.transparent,
-    builder: (context) => Container(
-      height: MediaQuery.of(context).size.height * 0.9,
-      decoration: const BoxDecoration(
-        color: Color(0xFFF8FAFC),
-        borderRadius: BorderRadius.only(
-          topLeft: Radius.circular(24),
-          topRight: Radius.circular(24),
-        ),
-      ),
-      child: Column(
-        children: [
-          // Header
-          Container(
-            padding: const EdgeInsets.fromLTRB(20, 36, 20, 28),
-            decoration: const BoxDecoration(
-              color: kPrimaryDark,
-              borderRadius: BorderRadius.only(
-                bottomLeft: Radius.circular(28),
-                bottomRight: Radius.circular(28),
-              ),
-              boxShadow: [
-                BoxShadow(
-                  color: Color(0xFF1E40AF),
-                  blurRadius: 18,
-                  offset: Offset(0, 8),
-                ),
-              ],
-            ),
-            child: Row(
-              children: [
-                IconButton(
-                  icon: const Icon(
-                    Icons.arrow_back_rounded,
-                    color: Colors.white,
-                    size: 26,
-                  ),
-                  onPressed: () => Navigator.pop(context),
-                ),
-                const SizedBox(width: 4),
-                const Icon(
-                  Icons.track_changes_rounded,
-                  color: Colors.white,
-                  size: 28,
-                ),
-                const SizedBox(width: 16),
-                const Expanded(
-                  child: Text(
-                    'Death Information',
-                    style: TextStyle(
-                      fontSize: 22,
-                      fontWeight: FontWeight.w800,
-                      color: Colors.white,
-                      fontFamily: 'Montserrat',
-                      letterSpacing: 0.3,
-                    ),
-                  ),
-                ),
-              ],
-            ),
+  void _showVigilLocationModal(
+    BuildContext context,
+    Map<String, dynamic> notice,
+  ) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => Container(
+        height: MediaQuery.of(context).size.height * 0.9,
+        decoration: const BoxDecoration(
+          color: Color(0xFFF8FAFC),
+          borderRadius: BorderRadius.only(
+            topLeft: Radius.circular(24),
+            topRight: Radius.circular(24),
           ),
-          // Content
-          Expanded(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.all(20),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+        ),
+        child: Column(
+          children: [
+            // Header
+            Container(
+              padding: const EdgeInsets.fromLTRB(20, 36, 20, 28),
+              decoration: const BoxDecoration(
+                color: kPrimaryDark,
+                borderRadius: BorderRadius.only(
+                  bottomLeft: Radius.circular(28),
+                  bottomRight: Radius.circular(28),
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: Color(0xFF1E40AF),
+                    blurRadius: 18,
+                    offset: Offset(0, 8),
+                  ),
+                ],
+              ),
+              child: Row(
                 children: [
-                  // In loving memory section
-                  Row(
-                    children: [
-                      IconButton(
-                        icon: const Icon(
-                          Icons.chevron_left,
-                          color: kText,
-                          size: 24,
-                        ),
-                        onPressed: () => Navigator.pop(context),
-                      ),
-                      Container(
-                        padding: const EdgeInsets.all(8),
-                        decoration: BoxDecoration(
-                          color: kBorderColor.withOpacity(0.3),
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: const Icon(
-                          Icons.folder_rounded,
-                          color: kText,
-                          size: 20,
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      const Text(
-                        'In loving memory of:',
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w600,
-                          color: kText,
-                          fontFamily: 'Montserrat',
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-                  // User information card
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 8,
+                  IconButton(
+                    icon: const Icon(
+                      Icons.arrow_back_rounded,
+                      color: Colors.white,
+                      size: 26,
                     ),
+                    onPressed: () => Navigator.pop(context),
+                  ),
+                  const SizedBox(width: 4),
+                  const Icon(
+                    Icons.track_changes_rounded,
+                    color: Colors.white,
+                    size: 28,
+                  ),
+                  const SizedBox(width: 16),
+                  const Expanded(
                     child: Text(
-                      '${notice['name'] ?? 'Unknown'}',
-                      style: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w700,
-                        color: kText,
-                        fontFamily: 'Montserrat',
-                      ),
-                      textAlign: TextAlign.center,
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  // Date
-                  Center(
-                    child: Text(
-                      '--- ${_formatDate(notice['date_of_death'])}',
-                      style: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w600,
-                        color: kText,
-                        fontFamily: 'Montserrat',
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 24),
-                  // Location of Vigil
-                  Row(
-                    children: [
-                      const Text(
-                        'Location of Vigil:',
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w600,
-                          color: kText,
-                          fontFamily: 'Montserrat',
-                        ),
-                      ),
-                      const Spacer(),
-                      Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const Icon(
-                            Icons.location_on_rounded,
-                            color: kPrimary,
-                            size: 16,
-                          ),
-                          const SizedBox(width: 4),
-                          const Text(
-                            'Open in Maps',
-                            style: TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w600,
-                              color: kPrimary,
-                              fontFamily: 'Montserrat',
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-                  // Location name
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 8,
-                    ),
-                    child: const Text(
-                      'Centro San Juan',
+                      'Death Information',
                       style: TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
-                        color: kText,
+                        fontSize: 22,
+                        fontWeight: FontWeight.w800,
+                        color: Colors.white,
                         fontFamily: 'Montserrat',
-                      ),
-                      textAlign: TextAlign.center,
-                    ),
-                  ),
-                  const SizedBox(height: 20),
-                  // Map placeholder
-                  Container(
-                    height: 120,
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(16),
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        const Icon(
-                          Icons.map_rounded,
-                          size: 32,
-                          color: kSubText,
-                        ),
-                        const SizedBox(height: 8),
-                        const Text(
-                          'Map View',
-                          style: TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
-                            color: kSubText,
-                            fontFamily: 'Montserrat',
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        const Text(
-                          'Centro San Juan Location',
-                          style: TextStyle(
-                            fontSize: 10,
-                            color: kSubText,
-                            fontFamily: 'OpenSans',
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 20),
-                  // Footer message
-                  const Center(
-                    child: Text(
-                      'With deepest respect and remembrance.',
-                      style: TextStyle(
-                        fontSize: 14,
-                        fontStyle: FontStyle.italic,
-                        color: kSubText,
-                        fontFamily: 'OpenSans',
+                        letterSpacing: 0.3,
                       ),
                     ),
                   ),
                 ],
               ),
             ),
-          ),
-        ],
+            // Content
+            Expanded(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(20),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // In loving memory section
+                    Row(
+                      children: [
+                        IconButton(
+                          icon: const Icon(
+                            Icons.chevron_left,
+                            color: kText,
+                            size: 24,
+                          ),
+                          onPressed: () => Navigator.pop(context),
+                        ),
+                        Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: kBorderColor.withOpacity(0.3),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: const Icon(
+                            Icons.folder_rounded,
+                            color: kText,
+                            size: 20,
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        const Text(
+                          'In loving memory of:',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                            color: kText,
+                            fontFamily: 'Montserrat',
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    // User information card
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 8,
+                      ),
+                      child: Text(
+                        '${notice['name'] ?? 'Unknown'}',
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w700,
+                          color: kText,
+                          fontFamily: 'Montserrat',
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    // Date
+                    Center(
+                      child: Text(
+                        '--- ${_formatDate(notice['date_of_death'])}',
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                          color: kText,
+                          fontFamily: 'Montserrat',
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+                    // Location of Vigil
+                    Row(
+                      children: [
+                        const Text(
+                          'Location of Vigil:',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                            color: kText,
+                            fontFamily: 'Montserrat',
+                          ),
+                        ),
+                        const Spacer(),
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(
+                              Icons.location_on_rounded,
+                              color: kPrimary,
+                              size: 16,
+                            ),
+                            const SizedBox(width: 4),
+                            const Text(
+                              'Open in Maps',
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                                color: kPrimary,
+                                fontFamily: 'Montserrat',
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    // Location name
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 8,
+                      ),
+                      child: const Text(
+                        'Centro San Juan',
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          color: kText,
+                          fontFamily: 'Montserrat',
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+                    // Map placeholder
+                    Container(
+                      height: 120,
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(16),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          const Icon(
+                            Icons.map_rounded,
+                            size: 32,
+                            color: kSubText,
+                          ),
+                          const SizedBox(height: 8),
+                          const Text(
+                            'Map View',
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                              color: kSubText,
+                              fontFamily: 'Montserrat',
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          const Text(
+                            'Centro San Juan Location',
+                            style: TextStyle(
+                              fontSize: 10,
+                              color: kSubText,
+                              fontFamily: 'OpenSans',
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+                    // Footer message
+                    const Center(
+                      child: Text(
+                        'With deepest respect and remembrance.',
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontStyle: FontStyle.italic,
+                          color: kSubText,
+                          fontFamily: 'OpenSans',
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
-    ),
-  );
-}
+    );
+  }
 
-String _formatDate(dynamic dateString) {
-  if (dateString == null) return 'Unknown Date';
-  try {
-    final date = DateTime.parse(dateString.toString());
-    final months = [
-      'Jan',
-      'Feb',
-      'Mar',
-      'Apr',
-      'May',
-      'Jun',
-      'Jul',
-      'Aug',
-      'Sep',
-      'Oct',
-      'Nov',
-      'Dec',
-    ];
-    return '${months[date.month - 1]} ${date.day}, ${date.year}';
-  } catch (e) {
-    return dateString.toString();
+  String _formatDate(dynamic dateString) {
+    if (dateString == null) return 'Unknown Date';
+    try {
+      final date = DateTime.parse(dateString.toString());
+      final months = [
+        'Jan',
+        'Feb',
+        'Mar',
+        'Apr',
+        'May',
+        'Jun',
+        'Jul',
+        'Aug',
+        'Sep',
+        'Oct',
+        'Nov',
+        'Dec',
+      ];
+      return '${months[date.month - 1]} ${date.day}, ${date.year}';
+    } catch (e) {
+      return dateString.toString();
+    }
   }
 }

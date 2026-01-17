@@ -1036,15 +1036,18 @@ class _MembersClaimsPageState extends State<MembersClaimsPage>
           ],
         ),
       ),
-      floatingActionButton: FloatingActionButton.extended(
-        backgroundColor: kAccent,
-        foregroundColor: Colors.white,
-        icon: Icon(Icons.add),
-        label: Text(
-          'Submit Claim',
-          style: TextStyle(fontWeight: FontWeight.bold),
+      floatingActionButton: Padding(
+        padding: const EdgeInsets.only(bottom: 60), // adjust as needed
+        child: FloatingActionButton.extended(
+          backgroundColor: kAccent,
+          foregroundColor: Colors.white,
+          icon: Icon(Icons.add),
+          label: Text(
+            'Submit Claim',
+            style: TextStyle(fontWeight: FontWeight.bold),
+          ),
+          onPressed: _openSubmitSheet,
         ),
-        onPressed: _openSubmitSheet,
       ),
       floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
     );
