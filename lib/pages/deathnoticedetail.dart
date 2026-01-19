@@ -23,7 +23,7 @@ class DeathNoticeDetail extends StatefulWidget {
   final String? barangay;
 
   const DeathNoticeDetail({
-    Key? key,
+    super.key,
     required String name,
     required String date,
     this.birthDate,
@@ -33,11 +33,10 @@ class DeathNoticeDetail extends StatefulWidget {
   }) : noticeId = null,
        dayungUnitId = null,
        name = name,
-       date = date,
-       super(key: key);
+       date = date;
 
   const DeathNoticeDetail.byNoticeId({
-    Key? key,
+    super.key,
     required this.noticeId,
     this.dayungUnitId,
     this.name,
@@ -46,7 +45,7 @@ class DeathNoticeDetail extends StatefulWidget {
     this.latitude,
     this.longitude,
     this.barangay,
-  }) : super(key: key);
+  });
 
   @override
   State<DeathNoticeDetail> createState() => _DeathNoticeDetailState();
@@ -127,7 +126,7 @@ class _DeathNoticeDetailState extends State<DeathNoticeDetail> {
 
   Widget _webMap(double lat, double lng, String name) {
     return RepaintBoundary(
-      key: ValueKey('web_map_${lat}_${lng}'),
+      key: ValueKey('web_map_${lat}_$lng'),
       child: ml.MapLibreMap(
         styleString: 'https://demotiles.maplibre.org/style.json',
         initialCameraPosition: ml.CameraPosition(
@@ -232,8 +231,9 @@ class _DeathNoticeDetailState extends State<DeathNoticeDetail> {
     if (_routeLine == null ||
         _initialDistance == null ||
         _distanceMeters == null ||
-        _mapController == null)
+        _mapController == null) {
       return;
+    }
 
     final remaining = _distanceMeters!;
     if (remaining <= _fadeRemoveThreshold) {
@@ -266,8 +266,9 @@ class _DeathNoticeDetailState extends State<DeathNoticeDetail> {
   }
 
   Future<void> _fetchRoadRoute() async {
-    if (_fLat == null || _fLng == null || _userLat == null || _userLng == null)
+    if (_fLat == null || _fLng == null || _userLat == null || _userLng == null) {
       return;
+    }
 
     final apiKey =
         'eyJvcmciOiI1YjNjZTM1OTc4NTExMTAwMDFjZjYyNDgiLCJpZCI6IjJmYTI4ZjFkODc3NzQ1ZTNiNGI3ZGIxNGI5MGFlYzI1IiwiaCI6Im11cm11cjY0In0=';
@@ -313,8 +314,9 @@ class _DeathNoticeDetailState extends State<DeathNoticeDetail> {
   }
 
   void _computeDistance() {
-    if (_fLat == null || _fLng == null || _userLat == null || _userLng == null)
+    if (_fLat == null || _fLng == null || _userLat == null || _userLng == null) {
       return;
+    }
     _distanceMeters = Geolocator.distanceBetween(
       _userLat!,
       _userLng!,
@@ -966,7 +968,7 @@ class _DeathNoticeDetailState extends State<DeathNoticeDetail> {
                                 child: Stack(
                                   children: [
                                     ml.MapLibreMap(
-                                      key: ValueKey('map_${_fLat}_${_fLng}'),
+                                      key: ValueKey('map_${_fLat}_$_fLng'),
                                       styleString:
                                           'https://api.maptiler.com/maps/basic-v2/style.json?key=ZgS5pYNNGTrRGUAnlS71',
                                       initialCameraPosition: ml.CameraPosition(
@@ -1312,12 +1314,11 @@ class _CenterBtn extends StatelessWidget {
   final bool enabled;
   final VoidCallback onTap;
   const _CenterBtn({
-    Key? key,
     required this.tooltip,
     required this.icon,
     required this.enabled,
     required this.onTap,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {

@@ -45,8 +45,9 @@ class _GCashPaymentPageState extends State<GCashPaymentPage> {
   Future<void> uploadImage(
     String setAmountId,
     String userdeceased,
-    int amount,
-  ) async {
+    int amount, {
+    required int deathNoticeId,
+  }) async {
     setState(() => _isUploading = true);
 
     try {
@@ -69,6 +70,39 @@ class _GCashPaymentPageState extends State<GCashPaymentPage> {
       final pickedFile = await picker.pickImage(source: ImageSource.gallery);
 
       if (pickedFile == null) return;
+
+      final imageBytes = await pickedFile.readAsBytes();
+
+      // Show confirmation dialog before uploading
+      final confirm = await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('Confirm Upload'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text('Are you sure you want to upload this receipt?'),
+              const SizedBox(height: 16),
+              Image.memory(imageBytes, height: 180),
+            ],
+          ),
+          actions: [
+            TextButton(
+              child: const Text('Cancel'),
+              onPressed: () => Navigator.of(context).pop(false),
+            ),
+            ElevatedButton(
+              child: const Text('Upload'),
+              onPressed: () => Navigator.of(context).pop(true),
+            ),
+          ],
+        ),
+      );
+
+      if (confirm != true) {
+        setState(() => _isUploading = false);
+        return;
+      }
 
       final fileName =
           '${DateTime.now().millisecondsSinceEpoch}_${pickedFile.name}';
@@ -98,11 +132,36 @@ class _GCashPaymentPageState extends State<GCashPaymentPage> {
         'status': 'pending',
         'created_at': DateTime.now().toIso8601String().substring(0, 19),
         'dayung_unit_id': widget.dayungUnitId,
+        'death_notice_id': deathNoticeId,
       });
 
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Image uploaded successfully!')),
       );
+
+      // Show confirmation dialog
+      final uploadAgain = await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('Upload Complete'),
+          actions: [
+            TextButton(
+              child: const Text('No'),
+              onPressed: () => Navigator.of(context).pop(false),
+            ),
+            ElevatedButton(
+              child: const Text('Yes'),
+              onPressed: () => Navigator.of(context).pop(true),
+            ),
+          ],
+        ),
+      );
+
+      if (uploadAgain == true) {
+        // Call uploadImage again with the same parameters
+        await uploadImage(setAmountId, userdeceased, amount,
+            deathNoticeId: deathNoticeId);
+      }
     } catch (e) {
       ScaffoldMessenger.of(
         context,
@@ -244,8 +303,9 @@ class _GCashPaymentPageState extends State<GCashPaymentPage> {
                                         data['userdeceased'],
                                       ),
                                       builder: (context, paidSnap) {
-                                        if (!paidSnap.hasData)
+                                        if (!paidSnap.hasData) {
                                           return const Text("...");
+                                        }
                                         final paid = paidSnap.data!;
                                         return Container(
                                           padding: const EdgeInsets.symmetric(
@@ -310,6 +370,7 @@ class _GCashPaymentPageState extends State<GCashPaymentPage> {
                                                     int.parse(
                                                       data['amount'].toString(),
                                                     ),
+                                                    deathNoticeId: data['death_notice_id'] ?? 0,
                                                   );
                                                   setState(() {});
                                                 },

@@ -9,7 +9,7 @@ const kAccent = Color(0xFF0D47A1);
 
 class MembersPage extends StatefulWidget {
   final int? dayungUnitId;
-  const MembersPage({Key? key, this.dayungUnitId}) : super(key: key);
+  const MembersPage({super.key, this.dayungUnitId});
 
   @override
   State<MembersPage> createState() => _MembersPageState();

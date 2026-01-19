@@ -44,15 +44,13 @@ class _CertificatesPageState extends State<CertificatesPage>
           )
           .order('submitted_at', ascending: false);
 
-      if (response is List) {
-        setState(() {
-          _certificates = response
-              .map((e) => Map<String, dynamic>.from(e))
-              .toList();
-          _loading = false;
-        });
-      }
-    } catch (e, st) {
+      setState(() {
+        _certificates = response
+            .map((e) => Map<String, dynamic>.from(e))
+            .toList();
+        _loading = false;
+      });
+        } catch (e, st) {
       debugPrint("Error fetching certificates: $e\n$st");
       setState(() => _loading = false);
     }

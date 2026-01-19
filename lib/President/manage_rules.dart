@@ -1,4 +1,3 @@
-import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -407,7 +406,7 @@ class _ManageRulesPagePresState extends State<ManageRulesPagePres> {
           const SizedBox(width: 8),
           Expanded(
             child: DropdownButtonFormField<int>(
-              value: _unitId,
+              initialValue: _unitId,
               isExpanded: true,
               decoration: InputDecoration(
                 filled: true,
@@ -467,7 +466,7 @@ class _ManageRulesPagePresState extends State<ManageRulesPagePres> {
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
       child: DropdownButtonFormField<String>(
-        value: selectedValue,
+        initialValue: selectedValue,
         isExpanded: true,
         decoration: InputDecoration(
           labelText: label,

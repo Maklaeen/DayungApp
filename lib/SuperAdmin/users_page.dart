@@ -296,7 +296,7 @@ class _EditUserDialogState extends State<_EditUserDialog> {
               ),
               const SizedBox(height: 14),
               DropdownButtonFormField<String>(
-                value: _role,
+                initialValue: _role,
                 items: const [
                   DropdownMenuItem(value: 'member', child: Text('Member')),
                   DropdownMenuItem(
@@ -336,7 +336,7 @@ class _EditUserDialogState extends State<_EditUserDialog> {
                 title: const Text('Deceased'),
                 value: _isDeceased ?? false,
                 onChanged: (v) => setState(() => _isDeceased = v),
-                activeColor: Colors.red,
+                activeThumbColor: Colors.red,
                 contentPadding: EdgeInsets.zero,
               ),
               const SizedBox(height: 18),

@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:photo_view/photo_view.dart';
 
 // Modern palette (reuse from beneficiary.dart)
 const Color kBg = Color(0xFFFAFAF7);
@@ -269,7 +268,7 @@ class _SecretaryBeneficiariesTabState extends State<SecretaryBeneficiariesTab> {
                     isPending: isPending,
                   ),
                 )
-                .toList(),
+                ,
           ],
         );
       },

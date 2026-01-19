@@ -49,7 +49,7 @@ class SuperAdminSettingsPage extends StatelessWidget {
               onChanged: (val) {
                 // TODO: Implement maintenance mode toggle
               },
-              activeColor: kPrimary,
+              activeThumbColor: kPrimary,
               contentPadding: const EdgeInsets.symmetric(
                 horizontal: 20,
                 vertical: 4,

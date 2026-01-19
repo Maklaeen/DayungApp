@@ -1,5 +1,4 @@
 import 'package:capstone_app/Beneficiary/addbeneficiary.dart' as add;
-import 'package:capstone_app/ui/theme/branding.dart';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:auto_size_text/auto_size_text.dart';
@@ -52,26 +51,21 @@ class _BeneficiaryPageState extends State<BeneficiaryPage>
         .select()
         .eq('user_id', user!.id);
 
-    if (response is List) {
-      final List<dynamic> allBeneficiaries = response;
-      final List<dynamic> pending = allBeneficiaries
-          .where((b) => b['status'] == 'Pending' || b['status'] == null)
-          .toList();
-      final List<dynamic> active = allBeneficiaries
-          .where((b) => b['status'] == 'Approved')
-          .toList();
+    final List<dynamic> allBeneficiaries = response;
+    final List<dynamic> pending = allBeneficiaries
+        .where((b) => b['status'] == 'Pending' || b['status'] == null)
+        .toList();
+    final List<dynamic> active = allBeneficiaries
+        .where((b) => b['status'] == 'Approved')
+        .toList();
 
-      setState(() {
-        beneficiaries = allBeneficiaries;
-        pendingBeneficiaries = pending;
-        activeBeneficiaries = active;
-        isLoading = false;
-      });
-    } else {
-      setState(() => isLoading = false);
-      debugPrint('Failed to fetch beneficiaries');
+    setState(() {
+      beneficiaries = allBeneficiaries;
+      pendingBeneficiaries = pending;
+      activeBeneficiaries = active;
+      isLoading = false;
+    });
     }
-  }
 
   Future<void> _navigateToAddBeneficiary(BuildContext context) async {
     await Navigator.push(

@@ -18,8 +18,9 @@ class RoleRouter extends StatelessWidget {
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
     if (roles.isSuperAdmin) return const superadmin.SuperAdminDashboardPage();
-    if (roles.isPresident)
+    if (roles.isPresident) {
       return const pres.PresidentDashboardPage();
+    }
     if (roles.isSecretary) return const sec.SecretaryDashboardPage();
     if (roles.isTreasurer) return const treas.TreasurerDashboardPage();
     if (roles.isCollector) return const coll.CollectorDashboardPage();

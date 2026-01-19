@@ -22,6 +22,8 @@ class _CollectorContributionsPageState
   int _myCount = 0;
   List<Map<String, dynamic>> _myRows = [];
 
+  int _totalPaymentNumbers = 0; // <-- Add this
+
   @override
   void initState() {
     super.initState();
@@ -65,7 +67,7 @@ class _CollectorContributionsPageState
 double myTotal = 0;
 for (final r in myRows) {
   final a = r['amount'];
-  myTotal += a is num ? a.toDouble() : double.tryParse('${a}') ?? 0.0;
+  myTotal += a is num ? a.toDouble() : double.tryParse('$a') ?? 0.0;
 }
 setState(() {
   _myRows = myRows;
@@ -78,14 +80,24 @@ setState(() {
       double total = 0;
       for (final r in rows) {
         final a = r['amount'];
-        total += a is num ? a.toDouble() : double.tryParse('${a}') ?? 0.0;
+        total += a is num ? a.toDouble() : double.tryParse('$a') ?? 0.0;
       }
-      setState(() {
-        _rows = rows;
-        _total = total;
-        _count = rows.length;
-        _loading = false;
-      });
+      int totalPaymentNumbers = 0;
+for (final r in rows) {
+  final pn = r['payment_number'];
+  if (pn is int) {
+    totalPaymentNumbers += pn;
+  } else if (pn != null) {
+    totalPaymentNumbers += int.tryParse('$pn') ?? 0;
+  }
+}
+setState(() {
+  _rows = rows;
+  _total = total;
+  _count = rows.length;
+  _loading = false;
+  _totalPaymentNumbers = totalPaymentNumbers; // <-- Add this
+});
     } catch (_) {
       setState(() {
         _rows = [];
@@ -107,28 +119,14 @@ setState(() {
               child: ListView(
                 padding: const EdgeInsets.all(16),
                 children: [
-                  Card(
-  child: ListTile(
-    title: const Text('My Paid Contributions'),
-    subtitle: Text('Count: $_myCount'),
-    trailing: Text('₱${_myTotal.toStringAsFixed(2)}'),
-  ),
-),
-const SizedBox(height: 8),
+                
 Card(
   child: ListTile(
-    title: const Text('Collected by Me'),
-    subtitle: Text('Count: $_count'),
+    title: const Text('Total Collected'),
+    subtitle: Text('Member/s: $_count'), // <-- Updated
     trailing: Text('₱${_total.toStringAsFixed(2)}'),
   ),
 ),
-                  Card(
-                    child: ListTile(
-                      title: const Text('Total Collected'),
-                      subtitle: Text('Count: $_count'),
-                      trailing: Text('₱${_total.toStringAsFixed(2)}'),
-                    ),
-                  ),
                   const SizedBox(height: 12),
                   ..._rows.map((r) {
                     final amt = r['amount'] is num

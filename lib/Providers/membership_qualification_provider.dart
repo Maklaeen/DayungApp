@@ -30,7 +30,7 @@ final membershipQualificationProvider =
           .eq('user_id', userId)
           .eq('status', 'approved');
 
-      final alreadyMemberElsewhere = apps != null && apps.isNotEmpty;
+      final alreadyMemberElsewhere = apps.isNotEmpty;
 
       // Qualification logic
       if (openForAll) {

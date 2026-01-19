@@ -249,7 +249,7 @@ class _MembersContributionHistoryState
       }
 
       // Use the ID passed from dashboard
-      final int? dayungId = widget.dayungUnitId;
+      final int dayungId = widget.dayungUnitId;
       debugPrint('Contrib: using dayungUnitId=$dayungId');
 
       var q = supabase
@@ -260,10 +260,8 @@ class _MembersContributionHistoryState
           .eq('user_id', uid)
           .eq('status', 'paid');
 
-      if (dayungId != null) {
-        q = q.eq('dayung_unit_id', dayungId);
-      }
-
+      q = q.eq('dayung_unit_id', dayungId);
+    
       final payments = List<Map<String, dynamic>>.from(
         await q.order('created_at', ascending: false),
       );
@@ -385,10 +383,10 @@ class _MembersContributionHistoryState
               backgroundImage: _profileUrl != null && _profileUrl!.isNotEmpty
                   ? NetworkImage(_profileUrl!)
                   : null,
+              radius: 20,
               child: _profileUrl == null
                   ? Icon(Icons.person, color: kAccent)
                   : null,
-              radius: 20,
             ),
           ),
         ],
@@ -427,55 +425,6 @@ class _MembersContributionHistoryState
                     ],
                   ),
                 ),
-              )
-            : widget.dayungUnitId == null
-            ? ListView(
-                physics: const AlwaysScrollableScrollPhysics(),
-                padding: const EdgeInsets.fromLTRB(16, 60, 16, 32),
-                children: [
-                  Icon(
-                    Icons.group_add,
-                    size: 64,
-                    color: kSubtleText.withOpacity(.35),
-                  ),
-                  const SizedBox(height: 16),
-                  const Center(
-                    child: Text(
-                      'Apply dayung first',
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontFamily: 'OpenSans',
-                        fontWeight: FontWeight.w700,
-                        color: kSubtleText,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  Center(
-                    child: ElevatedButton.icon(
-                      onPressed: _goApplyDayung,
-                      icon: const Icon(Icons.how_to_reg),
-                      label: const Text(
-                        'Apply Dayung',
-                        style: TextStyle(
-                          fontWeight: FontWeight.w700,
-                          fontFamily: 'Montserrat',
-                        ),
-                      ),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: kAccent,
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 16,
-                          vertical: 12,
-                        ),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
               )
             : _paidContributions.isEmpty
             ? ListView(

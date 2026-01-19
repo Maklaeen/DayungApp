@@ -21,7 +21,7 @@ const double kEdge = 16;
 
 class RecentDeathNotices extends StatefulWidget {
   final int? dayungUnitId;
-  const RecentDeathNotices({Key? key, this.dayungUnitId}) : super(key: key);
+  const RecentDeathNotices({super.key, this.dayungUnitId});
 
   @override
   State<RecentDeathNotices> createState() => _RecentDeathNoticesState();

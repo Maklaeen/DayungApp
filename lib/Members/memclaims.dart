@@ -1,16 +1,10 @@
-import 'dart:convert';
-import 'package:capstone_app/Providers/dayung_provider.dart';
 import 'package:capstone_app/screens/dayung_suggestions.dart'
     hide kBg, kPrimary, kPrimaryDark, kAccent, kDanger, kWarn;
-import 'package:capstone_app/ui/theme/branding.dart';
 import 'package:capstone_app/pages/submit_claim.dart'
     hide kSubtleText, kNeutralText, kPrimaryDark, kPrimary;
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:capstone_app/providers/claim_tracking_provider.dart';
-import 'package:provider/provider.dart' hide Consumer;
 import 'package:flutter_riverpod/flutter_riverpod.dart' as r;
 
 // Collor palette
@@ -58,7 +52,7 @@ class _MembersClaimsPageState extends State<MembersClaimsPage>
   final _searchCtrl = TextEditingController();
 
   String? _profileUrl;
-  String _dayungName = 'Dayung';
+  final String _dayungName = 'Dayung';
   String? _barangay;
   String? _city;
   int _unreadNotifCount = 0;
@@ -218,7 +212,7 @@ class _MembersClaimsPageState extends State<MembersClaimsPage>
     final sb = Supabase.instance.client;
     final uid = sb.auth.currentUser?.id;
     final unitId = widget.dayungUnitId;
-    if (uid == null || unitId == null) {
+    if (uid == null) {
       if (mounted) setState(() => _unreadNotifCount = 0);
       return;
     }
@@ -334,16 +328,6 @@ class _MembersClaimsPageState extends State<MembersClaimsPage>
     try {
       final user = Supabase.instance.client.auth.currentUser;
       if (user == null) {
-        _safeSetState(() {
-          _allClaims = [];
-          _pending = [];
-          _history = [];
-          _loading = false;
-        });
-        return;
-      }
-
-      if (widget.dayungUnitId == null) {
         _safeSetState(() {
           _allClaims = [];
           _pending = [];
@@ -972,10 +956,10 @@ class _MembersClaimsPageState extends State<MembersClaimsPage>
                       _profileUrl != null && _profileUrl!.isNotEmpty
                       ? NetworkImage(_profileUrl!)
                       : null,
+                  radius: 20,
                   child: _profileUrl == null
                       ? Icon(Icons.person, color: kAccent)
                       : null,
-                  radius: 20,
                 ),
                 if (_unreadNotifCount > 0)
                   Positioned(
@@ -1120,36 +1104,6 @@ class _MembersClaimsPageState extends State<MembersClaimsPage>
 
   Widget _claimListView(List<Map<String, dynamic>> list, bool ongoing) {
     // Use widget.dayungUnitId instead of _dayungId
-    if (widget.dayungUnitId == null) {
-      return _wrapWithRefreshAndNav(
-        ListView(
-          physics: const AlwaysScrollableScrollPhysics(
-            parent: BouncingScrollPhysics(),
-          ),
-          padding: const EdgeInsets.fromLTRB(16, 60, 16, 120),
-          children: [
-            Icon(
-              Icons.group_add,
-              size: 64,
-              color: kSubtleText.withOpacity(.35),
-            ),
-            const SizedBox(height: 16),
-            const Center(
-              child: Text(
-                'Apply dayung first',
-                style: TextStyle(
-                  fontSize: 16,
-                  fontFamily: 'OpenSans',
-                  fontWeight: FontWeight.w700,
-                  color: kSubtleText,
-                ),
-              ),
-            ),
-          ],
-        ),
-      );
-    }
-
     return _wrapWithRefreshAndNav(
       ListView.separated(
         physics: const AlwaysScrollableScrollPhysics(
@@ -1164,37 +1118,6 @@ class _MembersClaimsPageState extends State<MembersClaimsPage>
   }
 
   Widget _trackingListView(List<Map<String, dynamic>> list) {
-    if (widget.dayungUnitId == null) {
-      // Reuse apply prompt
-      return _wrapWithRefreshAndNav(
-        ListView(
-          physics: const AlwaysScrollableScrollPhysics(
-            parent: BouncingScrollPhysics(),
-          ),
-          padding: const EdgeInsets.fromLTRB(16, 60, 16, 120),
-          children: [
-            Icon(
-              Icons.track_changes,
-              size: 64,
-              color: kSubtleText.withOpacity(.35),
-            ),
-            const SizedBox(height: 16),
-            const Center(
-              child: Text(
-                'Apply dayung first',
-                style: TextStyle(
-                  fontSize: 16,
-                  fontFamily: 'OpenSans',
-                  fontWeight: FontWeight.w700,
-                  color: kSubtleText,
-                ),
-              ),
-            ),
-          ],
-        ),
-      );
-    }
-
     if (list.isEmpty) {
       return _wrapWithRefreshAndNav(
         ListView(

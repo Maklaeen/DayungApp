@@ -1,6 +1,5 @@
 import 'dart:typed_data';
 import 'package:capstone_app/Providers/membership_qualification_provider.dart';
-import 'package:capstone_app/ui/theme/branding.dart';
 import 'package:pdfx/pdfx.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
@@ -626,6 +625,7 @@ class _SecretaryApplicationsPageState extends State<SecretaryApplicationsPage> {
     }
   }
 
+
   // Fetch birth certificate URL (from applications first, then users)
   Future<String?> _getBirthCertificateUrl({
     required String userId,
@@ -717,228 +717,309 @@ class _SecretaryApplicationsPageState extends State<SecretaryApplicationsPage> {
     int? applicationId,
   }) async {
     if (!mounted) return;
-    await showModalBottomSheet(
+    await showDialog(
       context: context,
-      isScrollControlled: true,
-      backgroundColor: kCardBg,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
-      ),
+      barrierDismissible: true,
       builder: (ctx) {
-        return Padding(
-          padding: EdgeInsets.only(
-            left: 0,
-            right: 0,
-            top: 0,
-            bottom: MediaQuery.of(ctx).viewInsets.bottom,
+        return Dialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
           ),
-          child: SingleChildScrollView(
-            child: FutureBuilder<List<String?>>(
-              future: Future.wait([
-                _getBirthCertificateUrl(
-                  userId: userId,
-                  applicationId: applicationId,
-                ),
-                () async {
-                  try {
-                    final row = await _supabase
-                        .from('users')
-                        .select('valid_id')
-                        .eq('id', userId)
-                        .single();
-                    final url = (row['valid_id'] ?? '').toString().trim();
-                    if (url.isNotEmpty) return url;
-                  } catch (_) {}
-                  return await _getValidIdUrl(
-                    userId: userId,
-                    applicationId: applicationId,
-                  );
+          insetPadding: const EdgeInsets.symmetric(
+            horizontal: 24,
+            vertical: 24,
+          ),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 520),
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+              child: FutureBuilder<Map<String, dynamic>>(
+                future: () async {
+                  // Fetch user info and document URLs in parallel
+                  final userFuture = _supabase
+                      .from('users')
+                      .select('full_name, sex, dob, mobile_number, address')
+                      .eq('id', userId)
+                      .single()
+                      .catchError((_) => {});
+                  final docsFuture = Future.wait([
+                    _getBirthCertificateUrl(
+                      userId: userId,
+                      applicationId: applicationId,
+                    ),
+                    () async {
+                      // Try to get 'valid_id' from users table first
+                      try {
+                        final row = await _supabase
+                            .from('users')
+                            .select('valid_id')
+                            .eq('id', userId)
+                            .single();
+                        final url = (row['valid_id'] ?? '').toString().trim();
+                        if (url.isNotEmpty) return url;
+                      } catch (_) {}
+                      // Fallback to _getValidIdUrl
+                      return await _getValidIdUrl(
+                        userId: userId,
+                        applicationId: applicationId,
+                      );
+                    }(),
+                    _getProofOfResidencyUrl(
+                      userId: userId,
+                      applicationId: applicationId,
+                    ),
+                  ]);
+                  final user = await userFuture;
+                  final docs = await docsFuture;
+                  return {
+                    'user': user,
+                    'docs': docs,
+                  };
                 }(),
-                _getProofOfResidencyUrl(
-                  userId: userId,
-                  applicationId: applicationId,
-                ),
-              ]),
-              builder: (context, snap) {
-                final loading = snap.connectionState != ConnectionState.done;
-                final birthUrl = snap.data != null ? snap.data![0] : null;
-                final validIdUrl = snap.data != null ? snap.data![1] : null;
-                final residencyUrl = snap.data != null ? snap.data![2] : null;
-                final uploadedBirth = (birthUrl != null && birthUrl.isNotEmpty);
-                final uploadedValidId =
-                    (validIdUrl != null && validIdUrl.isNotEmpty);
-                final uploadedResidency =
-                    (residencyUrl != null && residencyUrl.isNotEmpty);
+                builder: (context, snap) {
+                  final loading = snap.connectionState != ConnectionState.done;
+                  final user = snap.data != null ? (snap.data!['user'] as Map<String, dynamic>? ?? {}) : {};
+                  final docs = snap.data != null ? (snap.data!['docs'] as List<String?>? ?? []) : [];
+                  final birthUrl = docs.isNotEmpty ? docs[0] : null;
+                  final validIdUrl = docs.length > 1 ? docs[1] : null;
+                  final residencyUrl = docs.length > 2 ? docs[2] : null;
+                  final uploadedBirth = (birthUrl != null && birthUrl.isNotEmpty);
+                  final uploadedValidId = (validIdUrl != null && validIdUrl.isNotEmpty);
+                  final uploadedResidency = (residencyUrl != null && residencyUrl.isNotEmpty);
 
-                int completed = 0;
-                if (uploadedBirth) completed++;
-                if (uploadedValidId) completed++;
-                if (uploadedResidency) completed++;
-                const total = 3;
-                double progress = completed / total;
+                  // Progress calculation
+                  int completed = 0;
+                  if (uploadedBirth) completed++;
+                  if (uploadedValidId) completed++;
+                  if (uploadedResidency) completed++;
+                  const total = 3;
+                  double progress = completed / total;
 
-                return Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    // Drag handle
-                    Container(
-                      width: 48,
-                      height: 6,
-                      margin: const EdgeInsets.only(top: 12, bottom: 16),
-                      decoration: BoxDecoration(
-                        color: Colors.grey[300],
-                        borderRadius: BorderRadius.circular(3),
-                      ),
-                    ),
-                    // Avatar and Name
-                    CircleAvatar(
-                      radius: 36,
-                      backgroundColor: kPrimary.withOpacity(0.12),
-                      child: const Icon(
-                        Icons.person_rounded,
-                        color: kPrimary,
-                        size: 40,
-                      ),
-                    ),
-                    const SizedBox(height: 14),
-                    Text(
-                      userName,
-                      style: const TextStyle(
-                        fontFamily: 'Montserrat',
-                        fontWeight: FontWeight.bold,
-                        fontSize: 22,
-                        color: kText,
-                      ),
-                      textAlign: TextAlign.center,
-                      maxLines: 2,
-                    ),
-                    const SizedBox(height: 18),
-                    // Progress bar
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 24),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
+                  // User info fields
+                  final fullName = (user['full_name'] ?? userName ?? '').toString();
+                  final sex = (user['sex'] ?? '').toString();
+                  final dob = (user['dob'] ?? '').toString();
+                  final mobile = (user['mobile_number'] ?? '').toString();
+                  final address = (user['address'] ?? '').toString();
+
+                  return Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
                         children: [
-                          LinearProgressIndicator(
-                            value: progress,
-                            minHeight: 8,
-                            backgroundColor: kBorderColor,
-                            color: progress == 1.0 ? kSuccess : kPrimary,
-                            borderRadius: BorderRadius.circular(8),
+                          IconButton(
+                            tooltip: 'Close',
+                            icon: const Icon(Icons.close),
+                            onPressed: () => Navigator.pop(ctx),
                           ),
-                          const SizedBox(height: 8),
-                          Text(
-                            'Progress: $completed of $total steps completed',
-                            style: TextStyle(
-                              color: progress == 1.0 ? kSuccess : kPrimary,
-                              fontWeight: FontWeight.w600,
+                          const SizedBox(width: 4),
+                          Expanded(
+                            child: Text(
+                              'Application Progress • $fullName',
+                              textAlign: TextAlign.center,
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w700,
+                                fontSize: 16,
+                              ),
                             ),
                           ),
+                          const SizedBox(width: 48),
                         ],
                       ),
-                    ),
-                    const SizedBox(height: 18),
-                    // Details section
-                    Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 24,
-                        vertical: 18,
-                      ),
-                      decoration: BoxDecoration(
-                        color: kBg,
-                        borderRadius: BorderRadius.circular(18),
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          _TrackingStepTile(
-                            stepNumber: 1,
-                            title: 'Birth Certificate',
-                            completed: uploadedBirth,
-                            url: birthUrl,
-                            onView: uploadedBirth
-                                ? () => _openCertificateViewer(birthUrl!)
-                                : null,
-                          ),
-                          const SizedBox(height: 8),
-                          _TrackingStepTile(
-                            stepNumber: 2,
-                            title: 'Valid ID',
-                            completed: uploadedValidId,
-                            url: validIdUrl,
-                            onView: uploadedValidId
-                                ? () => _openCertificateViewer(validIdUrl!)
-                                : null,
-                          ),
-                          const SizedBox(height: 8),
-                          _TrackingStepTile(
-                            stepNumber: 3,
-                            title: 'Proof of Residency',
-                            completed: uploadedResidency,
-                            url: residencyUrl,
-                            onView: uploadedResidency
-                                ? () => _openCertificateViewer(residencyUrl!)
-                                : null,
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 24),
-                    // Action buttons
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 24),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.end,
-                        children: [
-                          OutlinedButton.icon(
-                            icon: const Icon(Icons.close, color: Colors.red),
-                            label: const Text(
-                              'Reject',
-                              style: TextStyle(color: Colors.red),
+                      const Divider(),
+                      if (loading) ...[
+                        const SizedBox(height: 12),
+                        const Center(child: CircularProgressIndicator()),
+                        const SizedBox(height: 12),
+                      ] else ...[
+                        // User info section
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 16),
+                          child: Card(
+                            color: Colors.grey[50],
+                            elevation: 0,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              side: const BorderSide(color: Color(0xFFE5E7EB)),
                             ),
-                            onPressed: () {
-                              Navigator.pop(ctx);
-                              if (applicationId != null) {
-                                _reject(applicationId);
-                              }
-                            },
-                            style: OutlinedButton.styleFrom(
-                              side: const BorderSide(color: Colors.red),
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          OutlinedButton.icon(
-                            icon: const Icon(
-                              Icons.check_circle,
-                              color: Colors.green,
-                            ),
-                            label: const Text(
-                              'Approve',
-                              style: TextStyle(color: Colors.green),
-                            ),
-                            onPressed: () {
-                              Navigator.pop(ctx);
-                              if (applicationId != null) {
-                                _approve(
-                                  applicationId,
-                                  deceasedElsewhere: _deceasedUserIds.contains(
-                                    userId,
+                            child: Padding(
+                              padding: const EdgeInsets.all(16),
+                              child: Row(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  CircleAvatar(
+                                    radius: 28,
+                                    backgroundColor: kPrimaryLight.withOpacity(0.15),
+                                    child: Icon(
+                                      Icons.person,
+                                      color: kPrimary,
+                                      size: 36,
+                                    ),
                                   ),
-                                );
-                              }
-                            },
-                            style: OutlinedButton.styleFrom(
-                              side: const BorderSide(color: Colors.green),
+                                  const SizedBox(width: 18),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          fullName.isNotEmpty ? fullName : 'No Name',
+                                          style: const TextStyle(
+                                            fontWeight: FontWeight.bold,
+                                            fontSize: 18,
+                                            color: kPrimaryDark,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 6),
+                                        Row(
+                                          children: [
+                                            Icon(Icons.wc, size: 18, color: kSubText),
+                                            const SizedBox(width: 6),
+                                            Text(
+                                              sex.isNotEmpty ? sex : 'N/A',
+                                              style: const TextStyle(color: kSubText),
+                                            ),
+                                            const SizedBox(width: 18),
+                                            Icon(Icons.cake, size: 18, color: kSubText),
+                                            const SizedBox(width: 6),
+                                            Text(
+                                              dob.isNotEmpty ? dob : 'N/A',
+                                              style: const TextStyle(color: kSubText),
+                                            ),
+                                          ],
+                                        ),
+                                        const SizedBox(height: 8),
+                                        Row(
+                                          children: [
+                                            Icon(Icons.phone, size: 18, color: kSubText),
+                                            const SizedBox(width: 6),
+                                            Text(
+                                              mobile.isNotEmpty ? mobile : 'N/A',
+                                              style: const TextStyle(color: kSubText),
+                                            ),
+                                          ],
+                                        ),
+                                        const SizedBox(height: 8),
+                                        Row(
+                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                          children: [
+                                            Icon(Icons.home, size: 18, color: kSubText),
+                                            const SizedBox(width: 6),
+                                            Expanded(
+                                              child: Text(
+                                                address.isNotEmpty ? address : 'N/A',
+                                                style: const TextStyle(color: kSubText),
+                                                maxLines: 2,
+                                                overflow: TextOverflow.ellipsis,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                              ),
                             ),
                           ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 24),
-                  ],
-                );
-              },
+                        ),
+                        // Progress bar
+                        Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              LinearProgressIndicator(
+                                value: progress,
+                                minHeight: 8,
+                                backgroundColor: kBorderColor,
+                                color: progress == 1.0 ? kSuccess : kPrimary,
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              const SizedBox(height: 8),
+                              Text(
+                                'Progress: $completed of $total steps completed',
+                                style: TextStyle(
+                                  color: progress == 1.0 ? kSuccess : kPrimary,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        // Step 1: Birth Certificate
+                        _TrackingStepTile(
+                          stepNumber: 1,
+                          title: 'Birth Certificate',
+                          completed: uploadedBirth,
+                          url: birthUrl,
+                          onView: uploadedBirth
+                              ? () => _openCertificateViewer(birthUrl)
+                              : null,
+                        ),
+                        const SizedBox(height: 8),
+                        // Step 2: Valid ID
+                        _TrackingStepTile(
+                          stepNumber: 2,
+                          title: 'Valid ID',
+                          completed: uploadedValidId,
+                          url: validIdUrl,
+                          onView: uploadedValidId
+                              ? () => _openCertificateViewer(validIdUrl)
+                              : null,
+                        ),
+                        const SizedBox(height: 8),
+                        // Step 3: Proof of Residency
+                        _TrackingStepTile(
+                          stepNumber: 3,
+                          title: 'Proof of Residency',
+                          completed: uploadedResidency,
+                          url: residencyUrl,
+                          onView: uploadedResidency
+                              ? () => _openCertificateViewer(residencyUrl)
+                              : null,
+                        ),
+                        const SizedBox(height: 16),
+                        // Approve/Reject buttons
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.end,
+                          children: [
+                            OutlinedButton.icon(
+                              icon: const Icon(Icons.close, color: Colors.red),
+                              label: const Text('Reject', style: TextStyle(color: Colors.red)),
+                              onPressed: () {
+                                Navigator.pop(ctx);
+                                if (applicationId != null) {
+                                  _reject(applicationId);
+                                }
+                              },
+                              style: OutlinedButton.styleFrom(
+                                side: const BorderSide(color: Colors.red),
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            OutlinedButton.icon(
+                              icon: const Icon(Icons.check_circle, color: Colors.green),
+                              label: const Text('Approve', style: TextStyle(color: Colors.green)),
+                              onPressed: () {
+                                Navigator.pop(ctx);
+                                if (applicationId != null) {
+                                  _approve(applicationId, deceasedElsewhere: _deceasedUserIds.contains(userId));
+                                }
+                              },
+                              style: OutlinedButton.styleFrom(
+                                side: const BorderSide(color: Colors.green),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                      ],
+                    ],
+                  );
+                },
+              ),
             ),
           ),
         );
@@ -952,454 +1033,440 @@ class _SecretaryApplicationsPageState extends State<SecretaryApplicationsPage> {
         context.watch<DayungUnitProvider>().dayungUnit ?? 'Dayung';
     return Scaffold(
       backgroundColor: kCardBg,
-      body: SafeArea(
-        child: Column(
-          children: [
-            // Modern Header
-            Container(
-              padding: const EdgeInsets.fromLTRB(20, 36, 20, 28),
+      body: LayoutBuilder(
+        builder: (context, constraints) {
+          final isWide = constraints.maxWidth > 700;
+          final horizontalPadding = isWide ? constraints.maxWidth * 0.15 : 20.0;
+          final headerFontSize = isWide ? 28.0 : 20.0;
 
-              decoration: BoxDecoration(
-                color: kPrimaryDark,
-                borderRadius: const BorderRadius.only(
-                  bottomLeft: Radius.circular(24),
-                  bottomRight: Radius.circular(24),
+          return Column(
+            children: [
+              // Modern Header
+              Container(
+                padding: EdgeInsets.fromLTRB(
+                  horizontalPadding,
+                  isWide ? 60 : 32,
+                  horizontalPadding,
+                  isWide ? 48 : 32,
                 ),
-                boxShadow: [
-                  BoxShadow(
-                    color: kPrimaryDark.withOpacity(0.3),
-                    blurRadius: 20,
-                    offset: const Offset(0, 8),
+                decoration: BoxDecoration(
+                  color: kPrimaryDark,
+                  borderRadius: const BorderRadius.only(
+                    bottomLeft: Radius.circular(24),
+                    bottomRight: Radius.circular(24),
                   ),
-                ],
-              ),
-              child: Row(
-                children: [
-                  IconButton(
-                    icon: const Icon(
-                      Icons.chevron_left_rounded,
+                  boxShadow: [
+                    BoxShadow(
+                      color: kPrimaryDark.withOpacity(0.3),
+                      blurRadius: 20,
+                      offset: const Offset(0, 8),
+                    ),
+                  ],
+                ),
+                child: Row(
+                  children: [
+                    IconButton(
+                      icon: const Icon(
+                        Icons.chevron_left_rounded,
+                        color: Colors.white,
+                        size: 28,
+                      ),
+                      onPressed: () => Navigator.pop(context),
+                    ),
+                    const Icon(
+                      Icons.assignment_rounded,
                       color: Colors.white,
                       size: 28,
                     ),
-                    onPressed: () => Navigator.pop(context),
-                  ),
-                  const Icon(
-                    Icons.assignment_rounded,
-                    color: Colors.white,
-                    size: 28,
-                  ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: Text(
-                      'Applications',
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.w800,
-                        color: Colors.white,
-                        fontFamily: 'Montserrat',
-                        letterSpacing: 0.3,
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: Text(
+                        'Applications',
+                        style: TextStyle(
+                          fontSize: headerFontSize,
+                          fontWeight: FontWeight.w800,
+                          color: Colors.white,
+                          fontFamily: 'Montserrat',
+                          letterSpacing: 0.3,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                       ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
-            ),
-            // Navigation Tabs
-            Expanded(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
-                child: Card(
-                  color: kCardBg,
-                  elevation: 4,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(24),
-                  ),
-                  child: Column(
-                    children: [
-                      // Modern Tab Bar inside the card
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 20,
-                          vertical: 16,
-                        ),
-                        child: Row(
-                          children: [
-                            const Icon(
-                              Icons.filter_list_rounded,
-                              size: 16,
-                              color: kSubText,
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Row(
-                                mainAxisAlignment:
-                                    MainAxisAlignment.spaceEvenly,
-                                children: [
-                                  _NavTab(
-                                    label: 'Pending',
-                                    icon: Icons.schedule_rounded,
-                                    selected: _filter == 'pending',
-                                    onTap: () {
-                                      setState(() => _filter = 'pending');
-                                      _fetchApplications(
-                                        forUnitId: _currentUnitId,
-                                      );
-                                    },
-                                  ),
-                                  _NavTab(
-                                    label: 'Approved',
-                                    icon: Icons.check_circle_rounded,
-                                    selected: _filter == 'approved',
-                                    onTap: () {
-                                      setState(() => _filter = 'approved');
-                                      _fetchApplications(
-                                        forUnitId: _currentUnitId,
-                                      );
-                                    },
-                                  ),
-                                  _NavTab(
-                                    label: 'Rejected',
-                                    icon: Icons.cancel_rounded,
-                                    selected: _filter == 'rejected',
-                                    onTap: () {
-                                      setState(() => _filter = 'rejected');
-                                      _fetchApplications(
-                                        forUnitId: _currentUnitId,
-                                      );
-                                    },
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ],
-                        ),
+              // Navigation Tabs
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 20,
+                  vertical: 16,
+                ),
+                child: Row(
+                  children: [
+                    const Icon(
+                      Icons.filter_list_rounded,
+                      color: kSubText,
+                      size: 16,
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                        children: [
+                          _NavTab(
+                            label: 'Pending',
+                            icon: Icons.schedule_rounded,
+                            selected: _filter == 'pending',
+                            onTap: () {
+                              setState(() => _filter = 'pending');
+                              _fetchApplications(forUnitId: _currentUnitId);
+                            },
+                          ),
+                          _NavTab(
+                            label: 'Approved',
+                            icon: Icons.check_circle_rounded,
+                            selected: _filter == 'approved',
+                            onTap: () {
+                              setState(() => _filter = 'approved');
+                              _fetchApplications(forUnitId: _currentUnitId);
+                            },
+                          ),
+                          _NavTab(
+                            label: 'Rejected',
+                            icon: Icons.cancel_rounded,
+                            selected: _filter == 'rejected',
+                            onTap: () {
+                              setState(() => _filter = 'rejected');
+                              _fetchApplications(forUnitId: _currentUnitId);
+                            },
+                          ),
+                        ],
                       ),
-                      const Divider(height: 1, thickness: 1),
-                      // List
-                      Expanded(
-                        child: RefreshIndicator(
-                          onRefresh: () =>
-                              _fetchApplications(forUnitId: _currentUnitId),
-                          color: kPrimary,
-                          child: _loading
-                              ? const Center(
-                                  child: CircularProgressIndicator(
-                                    color: kPrimary,
+                    ),
+                  ],
+                ),
+              ),
+              // Content
+              Expanded(
+                child: RefreshIndicator(
+                  onRefresh: () =>
+                      _fetchApplications(forUnitId: _currentUnitId),
+                  color: kPrimary,
+                  child: _loading
+                      ? Center(
+                          child: Container(
+                            padding: const EdgeInsets.all(24),
+                            decoration: BoxDecoration(
+                              color: kCardBg,
+                              borderRadius: BorderRadius.circular(20),
+                              border: Border.all(
+                                color: kBorderColor.withOpacity(0.3),
+                                width: 1,
+                              ),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withOpacity(0.05),
+                                  blurRadius: 15,
+                                  offset: const Offset(0, 6),
+                                ),
+                              ],
+                            ),
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                // CircularProgressIndicator(
+                                //   color: kPrimary,
+                                //   strokeWidth: 3,
+                                // ),
+                                const SizedBox(height: 16),
+                                const Text(
+                                  'Loading applications...',
+                                  style: TextStyle(
+                                    color: kSubText,
+                                    fontSize: 16,
+                                    fontFamily: 'OpenSans',
+                                    fontWeight: FontWeight.w600,
                                   ),
-                                )
-                              : _apps.isEmpty
-                              ? Center(
-                                  child: Card(
-                                    margin: const EdgeInsets.symmetric(
-                                      horizontal: 24,
-                                      vertical: 32,
+                                ),
+                              ],
+                            ),
+                          ),
+                        )
+                      : _apps.isEmpty
+                      ? Center(
+                          child: Container(
+                            margin: const EdgeInsets.all(20),
+                            padding: const EdgeInsets.all(24),
+                            decoration: BoxDecoration(
+                              color: kCardBg,
+                              borderRadius: BorderRadius.circular(20),
+                              border: Border.all(
+                                color: kBorderColor.withOpacity(0.3),
+                                width: 1,
+                              ),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withOpacity(0.05),
+                                  blurRadius: 15,
+                                  offset: const Offset(0, 6),
+                                ),
+                              ],
+                            ),
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  Icons.inbox_rounded,
+                                  size: 48,
+                                  color: kSubText,
+                                ),
+                                const SizedBox(height: 16),
+                                const Text(
+                                  'No applications found',
+                                  style: TextStyle(
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.w700,
+                                    color: kText,
+                                    fontFamily: 'Montserrat',
+                                  ),
+                                ),
+                                const SizedBox(height: 8),
+                                const Text(
+                                  'No applications match the selected filter',
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    color: kSubText,
+                                    fontFamily: 'OpenSans',
+                                  ),
+                                  textAlign: TextAlign.center,
+                                ),
+                              ],
+                            ),
+                          ),
+                        )
+                      : Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 20),
+                          child: ListView.separated(
+                            physics: const AlwaysScrollableScrollPhysics(),
+                            itemCount: _apps.length,
+                            separatorBuilder: (_, __) =>
+                                const SizedBox(height: 12),
+                            itemBuilder: (context, i) {
+                              final app = _apps[i];
+                              final user =
+                                  app['users'] as Map<String, dynamic>?;
+                              final status = (app['status'] ?? '').toString();
+                              final appliedAt = DateTime.tryParse(
+                                app['applied_at']?.toString() ?? '',
+                              );
+                              final userIdStr = (app['user_id'] ?? '')
+                                  .toString();
+                              final deceasedElsewhere = _deceasedUserIds
+                                  .contains(userIdStr);
+
+                              return Container(
+                                padding: const EdgeInsets.all(16),
+                                decoration: BoxDecoration(
+                                  color: kCardBg,
+                                  borderRadius: BorderRadius.circular(16),
+                                  border: Border.all(
+                                    color: kBorderColor.withOpacity(0.3),
+                                    width: 1,
+                                  ),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: Colors.black.withOpacity(0.05),
+                                      blurRadius: 10,
+                                      offset: const Offset(0, 4),
                                     ),
-                                    elevation: 2,
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(18),
+                                  ],
+                                ),
+                                child: Row(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Container(
+                                      padding: const EdgeInsets.all(12),
+                                      decoration: BoxDecoration(
+                                        color: kPrimary.withOpacity(0.1),
+                                        borderRadius: BorderRadius.circular(12),
+                                      ),
+                                      child: Text(
+                                        (user?['full_name'] ?? 'M')[0]
+                                            .toString()
+                                            .toUpperCase(),
+                                        style: const TextStyle(
+                                          color: kPrimary,
+                                          fontWeight: FontWeight.w700,
+                                          fontSize: 16,
+                                          fontFamily: 'Montserrat',
+                                        ),
+                                      ),
                                     ),
-                                    child: Padding(
-                                      padding: const EdgeInsets.all(32),
+                                    const SizedBox(width: 16),
+                                    Expanded(
                                       child: Column(
-                                        mainAxisSize: MainAxisSize.min,
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
                                         children: [
-                                          Icon(
-                                            Icons.inbox_outlined,
-                                            size: 48,
-                                            color: kSubText,
+                                          // Replace the name Text with a clickable version for Pending
+                                          Builder(
+                                            builder: (_) {
+                                              final userName =
+                                                  (user?['full_name'] ??
+                                                          'Member')
+                                                      .toString();
+                                              final isPending =
+                                                  status == 'pending';
+                                              final appId = app['id'] as int;
+
+                                              final nameText = Text(
+                                                userName,
+                                                style: TextStyle(
+                                                  fontWeight: FontWeight.w700,
+                                                  fontSize: 16,
+                                                  color: isPending
+                                                      ? kPrimary
+                                                      : kText,
+                                                  fontFamily: 'Montserrat',
+                                                  decoration: isPending
+                                                      ? TextDecoration.underline
+                                                      : TextDecoration.none,
+                                                ),
+                                              );
+
+                                              if (!isPending) return nameText;
+
+                                              return InkWell(
+                                                onTap: () => _openUserTracking(
+                                                  userId: userIdStr,
+                                                  userName: userName,
+                                                  applicationId: appId,
+                                                ),
+                                                child: nameText,
+                                              );
+                                            },
                                           ),
-                                          const SizedBox(height: 16),
+                                          const SizedBox(height: 4),
                                           Text(
-                                            'No applications found',
-                                            style: const TextStyle(
-                                              fontSize: 18,
-                                              fontWeight: FontWeight.w700,
-                                              color: kText,
-                                              fontFamily: 'Montserrat',
-                                            ),
-                                          ),
-                                          const SizedBox(height: 8),
-                                          Text(
-                                            'No applications match the selected filter',
+                                            dayungName,
                                             style: const TextStyle(
                                               fontSize: 14,
                                               color: kSubText,
                                               fontFamily: 'OpenSans',
+                                              fontWeight: FontWeight.w500,
                                             ),
-                                            textAlign: TextAlign.center,
                                           ),
-                                        ],
-                                      ),
-                                    ),
-                                  ),
-                                )
-                              : Padding(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 4,
-                                    vertical: 8,
-                                  ),
-                                  child: ListView.separated(
-                                    physics:
-                                        const AlwaysScrollableScrollPhysics(),
-                                    itemCount: _apps.length,
-                                    separatorBuilder: (_, __) =>
-                                        const SizedBox(height: 12),
-                                    itemBuilder: (context, i) {
-                                      final app = _apps[i];
-                                      final user =
-                                          app['users'] as Map<String, dynamic>?;
-                                      final status = (app['status'] ?? '')
-                                          .toString();
-                                      final appliedAt = DateTime.tryParse(
-                                        app['applied_at']?.toString() ?? '',
-                                      );
-                                      final userIdStr = (app['user_id'] ?? '')
-                                          .toString();
-                                      final deceasedElsewhere = _deceasedUserIds
-                                          .contains(userIdStr);
-
-                                      return Container(
-                                        padding: const EdgeInsets.all(16),
-                                        decoration: BoxDecoration(
-                                          color: kCardBg,
-                                          borderRadius: BorderRadius.circular(
-                                            16,
-                                          ),
-                                          border: Border.all(
-                                            color: kBorderColor.withOpacity(
-                                              0.3,
-                                            ),
-                                            width: 1,
-                                          ),
-                                          boxShadow: [
-                                            BoxShadow(
-                                              color: Colors.black.withOpacity(
-                                                0.05,
+                                          if (appliedAt != null)
+                                            Text(
+                                              'Applied: ${appliedAt.toLocal().toString().split(' ')[0]}',
+                                              style: const TextStyle(
+                                                fontSize: 12,
+                                                color: kSubText,
+                                                fontFamily: 'OpenSans',
                                               ),
-                                              blurRadius: 10,
-                                              offset: const Offset(0, 4),
                                             ),
-                                          ],
-                                        ),
-                                        child: Row(
-                                          crossAxisAlignment:
-                                              CrossAxisAlignment.start,
-                                          children: [
-                                            Container(
-                                              padding: const EdgeInsets.all(12),
-                                              decoration: BoxDecoration(
-                                                color: kPrimary.withOpacity(
-                                                  0.1,
+                                          // specific objectives - riverpod
+                                          Consumer(
+                                            builder: (context, ref, _) {
+                                              final userId = app['user_id']
+                                                  .toString();
+                                              final unitId =
+                                                  app['dayung_unit_id'] as int;
+                                              final qualification = ref.watch(
+                                                membershipQualificationProvider(
+                                                  {
+                                                    'userId': userId,
+                                                    'unitId': unitId,
+                                                  },
                                                 ),
-                                                borderRadius:
-                                                    BorderRadius.circular(12),
-                                              ),
-                                              child: Text(
-                                                (user?['full_name'] ?? 'M')[0]
-                                                    .toString()
-                                                    .toUpperCase(),
-                                                style: const TextStyle(
-                                                  color: kPrimary,
-                                                  fontWeight: FontWeight.w700,
-                                                  fontSize: 16,
-                                                  fontFamily: 'Montserrat',
-                                                ),
-                                              ),
-                                            ),
-                                            const SizedBox(width: 16),
-                                            Expanded(
-                                              child: Column(
-                                                crossAxisAlignment:
-                                                    CrossAxisAlignment.start,
-                                                children: [
-                                                  // Replace the name Text with a clickable version for Pending
-                                                  Builder(
-                                                    builder: (_) {
-                                                      final userName =
-                                                          (user?['full_name'] ??
-                                                                  'Member')
-                                                              .toString();
-                                                      final isPending =
-                                                          status == 'pending';
-                                                      final appId =
-                                                          app['id'] as int;
-
-                                                      final nameText = Text(
-                                                        userName,
+                                              );
+                                              return qualification.when(
+                                                data: (isQualified) =>
+                                                    isQualified
+                                                    ? const Text(
+                                                        'Qualified for membership',
                                                         style: TextStyle(
-                                                          fontWeight:
-                                                              FontWeight.w700,
-                                                          fontSize: 16,
-                                                          color: isPending
-                                                              ? kPrimary
-                                                              : kText,
-                                                          fontFamily:
-                                                              'Montserrat',
-                                                          decoration: isPending
-                                                              ? TextDecoration
-                                                                    .underline
-                                                              : TextDecoration
-                                                                    .none,
+                                                          color: Colors.green,
                                                         ),
-                                                      );
-
-                                                      if (!isPending)
-                                                        return nameText;
-
-                                                      return InkWell(
-                                                        onTap: () =>
-                                                            _openUserTracking(
-                                                              userId: userIdStr,
-                                                              userName:
-                                                                  userName,
-                                                              applicationId:
-                                                                  appId,
-                                                            ),
-                                                        child: nameText,
-                                                      );
-                                                    },
+                                                      )
+                                                    : const Text(
+                                                        'Not qualified',
+                                                        style: TextStyle(
+                                                          color: Colors.red,
+                                                        ),
+                                                      ),
+                                                loading: () =>
+                                                    // const CircularProgressIndicator(),
+                                                    const SizedBox.shrink(),
+                                                error: (e, _) =>
+                                                    Text('Error: $e'),
+                                              );
+                                            },
+                                          ),
+                                          if (deceasedElsewhere)
+                                            Padding(
+                                              padding: const EdgeInsets.only(
+                                                top: 4,
+                                              ),
+                                              child: Row(
+                                                children: [
+                                                  const Icon(
+                                                    Icons.warning_amber_rounded,
+                                                    size: 16,
+                                                    color: Colors.red,
                                                   ),
-                                                  const SizedBox(height: 4),
-                                                  Text(
-                                                    dayungName,
-                                                    style: const TextStyle(
-                                                      fontSize: 14,
-                                                      color: kSubText,
-                                                      fontFamily: 'OpenSans',
-                                                      fontWeight:
-                                                          FontWeight.w500,
-                                                    ),
-                                                  ),
-                                                  if (appliedAt != null)
-                                                    Text(
-                                                      'Applied: ${appliedAt.toLocal().toString().split(' ')[0]}',
-                                                      style: const TextStyle(
-                                                        fontSize: 12,
-                                                        color: kSubText,
-                                                        fontFamily: 'OpenSans',
+                                                  const SizedBox(width: 6),
+                                                  const Expanded(
+                                                    child: Text(
+                                                      'This user is marked as deceased in other dayung.',
+                                                      style: TextStyle(
+                                                        color: Colors.red,
+                                                        fontWeight:
+                                                            FontWeight.w600,
                                                       ),
                                                     ),
-                                                  // specific objectives - riverpod
-                                                  Consumer(
-                                                    builder: (context, ref, _) {
-                                                      final userId =
-                                                          app['user_id']
-                                                              .toString();
-                                                      final unitId =
-                                                          app['dayung_unit_id']
-                                                              as int;
-                                                      final qualification = ref
-                                                          .watch(
-                                                            membershipQualificationProvider(
-                                                              {
-                                                                'userId':
-                                                                    userId,
-                                                                'unitId':
-                                                                    unitId,
-                                                              },
-                                                            ),
-                                                          );
-                                                      return qualification.when(
-                                                        data: (isQualified) =>
-                                                            isQualified
-                                                            ? const Text(
-                                                                'Qualified for membership',
-                                                                style: TextStyle(
-                                                                  color: Colors
-                                                                      .green,
-                                                                ),
-                                                              )
-                                                            : const Text(
-                                                                'Not qualified',
-                                                                style: TextStyle(
-                                                                  color: Colors
-                                                                      .red,
-                                                                ),
-                                                              ),
-                                                        loading: () =>
-                                                            // const CircularProgressIndicator(),
-                                                            const SizedBox.shrink(),
-                                                        error: (e, _) =>
-                                                            Text('Error: $e'),
-                                                      );
-                                                    },
                                                   ),
-                                                  if (deceasedElsewhere)
-                                                    Padding(
-                                                      padding:
-                                                          const EdgeInsets.only(
-                                                            top: 4,
-                                                          ),
-                                                      child: Row(
-                                                        children: [
-                                                          const Icon(
-                                                            Icons
-                                                                .warning_amber_rounded,
-                                                            size: 16,
-                                                            color: Colors.red,
-                                                          ),
-                                                          const SizedBox(
-                                                            width: 6,
-                                                          ),
-                                                          const Expanded(
-                                                            child: Text(
-                                                              'This user is marked as deceased in other dayung.',
-                                                              style: TextStyle(
-                                                                color:
-                                                                    Colors.red,
-                                                                fontWeight:
-                                                                    FontWeight
-                                                                        .w600,
-                                                              ),
-                                                            ),
-                                                          ),
-                                                        ],
-                                                      ),
-                                                    ),
-                                                  if (deceasedElsewhere)
-                                                    Padding(
-                                                      padding:
-                                                          const EdgeInsets.only(
-                                                            top: 8,
-                                                          ),
-                                                      child: OutlinedButton.icon(
-                                                        icon: const Icon(
-                                                          Icons.info_outline,
-                                                        ),
-                                                        label: const Text(
-                                                          'View deceased details',
-                                                        ),
-                                                        onPressed: () =>
-                                                            _openDeceasedDetails(
-                                                              userIdStr,
-                                                            ),
-                                                      ),
-                                                    ),
                                                 ],
                                               ),
                                             ),
-                                            _buildActions(
-                                              status,
-                                              app['id'] as int,
-                                              deceasedElsewhere,
+                                          if (deceasedElsewhere)
+                                            Padding(
+                                              padding: const EdgeInsets.only(
+                                                top: 8,
+                                              ),
+                                              child: OutlinedButton.icon(
+                                                icon: const Icon(
+                                                  Icons.info_outline,
+                                                ),
+                                                label: const Text(
+                                                  'View deceased details',
+                                                ),
+                                                onPressed: () =>
+                                                    _openDeceasedDetails(
+                                                      userIdStr,
+                                                    ),
+                                              ),
                                             ),
-                                          ],
-                                        ),
-                                      );
-                                    },
-                                  ),
+                                        ],
+                                      ),
+                                    ),
+                                    _buildActions(
+                                      status,
+                                      app['id'] as int,
+                                      deceasedElsewhere,
+                                    ),
+                                  ],
                                 ),
+                              );
+                            },
+                          ),
                         ),
-                      ),
-                    ],
-                  ),
                 ),
               ),
-            ),
-          ],
-        ),
+            ],
+          );
+        },
       ),
     );
   }

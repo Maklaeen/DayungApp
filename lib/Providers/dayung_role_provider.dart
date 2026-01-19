@@ -62,11 +62,13 @@ class DayungRoleProvider extends ChangeNotifier {
     try {
       // --- SUPERADMIN CHECK ---
       try {
+        debugPrint('Current UID: $uid');
         final user = await _sb
             .from('users')
             .select('role')
             .eq('id', uid)
             .maybeSingle();
+        debugPrint('User row: $user');
         isSuperAdmin = user?['role'] == 'superadmin';
         debugPrint('[ROLES] isSuperAdmin=$isSuperAdmin');
       } catch (_) {

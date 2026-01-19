@@ -5,8 +5,6 @@ import 'package:capstone_app/Collector/collclaims.dart' hide kPrimary;
 import 'package:capstone_app/Collector/collcontributions.dart';
 import 'package:capstone_app/Collector/collect_cash.dart';
 import 'package:capstone_app/Collector/gcash_qr_page.dart' hide kPrimary;
-import 'package:capstone_app/Members/memclaims.dart' hide kPrimary;
-import 'package:capstone_app/Members/memcontributions.dart' hide kPrimary;
 import 'package:capstone_app/Providers/apptheme_provider.dart';
 import 'package:capstone_app/Providers/dayung_provider.dart';
 import 'package:capstone_app/Providers/dayung_role_provider.dart';
@@ -1007,7 +1005,7 @@ class _CollectorDashboardPageState extends State<CollectorDashboardPage> {
                         Navigator.push(
                           context,
                           MaterialPageRoute(
-                            builder: (_) => const GcashQrPage(),
+                            builder: (_) => GcashQrPage(dayungUnitId: _dayungUnitId!),
                           ),
                         );
                       },
@@ -1036,7 +1034,7 @@ class _CollectorDashboardPageState extends State<CollectorDashboardPage> {
           onTap: () {
             Navigator.push(
               context,
-              MaterialPageRoute(builder: (_) => const GcashQrPage()),
+              MaterialPageRoute(builder: (_) => GcashQrPage(dayungUnitId: _dayungUnitId!)),
             );
           },
         ),

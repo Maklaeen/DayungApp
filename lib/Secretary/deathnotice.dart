@@ -771,3 +771,26 @@ class _CreateDeathNoticePageState extends State<CreateDeathNoticePage> {
     }
   }
 }
+
+Future<void> savePayment(Map<String, dynamic> paymentData) async {
+  final supabase = Supabase.instance.client;
+
+  final userId = paymentData['user_id'];
+  final userDeceasedId = paymentData['userdeceased'];
+  final datePaidAmount = paymentData['datepaidamount'];
+
+  // Bilangin lahat ng payments na mas maaga o equal ang datepaidamount
+  final existing = await supabase
+      .from('payments')
+      .select('id')
+      .eq('user_id', userId)
+      .eq('userdeceased', userDeceasedId)
+      .lte('datepaidamount', datePaidAmount);
+
+  final paymentNumber = (existing as List).length + 1;
+
+  await supabase.from('payments').insert({
+    ...paymentData,
+    'payment_number': paymentNumber,
+  });
+}

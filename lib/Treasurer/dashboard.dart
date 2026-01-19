@@ -1,8 +1,6 @@
 import 'dart:convert';
 import 'package:capstone_app/Auth/logout.dart';
 import 'package:capstone_app/Beneficiary/beneficiary.dart';
-import 'package:capstone_app/Members/memclaims.dart';
-import 'package:capstone_app/Members/memcontributions.dart';
 import 'package:capstone_app/Providers/apptheme_provider.dart';
 import 'package:capstone_app/Providers/dayung_provider.dart';
 import 'package:capstone_app/Providers/dayung_role_provider.dart';
@@ -11,6 +9,7 @@ import 'package:capstone_app/Treasurer/manage_fund.dart';
 import 'package:capstone_app/Treasurer/treasclaims.dart';
 import 'package:capstone_app/Treasurer/treascontributions.dart';
 import 'package:capstone_app/pages/notification.dart';
+import 'package:capstone_app/Collector/gcash_qr_page.dart';
 import 'package:capstone_app/pages/recentdeathnotices.dart';
 import 'package:capstone_app/profile/profile.dart';
 import 'package:capstone_app/settings/profsettings.dart';
@@ -504,11 +503,11 @@ class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
       );
       m['totalCount'] = (m['totalCount'] as int) + 1;
       if (s == 'paid') {
-        m['paidCount'] = (m['paidCount'] as int) + 1;
         m['paidAmount'] = (m['paidAmount'] as double) + amt;
+        m['paidCount'] = (m['paidCount'] as int) + 1; // <-- ADD THIS
       } else {
-        m['unpaidCount'] = (m['unpaidCount'] as int) + 1;
         m['pendingAmount'] = (m['pendingAmount'] as double) + amt;
+        m['unpaidCount'] = (m['unpaidCount'] as int) + 1; // <-- ADD THIS
       }
     }
     return stats;
@@ -1302,6 +1301,27 @@ class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
             await _showMembersModal(paid: false);
           },
         ),
+        const SizedBox(height: 8),
+        _buildModernActionCard(
+          icon: Icons.qr_code_2_rounded,
+          title: 'Open GCash QR',
+          subtitle: 'Show payment QR',
+          color: const Color(0xFFF59E0B),
+          onTap: () {
+            if (_dayungUnitId == null) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Select a Dayung first')),
+              );
+              return;
+            }
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => GcashQrPage(dayungUnitId: _dayungUnitId!),
+              ),
+            );
+          },
+        ),
       ],
     );
   }
@@ -1562,7 +1582,7 @@ class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
         _ensureStatsFuture(noticeIds, dayungId);
 
         return FutureBuilder<Map<int, Map<String, dynamic>>>(
-          future: _paymentStatsByNotice(noticeIds, dayungId),
+          future: _paymentStatsFutureCached,
           builder: (context, statSnap) {
             final stats = statSnap.data ?? const <int, Map<String, dynamic>>{};
 
@@ -1787,7 +1807,7 @@ class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
             children: [
               _buildCountChip(
                 Icons.verified_rounded,
-                'Paid',
+                'Paid Now:',
                 paid,
                 const Color(0xFF10B981),
               ),
@@ -2212,7 +2232,7 @@ class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
       int paid = 0, unpaid = 0;
       double paidAmt = 0, totalAmt = 0;
       for (final r in items) {
-        final s = (r['status'] ?? '').toString().toLowerCase();
+        final s = (r['status'] ?? '').toString().trim().toLowerCase();
         final amt = (r['amount'] is num)
             ? (r['amount'] as num).toDouble()
             : double.tryParse('${r['amount']}') ?? 0.0;
@@ -2233,88 +2253,48 @@ class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
           borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
         ),
         builder: (context) {
+          // Separate paid and pending
+          final paidItems = items.where((r) => (r['status'] ?? '').toString().toLowerCase() == 'paid').toList();
+          final pendingItems = items.where((r) => (r['status'] ?? '').toString().toLowerCase() != 'paid').toList();
+
           return SafeArea(
             child: Padding(
               padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  // ...existing code...
+                  const Padding(
+                    padding: EdgeInsets.only(bottom: 12),
+                    child: Text(
+                      'Status',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w800,
+                        color: kPrimaryDark,
+                        fontFamily: 'Montserrat',
+                      ),
+                    ),
+                  ),
                   Flexible(
                     child: ConstrainedBox(
                       constraints: const BoxConstraints(maxHeight: 460),
-                      child: ListView.separated(
-                        itemCount: items.length,
-                        separatorBuilder: (_, __) =>
-                            Divider(height: 1, color: Colors.grey.shade300),
-                        itemBuilder: (_, i) {
-                          final r = items[i];
-                          final s = (r['status'] ?? '')
-                              .toString()
-                              .toLowerCase();
-                          final amt = (r['amount'] is num)
-                              ? (r['amount'] as num).toDouble()
-                              : double.tryParse('${r['amount']}') ?? 0.0;
-
-                          final payerName =
-                              (((r['user'] as Map?)?['full_name']) ?? '')
-                                  .toString();
-                          final title = payerName.isNotEmpty
-                              ? payerName
-                              : 'Payment #${r['id']}';
-
-                          final paidAtStr = _fmtDateTime(r['paid_at']);
-                          // Prefer embed; fallback to lookup by collected_by
-                          String collectorName =
-                              (((r['collector'] as Map?)?['full_name']) ?? '')
-                                  .toString();
-                          if (collectorName.isEmpty &&
-                              (r['collected_by'] ?? '').toString().isNotEmpty) {
-                            collectorName =
-                                collectorLookup[(r['collected_by'])
-                                    .toString()] ??
-                                '';
-                          }
-                          final subtitleText = s == 'paid'
-                              ? 'Collected'
-                                    '${paidAtStr.isNotEmpty ? ' on: $paidAtStr' : ''}'
-                                    '${collectorName.isNotEmpty ? '\nCollected by: $collectorName' : ''}'
-                              : 'Pending';
-
-                          return ListTile(
-                            leading: CircleAvatar(
-                              backgroundColor: s == 'paid'
-                                  ? Colors.green.withOpacity(.15)
-                                  : Colors.orange.withOpacity(.15),
-                              child: Icon(
-                                s == 'paid'
-                                    ? Icons.check
-                                    : Icons.hourglass_empty,
-                                color: s == 'paid'
-                                    ? Colors.green[800]
-                                    : Colors.orange[800],
-                              ),
+                      child: ListView(
+                        children: [
+                          if (paidItems.isNotEmpty) ...[
+                            const Padding(
+                              padding: EdgeInsets.symmetric(vertical: 8),
+                              child: Text('Paid Members', style: TextStyle(fontWeight: FontWeight.bold)),
                             ),
-                            title: Text(
-                              title,
-                              style: const TextStyle(
-                                fontWeight: FontWeight.w700,
-                                color: kNeutralText,
-                              ),
+                            ...paidItems.map((r) => _buildStatusTile(r, true)),
+                          ],
+                          if (pendingItems.isNotEmpty) ...[
+                            const Padding(
+                              padding: EdgeInsets.symmetric(vertical: 8),
+                              child: Text('Pending Members', style: TextStyle(fontWeight: FontWeight.bold)),
                             ),
-                            subtitle: Text(
-                              subtitleText,
-                              style: const TextStyle(color: kSubtleText),
-                            ),
-                            trailing: Text(
-                              '₱${amt.toStringAsFixed(0)}',
-                              style: const TextStyle(
-                                fontWeight: FontWeight.w800,
-                                color: kNeutralText,
-                              ),
-                            ),
-                          );
-                        },
+                            ...pendingItems.map((r) => _buildStatusTile(r, false)),
+                          ],
+                        ],
                       ),
                     ),
                   ),
@@ -2330,6 +2310,64 @@ class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
         context,
       ).showSnackBar(SnackBar(content: Text('Failed to load payments: $e')));
     }
+  }
+
+  Widget _buildStatusTile(Map<String, dynamic> r, bool paid) {
+    final payerName = (((r['user'] as Map?)?['full_name']) ?? '').toString();
+    final title = payerName.isNotEmpty ? payerName : 'Payment #${r['id']}';
+    final amt = (r['amount'] is num)
+        ? (r['amount'] as num).toDouble()
+        : double.tryParse('${r['amount']}') ?? 0.0;
+    final paidAtStr = _fmtDateTime(r['paid_at']);
+    String collectorName = (((r['collector'] as Map?)?['full_name']) ?? '').toString();
+    final subtitleText = paid
+        ? 'Collected${paidAtStr.isNotEmpty ? ' on: $paidAtStr' : ''}${collectorName.isNotEmpty ? '\nCollected by: $collectorName' : ''}'
+        : 'Pending';
+
+    return ListTile(
+      leading: CircleAvatar(
+        backgroundColor: paid
+            ? Colors.green.withOpacity(.15)
+            : Colors.orange.withOpacity(.15),
+        child: Icon(
+          paid ? Icons.check : Icons.hourglass_empty,
+          color: paid ? Colors.green[800] : Colors.orange[800],
+        ),
+      ),
+      title: Text(
+        title,
+        style: const TextStyle(
+          fontWeight: FontWeight.w700,
+          color: kNeutralText,
+        ),
+      ),
+      subtitle: Text(
+        subtitleText,
+        style: const TextStyle(color: kSubtleText),
+      ),
+      trailing: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: [
+          Text(
+            '₱${amt.toStringAsFixed(0)}',
+            style: const TextStyle(
+              fontWeight: FontWeight.w800,
+              color: kNeutralText,
+            ),
+          ),
+          if (paid)
+            const Text(
+              'paid',
+              style: TextStyle(
+                fontWeight: FontWeight.w700,
+                color: Colors.green,
+                fontSize: 12,
+              ),
+            ),
+        ],
+      ),
+    );
   }
 
   String _fmtDateTime(dynamic v) {

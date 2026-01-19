@@ -7,7 +7,6 @@ import 'package:capstone_app/Members/memclaims.dart';
 import 'package:capstone_app/Members/memcontributions.dart';
 import 'package:capstone_app/Providers/apptheme_provider.dart';
 import 'package:capstone_app/Providers/dayung_provider.dart';
-import 'package:capstone_app/Providers/dayung_role_provider.dart';
 import 'package:capstone_app/pages/notification.dart';
 import 'package:capstone_app/pages/paymentmethod.dart';
 import 'package:capstone_app/pages/recentdeathnotices.dart';
@@ -68,7 +67,7 @@ class _MemberDashboardPageState extends State<MemberDashboardPage> {
   bool _loadingUser = true;
   bool _loadingActiveMembers = true;
   bool _loadingCertificates = true;
-  bool _pendingUnitChange = false;
+  final bool _pendingUnitChange = false;
   bool _handlingOverlay = false;
   bool _loadingPending = true;
   bool _loadingActivity = true;
@@ -399,7 +398,6 @@ class _MemberDashboardPageState extends State<MemberDashboardPage> {
     IconData icon = Icons.check_circle,
   }) {
     final overlay = Overlay.of(context);
-    if (overlay == null) return;
 
     late OverlayEntry entry;
     final animationController = AnimationController(

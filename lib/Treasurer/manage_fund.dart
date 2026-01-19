@@ -27,7 +27,7 @@ class _ManageFundPageState extends State<ManageFundPage> {
 
   String _search = '';
   String _statusFilter = 'all';
-  String _sort = 'date_desc';
+  final String _sort = 'date_desc';
   String _typeFilter = 'members';
 
   double _totalPaid = 0.0;

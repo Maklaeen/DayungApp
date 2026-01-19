@@ -54,7 +54,7 @@ class _TreasurerContributionsPageState
       double myTotal = 0;
       for (final r in myRows) {
         final a = r['amount'];
-        myTotal += a is num ? a.toDouble() : double.tryParse('${a}') ?? 0.0;
+        myTotal += a is num ? a.toDouble() : double.tryParse('$a') ?? 0.0;
       }
       setState(() {
         _myRows = myRows;

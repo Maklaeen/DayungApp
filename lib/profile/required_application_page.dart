@@ -316,7 +316,7 @@ class _RequiredApplicationsPageState extends State<RequiredApplicationsPage> {
                                 builder: (context, constraints) {
                                   final desc = _application?['description'] ?? '';
                                   if (desc.length > 1000) {
-                                    return Container(
+                                    return SizedBox(
                                       height: 200,
                                       child: Scrollbar(
                                         child: SingleChildScrollView(

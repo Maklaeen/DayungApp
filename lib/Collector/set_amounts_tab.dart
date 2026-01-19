@@ -188,7 +188,7 @@ class SetAmountsTab extends StatelessWidget {
                               Navigator.of(context, rootNavigator: true).pop(); // Close loading dialog
 
                               ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(content: Text('P')),
+                                const SnackBar(content: Text('')),
                               );
                             } catch (e) {
                               if (context.mounted) {

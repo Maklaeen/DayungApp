@@ -405,7 +405,7 @@ class _EditAdminDialogState extends State<_EditAdminDialog> {
               ),
               const SizedBox(height: 14),
               DropdownButtonFormField<String>(
-                value: _role,
+                initialValue: _role,
                 items: const [
                   DropdownMenuItem(
                     value: 'President',

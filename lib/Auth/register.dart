@@ -349,10 +349,10 @@ class _RegisterState extends State<Register> {
             city = (p.locality ?? '').trim();
             province = (p.administrativeArea ?? '').trim();
             composed = [
-              if (street != null && street.isNotEmpty) street,
-              if (barangay != null && barangay.isNotEmpty) barangay,
-              if (city != null && city.isNotEmpty) city,
-              if (province != null && province.isNotEmpty) province,
+              if (street.isNotEmpty) street,
+              if (barangay.isNotEmpty) barangay,
+              if (city.isNotEmpty) city,
+              if (province.isNotEmpty) province,
             ].join(', ');
           }
         } catch (_) {}
@@ -1565,7 +1565,7 @@ class _AddressPickerSheetState extends State<AddressPickerSheet> {
                             _barangay = null;
                           }),
                         );
-                      }).toList(),
+                      }),
                     ],
 
                     // Step 2: City/Municipality
@@ -1635,7 +1635,7 @@ class _AddressPickerSheetState extends State<AddressPickerSheet> {
                                     _barangay = null;
                                   }),
                                 );
-                              }).toList(),
+                              }),
                             ],
                           );
                         }).toList();
@@ -1717,7 +1717,7 @@ class _AddressPickerSheetState extends State<AddressPickerSheet> {
                                     );
                                   },
                                 );
-                              }).toList(),
+                              }),
                             ],
                           );
                         }).toList();

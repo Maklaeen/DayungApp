@@ -1,5 +1,4 @@
 import 'dart:ui';
-import 'package:capstone_app/ui/theme/branding.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:capstone_app/profile/dayung_profile.dart';
@@ -45,7 +44,6 @@ class _ProfSettingsPageState extends State<ProfSettingsPage> {
     IconData icon = Icons.check_circle,
   }) {
     final overlay = Overlay.of(context);
-    if (overlay == null) return;
 
     late OverlayEntry entry;
     final animationController = AnimationController(

@@ -320,12 +320,7 @@ class _SecretaryMembersPageState extends State<SecretaryMembersPage>
                                 selected: _tabController.index == 0,
                                 onTap: () => _tabController.animateTo(0),
                               ),
-                              _NavTab(
-                                label: 'Pending',
-                                icon: Icons.schedule_rounded,
-                                selected: _tabController.index == 1,
-                                onTap: () => _tabController.animateTo(1),
-                              ),
+                           
                               _NavTab(
                                 label: 'Deceased',
                                 icon: Icons.person_off_rounded,

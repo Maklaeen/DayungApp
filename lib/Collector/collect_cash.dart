@@ -287,7 +287,7 @@ class _CollectCashPageState extends State<CollectCashPage> {
                                       },
                                     ),
                                   );
-                                }).toList(),
+                                }),
                               ],
                             ),
                           )

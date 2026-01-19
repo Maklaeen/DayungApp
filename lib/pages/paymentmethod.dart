@@ -42,7 +42,7 @@ class _PaymentMethodPageState extends State<PaymentMethodPage> {
     try {
       final uid = sb.auth.currentUser?.id;
       final dId = widget.dayungUnitId;
-      if (uid == null || dId == null) {
+      if (uid == null) {
         setState(() {
           _loading = false;
           _error = 'Missing user or dayung selection.';
@@ -174,7 +174,7 @@ class _PaymentMethodPageState extends State<PaymentMethodPage> {
               ),
               const SizedBox(height: 12),
               DropdownButtonFormField<String>(
-                value: collectorId,
+                initialValue: collectorId,
                 items: _collectors
                     .map(
                       (c) => DropdownMenuItem<String>(

@@ -242,15 +242,13 @@ class _DayungMapPageState extends State<DayungMapPage> {
     if (!_styleLoaded || _mlController == null) return;
     final lat = dayungLat, lng = dayungLng;
     if (lat == null || lng == null) return;
-    if (_dayungSymbol == null) {
-      _dayungSymbol = await _mlController!.addSymbol(
+    _dayungSymbol ??= await _mlController!.addSymbol(
         ml.SymbolOptions(
           geometry: ml.LatLng(lat, lng),
           iconImage: 'marker-15',
           iconSize: 1.6,
         ),
       );
-    }
   }
 
   Future<void> _ensureDayungCircle() async {
@@ -957,7 +955,7 @@ class _DayungMapPageState extends State<DayungMapPage> {
                               else
                                 _pillChip(
                                   icon: _selectedMode!.icon,
-                                  label: '${_selectedMode!.label}',
+                                  label: _selectedMode!.label,
                                   color: kPrimaryDark,
                                 ),
                             ],

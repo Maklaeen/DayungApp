@@ -218,7 +218,7 @@ class _PostAnnouncementPageState extends State<PostAnnouncementPage> {
                                     ),
                                     const SizedBox(height: 16),
                                     DropdownButtonFormField<int>(
-                                      value: _unitId,
+                                      initialValue: _unitId,
                                       items: _units
                                           .map(
                                             (u) => DropdownMenuItem<int>(

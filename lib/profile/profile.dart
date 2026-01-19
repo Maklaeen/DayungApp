@@ -4,13 +4,11 @@ import 'dart:typed_data';
 import 'dart:ui';
 
 import 'package:capstone_app/Auth/login.dart' hide kWarn;
-import 'package:capstone_app/Beneficiary/beneficiary.dart' hide kPrimaryLight, kPrimary, kAccent, kWarn;
 import 'package:capstone_app/President/manage_rules.dart'
     hide kPrimary, kAccent;
 import 'package:capstone_app/Providers/apptheme_provider.dart';
 import 'package:capstone_app/Providers/dayung_provider.dart';
 import 'package:capstone_app/Providers/dayung_role_provider.dart';
-import 'package:capstone_app/profile/dayung_profile.dart';
 import 'package:capstone_app/profile/required_application_page.dart'
     hide kAccent;
 import 'package:capstone_app/ui/theme/branding.dart';
@@ -23,7 +21,6 @@ import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:url_launcher/url_launcher.dart';
 import 'package:dropdown_button2/dropdown_button2.dart';
 
 // color palette
