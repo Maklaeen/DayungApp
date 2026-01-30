@@ -625,7 +625,6 @@ class _SecretaryApplicationsPageState extends State<SecretaryApplicationsPage> {
     }
   }
 
-
   // Fetch birth certificate URL (from applications first, then users)
   Future<String?> _getBirthCertificateUrl({
     required String userId,
@@ -723,19 +722,18 @@ class _SecretaryApplicationsPageState extends State<SecretaryApplicationsPage> {
       builder: (ctx) {
         return Dialog(
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
+            borderRadius: BorderRadius.circular(20),
           ),
           insetPadding: const EdgeInsets.symmetric(
-            horizontal: 24,
-            vertical: 24,
+            horizontal: 16,
+            vertical: 32,
           ),
           child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 520),
+            constraints: const BoxConstraints(maxWidth: 480),
             child: Padding(
-              padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+              padding: const EdgeInsets.all(0),
               child: FutureBuilder<Map<String, dynamic>>(
                 future: () async {
-                  // Fetch user info and document URLs in parallel
                   final userFuture = _supabase
                       .from('users')
                       .select('full_name, sex, dob, mobile_number, address')
@@ -748,7 +746,6 @@ class _SecretaryApplicationsPageState extends State<SecretaryApplicationsPage> {
                       applicationId: applicationId,
                     ),
                     () async {
-                      // Try to get 'valid_id' from users table first
                       try {
                         final row = await _supabase
                             .from('users')
@@ -758,7 +755,6 @@ class _SecretaryApplicationsPageState extends State<SecretaryApplicationsPage> {
                         final url = (row['valid_id'] ?? '').toString().trim();
                         if (url.isNotEmpty) return url;
                       } catch (_) {}
-                      // Fallback to _getValidIdUrl
                       return await _getValidIdUrl(
                         userId: userId,
                         applicationId: applicationId,
@@ -771,23 +767,26 @@ class _SecretaryApplicationsPageState extends State<SecretaryApplicationsPage> {
                   ]);
                   final user = await userFuture;
                   final docs = await docsFuture;
-                  return {
-                    'user': user,
-                    'docs': docs,
-                  };
+                  return {'user': user, 'docs': docs};
                 }(),
                 builder: (context, snap) {
                   final loading = snap.connectionState != ConnectionState.done;
-                  final user = snap.data != null ? (snap.data!['user'] as Map<String, dynamic>? ?? {}) : {};
-                  final docs = snap.data != null ? (snap.data!['docs'] as List<String?>? ?? []) : [];
+                  final user = snap.data != null
+                      ? (snap.data!['user'] as Map<String, dynamic>? ?? {})
+                      : {};
+                  final docs = snap.data != null
+                      ? (snap.data!['docs'] as List<String?>? ?? [])
+                      : [];
                   final birthUrl = docs.isNotEmpty ? docs[0] : null;
                   final validIdUrl = docs.length > 1 ? docs[1] : null;
                   final residencyUrl = docs.length > 2 ? docs[2] : null;
-                  final uploadedBirth = (birthUrl != null && birthUrl.isNotEmpty);
-                  final uploadedValidId = (validIdUrl != null && validIdUrl.isNotEmpty);
-                  final uploadedResidency = (residencyUrl != null && residencyUrl.isNotEmpty);
+                  final uploadedBirth =
+                      (birthUrl != null && birthUrl.isNotEmpty);
+                  final uploadedValidId =
+                      (validIdUrl != null && validIdUrl.isNotEmpty);
+                  final uploadedResidency =
+                      (residencyUrl != null && residencyUrl.isNotEmpty);
 
-                  // Progress calculation
                   int completed = 0;
                   if (uploadedBirth) completed++;
                   if (uploadedValidId) completed++;
@@ -795,62 +794,79 @@ class _SecretaryApplicationsPageState extends State<SecretaryApplicationsPage> {
                   const total = 3;
                   double progress = completed / total;
 
-                  // User info fields
-                  final fullName = (user['full_name'] ?? userName ?? '').toString();
+                  final fullName = (user['full_name'] ?? userName ?? '')
+                      .toString();
                   final sex = (user['sex'] ?? '').toString();
                   final dob = (user['dob'] ?? '').toString();
                   final mobile = (user['mobile_number'] ?? '').toString();
                   final address = (user['address'] ?? '').toString();
 
-                  return Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          IconButton(
-                            tooltip: 'Close',
-                            icon: const Icon(Icons.close),
-                            onPressed: () => Navigator.pop(ctx),
+                  return Container(
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        // Header
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 20,
+                            vertical: 18,
                           ),
-                          const SizedBox(width: 4),
-                          Expanded(
-                            child: Text(
-                              'Application Progress • $fullName',
-                              textAlign: TextAlign.center,
-                              style: const TextStyle(
-                                fontWeight: FontWeight.w700,
-                                fontSize: 16,
-                              ),
+                          decoration: BoxDecoration(
+                            color: kPrimaryDark,
+                            borderRadius: const BorderRadius.vertical(
+                              top: Radius.circular(20),
                             ),
                           ),
-                          const SizedBox(width: 48),
-                        ],
-                      ),
-                      const Divider(),
-                      if (loading) ...[
-                        const SizedBox(height: 12),
-                        const Center(child: CircularProgressIndicator()),
-                        const SizedBox(height: 12),
-                      ] else ...[
-                        // User info section
+                          child: Row(
+                            children: [
+                              IconButton(
+                                icon: const Icon(
+                                  Icons.close,
+                                  color: Colors.white,
+                                ),
+                                onPressed: () => Navigator.pop(ctx),
+                              ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  'Application Progress',
+                                  textAlign: TextAlign.center,
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.w800,
+                                    fontSize: 18,
+                                    fontFamily: 'Montserrat',
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 40),
+                            ],
+                          ),
+                        ),
+                        // User Info Card
                         Padding(
-                          padding: const EdgeInsets.only(bottom: 16),
+                          padding: const EdgeInsets.fromLTRB(24, 20, 24, 0),
                           child: Card(
-                            color: Colors.grey[50],
                             elevation: 0,
+                            color: kCardBg,
                             shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
-                              side: const BorderSide(color: Color(0xFFE5E7EB)),
+                              borderRadius: BorderRadius.circular(16),
+                              side: const BorderSide(color: kBorderColor),
                             ),
                             child: Padding(
-                              padding: const EdgeInsets.all(16),
+                              padding: const EdgeInsets.all(18),
                               child: Row(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   CircleAvatar(
-                                    radius: 28,
-                                    backgroundColor: kPrimaryLight.withOpacity(0.15),
+                                    radius: 32,
+                                    backgroundColor: kPrimaryLight.withOpacity(
+                                      0.15,
+                                    ),
                                     child: Icon(
                                       Icons.person,
                                       color: kPrimary,
@@ -860,55 +876,102 @@ class _SecretaryApplicationsPageState extends State<SecretaryApplicationsPage> {
                                   const SizedBox(width: 18),
                                   Expanded(
                                     child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
                                       children: [
                                         Text(
-                                          fullName.isNotEmpty ? fullName : 'No Name',
+                                          fullName.isNotEmpty
+                                              ? fullName
+                                              : 'No Name',
                                           style: const TextStyle(
-                                            fontWeight: FontWeight.bold,
+                                            fontWeight: FontWeight.w800,
                                             fontSize: 18,
                                             color: kPrimaryDark,
+                                            fontFamily: 'Montserrat',
                                           ),
                                         ),
                                         const SizedBox(height: 6),
                                         Row(
                                           children: [
-                                            Icon(Icons.wc, size: 18, color: kSubText),
-                                            const SizedBox(width: 6),
-                                            Text(
-                                              sex.isNotEmpty ? sex : 'N/A',
-                                              style: const TextStyle(color: kSubText),
+                                            Icon(
+                                              Icons.phone,
+                                              size: 16,
+                                              color: kSubText,
                                             ),
-                                            const SizedBox(width: 18),
-                                            Icon(Icons.cake, size: 18, color: kSubText),
                                             const SizedBox(width: 6),
                                             Text(
-                                              dob.isNotEmpty ? dob : 'N/A',
-                                              style: const TextStyle(color: kSubText),
-                                            ),
-                                          ],
-                                        ),
-                                        const SizedBox(height: 8),
-                                        Row(
-                                          children: [
-                                            Icon(Icons.phone, size: 18, color: kSubText),
-                                            const SizedBox(width: 6),
-                                            Text(
-                                              mobile.isNotEmpty ? mobile : 'N/A',
-                                              style: const TextStyle(color: kSubText),
+                                              mobile.isNotEmpty
+                                                  ? mobile
+                                                  : 'No mobile',
+                                              style: const TextStyle(
+                                                fontSize: 13,
+                                                color: kSubText,
+                                                fontFamily: 'OpenSans',
+                                              ),
                                             ),
                                           ],
                                         ),
-                                        const SizedBox(height: 8),
+                                        const SizedBox(height: 6),
                                         Row(
-                                          crossAxisAlignment: CrossAxisAlignment.start,
                                           children: [
-                                            Icon(Icons.home, size: 18, color: kSubText),
+                                            Icon(
+                                              Icons.cake,
+                                              size: 16,
+                                              color: kSubText,
+                                            ),
+                                            const SizedBox(width: 6),
+                                            Text(
+                                              dob.isNotEmpty
+                                                  ? dob
+                                                  : 'No birthday',
+                                              style: const TextStyle(
+                                                fontSize: 13,
+                                                color: kSubText,
+                                                fontFamily: 'OpenSans',
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                        const SizedBox(height: 6),
+                                        Row(
+                                          children: [
+                                            Icon(
+                                              Icons.person_outline,
+                                              size: 16,
+                                              color: kSubText,
+                                            ),
+                                            const SizedBox(width: 6),
+                                            Text(
+                                              sex.isNotEmpty ? sex : 'No sex',
+                                              style: const TextStyle(
+                                                fontSize: 13,
+                                                color: kSubText,
+                                                fontFamily: 'OpenSans',
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                        const SizedBox(height: 6),
+                                        Row(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          children: [
+                                            Icon(
+                                              Icons.home,
+                                              size: 16,
+                                              color: kSubText,
+                                            ),
                                             const SizedBox(width: 6),
                                             Expanded(
                                               child: Text(
-                                                address.isNotEmpty ? address : 'N/A',
-                                                style: const TextStyle(color: kSubText),
+                                                address.isNotEmpty
+                                                    ? address
+                                                    : 'No address',
+                                                style: const TextStyle(
+                                                  fontSize: 13,
+                                                  color: kSubText,
+                                                  fontFamily: 'OpenSans',
+                                                ),
                                                 maxLines: 2,
                                                 overflow: TextOverflow.ellipsis,
                                               ),
@@ -923,9 +986,9 @@ class _SecretaryApplicationsPageState extends State<SecretaryApplicationsPage> {
                             ),
                           ),
                         ),
-                        // Progress bar
+                        // Progress Bar
                         Padding(
-                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          padding: const EdgeInsets.fromLTRB(24, 18, 24, 0),
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
@@ -947,76 +1010,100 @@ class _SecretaryApplicationsPageState extends State<SecretaryApplicationsPage> {
                             ],
                           ),
                         ),
-                        const SizedBox(height: 8),
-                        // Step 1: Birth Certificate
-                        _TrackingStepTile(
-                          stepNumber: 1,
-                          title: 'Birth Certificate',
-                          completed: uploadedBirth,
-                          url: birthUrl,
-                          onView: uploadedBirth
-                              ? () => _openCertificateViewer(birthUrl)
-                              : null,
+                        // Steps
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(24, 18, 24, 0),
+                          child: Column(
+                            children: [
+                              _TrackingStepTile(
+                                stepNumber: 1,
+                                title: 'Birth Certificate',
+                                completed: uploadedBirth,
+                                url: birthUrl,
+                                onView: uploadedBirth
+                                    ? () => _openCertificateViewer(birthUrl)
+                                    : null,
+                              ),
+                              const SizedBox(height: 10),
+                              _TrackingStepTile(
+                                stepNumber: 2,
+                                title: 'Valid ID',
+                                completed: uploadedValidId,
+                                url: validIdUrl,
+                                onView: uploadedValidId
+                                    ? () => _openCertificateViewer(validIdUrl)
+                                    : null,
+                              ),
+                              const SizedBox(height: 10),
+                              _TrackingStepTile(
+                                stepNumber: 3,
+                                title: 'Proof of Residency',
+                                completed: uploadedResidency,
+                                url: residencyUrl,
+                                onView: uploadedResidency
+                                    ? () => _openCertificateViewer(residencyUrl)
+                                    : null,
+                              ),
+                            ],
+                          ),
                         ),
-                        const SizedBox(height: 8),
-                        // Step 2: Valid ID
-                        _TrackingStepTile(
-                          stepNumber: 2,
-                          title: 'Valid ID',
-                          completed: uploadedValidId,
-                          url: validIdUrl,
-                          onView: uploadedValidId
-                              ? () => _openCertificateViewer(validIdUrl)
-                              : null,
-                        ),
-                        const SizedBox(height: 8),
-                        // Step 3: Proof of Residency
-                        _TrackingStepTile(
-                          stepNumber: 3,
-                          title: 'Proof of Residency',
-                          completed: uploadedResidency,
-                          url: residencyUrl,
-                          onView: uploadedResidency
-                              ? () => _openCertificateViewer(residencyUrl)
-                              : null,
-                        ),
-                        const SizedBox(height: 16),
                         // Approve/Reject buttons
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.end,
-                          children: [
-                            OutlinedButton.icon(
-                              icon: const Icon(Icons.close, color: Colors.red),
-                              label: const Text('Reject', style: TextStyle(color: Colors.red)),
-                              onPressed: () {
-                                Navigator.pop(ctx);
-                                if (applicationId != null) {
-                                  _reject(applicationId);
-                                }
-                              },
-                              style: OutlinedButton.styleFrom(
-                                side: const BorderSide(color: Colors.red),
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(24, 24, 24, 18),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.end,
+                            children: [
+                              OutlinedButton.icon(
+                                icon: const Icon(Icons.close, color: kDanger),
+                                label: const Text(
+                                  'Reject',
+                                  style: TextStyle(color: kDanger),
+                                ),
+                                onPressed: () {
+                                  Navigator.pop(ctx);
+                                  if (applicationId != null) {
+                                    _reject(applicationId);
+                                  }
+                                },
+                                style: OutlinedButton.styleFrom(
+                                  side: const BorderSide(color: kDanger),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(10),
+                                  ),
+                                ),
                               ),
-                            ),
-                            const SizedBox(width: 12),
-                            OutlinedButton.icon(
-                              icon: const Icon(Icons.check_circle, color: Colors.green),
-                              label: const Text('Approve', style: TextStyle(color: Colors.green)),
-                              onPressed: () {
-                                Navigator.pop(ctx);
-                                if (applicationId != null) {
-                                  _approve(applicationId, deceasedElsewhere: _deceasedUserIds.contains(userId));
-                                }
-                              },
-                              style: OutlinedButton.styleFrom(
-                                side: const BorderSide(color: Colors.green),
+                              const SizedBox(width: 12),
+                              OutlinedButton.icon(
+                                icon: const Icon(
+                                  Icons.check_circle,
+                                  color: kSuccess,
+                                ),
+                                label: const Text(
+                                  'Approve',
+                                  style: TextStyle(color: kSuccess),
+                                ),
+                                onPressed: () {
+                                  Navigator.pop(ctx);
+                                  if (applicationId != null) {
+                                    _approve(
+                                      applicationId,
+                                      deceasedElsewhere: _deceasedUserIds
+                                          .contains(userId),
+                                    );
+                                  }
+                                },
+                                style: OutlinedButton.styleFrom(
+                                  side: const BorderSide(color: kSuccess),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(10),
+                                  ),
+                                ),
                               ),
-                            ),
-                          ],
+                            ],
+                          ),
                         ),
-                        const SizedBox(height: 8),
                       ],
-                    ],
+                    ),
                   );
                 },
               ),
