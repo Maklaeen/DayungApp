@@ -40,7 +40,8 @@ class MemberDashboardPage extends StatefulWidget {
   State<MemberDashboardPage> createState() => _MemberDashboardPageState();
 }
 
-class _MemberDashboardPageState extends State<MemberDashboardPage> {
+class _MemberDashboardPageState extends State<MemberDashboardPage>
+    with SingleTickerProviderStateMixin {
   final supabase = Supabase.instance.client;
   final List<RealtimeChannel> _announcementChannels = [];
   int? _dayungUnitId;
@@ -75,12 +76,12 @@ class _MemberDashboardPageState extends State<MemberDashboardPage> {
   bool _loading = true;
 
   List<Map<String, dynamic>> _recentCertificates = [];
-  List<Map<String, dynamic>> _pendingPaymentsByDeathNotice = [];
+  final List<Map<String, dynamic>> _pendingPaymentsByDeathNotice = [];
   List<Map<String, dynamic>> _latestActivities = [];
 
   double _pendingPaymentsAmount = 0;
 
-  int _pendingPaymentCount = 0;
+  final int _pendingPaymentCount = 0;
   int _unreadNotifCount = 0;
   int? _lastHandledUnitId; // ADD
   int? _lastProviderUnitId;
@@ -401,7 +402,7 @@ class _MemberDashboardPageState extends State<MemberDashboardPage> {
 
     late OverlayEntry entry;
     final animationController = AnimationController(
-      vsync: Navigator.of(context),
+      vsync: this,
       duration: const Duration(milliseconds: 350),
     );
     final curved = CurvedAnimation(
@@ -1166,68 +1167,51 @@ class _MemberDashboardPageState extends State<MemberDashboardPage> {
     setState(() => _loadingPending = true);
     try {
       final uid = supabase.auth.currentUser?.id;
-      final dayungId = _asInt(_selectedDayungUnitObj?['id']);
-      if (uid == null || dayungId == null) {
+      final unitId = _asInt(_selectedDayungUnitObj?['id']);
+      if (uid == null || unitId == null) {
         _pendingPaymentsAmount = 0;
-        _pendingPaymentCount = 0;
-        _pendingPaymentsByDeathNotice = [];
-      } else {
-        final rows = await supabase
-            .from('payments')
-            .select('amount, status, user_id, death_notice_id')
-            .eq('user_id', uid)
-            .eq('dayung_unit_id', dayungId)
-            .eq('status', 'pending');
-
-        double total = 0;
-        int cnt = 0;
-        final noticeTotals = <int, double>{};
-        final noticeCounts = <int, int>{};
-
-        for (final r in rows as List) {
-          final m = r as Map<String, dynamic>;
-          final noticeId = m['death_notice_id'] as int?;
-          final amt = (m['amount'] is num)
-              ? (m['amount'] as num).toDouble()
-              : 0.0;
-          if (noticeId != null) {
-            noticeTotals[noticeId] = (noticeTotals[noticeId] ?? 0) + amt;
-            noticeCounts[noticeId] = (noticeCounts[noticeId] ?? 0) + 1;
-          }
-          total += amt;
-          cnt++;
-        }
-
-        List<Map<String, dynamic>> notices = [];
-        if (noticeTotals.isNotEmpty) {
-          final ids = noticeTotals.keys.toList();
-          final noticeRows = await supabase
-              .from('death_notices')
-              .select('id, name, date_of_death')
-              .inFilter('id', ids);
-          final noticeMap = {
-            for (final n in (noticeRows as List))
-              (n as Map)['id'] as int: Map<String, dynamic>.from(n),
-          };
-          for (final id in ids) {
-            notices.add({
-              'id': id,
-              'name': noticeMap[id]?['name'] ?? 'Death Notice #$id',
-              'date_of_death': noticeMap[id]?['date_of_death'],
-              'amount': noticeTotals[id],
-              'count': noticeCounts[id],
-            });
-          }
-        }
-
-        _pendingPaymentsAmount = total;
-        _pendingPaymentCount = cnt;
-        _pendingPaymentsByDeathNotice = notices;
+        return;
       }
-    } catch (_) {
+
+      // Use the correct field name: userdeceased
+      final unpaidRows = await supabase
+          .from('payments')
+          .select('amount, userdeceased')
+          .eq('user_id', uid)
+          .eq('dayung_unit_id', unitId)
+          .eq('status', 'unpaid');
+
+      final paidRows = await supabase
+          .from('payments')
+          .select('amount, userdeceased')
+          .eq('user_id', uid)
+          .eq('dayung_unit_id', unitId)
+          .eq('status', 'paid');
+
+      final Map<dynamic, double> unpaidMap = {};
+      for (final row in unpaidRows) {
+        final id = row['userdeceased'];
+        final amt = (row['amount'] is num)
+            ? (row['amount'] as num).toDouble()
+            : double.tryParse('${row['amount']}') ?? 0.0;
+        unpaidMap[id] = (unpaidMap[id] ?? 0) + amt;
+      }
+
+      for (final row in paidRows) {
+        final id = row['userdeceased'];
+        final amt = (row['amount'] is num)
+            ? (row['amount'] as num).toDouble()
+            : double.tryParse('${row['amount']}') ?? 0.0;
+        unpaidMap[id] = (unpaidMap[id] ?? 0) - amt;
+      }
+
+      double totalDue = unpaidMap.values
+          .where((v) => v > 0)
+          .fold(0.0, (a, b) => a + b);
+
+      _pendingPaymentsAmount = totalDue;
+    } catch (e) {
       _pendingPaymentsAmount = 0;
-      _pendingPaymentCount = 0;
-      _pendingPaymentsByDeathNotice = [];
     } finally {
       if (!mounted) return;
       setState(() => _loadingPending = false);
@@ -2066,132 +2050,126 @@ class _MemberDashboardPageState extends State<MemberDashboardPage> {
   Widget _buildSideDrawer(BuildContext context) {
     final isDarkMode = Theme.of(context).brightness == Brightness.dark;
     return Drawer(
-      backgroundColor: kBg,
-      child: Column(
-        children: [
-          // Modern Drawer Header
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.fromLTRB(24, 48, 24, 32),
-            decoration: const BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [kPrimaryDark, kPrimary],
+      child: SafeArea(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            DrawerHeader(
+              decoration: BoxDecoration(
+                color: kPrimary.withOpacity(0.95),
+                borderRadius: const BorderRadius.only(
+                  bottomRight: Radius.circular(32),
+                  bottomLeft: Radius.circular(32),
+                ),
               ),
-              borderRadius: BorderRadius.vertical(bottom: Radius.circular(32)),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                CircleAvatar(
-                  radius: 32,
-                  backgroundColor: kAccent.withOpacity(0.15),
-                  child: Icon(Icons.person, size: 36, color: kAccent),
-                ),
-                const SizedBox(height: 16),
-                Text(
-                  _fullName,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 20,
-                    fontFamily: 'Montserrat',
+              child: Row(
+                children: [
+                  CircleAvatar(
+                    radius: 32,
+                    backgroundColor: Colors.white,
+                    backgroundImage:
+                        _profileUrl != null && _profileUrl!.isNotEmpty
+                        ? NetworkImage(_profileUrl!)
+                        : null,
+                    child: _profileUrl == null || _profileUrl!.isEmpty
+                        ? const Icon(Icons.person, size: 40, color: kPrimary)
+                        : null,
                   ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  _selectedDayungUnit,
-                  style: TextStyle(
-                    color: Colors.white.withOpacity(0.85),
-                    fontSize: 15,
-                    fontFamily: 'OpenSans',
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: Text(
+                      _fullName,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w800,
+                        fontSize: 18,
+                        fontFamily: 'Montserrat',
+                      ),
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
-          ),
-          const SizedBox(height: 12),
-          // Modern Drawer Items
-          Expanded(
-            child: ListView(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              children: [
-                _ModernDrawerTile(
-                  icon: Icons.account_circle,
-                  label: 'Profile',
-                  onTap: () {
-                    Navigator.pop(context);
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(builder: (_) => const ProfilePage()),
-                    );
-                  },
-                ),
-                _ModernDrawerTile(
-                  icon: Icons.people_rounded,
-                  label: 'Beneficiaries',
-                  onTap: () {
-                    Navigator.pop(context);
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => const BeneficiaryPage(),
-                      ),
-                    );
-                  },
-                ),
-                _ModernDrawerTile(
-                  icon: Icons.notifications,
-                  label: 'Notifications',
-                  onTap: () {
-                    Navigator.pop(context);
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => const NotificationPage(),
-                      ),
-                    );
-                  },
-                ),
-                _ModernDrawerTile(
-                  icon: Icons.settings,
-                  label: 'Settings',
-                  onTap: () {
-                    Navigator.pop(context);
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => const ProfSettingsPage(),
-                      ),
-                    );
-                  },
-                ),
-                const Divider(height: 32, thickness: 1, color: kSubText),
-                _ModernDrawerTile(
-                  icon: Icons.logout,
-                  label: 'Logout',
-                  onTap: () async {
+            _ModernDrawerTile(
+              icon: Icons.person,
+              label: 'Profile',
+              onTap: () async {
+                await Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const ProfilePage()),
+                );
+                await _loadUserData();
+                if (!mounted) return;
+                setState(() {});
+              },
+            ),
+            _ModernDrawerTile(
+              icon: Icons.people_rounded,
+              label: 'Beneficiaries',
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const BeneficiaryPage()),
+                );
+              },
+            ),
+            _ModernDrawerTile(
+              icon: Icons.settings,
+              label: 'Settings',
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const ProfSettingsPage()),
+                );
+              },
+            ),
+            _ModernDrawerTile(
+              icon: isDarkMode ? Icons.light_mode : Icons.dark_mode,
+              label: isDarkMode ? 'Light Mode' : 'Dark Mode',
+              onTap: () {
+                context.read<AppTheme>().toggle();
+              },
+            ),
+            _ModernDrawerTile(
+              icon: Icons.translate,
+              label: 'Translate',
+              onTap: () {
+                // TODO: Implement translator
+              },
+            ),
+            const Spacer(),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+              child: MouseRegion(
+                cursor: SystemMouseCursors.click,
+                child: ElevatedButton.icon(
+                  icon: const Icon(Icons.logout, color: Colors.white),
+                  label: const Text(
+                    'Logout',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w700,
+                      fontSize: 16,
+                      color: Colors.white,
+                    ),
+                  ),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.red,
+                    foregroundColor: Colors.white,
+                    minimumSize: const Size.fromHeight(48),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    elevation: 0,
+                  ),
+                  onPressed: () async {
                     Navigator.pop(context);
                     await showLogoutDialog(context);
                   },
                 ),
-              ],
-            ),
-          ),
-          // App version or footer
-          Padding(
-            padding: const EdgeInsets.only(bottom: 16, top: 8),
-            child: Text(
-              'v1.0.0',
-              style: TextStyle(
-                color: kSubText.withOpacity(0.7),
-                fontSize: 13,
-                fontFamily: 'OpenSans',
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -2243,6 +2221,7 @@ class _MemberDashboardPageState extends State<MemberDashboardPage> {
     final amount = loading
         ? '…'
         : '₱ ${_pendingPaymentsAmount.toStringAsFixed(0)}';
+
     final dueDate = 'Due soon';
 
     return Container(
@@ -2425,7 +2404,7 @@ class _ActivityRow extends StatelessWidget {
   }
 }
 
-// Modern drawer tile with hover effect (already in your code, but ensure it's styled as below)
+// Modern drawer tile with hover effect
 class _ModernDrawerTile extends StatefulWidget {
   final IconData icon;
   final String label;
@@ -2450,33 +2429,80 @@ class _ModernDrawerTileState extends State<_ModernDrawerTile> {
     return MouseRegion(
       onEnter: (_) => setState(() => _hovering = true),
       onExit: (_) => setState(() => _hovering = false),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 180),
-        margin: const EdgeInsets.symmetric(vertical: 4),
-        decoration: BoxDecoration(
-          color: _hovering ? hoverColor : Colors.transparent,
-          borderRadius: BorderRadius.circular(18),
-        ),
-        child: ListTile(
-          leading: Icon(widget.icon, color: kPrimary),
-          title: Text(
-            widget.label,
-            style: const TextStyle(
-              fontWeight: FontWeight.w600,
-              color: kText,
-              fontFamily: 'Montserrat',
-            ),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(14),
+        onTap: widget.onTap,
+        child: Container(
+          decoration: BoxDecoration(
+            color: _hovering ? hoverColor : Colors.transparent,
+            borderRadius: BorderRadius.circular(14),
           ),
-          onTap: widget.onTap,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(18),
-          ),
-          contentPadding: const EdgeInsets.symmetric(
-            horizontal: 18,
-            vertical: 2,
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+          child: Row(
+            children: [
+              Icon(widget.icon, color: kPrimary),
+              const SizedBox(width: 18),
+              Text(
+                widget.label,
+                style: const TextStyle(
+                  fontWeight: FontWeight.w600,
+
+                  fontSize: 15,
+                  color: kPrimary,
+                  fontFamily: 'Montserrat',
+                ),
+              ),
+            ],
           ),
         ),
       ),
     );
+  }
+}
+
+class AmountDueWidget extends StatefulWidget {
+  final String userId;
+  final int unitId; // <-- Change to int
+  const AmountDueWidget({
+    required this.userId,
+    required this.unitId,
+    super.key,
+  });
+
+  @override
+  State<AmountDueWidget> createState() => _AmountDueWidgetState();
+}
+
+class _AmountDueWidgetState extends State<AmountDueWidget> {
+  double? amountDue;
+  bool isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    fetchAmountDue();
+  }
+
+  Future<void> fetchAmountDue() async {
+    final response = await Supabase.instance.client
+        .from('payments')
+        .select('amount')
+        .eq('user_id', widget.userId)
+        .eq('dayung_unit_id', widget.unitId)
+        .eq('status', 'unpaid') // or 'pending', adjust as needed
+        .order('created_at', ascending: false)
+        .limit(1)
+        .maybeSingle();
+
+    setState(() {
+      amountDue = response?['amount']?.toDouble();
+      isLoading = false;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (isLoading) return const CircularProgressIndicator();
+    return Text('Amount Due: ₱${amountDue ?? 0}');
   }
 }

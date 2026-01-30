@@ -4,7 +4,6 @@ import 'package:capstone_app/Beneficiary/beneficiary.dart' hide kPrimary;
 import 'package:capstone_app/Collector/collclaims.dart' hide kPrimary;
 import 'package:capstone_app/Collector/collcontributions.dart';
 import 'package:capstone_app/Collector/collect_cash.dart';
-import 'package:capstone_app/Collector/gcash_qr_page.dart' hide kPrimary;
 import 'package:capstone_app/Providers/apptheme_provider.dart';
 import 'package:capstone_app/Providers/dayung_provider.dart';
 import 'package:capstone_app/Providers/dayung_role_provider.dart';
@@ -27,9 +26,6 @@ const kAccentDark = Color(0xFF059669);
 const kCardBg = Color(0xFFFFFFFF);
 const kBorderColor = Color(0xFFE5E7EB);
 const kSuccess = Color(0xFF10B981);
-const kBg = Color(0xFFFAFAF7);
-const kPrimaryDark = Color(0xFF083366);
-const kAccent = Color(0xFF0D47A1);
 const double kEdge = 16;
 
 class CollectorDashboardPage extends StatefulWidget {
@@ -966,61 +962,8 @@ class _CollectorDashboardPageState extends State<CollectorDashboardPage> {
           title: 'Collect Cash',
           subtitle: 'Record cash payment',
           color: const Color(0xFF3B82F6),
-          onTap: () {
-            showModalBottomSheet(
-              context: context,
-              shape: const RoundedRectangleBorder(
-                borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-              ),
-              builder: (ctx) => Padding(
-                padding: const EdgeInsets.all(24),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Text(
-                      'Select Payment Method',
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                        fontFamily: 'Montserrat',
-                      ),
-                    ),
-                    const SizedBox(height: 20),
-                    ListTile(
-                      leading: const Icon(
-                        Icons.money_rounded,
-                        color: Color(0xFF3B82F6),
-                      ),
-                      title: const Text('Cash'),
-                      onTap: () {
-                        Navigator.pop(ctx);
-                        _recordCashPayment();
-                      },
-                    ),
-                    ListTile(
-                      leading: const Icon(
-                        Icons.qr_code_2_rounded,
-                        color: Color(0xFFF59E0B),
-                      ),
-                      title: const Text('GCash'),
-                      onTap: () {
-                        Navigator.pop(ctx);
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) =>
-                                GcashQrPage(dayungUnitId: _dayungUnitId!),
-                          ),
-                        );
-                      },
-                    ),
-                  ],
-                ),
-              ),
-            );
-          },
+          onTap: _recordCashPayment, // <-- goes directly to Collect Cash page
         ),
-
         const SizedBox(height: 8),
         _modernActionCard(
           icon: Icons.receipt_long_rounded,
@@ -1031,28 +974,12 @@ class _CollectorDashboardPageState extends State<CollectorDashboardPage> {
         ),
         const SizedBox(height: 8),
         _modernActionCard(
-          icon: Icons.qr_code_2_rounded,
-          title: 'Open GCash QR',
-          subtitle: 'Show payment QR',
-          color: const Color(0xFFF59E0B),
-          onTap: () {
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (_) => GcashQrPage(dayungUnitId: _dayungUnitId!),
-              ),
-            );
-          },
-        ),
-        const SizedBox(height: 8),
-        _modernActionCard(
           icon: Icons.people_alt_rounded,
           title: 'Members Paid',
           subtitle: 'View all members',
           color: const Color(0xFF6366F1),
-          onTap: _showMembers, // Define this method in your class
+          onTap: _showMembers,
         ),
-        // Add more actions as needed, following the Treasurer's style
       ],
     );
   }
@@ -1136,8 +1063,8 @@ class _CollectorDashboardPageState extends State<CollectorDashboardPage> {
   Widget _modernRecentActivity() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Text(
+      children: const [
+        Text(
           "Recent Activity",
           style: TextStyle(
             fontSize: 18,
@@ -1146,70 +1073,11 @@ class _CollectorDashboardPageState extends State<CollectorDashboardPage> {
             fontFamily: 'Montserrat',
           ),
         ),
-        const SizedBox(height: 16),
-        Container(
-          padding: const EdgeInsets.all(20),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(16),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.05),
-                blurRadius: 10,
-                offset: const Offset(0, 4),
-              ),
-            ],
-          ),
-          child: Column(
-            children: [
-              Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF3B82F6).withValues(alpha: 0.1),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: const Icon(
-                      Icons.payment_rounded,
-                      color: Color(0xFF3B82F6),
-                      size: 20,
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  const Expanded(
-                    child: Text(
-                      "Collection Activity",
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w700,
-                        color: Color(0xFF111827),
-                        fontFamily: 'Montserrat',
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 16),
-              const _ActivityRow(
-                icon: Icons.calendar_today,
-                color: Color(0xFF3B82F6),
-                text: 'Jun 15    Contribution received     +₱ 23,000',
-              ),
-              const SizedBox(height: 12),
-              const _ActivityRow(
-                icon: Icons.handshake,
-                color: Color(0xFF10B981),
-                text: 'May 15   Assistance Received',
-              ),
-              const SizedBox(height: 12),
-              const _ActivityRow(
-                icon: Icons.calendar_today,
-                color: Color(0xFF3B82F6),
-                text: 'Apr 15    Contribution received     +₱ 23,000',
-              ),
-            ],
-          ),
+        SizedBox(height: 12),
+        _ActivityRow(
+          icon: Icons.check_circle_outline,
+          color: Color(0xFF10B981),
+          text: 'No recent activity yet.',
         ),
       ],
     );
@@ -1298,132 +1166,126 @@ class _CollectorDashboardPageState extends State<CollectorDashboardPage> {
   Widget _buildSideDrawer(BuildContext context) {
     final isDarkMode = Theme.of(context).brightness == Brightness.dark;
     return Drawer(
-      backgroundColor: kBg,
-      child: Column(
-        children: [
-          // Modern Drawer Header
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.fromLTRB(24, 48, 24, 32),
-            decoration: const BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [kPrimaryDark, kPrimary],
+      child: SafeArea(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            DrawerHeader(
+              decoration: BoxDecoration(
+                color: kPrimary.withOpacity(0.95),
+                borderRadius: const BorderRadius.only(
+                  bottomRight: Radius.circular(32),
+                  bottomLeft: Radius.circular(32),
+                ),
               ),
-              borderRadius: BorderRadius.vertical(bottom: Radius.circular(32)),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                CircleAvatar(
-                  radius: 32,
-                  backgroundColor: kAccent.withOpacity(0.15),
-                  child: Icon(Icons.person, size: 36, color: kAccent),
-                ),
-                const SizedBox(height: 16),
-                // Text(
-                //   _fullName,
-                //   style: const TextStyle(
-                //     color: Colors.white,
-                //     fontWeight: FontWeight.bold,
-                //     fontSize: 20,
-                //     fontFamily: 'Montserrat',
+              child: Row(
+                // children: [
+                //   CircleAvatar(
+                //     radius: 32,
+                //     backgroundColor: Colors.white,
+                //     backgroundImage:
+                //         _profileUrl != null && _profileUrl!.isNotEmpty
+                //         ? NetworkImage(_profileUrl!)
+                //         : null,
+                //     child: _profileUrl == null || _profileUrl!.isEmpty
+                //         ? const Icon(Icons.person, size: 40, color: kPrimary)
+                //         : null,
                 //   ),
-                // ),
-                const SizedBox(height: 4),
-                // Text(
-                //   _selectedDayungUnit,
-                //   style: TextStyle(
-                //     color: Colors.white.withOpacity(0.85),
-                //     fontSize: 15,
-                //     fontFamily: 'OpenSans',
+                //   const SizedBox(width: 16),
+                //   Expanded(
+                //     child: Text(
+                //       _fullName,
+                //       style: const TextStyle(
+                //         color: Colors.white,
+                //         fontWeight: FontWeight.w800,
+                //         fontSize: 18,
+                //         fontFamily: 'Montserrat',
+                //       ),
+                //     ),
                 //   ),
-                // ),
-              ],
+                // ],
+              ),
             ),
-          ),
-          const SizedBox(height: 12),
-          // Modern Drawer Items
-          Expanded(
-            child: ListView(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              children: [
-                _ModernDrawerTile(
-                  icon: Icons.account_circle,
-                  label: 'Profile',
-                  onTap: () {
-                    Navigator.pop(context);
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(builder: (_) => const ProfilePage()),
-                    );
-                  },
-                ),
-                _ModernDrawerTile(
-                  icon: Icons.people_rounded,
-                  label: 'Beneficiaries',
-                  onTap: () {
-                    Navigator.pop(context);
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => const BeneficiaryPage(),
-                      ),
-                    );
-                  },
-                ),
-                _ModernDrawerTile(
-                  icon: Icons.notifications,
-                  label: 'Notifications',
-                  onTap: () {
-                    Navigator.pop(context);
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => const NotificationPage(),
-                      ),
-                    );
-                  },
-                ),
-                _ModernDrawerTile(
-                  icon: Icons.settings,
-                  label: 'Settings',
-                  onTap: () {
-                    Navigator.pop(context);
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => const ProfSettingsPage(),
-                      ),
-                    );
-                  },
-                ),
-                const Divider(height: 32, thickness: 1, color: kSubText),
-                _ModernDrawerTile(
-                  icon: Icons.logout,
-                  label: 'Logout',
-                  onTap: () async {
+            _ModernDrawerTile(
+              icon: Icons.person,
+              label: 'Profile',
+              onTap: () async {
+                await Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const ProfilePage()),
+                );
+                // await _loadUserData();
+                if (!mounted) return;
+                setState(() {});
+              },
+            ),
+            _ModernDrawerTile(
+              icon: Icons.people_rounded,
+              label: 'Beneficiaries',
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const BeneficiaryPage()),
+                );
+              },
+            ),
+            _ModernDrawerTile(
+              icon: Icons.settings,
+              label: 'Settings',
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const ProfSettingsPage()),
+                );
+              },
+            ),
+            _ModernDrawerTile(
+              icon: isDarkMode ? Icons.light_mode : Icons.dark_mode,
+              label: isDarkMode ? 'Light Mode' : 'Dark Mode',
+              onTap: () {
+                context.read<AppTheme>().toggle();
+              },
+            ),
+            _ModernDrawerTile(
+              icon: Icons.translate,
+              label: 'Translate',
+              onTap: () {
+                // TODO: Implement translator
+              },
+            ),
+            const Spacer(),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+              child: MouseRegion(
+                cursor: SystemMouseCursors.click,
+                child: ElevatedButton.icon(
+                  icon: const Icon(Icons.logout, color: Colors.white),
+                  label: const Text(
+                    'Logout',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w700,
+                      fontSize: 16,
+                      color: Colors.white,
+                    ),
+                  ),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.red,
+                    foregroundColor: Colors.white,
+                    minimumSize: const Size.fromHeight(48),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    elevation: 0,
+                  ),
+                  onPressed: () async {
                     Navigator.pop(context);
                     await showLogoutDialog(context);
                   },
                 ),
-              ],
-            ),
-          ),
-          // App version or footer
-          Padding(
-            padding: const EdgeInsets.only(bottom: 16, top: 8),
-            child: Text(
-              'v1.0.0',
-              style: TextStyle(
-                color: kSubText.withOpacity(0.7),
-                fontSize: 13,
-                fontFamily: 'OpenSans',
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -1498,6 +1360,7 @@ class _ActivityRow extends StatelessWidget {
   }
 }
 
+// Modern drawer tile with hover effect
 class _ModernDrawerTile extends StatefulWidget {
   final IconData icon;
   final String label;
@@ -1522,30 +1385,29 @@ class _ModernDrawerTileState extends State<_ModernDrawerTile> {
     return MouseRegion(
       onEnter: (_) => setState(() => _hovering = true),
       onExit: (_) => setState(() => _hovering = false),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 180),
-        margin: const EdgeInsets.symmetric(vertical: 4),
-        decoration: BoxDecoration(
-          color: _hovering ? hoverColor : Colors.transparent,
-          borderRadius: BorderRadius.circular(18),
-        ),
-        child: ListTile(
-          leading: Icon(widget.icon, color: kPrimary),
-          title: Text(
-            widget.label,
-            style: const TextStyle(
-              fontWeight: FontWeight.w600,
-              color: kText,
-              fontFamily: 'Montserrat',
-            ),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(14),
+        onTap: widget.onTap,
+        child: Container(
+          decoration: BoxDecoration(
+            color: _hovering ? hoverColor : Colors.transparent,
+            borderRadius: BorderRadius.circular(14),
           ),
-          onTap: widget.onTap,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(18),
-          ),
-          contentPadding: const EdgeInsets.symmetric(
-            horizontal: 18,
-            vertical: 2,
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+          child: Row(
+            children: [
+              Icon(widget.icon, color: kPrimary),
+              const SizedBox(width: 18),
+              Text(
+                widget.label,
+                style: const TextStyle(
+                  fontWeight: FontWeight.w600,
+                  fontSize: 15,
+                  color: kPrimary,
+                  fontFamily: 'Montserrat',
+                ),
+              ),
+            ],
           ),
         ),
       ),

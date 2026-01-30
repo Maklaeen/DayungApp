@@ -760,6 +760,20 @@ class _CreateDeathNoticePageState extends State<CreateDeathNoticePage> {
           });
         }
 
+        // Insert into payments table for each member who needs to pay
+        for (final app in List<Map<String, dynamic>>.from(
+          approvedApplications,
+        )) {
+          await supabase.from('payments').insert({
+            'user_id': app['user_id'],
+            'userdeceased': userId,
+            'dayung_unit_id': widget.dayungUnitId,
+            'amount': result,
+            'status': 'unpaid',
+            'created_at': now,
+          });
+        }
+
         Navigator.of(parentContext, rootNavigator: true).pop(); // Close loading
         await _setDeceased(claim);
       } catch (e) {
@@ -793,4 +807,32 @@ Future<void> savePayment(Map<String, dynamic> paymentData) async {
     ...paymentData,
     'payment_number': paymentNumber,
   });
+
+  // Update payment status in payments table
+  final allPayments = await supabase
+      .from('payments')
+      .select('id, amount, status')
+      .eq('user_id', userId)
+      .eq('userdeceased', userDeceasedId);
+
+  double totalPaid = 0;
+  double totalDue = 0;
+  for (final row in allPayments) {
+    if (row['status'] == 'paid') {
+      totalPaid += double.tryParse(row['amount'].toString()) ?? 0;
+    }
+    if (row['status'] == 'unpaid') {
+      totalDue += double.tryParse(row['amount'].toString()) ?? 0;
+    }
+  }
+
+  // If totalPaid >= totalDue, mark all unpaid payments as 'paid'
+  if (totalPaid >= totalDue && totalDue > 0) {
+    await supabase
+        .from('payments')
+        .update({'status': 'paid'})
+        .eq('user_id', userId)
+        .eq('userdeceased', userDeceasedId)
+        .eq('status', 'unpaid');
+  }
 }
