@@ -3,7 +3,7 @@ import 'dart:io';
 import 'dart:typed_data';
 import 'dart:ui';
 
-import 'package:capstone_app/Auth/login.dart' hide kWarn;
+import 'package:capstone_app/Auth/login.dart' hide kWarn, kDanger;
 import 'package:capstone_app/President/manage_rules.dart'
     hide kPrimary, kAccent;
 import 'package:capstone_app/Providers/apptheme_provider.dart';
@@ -1315,7 +1315,7 @@ class _ProfilePageState extends State<ProfilePage> {
     final themeBg = isDark ? const Color(0xFF18181B) : const Color(0xFFF8FAFC);
     final themeCard = isDark ? const Color(0xFF23232A) : Colors.white;
     final themeText = isDark ? Colors.white : const Color(0xFF111827);
-    final themeSubText = isDark ? Colors.white : const Color(0xFF111827);
+    final themeSubText = isDark ? Colors.white70 : kSubText;
     final themeField = isDark ? const Color(0xFF23232A) : Colors.white;
 
     if (isLoading) {
@@ -1327,180 +1327,212 @@ class _ProfilePageState extends State<ProfilePage> {
 
     return Scaffold(
       backgroundColor: themeBg,
-      body: Container(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: isDark
-                ? [
-                    const Color(0xFF23232A),
-                    const Color(0xFF18181B),
-                    const Color(0xFF23232A),
-                  ]
-                : [
-                    const Color(0xFF1E40AF),
-                    const Color(0xFF3B82F6),
-                    const Color(0xFFF8FAFC),
-                  ],
-            stops: [0.0, 0.3, 0.3],
+      body: Column(
+        children: [
+          // Modern Curved Header
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.fromLTRB(24, 36, 24, 32),
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [kPrimaryLight, kAccentDark],
+              ),
+              borderRadius: BorderRadius.vertical(bottom: Radius.circular(32)),
+            ),
+            child: Row(
+              children: [
+                GestureDetector(
+                  onTap: _editing ? _chooseImageSource : _openProfilePreview,
+                  child: Hero(
+                    tag: 'profilePhotoHero',
+                    child: CircleAvatar(
+                      radius: 36,
+                      backgroundColor: kAccentDark.withOpacity(0.15),
+                      backgroundImage:
+                          profileUrl != null && profileUrl!.isNotEmpty
+                          ? NetworkImage(profileUrl!)
+                          : null,
+                      child: profileUrl == null || profileUrl!.isEmpty
+                          ? Icon(Icons.person, size: 36, color: kAccentDark)
+                          : null,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 18),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        _displayName().isNotEmpty
+                            ? _displayName()
+                            : 'Your name',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 22,
+                          fontFamily: 'Montserrat',
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        address.isNotEmpty ? address : 'No address set',
+                        style: TextStyle(
+                          color: Colors.white.withOpacity(0.85),
+                          fontSize: 15,
+                          fontFamily: 'OpenSans',
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 8),
+                ElevatedButton.icon(
+                  icon: Icon(
+                    _editing ? Icons.close_rounded : Icons.edit_rounded,
+                    size: 18,
+                    color: Colors.white,
+                  ),
+                  label: Text(
+                    _editing ? 'Cancel' : 'Edit',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w600,
+                      fontSize: 14,
+                    ),
+                  ),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: _editing
+                        ? kWarn
+                        : const Color.fromARGB(255, 11, 101, 73),
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    elevation: 0,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 10,
+                    ),
+                  ),
+                  onPressed: () {
+                    if (_editing) {
+                      _fullNameController.text = fullName;
+                      _mobileController.text = mobileNumber;
+                      _addressController.text = address;
+                      _sexController.text = sex;
+                    }
+                    setState(() => _editing = !_editing);
+                  },
+                ),
+              ],
+            ),
           ),
-        ),
-        child: Column(
-          children: [
-            Container(
-              padding: const EdgeInsets.fromLTRB(16, 40, 16, 24),
-              child: Row(
-                children: [
-                  IconButton(
-                    icon: Icon(
-                      Icons.chevron_left,
-                      color: Colors.white,
-                      size: 22,
-                    ),
-                    onPressed: () => Navigator.pop(context),
-                    padding: EdgeInsets.zero,
-                    constraints: const BoxConstraints(
-                      minWidth: 32,
-                      minHeight: 32,
-                    ),
+          // Main Profile Card
+          Expanded(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.fromLTRB(18, 18, 18, 24),
+              child: Card(
+                elevation: 4,
+                color: themeCard,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(24),
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 22,
+                    vertical: 28,
                   ),
-                  const SizedBox(width: 16),
-                  const Expanded(
-                    child: Text(
-                      'Profile',
-                      style: TextStyle(
-                        fontSize: 22,
-                        fontWeight: FontWeight.w800,
-                        color: Colors.white,
-                        fontFamily: 'Montserrat',
-                        letterSpacing: 0.3,
-                        shadows: [
-                          Shadow(
-                            color: Colors.black26,
-                            offset: Offset(0, 1),
-                            blurRadius: 2,
+                  child: Form(
+                    key: _formKey,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // Profile Fields
+                        _buildProfileFields(
+                          themeCard,
+                          themeText,
+                          themeSubText,
+                          themeField,
+                        ),
+                        const SizedBox(height: 18),
+                        if (_editing)
+                          SizedBox(
+                            width: double.infinity,
+                            child: ElevatedButton.icon(
+                              icon: _saving
+                                  ? const SizedBox(
+                                      width: 18,
+                                      height: 18,
+                                      child: CircularProgressIndicator(
+                                        color: Colors.white,
+                                        strokeWidth: 2,
+                                      ),
+                                    )
+                                  : const Icon(Icons.save, color: Colors.white),
+                              label: Text(
+                                _saving ? 'Saving...' : 'Save Changes',
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 16,
+                                  fontFamily: 'Montserrat',
+                                ),
+                              ),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: kAccentDark,
+                                foregroundColor: Colors.white,
+                                minimumSize: const Size.fromHeight(48),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(16),
+                                ),
+                                elevation: 2,
+                              ),
+                              onPressed: _saving ? null : _saveProfile,
+                            ),
                           ),
+                        if (!_editing) ...[
+                          const SizedBox(height: 18),
+                          _buildActionButtons(),
                         ],
-                      ),
+                      ],
                     ),
                   ),
-                  IconButton(
-                    icon: Icon(
-                      Theme.of(context).brightness == Brightness.dark
-                          ? Icons.wb_sunny_rounded
-                          : Icons.nightlight_round,
-                      color: Colors.white,
-                      size: 22,
-                    ),
-                    tooltip: Theme.of(context).brightness == Brightness.dark
-                        ? 'Light mode'
-                        : 'Dark mode',
-                    onPressed: () => context.read<AppTheme>().toggle(),
-                  ),
-                ],
-              ),
-            ),
-            Expanded(
-              child: Container(
-                decoration: BoxDecoration(
-                  color: themeBg,
-                  borderRadius: const BorderRadius.only(
-                    topLeft: Radius.circular(16),
-                    topRight: Radius.circular(16),
-                  ),
-                ),
-                child: Stack(
-                  children: [
-                    Form(
-                      key: _formKey,
-                      child: SingleChildScrollView(
-                        padding: const EdgeInsets.fromLTRB(16, 16, 16, 20),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            _buildModernProfileSection(
-                              themeCard,
-                              themeText,
-                              themeSubText,
-                            ),
-                            const SizedBox(height: 32),
-
-                            _buildProfileFields(
-                              themeCard,
-                              themeText,
-                              themeSubText,
-                              themeField,
-                            ),
-                            const SizedBox(height: 24),
-
-                            _buildActionButtons(),
-                            const SizedBox(height: 24),
-
-                            // _buildCertificatesSection(themeCard, themeText),
-                            // const SizedBox(height: 24),
-
-                            // _buildDayungManagement(
-                            //   themeCard,
-                            //   themeText,
-                            //   themeSubText,
-                            // ),
-                          ],
-                        ),
-                      ),
-                    ),
-                    if (_uploadingImage)
-                      Positioned(
-                        top: 12,
-                        right: 12,
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 16,
-                            vertical: 12,
-                          ),
-                          decoration: BoxDecoration(
-                            gradient: LinearGradient(
-                              colors: [kPrimary, kPrimaryLight],
-                              begin: Alignment.topLeft,
-                              end: Alignment.bottomRight,
-                            ),
-                            borderRadius: BorderRadius.circular(12),
-                            boxShadow: [
-                              BoxShadow(
-                                color: kPrimary.withOpacity(0.3),
-                                blurRadius: 8,
-                                offset: const Offset(0, 4),
-                              ),
-                            ],
-                          ),
-                          child: const Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              SizedBox(
-                                width: 16,
-                                height: 16,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                  color: Colors.white,
-                                ),
-                              ),
-                              SizedBox(width: 8),
-                              Text(
-                                'Uploading photo...',
-                                style: TextStyle(
-                                  color: Colors.white,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                  ],
                 ),
               ),
             ),
-          ],
+          ),
+        ],
+      ),
+      bottomNavigationBar: Padding(
+        padding: const EdgeInsets.fromLTRB(18, 0, 18, 18),
+        child: SizedBox(
+          width: double.infinity,
+          height: 52,
+          child: ElevatedButton.icon(
+            icon: const Icon(Icons.dashboard_rounded, color: Colors.white),
+            label: const Text(
+              'Dashboard',
+              style: TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.w600,
+                fontSize: 16,
+                fontFamily: 'Montserrat',
+              ),
+            ),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: kPrimaryLight,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(14),
+              ),
+              elevation: 2,
+              padding: const EdgeInsets.symmetric(vertical: 12),
+            ),
+            onPressed: () => Navigator.of(context).maybePop(),
+          ),
         ),
       ),
     );
@@ -1847,13 +1879,10 @@ class _ProfilePageState extends State<ProfilePage> {
 
   Widget _buildActionButtons() {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final themeButtonBeneficiary = isDark
-        ? const Color(0xFF23232A)
-        : Colors.white;
-    final themeButtonChangePw = isDark ? const Color(0xFF23232A) : Colors.white;
-    final themeButtonLogout = isDark ? const Color(0xFFB91C1C) : kWarn;
-    final themeButtonPin = isDark ? const Color(0xFF23232A) : Colors.white;
-    final textColor = isDark ? Colors.white : kText;
+    final themeButtonBeneficiary = isDark ? kAccentDark : kSuccess;
+    final themeButtonChangePw = isDark ? kAccentDark : kPrimaryLight;
+    final themeButtonLogout = isDark ? kDanger : kWarn;
+    final textColor = Colors.white;
 
     if (_editing) {
       return Container(

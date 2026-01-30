@@ -599,730 +599,452 @@ class _DayungProfileState extends State<DayungProfile> {
 
     final sectionTitleStyle = TextStyle(
       fontSize: isWide ? 20 : 16,
-      fontWeight: FontWeight.w600,
+      fontWeight: FontWeight.w700,
       fontFamily: 'Montserrat',
+      color: kText,
     );
     final bodyTextStyle = TextStyle(
       fontSize: isWide ? 18 : 14,
       fontFamily: 'OpenSans',
+      color: kSubText,
     );
 
     return Scaffold(
       backgroundColor: const Color(0xFFF8FAFC),
-      body: Container(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [
-              Color(0xFF1E40AF), // Deep blue gradient
-              Color(0xFF3B82F6), // Medium blue
-              Color(0xFFF8FAFC), // Light background
-            ],
-            stops: [0.0, 0.15, 0.15],
-          ),
-        ),
-        child: SafeArea(
-          child: Column(
-            children: [
-              // Modern Header
-              Container(
-                padding: const EdgeInsets.fromLTRB(16, 12, 16, 20),
-                child: Row(
-                  children: [
-                    IconButton(
-                      icon: const Icon(
-                        Icons.arrow_back_rounded,
-                        color: Colors.white,
-                        size: 20,
-                      ),
-                      onPressed: () => Navigator.pop(context, true),
-                      padding: EdgeInsets.zero,
-                      constraints: const BoxConstraints(),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Text(
-                        'Manage Dayung',
+      body: Column(
+        children: [
+          // Modern Curved Header
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.fromLTRB(24, 36, 24, 32),
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [kPrimaryLight, kAccentDark],
+              ),
+              borderRadius: BorderRadius.vertical(bottom: Radius.circular(32)),
+            ),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                CircleAvatar(
+                  radius: 32,
+                  backgroundColor: Colors.white.withOpacity(0.15),
+                  child: const Icon(Icons.group, color: Colors.white, size: 32),
+                ),
+                const SizedBox(width: 18),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        _currentDayungName ?? 'Manage Dayung',
                         style: TextStyle(
-                          fontSize: isWide ? 24 : 20,
-                          fontWeight: FontWeight.w800,
                           color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                          fontSize: isWide ? 28 : 22,
                           fontFamily: 'Montserrat',
-                          letterSpacing: 0.3,
-                          shadows: [
-                            const Shadow(
-                              color: Colors.black26,
-                              offset: Offset(0, 1),
-                              blurRadius: 2,
-                            ),
-                          ],
                         ),
                       ),
-                    ),
-                  ],
-                ),
-              ),
-              // Content
-              Expanded(
-                child: Container(
-                  decoration: const BoxDecoration(
-                    color: Color(0xFFF8FAFC),
-                    borderRadius: BorderRadius.only(
-                      topLeft: Radius.circular(32),
-                      topRight: Radius.circular(32),
-                    ),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black12,
-                        blurRadius: 20,
-                        offset: Offset(0, -5),
+                      const SizedBox(height: 4),
+                      Text(
+                        _currentDayungData != null
+                            ? _address(_currentDayungData!)
+                            : 'No address set',
+                        style: TextStyle(
+                          color: Colors.white.withOpacity(0.85),
+                          fontSize: 15,
+                          fontFamily: 'OpenSans',
+                        ),
                       ),
                     ],
                   ),
-                  child: SingleChildScrollView(
-                    padding: const EdgeInsets.fromLTRB(20, 20, 20, 100),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        // Current Dayung card
-                        Container(
-                          padding: const EdgeInsets.all(12),
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Container(
-                                padding: const EdgeInsets.all(8),
-                                decoration: BoxDecoration(
-                                  color: kPrimary.withValues(alpha: 0.05),
-                                  borderRadius: BorderRadius.circular(6),
-                                ),
-                                child: Row(
-                                  children: [
-                                    Container(
-                                      padding: const EdgeInsets.all(6),
-                                      decoration: BoxDecoration(
-                                        color: kPrimary,
-                                        borderRadius: BorderRadius.circular(4),
-                                      ),
-                                      child: const Icon(
-                                        Icons.home_rounded,
-                                        color: Colors.white,
-                                        size: 14,
-                                      ),
-                                    ),
-                                    const SizedBox(width: 16),
-                                    Expanded(
-                                      child: Text(
-                                        'Current Dayung',
-                                        style: sectionTitleStyle.copyWith(
-                                          color: kText,
-                                          fontSize: isWide ? 16 : 14,
-                                          fontWeight: FontWeight.w600,
-                                        ),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                              const SizedBox(height: 20),
-                              if (_loadingDayung)
+                ),
+                const SizedBox(width: 8),
+                IconButton(
+                  icon: const Icon(Icons.refresh, color: Colors.white),
+                  tooltip: 'Refresh',
+                  onPressed: _loadCurrentDayung,
+                ),
+              ],
+            ),
+          ),
+          // Main Content
+          Expanded(
+            child: Container(
+              decoration: const BoxDecoration(
+                color: Color(0xFFF8FAFC),
+                borderRadius: BorderRadius.only(
+                  topLeft: Radius.circular(32),
+                  topRight: Radius.circular(32),
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black12,
+                    blurRadius: 20,
+                    offset: Offset(0, -5),
+                  ),
+                ],
+              ),
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.fromLTRB(20, 20, 20, 100),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // --- Current Dayung Card ---
+                    Card(
+                      elevation: 4,
+                      color: Colors.white,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(18),
+                      ),
+                      child: Padding(
+                        padding: const EdgeInsets.all(18),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
                                 Container(
-                                  padding: const EdgeInsets.all(12),
+                                  padding: const EdgeInsets.all(8),
                                   decoration: BoxDecoration(
-                                    color: kPrimary.withValues(alpha: 0.05),
-                                    borderRadius: BorderRadius.circular(6),
+                                    color: kPrimary.withOpacity(0.08),
+                                    borderRadius: BorderRadius.circular(8),
                                   ),
-                                  child: Row(
-                                    children: [
-                                      Container(
-                                        padding: const EdgeInsets.all(4),
-                                        decoration: BoxDecoration(
-                                          color: kPrimary.withValues(
-                                            alpha: 0.08,
-                                          ),
-                                          borderRadius: BorderRadius.circular(
-                                            4,
-                                          ),
-                                        ),
-                                        child: const SizedBox(
-                                          width: 16,
-                                          height: 16,
-                                          child: CircularProgressIndicator(
-                                            color: kPrimary,
-                                            strokeWidth: 2,
-                                          ),
-                                        ),
-                                      ),
-                                      const SizedBox(width: 16),
-                                      Text(
-                                        'Loading dayung information...',
-                                        style: TextStyle(
-                                          color: kPrimary,
-                                          fontWeight: FontWeight.w500,
-                                          fontSize: 14,
-                                          fontFamily: 'Montserrat',
-                                        ),
-                                      ),
-                                    ],
+                                  child: const Icon(
+                                    Icons.home_rounded,
+                                    color: kPrimary,
+                                    size: 20,
                                   ),
-                                )
-                              else ...[
-                                Row(
-                                  children: [
-                                    Container(
-                                      padding: const EdgeInsets.all(6),
-                                      decoration: BoxDecoration(
-                                        color: _currentDayungName != null
-                                            ? kSuccess.withValues(alpha: 0.08)
-                                            : kWarn.withValues(alpha: 0.08),
-                                        borderRadius: BorderRadius.circular(4),
-                                      ),
-                                      child: Icon(
-                                        _currentDayungName != null
-                                            ? Icons.check_circle_rounded
-                                            : Icons.warning_amber_rounded,
-                                        color: _currentDayungName != null
-                                            ? kSuccess
-                                            : kWarn,
-                                        size: 16,
-                                      ),
-                                    ),
-                                    const SizedBox(width: 16),
-                                    Expanded(
-                                      child: Text(
-                                        _currentDayungName ??
-                                            'No Dayung Assigned',
-                                        style: bodyTextStyle.copyWith(
-                                          color: _currentDayungName != null
-                                              ? kText
-                                              : kSubText,
-                                          fontWeight: FontWeight.w500,
-                                          fontSize: isWide ? 14 : 12,
-                                          fontFamily: 'Montserrat',
-                                        ),
-                                      ),
-                                    ),
-                                    Container(
-                                      padding: const EdgeInsets.all(4),
-                                      decoration: BoxDecoration(
-                                        color: kPrimary.withValues(alpha: 0.05),
-                                        borderRadius: BorderRadius.circular(4),
-                                      ),
-                                      child: IconButton(
-                                        tooltip: 'Refresh',
-                                        onPressed: _loadCurrentDayung,
-                                        icon: const Icon(
-                                          Icons.refresh_rounded,
-                                          color: kPrimary,
-                                          size: 12,
-                                        ),
-                                        padding: EdgeInsets.zero,
-                                        constraints: const BoxConstraints(),
-                                      ),
-                                    ),
-                                  ],
                                 ),
-                                if (_currentDayungData != null) ...[
-                                  const SizedBox(height: 16),
-                                  Container(
-                                    padding: const EdgeInsets.all(8),
-                                    decoration: BoxDecoration(
-                                      color: kSubText.withValues(alpha: 0.04),
-                                      borderRadius: BorderRadius.circular(4),
-                                    ),
-                                    child: Row(
-                                      children: [
-                                        Container(
-                                          padding: const EdgeInsets.all(4),
-                                          decoration: BoxDecoration(
-                                            color: kSubText.withValues(
-                                              alpha: 0.08,
-                                            ),
-                                            borderRadius: BorderRadius.circular(
-                                              3,
-                                            ),
-                                          ),
-                                          child: Icon(
-                                            Icons.location_on_rounded,
-                                            color: kSubText,
-                                            size: 12,
-                                          ),
-                                        ),
-                                        const SizedBox(width: 12),
-                                        Expanded(
-                                          child: Text(
-                                            _address(_currentDayungData!),
-                                            style: TextStyle(
-                                              color: kSubText,
-                                              fontSize: 12,
-                                              fontWeight: FontWeight.w400,
-                                              fontFamily: 'OpenSans',
-                                            ),
-                                          ),
-                                        ),
-                                      ],
+                                const SizedBox(width: 14),
+                                Text(
+                                  'Current Dayung',
+                                  style: sectionTitleStyle,
+                                ),
+                                const Spacer(),
+                                IconButton(
+                                  tooltip: 'Refresh',
+                                  onPressed: _loadCurrentDayung,
+                                  icon: const Icon(
+                                    Icons.refresh,
+                                    size: 18,
+                                    color: kPrimary,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 12),
+                            if (_loadingDayung)
+                              const Center(
+                                child: Padding(
+                                  padding: EdgeInsets.all(8.0),
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                  ),
+                                ),
+                              )
+                            else ...[
+                              Row(
+                                children: [
+                                  Icon(
+                                    _currentDayungName != null
+                                        ? Icons.verified_rounded
+                                        : Icons.warning_amber_rounded,
+                                    color: _currentDayungName != null
+                                        ? kSuccess
+                                        : kWarn,
+                                    size: 22,
+                                  ),
+                                  const SizedBox(width: 10),
+                                  Expanded(
+                                    child: Text(
+                                      _currentDayungName ??
+                                          'No Dayung Assigned',
+                                      style: bodyTextStyle.copyWith(
+                                        color: kText,
+                                        fontWeight: FontWeight.w600,
+                                      ),
                                     ),
                                   ),
                                 ],
-                                const SizedBox(height: 20),
+                              ),
+                              if (_currentDayungData != null) ...[
+                                const SizedBox(height: 10),
                                 Row(
                                   children: [
-                                    if (_currentDayungData != null &&
-                                        _currentDayungData!['latitude'] !=
-                                            null &&
-                                        _currentDayungData!['longitude'] !=
-                                            null)
-                                      Expanded(
-                                        child: Container(
-                                          height: 40,
-                                          decoration: BoxDecoration(
-                                            color: kAccent,
-                                            borderRadius: BorderRadius.circular(
-                                              8,
-                                            ),
-                                          ),
-                                          child: Material(
-                                            color: Colors.transparent,
-                                            child: InkWell(
-                                              borderRadius:
-                                                  BorderRadius.circular(8),
-                                              onTap: () {
-                                                Navigator.push(
-                                                  context,
-                                                  MaterialPageRoute(
-                                                    builder: (_) => map.DayungMapPage(
-                                                      dayung:
-                                                          _currentDayungData!,
-                                                      isApplied:
-                                                          true, // disable apply on map
-                                                      isMember:
-                                                          true, // mark as current
-                                                    ),
-                                                  ),
-                                                );
-                                              },
-                                              child: Row(
-                                                mainAxisAlignment:
-                                                    MainAxisAlignment.center,
-                                                children: [
-                                                  const Icon(
-                                                    Icons.map_rounded,
-                                                    color: Colors.white,
-                                                    size: 16,
-                                                  ),
-                                                  const SizedBox(width: 6),
-                                                  Text(
-                                                    'View on Map',
-                                                    style: TextStyle(
-                                                      color: Colors.white,
-                                                      fontSize: 12,
-                                                      fontWeight:
-                                                          FontWeight.w500,
-                                                      fontFamily: 'Montserrat',
-                                                    ),
-                                                  ),
-                                                ],
-                                              ),
-                                            ),
-                                          ),
-                                        ),
-                                      ),
-                                    if (_currentDayungData != null &&
-                                        _currentDayungData!['latitude'] !=
-                                            null &&
-                                        _currentDayungData!['longitude'] !=
-                                            null)
-                                      const SizedBox(width: 12),
+                                    const Icon(
+                                      Icons.location_on,
+                                      color: kAccentDark,
+                                      size: 18,
+                                    ),
+                                    const SizedBox(width: 6),
                                     Expanded(
-                                      child: Container(
-                                        height: 40,
-                                        decoration: BoxDecoration(
-                                          color: kPrimary,
-                                          borderRadius: BorderRadius.circular(
-                                            8,
-                                          ),
-                                        ),
-                                        child: Material(
-                                          color: Colors.transparent,
-                                          child: InkWell(
-                                            borderRadius: BorderRadius.circular(
-                                              8,
-                                            ),
-                                            onTap: () async {
-                                              final selected =
-                                                  await Navigator.push(
-                                                    context,
-                                                    MaterialPageRoute(
-                                                      builder: (_) =>
-                                                          const SelectDayungPage(),
-                                                    ),
-                                                  );
-
-                                              // If user picked a Dayung, update users.dayung_unit_id
-                                              if (!mounted) return;
-                                              if (selected != null &&
-                                                  selected
-                                                      is Map<String, dynamic>) {
-                                                final supabase =
-                                                    Supabase.instance.client;
-                                                final user =
-                                                    supabase.auth.currentUser;
-                                                if (user != null &&
-                                                    selected['id'] != null) {
-                                                  try {
-                                                    await supabase
-                                                        .from('users')
-                                                        .update({
-                                                          'dayung_unit_id':
-                                                              selected['id'],
-                                                        })
-                                                        .eq('id', user.id);
-
-                                                    // Persist the new selection to SharedPreferences so ClaimsPage picks it up
-                                                    final prefs =
-                                                        await SharedPreferences.getInstance();
-                                                    await prefs.setString(
-                                                      'selectedDayungUnit',
-                                                      jsonEncode({
-                                                        'id': selected['id'],
-                                                        'name':
-                                                            selected['name'],
-                                                        'barangay':
-                                                            selected['barangay'],
-                                                        'city':
-                                                            selected['city'],
-                                                      }),
-                                                    );
-
-                                                    // (Optional) notify a provider if you use one
-                                                    // context.read<DayungUnitProvider>().setDayungName(selected['name']);
-
-                                                    if (!mounted) return;
-                                                    ScaffoldMessenger.of(
-                                                      context,
-                                                    ).showSnackBar(
-                                                      SnackBar(
-                                                        content: Text(
-                                                          'Current Dayung updated to ${selected['name']}',
-                                                        ),
-                                                      ),
-                                                    );
-                                                  } on PostgrestException catch (
-                                                    e
-                                                  ) {
-                                                    if (!mounted) return;
-                                                    ScaffoldMessenger.of(
-                                                      context,
-                                                    ).showSnackBar(
-                                                      SnackBar(
-                                                        content: Text(
-                                                          'Failed to set Dayung: ${e.message}',
-                                                        ),
-                                                      ),
-                                                    );
-                                                  }
-                                                }
-                                              }
-
-                                              await _loadCurrentDayung(); // refresh UI
-                                            },
-                                            child: Row(
-                                              mainAxisAlignment:
-                                                  MainAxisAlignment.center,
-                                              children: [
-                                                const Icon(
-                                                  Icons.swap_horiz_rounded,
-                                                  color: Colors.white,
-                                                  size: 16,
-                                                ),
-                                                const SizedBox(width: 6),
-                                                Text(
-                                                  'Change',
-                                                  style: TextStyle(
-                                                    color: Colors.white,
-                                                    fontSize: 12,
-                                                    fontWeight: FontWeight.w500,
-                                                    fontFamily: 'Montserrat',
-                                                  ),
-                                                ),
-                                              ],
-                                            ),
-                                          ),
-                                        ),
+                                      child: Text(
+                                        _address(_currentDayungData!),
+                                        style: bodyTextStyle,
                                       ),
                                     ),
                                   ],
                                 ),
                               ],
                             ],
-                          ),
+                          ],
                         ),
-                        const SizedBox(height: 16),
+                      ),
+                    ),
+                    const SizedBox(height: 18),
 
-                        // Apply a Dayung
-                        Container(
-                          width: double.infinity,
-                          height: 44,
-                          decoration: BoxDecoration(
-                            color: kAccent,
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: Material(
-                            color: Colors.transparent,
-                            child: InkWell(
-                              borderRadius: BorderRadius.circular(8),
-                              onTap: () async {
-                                final selectedDayung = await Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (_) =>
-                                        const DayungSuggestionsPage(),
-                                  ),
-                                );
-                                if (selectedDayung != null &&
-                                    selectedDayung is Map<String, dynamic>) {
-                                  // Application was sent via RPC in DayungSuggestionsPage
-                                  if (!mounted) return;
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(
-                                      content: Text(
-                                        'Application for ${selectedDayung['name']} sent!',
-                                      ),
-                                    ),
-                                  );
-                                  await _loadCurrentDayung(); // refresh in case approval was instant
-                                  await _loadAppliedDayungs(); // refresh pending list
-                                }
-                              },
-                              child: Row(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  Container(
-                                    padding: const EdgeInsets.all(4),
-                                    decoration: BoxDecoration(
-                                      color: Colors.white.withValues(
-                                        alpha: 0.15,
-                                      ),
-                                      borderRadius: BorderRadius.circular(4),
-                                    ),
-                                    child: const Icon(
-                                      Icons.add_rounded,
-                                      color: Colors.white,
-                                      size: 14,
-                                    ),
-                                  ),
-                                  const SizedBox(width: 12),
-                                  Text(
-                                    'Apply a Dayung',
-                                    style: TextStyle(
-                                      color: Colors.white,
-                                      fontSize: 14,
-                                      fontWeight: FontWeight.w600,
-                                      fontFamily: 'Montserrat',
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
+                    // --- Apply a Dayung Button ---
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton.icon(
+                        icon: const Icon(
+                          Icons.add_rounded,
+                          color: Colors.white,
                         ),
-                        const SizedBox(height: 10),
-                        Container(
-                          width: double.infinity,
-                          height: 44,
-                          decoration: BoxDecoration(
-                            color: kPrimaryLight,
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: Material(
-                            color: Colors.transparent,
-                            child: InkWell(
-                              borderRadius: BorderRadius.circular(8),
-                              onTap: () {
-                                showModalBottomSheet(
-                                  context: context,
-                                  shape: const RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-                                  ),
-                                  builder: (ctx) => Padding(
-                                    padding: const EdgeInsets.fromLTRB(20, 20, 20, 32),
-                                    child: Column(
-                                      mainAxisSize: MainAxisSize.min,
-                                      crossAxisAlignment: CrossAxisAlignment.start,
-                                      children: [
-                                        Center(
-                                          child: Container(
-                                            width: 40,
-                                            height: 4,
-                                            margin: const EdgeInsets.only(bottom: 12),
-                                            decoration: BoxDecoration(
-                                              color: kSubText.withOpacity(0.2),
-                                              borderRadius: BorderRadius.circular(4),
-                                            ),
-                                          ),
-                                        ),
-                                        const Text(
-                                          'Requirements to Apply for a Dayung',
-                                          style: TextStyle(
-                                            fontSize: 16,
-                                            fontWeight: FontWeight.w700,
-                                            fontFamily: 'Montserrat',
-                                            color: kText,
-                                          ),
-                                        ),
-                                        const SizedBox(height: 10),
-                                        const Text(
-                                          'You will need to upload the following documents when applying for a Dayung:',
-                                          style: TextStyle(
-                                            fontSize: 13,
-                                            fontFamily: 'OpenSans',
-                                            color: kSubText,
-                                          ),
-                                        ),
-                                        const SizedBox(height: 18),
-                                        // Show requirements list (same as _showRequirementsSheet)
-                                        ...const [
-                                          'Birth Certificate',
-                                          'Valid Government ID',
-                                          'Proof of Residency',
-                                          'Marriage Certificate (if applicable)',
-                                        ].map(
-                                          (r) => Padding(
-                                            padding: const EdgeInsets.symmetric(vertical: 4),
-                                            child: Row(
-                                              children: [
-                                                const Icon(
-                                                  Icons.description_rounded,
-                                                  size: 16,
-                                                  color: kPrimary,
-                                                ),
-                                                const SizedBox(width: 8),
-                                                Expanded(
-                                                  child: Text(
-                                                    r,
-                                                    style: const TextStyle(
-                                                      fontSize: 13,
-                                                      fontFamily: 'OpenSans',
-                                                      color: kText,
-                                                    ),
-                                                  ),
-                                                ),
-                                              ],
-                                            ),
-                                          ),
-                                        ),
-                                        const SizedBox(height: 18),
-                                        SizedBox(
-                                          width: double.infinity,
-                                          child: ElevatedButton(
-                                            onPressed: () => Navigator.of(ctx).pop(),
-                                            style: ElevatedButton.styleFrom(
-                                              backgroundColor: kPrimary,
-                                              foregroundColor: Colors.white,
-                                              shape: RoundedRectangleBorder(
-                                                borderRadius: BorderRadius.circular(8),
-                                              ),
-                                              padding: const EdgeInsets.symmetric(vertical: 12),
-                                            ),
-                                            child: const Text('Got it'),
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                );
-                              },
-                              child: Row(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  Container(
-                                    padding: const EdgeInsets.all(4),
-                                    decoration: BoxDecoration(
-                                      color: Colors.white.withOpacity(0.15),
-                                      borderRadius: BorderRadius.circular(4),
-                                    ),
-                                    child: const Icon(
-                                      Icons.info_outline_rounded,
-                                      color: Colors.white,
-                                      size: 14,
-                                    ),
-                                  ),
-                                  const SizedBox(width: 12),
-                                  const Text(
-                                    'How to Apply?',
-                                    style: TextStyle(
-                                      color: Colors.white,
-                                      fontSize: 14,
-                                      fontWeight: FontWeight.w600,
-                                      fontFamily: 'Montserrat',
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 20),
-
-                        // Applied Dayung List
-                        Container(
-                          padding: const EdgeInsets.all(12),
-                          decoration: BoxDecoration(
+                        label: const Text(
+                          'Apply a Dayung',
+                          style: TextStyle(
                             color: Colors.white,
-                            borderRadius: BorderRadius.circular(8),
+                            fontWeight: FontWeight.w600,
+                            fontFamily: 'Montserrat',
                           ),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                'Applied Dayung (Pending)',
-                                style: sectionTitleStyle,
+                        ),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: kAccent,
+                          foregroundColor: Colors.white,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          elevation: 2,
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                        ),
+                        onPressed: () async {
+                          final selectedDayung = await Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => const DayungSuggestionsPage(),
+                            ),
+                          );
+                          if (selectedDayung != null &&
+                              selectedDayung is Map<String, dynamic>) {
+                            if (!mounted) return;
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text(
+                                  'Application for ${selectedDayung['name']} sent!',
+                                ),
                               ),
-                              // Add info button to show modal
-                              const SizedBox(height: 4),
-                              Align(
-                                alignment: Alignment.centerLeft,
-                                child: TextButton.icon(
-                                  icon: const Icon(Icons.info_outline_rounded, size: 18, color: kPrimary),
+                            );
+                            await _loadCurrentDayung();
+                            await _loadAppliedDayungs();
+                          }
+                        },
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+
+                    // --- How to Apply Button ---
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton.icon(
+                        icon: const Icon(
+                          Icons.info_outline_rounded,
+                          color: Colors.white,
+                        ),
+                        label: const Text(
+                          'How to Apply?',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w600,
+                            fontFamily: 'Montserrat',
+                          ),
+                        ),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: kPrimaryLight,
+                          foregroundColor: Colors.white,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          elevation: 2,
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                        ),
+                        onPressed: () {
+                          // Your existing modal logic here
+                          showModalBottomSheet(
+                            context: context,
+                            shape: const RoundedRectangleBorder(
+                              borderRadius: BorderRadius.vertical(
+                                top: Radius.circular(16),
+                              ),
+                            ),
+                            builder: (ctx) => Padding(
+                              padding: const EdgeInsets.fromLTRB(
+                                20,
+                                20,
+                                20,
+                                32,
+                              ),
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Center(
+                                    child: Container(
+                                      width: 40,
+                                      height: 4,
+                                      margin: const EdgeInsets.only(bottom: 12),
+                                      decoration: BoxDecoration(
+                                        color: kSubText.withOpacity(0.2),
+                                        borderRadius: BorderRadius.circular(4),
+                                      ),
+                                    ),
+                                  ),
+                                  const Text(
+                                    'How to Apply',
+                                    style: TextStyle(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.w700,
+                                      fontFamily: 'Montserrat',
+                                      color: kText,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 10),
+                                  const Text(
+                                    'To apply for a Dayung, select a unit and complete the requirements.',
+                                    style: TextStyle(
+                                      fontSize: 13,
+                                      fontFamily: 'OpenSans',
+                                      color: kSubText,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 18),
+                                  ...const [
+                                    'Birth Certificate',
+                                    'Valid Government ID',
+                                    'Proof of Residency',
+                                    'Marriage Certificate (if applicable)',
+                                  ].map(
+                                    (r) => Padding(
+                                      padding: const EdgeInsets.symmetric(
+                                        vertical: 4,
+                                      ),
+                                      child: Row(
+                                        children: [
+                                          const Icon(
+                                            Icons.description_rounded,
+                                            size: 16,
+                                            color: kPrimary,
+                                          ),
+                                          const SizedBox(width: 8),
+                                          Expanded(
+                                            child: Text(
+                                              r,
+                                              style: TextStyle(
+                                                fontSize: 13,
+                                                fontFamily: 'OpenSans',
+                                                color: kText,
+                                              ),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                    const SizedBox(height: 18),
+
+                    // --- Applied Dayung List Card ---
+                    Card(
+                      elevation: 4,
+                      color: Colors.white,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(18),
+                      ),
+                      child: Padding(
+                        padding: const EdgeInsets.all(18),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Container(
+                                  padding: const EdgeInsets.all(8),
+                                  decoration: BoxDecoration(
+                                    color: kPrimaryLight.withOpacity(0.08),
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  child: const Icon(
+                                    Icons.assignment_turned_in,
+                                    color: kPrimaryLight,
+                                    size: 20,
+                                  ),
+                                ),
+                                const SizedBox(width: 14),
+                                Text(
+                                  'Applied Dayung',
+                                  style: sectionTitleStyle,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                                const Spacer(),
+                                TextButton.icon(
+                                  icon: const Icon(
+                                    Icons.info_outline_rounded,
+                                    size: 18,
+                                    color: kPrimary,
+                                  ),
                                   label: const Text(
-                                    'What does this mean?',
+                                    '',
                                     style: TextStyle(
                                       color: kPrimary,
+                                      overflow: TextOverflow.ellipsis,
                                       fontSize: 13,
                                       fontWeight: FontWeight.w500,
                                       fontFamily: 'Montserrat',
                                     ),
                                   ),
-                                  style: TextButton.styleFrom(
-                                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                    minimumSize: Size(0, 0),
-                                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                                  ),
                                   onPressed: () {
+                                    // Your existing modal logic here
                                     showModalBottomSheet(
                                       context: context,
                                       shape: const RoundedRectangleBorder(
-                                        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+                                        borderRadius: BorderRadius.vertical(
+                                          top: Radius.circular(16),
+                                        ),
                                       ),
                                       builder: (ctx) => Padding(
-                                        padding: const EdgeInsets.fromLTRB(20, 20, 20, 32),
+                                        padding: const EdgeInsets.fromLTRB(
+                                          20,
+                                          20,
+                                          20,
+                                          32,
+                                        ),
                                         child: Column(
                                           mainAxisSize: MainAxisSize.min,
-                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
                                           children: [
                                             Center(
                                               child: Container(
                                                 width: 40,
                                                 height: 4,
-                                                margin: const EdgeInsets.only(bottom: 12),
+                                                margin: const EdgeInsets.only(
+                                                  bottom: 12,
+                                                ),
                                                 decoration: BoxDecoration(
-                                                  color: kSubText.withOpacity(0.2),
-                                                  borderRadius: BorderRadius.circular(4),
+                                                  color: kSubText.withOpacity(
+                                                    0.2,
+                                                  ),
+                                                  borderRadius:
+                                                      BorderRadius.circular(4),
                                                 ),
                                               ),
                                             ),
@@ -1337,28 +1059,11 @@ class _DayungProfileState extends State<DayungProfile> {
                                             ),
                                             const SizedBox(height: 10),
                                             const Text(
-                                              'These are Dayung units you have applied to join but are still awaiting approval. '
-                                              'You may need to upload requirements or wait for the Dayung admin to review your application.',
+                                              'These are Dayung units you have applied to but are not yet approved.',
                                               style: TextStyle(
                                                 fontSize: 13,
                                                 fontFamily: 'OpenSans',
                                                 color: kSubText,
-                                              ),
-                                            ),
-                                            const SizedBox(height: 18),
-                                            SizedBox(
-                                              width: double.infinity,
-                                              child: ElevatedButton(
-                                                onPressed: () => Navigator.of(ctx).pop(),
-                                                style: ElevatedButton.styleFrom(
-                                                  backgroundColor: kPrimary,
-                                                  foregroundColor: Colors.white,
-                                                  shape: RoundedRectangleBorder(
-                                                    borderRadius: BorderRadius.circular(8),
-                                                  ),
-                                                  padding: const EdgeInsets.symmetric(vertical: 12),
-                                                ),
-                                                child: const Text('Got it'),
                                               ),
                                             ),
                                           ],
@@ -1367,427 +1072,357 @@ class _DayungProfileState extends State<DayungProfile> {
                                     );
                                   },
                                 ),
-                              ),
-                              const SizedBox(height: 12),
-                              if (_loadingApplied)
-                                const Center(
-                                  child: Padding(
-                                    padding: EdgeInsets.all(8.0),
-                                    child: CircularProgressIndicator(
-                                      strokeWidth: 2,
-                                    ),
+                              ],
+                            ),
+                            const SizedBox(height: 12),
+                            if (_loadingApplied)
+                              const Center(
+                                child: Padding(
+                                  padding: EdgeInsets.all(8.0),
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
                                   ),
-                                )
-                              else if (_appliedDayungs.isEmpty) ...[
+                                ),
+                              )
+                            else if (_appliedDayungs.isEmpty) ...[
+                              Text(
+                                'You have no pending applications.',
+                                style: bodyTextStyle.copyWith(color: kSubText),
+                              ),
+                              if (_appliedDebug != null) ...[
+                                const SizedBox(height: 6),
                                 Text(
-                                  'You have no pending applications.',
+                                  _appliedDebug!,
                                   style: bodyTextStyle.copyWith(
                                     color: kSubText,
+                                    fontSize: isWide ? 12 : 10,
                                   ),
-                                ),
-                                if (_appliedDebug != null) ...[
-                                  const SizedBox(height: 6),
-                                  Text(
-                                    _appliedDebug!,
-                                    style: bodyTextStyle.copyWith(
-                                      color: kSubText,
-                                      fontSize: isWide ? 12 : 10,
-                                    ),
-                                  ),
-                                ],
-                              ] else
-                                ..._appliedDayungs.map((app) {
-                                  final dayungName =
-                                      (app['name'] as String?) ?? 'N/A';
-                                  return Material(
-                                    color: Colors.transparent,
-                                    child: InkWell(
-                                      borderRadius: BorderRadius.circular(6),
-                                      onTap: () =>
-                                          _showRequirementsSheet(dayungName),
-                                      child: Container(
-                                        width: double.infinity,
-                                        padding: const EdgeInsets.symmetric(
-                                          vertical: 8,
-                                          horizontal: 12,
-                                        ),
-                                        margin: const EdgeInsets.only(
-                                          bottom: 6,
-                                        ),
-                                        decoration: BoxDecoration(
-                                          color: kSubText.withOpacity(0.05),
-                                          borderRadius: BorderRadius.circular(
-                                            6,
-                                          ),
-                                          border: Border.all(
-                                            color: kBorderColor,
-                                            width: 1,
-                                          ),
-                                        ),
-                                        child: Row(
-                                          children: [
-                                            Expanded(
-                                              child: Text(
-                                                dayungName,
-                                                style: bodyTextStyle.copyWith(
-                                                  fontWeight: FontWeight.w500,
-                                                  color: kPrimary,
-                                                  decoration:
-                                                      TextDecoration.underline,
-                                                ),
-                                              ),
-                                            ),
-                                            const SizedBox(width: 8),
-                                            const Icon(
-                                              Icons.upload_file_rounded,
-                                              size: 16,
-                                              color: kPrimary,
-                                            ),
-                                          ],
-                                        ),
-                                      ),
-                                    ),
-                                  );
-                                }),
-                            ],
-                          ),
-                        ),
-
-                        const SizedBox(height: 20),
-
-                        // Filters
-                        Container(
-                          padding: const EdgeInsets.all(12),
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Container(
-                                padding: const EdgeInsets.all(8),
-                                decoration: BoxDecoration(
-                                  color: kAccent.withValues(alpha: 0.05),
-                                  borderRadius: BorderRadius.circular(6),
-                                ),
-                                child: Row(
-                                  children: [
-                                    Container(
-                                      padding: const EdgeInsets.all(6),
-                                      decoration: BoxDecoration(
-                                        color: kAccent,
-                                        borderRadius: BorderRadius.circular(4),
-                                      ),
-                                      child: const Icon(
-                                        Icons.filter_list_rounded,
-                                        color: Colors.white,
-                                        size: 14,
-                                      ),
-                                    ),
-                                    const SizedBox(width: 16),
-                                    Expanded(
-                                      child: Text(
-                                        'Filters',
-                                        style: sectionTitleStyle.copyWith(
-                                          color: kText,
-                                          fontSize: isWide ? 16 : 14,
-                                          fontWeight: FontWeight.w600,
-                                        ),
-                                      ),
-                                    ),
-                                    Container(
-                                      padding: const EdgeInsets.all(4),
-                                      decoration: BoxDecoration(
-                                        color: kPrimary.withValues(alpha: 0.05),
-                                        borderRadius: BorderRadius.circular(4),
-                                      ),
-                                      child: TextButton.icon(
-                                        onPressed: _showEditPreferencesSheet,
-                                        icon: const Icon(
-                                          Icons.edit_rounded,
-                                          color: kPrimary,
-                                          size: 12,
-                                        ),
-                                        label: Text(
-                                          'Edit',
-                                          style: TextStyle(
-                                            color: kPrimary,
-                                            fontSize: isWide ? 12 : 10,
-                                            fontWeight: FontWeight.w500,
-                                            fontFamily: 'Montserrat',
-                                          ),
-                                        ),
-                                        style: TextButton.styleFrom(
-                                          backgroundColor: Colors.transparent,
-                                          padding: const EdgeInsets.symmetric(
-                                            horizontal: 4,
-                                            vertical: 2,
-                                          ),
-                                        ),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                              const SizedBox(height: 20),
-
-                              if (_loadingPrefs)
-                                const Center(
-                                  child: Padding(
-                                    padding: EdgeInsets.all(12),
-                                    child: CircularProgressIndicator(
-                                      strokeWidth: 2,
-                                    ),
-                                  ),
-                                )
-                              else ...[
-                                Text(
-                                  'Selected tags:',
-                                  style: bodyTextStyle.copyWith(
-                                    color: kSubText,
-                                    fontWeight: FontWeight.w500,
-                                    fontSize: isWide ? 14 : 12,
-                                    fontFamily: 'Montserrat',
-                                  ),
-                                ),
-                                const SizedBox(height: 16),
-                                Wrap(
-                                  spacing: 6,
-                                  runSpacing: 6,
-                                  children: _prefsTags.map((tag) {
-                                    return Container(
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 8,
-                                        vertical: 4,
-                                      ),
-                                      decoration: BoxDecoration(
-                                        color: kAccent.withValues(alpha: 0.05),
-                                        borderRadius: BorderRadius.circular(12),
-                                      ),
-                                      child: Text(
-                                        tag,
-                                        style: TextStyle(
-                                          fontSize: isWide ? 12 : 10,
-                                          color: kAccent,
-                                          fontWeight: FontWeight.w500,
-                                          fontFamily: 'Montserrat',
-                                        ),
-                                      ),
-                                    );
-                                  }).toList(),
                                 ),
                               ],
-                            ],
-                          ),
+                            ] else
+                              ..._appliedDayungs.map((app) {
+                                final dayungName =
+                                    (app['name'] as String?) ?? 'N/A';
+                                return Material(
+                                  color: Colors.transparent,
+                                  child: InkWell(
+                                    borderRadius: BorderRadius.circular(8),
+                                    onTap: () =>
+                                        _showRequirementsSheet(dayungName),
+                                    child: Container(
+                                      width: double.infinity,
+                                      padding: const EdgeInsets.symmetric(
+                                        vertical: 10,
+                                        horizontal: 12,
+                                      ),
+                                      margin: const EdgeInsets.only(bottom: 6),
+                                      decoration: BoxDecoration(
+                                        color: kPrimaryLight.withOpacity(0.04),
+                                        borderRadius: BorderRadius.circular(8),
+                                      ),
+                                      child: Row(
+                                        children: [
+                                          const Icon(
+                                            Icons.folder,
+                                            color: kPrimaryLight,
+                                            size: 18,
+                                          ),
+                                          const SizedBox(width: 10),
+                                          Expanded(
+                                            child: Text(
+                                              app['display_name'] ??
+                                                  'Unknown Dayung',
+                                              style: bodyTextStyle.copyWith(
+                                                color: kText,
+                                                fontWeight: FontWeight.w600,
+                                              ),
+                                              overflow: TextOverflow.ellipsis,
+                                            ),
+                                          ),
+                                          const Icon(
+                                            Icons.chevron_right,
+                                            color: kSubText,
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                                );
+                              }),
+                          ],
                         ),
+                      ),
+                    ),
+                    const SizedBox(height: 18),
 
-                        const SizedBox(height: 20),
-
-                        Container(
-                          padding: const EdgeInsets.all(12),
-                          decoration: BoxDecoration(
-                            color: kPrimary.withValues(alpha: 0.04),
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: Row(
-                            children: [
-                              Container(
-                                padding: const EdgeInsets.all(6),
-                                decoration: BoxDecoration(
-                                  color: kPrimary,
-                                  borderRadius: BorderRadius.circular(4),
-                                ),
-                                child: const Icon(
-                                  Icons.recommend_rounded,
-                                  color: Colors.white,
-                                  size: 14,
-                                ),
-                              ),
-                              const SizedBox(width: 16),
-                              Expanded(
-                                child: Text(
-                                  'Recommended for you',
-                                  style: sectionTitleStyle.copyWith(
-                                    color: kText,
-                                    fontSize: isWide ? 16 : 14,
-                                    fontWeight: FontWeight.w600,
+                    // --- Filters Card ---
+                    Card(
+                      elevation: 4,
+                      color: Colors.white,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(18),
+                      ),
+                      child: Padding(
+                        padding: const EdgeInsets.all(18),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Container(
+                                  padding: const EdgeInsets.all(8),
+                                  decoration: BoxDecoration(
+                                    color: kAccent.withOpacity(0.08),
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  child: const Icon(
+                                    Icons.filter_list_rounded,
+                                    color: kAccent,
+                                    size: 20,
                                   ),
                                 ),
-                              ),
-                              IconButton(
-                                tooltip: 'Refresh',
-                                icon: const Icon(
-                                  Icons.refresh_rounded,
-                                  size: 16,
-                                  color: kPrimary,
+                                const SizedBox(width: 14),
+                                Text('Filters', style: sectionTitleStyle),
+                                const Spacer(),
+                                TextButton.icon(
+                                  onPressed: _showEditPreferencesSheet,
+                                  icon: const Icon(
+                                    Icons.edit,
+                                    size: 16,
+                                    color: kPrimaryLight,
+                                  ),
+                                  label: const Text(
+                                    'Edit',
+                                    style: TextStyle(
+                                      color: kPrimaryLight,
+                                      fontWeight: FontWeight.w600,
+                                      fontFamily: 'Montserrat',
+                                    ),
+                                  ),
                                 ),
-                                onPressed: _loadRecommendations,
+                              ],
+                            ),
+                            const SizedBox(height: 12),
+                            if (_loadingPrefs)
+                              const Center(
+                                child: Padding(
+                                  padding: EdgeInsets.all(12),
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                  ),
+                                ),
+                              )
+                            else ...[
+                              Text(
+                                'Selected tags:',
+                                style: bodyTextStyle.copyWith(
+                                  color: kSubText,
+                                  fontWeight: FontWeight.w500,
+                                  fontSize: isWide ? 14 : 12,
+                                  fontFamily: 'Montserrat',
+                                ),
+                              ),
+                              const SizedBox(height: 10),
+                              Wrap(
+                                spacing: 8,
+                                runSpacing: 8,
+                                children: _prefsTags.map((tag) {
+                                  return Chip(
+                                    label: Text(
+                                      tag,
+                                      style: TextStyle(
+                                        color: kAccentDark,
+                                        fontWeight: FontWeight.w600,
+                                        fontFamily: 'Montserrat',
+                                      ),
+                                    ),
+                                    backgroundColor: kAccentDark.withOpacity(
+                                      0.08,
+                                    ),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(16),
+                                    ),
+                                  );
+                                }).toList(),
                               ),
                             ],
-                          ),
+                          ],
                         ),
-                        const SizedBox(height: 20),
-                        if (_loadingRecs)
-                          const Center(
-                            child: Padding(
-                              padding: EdgeInsets.all(12),
-                              child: CircularProgressIndicator(strokeWidth: 2),
+                      ),
+                    ),
+                    const SizedBox(height: 18),
+
+                    // --- Recommendations Card ---
+                    Card(
+                      elevation: 4,
+                      color: Colors.white,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(18),
+                      ),
+                      child: Padding(
+                        padding: const EdgeInsets.all(18),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Container(
+                                  padding: const EdgeInsets.all(8),
+                                  decoration: BoxDecoration(
+                                    color: kPrimary.withOpacity(0.08),
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  child: const Icon(
+                                    Icons.recommend_rounded,
+                                    color: kPrimary,
+                                    size: 20,
+                                  ),
+                                ),
+                                const SizedBox(width: 14),
+                                Text(
+                                  'Recommended for you',
+                                  style: sectionTitleStyle,
+                                ),
+                                const Spacer(),
+                                IconButton(
+                                  tooltip: 'Refresh',
+                                  icon: const Icon(
+                                    Icons.refresh_rounded,
+                                    size: 18,
+                                    color: kPrimary,
+                                  ),
+                                  onPressed: _loadRecommendations,
+                                ),
+                              ],
                             ),
-                          )
-                        else if (_recommendedUnits.isEmpty)
-                          Text(
-                            'No recommendations yet. Edit your filters above.',
-                            style: TextStyle(
-                              color: kSubText,
-                              fontSize: isWide ? 14 : 12,
-                            ),
-                          )
-                        else
-                          Column(
-                            children: _recommendedUnits.map((d) {
-                              return GestureDetector(
-                                onTap: () async {
-                                  final result = await Navigator.push(
-                                    context,
-                                    MaterialPageRoute(
-                                      builder: (_) => map.DayungMapPage(
-                                        dayung: d,
-                                        isApplied: false,
-                                        isMember: false,
+                            const SizedBox(height: 12),
+                            if (_loadingRecs)
+                              const Center(
+                                child: Padding(
+                                  padding: EdgeInsets.all(12),
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                  ),
+                                ),
+                              )
+                            else if (_recommendedUnits.isEmpty)
+                              Text(
+                                'No recommendations yet. Edit your filters above.',
+                                style: TextStyle(
+                                  color: kSubText,
+                                  fontSize: isWide ? 14 : 12,
+                                ),
+                              )
+                            else
+                              Column(
+                                children: _recommendedUnits.map((d) {
+                                  return GestureDetector(
+                                    onTap: () async {
+                                      final result = await Navigator.push(
+                                        context,
+                                        MaterialPageRoute(
+                                          builder: (_) => map.DayungMapPage(
+                                            dayung: d,
+                                            isApplied: false,
+                                            isMember: false,
+                                          ),
+                                        ),
+                                      );
+                                      if (result != null && mounted) {
+                                        ScaffoldMessenger.of(
+                                          context,
+                                        ).showSnackBar(
+                                          SnackBar(
+                                            content: Text(
+                                              'Opened map for ${d['name']}',
+                                            ),
+                                          ),
+                                        );
+                                        await _loadCurrentDayung();
+                                      }
+                                    },
+                                    child: Container(
+                                      margin: const EdgeInsets.only(bottom: 8),
+                                      padding: const EdgeInsets.all(12),
+                                      decoration: BoxDecoration(
+                                        color: kPrimaryLight.withOpacity(0.04),
+                                        borderRadius: BorderRadius.circular(8),
+                                      ),
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          Row(
+                                            children: [
+                                              const Icon(
+                                                Icons.home,
+                                                color: kPrimaryLight,
+                                                size: 18,
+                                              ),
+                                              const SizedBox(width: 10),
+                                              Expanded(
+                                                child: Text(
+                                                  d['name'] ?? 'Unnamed Unit',
+                                                  style: bodyTextStyle.copyWith(
+                                                    color: kText,
+                                                    fontWeight: FontWeight.w600,
+                                                  ),
+                                                ),
+                                              ),
+                                              const Icon(
+                                                Icons.chevron_right,
+                                                color: kSubText,
+                                              ),
+                                            ],
+                                          ),
+                                          const SizedBox(height: 8),
+                                          Text(
+                                            _address(d),
+                                            style: bodyTextStyle,
+                                          ),
+                                        ],
                                       ),
                                     ),
                                   );
-                                  if (result != null && mounted) {
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      SnackBar(
-                                        content: Text(
-                                          'Application sent to ${d['name']}!',
-                                        ),
-                                      ),
-                                    );
-                                    await _loadCurrentDayung();
-                                  }
-                                },
-                                child: Container(
-                                  margin: const EdgeInsets.only(bottom: 8),
-                                  padding: const EdgeInsets.all(12),
-                                  decoration: BoxDecoration(
-                                    color: Colors.white,
-                                    borderRadius: BorderRadius.circular(8),
-                                  ),
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Row(
-                                        children: [
-                                          Container(
-                                            padding: const EdgeInsets.all(4),
-                                            decoration: BoxDecoration(
-                                              color: kAccent.withValues(
-                                                alpha: 0.05,
-                                              ),
-                                              borderRadius:
-                                                  BorderRadius.circular(4),
-                                            ),
-                                            child: const Icon(
-                                              Icons.home_rounded,
-                                              color: kAccent,
-                                              size: 12,
-                                            ),
-                                          ),
-                                          const SizedBox(width: 12),
-                                          Expanded(
-                                            child: Text(
-                                              d['name'] ?? 'Unnamed Dayung',
-                                              style: TextStyle(
-                                                fontSize: isWide ? 14 : 12,
-                                                fontWeight: FontWeight.w500,
-                                                fontFamily: 'Montserrat',
-                                                color: kText,
-                                              ),
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                      const SizedBox(height: 8),
-                                      Text(
-                                        _address(d),
-                                        style: TextStyle(
-                                          color: kSubText,
-                                          fontSize: 12,
-                                          fontFamily: 'OpenSans',
-                                        ),
-                                      ),
-                                      const SizedBox(height: 10),
-                                      Row(
-                                        children: [
-                                          OutlinedButton.icon(
-                                            icon: const Icon(
-                                              Icons.map_rounded,
-                                              size: 16,
-                                            ),
-                                            label: const Text('Map'),
-                                            style: OutlinedButton.styleFrom(
-                                              foregroundColor: kPrimary,
-                                              side: const BorderSide(
-                                                color: kPrimary,
-                                              ),
-                                              padding:
-                                                  const EdgeInsets.symmetric(
-                                                    horizontal: 10,
-                                                    vertical: 8,
-                                                  ),
-                                            ),
-                                            onPressed: () {
-                                              Navigator.push(
-                                                context,
-                                                MaterialPageRoute(
-                                                  builder: (_) =>
-                                                      map.DayungMapPage(
-                                                        dayung: d,
-                                                        isApplied: false,
-                                                        isMember: false,
-                                                      ),
-                                                ),
-                                              );
-                                            },
-                                          ),
-                                          const SizedBox(width: 8),
-                                          OutlinedButton.icon(
-                                            icon: const Icon(
-                                              Icons.refresh_rounded,
-                                              size: 16,
-                                            ),
-                                            label: const Text('Similar'),
-                                            style: OutlinedButton.styleFrom(
-                                              foregroundColor: kPrimary,
-                                              side: const BorderSide(
-                                                color: kPrimary,
-                                              ),
-                                              padding:
-                                                  const EdgeInsets.symmetric(
-                                                    horizontal: 10,
-                                                    vertical: 8,
-                                                  ),
-                                            ),
-                                            onPressed: _loadRecommendations,
-                                          ),
-                                        ],
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              );
-                            }).toList(),
-                          ),
-                      ],
+                                }).toList(),
+                              ),
+                          ],
+                        ),
+                      ),
                     ),
-                  ),
+                  ],
                 ),
               ),
-            ],
+            ),
+          ),
+        ],
+      ),
+      bottomNavigationBar: Padding(
+        padding: const EdgeInsets.fromLTRB(18, 0, 18, 18),
+        child: SizedBox(
+          width: double.infinity,
+          height: 52,
+          child: ElevatedButton.icon(
+            icon: const Icon(Icons.dashboard_rounded, color: Colors.white),
+            label: const Text(
+              'Dashboard',
+              style: TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.w600,
+                fontSize: 16,
+                fontFamily: 'Montserrat',
+              ),
+            ),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: kPrimaryLight,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(14),
+              ),
+              elevation: 2,
+              padding: const EdgeInsets.symmetric(vertical: 12),
+            ),
+            onPressed: () => Navigator.of(context).maybePop(),
           ),
         ),
       ),

@@ -261,7 +261,7 @@ class _MembersContributionHistoryState
           .eq('status', 'paid');
 
       q = q.eq('dayung_unit_id', dayungId);
-    
+
       final payments = List<Map<String, dynamic>>.from(
         await q.order('created_at', ascending: false),
       );
@@ -363,34 +363,34 @@ class _MembersContributionHistoryState
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: kBg,
-      appBar: AppBar(
-        backgroundColor: kBg,
-        elevation: 0,
-        title: Text(
-          'Contribution History',
-          style: TextStyle(
-            color: kText,
-            fontWeight: FontWeight.bold,
-            fontSize: 24,
-            fontFamily: 'Montserrat',
-          ),
-        ),
-        actions: [
-          Padding(
-            padding: const EdgeInsets.only(right: 16),
-            child: CircleAvatar(
-              backgroundColor: Colors.white,
-              backgroundImage: _profileUrl != null && _profileUrl!.isNotEmpty
-                  ? NetworkImage(_profileUrl!)
-                  : null,
-              radius: 20,
-              child: _profileUrl == null
-                  ? Icon(Icons.person, color: kAccent)
-                  : null,
-            ),
-          ),
-        ],
-      ),
+      // appBar: AppBar(
+      //   backgroundColor: kBg,
+      //   elevation: 0,
+      //   title: Text(
+      //     'Contribution History',
+      //     style: TextStyle(
+      //       color: kText,
+      //       fontWeight: FontWeight.bold,
+      //       fontSize: 24,
+      //       fontFamily: 'Montserrat',
+      //     ),
+      //   ),
+      //   actions: [
+      //     Padding(
+      //       padding: const EdgeInsets.only(right: 16),
+      //       child: CircleAvatar(
+      //         backgroundColor: Colors.white,
+      //         backgroundImage: _profileUrl != null && _profileUrl!.isNotEmpty
+      //             ? NetworkImage(_profileUrl!)
+      //             : null,
+      //         radius: 20,
+      //         child: _profileUrl == null
+      //             ? Icon(Icons.person, color: kAccent)
+      //             : null,
+      //       ),
+      //     ),
+      //   ],
+      // ),
       body: SafeArea(
         child: _loadingPaid
             ? Center(

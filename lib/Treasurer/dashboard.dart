@@ -29,6 +29,8 @@ const Color kWarn = Color(0xFFF57C00);
 const Color kDanger = Color(0xFFC62828);
 const Color kNeutralText = Color(0xFF1F2937);
 const Color kSubtleText = Color(0xFF4B5563);
+const kSubText = Color(0xFF4B5563);
+const kText = Color(0xFF1F2937);
 
 class TreasurerDashboardPage extends StatefulWidget {
   const TreasurerDashboardPage({super.key});
@@ -513,16 +515,6 @@ class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
     return stats;
   }
 
-  // List<Widget> get _pages => [
-  //   _homePage(),
-  //   _dayungUnitId == null
-  //       ? const Center(child: Text('Select a Dayung unit first'))
-  //       : MembersContributionHistory(dayungUnitId: _dayungUnitId!),
-  //   _dayungUnitId == null
-  //       ? const Center(child: Text('Select a Dayung unit first'))
-  //       : MembersClaimsPage(dayungUnitId: _dayungUnitId!),
-  // ];
-
   List<Widget> get _pages => [
     _homePage(),
     _dayungUnitId == null
@@ -770,130 +762,132 @@ class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
   Widget _buildSideDrawer(BuildContext context) {
     final isDarkMode = Theme.of(context).brightness == Brightness.dark;
     return Drawer(
-      child: SafeArea(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            DrawerHeader(
-              decoration: BoxDecoration(
-                color: kPrimary.withOpacity(0.95),
-                borderRadius: const BorderRadius.only(
-                  bottomRight: Radius.circular(32),
-                  bottomLeft: Radius.circular(32),
+      backgroundColor: kBg,
+      child: Column(
+        children: [
+          // Modern Drawer Header
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.fromLTRB(24, 48, 24, 32),
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [kPrimaryDark, kPrimary],
+              ),
+              borderRadius: BorderRadius.vertical(bottom: Radius.circular(32)),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                CircleAvatar(
+                  radius: 32,
+                  backgroundColor: kAccent.withOpacity(0.15),
+                  child: Icon(Icons.person, size: 36, color: kAccent),
                 ),
-              ),
-              child: Row(
-                children: [
-                  CircleAvatar(
-                    radius: 32,
-                    backgroundColor: Colors.white,
-                    backgroundImage:
-                        _profileUrl != null && _profileUrl!.isNotEmpty
-                        ? NetworkImage(_profileUrl!)
-                        : null,
-                    child: (_profileUrl == null || _profileUrl!.isEmpty)
-                        ? const Icon(Icons.person, size: 40, color: kPrimary)
-                        : null,
+                const SizedBox(height: 16),
+                Text(
+                  _fullName,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 20,
+                    fontFamily: 'Montserrat',
                   ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: Text(
-                      _fullName,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.w800,
-                        fontSize: 18,
-                        fontFamily: 'Montserrat',
+                ),
+                const SizedBox(height: 4),
+                // Text(
+                //   _selectedDayungUnit,
+                //   style: TextStyle(
+                //     color: Colors.white.withOpacity(0.85),
+                //     fontSize: 15,
+                //     fontFamily: 'OpenSans',
+                //   ),
+                // ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 12),
+          // Modern Drawer Items
+          Expanded(
+            child: ListView(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              children: [
+                _ModernDrawerTile(
+                  icon: Icons.account_circle,
+                  label: 'Profile',
+                  onTap: () {
+                    Navigator.pop(context);
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => const ProfilePage()),
+                    );
+                  },
+                ),
+                _ModernDrawerTile(
+                  icon: Icons.people_rounded,
+                  label: 'Beneficiaries',
+                  onTap: () {
+                    Navigator.pop(context);
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => const BeneficiaryPage(),
                       ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            _ModernDrawerTile(
-              icon: Icons.person,
-              label: 'Profile',
-              onTap: () async {
-                await Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (_) => const ProfilePage()),
-                );
-                await _loadUserData();
-              },
-            ),
-            _ModernDrawerTile(
-              icon: Icons.people_rounded,
-              label: 'Beneficiaries',
-              onTap: () {
-                Navigator.pop(context);
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (_) => const BeneficiaryPage()),
-                );
-              },
-            ),
-            _ModernDrawerTile(
-              icon: Icons.settings,
-              label: 'Settings',
-              onTap: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (_) => const ProfSettingsPage()),
-                );
-              },
-            ),
-            _ModernDrawerTile(
-              icon: isDarkMode ? Icons.light_mode : Icons.dark_mode,
-              label: isDarkMode ? 'Light Mode' : 'Dark Mode',
-              onTap: () {
-                try {
-                  context.read<AppTheme>().toggle();
-                } catch (_) {}
-              },
-            ),
-            _ModernDrawerTile(
-              icon: Icons.translate,
-              label: 'Translate',
-              onTap: () {
-                Navigator.pop(context);
-                // TODO: Implement translator
-              },
-            ),
-            const Spacer(),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-              child: MouseRegion(
-                cursor: SystemMouseCursors.click,
-                child: ElevatedButton.icon(
-                  icon: const Icon(Icons.logout, color: Colors.white),
-                  label: const Text(
-                    'Logout',
-                    style: TextStyle(
-                      fontWeight: FontWeight.w700,
-                      fontSize: 16,
-                      color: Colors.white,
-                    ),
-                  ),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.red,
-                    foregroundColor: Colors.white,
-                    minimumSize: const Size.fromHeight(48),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(14),
-                    ),
-                    elevation: 0,
-                  ),
-                  onPressed: () async {
+                    );
+                  },
+                ),
+                _ModernDrawerTile(
+                  icon: Icons.notifications,
+                  label: 'Notifications',
+                  onTap: () {
+                    Navigator.pop(context);
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => const NotificationPage(),
+                      ),
+                    );
+                  },
+                ),
+                _ModernDrawerTile(
+                  icon: Icons.settings,
+                  label: 'Settings',
+                  onTap: () {
+                    Navigator.pop(context);
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => const ProfSettingsPage(),
+                      ),
+                    );
+                  },
+                ),
+                const Divider(height: 32, thickness: 1, color: kSubText),
+                _ModernDrawerTile(
+                  icon: Icons.logout,
+                  label: 'Logout',
+                  onTap: () async {
                     Navigator.pop(context);
                     await showLogoutDialog(context);
                   },
                 ),
+              ],
+            ),
+          ),
+          // App version or footer
+          Padding(
+            padding: const EdgeInsets.only(bottom: 16, top: 8),
+            child: Text(
+              'v1.0.0',
+              style: TextStyle(
+                color: kSubText.withOpacity(0.7),
+                fontSize: 13,
+                fontFamily: 'OpenSans',
               ),
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
@@ -2254,8 +2248,16 @@ class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
         ),
         builder: (context) {
           // Separate paid and pending
-          final paidItems = items.where((r) => (r['status'] ?? '').toString().toLowerCase() == 'paid').toList();
-          final pendingItems = items.where((r) => (r['status'] ?? '').toString().toLowerCase() != 'paid').toList();
+          final paidItems = items
+              .where(
+                (r) => (r['status'] ?? '').toString().toLowerCase() == 'paid',
+              )
+              .toList();
+          final pendingItems = items
+              .where(
+                (r) => (r['status'] ?? '').toString().toLowerCase() != 'paid',
+              )
+              .toList();
 
           return SafeArea(
             child: Padding(
@@ -2283,16 +2285,24 @@ class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
                           if (paidItems.isNotEmpty) ...[
                             const Padding(
                               padding: EdgeInsets.symmetric(vertical: 8),
-                              child: Text('Paid Members', style: TextStyle(fontWeight: FontWeight.bold)),
+                              child: Text(
+                                'Paid Members',
+                                style: TextStyle(fontWeight: FontWeight.bold),
+                              ),
                             ),
                             ...paidItems.map((r) => _buildStatusTile(r, true)),
                           ],
                           if (pendingItems.isNotEmpty) ...[
                             const Padding(
                               padding: EdgeInsets.symmetric(vertical: 8),
-                              child: Text('Pending Members', style: TextStyle(fontWeight: FontWeight.bold)),
+                              child: Text(
+                                'Pending Members',
+                                style: TextStyle(fontWeight: FontWeight.bold),
+                              ),
                             ),
-                            ...pendingItems.map((r) => _buildStatusTile(r, false)),
+                            ...pendingItems.map(
+                              (r) => _buildStatusTile(r, false),
+                            ),
                           ],
                         ],
                       ),
@@ -2319,7 +2329,8 @@ class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
         ? (r['amount'] as num).toDouble()
         : double.tryParse('${r['amount']}') ?? 0.0;
     final paidAtStr = _fmtDateTime(r['paid_at']);
-    String collectorName = (((r['collector'] as Map?)?['full_name']) ?? '').toString();
+    String collectorName = (((r['collector'] as Map?)?['full_name']) ?? '')
+        .toString();
     final subtitleText = paid
         ? 'Collected${paidAtStr.isNotEmpty ? ' on: $paidAtStr' : ''}${collectorName.isNotEmpty ? '\nCollected by: $collectorName' : ''}'
         : 'Pending';
@@ -2341,10 +2352,7 @@ class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
           color: kNeutralText,
         ),
       ),
-      subtitle: Text(
-        subtitleText,
-        style: const TextStyle(color: kSubtleText),
-      ),
+      subtitle: Text(subtitleText, style: const TextStyle(color: kSubtleText)),
       trailing: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         crossAxisAlignment: CrossAxisAlignment.end,
@@ -2430,29 +2438,30 @@ class _ModernDrawerTileState extends State<_ModernDrawerTile> {
     return MouseRegion(
       onEnter: (_) => setState(() => _hovering = true),
       onExit: (_) => setState(() => _hovering = false),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(14),
-        onTap: widget.onTap,
-        child: Container(
-          decoration: BoxDecoration(
-            color: _hovering ? hoverColor : Colors.transparent,
-            borderRadius: BorderRadius.circular(14),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        margin: const EdgeInsets.symmetric(vertical: 4),
+        decoration: BoxDecoration(
+          color: _hovering ? hoverColor : Colors.transparent,
+          borderRadius: BorderRadius.circular(18),
+        ),
+        child: ListTile(
+          leading: Icon(widget.icon, color: kPrimary),
+          title: Text(
+            widget.label,
+            style: const TextStyle(
+              fontWeight: FontWeight.w600,
+              color: kText,
+              fontFamily: 'Montserrat',
+            ),
           ),
-          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
-          child: Row(
-            children: [
-              Icon(widget.icon, color: kPrimary),
-              const SizedBox(width: 18),
-              Text(
-                widget.label,
-                style: const TextStyle(
-                  fontWeight: FontWeight.w600,
-                  fontSize: 15,
-                  color: kPrimary,
-                  fontFamily: 'Montserrat',
-                ),
-              ),
-            ],
+          onTap: widget.onTap,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(18),
+          ),
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 18,
+            vertical: 2,
           ),
         ),
       ),

@@ -74,7 +74,6 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
 7 for penalty payment
 1 for open for all*/
 
-
   List<double> _generatePreferenceVector() {
     // Meeting Frequency (3 positions)
     double meetWeekly = meeting_frequency == 'Weekly' ? 1.0 : 0.0;
@@ -117,8 +116,12 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
     double openAll = openForAll == 'Yes' ? 1.0 : 0.0;
 
     return [
-      meetWeekly, meetMonthly, meetNeeded,
-      payCash, payGcash, payBoth,
+      meetWeekly,
+      meetMonthly,
+      meetNeeded,
+      payCash,
+      payGcash,
+      payBoth,
       ...regFee,
       ...memFee,
       ...penFee,
@@ -128,19 +131,19 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
 
   /// Nag-compute sa cosine similarity tali sa user preference vector `u`
   /// ug sa Dayung unit vector `d`.
-  /// 
+  ///
   /// Formula:
   /// cosine_similarity(U, D) = (U ⋅ D) / (||U|| * ||D||)
-  /// 
+  ///
   /// Asa:
   /// - U ⋅ D mao ang dot product sa duha ka vectors
   /// - ||U|| ug ||D|| mao ang magnitudes (gitas-on) sa vectors
-  /// 
+  ///
   /// Ang resulta kay gikan -1 hangtod 1:
   /// - 1 → parehas kaayo (dako og similarity)
   /// - 0 → walay kalabotan
   /// - -1 → supak kaayo (opposite)
-  /// 
+  ///
   /// Gigamit kini para i-ranggo ang Dayung units base sa kaparehas sa user preferences.
   double cosineSimilarity(List<double> u, List<double> d) {
     if (u.length != d.length || u.isEmpty) return 0.0;
@@ -162,7 +165,7 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
     String clean(String? s) => norm(s).replaceAll(RegExp(r'[^a-z0-9]+'), ' ');
 
     final meetKey = clean(m['meeting_frequency']?.toString());
-    final payKey  = clean(m['payment_method']?.toString());
+    final payKey = clean(m['payment_method']?.toString());
     final regKey = clean(m['contribution_amount']?.toString());
     final memKey = clean(m['membership_payment']?.toString());
     final penKey = clean(m['penalty_payment']?.toString());
@@ -201,7 +204,7 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
       '200-250',
       '250-300',
       '300-350',
-      '400 plus'
+      '400 plus',
     ];
     List<double> bucket(String key) {
       List<double> out = List.filled(feeRanges.length, 0.0);
@@ -219,8 +222,12 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
     final openAll = open ? 1.0 : 0.0;
 
     return [
-      meetW, meetM, meetN,
-      payCash, payGcash, payBoth,
+      meetW,
+      meetM,
+      meetN,
+      payCash,
+      payGcash,
+      payBoth,
       ...regFee,
       ...memFee,
       ...penFee,
@@ -276,8 +283,12 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
     double openAll = norm(m['open_for_all']) == 'yes' ? 1.0 : 0.0;
 
     return [
-      meetWeekly, meetMonthly, meetNeeded,
-      payCash, payGcash, payBoth,
+      meetWeekly,
+      meetMonthly,
+      meetNeeded,
+      payCash,
+      payGcash,
+      payBoth,
       ...regFee,
       ...memFee,
       ...penFee,
@@ -289,63 +300,72 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
   // ug mosort base sa cosine similarity sa user preference vector.
   // Dinhi gyud mahitabo ang matching ug ranking.
   Future<void> _fetchSuggestionsLocal() async {
-  debugPrint('DEBUG: User "${widget.userId}" (role: ${widget.role}) is searching for Dayung rules');
-  setState(() => isLoading = true);
-  try {
-    final userVector = _generatePreferenceVector();
-    debugPrint('DEBUG: User Preference Vector len=${userVector.length}: $userVector');
+    debugPrint(
+      'DEBUG: User "${widget.userId}" (role: ${widget.role}) is searching for Dayung rules',
+    );
+    setState(() => isLoading = true);
+    try {
+      final userVector = _generatePreferenceVector();
+      debugPrint(
+        'DEBUG: User Preference Vector len=${userVector.length}: $userVector',
+      );
 
-    // Fetch rules joined with unit info for location
-    final resp = await Supabase.instance.client
-        .from('dayung_rules')
-        .select('id,dayung_unit_id,dayung_unit_name,meeting_frequency,registration_fee_range,membership_payment,penalty_payment,payment_method,open_for_all,'
-            'dayung_units(latitude,longitude,barangay,city,province)');
+      // Fetch rules joined with unit info for location
+      final resp = await Supabase.instance.client
+          .from('dayung_rules')
+          .select(
+            'id,dayung_unit_id,dayung_unit_name,meeting_frequency,registration_fee_range,membership_payment,penalty_payment,payment_method,open_for_all,'
+            'dayung_units(latitude,longitude,barangay,city,province)',
+          );
 
-    final rules = <Map<String, dynamic>>[];
-    for (final raw in resp) {
-      final m = Map<String, dynamic>.from(raw as Map);
+      final rules = <Map<String, dynamic>>[];
+      for (final raw in resp) {
+        final m = Map<String, dynamic>.from(raw as Map);
 
-      // Merge unit info for location
-      final unit = m['dayung_units'];
-      if (unit is Map) {
-        m['latitude'] = unit['latitude'];
-        m['longitude'] = unit['longitude'];
-        m['barangay'] = unit['barangay'];
-        m['city'] = unit['city'];
-        m['province'] = unit['province'];
+        // Merge unit info for location
+        final unit = m['dayung_units'];
+        if (unit is Map) {
+          m['latitude'] = unit['latitude'];
+          m['longitude'] = unit['longitude'];
+          m['barangay'] = unit['barangay'];
+          m['city'] = unit['city'];
+          m['province'] = unit['province'];
+        }
+
+        // Build vector from rule columns
+        m['__parsedVector'] = _buildRuleVector(m);
+
+        // ADD THIS DEBUG PRINT:
+        debugPrint('DEBUG: Unit ID:${m['id']} Vector: ${m['__parsedVector']}');
+
+        rules.add(m);
       }
 
-      // Build vector from rule columns
-      m['__parsedVector'] = _buildRuleVector(m);
+      // Sort by similarity * attribute match boost
+      // Dinhi gigamit ang cosine similarity ug ang attributeMatchBoost para i-ranggo ang Dayung units.
+      // Ang resulta kay mas taas ang score sa units nga daghan og exact match sa gipili sa user.
+      rules.sort((a, b) {
+        final va = (a['__parsedVector'] as List<double>? ?? const []);
+        final vb = (b['__parsedVector'] as List<double>? ?? const []);
+        final simA =
+            cosineSimilarity(userVector, va) *
+            attributeMatchBoost(userVector, va);
+        final simB =
+            cosineSimilarity(userVector, vb) *
+            attributeMatchBoost(userVector, vb);
+        return simB.compareTo(simA);
+      });
 
-      // ADD THIS DEBUG PRINT:
-      debugPrint('DEBUG: Unit ID:${m['id']} Vector: ${m['__parsedVector']}');
-
-      rules.add(m);
+      setState(() => suggestedUnits = rules);
+    } catch (e) {
+      debugPrint('DEBUG: Local fetch error: $e');
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Local similarity error: $e')));
+    } finally {
+      if (mounted) setState(() => isLoading = false);
     }
-
-    // Sort by similarity * attribute match boost
-    // Dinhi gigamit ang cosine similarity ug ang attributeMatchBoost para i-ranggo ang Dayung units.
-    // Ang resulta kay mas taas ang score sa units nga daghan og exact match sa gipili sa user.
-    rules.sort((a, b) {
-      final va = (a['__parsedVector'] as List<double>? ?? const []);
-      final vb = (b['__parsedVector'] as List<double>? ?? const []);
-      final simA = cosineSimilarity(userVector, va) * attributeMatchBoost(userVector, va);
-      final simB = cosineSimilarity(userVector, vb) * attributeMatchBoost(userVector, vb);
-      return simB.compareTo(simA);
-    });
-
-    setState(() => suggestedUnits = rules);
-
-  } catch (e) {
-    debugPrint('DEBUG: Local fetch error: $e');
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Local similarity error: $e')),
-    );
-  } finally {
-    if (mounted) setState(() => isLoading = false);
   }
-}
 
   Future<void> _fetchSuggestions() async {
     await _fetchSuggestionsLocal();
@@ -354,7 +374,7 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
   Future<void> _savePreferences({int? selectedUnitId}) async {
     final payload = {
       'user_id': widget.userId,
-  
+
       'meeting_frequency': meeting_frequency,
       'penalty_policy': penalty_policy,
       'contribution_amount': contribution_amount,
@@ -411,7 +431,7 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
   @override
   void initState() {
     super.initState();
-    selectedDistanceKm = 5; 
+    selectedDistanceKm = 5;
     _fetchUserAddress();
     _fetchSuggestions();
     _fetchUserLatitude();
@@ -432,14 +452,18 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
         userCity = resp['city'];
         userProvince = resp['province'];
         // Add latitude and longitude from users table
-        userLat = resp['latitude'] != null ? double.tryParse('${resp['latitude']}') : null;
-        userLng = resp['longitude'] != null ? double.tryParse('${resp['longitude']}') : null;
+        userLat = resp['latitude'] != null
+            ? double.tryParse('${resp['latitude']}')
+            : null;
+        userLng = resp['longitude'] != null
+            ? double.tryParse('${resp['longitude']}')
+            : null;
       });
       // Display in debug console
       debugPrint(
         'DEBUG: User Address for ID ${widget.userId}: '
         'Barangay: $userBarangay, City: $userCity, Province: $userProvince, '
-        'Latitude: $userLat, Longitude: $userLng'
+        'Latitude: $userLat, Longitude: $userLng',
       );
     } catch (e) {
       debugPrint('Failed to fetch user address: $e');
@@ -454,7 +478,9 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
           .eq('id', widget.userId)
           .single();
       setState(() {
-        userLat = resp['latitude'] != null ? double.tryParse('${resp['latitude']}') : null;
+        userLat = resp['latitude'] != null
+            ? double.tryParse('${resp['latitude']}')
+            : null;
       });
       debugPrint('DEBUG: User Latitude for ID ${widget.userId}: $userLat');
     } catch (e) {
@@ -470,7 +496,9 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
           .eq('id', widget.userId)
           .single();
       setState(() {
-        userLng = resp['longitude'] != null ? double.tryParse('${resp['longitude']}') : null;
+        userLng = resp['longitude'] != null
+            ? double.tryParse('${resp['longitude']}')
+            : null;
       });
       debugPrint('DEBUG: User Longitude for ID ${widget.userId}: $userLng');
     } catch (e) {
@@ -485,76 +513,67 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
 
     return Scaffold(
       backgroundColor: kBg,
-      body: Container(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [kPrimaryDark, kPrimary, kBg],
-            stops: [0.0, 0.15, 0.15],
-          ),
-        ),
-        child: SafeArea(
-          child: Column(
-            children: [
-              Container(
-                padding: const EdgeInsets.fromLTRB(16, 12, 16, 20),
-                child: Row(
-                  children: [
-                    IconButton(
-                      icon: const Icon(
-                        Icons.arrow_back_rounded,
-                        color: Colors.white,
-                        size: 20,
-                      ),
-                      onPressed: () => Navigator.pop(context),
-                      padding: EdgeInsets.zero,
-                      constraints: const BoxConstraints(),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Text(
-                        'Find a Dayung',
-                        style: TextStyle(
-                          fontSize: isWide ? 24 : 20,
-                          fontWeight: FontWeight.w800,
-                          color: Colors.white,
-                          fontFamily: 'Montserrat',
-                          letterSpacing: 0.3,
-                          shadows: const [
-                            Shadow(
-                              color: Colors.black26,
-                              offset: Offset(0, 1),
-                              blurRadius: 2,
-                            ),
-                          ],
+      body: SafeArea(
+        child: Column(
+          children: [
+            // Modern Curved Header
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.fromLTRB(24, 32, 24, 36),
+              decoration: const BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [kPrimaryDark, kPrimary],
+                ),
+                borderRadius: BorderRadius.vertical(
+                  bottom: Radius.circular(32),
+                ),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Dayung Preferences',
+                    style: TextStyle(
+                      fontSize: isWide ? 28 : 22,
+                      fontWeight: FontWeight.w800,
+                      color: Colors.white,
+                      fontFamily: 'Montserrat',
+                      letterSpacing: 0.3,
+                      shadows: const [
+                        Shadow(
+                          color: Colors.black26,
+                          offset: Offset(0, 1),
+                          blurRadius: 2,
                         ),
-                      ),
+                      ],
                     ),
-                  ],
-                ),
-              ),
-              Expanded(
-                child: Container(
-                  decoration: const BoxDecoration(
-                    color: kBg,
-                    borderRadius: BorderRadius.only(
-                      topLeft: Radius.circular(32),
-                      topRight: Radius.circular(32),
-                    ),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black12,
-                        blurRadius: 20,
-                        offset: Offset(0, -5),
-                      ),
-                    ],
                   ),
-                  child: _buildBody(context, isWide),
-                ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Set your preferences to get the best Dayung unit suggestions.',
+                    style: TextStyle(
+                      color: Colors.white.withOpacity(0.85),
+                      fontSize: 15,
+                      fontFamily: 'OpenSans',
+                    ),
+                  ),
+                ],
               ),
-            ],
-          ),
+            ),
+            // Main Content
+            Expanded(
+              child: Container(
+                width: double.infinity,
+                decoration: const BoxDecoration(
+                  color: kBg,
+                  borderRadius: BorderRadius.vertical(top: Radius.circular(32)),
+                ),
+                child: _buildBody(context, isWide),
+              ),
+            ),
+          ],
         ),
       ),
     );
@@ -565,7 +584,8 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
     const R = 6371.0;
     final dLat = (lat2 - lat1) * pi / 180.0;
     final dLng = (lng2 - lng1) * pi / 180.0;
-    final a = sin(dLat / 2) * sin(dLat / 2) +
+    final a =
+        sin(dLat / 2) * sin(dLat / 2) +
         cos(lat1 * pi / 180.0) *
             cos(lat2 * pi / 180.0) *
             sin(dLng / 2) *
@@ -583,7 +603,11 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
   // - #selected = total nga 1s sa user vector (user-selected features)
   // - λ = boost factor (default 0.25)
   // Ang resulta kay gamultiply sa cosine similarity score para mahatagan og extra weight ang units nga daghan og exact match sa gipili sa user.
-  double attributeMatchBoost(List<double> user, List<double> unit, {double lambda = 0.25}) {
+  double attributeMatchBoost(
+    List<double> user,
+    List<double> unit, {
+    double lambda = 0.25,
+  }) {
     int selected = 0;
     int matched = 0;
     for (int i = 0; i < user.length; i++) {
@@ -618,7 +642,7 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
           'DEBUG: Distance filter: User (${userLat!.toStringAsFixed(6)}, ${userLng!.toStringAsFixed(6)}) '
           '→ Unit ID:${unit['id']} (${lat.toStringAsFixed(6)}, ${lng.toStringAsFixed(6)}) = '
           '${dist.toStringAsFixed(2)} km (threshold: ${selectedDistanceKm!.toStringAsFixed(2)} km) '
-          '${dist <= selectedDistanceKm! ? "[INCLUDED]" : "[EXCLUDED]"}'
+          '${dist <= selectedDistanceKm! ? "[INCLUDED]" : "[EXCLUDED]"}',
         );
 
         return dist <= selectedDistanceKm!;
@@ -648,360 +672,238 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
     return RefreshIndicator(
       onRefresh: () async => _fetchSuggestions(),
       child: ListView(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.fromLTRB(18, 18, 18, 24),
         children: [
+          // Preferences Form Card
           Card(
-            elevation: 2,
+            elevation: 4,
             color: kCardBg,
-            margin: const EdgeInsets.only(bottom: 16),
             shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(16),
+              borderRadius: BorderRadius.circular(18),
             ),
             child: Padding(
-              padding: const EdgeInsets.all(16),
+              padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 20),
               child: Form(
                 key: _formKey,
                 child: Column(
                   children: [
-                    
                     _buildDropdown(
                       label: 'Meeting Frequency',
+                      items: ['Weekly', 'Monthly', 'Needed'],
                       value: meeting_frequency,
-                      items: ['Any', 'Weekly', 'Monthly', 'Needed'],
-                      onChanged: (val) {
-                        setState(() => meeting_frequency = val);
-                        _fetchSuggestions();
-                      },
-                    ),
-                    _buildDropdown(
-                      label: 'Registration Fee Range',
-                      value: contribution_amount,
-                      items: [
-                        'Any',
-                        '50-100',
-                        '100-150',
-                        '150-200',
-                        '200-250',
-                        '250-300',
-                        '300-350',
-                        '400 plus',
-                      ],
-                      onChanged: (val) {
-                        setState(() => contribution_amount = val);
-                        _fetchSuggestions();
-                      },
-                    ),
-                    _buildDropdown(
-                      label: 'Membership Payment',
-                      value: membership_payment,
-                      items: [
-                        'Any',
-                        '50-100',
-                        '100-150',
-                        '150-200',
-                        '200-250',
-                        '250-300',
-                        '300-350',
-                        '400 plus',
-                      ],
-                      onChanged: (val) {
-                        setState(() => membership_payment = val);
-                        _fetchSuggestions();
-                      },
-                    ),
-                    _buildDropdown(
-                      label: 'Penalty Payment',
-                      value: penalty_payment,
-                      items: [
-                        'Any',
-                        '50-100',
-                        '100-150',
-                        '150-200',
-                        '200-250',
-                        '250-300',
-                        '300-350',
-                        '400 plus',
-                      ],
-                      onChanged: (val) {
-                        setState(() => penalty_payment = val);
-                        _fetchSuggestions();
-                      },
+                      onChanged: (v) => setState(() => meeting_frequency = v),
                     ),
                     _buildDropdown(
                       label: 'Payment Method',
+                      items: ['Cash', 'GCash', 'Both'],
                       value: payment_method,
-                      items: ['Any', 'Cash', 'GCash', 'Both'],
-                      onChanged: (val) {
-                        setState(() => payment_method = val);
-                        _fetchSuggestions();
-                      },
+                      onChanged: (v) => setState(() => payment_method = v),
                     ),
                     _buildDropdown(
-                      label: 'Open for All?',
-                      value: openForAll,
-                      items: ['Yes', 'No'],
-                      onChanged: (val) {
-                        setState(() => openForAll = val);
-                        _fetchSuggestions();
-                      },
-                    ),
-                    _buildDropdown(
-                      label: 'Distance (km)',
-                      value: selectedDistanceKm == null ? 'Any' : selectedDistanceKm!.toStringAsFixed(0),
+                      label: 'Registration Fee',
                       items: [
-                        'Any',
-                        '1',
-                        '3',
-                        '5',
-                        '10',
-                        '20',
-                        '50',
+                        '50-100',
+                        '100-150',
+                        '150-200',
+                        '200-250',
+                        '250-300',
+                        '300-350',
+                        '400 plus',
                       ],
-                      onChanged: (val) {
-                        setState(() {
-                          if (val == 'Any') {
-                            selectedDistanceKm = null;
-                          } else {
-                            selectedDistanceKm = double.tryParse(val ?? '');
-                          }
-                        });
-                        _fetchSuggestions();
-                      },
+                      value: contribution_amount,
+                      onChanged: (v) => setState(() => contribution_amount = v),
                     ),
-                  
-                   
-                
-                    const SizedBox(height: 8),
-                    SizedBox(
-                      width: double.infinity,
-                      child: ElevatedButton.icon(
-                        icon: const Icon(Icons.search),
-                        label: const Text('Find Matching Units'),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: kPrimary,
-                          foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(vertical: 14),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                        ),
-                        onPressed: () {
-                          if (
-                              meeting_frequency == null &&
-                              contribution_amount == null &&
-                              membership_payment == null &&
-                              penalty_payment == null &&
-                              payment_method == null &&
-                              openForAll == null &&
-                              penalty_policy == null) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text(
-                                  'Please fill at least one preference or skip.',
-                                ),
-                              ),
-                            );
-                            return;
-                          }
-                          _fetchSuggestions();
-                        },
-                      ),
+                    _buildDropdown(
+                      label: 'Membership Payment',
+                      items: [
+                        '50-100',
+                        '100-150',
+                        '150-200',
+                        '200-250',
+                        '250-300',
+                        '300-350',
+                        '400 plus',
+                      ],
+                      value: membership_payment,
+                      onChanged: (v) => setState(() => membership_payment = v),
                     ),
+                    _buildDropdown(
+                      label: 'Penalty Payment',
+                      items: [
+                        '50-100',
+                        '100-150',
+                        '150-200',
+                        '200-250',
+                        '250-300',
+                        '300-350',
+                        '400 plus',
+                      ],
+                      value: penalty_payment,
+                      onChanged: (v) => setState(() => penalty_payment = v),
+                    ),
+                    _buildDropdown(
+                      label: 'Open for All',
+                      items: ['Yes', 'No'],
+                      value: openForAll,
+                      onChanged: (v) => setState(() => openForAll = v),
+                    ),
+                    // const SizedBox(height: 18),
+                    // Distance Filter Slider
+                    // Row(
+                    //   children: [
+                    //     const Icon(Icons.location_on, color: kPrimaryDark),
+                    //     const SizedBox(width: 8),
+                    //     Expanded(
+                    //       child: Slider(
+                    //         value: selectedDistanceKm ?? 5,
+                    //         min: 1,
+                    //         max: 20,
+                    //         divisions: 19,
+                    //         label:
+                    //             '${selectedDistanceKm?.toStringAsFixed(0) ?? 5} km',
+                    //         activeColor: kPrimary,
+                    //         onChanged: (v) =>
+                    //             setState(() => selectedDistanceKm = v),
+                    //       ),
+                    //     ),
+                    //     Text(
+                    //       '${selectedDistanceKm?.toStringAsFixed(0) ?? 5} km',
+                    //       style: const TextStyle(
+                    //         color: kPrimaryDark,
+                    //         fontWeight: FontWeight.bold,
+                    //       ),
+                    //     ),
+                    //   ],
+                    // ),
                   ],
                 ),
               ),
             ),
           ),
+          const SizedBox(height: 12),
+          // Suggestions List
           if (filteredUnits.isNotEmpty) ...[
             Padding(
               padding: const EdgeInsets.symmetric(vertical: 8),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Your Address:',
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      color: kPrimaryDark,
-                    ),
-                  ),
-                  Text(
-                    [
-                      if (userBarangay != null) userBarangay,
-                      if (userCity != null) userCity,
-                      if (userProvince != null) userProvince,
-                    ].where((e) => (e ?? '').toString().isNotEmpty).join(', '),
-                    style: const TextStyle(color: kSubText),
-                  ),
-                ],
+              child: Text(
+                'Suggested Dayung Units',
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  color: kPrimaryDark,
+                  fontSize: 17,
+                  fontFamily: 'Montserrat',
+                ),
               ),
             ),
-            const SizedBox(height: 8),
             ...filteredUnits.map((unit) {
-              return Card(
-                elevation: 2,
-                color: kCardBg,
-                margin: const EdgeInsets.only(bottom: 12),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 10,
+              return Container(
+                margin: const EdgeInsets.only(bottom: 16),
+                child: Card(
+                  elevation: 4,
+                  color: kCardBg,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(18),
                   ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        crossAxisAlignment: CrossAxisAlignment.center,
-                        children: [
-                          CircleAvatar(
-                            backgroundColor: kPrimary.withOpacity(0.12),
-                            child: const Icon(Icons.home, color: kPrimary),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 18,
+                      vertical: 16,
+                    ),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      children: [
+                        CircleAvatar(
+                          radius: 28,
+                          backgroundColor: kAccent.withOpacity(0.10),
+                          child: const Icon(
+                            Icons.home,
+                            color: kAccent,
+                            size: 28,
                           ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  unit['dayung_unit_name'] ?? 'Unnamed Unit',
-                                  style: const TextStyle(
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.w700,
-                                    color: kText,
-                                  ),
+                        ),
+                        const SizedBox(width: 18),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                unit['dayung_unit_name'] ?? 'Unnamed Unit',
+                                style: const TextStyle(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.w700,
+                                  color: kText,
+                                  fontFamily: 'Montserrat',
                                 ),
-                                const SizedBox(height: 4),
-                                Text(
-                                  [
-                                        if (unit['barangay'] != null)
-                                          unit['barangay'],
-                                        if (unit['city'] != null) unit['city'],
-                                        if (unit['province'] != null)
-                                          unit['province'],
-                                      ]
-                                      .where(
-                                        (e) => (e ?? '').toString().isNotEmpty,
-                                      )
-                                      .join(', '),
-                                  style: const TextStyle(
-                                    color: kSubText,
-                                    fontSize: 13,
-                                  ),
+                              ),
+                              const SizedBox(height: 6),
+                              Text(
+                                [
+                                      if (unit['barangay'] != null)
+                                        unit['barangay'],
+                                      if (unit['city'] != null) unit['city'],
+                                      if (unit['province'] != null)
+                                        unit['province'],
+                                    ]
+                                    .where(
+                                      (e) =>
+                                          e != null && e.toString().isNotEmpty,
+                                    )
+                                    .join(', '),
+                                style: const TextStyle(
+                                  color: kSubText,
+                                  fontSize: 14,
+                                  fontFamily: 'OpenSans',
                                 ),
-                              ],
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        ElevatedButton.icon(
+                          icon: const Icon(Icons.map, color: Colors.white),
+                          label: const Text(
+                            'Map',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w600,
                             ),
                           ),
-                        ],
-                      ),
-                      // --- Map preview here ---
-                      Builder(
-                        builder: (context) {
-                          final lat = double.tryParse('${unit['latitude']}');
-                          final lng = double.tryParse('${unit['longitude']}');
-                          if (lat != null && lng != null) {
-                            return Padding(
-                              padding: const EdgeInsets.only(
-                                top: 10.0,
-                                bottom: 8.0,
-                              ),
-                              child: DayungMapPreview(
-                                latitude: lat,
-                                longitude: lng,
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: kPrimary,
+                            foregroundColor: Colors.white,
+                            elevation: 0,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                          onPressed: () async {
+                            final lat = unit['latitude'] as double?;
+                            final lng = unit['longitude'] as double?;
+                            if (lat == null || lng == null) {
+                              if (!mounted) return;
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text(
+                                    'No location set for this Dayung.',
+                                  ),
+                                ),
+                              );
+                              return;
+                            }
+                            await Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => DayungMapPage(
+                                  dayung: unit,
+                                  isApplied: false,
+                                  isMember: false,
+                                ),
                               ),
                             );
-                          }
-                          return const SizedBox.shrink();
-                        },
-                      ),
-            
-                      Padding(
-                        padding: const EdgeInsets.only(top: 4, bottom: 4),
-                        child: Builder(
-                          builder: (context) {
-                            final lat = double.tryParse('${unit['latitude']}');
-                            final lng = double.tryParse('${unit['longitude']}');
-                   
-                            double? km;
-                            if (lat != null && lng != null && userLat != null && userLng != null) {
-                              km = _distanceKm(userLat!, userLng!, lat, lng);
-                            }
-                            final address = [
-                              if (unit['barangay'] != null) unit['barangay'],
-                              if (unit['city'] != null) unit['city'],
-                              if (unit['province'] != null) unit['province'],
-                            ].where((e) => (e ?? '').toString().isNotEmpty).join(', ');
-return Text(
-  ''
-);
                           },
                         ),
-                      ),
-            
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.end,
-                        children: [
-                          OutlinedButton.icon(
-                            icon: const Icon(Icons.map),
-                            label: const Text('Map'),
-                            style: OutlinedButton.styleFrom(
-                              foregroundColor: kPrimary,
-                              side: const BorderSide(color: kPrimary),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                            ),
-                            onPressed: () {
-                              final selected = Map<String, dynamic>.from(
-                                unit as Map,
-                              );
-                              final all = suggestedUnits
-                                  .map(
-                                    (e) => Map<String, dynamic>.from(e as Map),
-                                  )
-                                  .toList();
-                              Navigator.of(context).push(
-                                MaterialPageRoute(
-                                  builder: (_) => DayungMapPage(
-                                    dayung: selected,
-                                    isApplied: false,
-                                    isMember: false,
-                                    allDayungs: all,
-                                    nearbyRadiusMeters: 5000,
-                                  ),
-                                ),
-                              );
-                            },
-                          ),
-                          const SizedBox(width: 8),
-                          OutlinedButton.icon(
-                            icon: const Icon(Icons.check_circle),
-                            label: const Text('Select'),
-                            style: OutlinedButton.styleFrom(
-                              foregroundColor: kPrimary,
-                              side: const BorderSide(color: kPrimary),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                            ),
-                            onPressed: () {
-                              final sim = cosineSimilarity(
-                                _generatePreferenceVector(),
-                                (unit['__parsedVector'] as List<double>? ?? []),
-                              );
-                              debugPrint(
-                                'DEBUG: User "${widget.userId}" (role: ${widget.role}) SELECTED - ID:${unit['id']} "${unit['name']}" status=${unit['__vectorStatus']} sim=${sim.toStringAsFixed(3)}',
-                              );
-                              _completeRegistration(
-                                selectedUnitId: unit['id'] as int,
-                              );
-                            },
-                          ),
-                        ],
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
                 ),
               );
@@ -1012,71 +914,105 @@ return Text(
               payment_method != null ||
               openForAll != null ||
               penalty_policy != null) ...[
-            const SizedBox(height: 8),
-            const Text(
-              'No suggestions found with the given preferences.',
-              style: TextStyle(color: kSubText),
-              textAlign: TextAlign.center,
+            const SizedBox(height: 32),
+            Center(
+              child: Column(
+                children: [
+                  Icon(
+                    Icons.search_off,
+                    size: 64,
+                    color: kSubText.withOpacity(0.25),
+                  ),
+                  const SizedBox(height: 18),
+                  Text(
+                    'No suggestions found with the given preferences.',
+                    style: TextStyle(
+                      color: kSubText,
+                      fontSize: 17,
+                      fontWeight: FontWeight.w600,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Try adjusting your preferences or distance filter.',
+                    style: TextStyle(
+                      color: kSubText.withOpacity(0.7),
+                      fontSize: 14,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                ],
+              ),
             ),
           ],
-
           const SizedBox(height: 16),
-          Center(
-            child: TextButton.icon(
-              icon: const Icon(Icons.arrow_forward),
-              label: const Text('Skip & Continue'),
-              style: TextButton.styleFrom(
-                foregroundColor: kPrimaryDark,
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 12,
+          // Modern Skip Button
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 8),
+            child: ElevatedButton.icon(
+              icon: const Icon(Icons.arrow_forward, color: Colors.white),
+              label: const Text(
+                'Skip & Continue',
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 16,
+                  fontFamily: 'Montserrat',
                 ),
+              ),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: kAccent,
+                foregroundColor: Colors.white,
+                minimumSize: const Size.fromHeight(52),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                elevation: 2,
               ),
               onPressed: () async {
                 await _savePreferences();
                 if (!mounted) return;
                 Navigator.of(context).pushReplacement(
                   MaterialPageRoute(
-                    builder: (_) => const DayungSuggestionsPage(),
+                    builder: (_) => const MemberDashboardPage(),
                   ),
                 );
               },
             ),
           ),
-          const SizedBox(height: 12),
         ],
       ),
     );
   }
+}
 
-  Widget _buildDropdown({
-    required String label,
-    required List<String> items,
-    required String? value,
-    required Function(String?) onChanged,
-  }) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8),
-      child: DropdownButtonFormField<String>(
-       initialValue: value ?? items.first,
-        decoration: InputDecoration(
-          labelText: label,
-          border: const OutlineInputBorder(),
-          filled: true,
-          fillColor: Colors.white,
-          contentPadding: const EdgeInsets.symmetric(
-            horizontal: 12,
-            vertical: 12,
-          ),
+Widget _buildDropdown({
+  required String label,
+  required List<String> items,
+  required String? value,
+  required Function(String?) onChanged,
+}) {
+  return Padding(
+    padding: const EdgeInsets.symmetric(vertical: 8),
+    child: DropdownButtonFormField<String>(
+      initialValue: value ?? items.first,
+      decoration: InputDecoration(
+        labelText: label,
+        border: const OutlineInputBorder(),
+        filled: true,
+        fillColor: Colors.white,
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 12,
+          vertical: 12,
         ),
-        items: items
-            .map((item) => DropdownMenuItem(value: item, child: Text(item)))
-            .toList(),
-        onChanged: onChanged,
-        validator: (_) => null,
       ),
-    );
-  }
+      items: items
+          .map((item) => DropdownMenuItem(value: item, child: Text(item)))
+          .toList(),
+      onChanged: onChanged,
+      validator: (_) => null,
+    ),
+  );
 }
 
 class DayungMapPreview extends StatelessWidget {
@@ -1091,7 +1027,6 @@ class DayungMapPreview extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-
     if (kIsWeb) {
       return _StaticOsmTilePreview(
         latitude: latitude,
@@ -1103,24 +1038,24 @@ class DayungMapPreview extends StatelessWidget {
 
     return SizedBox(
       height: 120,
-  child: ClipRRect(
-    borderRadius: BorderRadius.circular(12),
-    child: ml.MapLibreMap(
-      styleString: 'https://demotiles.maplibre.org/style.json',
-      initialCameraPosition: ml.CameraPosition(
-        target: ml.LatLng(latitude, longitude),
-        zoom: 14,
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(12),
+        child: ml.MapLibreMap(
+          styleString: 'https://demotiles.maplibre.org/style.json',
+          initialCameraPosition: ml.CameraPosition(
+            target: ml.LatLng(latitude, longitude),
+            zoom: 14,
           ),
-        onMapCreated: (ml.MaplibreMapController? controller) async {
-  if (controller == null) return;
-  await controller.addSymbol(
-    ml.SymbolOptions(
-      geometry: ml.LatLng(latitude, longitude),
-      iconImage: "marker-15",
-      iconSize: 1.4,
-    ),
-  );
-},
+          onMapCreated: (ml.MaplibreMapController? controller) async {
+            if (controller == null) return;
+            await controller.addSymbol(
+              ml.SymbolOptions(
+                geometry: ml.LatLng(latitude, longitude),
+                iconImage: "marker-15",
+                iconSize: 1.4,
+              ),
+            );
+          },
           myLocationEnabled: false,
           compassEnabled: false,
           rotateGesturesEnabled: false,
@@ -1148,12 +1083,12 @@ class _StaticOsmTilePreview extends StatelessWidget {
     this.zoom = 14,
   });
 
-
   (int x, int y) _latLngToTile(double lat, double lon, int z) {
     final n = pow(2.0, z).toDouble();
     final xtile = ((lon + 180.0) / 360.0 * n).floor();
     final latRad = lat * pi / 180.0;
-    final ytile = ((1.0 - (log(tan(latRad) + 1 / cos(latRad)) / pi)) / 2.0 * n).floor();
+    final ytile = ((1.0 - (log(tan(latRad) + 1 / cos(latRad)) / pi)) / 2.0 * n)
+        .floor();
     return (xtile, ytile);
   }
 

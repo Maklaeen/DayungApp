@@ -1,17 +1,18 @@
+import 'package:capstone_app/Members/dashboard.dart';
 import 'package:capstone_app/screens/dayung_map_page.dart';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
-// color palette
-const Color kPrimary = Color(0xFF3B82F6);
+// Modern palette (reuse from other files)
+const Color kPrimary = Color(0xFF0D47A1);
 const Color kPrimaryDark = Color(0xFF1E40AF);
 const Color kAccent = Color(0xFF10B981);
 const Color kWarn = Color(0xFFF59E0B);
 const Color kDanger = Color(0xFFEF4444);
-const Color kBg = Color(0xFFF8FAFC);
+const Color kBg = Color(0xFFFAFAF7);
 const Color kCardBg = Color(0xFFFFFFFF);
 const Color kSubText = Color(0xFF6B7280);
-const Color kText = Color(0xFF111827);
+const Color kText = Color(0xFF1F2937);
 
 class DayungSuggestionsPage extends StatefulWidget {
   const DayungSuggestionsPage({super.key});
@@ -96,76 +97,88 @@ class _DayungSuggestionsPageState extends State<DayungSuggestionsPage> {
 
     return Scaffold(
       backgroundColor: kBg,
-      body: Container(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [kPrimaryDark, kPrimary, kBg],
-            stops: [0.0, 0.15, 0.15],
-          ),
-        ),
-        child: SafeArea(
-          child: Column(
-            children: [
-              Container(
-                padding: const EdgeInsets.fromLTRB(16, 12, 16, 20),
-                child: Row(
-                  children: [
-                    IconButton(
-                      icon: const Icon(
-                        Icons.arrow_back_rounded,
-                        color: Colors.white,
-                        size: 20,
-                      ),
-                      onPressed: () => Navigator.pop(context),
-                      padding: EdgeInsets.zero,
-                      constraints: const BoxConstraints(),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Text(
-                        'Find a Dayung',
-                        style: TextStyle(
-                          fontSize: isWide ? 24 : 20,
-                          fontWeight: FontWeight.w800,
-                          color: Colors.white,
-                          fontFamily: 'Montserrat',
-                          letterSpacing: 0.3,
-                          shadows: const [
-                            Shadow(
-                              color: Colors.black26,
-                              offset: Offset(0, 1),
-                              blurRadius: 2,
-                            ),
-                          ],
+      body: SafeArea(
+        child: Column(
+          children: [
+            // Modern Curved Header
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.fromLTRB(24, 32, 24, 36),
+              decoration: const BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [kPrimaryDark, kPrimary],
+                ),
+                borderRadius: BorderRadius.vertical(
+                  bottom: Radius.circular(32),
+                ),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Find a Dayung',
+                    style: TextStyle(
+                      fontSize: isWide ? 28 : 22,
+                      fontWeight: FontWeight.w800,
+                      color: Colors.white,
+                      fontFamily: 'Montserrat',
+                      letterSpacing: 0.3,
+                      shadows: const [
+                        Shadow(
+                          color: Colors.black26,
+                          offset: Offset(0, 1),
+                          blurRadius: 2,
                         ),
-                      ),
+                      ],
                     ),
-                  ],
-                ),
-              ),
-              Expanded(
-                child: Container(
-                  decoration: const BoxDecoration(
-                    color: kBg,
-                    borderRadius: BorderRadius.only(
-                      topLeft: Radius.circular(32),
-                      topRight: Radius.circular(32),
-                    ),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black12,
-                        blurRadius: 20,
-                        offset: Offset(0, -5),
-                      ),
-                    ],
                   ),
-                  child: _buildBody(context, isWide),
-                ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Browse and search for Dayung units near you.',
+                    style: TextStyle(
+                      color: Colors.white.withOpacity(0.85),
+                      fontSize: 15,
+                      fontFamily: 'OpenSans',
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+                  // Modern Search Bar
+                  Material(
+                    elevation: 3,
+                    borderRadius: BorderRadius.circular(24),
+                    child: TextField(
+                      decoration: InputDecoration(
+                        hintText: 'Search by name, barangay, city, or province',
+                        prefixIcon: const Icon(Icons.search, color: kPrimary),
+                        border: InputBorder.none,
+                        filled: true,
+                        fillColor: Colors.white,
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 18,
+                          vertical: 14,
+                        ),
+                        isDense: true,
+                      ),
+                      onChanged: (v) => setState(() => _query = v),
+                    ),
+                  ),
+                ],
               ),
-            ],
-          ),
+            ),
+            // Main Content
+            Expanded(
+              child: Container(
+                width: double.infinity,
+                decoration: const BoxDecoration(
+                  color: kBg,
+                  borderRadius: BorderRadius.vertical(top: Radius.circular(32)),
+                ),
+                child: _buildBody(context, isWide),
+              ),
+            ),
+          ],
         ),
       ),
     );
@@ -176,72 +189,73 @@ class _DayungSuggestionsPageState extends State<DayungSuggestionsPage> {
       return const Center(child: CircularProgressIndicator(color: kPrimary));
     }
 
+    if (_filteredDayungs.isEmpty) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.only(top: 48),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                Icons.search_off,
+                size: 64,
+                color: kSubText.withOpacity(0.25),
+              ),
+              const SizedBox(height: 18),
+              Text(
+                'No dayung units found.',
+                style: TextStyle(
+                  color: kSubText,
+                  fontSize: 17,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Try adjusting your search or check back later.',
+                style: TextStyle(
+                  color: kSubText.withOpacity(0.7),
+                  fontSize: 14,
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
     return RefreshIndicator(
       onRefresh: _fetchDayungs,
       child: ListView(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.fromLTRB(18, 18, 18, 24),
         children: [
-          Card(
-            elevation: 2,
-            color: kCardBg,
-            margin: const EdgeInsets.only(bottom: 16),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(16),
-            ),
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: TextField(
-                decoration: InputDecoration(
-                  labelText: 'Search',
-                  hintText: 'Search by name, barangay, city, or province',
-                  prefixIcon: const Icon(Icons.search),
-                  border: const OutlineInputBorder(),
-                  filled: true,
-                  fillColor: Colors.white,
-                  isDense: true,
-                  contentPadding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 12,
-                  ),
-                ),
-                onChanged: (v) => setState(() => _query = v),
-              ),
-            ),
-          ),
-
-          if (_filteredDayungs.isEmpty)
-            Padding(
-              padding: const EdgeInsets.only(top: 24),
-              child: Center(
-                child: Text(
-                  'No dayung units found.',
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(color: kSubText),
-                ),
-              ),
-            )
-          else
-            ..._filteredDayungs.map((d) {
-              return Card(
-                elevation: 2,
+          ..._filteredDayungs.map((d) {
+            return Container(
+              margin: const EdgeInsets.only(bottom: 16),
+              child: Card(
+                elevation: 4,
                 color: kCardBg,
-                margin: const EdgeInsets.only(bottom: 12),
                 shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
+                  borderRadius: BorderRadius.circular(18),
                 ),
                 child: Padding(
                   padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 10,
+                    horizontal: 18,
+                    vertical: 16,
                   ),
                   child: Row(
                     crossAxisAlignment: CrossAxisAlignment.center,
                     children: [
                       CircleAvatar(
-                        backgroundColor: kPrimary.withOpacity(0.12),
-                        child: const Icon(Icons.home, color: kPrimary),
+                        radius: 28,
+                        backgroundColor: kPrimary.withOpacity(0.10),
+                        child: const Icon(
+                          Icons.home,
+                          color: kPrimary,
+                          size: 28,
+                        ),
                       ),
-                      const SizedBox(width: 12),
+                      const SizedBox(width: 18),
                       Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
@@ -249,33 +263,49 @@ class _DayungSuggestionsPageState extends State<DayungSuggestionsPage> {
                             Text(
                               d['name'] ?? 'Unnamed Unit',
                               style: const TextStyle(
-                                fontSize: 16,
+                                fontSize: 18,
                                 fontWeight: FontWeight.w700,
                                 color: kText,
+                                fontFamily: 'Montserrat',
                               ),
                             ),
-                            const SizedBox(height: 4),
+                            const SizedBox(height: 6),
                             Text(
                               _address(d),
                               style: const TextStyle(
                                 color: kSubText,
-                                fontSize: 13,
+                                fontSize: 14,
+                                fontFamily: 'OpenSans',
                               ),
                             ),
                           ],
                         ),
                       ),
                       const SizedBox(width: 8),
-                      OutlinedButton.icon(
+                      ElevatedButton.icon(
                         icon: Icon(
                           alreadyApplied ? Icons.check_circle : Icons.map,
+                          color: alreadyApplied ? kSubText : Colors.white,
                         ),
-                        label: Text(alreadyApplied ? 'Applied' : 'Map'),
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: alreadyApplied ? kSubText : kPrimary,
-                          side: BorderSide(
-                            color: alreadyApplied ? kSubText : kPrimary,
+                        label: Text(
+                          alreadyApplied ? 'Applied' : 'Map',
+                          style: TextStyle(
+                            color: alreadyApplied ? kSubText : Colors.white,
+                            fontWeight: FontWeight.w600,
                           ),
+                        ),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: alreadyApplied ? kCardBg : kPrimary,
+                          foregroundColor: alreadyApplied
+                              ? kSubText
+                              : Colors.white,
+                          elevation: 0,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          side: alreadyApplied
+                              ? BorderSide(color: kSubText.withOpacity(0.3))
+                              : BorderSide.none,
                         ),
                         onPressed: alreadyApplied
                             ? null
@@ -315,8 +345,41 @@ class _DayungSuggestionsPageState extends State<DayungSuggestionsPage> {
                     ],
                   ),
                 ),
-              );
-            }),
+              ),
+            );
+          }),
+          const SizedBox(height: 12),
+          // Modern Dashboard Button
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 8),
+            child: ElevatedButton.icon(
+              icon: const Icon(Icons.dashboard, color: Colors.white),
+              label: const Text(
+                'Go to dashboard',
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 16,
+                  fontFamily: 'Montserrat',
+                ),
+              ),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: kAccent,
+                foregroundColor: Colors.white,
+                minimumSize: const Size.fromHeight(52),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                elevation: 2,
+              ),
+              onPressed: () {
+                Navigator.of(context).pushReplacement(
+                  MaterialPageRoute(
+                    builder: (_) => const MemberDashboardPage(),
+                  ),
+                );
+              },
+            ),
+          ),
         ],
       ),
     );

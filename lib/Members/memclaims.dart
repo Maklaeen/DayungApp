@@ -933,59 +933,59 @@ class _MembersClaimsPageState extends State<MembersClaimsPage>
 
     return Scaffold(
       backgroundColor: kBg,
-      appBar: AppBar(
-        backgroundColor: kBg,
-        elevation: 0,
-        title: Text(
-          'Claims',
-          style: TextStyle(
-            color: kText,
-            fontWeight: FontWeight.bold,
-            fontSize: 24,
-            fontFamily: 'Montserrat',
-          ),
-        ),
-        actions: [
-          Padding(
-            padding: const EdgeInsets.only(right: 16),
-            child: Stack(
-              children: [
-                CircleAvatar(
-                  backgroundColor: Colors.white,
-                  backgroundImage:
-                      _profileUrl != null && _profileUrl!.isNotEmpty
-                      ? NetworkImage(_profileUrl!)
-                      : null,
-                  radius: 20,
-                  child: _profileUrl == null
-                      ? Icon(Icons.person, color: kAccent)
-                      : null,
-                ),
-                if (_unreadNotifCount > 0)
-                  Positioned(
-                    right: 0,
-                    top: 0,
-                    child: Container(
-                      padding: EdgeInsets.all(4),
-                      decoration: BoxDecoration(
-                        color: kAccent,
-                        shape: BoxShape.circle,
-                      ),
-                      child: Text(
-                        '$_unreadNotifCount',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 10,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ),
-                  ),
-              ],
-            ),
-          ),
-        ],
-      ),
+      // appBar: AppBar(
+      //   backgroundColor: kBg,
+      //   elevation: 0,
+      //   title: Text(
+      //     'Claims',
+      //     style: TextStyle(
+      //       color: kText,
+      //       fontWeight: FontWeight.bold,
+      //       fontSize: 24,
+      //       fontFamily: 'Montserrat',
+      //     ),
+      //   ),
+      //   actions: [
+      //     Padding(
+      //       padding: const EdgeInsets.only(right: 16),
+      //       child: Stack(
+      //         children: [
+      //           CircleAvatar(
+      //             backgroundColor: Colors.white,
+      //             backgroundImage:
+      //                 _profileUrl != null && _profileUrl!.isNotEmpty
+      //                 ? NetworkImage(_profileUrl!)
+      //                 : null,
+      //             radius: 20,
+      //             child: _profileUrl == null
+      //                 ? Icon(Icons.person, color: kAccent)
+      //                 : null,
+      //           ),
+      //           if (_unreadNotifCount > 0)
+      //             Positioned(
+      //               right: 0,
+      //               top: 0,
+      //               child: Container(
+      //                 padding: EdgeInsets.all(4),
+      //                 decoration: BoxDecoration(
+      //                   color: kAccent,
+      //                   shape: BoxShape.circle,
+      //                 ),
+      //                 child: Text(
+      //                   '$_unreadNotifCount',
+      //                   style: TextStyle(
+      //                     color: Colors.white,
+      //                     fontSize: 10,
+      //                     fontWeight: FontWeight.bold,
+      //                   ),
+      //                 ),
+      //               ),
+      //             ),
+      //         ],
+      //       ),
+      //     ),
+      //   ],
+      // ),
       body: SafeArea(
         child: Column(
           children: [
