@@ -1,15 +1,11 @@
-import 'dart:convert';
 import 'dart:math';
 import 'package:capstone_app/Providers/dayung_provider.dart';
 import 'package:capstone_app/screens/dayung_suggestions.dart'
     hide kPrimary, kAccent, kWarn;
-import 'package:capstone_app/screens/selectdayung.dart'
-    hide kPrimary, kWarn, kAccent;
 import 'package:capstone_app/screens/dayung_map_page.dart' as map;
 import 'package:capstone_app/ui/theme/branding.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 // Additional colors for manage dayung styling

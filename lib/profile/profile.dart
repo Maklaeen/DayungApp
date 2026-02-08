@@ -6,7 +6,6 @@ import 'dart:ui';
 import 'package:capstone_app/Auth/login.dart' hide kWarn, kDanger;
 import 'package:capstone_app/President/manage_rules.dart'
     hide kPrimary, kAccent;
-import 'package:capstone_app/Providers/apptheme_provider.dart';
 import 'package:capstone_app/Providers/dayung_provider.dart';
 import 'package:capstone_app/Providers/dayung_role_provider.dart';
 import 'package:capstone_app/profile/required_application_page.dart'
