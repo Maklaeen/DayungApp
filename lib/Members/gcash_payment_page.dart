@@ -20,6 +20,7 @@ class GCashPaymentPage extends StatefulWidget {
 
 class _GCashPaymentPageState extends State<GCashPaymentPage> {
   bool _isUploading = false;
+  String _searchQuery = ""; // Add a variable to store the search query
 
   Future<List<Map<String, dynamic>>> fetchSetAmounts() async {
     final data = await Supabase.instance.client
@@ -225,6 +226,26 @@ class _GCashPaymentPageState extends State<GCashPaymentPage> {
                 ],
               ),
             ),
+            // Search Bar
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: TextField(
+                decoration: InputDecoration(
+                  hintText: "Search by name or deceased user...",
+                  prefixIcon: const Icon(Icons.search),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  filled: true,
+                  fillColor: Colors.white,
+                ),
+                onChanged: (value) {
+                  setState(() {
+                    _searchQuery = value.toLowerCase(); // Update the search query
+                  });
+                },
+              ),
+            ),
             // Content
             Expanded(
               child: Padding(
@@ -253,96 +274,105 @@ class _GCashPaymentPageState extends State<GCashPaymentPage> {
                         ),
                       );
                     }
-                    return ListView.builder(
-                      itemCount: setAmounts.length,
-                      itemBuilder: (context, i) {
-                        final data = setAmounts[i];
-                        final fullName =
-                            data['users']?['full_name'] ??
-                            data['userdeceased'] ??
-                            '';
-                        final amount = data['amount'];
-                        return Card(
-                          margin: const EdgeInsets.symmetric(vertical: 10),
-                          elevation: 3,
-                          color: Colors.white,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(16),
-                          ),
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(
-                              vertical: 16,
-                              horizontal: 18,
+
+                    // Filter the list based on the search query
+                    final filteredSetAmounts = setAmounts.where((data) {
+                      final fullName = data['users']?['full_name'] ?? '';
+                      final userDeceased = data['userdeceased'] ?? '';
+                      return fullName.toLowerCase().contains(_searchQuery) ||
+                          userDeceased.toLowerCase().contains(_searchQuery);
+                    }).toList();
+
+                    if (filteredSetAmounts.isEmpty) {
+                      return Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(Icons.search_off, color: kSubText, size: 48),
+                            const SizedBox(height: 16),
+                            const Text(
+                              "No results found.",
+                              style: TextStyle(color: kSubText, fontSize: 18),
                             ),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  fullName,
-                                  style: const TextStyle(
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 16,
-                                    color: kText,
-                                  ),
+                          ],
+                        ),
+                      );
+                    }
+
+                    return FutureBuilder<List<bool>>(
+                      future: Future.wait(filteredSetAmounts.map((data) =>
+                        isPaid(data['id'].toString(), data['userdeceased'])
+                      )),
+                      builder: (context, statusSnapshot) {
+                        if (!statusSnapshot.hasData) {
+                          return const Center(child: CircularProgressIndicator(color: kAccent));
+                        }
+                        final statuses = statusSnapshot.data!;
+                        final pending = <Map<String, dynamic>>[];
+                        final paid = <Map<String, dynamic>>[];
+                        for (int i = 0; i < filteredSetAmounts.length; i++) {
+                          if (statuses[i]) {
+                            paid.add(filteredSetAmounts[i]);
+                          } else {
+                            pending.add(filteredSetAmounts[i]);
+                          }
+                        }
+                        final sortedList = [...pending, ...paid];
+
+                        return ListView.builder(
+                          itemCount: sortedList.length,
+                          itemBuilder: (context, i) {
+                            final data = sortedList[i];
+                            final fullName = data['users']?['full_name'] ?? data['userdeceased'] ?? '';
+                            final amount = data['amount'];
+                            final paidStatus = i >= pending.length; // Paid if index is after pending
+                            return Card(
+                              margin: const EdgeInsets.symmetric(vertical: 10),
+                              elevation: 3,
+                              color: Colors.white,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(16),
+                              ),
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 16,
+                                  horizontal: 18,
                                 ),
-                                const SizedBox(height: 8),
-                                Text(
-                                  'Amount: ₱ $amount',
-                                  style: const TextStyle(
-                                    fontSize: 15,
-                                    color: kAccent,
-                                  ),
-                                ),
-                                const SizedBox(height: 8),
-                                Row(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    // Status
-                                    FutureBuilder<bool>(
-                                      future: isPaid(
-                                        data['id'].toString(),
-                                        data['userdeceased'],
+                                    Text(
+                                      fullName,
+                                      style: const TextStyle(
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 16,
+                                        color: kText,
                                       ),
-                                      builder: (context, paidSnap) {
-                                        if (!paidSnap.hasData) {
-                                          return const Text("...");
-                                        }
-                                        final paid = paidSnap.data!;
-                                        return Container(
-                                          padding: const EdgeInsets.symmetric(
-                                            horizontal: 12,
-                                            vertical: 6,
-                                          ),
-                                          decoration: BoxDecoration(
-                                            color: paid
-                                                ? Colors.green[50]
-                                                : kWarn.withOpacity(0.1),
-                                            borderRadius: BorderRadius.circular(
-                                              8,
-                                            ),
-                                          ),
-                                          child: Text(
-                                            paid ? "Paid" : "Pending",
-                                            style: TextStyle(
-                                              color: paid
-                                                  ? Colors.green
-                                                  : kWarn,
-                                              fontWeight: FontWeight.bold,
-                                            ),
-                                          ),
-                                        );
-                                      },
                                     ),
-                                    const Spacer(),
-                                    // Upload Button
-                                    FutureBuilder<bool>(
-                                      future: isPaid(
-                                        data['id'].toString(),
-                                        data['userdeceased'],
+                                    const SizedBox(height: 8),
+                                    Text(
+                                      'Amount: ₱ $amount',
+                                      style: const TextStyle(
+                                        fontSize: 15,
+                                        color: kAccent,
                                       ),
-                                      builder: (context, paidSnap) {
-                                        final isPaidValue =
-                                            paidSnap.data == true;
-                                        return ElevatedButton.icon(
+                                    ),
+                                    const SizedBox(height: 8),
+                                    Row(
+                                      children: [
+                                        // Status
+                                        Text(
+                                          paidStatus ? "Paid" : "Pending",
+                                          style: TextStyle(
+                                            color: paidStatus
+                                                ? Colors.green
+                                                : kWarn,
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                        ),
+                                        const Spacer(),
+                                        // Upload Button
+                                        ElevatedButton.icon(
                                           icon: const Icon(
                                             Icons.upload,
                                             size: 18,
@@ -361,7 +391,7 @@ class _GCashPaymentPageState extends State<GCashPaymentPage> {
                                             ),
                                           ),
                                           onPressed:
-                                              (_isUploading || isPaidValue)
+                                              (_isUploading || paidStatus)
                                               ? null
                                               : () async {
                                                   await uploadImage(
@@ -375,79 +405,13 @@ class _GCashPaymentPageState extends State<GCashPaymentPage> {
                                                   setState(() {});
                                                 },
                                         );
-                                      },
-                                    ),
-                                    const SizedBox(width: 8),
-                                    // View Button
-                                    FutureBuilder<List<Map<String, dynamic>>>(
-                                      future: Supabase.instance.client
-                                          .from('gcash_qr_codes')
-                                          .select('image_url')
-                                          .eq('set_amount_id', data['id'])
-                                          .eq(
-                                            'userdeceased',
-                                            data['userdeceased'],
-                                          )
-                                          .order('id', ascending: false)
-                                          .limit(1),
-                                      builder: (context, snap) {
-                                        final hasImage =
-                                            snap.hasData &&
-                                            snap.data!.isNotEmpty &&
-                                            snap.data![0]['image_url'] != null;
-                                        if (!hasImage) {
-                                          return Text(
-                                            "-",
-                                            style: TextStyle(color: kSubText),
-                                          );
-                                        }
-                                        final imageUrl =
-                                            snap.data![0]['image_url'];
-                                        return ElevatedButton.icon(
-                                          icon: const Icon(
-                                            Icons.visibility,
-                                            size: 18,
-                                          ),
-                                          label: const Text("View"),
-                                          style: ElevatedButton.styleFrom(
-                                            backgroundColor: kAccent
-                                                .withOpacity(0.8),
-                                            foregroundColor: Colors.white,
-                                            shape: RoundedRectangleBorder(
-                                              borderRadius:
-                                                  BorderRadius.circular(8),
-                                            ),
-                                          ),
-                                          onPressed: () {
-                                            showDialog(
-                                              context: context,
-                                              builder: (context) => AlertDialog(
-                                                content: SizedBox(
-                                                  width: isMobile
-                                                      ? width * 0.8
-                                                      : 400,
-                                                  child: Image.network(
-                                                    imageUrl,
-                                                  ),
-                                                ),
-                                                actions: [
-                                                  TextButton(
-                                                    child: const Text("Close"),
-                                                    onPressed: () =>
-                                                        Navigator.pop(context),
-                                                  ),
-                                                ],
-                                              ),
-                                            );
-                                          },
-                                        );
-                                      },
+                                      ],
                                     ),
                                   ],
                                 ),
-                              ],
-                            ),
-                          ),
+                              ),
+                            );
+                          },
                         );
                       },
                     );

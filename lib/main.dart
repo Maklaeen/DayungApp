@@ -43,7 +43,7 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return Listener(
       behavior: HitTestBehavior.translucent,
-      onPointerDown: (_) => IdleTimeoutManager().reset(),
+      onPointerDown: (_) => IdleTimeoutManager().reset(), 
       onPointerMove: (_) => IdleTimeoutManager().reset(),
       onPointerUp: (_) => IdleTimeoutManager().reset(),
       child: MultiProvider(

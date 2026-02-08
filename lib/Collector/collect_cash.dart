@@ -117,7 +117,7 @@ class _CollectCashPageState extends State<CollectCashPage> {
       });
     }
   }
-// ...existing code...
+
   Future<void> _savePayment(
     String userId,
     double amount,
@@ -182,6 +182,60 @@ print('DEBUG: _selectedDeceased: $_selectedDeceased');
 
       await _loadPayments();
 
+      // Get the full_name of the deceased
+      final deceasedUser = _deceasedUsers.firstWhere(
+        (u) => u['id'].toString() == userDeceased,
+        orElse: () => <String, dynamic>{},
+      );
+      final deceasedName = deceasedUser['full_name'] ?? '';
+
+      // Count paid members for this deceased
+      final paidCount = _payments.where((p) =>
+        p['userdeceased'].toString() == userDeceased &&
+        p['dayung_unit_id'].toString() == widget.dayungUnitId.toString() &&
+        p['status'].toString() == 'paid'
+      ).length;
+
+      // Count unpaid members for this deceased
+      final unpaidCount = _payments.where((p) =>
+        p['userdeceased'].toString() == userDeceased &&
+        p['dayung_unit_id'].toString() == widget.dayungUnitId.toString() &&
+        p['status'].toString() != 'paid'
+      ).length;
+
+      // Compute total paid amount for this deceased
+      final totalPaidAmount = _payments
+          .where((p) =>
+              p['userdeceased'].toString() == userDeceased &&
+              p['dayung_unit_id'].toString() == widget.dayungUnitId.toString() &&
+              p['status'].toString() == 'paid')
+          .fold<double>(0.0, (sum, p) {
+        final amt = p['amount'];
+        if (amt is int) return sum + amt.toDouble();
+        if (amt is double) return sum + amt;
+        return sum + (double.tryParse(amt.toString()) ?? 0.0);
+      });
+
+      // Compute total payment amount (paid or unpaid)
+      final totalPaymentAmount = _payments
+          .where((p) =>
+              p['userdeceased'].toString() == userDeceased &&
+              p['dayung_unit_id'].toString() == widget.dayungUnitId.toString())
+          .fold<double>(0.0, (sum, p) {
+        final amt = p['amount'];
+        if (amt is int) return sum + amt.toDouble();
+        if (amt is double) return sum + amt;
+        return sum + (double.tryParse(amt.toString()) ?? 0.0);
+      });
+
+      // Update death_notices table with all computed values
+      await sb.from('death_notices').update({
+        'paid_count': paidCount,
+        'unpaid_count': unpaidCount,
+        'total_paid_amount': totalPaidAmount,
+        'total_payment_amount': totalPaymentAmount,
+      }).eq('name', deceasedName).eq('dayung_unit_id', widget.dayungUnitId);
+
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Payment updated to paid!')),
       );
@@ -191,9 +245,6 @@ print('DEBUG: _selectedDeceased: $_selectedDeceased');
       );
     }
   }
-// ...existing code...
-
-
 
   @override
   Widget build(BuildContext context) {

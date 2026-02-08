@@ -5,7 +5,6 @@ import 'package:capstone_app/Beneficiary/beneficiary.dart';
 import 'package:capstone_app/Members/gcash_payment_page.dart';
 import 'package:capstone_app/Members/memclaims.dart';
 import 'package:capstone_app/Members/memcontributions.dart';
-import 'package:capstone_app/Providers/apptheme_provider.dart';
 import 'package:capstone_app/Providers/dayung_provider.dart';
 import 'package:capstone_app/pages/notification.dart';
 import 'package:capstone_app/pages/paymentmethod.dart';
@@ -2329,19 +2328,21 @@ class _MemberDashboardPageState extends State<MemberDashboardPage>
           SizedBox(
             width: double.infinity,
             child: ElevatedButton.icon(
-              onPressed: loading
-                  ? null
-                  : () {
-                      final id = _asInt(_selectedDayungUnitObj?['id']);
-                      if (id == null) {
-                        // Show an error, fallback, or prevent navigation
-                        return;
-                      }
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => PaymentMethodPage(dayungUnitId: id),
-                        ),
+       onPressed: loading
+    ? null
+    : () {
+        final id = _asInt(_selectedDayungUnitObj?['id']);
+        if (id == null) {
+          // Show an error, fallback, or prevent navigation
+          return;
+        }
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => GCashPaymentPage(
+              dayungUnitId: id,
+            ),
+          ),
                       );
                     },
               icon: loading
@@ -2354,15 +2355,15 @@ class _MemberDashboardPageState extends State<MemberDashboardPage>
                       ),
                     )
                   : const Icon(Icons.payments_rounded),
-              label: Text(
-                loading ? 'Loading…' : 'Pay Now',
-                style: const TextStyle(
-                  fontSize: 17,
-                  fontWeight: FontWeight.w700,
-                  color: Colors.white,
-                  fontFamily: 'Montserrat',
-                  letterSpacing: .3,
-                ),
+             label: Text(
+  loading ? 'Loading…' : 'Pay Now',
+  style: const TextStyle(
+    fontSize: 17,
+    fontWeight: FontWeight.w700,
+    color: Colors.white,
+    fontFamily: 'Montserrat',
+    letterSpacing: .3,
+  ),
               ),
               style: ElevatedButton.styleFrom(
                 backgroundColor: kPrimary,

@@ -308,6 +308,13 @@ class _LoginState extends State<Login> {
         return;
       }
 
+      // Log to audit_logs table
+      await Supabase.instance.client.from('audit_logs').insert({
+        'action': 'Signed in successfully',
+        'created_at': DateTime.now().toIso8601String(),
+        'user_id': res.user!.id,
+      });
+
       await _routeAfterLogin({'id': res.user!.id});
     } on AuthException catch (e) {
       setState(() => _isLoading = false);
