@@ -57,12 +57,11 @@ class _RegisterState extends State<Register> {
   String? _pickedRegion, _pickedProvince, _pickedCity, _pickedBarangay;
 
   String _normalizePhone(String raw) {
-    final s = raw.replaceAll(RegExp(r'\s+'), '');
-    if (s.startsWith('+')) return s;
-    if (s.startsWith('09') && s.length == 11) {
-      return '+63${s.substring(1)}';
+    final s = raw.replaceAll(RegExp(r'\D'), '');
+    if (s.length == 10 && s.startsWith('9')) {
+      return '+63$s';
     }
-    return s;
+    throw Exception('Enter a valid 10-digit number starting with 9');
   }
 
   double? _latitude;
@@ -547,7 +546,14 @@ class _RegisterState extends State<Register> {
     const role = 'member';
 
     final rawPhone = mobileController.text.trim();
-    final normalizedPhone = _normalizePhone(rawPhone);
+    String normalizedPhone;
+    try {
+      normalizedPhone = _normalizePhone(rawPhone);
+    } catch (e) {
+      setState(() => _isSubmitting = false);
+      _showTopErrorDialog(context, e.toString());
+      return;
+    }
 
     try {
       final res = await Supabase.instance.client.auth.signUp(
@@ -924,25 +930,21 @@ class _RegisterState extends State<Register> {
                                 const SizedBox(height: 16),
                                 TextFormField(
                                   controller: mobileController,
-                                  keyboardType: TextInputType.phone,
-                                  textInputAction: TextInputAction.next,
-                                  style: TextStyle(
-                                    fontSize: isWide ? 18 : 16,
-                                    color: kNeutralText,
-                                    fontWeight: FontWeight.w500,
-                                  ),
                                   decoration: _dec(
-                                    'Phone Number',
-                                    hint: '+63 9XXXXXXXXX',
-                                    icon: Icons.phone_rounded,
-                                  ),
-                                  validator: (v) {
-                                    if (v == null || v.trim().isEmpty) {
-                                      return 'Phone number is required';
-                                    }
-                                    if (!_isValidPHPhone(v.trim())) {
-                                      return 'Invalid phone number';
-                                    }
+                                    'Mobile Number',
+                                    hint: '9123456789',
+                                    icon: Icons.phone,
+                                  ).copyWith(prefixText: '+63 '),
+                                  keyboardType: TextInputType.number,
+                                  maxLength: 10,
+                                  validator: (value) {
+                                    final v =
+                                        value?.replaceAll(RegExp(r'\D'), '') ??
+                                        '';
+                                    if (v.length != 10)
+                                      return 'Enter 10 digits (e.g., 9123456789)';
+                                    if (!RegExp(r'^9\d{9}$').hasMatch(v))
+                                      return 'Must start with 9';
                                     return null;
                                   },
                                 ),

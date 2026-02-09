@@ -26,6 +26,7 @@ class DayungProfile extends StatefulWidget {
 }
 
 class _DayungProfileState extends State<DayungProfile> with RouteAware {
+  RouteObserver<PageRoute>? _routeObserver;
   int? _currentDayungId;
   String? _currentDayungName;
   Map<String, dynamic>? _currentDayungData;
@@ -973,63 +974,64 @@ class _DayungProfileState extends State<DayungProfile> with RouteAware {
       backgroundColor: const Color(0xFFF8FAFC),
       body: Column(
         children: [
+          _buildModernHeader(context, isWide),
           // Modern Curved Header
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.fromLTRB(24, 36, 24, 32),
-            decoration: const BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [kPrimaryLight, kAccentDark],
-              ),
-              borderRadius: BorderRadius.vertical(bottom: Radius.circular(32)),
-            ),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.center,
-              children: [
-                CircleAvatar(
-                  radius: 32,
-                  backgroundColor: Colors.white.withOpacity(0.15),
-                  child: const Icon(Icons.group, color: Colors.white, size: 32),
-                ),
-                const SizedBox(width: 18),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        _currentDayungName ?? 'Manage Dayung',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.bold,
-                          fontSize: isWide ? 28 : 22,
-                          fontFamily: 'Montserrat',
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        _currentDayungData != null
-                            ? _address(_currentDayungData!)
-                            : 'No address set',
-                        style: TextStyle(
-                          color: Colors.white.withOpacity(0.85),
-                          fontSize: 15,
-                          fontFamily: 'OpenSans',
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(width: 8),
-                IconButton(
-                  icon: const Icon(Icons.refresh, color: Colors.white),
-                  tooltip: 'Refresh',
-                  onPressed: _loadCurrentDayung,
-                ),
-              ],
-            ),
-          ),
+          // Container(
+          //   width: double.infinity,
+          //   padding: const EdgeInsets.fromLTRB(24, 36, 24, 32),
+          //   decoration: const BoxDecoration(
+          //     gradient: LinearGradient(
+          //       begin: Alignment.topLeft,
+          //       end: Alignment.bottomRight,
+          //       colors: [kPrimaryLight, kAccentDark],
+          //     ),
+          //     borderRadius: BorderRadius.vertical(bottom: Radius.circular(32)),
+          //   ),
+          //   child: Row(
+          //     crossAxisAlignment: CrossAxisAlignment.center,
+          //     children: [
+          //       CircleAvatar(
+          //         radius: 32,
+          //         backgroundColor: Colors.white.withOpacity(0.15),
+          //         child: const Icon(Icons.group, color: Colors.white, size: 32),
+          //       ),
+          //       const SizedBox(width: 18),
+          //       Expanded(
+          //         child: Column(
+          //           crossAxisAlignment: CrossAxisAlignment.start,
+          //           children: [
+          //             Text(
+          //               _currentDayungName ?? 'Manage Dayung',
+          //               style: TextStyle(
+          //                 color: Colors.white,
+          //                 fontWeight: FontWeight.bold,
+          //                 fontSize: isWide ? 28 : 22,
+          //                 fontFamily: 'Montserrat',
+          //               ),
+          //             ),
+          //             const SizedBox(height: 4),
+          //             Text(
+          //               _currentDayungData != null
+          //                   ? _address(_currentDayungData!)
+          //                   : 'No address set',
+          //               style: TextStyle(
+          //                 color: Colors.white.withOpacity(0.85),
+          //                 fontSize: 15,
+          //                 fontFamily: 'OpenSans',
+          //               ),
+          //             ),
+          //           ],
+          //         ),
+          //       ),
+          //       const SizedBox(width: 8),
+          //       IconButton(
+          //         icon: const Icon(Icons.refresh, color: Colors.white),
+          //         tooltip: 'Refresh',
+          //         onPressed: _loadCurrentDayung,
+          //       ),
+          //     ],
+          //   ),
+          // ),
           // Main Content
           Expanded(
             child: Container(
@@ -1350,7 +1352,7 @@ class _DayungProfileState extends State<DayungProfile> with RouteAware {
                                 ),
                                 const SizedBox(width: 14),
                                 Text(
-                                  'Applied Dayung (Pendings)',
+                                  'Applied Dayung',
                                   style: sectionTitleStyle,
                                 ),
                                 const Spacer(),
@@ -1760,9 +1762,9 @@ class _DayungProfileState extends State<DayungProfile> with RouteAware {
           width: double.infinity,
           height: 52,
           child: ElevatedButton.icon(
-            icon: const Icon(Icons.dashboard_rounded, color: Colors.white),
+            icon: const Icon(Icons.arrow_back, color: Colors.white),
             label: const Text(
-              'Dashboard',
+              'Back',
               style: TextStyle(
                 color: Colors.white,
                 fontWeight: FontWeight.w600,
@@ -1786,6 +1788,92 @@ class _DayungProfileState extends State<DayungProfile> with RouteAware {
     );
   }
 
+  Widget _buildModernHeader(BuildContext context, bool isWide) {
+    return SafeArea(
+      child: Container(
+        width: double.infinity,
+        margin: const EdgeInsets.only(top: 12, left: 12, right: 12, bottom: 8),
+        padding: EdgeInsets.symmetric(
+          horizontal: isWide ? 32 : 20,
+          vertical: isWide ? 32 : 20,
+        ),
+        decoration: BoxDecoration(
+          gradient: const LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [kPrimaryLight, kAccentDark],
+          ),
+          borderRadius: BorderRadius.circular(28),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.08),
+              blurRadius: 16,
+              offset: const Offset(0, 6),
+            ),
+          ],
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            // Avatar with icon
+            Container(
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.18),
+                shape: BoxShape.circle,
+              ),
+              padding: EdgeInsets.all(isWide ? 18 : 12),
+              child: Icon(
+                Icons.groups_rounded,
+                color: Colors.white,
+                size: isWide ? 40 : 28,
+              ),
+            ),
+            const SizedBox(width: 18),
+            // Title and address
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    _currentDayungName ?? 'Dayung Name',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w800,
+                      fontSize: isWide ? 28 : 22,
+                      fontFamily: 'Montserrat',
+                      letterSpacing: 0.5,
+                    ),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    _currentDayungData != null
+                        ? _address(_currentDayungData!)
+                        : 'No address set',
+                    style: TextStyle(
+                      color: Colors.white.withOpacity(0.92),
+                      fontSize: isWide ? 16 : 13,
+                      fontFamily: 'OpenSans',
+                    ),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
+              ),
+            ),
+            // Refresh button
+            IconButton(
+              icon: const Icon(Icons.refresh, color: Colors.white),
+              tooltip: 'Refresh',
+              onPressed: _loadCurrentDayung,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
@@ -1798,11 +1886,8 @@ class _DayungProfileState extends State<DayungProfile> with RouteAware {
 
   @override
   void dispose() {
-    // Unregister
-    final routeObserver = ModalRoute.of(context)?.navigator?.widget.observers
-        .whereType<RouteObserver<PageRoute>>()
-        .firstOrNull;
-    routeObserver?.unsubscribe(this);
+    // Unregister using the stored reference
+    _routeObserver?.unsubscribe(this);
     super.dispose();
   }
 

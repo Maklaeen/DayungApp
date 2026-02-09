@@ -160,8 +160,12 @@ class _GCashPaymentPageState extends State<GCashPaymentPage> {
 
       if (uploadAgain == true) {
         // Call uploadImage again with the same parameters
-        await uploadImage(setAmountId, userdeceased, amount,
-            deathNoticeId: deathNoticeId);
+        await uploadImage(
+          setAmountId,
+          userdeceased,
+          amount,
+          deathNoticeId: deathNoticeId,
+        );
       }
     } catch (e) {
       ScaffoldMessenger.of(
@@ -241,7 +245,8 @@ class _GCashPaymentPageState extends State<GCashPaymentPage> {
                 ),
                 onChanged: (value) {
                   setState(() {
-                    _searchQuery = value.toLowerCase(); // Update the search query
+                    _searchQuery = value
+                        .toLowerCase(); // Update the search query
                   });
                 },
               ),
@@ -300,12 +305,19 @@ class _GCashPaymentPageState extends State<GCashPaymentPage> {
                     }
 
                     return FutureBuilder<List<bool>>(
-                      future: Future.wait(filteredSetAmounts.map((data) =>
-                        isPaid(data['id'].toString(), data['userdeceased'])
-                      )),
+                      future: Future.wait(
+                        filteredSetAmounts.map(
+                          (data) => isPaid(
+                            data['id'].toString(),
+                            data['userdeceased'],
+                          ),
+                        ),
+                      ),
                       builder: (context, statusSnapshot) {
                         if (!statusSnapshot.hasData) {
-                          return const Center(child: CircularProgressIndicator(color: kAccent));
+                          return const Center(
+                            child: CircularProgressIndicator(color: kAccent),
+                          );
                         }
                         final statuses = statusSnapshot.data!;
                         final pending = <Map<String, dynamic>>[];
@@ -323,9 +335,15 @@ class _GCashPaymentPageState extends State<GCashPaymentPage> {
                           itemCount: sortedList.length,
                           itemBuilder: (context, i) {
                             final data = sortedList[i];
-                            final fullName = data['users']?['full_name'] ?? data['userdeceased'] ?? '';
+                            final fullName =
+                                data['users']?['full_name'] ??
+                                data['userdeceased'] ??
+                                '';
                             final amount = data['amount'];
-                            final paidStatus = i >= pending.length; // Paid if index is after pending
+                            final paidStatus =
+                                i >=
+                                pending
+                                    .length; // Paid if index is after pending
                             return Card(
                               margin: const EdgeInsets.symmetric(vertical: 10),
                               elevation: 3,
@@ -400,11 +418,13 @@ class _GCashPaymentPageState extends State<GCashPaymentPage> {
                                                     int.parse(
                                                       data['amount'].toString(),
                                                     ),
-                                                    deathNoticeId: data['death_notice_id'] ?? 0,
+                                                    deathNoticeId:
+                                                        data['death_notice_id'] ??
+                                                        0,
                                                   );
                                                   setState(() {});
                                                 },
-                                        );
+                                        ),
                                       ],
                                     ),
                                   ],

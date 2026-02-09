@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:capstone_app/ui/theme/branding.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
 
 // Additional colors for post announcement specific styling
 const kText = Color(0xFF111827);
@@ -52,6 +54,27 @@ class _PostAnnouncementPageState extends State<PostAnnouncementPage> {
     }
   }
 
+  // twilio
+  Future<void> _sendSmsNotification(
+    int unitId,
+    String title,
+    String body,
+  ) async {
+    final url = Uri.parse('http://192.168.1.10:3000/send-announcement-sms');
+    final resp = await http.post(
+      url,
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({
+        'dayung_unit_id': unitId,
+        'title': title,
+        'body': body,
+      }),
+    );
+    if (resp.statusCode != 200) {
+      print('Failed to send SMS: ${resp.body}');
+    }
+  }
+
   Future<void> _save() async {
     if (_unitId == null ||
         _title.text.trim().isEmpty ||
@@ -69,6 +92,11 @@ class _PostAnnouncementPageState extends State<PostAnnouncementPage> {
         'body': _body.text.trim(),
         'created_by': sb.auth.currentUser?.id,
       });
+      await _sendSmsNotification(
+        _unitId!,
+        _title.text.trim(),
+        _body.text.trim(),
+      );
       if (!mounted) return;
       ScaffoldMessenger.of(
         context,

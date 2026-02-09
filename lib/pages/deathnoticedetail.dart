@@ -266,7 +266,10 @@ class _DeathNoticeDetailState extends State<DeathNoticeDetail> {
   }
 
   Future<void> _fetchRoadRoute() async {
-    if (_fLat == null || _fLng == null || _userLat == null || _userLng == null) {
+    if (_fLat == null ||
+        _fLng == null ||
+        _userLat == null ||
+        _userLng == null) {
       return;
     }
 
@@ -314,7 +317,10 @@ class _DeathNoticeDetailState extends State<DeathNoticeDetail> {
   }
 
   void _computeDistance() {
-    if (_fLat == null || _fLng == null || _userLat == null || _userLng == null) {
+    if (_fLat == null ||
+        _fLng == null ||
+        _userLat == null ||
+        _userLng == null) {
       return;
     }
     _distanceMeters = Geolocator.distanceBetween(
@@ -485,11 +491,29 @@ class _DeathNoticeDetailState extends State<DeathNoticeDetail> {
       appsRes,
     ).map((e) => e['user_id'].toString()).toSet();
 
+    // --- FIX: Fetch the UUID for this death notice ---
+    final notice = await sb
+        .from('death_notices')
+        .select('death_notice_id')
+        .eq('id', widget.noticeId as Object)
+        .maybeSingle();
+
+    final uuid = notice?['death_notice_id'];
+    if (uuid == null) {
+      setState(() {
+        _paidMembers = [];
+        _unpaidMembers = [];
+        _membersLoading = false;
+        _error = 'Notice UUID not found';
+      });
+      return;
+    }
+
     // 2) Payments for this death notice in this dayung unit
     final paysRes = await sb
         .from('payments')
         .select('user_id,status,dayung_unit_id')
-        .eq('death_notice_id', widget.noticeId as Object)
+        .eq('userdeceased', uuid)
         .eq('dayung_unit_id', widget.dayungUnitId as Object);
 
     final pays = List<Map<String, dynamic>>.from(paysRes);
