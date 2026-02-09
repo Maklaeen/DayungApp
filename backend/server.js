@@ -5,13 +5,20 @@ const twilio = require('twilio');
 const app = express();
 app.use(express.json());
 
-// Replace with your actual keys
-const supabase = createClient('https://cbplyfoporianakushyz.supabase.co', 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNicGx5Zm9wb3JpYW5ha3VzaHl6Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc1MDczOTk5MCwiZXhwIjoyMDY2MzE1OTkwfQ.v550RFqVhZU-bR52eK9qQn9Gm24ipe0ys-ZfeYRG9Uw');
-const twilioClient = twilio('AC0e05909f595d569da7ec796fd4b20d08', '681f2c9a65abe7bdb5b9f8ee383687be');
-const TWILIO_FROM = '+13613012909';
+// Use environment variables for secrets
+const supabase = createClient(
+  process.env.SUPABASE_URL,
+  process.env.SUPABASE_SERVICE_ROLE_KEY
+);
+const twilioClient = twilio(
+  process.env.TWILIO_ACCOUNT_SID,
+  process.env.TWILIO_AUTH_TOKEN
+);
+const TWILIO_FROM = process.env.TWILIO_FROM;
 
 app.post('/send-announcement-sms', async (req, res) => {
   const { dayung_unit_id, title, body } = req.body;
+
 
   // 1. Get officials
   const { data: unit, error: unitError } = await supabase
@@ -74,4 +81,6 @@ app.post('/send-announcement-sms', async (req, res) => {
   res.json({ success: true, sent });
 });
 
-app.listen(3000, () => console.log('Server running on port 3000'));
+
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
