@@ -60,7 +60,9 @@ class _PostAnnouncementPageState extends State<PostAnnouncementPage> {
     String title,
     String body,
   ) async {
-    final url = Uri.parse('http://192.168.1.10:3000/send-announcement-sms');
+    final url = Uri.parse(
+      'https://dayungapp.onrender.com/send-announcement-sms',
+    );
     final resp = await http.post(
       url,
       headers: {'Content-Type': 'application/json'},
