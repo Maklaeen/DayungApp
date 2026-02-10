@@ -14,9 +14,8 @@ class DeathNoticeDetail extends StatefulWidget {
   final int? noticeId;
   final int? dayungUnitId;
 
-  // Optional prefilled values (legacy/direct)
   final String? name;
-  final String? date; // date_of_death
+  final String? date;
   final String? birthDate;
   final double? latitude;
   final double? longitude;
@@ -76,8 +75,8 @@ class _DeathNoticeDetailState extends State<DeathNoticeDetail> {
 
   StreamSubscription<Position>? _posSub;
   bool _autoFollow = true;
-  double? _initialDistance; // baseline distance for fade
-  static const double _fadeRemoveThreshold = 40; // meters (remove line)
+  double? _initialDistance;
+  static const double _fadeRemoveThreshold = 40;
   static const Duration _posInterval = Duration(seconds: 2);
 
   bool _loading = false;
@@ -122,29 +121,6 @@ class _DeathNoticeDetailState extends State<DeathNoticeDetail> {
         );
       } catch (_) {}
     }
-  }
-
-  Widget _webMap(double lat, double lng, String name) {
-    return RepaintBoundary(
-      key: ValueKey('web_map_${lat}_$lng'),
-      child: ml.MapLibreMap(
-        styleString: 'https://demotiles.maplibre.org/style.json',
-        initialCameraPosition: ml.CameraPosition(
-          target: ml.LatLng(lat, lng),
-          zoom: 16,
-        ),
-        onMapCreated: (ml.MaplibreMapController controller) async {
-          _mapController = controller;
-          _addSymbolsToMap();
-        },
-        myLocationEnabled: false,
-        compassEnabled: false,
-        rotateGesturesEnabled: true,
-        tiltGesturesEnabled: false,
-        attributionButtonMargins: const Point(6, 6),
-        logoViewMargins: const Point(6, 6),
-      ),
-    );
   }
 
   @override
@@ -480,7 +456,6 @@ class _DeathNoticeDetailState extends State<DeathNoticeDetail> {
 
     final sb = Supabase.instance.client;
 
-    // 1) Approved members in this dayung unit
     final appsRes = await sb
         .from('applications')
         .select('user_id')
@@ -491,7 +466,6 @@ class _DeathNoticeDetailState extends State<DeathNoticeDetail> {
       appsRes,
     ).map((e) => e['user_id'].toString()).toSet();
 
-    // --- FIX: Fetch the UUID for this death notice ---
     final notice = await sb
         .from('death_notices')
         .select('death_notice_id')
@@ -509,7 +483,6 @@ class _DeathNoticeDetailState extends State<DeathNoticeDetail> {
       return;
     }
 
-    // 2) Payments for this death notice in this dayung unit
     final paysRes = await sb
         .from('payments')
         .select('user_id,status,dayung_unit_id')
@@ -530,7 +503,6 @@ class _DeathNoticeDetailState extends State<DeathNoticeDetail> {
         .where(approvedIds.contains)
         .toSet();
 
-    // 3) Fetch user details for each set
     Future<List<Map<String, dynamic>>> loadUsers(Set<String> ids) async {
       if (ids.isEmpty) return [];
       final res = await sb
@@ -573,7 +545,6 @@ class _DeathNoticeDetailState extends State<DeathNoticeDetail> {
     });
 
     try {
-      // 1) Read from death_notices (no joins -> avoids RLS issues)
       final notice = await _sb
           .from('death_notices')
           .select(
@@ -991,26 +962,27 @@ class _DeathNoticeDetailState extends State<DeathNoticeDetail> {
                                 borderRadius: BorderRadius.circular(12),
                                 child: Stack(
                                   children: [
-                                    ml.MapLibreMap(
-                                      key: ValueKey('map_${_fLat}_$_fLng'),
-                                      styleString:
-                                          'https://api.maptiler.com/maps/basic-v2/style.json?key=ZgS5pYNNGTrRGUAnlS71',
-                                      initialCameraPosition: ml.CameraPosition(
-                                        target: ml.LatLng(_fLat!, _fLng!),
-                                        zoom: 16,
-                                      ),
-                                      onMapCreated: _onMapCreated,
-                                      onStyleLoadedCallback: _onStyleLoaded,
-                                      myLocationEnabled: false,
-                                      rotateGesturesEnabled: true,
-                                      tiltGesturesEnabled: false,
-                                      compassEnabled: false,
-                                      attributionButtonMargins: const Point(
-                                        6,
-                                        6,
-                                      ),
-                                      logoViewMargins: const Point(6, 6),
-                                    ),
+                                    _buildModernMap(_fLat!, _fLng!),
+                                    // ml.MapLibreMap(
+                                    //   key: ValueKey('map_${_fLat}_$_fLng'),
+                                    //   styleString:
+                                    //       'https://api.maptiler.com/maps/basic-v2/style.json?key=ZgS5pYNNGTrRGUAnlS71',
+                                    //   initialCameraPosition: ml.CameraPosition(
+                                    //     target: ml.LatLng(_fLat!, _fLng!),
+                                    //     zoom: 16,
+                                    //   ),
+                                    //   onMapCreated: _onMapCreated,
+                                    //   onStyleLoadedCallback: _onStyleLoaded,
+                                    //   myLocationEnabled: false,
+                                    //   rotateGesturesEnabled: true,
+                                    //   tiltGesturesEnabled: false,
+                                    //   compassEnabled: false,
+                                    //   attributionButtonMargins: const Point(
+                                    //     6,
+                                    //     6,
+                                    //   ),
+                                    //   logoViewMargins: const Point(6, 6),
+                                    // ),
                                     if (_autoFollow)
                                       Positioned(
                                         top: 16,
@@ -1108,41 +1080,41 @@ class _DeathNoticeDetailState extends State<DeathNoticeDetail> {
                                       ),
                                     ),
                                     // Center buttons (vigil + user)
-                                    Positioned(
-                                      right: 12,
-                                      top: 12,
-                                      child: Column(
-                                        children: [
-                                          _CenterBtn(
-                                            tooltip: 'Center on vigil',
-                                            icon: Icons.location_on,
-                                            enabled:
-                                                _fLat != null && _fLng != null,
-                                            onTap: _centerOnVigil,
-                                          ),
-                                          const SizedBox(height: 10),
-                                          _CenterBtn(
-                                            tooltip: 'Center on you',
-                                            icon: Icons.my_location,
-                                            enabled:
-                                                _userLat != null &&
-                                                _userLng != null,
-                                            onTap: _centerOnUser,
-                                          ),
-                                          const SizedBox(height: 10),
-                                          _CenterBtn(
-                                            tooltip: _autoFollow
-                                                ? 'Disable follow'
-                                                : 'Enable follow',
-                                            icon: _autoFollow
-                                                ? Icons.center_focus_strong
-                                                : Icons.center_focus_weak,
-                                            enabled: true,
-                                            onTap: _toggleFollow,
-                                          ),
-                                        ],
-                                      ),
-                                    ),
+                                    // Positioned(
+                                    //   right: 12,
+                                    //   top: 12,
+                                    //   child: Column(
+                                    //     children: [
+                                    //       _CenterBtn(
+                                    //         tooltip: 'Center on vigil',
+                                    //         icon: Icons.location_on,
+                                    //         enabled:
+                                    //             _fLat != null && _fLng != null,
+                                    //         onTap: _centerOnVigil,
+                                    //       ),
+                                    //       const SizedBox(height: 10),
+                                    //       _CenterBtn(
+                                    //         tooltip: 'Center on you',
+                                    //         icon: Icons.my_location,
+                                    //         enabled:
+                                    //             _userLat != null &&
+                                    //             _userLng != null,
+                                    //         onTap: _centerOnUser,
+                                    //       ),
+                                    //       const SizedBox(height: 10),
+                                    //       _CenterBtn(
+                                    //         tooltip: _autoFollow
+                                    //             ? 'Disable follow'
+                                    //             : 'Enable follow',
+                                    //         icon: _autoFollow
+                                    //             ? Icons.center_focus_strong
+                                    //             : Icons.center_focus_weak,
+                                    //         enabled: true,
+                                    //         onTap: _toggleFollow,
+                                    //       ),
+                                    //     ],
+                                    //   ),
+                                    // ),
                                   ],
                                 ),
                               ),
@@ -1182,6 +1154,68 @@ class _DeathNoticeDetailState extends State<DeathNoticeDetail> {
                         ],
                       ),
                     ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildModernMap(double lat, double lng) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(18),
+        child: Stack(
+          children: [
+            SizedBox(
+              height: 240,
+              child: ml.MapLibreMap(
+                styleString:
+                    'https://api.maptiler.com/maps/streets/style.json?key=ZgS5pYNNGTrRGUAnlS71',
+                initialCameraPosition: ml.CameraPosition(
+                  target: ml.LatLng(lat, lng),
+                  zoom: 16,
+                ),
+                onMapCreated: (controller) async {
+                  _mapController = controller;
+                  await _onMapCreated(controller);
+                },
+                onStyleLoadedCallback: _onStyleLoaded,
+                myLocationEnabled: false,
+                compassEnabled: false,
+                rotateGesturesEnabled: true,
+                tiltGesturesEnabled: false,
+                minMaxZoomPreference: const ml.MinMaxZoomPreference(12, 20),
+                attributionButtonMargins: const Point(6, 6),
+                logoViewMargins: const Point(6, 6),
+                // Pinch and double-tap zoom are enabled by default
+              ),
+            ),
+            // Overlay controls
+            Positioned(
+              top: 12,
+              right: 12,
+              child: Column(
+                children: [
+                  _MapIconBtn(
+                    icon: Icons.zoom_in,
+                    onTap: () =>
+                        _mapController?.animateCamera(ml.CameraUpdate.zoomIn()),
+                  ),
+                  const SizedBox(height: 8),
+                  _MapIconBtn(
+                    icon: Icons.zoom_out,
+                    onTap: () => _mapController?.animateCamera(
+                      ml.CameraUpdate.zoomOut(),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  _MapIconBtn(icon: Icons.my_location, onTap: _centerOnUser),
+                  const SizedBox(height: 8),
+                  _MapIconBtn(icon: Icons.location_on, onTap: _centerOnVigil),
+                ],
+              ),
             ),
           ],
         ),
@@ -1364,6 +1398,29 @@ class _CenterBtn extends StatelessWidget {
               color: enabled ? const Color(0xFF0D47A1) : Colors.grey.shade400,
             ),
           ),
+        ),
+      ),
+    );
+  }
+}
+
+class _MapIconBtn extends StatelessWidget {
+  final IconData icon;
+  final VoidCallback onTap;
+  const _MapIconBtn({required this.icon, required this.onTap});
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.white,
+      shape: const CircleBorder(),
+      elevation: 2,
+      child: InkWell(
+        onTap: onTap,
+        customBorder: const CircleBorder(),
+        child: SizedBox(
+          width: 38,
+          height: 38,
+          child: Icon(icon, size: 20, color: Colors.black87),
         ),
       ),
     );

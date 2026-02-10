@@ -243,12 +243,12 @@ class _DayungMapPageState extends State<DayungMapPage> {
     final lat = dayungLat, lng = dayungLng;
     if (lat == null || lng == null) return;
     _dayungSymbol ??= await _mlController!.addSymbol(
-        ml.SymbolOptions(
-          geometry: ml.LatLng(lat, lng),
-          iconImage: 'marker-15',
-          iconSize: 1.6,
-        ),
-      );
+      ml.SymbolOptions(
+        geometry: ml.LatLng(lat, lng),
+        iconImage: 'marker-15',
+        iconSize: 1.6,
+      ),
+    );
   }
 
   Future<void> _ensureDayungCircle() async {
@@ -394,10 +394,10 @@ class _DayungMapPageState extends State<DayungMapPage> {
           "user-point",
           "user-circle",
           const ml.CircleLayerProperties(
-            circleRadius: 20,
+            circleRadius: 10,
             circleColor: "#0D47A1",
-            circleOpacity: 0.18,
-            circleStrokeColor: "#0D47A1",
+            circleOpacity: 0.95,
+            circleStrokeColor: "#FFFFFF",
             circleStrokeWidth: 2.0,
           ),
         );
@@ -408,10 +408,10 @@ class _DayungMapPageState extends State<DayungMapPage> {
         await _mlController!.setLayerProperties(
           "user-circle",
           const ml.CircleLayerProperties(
-            circleRadius: 20,
+            circleRadius: 10,
             circleColor: "#0D47A1",
-            circleOpacity: 0.18,
-            circleStrokeColor: "#0D47A1",
+            circleOpacity: 0.95,
+            circleStrokeColor: "#FFFFFF",
             circleStrokeWidth: 2.0,
           ),
         );
@@ -421,28 +421,9 @@ class _DayungMapPageState extends State<DayungMapPage> {
 
   Future<void> _updateUserMarker() async {
     if (!_styleLoaded || _mlController == null) return;
-    if (_pos == null) {
-      if (_userSymbol != null) {
-        await _mlController!.removeSymbol(_userSymbol!);
-        _userSymbol = null;
-      }
-      return;
-    }
-    final here = ml.LatLng(_pos!.latitude, _pos!.longitude);
-    if (_userSymbol == null) {
-      _userSymbol = await _mlController!.addSymbol(
-        ml.SymbolOptions(
-          geometry: here,
-          iconImage: 'marker-15',
-          iconColor: '#0D47A1',
-          iconSize: 1.4,
-        ),
-      );
-    } else {
-      await _mlController!.updateSymbol(
-        _userSymbol!,
-        ml.SymbolOptions(geometry: here),
-      );
+    if (_userSymbol != null) {
+      await _mlController!.removeSymbol(_userSymbol!);
+      _userSymbol = null;
     }
   }
 
@@ -860,21 +841,22 @@ class _DayungMapPageState extends State<DayungMapPage> {
                     ),
                     child: Stack(
                       children: [
-                        ml.MapLibreMap(
-                          onMapCreated: _onMapCreated,
-                          onStyleLoadedCallback: _onStyleLoaded,
-                          styleString:
-                              'https://api.maptiler.com/maps/basic-v2/style.json?key=ZgS5pYNNGTrRGUAnlS71',
-                          initialCameraPosition: ml.CameraPosition(
-                            target: ml.LatLng(dayungLat!, dayungLng!),
-                            zoom: 15,
-                          ),
-                          rotateGesturesEnabled: false,
-                          tiltGesturesEnabled: false,
-                          myLocationEnabled: false,
-                          attributionButtonMargins: const Point(12, 12),
-                          logoViewMargins: const Point(12, 12),
-                        ),
+                        _buildModernMap(context),
+                        // ml.MapLibreMap(
+                        //   onMapCreated: _onMapCreated,
+                        //   onStyleLoadedCallback: _onStyleLoaded,
+                        //   styleString:
+                        //       'https://api.maptiler.com/maps/basic-v2/style.json?key=ZgS5pYNNGTrRGUAnlS71',
+                        //   initialCameraPosition: ml.CameraPosition(
+                        //     target: ml.LatLng(dayungLat!, dayungLng!),
+                        //     zoom: 15,
+                        //   ),
+                        //   rotateGesturesEnabled: false,
+                        //   tiltGesturesEnabled: false,
+                        //   myLocationEnabled: false,
+                        //   attributionButtonMargins: const Point(12, 12),
+                        //   logoViewMargins: const Point(12, 12),
+                        // ),
                         Container(
                           height: 140,
                           decoration: const BoxDecoration(
@@ -1527,6 +1509,60 @@ class _DayungMapPageState extends State<DayungMapPage> {
           width: 50,
           height: 50,
           child: Icon(icon, color: Colors.white),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildModernMap(BuildContext context) {
+    final lat = dayungLat, lng = dayungLng;
+    if (lat == null || lng == null) {
+      return const Center(child: Text('No location data.'));
+    }
+    return SizedBox(
+      width: double.infinity,
+      height: double.infinity,
+      child: ml.MapLibreMap(
+        styleString:
+            'https://api.maptiler.com/maps/streets/style.json?key=ZgS5pYNNGTrRGUAnlS71',
+        initialCameraPosition: ml.CameraPosition(
+          target: ml.LatLng(lat, lng),
+          zoom: 15,
+        ),
+        onMapCreated: (controller) async {
+          _mlController = controller;
+          await _onMapCreated(controller);
+        },
+        onStyleLoadedCallback: _onStyleLoaded,
+        myLocationEnabled: false,
+        compassEnabled: false,
+        rotateGesturesEnabled: true,
+        tiltGesturesEnabled: false,
+        minMaxZoomPreference: const ml.MinMaxZoomPreference(12, 20),
+        attributionButtonMargins: const Point(6, 6),
+        logoViewMargins: const Point(6, 6),
+      ),
+    );
+  }
+}
+
+class _MapIconBtn extends StatelessWidget {
+  final IconData icon;
+  final VoidCallback onTap;
+  const _MapIconBtn({required this.icon, required this.onTap});
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.white,
+      shape: const CircleBorder(),
+      elevation: 2,
+      child: InkWell(
+        onTap: onTap,
+        customBorder: const CircleBorder(),
+        child: SizedBox(
+          width: 38,
+          height: 38,
+          child: Icon(icon, size: 20, color: Colors.black87),
         ),
       ),
     );
