@@ -8,6 +8,8 @@ import 'package:flutter/material.dart';
 import 'package:maplibre_gl/maplibre_gl.dart' as ml;
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:http/http.dart' as http;
+import 'dart:convert';
 
 const Color kPrimary = Color(0xFF3B82F6);
 const Color kPrimaryDark = Color(0xFF1E40AF);
@@ -450,7 +452,6 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
         userBarangay = resp['barangay'];
         userCity = resp['city'];
         userProvince = resp['province'];
-        // Add latitude and longitude from users table
         userLat = resp['latitude'] != null
             ? double.tryParse('${resp['latitude']}')
             : null;
@@ -458,7 +459,9 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
             ? double.tryParse('${resp['longitude']}')
             : null;
       });
-      // Display in debug console
+      if (userLat == null || userLng == null) {
+        await geocodeAndSaveUserLocation();
+      }
       debugPrint(
         'DEBUG: User Address for ID ${widget.userId}: '
         'Barangay: $userBarangay, City: $userCity, Province: $userProvince, '
@@ -502,6 +505,42 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
       debugPrint('DEBUG: User Longitude for ID ${widget.userId}: $userLng');
     } catch (e) {
       debugPrint('Failed to fetch user longitude: $e');
+    }
+  }
+
+  Future<void> geocodeAndSaveUserLocation() async {
+    if (userBarangay == null || userCity == null || userProvince == null)
+      return;
+    final address =
+        '${userBarangay!}, ${userCity!}, ${userProvince!}, Philippines';
+    final url =
+        'https://nominatim.openstreetmap.org/search?q=${Uri.encodeComponent(address)}&format=json&limit=1';
+    try {
+      final response = await http.get(
+        Uri.parse(url),
+        headers: {'User-Agent': 'capstone-app/1.0 (your@email.com)'},
+      );
+      if (response.statusCode == 200) {
+        final results = json.decode(response.body);
+        if (results is List && results.isNotEmpty) {
+          final lat = double.tryParse(results[0]['lat']);
+          final lon = double.tryParse(results[0]['lon']);
+          if (lat != null && lon != null) {
+            // Save to users table
+            await Supabase.instance.client
+                .from('users')
+                .update({'latitude': lat, 'longitude': lon})
+                .eq('id', widget.userId);
+            setState(() {
+              userLat = lat;
+              userLng = lon;
+            });
+            debugPrint('Geocoded: $address → $lat, $lon');
+          }
+        }
+      }
+    } catch (e) {
+      debugPrint('Geocoding failed: $e');
     }
   }
 
