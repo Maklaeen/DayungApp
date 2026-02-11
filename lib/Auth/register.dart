@@ -309,6 +309,71 @@ class _RegisterState extends State<Register> {
         _latitude = null;
         _longitude = null;
       });
+
+      String? cleanBarangay = result.barangay
+          ?.replaceAll(RegExp(r'\s*\(.*?\)'), '')
+          .trim();
+      String? cleanProvince = result.province?.trim();
+      String? cleanCity = result.city?.trim();
+
+      final List<String> addressVariants = [
+        [
+          if (cleanBarangay != null && cleanBarangay.isNotEmpty) cleanBarangay,
+          if (cleanCity != null && cleanCity.isNotEmpty) cleanCity,
+          if (cleanProvince != null && cleanProvince.isNotEmpty) cleanProvince,
+          'Philippines',
+        ].join(', '),
+        [
+          if (cleanCity != null && cleanCity.isNotEmpty) cleanCity,
+          if (cleanProvince != null && cleanProvince.isNotEmpty) cleanProvince,
+          'Philippines',
+        ].join(', '),
+      ];
+
+      bool found = false;
+      String triedAddresses = "";
+
+      for (final addr in addressVariants) {
+        triedAddresses += addr + "\n";
+        try {
+          final locations = await locationFromAddress(addr);
+          if (locations.isNotEmpty) {
+            setState(() {
+              _latitude = locations.first.latitude;
+              _longitude = locations.first.longitude;
+            });
+            found = true;
+            break;
+          }
+        } catch (_) {
+        }
+      }
+
+      if (!found) {
+        for (final addr in addressVariants) {
+          triedAddresses += '[Nominatim] $addr\n';
+          final nominatimResult = await _geocodeViaNominatim(addr);
+          if (nominatimResult != null) {
+            setState(() {
+              _latitude = nominatimResult['lat'];
+              _longitude = nominatimResult['lon'];
+            });
+            found = true;
+            break;
+          }
+        }
+      }
+
+      if (!found) {
+        setState(() {
+          _latitude = null;
+          _longitude = null;
+        });
+        _showTopErrorDialog(
+          context,
+          'Geocoding failed: Could not find any result for the supplied address or coordinates.\nAddresses tried:\n$triedAddresses',
+        );
+      }
     }
   }
 
@@ -539,6 +604,15 @@ class _RegisterState extends State<Register> {
     if (!_formKey.currentState!.validate()) return;
     if (_confirmPasswordError != null) return;
 
+    // Prevent registration if lat/lng are missing
+    if (_latitude == null || _longitude == null) {
+      _showTopErrorDialog(
+        context,
+        'Please select a valid address so we can get your location.',
+      );
+      return;
+    }
+
     setState(() => _isSubmitting = true);
 
     final email = emailController.text.trim().toLowerCase();
@@ -581,6 +655,9 @@ class _RegisterState extends State<Register> {
         'latitude': _latitude,
         'longitude': _longitude,
         'address': addressController.text,
+        'barangay': _pickedBarangay,
+        'city': _pickedCity,
+        'province': _pickedProvince,
         'role': role,
         'email': email,
       });
@@ -605,6 +682,29 @@ class _RegisterState extends State<Register> {
     } catch (e) {
       setState(() => _isSubmitting = false);
       _showTopErrorDialog(context, 'Error: $e');
+    }
+  }
+
+  Future<Map<String, double>?> _geocodeViaNominatim(String address) async {
+    try {
+      final url =
+          'https://nominatim.openstreetmap.org/search?format=json&q=${Uri.encodeComponent(address)}&countrycodes=ph&limit=1&addressdetails=1';
+      final resp = await http.get(
+        Uri.parse(url),
+        headers: {'User-Agent': 'capstone-app/1.0'},
+      );
+      if (resp.statusCode != 200) return null;
+      final data = json.decode(resp.body);
+      if (data is List && data.isNotEmpty) {
+        final lat = double.tryParse(data[0]['lat'] ?? '');
+        final lon = double.tryParse(data[0]['lon'] ?? '');
+        if (lat != null && lon != null) {
+          return {'lat': lat, 'lon': lon};
+        }
+      }
+      return null;
+    } catch (_) {
+      return null;
     }
   }
 
@@ -1333,7 +1433,7 @@ class _AddressPickerSheetState extends State<AddressPickerSheet> {
   String? _province;
   String? _city;
   String? _barangay;
-
+  String _barangaySearch = '';
   bool _locating = false;
 
   int get _stepIndex {
@@ -1666,61 +1766,61 @@ class _AddressPickerSheetState extends State<AddressPickerSheet> {
                           style: TextStyle(color: kSubtleText),
                         ),
                       ),
+
+                      // Inside the barangay step in your AddressPickerSheet build method:
+                      Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 4,
+                        ),
+                        child: TextField(
+                          decoration: InputDecoration(
+                            hintText: 'Search barangay...',
+                            prefixIcon: Icon(Icons.search),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            contentPadding: EdgeInsets.symmetric(
+                              vertical: 0,
+                              horizontal: 12,
+                            ),
+                          ),
+                          onChanged: (val) =>
+                              setState(() => _barangaySearch = val),
+                        ),
+                      ),
+                      // Filtered barangay list:
                       ...(() {
                         final names = _barangaysInCity
-                            .map((b) => b.trim())
-                            .where((b) => b.isNotEmpty)
+                            .where(
+                              (b) => b.toLowerCase().contains(
+                                _barangaySearch.toLowerCase(),
+                              ),
+                            )
                             .toList();
                         names.sort(
                           (a, b) => a.toLowerCase().compareTo(b.toLowerCase()),
                         );
-                        final Map<String, List<String>> grouped = {};
-                        for (final name in names) {
-                          final letter = name.substring(0, 1).toUpperCase();
-                          grouped.putIfAbsent(letter, () => []).add(name);
-                        }
-                        return grouped.entries.map((entry) {
-                          final letter = entry.key;
-                          final items = entry.value;
-                          return Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Padding(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 16,
-                                  vertical: 6,
+                        return names.map((name) {
+                          return RadioListTile<String>(
+                            value: name,
+                            groupValue: _barangay,
+                            title: Text(name),
+                            activeColor: kPrimary,
+                            onChanged: (val) {
+                              if (val == null) return;
+                              setState(() => _barangay = val);
+                              Navigator.pop(
+                                context,
+                                _AddressPickResult(
+                                  rawText: _composeAddress(),
+                                  region: _region,
+                                  province: _province,
+                                  city: _city,
+                                  barangay: val,
                                 ),
-                                child: Text(
-                                  letter,
-                                  style: const TextStyle(
-                                    color: kSubtleText,
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                ),
-                              ),
-                              ...items.map((name) {
-                                return RadioListTile<String>(
-                                  value: name,
-                                  groupValue: _barangay,
-                                  title: Text(name),
-                                  activeColor: kPrimary,
-                                  onChanged: (val) {
-                                    if (val == null) return;
-                                    setState(() => _barangay = val);
-                                    Navigator.pop(
-                                      context,
-                                      _AddressPickResult(
-                                        rawText: _composeAddress(),
-                                        region: _region,
-                                        province: _province,
-                                        city: _city,
-                                        barangay: val,
-                                      ),
-                                    );
-                                  },
-                                );
-                              }),
-                            ],
+                              );
+                            },
                           );
                         }).toList();
                       })(),
