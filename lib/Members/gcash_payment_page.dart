@@ -396,33 +396,105 @@ class _GCashPaymentPageState extends State<GCashPaymentPage> {
                                             size: 18,
                                           ),
                                           label: Text(
-                                            isMobile
-                                                ? "Upload"
-                                                : "Upload Receipt",
+                                            isMobile ? "Upload" : "Upload Receipt",
                                           ),
                                           style: ElevatedButton.styleFrom(
                                             backgroundColor: kAccent,
                                             foregroundColor: Colors.white,
                                             shape: RoundedRectangleBorder(
-                                              borderRadius:
-                                                  BorderRadius.circular(8),
+                                              borderRadius: BorderRadius.circular(8),
                                             ),
                                           ),
-                                          onPressed:
-                                              (_isUploading || paidStatus)
+                                          onPressed: (_isUploading || paidStatus)
                                               ? null
                                               : () async {
-                                                  await uploadImage(
-                                                    data['id'].toString(),
-                                                    data['userdeceased'],
-                                                    int.parse(
-                                                      data['amount'].toString(),
-                                                    ),
-                                                    deathNoticeId:
-                                                        data['death_notice_id'] ??
-                                                        0,
-                                                  );
-                                                  setState(() {});
+                                                  // 1. Fetch QR code info for this dayung_unit_id
+                                                  final qrData = await Supabase.instance.client
+    .from('gcash_qr_uploads')
+    .select()
+    .eq('dayung_unit_id', (widget.dayungUnitId ?? 0).toString())
+    .maybeSingle();
+
+                                                  if (qrData == null) {
+                                                      debugPrint('DEBUG: No QR code found for dayung_unit_id: ${widget.dayungUnitId}');
+  final qrList = await Supabase.instance.client
+      .from('gcash_qr_uploads')
+      .select();
+  debugPrint('DEBUG: All QR uploads: $qrList');
+                                                    ScaffoldMessenger.of(context).showSnackBar(
+                                                      const SnackBar(content: Text('No QR code found for this unit.')),
+                                                    );
+                                                    return;
+                                                  }
+
+                                                  // 2. Show QR code dialog
+                                                // ...existing code...
+final proceed = await showDialog<bool>(
+  context: context,
+  builder: (context) => AlertDialog(
+    title: const Text('Gcash QR Code'),
+    content: Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(qrData['name'] ?? '', style: const TextStyle(fontWeight: FontWeight.bold)),
+        const SizedBox(height: 8),
+        if (qrData['gcash_number'] != null && qrData['gcash_number'].toString().isNotEmpty)
+          Text(
+            'Gcash Number: ${qrData['gcash_number']}',
+            style: const TextStyle(fontSize: 15, color: kSubText),
+          ),
+        const SizedBox(height: 12),
+        if (qrData['qr_image_url'] != null)
+          GestureDetector(
+            onTap: () {
+              showDialog(
+                context: context,
+                builder: (context) => Dialog(
+                  backgroundColor: Colors.transparent,
+                  child: InteractiveViewer(
+                    child: Container(
+                      padding: const EdgeInsets.all(8),
+                      color: Colors.white,
+                      child: Image.network(
+                        qrData['qr_image_url'],
+                        width: MediaQuery.of(context).size.width * 0.85,
+                        height: MediaQuery.of(context).size.height * 0.65,
+                        fit: BoxFit.contain,
+                      ),
+                    ),
+                  ),
+                ),
+              );
+            },
+            child: Image.network(qrData['qr_image_url'], height: 180),
+          ),
+        const SizedBox(height: 50),
+        const Text('Please pay using the QR code above.'),
+      ],
+    ),
+    actions: [
+      TextButton(
+        child: const Text('Cancel'),
+        onPressed: () => Navigator.of(context).pop(false),
+      ),
+      ElevatedButton(
+        child: const Text('Upload Receipt'),
+        onPressed: () => Navigator.of(context).pop(true),
+      ),
+    ],
+  ),
+);
+// ...existing code...
+                                                  // 3. If user chooses to upload, proceed with uploadImage
+                                                  if (proceed == true) {
+                                                    await uploadImage(
+                                                      data['id'].toString(),
+                                                      data['userdeceased'],
+                                                      int.parse(data['amount'].toString()),
+                                                      deathNoticeId: data['death_notice_id'] ?? 0,
+                                                    );
+                                                    setState(() {});
+                                                  }
                                                 },
                                         ),
                                       ],

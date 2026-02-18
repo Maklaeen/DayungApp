@@ -7,7 +7,6 @@ import 'package:capstone_app/Members/memclaims.dart';
 import 'package:capstone_app/Members/memcontributions.dart';
 import 'package:capstone_app/Providers/dayung_provider.dart';
 import 'package:capstone_app/pages/notification.dart';
-import 'package:capstone_app/pages/paymentmethod.dart';
 import 'package:capstone_app/pages/recentdeathnotices.dart';
 import 'package:capstone_app/profile/profile.dart';
 import 'package:capstone_app/screens/selectdayung.dart';
@@ -77,6 +76,8 @@ class _MemberDashboardPageState extends State<MemberDashboardPage>
   List<Map<String, dynamic>> _recentCertificates = [];
   final List<Map<String, dynamic>> _pendingPaymentsByDeathNotice = [];
   List<Map<String, dynamic>> _latestActivities = [];
+
+  List<String> _pendingPaymentMessages = [];
 
   double _pendingPaymentsAmount = 0;
 
@@ -1169,13 +1170,14 @@ class _MemberDashboardPageState extends State<MemberDashboardPage>
       final unitId = _asInt(_selectedDayungUnitObj?['id']);
       if (uid == null || unitId == null) {
         _pendingPaymentsAmount = 0;
+        _pendingPaymentMessages = [];
         return;
       }
 
       // Use the correct field name: userdeceased
       final unpaidRows = await supabase
           .from('payments')
-          .select('amount, userdeceased')
+          .select('amount, userdeceased, message')
           .eq('user_id', uid)
           .eq('dayung_unit_id', unitId)
           .eq('status', 'unpaid');
@@ -1209,8 +1211,14 @@ class _MemberDashboardPageState extends State<MemberDashboardPage>
           .fold(0.0, (a, b) => a + b);
 
       _pendingPaymentsAmount = totalDue;
+      _pendingPaymentMessages = [
+        for (final row in unpaidRows)
+          if ((row['message'] ?? '').toString().trim().isNotEmpty)
+            row['message'].toString()
+      ];
     } catch (e) {
       _pendingPaymentsAmount = 0;
+      _pendingPaymentMessages = [];
     } finally {
       if (!mounted) return;
       setState(() => _loadingPending = false);
@@ -1777,7 +1785,7 @@ class _MemberDashboardPageState extends State<MemberDashboardPage>
                   ),
                   child: Icon(icon, color: color, size: 24),
                 ),
-                const SizedBox(width: 16),
+                const SizedBox(width: 12),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -1843,15 +1851,26 @@ class _MemberDashboardPageState extends State<MemberDashboardPage>
               ),
             ],
           ),
-          child: _latestActivities.isEmpty
-              ? const Center(child: Text('No recent activity'))
+          child: _pendingPaymentMessages.isEmpty
+              ? const Center(child: Text('No Recent Activity'))
               : Column(
                   children: [
-                    for (final activity in _latestActivities)
-                      _ActivityRow(
-                        icon: activity['icon'],
-                        color: activity['color'],
-                        text: activity['text'],
+                    for (final msg in _pendingPaymentMessages)
+                      Row(
+                        children: [
+                          const Icon(Icons.info_outline, color: Colors.redAccent, size:25),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              msg,
+                              style: const TextStyle(
+                                color: Colors.redAccent,
+                                fontWeight: FontWeight.w600,
+                                fontSize: 20,
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
                   ],
                 ),

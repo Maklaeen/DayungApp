@@ -732,7 +732,7 @@ class _MembersClaimsPageState extends State<MembersClaimsPage>
                         const Spacer(),
                         // Show only short claim ID (first 6 chars) or remove if you want
                         Text(
-                          '#${claim['id'].toString().substring(0, 6)}',
+                          '',
                           style: TextStyle(
                             fontSize: 12,
                             fontWeight: FontWeight.w600,

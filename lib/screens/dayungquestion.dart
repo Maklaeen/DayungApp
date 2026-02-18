@@ -509,8 +509,9 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
   }
 
   Future<void> geocodeAndSaveUserLocation() async {
-    if (userBarangay == null || userCity == null || userProvince == null)
+    if (userBarangay == null || userCity == null || userProvince == null) {
       return;
+    }
     final address =
         '${userBarangay!}, ${userCity!}, ${userProvince!}, Philippines';
     final url =
@@ -1084,7 +1085,7 @@ class DayungMapPreview extends StatelessWidget {
             target: ml.LatLng(latitude, longitude),
             zoom: 14,
           ),
-          onMapCreated: (ml.MaplibreMapController? controller) async {
+          onMapCreated: (ml.MapLibreMapController? controller) async {
             if (controller == null) return;
             await controller.addSymbol(
               ml.SymbolOptions(

@@ -334,7 +334,7 @@ class _RegisterState extends State<Register> {
       String triedAddresses = "";
 
       for (final addr in addressVariants) {
-        triedAddresses += addr + "\n";
+        triedAddresses += "$addr\n";
         try {
           final locations = await locationFromAddress(addr);
           if (locations.isNotEmpty) {
@@ -1041,10 +1041,12 @@ class _RegisterState extends State<Register> {
                                     final v =
                                         value?.replaceAll(RegExp(r'\D'), '') ??
                                         '';
-                                    if (v.length != 10)
+                                    if (v.length != 10) {
                                       return 'Enter 10 digits (e.g., 9123456789)';
-                                    if (!RegExp(r'^9\d{9}$').hasMatch(v))
+                                    }
+                                    if (!RegExp(r'^9\d{9}$').hasMatch(v)) {
                                       return 'Must start with 9';
+                                    }
                                     return null;
                                   },
                                 ),

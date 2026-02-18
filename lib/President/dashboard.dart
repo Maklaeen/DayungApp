@@ -8,7 +8,6 @@ import 'package:capstone_app/President/presclaims.dart';
 import 'package:capstone_app/President/prescontribution.dart';
 import 'package:capstone_app/President/presidentmemberspage.dart'
     hide kPrimary, kNeutralText;
-import 'package:capstone_app/Providers/apptheme_provider.dart';
 import 'package:capstone_app/Providers/dayung_provider.dart';
 import 'package:capstone_app/Providers/dayung_role_provider.dart';
 import 'package:capstone_app/pages/paymentmethod.dart';

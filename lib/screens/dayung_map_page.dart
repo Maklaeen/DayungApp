@@ -138,6 +138,7 @@ class _DayungMapPageState extends State<DayungMapPage> {
   bool _permissionDenied = false;
   StreamSubscription<Position>? positionStream;
   Map<String, dynamic>? _rules;
+  Map<String, dynamic>? _requiredApplication;
   bool _loadingRules = true;
   double? _compassHeading;
   StreamSubscription<CompassEvent>? compassStream;
@@ -703,25 +704,37 @@ class _DayungMapPageState extends State<DayungMapPage> {
   }
 
   Future<void> _fetchRules() async {
-    setState(() => _loadingRules = true);
-    try {
-      final supabase = Supabase.instance.client;
-      final id = widget.dayung['id'];
-      final res = await supabase
-          .from('dayung_rules')
-          .select()
+  setState(() => _loadingRules = true);
+  try {
+    final supabase = Supabase.instance.client;
+    final id = widget.dayung['id'];
+    final res = await supabase
+        .from('dayung_rules')
+        .select()
+        .eq('dayung_unit_id', id)
+        .maybeSingle();
+
+    // Fetch required_applications if no rules
+    Map<String, dynamic>? requiredApp;
+    if (res == null) {
+      requiredApp = await supabase
+          .from('required_applications')
+          .select('title, description')
           .eq('dayung_unit_id', id)
           .maybeSingle();
-      if (mounted) {
-        setState(() {
-          _rules = res;
-          _loadingRules = false;
-        });
-      }
-    } catch (_) {
-      if (mounted) setState(() => _loadingRules = false);
     }
+
+    if (mounted) {
+      setState(() {
+        _rules = res;
+        _requiredApplication = requiredApp;
+        _loadingRules = false;
+      });
+    }
+  } catch (_) {
+    if (mounted) setState(() => _loadingRules = false);
   }
+}
 
   Future<void> _initLocation() async {
     print('Requesting location permission...');
@@ -1124,6 +1137,32 @@ class _DayungMapPageState extends State<DayungMapPage> {
     addRule('Service Rules', rules['service_rules']);
 
     if (items.isEmpty) {
+      if (_requiredApplication != null) {
+        return Padding(
+          padding: const EdgeInsets.symmetric(vertical: 10),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                _requiredApplication!['title'] ?? '',
+                style: const TextStyle(
+                  color: kPrimary,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 15,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                _requiredApplication!['description'] ?? '',
+                style: const TextStyle(
+                  color: kSubtleText,
+                  fontSize: 13,
+                ),
+              ),
+            ],
+          ),
+        );
+      }
       return const Padding(
         padding: EdgeInsets.symmetric(vertical: 10),
         child: Text(
@@ -1521,7 +1560,7 @@ class _DayungMapPageState extends State<DayungMapPage> {
     }
     return SizedBox(
       width: double.infinity,
-      height: double.infinity,
+        height: 350,
       child: ml.MapLibreMap(
         styleString:
             'https://api.maptiler.com/maps/streets/style.json?key=ZgS5pYNNGTrRGUAnlS71',

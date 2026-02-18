@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/legacy.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:intl/intl.dart'; 
 
 const kText = Color(0xFF111827);
 const kSubText = Color(0xFF6B7280);
@@ -17,69 +17,55 @@ const kDanger = Color(0xFFEF4444);
 const double kEdge = 16;
 
 final serviceChecklistProvider =
-    StateNotifierProvider.family<
-      ServiceChecklistNotifier,
-      List<Map<String, dynamic>>,
-      int
-    >((ref, deathNoticeId) => ServiceChecklistNotifier(deathNoticeId));
+    StateNotifierProvider.family<ServiceChecklistNotifier,
+        List<Map<String, dynamic>>, int>((ref, deathNoticeId) {
+  return ServiceChecklistNotifier(deathNoticeId);
+});
 
 class ServiceChecklistNotifier
     extends StateNotifier<List<Map<String, dynamic>>> {
   final int deathNoticeId;
-  ServiceChecklistNotifier(this.deathNoticeId) : super([]) {
-    loadChecklist();
+  ServiceChecklistNotifier(this.deathNoticeId) : super([]);
+
+  Future<void> removeService(int checklistId) async {
+    final sb = Supabase.instance.client;
+    try {
+      await sb
+          .from('service_checklist')
+          .delete()
+          .eq('id', checklistId);
+      state = state.where((item) => item['id'] != checklistId).toList();
+    } catch (e) {
+      debugPrint('Error removing service: $e');
+    }
   }
 
-  Future<void> loadChecklist() async {
+  Future<void> fetchServices() async {
     final sb = Supabase.instance.client;
-    final checklist = await sb
-        .from('service_checklists')
-        .select('id, service_name, is_done, updated_at')
-        .eq('death_notice_id', deathNoticeId)
-        .order('updated_at', ascending: false);
-    state = List<Map<String, dynamic>>.from(checklist);
-  }
-
-  Future<void> toggleDone(int checklistId, bool isDone) async {
-    final sb = Supabase.instance.client;
-    await sb
-        .from('service_checklists')
-        .update({'is_done': isDone})
-        .eq('id', checklistId);
-    await loadChecklist();
-  }
-
-  Future<void> addService(String serviceName) async {
-    final sb = Supabase.instance.client;
-    await sb.from('service_checklists').insert({
-      'death_notice_id': deathNoticeId,
-      'service_name': serviceName,
-      'is_done': false,
-    });
-    await loadChecklist();
-  }
-
-  Future<void> editService(int checklistId, String newName) async {
-    final sb = Supabase.instance.client;
-    await sb
-        .from('service_checklists')
-        .update({'service_name': newName})
-        .eq('id', checklistId);
-    await loadChecklist();
+    try {
+      final response = await sb
+          .from('service_checklist')
+          .select()
+          .eq('death_notice_id', deathNoticeId);
+      state = List<Map<String, dynamic>>.from(response as List);
+    } catch (e) {
+      debugPrint('Error fetching services: $e');
+    }
   }
 }
 
 class ServiceTrackerPage extends StatefulWidget {
   final int dayungUnitId;
-  const ServiceTrackerPage({super.key, required this.dayungUnitId});
+  const ServiceTrackerPage({Key? key, required this.dayungUnitId}) : super(key: key);
 
   @override
-  State<ServiceTrackerPage> createState() => _ServiceTrackerPageState();
+  _ServiceTrackerPageState createState() => _ServiceTrackerPageState();
 }
 
 class _ServiceTrackerPageState extends State<ServiceTrackerPage> {
   bool _loading = true;
   List<Map<String, dynamic>> _notices = [];
+  Map<int, List<Map<String, dynamic>>> _servicesByUser = {}; // user_id -> services
 
   @override
   void initState() {
@@ -88,58 +74,239 @@ class _ServiceTrackerPageState extends State<ServiceTrackerPage> {
   }
 
   Future<void> _fetchData() async {
-    setState(() => _loading = true);
     final sb = Supabase.instance.client;
     try {
-      // Fetch death notices
-      final notices = await sb
+      final response = await sb
           .from('death_notices')
-          .select('id, name, date_of_death')
-          .eq('dayung_unit_id', widget.dayungUnitId)
-          .order('date_of_death', ascending: false);
+          .select()
+          .eq('dayung_unit_id', widget.dayungUnitId);
+      final notices = List<Map<String, dynamic>>.from(response as List);
 
-      // For each notice, fetch checklist
-      List<Map<String, dynamic>> data = [];
-      for (final n in notices) {
-        final checklist = await sb
-            .from('service_checklists')
-            .select('service_name, is_done')
-            .eq('death_notice_id', n['id']);
-        data.add({'notice': n, 'checklist': checklist});
+      // Fetch services for each userdeceased (user_id)
+      Map<int, List<Map<String, dynamic>>> servicesByUser = {};
+      for (final notice in notices) {
+        final userId = notice['user_id'];
+        final services = await sb
+            .from('service_checklist')
+            .select()
+            .eq('userdeceased', userId)
+            .eq('is_removed', false);
+        servicesByUser[userId] = List<Map<String, dynamic>>.from(services as List);
       }
+
       setState(() {
-        _notices = data;
+        _notices = notices;
+        _servicesByUser = servicesByUser;
         _loading = false;
       });
     } catch (e) {
-      setState(() => _loading = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error loading service tracker: $e')),
-      );
+      debugPrint('Error fetching notices/services: $e');
+      setState(() {
+        _loading = false;
+      });
     }
   }
 
-  Future<void> _addServiceForAll(String serviceName) async {
-    final sb = Supabase.instance.client;
-    final deathNoticeIds = _notices.map((n) => n['notice']['id']).toList();
-    if (deathNoticeIds.isEmpty) return;
-    final inserts = deathNoticeIds
-        .map(
-          (id) => {
-            'death_notice_id': id,
-            'service_name': serviceName,
-            'is_done': false,
+  void _showAddServiceDialog(Map<String, dynamic> notice) {
+    final _formKey = GlobalKey<FormState>();
+    String serviceName = '';
+    DateTime? timeService;
+    String notes = '';
+    String required = 'All';
+    final requiredOptions = ['All', 'Custom'];
+    int? customRequired;
+
+    showDialog(
+      context: context,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setState) {
+            return AlertDialog(
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(20),
+              ),
+              elevation: 10,
+              title: const Text(
+                'Add Service',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
+              content: Form(
+                key: _formKey,
+                child: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      // Type of Service
+                      TextFormField(
+                        decoration: InputDecoration(
+                          labelText: 'Type of Service',
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          prefixIcon: const Icon(Icons.design_services),
+                        ),
+                        onChanged: (val) => serviceName = val,
+                        validator: (val) => val == null || val.isEmpty ? 'Required' : null,
+                      ),
+                      const SizedBox(height: 16),
+
+                      // Time Start
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
+                              decoration: BoxDecoration(
+                                border: Border.all(color: Colors.grey.shade400),
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: Text(
+                                timeService == null
+                                    ? 'Select Time Start'
+                                    : DateFormat('yyyy-MM-dd HH:mm').format(timeService!),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          IconButton(
+                            icon: const Icon(Icons.calendar_today),
+                            onPressed: () async {
+                              final date = await showDatePicker(
+                                context: context,
+                                initialDate: DateTime.now(),
+                                firstDate: DateTime(2020),
+                                lastDate: DateTime(2100),
+                              );
+                              if (date != null) {
+                                final time = await showTimePicker(
+                                  context: context,
+                                  initialTime: TimeOfDay.now(),
+                                );
+                                if (time != null) {
+                                  setState(() {
+                                    timeService = DateTime(
+                                      date.year,
+                                      date.month,
+                                      date.day,
+                                      time.hour,
+                                      time.minute,
+                                    );
+                                  });
+                                }
+                              }
+                            },
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 16),
+
+                      // Notes
+                      TextFormField(
+                        decoration: InputDecoration(
+                          labelText: 'Notes',
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          prefixIcon: const Icon(Icons.note),
+                        ),
+                        onChanged: (val) => notes = val,
+                      ),
+                      const SizedBox(height: 16),
+
+                      // Required
+                      DropdownButtonFormField<String>(
+                        value: required,
+                        decoration: InputDecoration(
+                          labelText: 'Required',
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          prefixIcon: const Icon(Icons.group),
+                        ),
+                        items: requiredOptions
+                            .map((e) => DropdownMenuItem(value: e, child: Text(e)))
+                            .toList(),
+                        onChanged: (val) {
+                          setState(() {
+                            required = val!;
+                          });
+                        },
+                      ),
+                      const SizedBox(height: 16),
+
+                      if (required == 'Custom')
+                        TextFormField(
+                          decoration: InputDecoration(
+                            labelText: 'How many persons?',
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            prefixIcon: const Icon(Icons.person),
+                          ),
+                          keyboardType: TextInputType.number,
+                          onChanged: (val) => customRequired = int.tryParse(val),
+                        ),
+                    ],
+                  ),
+                ),
+              ),
+              actions: [
+                TextButton(
+                  child: const Text('Cancel'),
+                  onPressed: () => Navigator.pop(context),
+                ),
+                ElevatedButton(
+                  child: const Text('Save'),
+                  onPressed: () async {
+                    debugPrint('Save button pressed');
+                    if (_formKey.currentState!.validate() && timeService != null) {
+                      debugPrint('Form validated. Preparing to insert...');
+                      try {
+                        final sb = Supabase.instance.client;
+                        final insertData = {
+                          'service_name': serviceName,
+                          'time_service': timeService!.toIso8601String(),
+                          'notes': notes,
+                          'required': required == 'All'
+                              ? notice['person_needed'] ?? 'All'
+                              : customRequired ?? 1,
+                          'userdeceased': notice['user_id'],
+                          'dayung_unit_id': notice['dayung_unit_id'],
+                          'death_notice_id': notice['id'],
+                          'is_removed': false,
+                        };
+                        debugPrint('Insert data: $insertData');
+                        final response = await sb.from('service_checklist').insert(insertData).select();
+                        debugPrint('Insert response: $response');
+                        Navigator.pop(context);
+                      } on PostgrestException catch (e) {
+                        debugPrint('PostgrestException: ${e.message}, code: ${e.code}, details: ${e.details}, hint: ${e.hint}');
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text('Error: ${e.message}')),
+                        );
+                      } catch (e, stack) {
+                        debugPrint('Error inserting service: $e');
+                        debugPrint('Stack trace: $stack');
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text('Error: $e')),
+                        );
+                      }
+                    } else {
+                      debugPrint('Form not valid or timeService is null');
+                      if (timeService == null) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Please select a start time')),
+                        );
+                      }
+                    }
+                  },
+                ),
+              ],
+            );
           },
-        )
-        .toList();
-    await sb.from('service_checklists').insert(inserts);
-    // Reload all checklists
-    for (final id in deathNoticeIds) {
-      // Use the provider's notifier to reload checklist
-      final container = ProviderScope.containerOf(context);
-      container.read(serviceChecklistProvider(id).notifier).loadChecklist();
-    }
-    await _fetchData();
+        );
+      },
+    );
   }
 
   @override
@@ -149,9 +316,9 @@ class _ServiceTrackerPageState extends State<ServiceTrackerPage> {
       body: SafeArea(
         child: Column(
           children: [
+            // Header
             Container(
               padding: const EdgeInsets.fromLTRB(20, 36, 20, 28),
-
               decoration: BoxDecoration(
                 color: kPrimary,
                 borderRadius: const BorderRadius.only(
@@ -185,7 +352,7 @@ class _ServiceTrackerPageState extends State<ServiceTrackerPage> {
                   Expanded(
                     child: Text(
                       'Service Tracker',
-                      style: TextStyle(
+                      style: const TextStyle(
                         fontSize: 18,
                         fontWeight: FontWeight.w800,
                         color: Colors.white,
@@ -199,704 +366,139 @@ class _ServiceTrackerPageState extends State<ServiceTrackerPage> {
                 ],
               ),
             ),
-            // ADD THIS BLOCK BELOW THE HEADER CONTAINER
-            if (!_loading && _notices.isNotEmpty)
-              Padding(
-                padding: const EdgeInsets.fromLTRB(24, 16, 24, 0),
-                child: Align(
-                  alignment: Alignment.centerLeft,
-                  child: TextButton.icon(
-                    icon: const Icon(Icons.add, color: kPrimary),
-                    label: const Text(
-                      'Add Service for All',
-                      style: TextStyle(
-                        color: kPrimary,
-                        fontWeight: FontWeight.w600,
-                        fontFamily: 'Montserrat',
-                      ),
-                    ),
-                    onPressed: () async {
-                      final controller = TextEditingController();
-                      final result = await showDialog<String>(
-                        context: context,
-                        builder: (context) => AlertDialog(
-                          title: const Text('Add Service for All'),
-                          content: TextField(
-                            controller: controller,
-                            autofocus: true,
-                            decoration: const InputDecoration(
-                              labelText: 'Service Name',
-                            ),
-                          ),
-                          actions: [
-                            TextButton(
-                              onPressed: () => Navigator.pop(context),
-                              child: const Text('Cancel'),
-                            ),
-                            ElevatedButton(
-                              onPressed: () {
-                                if (controller.text.trim().isNotEmpty) {
-                                  Navigator.pop(
-                                    context,
-                                    controller.text.trim(),
-                                  );
-                                }
-                              },
-                              child: const Text('Add'),
-                            ),
-                          ],
-                        ),
-                      );
-                      if (result != null && result.isNotEmpty) {
-                        await _addServiceForAll(result);
-                      }
-                    },
-                  ),
-                ),
-              ),
             // Content
-            Expanded(
-              child: _loading
-                  ? Center(
-                      child: Container(
-                        padding: const EdgeInsets.all(24),
-                        decoration: BoxDecoration(
-                          color: kCardBg,
-                          borderRadius: BorderRadius.circular(20),
-                          border: Border.all(
-                            color: kBorderColor.withOpacity(0.3),
-                            width: 1,
-                          ),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withOpacity(0.05),
-                              blurRadius: 15,
-                              offset: const Offset(0, 6),
-                            ),
-                          ],
-                        ),
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            CircularProgressIndicator(
-                              color: kPrimary,
-                              strokeWidth: 3,
-                            ),
-                            const SizedBox(height: 16),
-                            const Text(
-                              'Loading service tracker...',
-                              style: TextStyle(
-                                color: kSubText,
-                                fontSize: 12,
-                                fontFamily: 'OpenSans',
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    )
-                  : _notices.isEmpty
-                  ? Center(
-                      child: Container(
-                        margin: const EdgeInsets.all(20),
-                        padding: const EdgeInsets.all(24),
-                        decoration: BoxDecoration(
-                          color: kCardBg,
-                          borderRadius: BorderRadius.circular(20),
-                          border: Border.all(
-                            color: kBorderColor.withOpacity(0.3),
-                            width: 1,
-                          ),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withOpacity(0.05),
-                              blurRadius: 15,
-                              offset: const Offset(0, 6),
-                            ),
-                          ],
-                        ),
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(
-                              Icons.track_changes_rounded,
-                              size: 48,
-                              color: kSubText,
-                            ),
-                            const SizedBox(height: 16),
-                            const Text(
-                              'No service records found',
-                              style: TextStyle(
-                                fontSize: 14,
-                                fontWeight: FontWeight.w700,
-                                color: kText,
-                                fontFamily: 'Montserrat',
-                              ),
-                            ),
-                            const SizedBox(height: 8),
-                            const Text(
-                              'No death notices have been recorded yet',
-                              style: TextStyle(
-                                fontSize: 10,
-                                color: kSubText,
-                                fontFamily: 'OpenSans',
-                              ),
-                              textAlign: TextAlign.center,
-                            ),
-                          ],
-                        ),
-                      ),
-                    )
-                  : Padding(
-                      padding: const EdgeInsets.all(12),
-                      child: ListView.separated(
-                        itemCount: _notices.length,
-                        separatorBuilder: (_, __) => const SizedBox(height: 8),
-                        itemBuilder: (context, i) {
-                          final n = _notices[i]['notice'];
-                          return GestureDetector(
-                            onTap: () => _showVigilLocationModal(context, n),
-                            child: Container(
-                              padding: const EdgeInsets.all(12),
-                              decoration: BoxDecoration(
-                                color: kCardBg,
-                                borderRadius: BorderRadius.circular(10),
-                                border: Border.all(
-                                  color: kBorderColor.withOpacity(0.3),
-                                  width: 1,
-                                ),
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: Colors.black.withOpacity(0.02),
-                                    blurRadius: 6,
-                                    offset: const Offset(0, 1),
-                                  ),
-                                ],
-                              ),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Row(
-                                    children: [
-                                      const Icon(
-                                        Icons.person_rounded,
-                                        color: kPrimary,
-                                        size: 18,
-                                      ),
-                                      const SizedBox(width: 12),
-                                      Expanded(
-                                        child: Column(
-                                          crossAxisAlignment:
-                                              CrossAxisAlignment.start,
-                                          children: [
-                                            Text(
-                                              n['name'] ?? '',
-                                              style: const TextStyle(
-                                                fontWeight: FontWeight.w700,
-                                                fontSize: 14,
-                                                color: kText,
-                                                fontFamily: 'Montserrat',
-                                              ),
-                                            ),
-                                            const SizedBox(height: 2),
-                                            Text(
-                                              n['date_of_death'] ?? '',
-                                              style: const TextStyle(
-                                                fontSize: 11,
-                                                color: kSubText,
-                                                fontFamily: 'OpenSans',
-                                                fontWeight: FontWeight.w500,
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                      ),
-                                      const Icon(
-                                        Icons.chevron_right,
-                                        color: kSubText,
-                                        size: 18,
-                                      ),
-                                    ],
-                                  ),
-                                  const SizedBox(height: 12),
-                                  Consumer(
-                                    builder: (context, ref, _) {
-                                      final checklist = ref.watch(
-                                        serviceChecklistProvider(n['id']),
-                                      );
-                                      final doneCount = checklist
-                                          .where((c) => c['is_done'] == true)
-                                          .length;
-                                      final total = checklist.length;
-                                      final progress = total == 0
-                                          ? 0.0
-                                          : doneCount / total;
-
-                                      return Column(
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.start,
-                                        children: [
-                                          const Text(
-                                            'Service Checklist:',
-                                            style: TextStyle(
-                                              fontWeight: FontWeight.w700,
-                                              fontSize: 13,
-                                              color: kText,
-                                              fontFamily: 'Montserrat',
-                                            ),
-                                          ),
-                                          const SizedBox(height: 8),
-                                          LinearProgressIndicator(
-                                            value: progress,
-                                            backgroundColor: kBorderColor
-                                                .withOpacity(0.2),
-                                            color: kSuccess,
-                                          ),
-                                          const SizedBox(height: 8),
-                                          Text(
-                                            '$doneCount of $total services completed',
-                                            style: const TextStyle(
-                                              fontSize: 12,
-                                              color: kSubText,
-                                              fontFamily: 'OpenSans',
-                                            ),
-                                          ),
-                                          const SizedBox(height: 8),
-                                          ...checklist.map((c) {
-                                            final done = c['is_done'] == true;
-                                            final updatedAt = c['updated_at'];
-                                            String formattedDate = '';
-                                            if (updatedAt != null) {
-                                              try {
-                                                final date = DateTime.parse(
-                                                  updatedAt,
-                                                );
-                                                formattedDate =
-                                                    '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
-                                              } catch (_) {}
-                                            }
-                                            return ListTile(
-                                              leading: Checkbox(
-                                                value: done,
-                                                onChanged: (val) {
-                                                  ref
-                                                      .read(
-                                                        serviceChecklistProvider(
-                                                          n['id'],
-                                                        ).notifier,
-                                                      )
-                                                      .toggleDone(
-                                                        c['id'],
-                                                        val ?? false,
-                                                      );
-                                                },
-                                                activeColor: kSuccess,
-                                              ),
-                                              title: Row(
-                                                children: [
-                                                  Expanded(
-                                                    child: Text(
-                                                      c['service_name'] ?? '',
-                                                      style: TextStyle(
-                                                        color: done
-                                                            ? kSuccess
-                                                            : kDanger,
-                                                        fontWeight:
-                                                            FontWeight.w600,
-                                                        fontFamily: 'OpenSans',
-                                                      ),
-                                                    ),
-                                                  ),
-                                                  IconButton(
-                                                    icon: const Icon(
-                                                      Icons.edit,
-                                                      size: 18,
-                                                      color: kPrimary,
-                                                    ),
-                                                    tooltip: 'Edit Service',
-                                                    onPressed: () async {
-                                                      final controller =
-                                                          TextEditingController(
-                                                            text:
-                                                                c['service_name'],
-                                                          );
-                                                      final result = await showDialog<String>(
-                                                        context: context,
-                                                        builder: (context) => AlertDialog(
-                                                          title: const Text(
-                                                            'Edit Service',
-                                                          ),
-                                                          content: TextField(
-                                                            controller:
-                                                                controller,
-                                                            autofocus: true,
-                                                            decoration:
-                                                                const InputDecoration(
-                                                                  labelText:
-                                                                      'Service Name',
-                                                                ),
-                                                          ),
-                                                          actions: [
-                                                            TextButton(
-                                                              onPressed: () =>
-                                                                  Navigator.pop(
-                                                                    context,
-                                                                  ),
-                                                              child: const Text(
-                                                                'Cancel',
-                                                              ),
-                                                            ),
-                                                            ElevatedButton(
-                                                              onPressed: () {
-                                                                if (controller
-                                                                    .text
-                                                                    .trim()
-                                                                    .isNotEmpty) {
-                                                                  Navigator.pop(
-                                                                    context,
-                                                                    controller
-                                                                        .text
-                                                                        .trim(),
-                                                                  );
-                                                                }
-                                                              },
-                                                              child: const Text(
-                                                                'Save',
-                                                              ),
-                                                            ),
-                                                          ],
-                                                        ),
-                                                      );
-                                                      if (result != null &&
-                                                          result.isNotEmpty) {
-                                                        await ref
-                                                            .read(
-                                                              serviceChecklistProvider(
-                                                                n['id'],
-                                                              ).notifier,
-                                                            )
-                                                            .editService(
-                                                              c['id'],
-                                                              result,
-                                                            );
-                                                      }
-                                                    },
-                                                  ),
-                                                  if (formattedDate.isNotEmpty)
-                                                    Padding(
-                                                      padding:
-                                                          const EdgeInsets.only(
-                                                            left: 8.0,
-                                                          ),
-                                                      child: Text(
-                                                        formattedDate,
-                                                        style: const TextStyle(
-                                                          fontSize: 10,
-                                                          color: kSubText,
-                                                          fontFamily:
-                                                              'OpenSans',
-                                                        ),
-                                                      ),
-                                                    ),
-                                                ],
-                                              ),
-                                            );
-                                          }),
-                                          // Removed per-member Add Service button here
-                                        ],
-                                      );
-                                    },
-                                  ),
-                                ],
-                              ),
-                            ),
-                          );
-                        },
-                      ),
-                    ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  void _showVigilLocationModal(
-    BuildContext context,
-    Map<String, dynamic> notice,
-  ) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (context) => Container(
-        height: MediaQuery.of(context).size.height * 0.9,
-        decoration: const BoxDecoration(
-          color: Color(0xFFF8FAFC),
-          borderRadius: BorderRadius.only(
-            topLeft: Radius.circular(24),
-            topRight: Radius.circular(24),
-          ),
-        ),
-        child: Column(
-          children: [
-            // Header
-            Container(
-              padding: const EdgeInsets.fromLTRB(20, 36, 20, 28),
-              decoration: const BoxDecoration(
-                color: kPrimaryDark,
-                borderRadius: BorderRadius.only(
-                  bottomLeft: Radius.circular(28),
-                  bottomRight: Radius.circular(28),
-                ),
-                boxShadow: [
-                  BoxShadow(
-                    color: Color(0xFF1E40AF),
-                    blurRadius: 18,
-                    offset: Offset(0, 8),
-                  ),
-                ],
-              ),
-              child: Row(
-                children: [
-                  IconButton(
-                    icon: const Icon(
-                      Icons.arrow_back_rounded,
-                      color: Colors.white,
-                      size: 26,
-                    ),
-                    onPressed: () => Navigator.pop(context),
-                  ),
-                  const SizedBox(width: 4),
-                  const Icon(
-                    Icons.track_changes_rounded,
-                    color: Colors.white,
-                    size: 28,
-                  ),
-                  const SizedBox(width: 16),
-                  const Expanded(
-                    child: Text(
-                      'Death Information',
-                      style: TextStyle(
-                        fontSize: 22,
-                        fontWeight: FontWeight.w800,
-                        color: Colors.white,
-                        fontFamily: 'Montserrat',
-                        letterSpacing: 0.3,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            // Content
-            Expanded(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.all(20),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // In loving memory section
-                    Row(
-                      children: [
-                        IconButton(
-                          icon: const Icon(
-                            Icons.chevron_left,
-                            color: kText,
-                            size: 24,
-                          ),
-                          onPressed: () => Navigator.pop(context),
-                        ),
-                        Container(
-                          padding: const EdgeInsets.all(8),
-                          decoration: BoxDecoration(
-                            color: kBorderColor.withOpacity(0.3),
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: const Icon(
-                            Icons.folder_rounded,
-                            color: kText,
-                            size: 20,
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        const Text(
-                          'In loving memory of:',
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w600,
-                            color: kText,
-                            fontFamily: 'Montserrat',
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 16),
-                    // User information card
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 8,
-                      ),
-                      child: Text(
-                        '${notice['name'] ?? 'Unknown'}',
-                        style: const TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w700,
-                          color: kText,
-                          fontFamily: 'Montserrat',
-                        ),
-                        textAlign: TextAlign.center,
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    // Date
-                    Center(
-                      child: Text(
-                        '--- ${_formatDate(notice['date_of_death'])}',
-                        style: const TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w600,
-                          color: kText,
-                          fontFamily: 'Montserrat',
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 24),
-                    // Location of Vigil
-                    Row(
-                      children: [
-                        const Text(
-                          'Location of Vigil:',
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w600,
-                            color: kText,
-                            fontFamily: 'Montserrat',
-                          ),
-                        ),
-                        const Spacer(),
-                        Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            const Icon(
-                              Icons.location_on_rounded,
-                              color: kPrimary,
-                              size: 16,
-                            ),
-                            const SizedBox(width: 4),
-                            const Text(
-                              'Open in Maps',
-                              style: TextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.w600,
-                                color: kPrimary,
-                                fontFamily: 'Montserrat',
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 12),
-                    // Location name
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 8,
-                      ),
-                      child: const Text(
-                        'Centro San Juan',
-                        style: TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w600,
-                          color: kText,
-                          fontFamily: 'Montserrat',
-                        ),
-                        textAlign: TextAlign.center,
-                      ),
-                    ),
-                    const SizedBox(height: 20),
-                    // Map placeholder
-                    Container(
-                      height: 120,
-                      width: double.infinity,
+            _loading
+                ? const Expanded(
+                    child: Center(child: CircularProgressIndicator()),
+                  )
+                : Expanded(
+                    child: ListView.builder(
                       padding: const EdgeInsets.all(16),
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          const Icon(
-                            Icons.map_rounded,
-                            size: 32,
-                            color: kSubText,
+                      itemCount: _notices.length,
+                      itemBuilder: (context, index) {
+                        final notice = _notices[index];
+                        final userId = notice['user_id'];
+                        final services = _servicesByUser[userId] ?? [];
+
+                        // Debug: Print services for this user
+                        debugPrint('UserID: $userId, Services: $services');
+
+                        return Card(
+                          color: kCardBg,
+                          margin: const EdgeInsets.only(bottom: 12),
+                          elevation: 3,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
                           ),
-                          const SizedBox(height: 8),
-                          const Text(
-                            'Map View',
-                            style: TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w600,
-                              color: kSubText,
-                              fontFamily: 'Montserrat',
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+                            child: Column(
+                              children: [
+                                Row(
+                                  children: [
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            notice['name'] ?? 'No Name',
+                                            style: const TextStyle(
+                                              fontWeight: FontWeight.bold,
+                                              fontSize: 18,
+                                              color: kText,
+                                            ),
+                                          ),
+                                          const SizedBox(height: 8),
+                                          Row(
+                                            children: [
+                                              const Icon(Icons.calendar_today, size: 16, color: kSubText),
+                                              const SizedBox(width: 4),
+                                              Text(
+                                                'Date of Death: ',
+                                                style: const TextStyle(fontWeight: FontWeight.w600, color: kSubText),
+                                              ),
+                                              Flexible(
+                                                child: Text(
+                                                  notice['date_of_death'] ?? 'N/A',
+                                                  style: const TextStyle(color: kSubText),
+                                                  overflow: TextOverflow.ellipsis,
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                          const SizedBox(height: 4),
+                                          Row(
+                                            children: [
+                                              const Icon(Icons.account_tree, size: 16, color: kSubText),
+                                              const SizedBox(width: 4),
+                                              Text(
+                                                'Dayung Unit ID: ',
+                                                style: const TextStyle(fontWeight: FontWeight.w600, color: kSubText),
+                                              ),
+                                              Text(
+                                                '${notice['dayung_unit_id'] ?? 'N/A'}',
+                                                style: const TextStyle(color: kSubText),
+                                              ),
+                                            ],
+                                          ),
+                                          const SizedBox(height: 4),
+                                          Row(
+                                            children: [
+                                              const Icon(Icons.cake, size: 16, color: kSubText),
+                                              const SizedBox(width: 4),
+                                              Text(
+                                                'Date of Birth: ',
+                                                style: const TextStyle(fontWeight: FontWeight.w600, color: kSubText),
+                                              ),
+                                              Flexible(
+                                                child: Text(
+                                                  notice['dob'] ?? 'N/A',
+                                                  style: const TextStyle(color: kSubText),
+                                                  overflow: TextOverflow.ellipsis,
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                          const SizedBox(height: 4),
+                                          Row(
+                                            children: [
+                                              const Icon(Icons.accessibility_new, size: 16, color: kSubText),
+                                              const SizedBox(width: 4),
+                                              Text(
+                                                'Deceased Age: ',
+                                                style: const TextStyle(fontWeight: FontWeight.w600, color: kSubText),
+                                              ),
+                                              Text(
+                                                '${notice['deceased_age'] ?? 'N/A'} yrs',
+                                                style: const TextStyle(color: kSubText),
+                                              ),
+                                            ],
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                    Row(
+                                      mainAxisAlignment: MainAxisAlignment.end,
+                                      children: [
+                                        TextButton.icon(
+                                          icon: const Icon(Icons.add, color: kPrimary),
+                                          label: const Text('Add Service'),
+                                          onPressed: () => _showAddServiceDialog(notice),
+                                        ),
+                                      ],
+                                    ),
+                                  ],
+                                ),
+                              ],
                             ),
                           ),
-                          const SizedBox(height: 4),
-                          const Text(
-                            'Centro San Juan Location',
-                            style: TextStyle(
-                              fontSize: 10,
-                              color: kSubText,
-                              fontFamily: 'OpenSans',
-                            ),
-                          ),
-                        ],
-                      ),
+                        );
+                      },
                     ),
-                    const SizedBox(height: 20),
-                    // Footer message
-                    const Center(
-                      child: Text(
-                        'With deepest respect and remembrance.',
-                        style: TextStyle(
-                          fontSize: 14,
-                          fontStyle: FontStyle.italic,
-                          color: kSubText,
-                          fontFamily: 'OpenSans',
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
+                  ),
           ],
         ),
       ),
     );
-  }
-
-  String _formatDate(dynamic dateString) {
-    if (dateString == null) return 'Unknown Date';
-    try {
-      final date = DateTime.parse(dateString.toString());
-      final months = [
-        'Jan',
-        'Feb',
-        'Mar',
-        'Apr',
-        'May',
-        'Jun',
-        'Jul',
-        'Aug',
-        'Sep',
-        'Oct',
-        'Nov',
-        'Dec',
-      ];
-      return '${months[date.month - 1]} ${date.day}, ${date.year}';
-    } catch (e) {
-      return dateString.toString();
-    }
   }
 }

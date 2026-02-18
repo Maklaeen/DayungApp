@@ -36,6 +36,7 @@ class _SecretaryApplicationsPageState extends State<SecretaryApplicationsPage> {
   bool _loading = true;
   List<Map<String, dynamic>> _apps = [];
   Set<String> _deceasedUserIds = {};
+  String _searchQuery = '';
 
   RealtimeChannel? _channel;
   int? _currentUnitId;
@@ -1234,6 +1235,24 @@ class _SecretaryApplicationsPageState extends State<SecretaryApplicationsPage> {
                   ],
                 ),
               ),
+              // Add search bar for Pending filter
+              if (_filter == 'pending')
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
+                  child: TextField(
+                    decoration: InputDecoration(
+                      hintText: 'Search member...',
+                      prefixIcon: Icon(Icons.search),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide(color: kBorderColor),
+                      ),
+                    ),
+                    onChanged: (val) {
+                      setState(() => _searchQuery = val.trim().toLowerCase());
+                    },
+                  ),
+                ),
               // Content
               Expanded(
                 child: RefreshIndicator(
@@ -1336,11 +1355,23 @@ class _SecretaryApplicationsPageState extends State<SecretaryApplicationsPage> {
                           padding: const EdgeInsets.symmetric(horizontal: 20),
                           child: ListView.separated(
                             physics: const AlwaysScrollableScrollPhysics(),
-                            itemCount: _apps.length,
-                            separatorBuilder: (_, __) =>
-                                const SizedBox(height: 12),
+                            itemCount: _filter == 'pending'
+                              ? _apps.where((app) {
+                                  final user = app['users'] as Map<String, dynamic>?;
+                                  final name = (user?['full_name'] ?? '').toString().toLowerCase();
+                                  return _searchQuery.isEmpty || name.contains(_searchQuery);
+                                }).length
+                              : _apps.length,
+                            separatorBuilder: (_, __) => const SizedBox(height: 12),
                             itemBuilder: (context, i) {
-                              final app = _apps[i];
+                              final filteredApps = _filter == 'pending'
+                                ? _apps.where((app) {
+                                    final user = app['users'] as Map<String, dynamic>?;
+                                    final name = (user?['full_name'] ?? '').toString().toLowerCase();
+                                    return _searchQuery.isEmpty || name.contains(_searchQuery);
+                                  }).toList()
+                                : _apps;
+                              final app = filteredApps[i];
                               final user =
                                   app['users'] as Map<String, dynamic>?;
                               final status = (app['status'] ?? '').toString();
