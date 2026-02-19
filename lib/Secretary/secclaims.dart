@@ -1203,6 +1203,54 @@ class _SecretaryClaimsPageState extends State<SecretaryClaimsPage>
                             ),
                           ),
                         ),
+                      if (status.toLowerCase() == 'approved')
+                        Padding(
+                          padding: const EdgeInsets.only(top: 10.0),
+                          child: SizedBox(
+                            width: double.infinity,
+                            child: OutlinedButton.icon(
+                              onPressed: _updating
+                                  ? null
+                                  : () async {
+                                    final confirm = await showDialog<bool>(
+                                      context: context,
+                                      builder: (ctx) => AlertDialog(
+                                        title: Text(claimed ? 'Mark as Not Claimed?' : 'Mark as Claimed?'),
+                                        content: Text(
+                                          claimed
+                                              ? 'Are you sure you want to mark this claim as NOT claimed?'
+                                              : 'Are you sure you want to mark this claim as claimed?',
+                                        ),
+                                        actions: [
+                                          TextButton(
+                                            onPressed: () => Navigator.of(ctx).pop(false),
+                                            child: const Text('Cancel'),
+                                          ),
+                                          ElevatedButton(
+                                            onPressed: () => Navigator.of(ctx).pop(true),
+                                            child: const Text('Confirm'),
+                                          ),
+                                        ],
+                                      ),
+                                    );
+                                    if (confirm == true) {
+                                      _updateClaimed(claim['id'].toString(), !claimed, claim['claimedmoney']);
+                                      Navigator.pop(context);
+                                    }
+                                  },
+                              icon: Icon(claimed ? Icons.money_off : Icons.payments),
+                              label: Text(claimed ? 'Mark Not Claimed' : 'Mark Claimed'),
+                              style: OutlinedButton.styleFrom(
+                                padding: const EdgeInsets.symmetric(vertical: 16),
+                                side: BorderSide(color: claimed ? Colors.grey : kAccent),
+                                foregroundColor: claimed ? Colors.grey.shade800 : kAccent,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
                       const SizedBox(height: 20),
                     ],
                   ),
@@ -1276,10 +1324,184 @@ class _SecretaryClaimsPageState extends State<SecretaryClaimsPage>
             child: ElevatedButton.icon(
               onPressed: _updating
                   ? null
-                  : () {
+                  : () async {
+                  // Prompt for amount before approving
+                  final TextEditingController amountController = TextEditingController();
+                  final parentContext = context;
+                  final fullName = _userMap[claim['user_id']?.toString()]?['full_name'] ?? 'Member';
+
+                  // Fetch secretary_id before showing the dialog
+                  final unit = await supabase
+                      .from('dayung_units')
+                      .select('secretary_id')
+                      .eq('id', claim['dayung_unit_id'])
+                      .maybeSingle();
+                  final secretaryId = unit?['secretary_id'];
+
+                  final result = await showDialog<double>(
+                    context: parentContext,
+                    builder: (dialogContext) => AlertDialog(
+                      title: Text('Contribution Amount for $fullName'),
+                      content: TextField(
+                        controller: amountController,
+                        keyboardType: TextInputType.numberWithOptions(decimal: true),
+                        decoration: const InputDecoration(
+                          labelText: 'Amount',
+                          prefixIcon: Padding(
+                            padding: EdgeInsets.only(left: 12, right: 8), // <-- Not a const constructor
+                            child: Text('₱', style: TextStyle(fontSize: 20)),
+                          ),
+                        ),
+                      ),
+                      actions: [
+                        TextButton(
+                          onPressed: () => Navigator.pop(dialogContext, null),
+                          child: const Text('Cancel'),
+                        ),
+                        ElevatedButton(
+                          onPressed: () {
+                            final amount = double.tryParse(amountController.text);
+                            if (amount == null) {
+                              ScaffoldMessenger.of(parentContext).showSnackBar(
+                                const SnackBar(content: Text('Please enter a valid amount.')),
+                              );
+                              return;
+                            }
+                            Navigator.pop(dialogContext, amount);
+                          },
+                          child: const Text('Save'),
+                        ),
+                      ],
+                    ),
+                  );
+
+                  if (result != null) {
+                    showDialog(
+                      context: parentContext,
+                      barrierDismissible: false,
+                      builder: (_) => const Center(child: CircularProgressIndicator()),
+                    );
+                    try {
+                      // Save set_amount
+                      await supabase.from('set_amount').insert({
+                        'userdeceased': claim['user_id'],
+                        'payment_id': claim['id'],
+                        'amount': result,
+                        'secretary_id': secretaryId,
+                        'dayung_unit_id': claim['dayung_unit_id'],
+                      });
+
+                      // Prepare death_notices data (same as before)
+                      final userId = claim['user_id'];
+                      final beneficiaryId = claim['beneficiary_id'];
+                      final deathCert = claim['death_certificate_url'];
+                      final dayungId = claim['dayung_unit_id'];
+                      final dod = claim['date_of_death'];
+                      final deceasedType = beneficiaryId != null ? 'beneficiary' : 'member';
+
+                      // Fetch user/beneficiary info for name/dob
+                      Map<String, dynamic>? user;
+                      Map<String, dynamic>? ben;
+                      if (beneficiaryId != null) {
+                        ben = await supabase
+                            .from('beneficiaries')
+                            .select('full_name, dob, user_id')
+                            .eq('id', beneficiaryId)
+                            .maybeSingle();
+                      } else {
+                        user = await supabase
+                            .from('users')
+                            .select('full_name, dob')
+                            .eq('id', userId)
+                            .maybeSingle();
+                      }
+                      final name = beneficiaryId != null
+                          ? (ben?['full_name'] ?? '')
+                          : (user?['full_name'] ?? '');
+                      final dob = beneficiaryId != null
+                          ? (ben?['dob'])
+                          : (user?['dob']);
+                      final computedAge = (() {
+                        if (dob == null || dod == null) return null;
+                        final b = DateTime.tryParse(dob.toString());
+                        final d = DateTime.tryParse(dod.toString());
+                        if (b == null || d == null) return null;
+                        var age = d.year - b.year;
+                        if (d.month < b.month || (d.month == b.month && d.day < b.day)) age--;
+                        return age;
+                      })();
+
+                      // Optionally, fetch vigil location/barangay if needed
+                      final barangay = null;
+                      final latitude = null;
+                      final longitude = null;
+
+                      // Insert into death_notices
+                      await supabase.from('death_notices').insert({
+                        if (beneficiaryId != null) 'beneficiary_id': beneficiaryId,
+                        'user_id': beneficiaryId != null ? (ben?['user_id'] ?? userId) : userId,
+                        'name': name,
+                        'date_of_death': dod?.toString().split('T').first,
+                        'death_certificate_url': deathCert,
+                        'dayung_unit_id': dayungId,
+                        'deceased_type': deceasedType,
+                        'barangay': barangay,
+                        'latitude': latitude,
+                        'longitude': longitude,
+                        'dob': dob?.toString().split('T').first,
+                        if (computedAge != null) 'deceased_age': computedAge,
+                      });
+
+                      // --- ADD THIS BLOCK ---
+                      final approvedApplications = await supabase
+                          .from('applications')
+                          .select('user_id')
+                          .eq('dayung_unit_id', claim['dayung_unit_id'])
+                          .eq('status', 'approved');
+
+                      final now = DateTime.now().toIso8601String();
+                      final notificationBody =
+                          '$fullName passed away. Amount: ₱${result.toStringAsFixed(2)}';
+
+                      // Insert notification for each approved user
+                      for (final app in List<Map<String, dynamic>>.from(approvedApplications)) {
+                        await supabase.from('notifications').insert({
+                          'recipient_id': app['user_id'],
+                          'body': notificationBody,
+                          'type': 'announcement',
+                          'title': 'Payment Reminder',
+                          'dayung_unit_id': claim['dayung_unit_id'],
+                          'read_at': null,
+                          'created_at': now,
+                          'sender_id': secretaryId,
+                        });
+                      }
+
+                      // Insert into payments table for each member who needs to pay
+                      for (final app in List<Map<String, dynamic>>.from(approvedApplications)) {
+                        await supabase.from('payments').insert({
+                          'user_id': app['user_id'],
+                          'userdeceased': claim['user_id'],
+                          'dayung_unit_id': claim['dayung_unit_id'],
+                          'amount': result,
+                          'status': 'unpaid',
+                          'created_at': now,
+                        });
+                      }
+                      // --- END BLOCK ---
+
+                      Navigator.of(parentContext, rootNavigator: true).pop(); // Close loading
+                      // Now approve the claim
                       _updateStatus(id, 'Approved');
                       Navigator.pop(context);
-                    },
+                    } catch (e) {
+                      Navigator.of(parentContext, rootNavigator: true).pop(); // Close loading
+                      ScaffoldMessenger.of(parentContext).showSnackBar(
+                        SnackBar(content: Text('Failed to save amount: $e')),
+                      );
+                    }
+                  }
+                },
               icon: const Icon(Icons.check_circle, size: 20),
               label: const Text("Approve"),
               style: ElevatedButton.styleFrom(
@@ -1297,10 +1519,29 @@ class _SecretaryClaimsPageState extends State<SecretaryClaimsPage>
             child: ElevatedButton.icon(
               onPressed: _updating
                   ? null
-                  : () {
+                  : () async {
+                    final confirm = await showDialog<bool>(
+                      context: context,
+                      builder: (ctx) => AlertDialog(
+                        title: const Text('Reject Claim?'),
+                        content: const Text('Are you sure you want to reject this claim?'),
+                        actions: [
+                          TextButton(
+                            onPressed: () => Navigator.of(ctx).pop(false),
+                            child: const Text('Cancel'),
+                          ),
+                          ElevatedButton(
+                            onPressed: () => Navigator.of(ctx).pop(true),
+                            child: const Text('Reject'),
+                          ),
+                        ],
+                      ),
+                    );
+                    if (confirm == true) {
                       _updateStatus(id, 'Rejected');
                       Navigator.pop(context);
-                    },
+                    }
+                  },
               icon: const Icon(Icons.cancel, size: 20),
               label: const Text("Reject"),
               style: ElevatedButton.styleFrom(
@@ -1317,70 +1558,9 @@ class _SecretaryClaimsPageState extends State<SecretaryClaimsPage>
       );
     }
 
-    if (sLower == 'approved') {
-      // Approved: show claimed toggle + Set Pending
-      return Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          OutlinedButton.icon(
-            onPressed: _updating
-                ? null
-                : () {
-                    _updateClaimed(id, !claimed, claim['claimedmoney']);
-                    Navigator.pop(context);
-                  },
-            icon: Icon(claimed ? Icons.money_off : Icons.payments),
-            label: Text(claimed ? 'Mark Not Claimed' : 'Mark Claimed'),
-            style: OutlinedButton.styleFrom(
-              padding: const EdgeInsets.symmetric(vertical: 14),
-              side: BorderSide(color: claimed ? Colors.grey : kAccent),
-              foregroundColor: claimed ? Colors.grey.shade800 : kAccent,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
-            ),
-          ),
-          const SizedBox(height: 12),
-          ElevatedButton.icon(
-            onPressed: _updating
-                ? null
-                : () {
-                    _updateStatus(id, 'Pending');
-                    Navigator.pop(context);
-                  },
-            icon: const Icon(Icons.restore, size: 20),
-            label: const Text("Set Pending"),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: kWarn,
-              foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(vertical: 16),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
-            ),
-          ),
-        ],
-      );
-    }
+  
 
-   // Rejected: only Set Pending
-    return ElevatedButton.icon(
-      onPressed: _updating
-          ? null
-          : () {
-              _updateStatus(id, 'Pending');
-              Navigator.pop(context);
-            },
-      icon: const Icon(Icons.restore, size: 20),
-      label: const Text("Set Pending"),
-      style: ElevatedButton.styleFrom(
-        backgroundColor: kWarn,
-        foregroundColor: Colors.white,
-        padding: const EdgeInsets.symmetric(vertical: 16),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
-        ),
-      ),
-    );
+   // Rejected: remove Set Pending button, show nothing or SizedBox
+    return const SizedBox.shrink();
   }
 }

@@ -4,9 +4,11 @@ import 'package:capstone_app/screens/dayung_suggestions.dart'
     hide kPrimary, kAccent, kWarn;
 import 'package:capstone_app/screens/dayung_map_page.dart' as map;
 import 'package:capstone_app/ui/theme/branding.dart';
+import 'package:capstone_app/settings/profsettings.dart' hide kPrimary, kAccent, kWarn;
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+
 
 // Additional colors for manage dayung styling
 const kText = Color(0xFF111827);
@@ -851,8 +853,7 @@ class _DayungProfileState extends State<DayungProfile> with RouteAware {
 
   // Show requirements sheet for an applied Dayung
   void _showRequirementsSheet(String dayungName, {List<String>? requirements}) {
-    final reqs =
-        requirements ??
+    final reqs = requirements ??
         const [
           'Birth Certificate',
           'Valid Government ID',
@@ -878,7 +879,7 @@ class _DayungProfileState extends State<DayungProfile> with RouteAware {
                   height: 4,
                   margin: const EdgeInsets.only(bottom: 12),
                   decoration: BoxDecoration(
-                    color: kSubText.withValues(alpha: 0.2),
+                    color: kSubText.withOpacity(0.2),
                     borderRadius: BorderRadius.circular(4),
                   ),
                 ),
@@ -914,31 +915,26 @@ class _DayungProfileState extends State<DayungProfile> with RouteAware {
                       ),
                       const SizedBox(width: 8),
                       Expanded(
-                        child: Text(
-                          r,
-                          style: const TextStyle(
-                            fontSize: 13,
-                            fontFamily: 'OpenSans',
-                            color: kText,
-                          ),
-                        ),
-                      ),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 8,
-                          vertical: 4,
-                        ),
-                        decoration: BoxDecoration(
-                          color: kAccent.withValues(alpha: 0.08),
-                          borderRadius: BorderRadius.circular(20),
-                        ),
-                        child: const Text(
-                          '',
-                          style: TextStyle(
-                            fontSize: 10,
-                            fontFamily: 'Montserrat',
-                            color: kAccent,
-                            fontWeight: FontWeight.w600,
+                        child: GestureDetector(
+                          onTap: () {
+                            Navigator.of(context).pop(); // close sheet
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => const ProfSettingsPage(),
+                                
+                              ),
+                            );
+                          },
+                          child: Text(
+                            r,
+                            style: const TextStyle(
+                              fontSize: 13,
+                              fontFamily: 'OpenSans',
+                              color: kAccent,
+                              decoration: TextDecoration.underline,
+                              fontWeight: FontWeight.bold,
+                            ),
                           ),
                         ),
                       ),
@@ -1183,26 +1179,26 @@ class _DayungProfileState extends State<DayungProfile> with RouteAware {
                           elevation: 2,
                           padding: const EdgeInsets.symmetric(vertical: 14),
                         ),
-                        onPressed: () async {
-                          final selectedDayung = await Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) => const DayungSuggestionsPage(),
-                            ),
-                          );
-                          if (selectedDayung != null &&
-                              selectedDayung is Map<String, dynamic>) {
-                            if (!mounted) return;
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: Text(
-                                  'Application for ${selectedDayung['name']} sent!',
-                                ),
-                              ),
-                            );
-                            await _loadCurrentDayung();
-                            await _loadAppliedDayungs();
-                          }
+                      onPressed: () async {
+  final selectedDayung = await Navigator.push(
+    context,
+    MaterialPageRoute(
+      builder: (_) => const DayungSuggestionsPage(),
+    ),
+  );
+  if (selectedDayung != null &&
+      selectedDayung is Map<String, dynamic>) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          'Application for ${selectedDayung['name']} sent!',
+        ),
+      ),
+    );
+    await _loadCurrentDayung();
+    await _loadAppliedDayungs();
+  }
                         },
                       ),
                     ),
@@ -1676,29 +1672,26 @@ class _DayungProfileState extends State<DayungProfile> with RouteAware {
                               Column(
                                 children: _recommendedUnits.map((d) {
                                   return GestureDetector(
-                                    onTap: () async {
-                                      final result = await Navigator.push(
-                                        context,
-                                        MaterialPageRoute(
-                                          builder: (_) => map.DayungMapPage(
-                                            dayung: d,
-                                            isApplied: false,
-                                            isMember: false,
-                                          ),
-                                        ),
-                                      );
-                                      if (result != null && mounted) {
-                                        ScaffoldMessenger.of(
-                                          context,
-                                        ).showSnackBar(
-                                          SnackBar(
-                                            content: Text(
-                                              'Opened map for ${d['name']}',
-                                            ),
-                                          ),
-                                        );
-                                        await _loadCurrentDayung();
-                                      }
+                        onTap: () async {
+  final result = await Navigator.push(
+    context,
+    MaterialPageRoute(
+      builder: (_) => map.DayungMapPage(
+        dayung: d,
+        isApplied: false,
+        isMember: false,
+      ),
+    ),
+  );
+  if (result != null && mounted) {
+    if (result is Map && result['applied'] == true) {
+      await _loadAppliedDayungs();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Application for ${d['name']} sent!')),
+      );
+    }
+    await _loadCurrentDayung();
+  }
                                     },
                                     child: Container(
                                       margin: const EdgeInsets.only(bottom: 8),

@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:io';
-import 'dart:typed_data';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:flutter/services.dart';
 
 // Color palette
 const kBg = Color(0xFFFAFAF7);
@@ -25,6 +25,7 @@ class _GcashQrPageState extends State<GcashQrPage> {
   File? _qrImage;
   Uint8List? _qrImageBytes;
   final TextEditingController _nameController = TextEditingController();
+  final TextEditingController _gcashNumberController = TextEditingController(); // <-- Add this
   final TextEditingController _searchController = TextEditingController();
   String _searchQuery = '';
 
@@ -34,6 +35,7 @@ class _GcashQrPageState extends State<GcashQrPage> {
   bool _hasQrForUnit = false; // <-- Add this
   bool _showUpdateSuccess = false; // <-- Add this
   bool _showNoChanges = false; // <-- Add this
+  bool _isLoading = false; // <-- Add this
 
   Future<void> _pickQrImage() async {
     final picker = ImagePicker();
@@ -49,35 +51,57 @@ class _GcashQrPageState extends State<GcashQrPage> {
   }
 
   Future<void> _loadLatestSavedQr() async {
-    final response = await Supabase.instance.client
-        .from('gcash_qr_uploads')
-        .select('qr_image_url, name')
-        .eq('dayung_unit_id', widget.dayungUnitId)
-        .order('created_at', ascending: false)
-        .limit(1);
-    if (response.isNotEmpty) {
-      setState(() {
-        _savedQrImageUrl = response[0]['qr_image_url'];
-        _savedQrName = response[0]['name'];
-        _hasQrForUnit = true;
-        _nameController.text = _savedQrName ?? ''; // Pre-fill name
-      });
-    } else {
+    try {
+      print('Loading latest saved QR...');
+      final response = await Supabase.instance.client
+          .from('gcash_qr_uploads')
+          .select('qr_image_url, name, gcash_number')
+          .eq('dayung_unit_id', widget.dayungUnitId)
+          .order('created_at', ascending: false)
+          .limit(1);
+
+      print('Response: $response');
+      if (response.isNotEmpty) {
+        setState(() {
+          _savedQrImageUrl = response[0]['qr_image_url'];
+          _savedQrName = response[0]['name'];
+          _hasQrForUnit = true;
+          _nameController.text = _savedQrName ?? '';
+          _gcashNumberController.text = response[0]['gcash_number'] ?? '';
+        });
+      } else {
+        setState(() {
+          _hasQrForUnit = false;
+          _nameController.clear();
+          _gcashNumberController.clear();
+        });
+      }
+    } catch (e) {
+      print('Error loading QR: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error loading QR: $e')),
+      );
       setState(() {
         _hasQrForUnit = false;
         _nameController.clear();
+        _gcashNumberController.clear();
       });
     }
   }
 
   void _saveQrCode() async {
     final name = _nameController.text.trim();
-    if (name.isEmpty && _qrImageBytes == null) {
+    final gcashNumber = _gcashNumberController.text.trim(); // <-- Get value
+    if ((name.isEmpty && _qrImageBytes == null) || gcashNumber.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please enter a name or select a QR image.')),
+        const SnackBar(content: Text('Please enter a name, GCash number, or select a QR image.')),
       );
       return;
     }
+
+    setState(() {
+      _isLoading = true; // <-- Start loading
+    });
 
     try {
       String? imageUrl;
@@ -98,7 +122,7 @@ class _GcashQrPageState extends State<GcashQrPage> {
       // Check if QR already exists for this unit
       final existing = await Supabase.instance.client
           .from('gcash_qr_uploads')
-          .select('id, name, qr_image_url')
+          .select('id, name, qr_image_url, gcash_number') // <-- Add gcash_number
           .eq('dayung_unit_id', widget.dayungUnitId)
           .limit(1)
           .maybeSingle();
@@ -112,13 +136,15 @@ class _GcashQrPageState extends State<GcashQrPage> {
         if (name.isNotEmpty && name != existing['name']) {
           updateData['name'] = name;
         }
+        if (gcashNumber.isNotEmpty && gcashNumber != existing['gcash_number']) { // <-- Add this
+          updateData['gcash_number'] = gcashNumber;
+        }
         if (imageUrl != null) {
           updateData['qr_image_url'] = imageUrl;
         }
         if (updateData.length > 2) { // Only update if something changed
           await Supabase.instance.client.from('gcash_qr_uploads').update(updateData).eq('id', existing['id']);
-          
-          
+
           setState(() {
             _showUpdateSuccess = true; // Show success UI
           });
@@ -126,7 +152,6 @@ class _GcashQrPageState extends State<GcashQrPage> {
             if (mounted) setState(() => _showUpdateSuccess = false);
           });
         } else {
-
           setState(() {
             _showNoChanges = true; // Show warning UI
           });
@@ -136,14 +161,15 @@ class _GcashQrPageState extends State<GcashQrPage> {
         }
       } else {
         // Insert new QR
-        if (name.isEmpty || imageUrl == null) {
+        if (name.isEmpty || gcashNumber.isEmpty || imageUrl == null) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Please enter a name and select a QR image.')),
+            const SnackBar(content: Text('Please enter a name, GCash number, and select a QR image.')),
           );
           return;
         }
         await Supabase.instance.client.from('gcash_qr_uploads').insert({
           'name': name,
+          'gcash_number': gcashNumber, // <-- Add this
           'qr_image_url': imageUrl,
           'created_at': DateTime.now().toIso8601String(),
           'uploaded_by': currentUser?.id,
@@ -157,6 +183,7 @@ class _GcashQrPageState extends State<GcashQrPage> {
       // Clear form and reload latest QR from database
       setState(() {
         _nameController.clear();
+        _gcashNumberController.clear(); // <-- Clear controller
         _qrImage = null;
         _qrImageBytes = null;
       });
@@ -166,6 +193,10 @@ class _GcashQrPageState extends State<GcashQrPage> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Error saving: $e')),
       );
+    } finally {
+      setState(() {
+        _isLoading = false; // <-- Stop loading
+      });
     }
   }
 
@@ -216,6 +247,7 @@ class _GcashQrPageState extends State<GcashQrPage> {
   @override
   void dispose() {
     _nameController.dispose();
+    _gcashNumberController.dispose();
     _searchController.dispose();
     super.dispose();
   }
@@ -300,15 +332,34 @@ class _GcashQrPageState extends State<GcashQrPage> {
                                     style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: kText),
                                   ),
                                   const SizedBox(height: 12),
-                                  SizedBox(
-                                    width: 250,
-                                    child: TextField(
-                                      controller: _nameController,
-                                      decoration: const InputDecoration(
-                                        labelText: 'GCash Name',
-                                        border: OutlineInputBorder(),
+                                  Row(
+                                    children: [
+                                      SizedBox(
+                                        width: 180,
+                                        child: TextField(
+                                          controller: _nameController,
+                                          decoration: const InputDecoration(
+                                            labelText: 'GCash Name',
+                                            border: OutlineInputBorder(),
+                                          ),
+                                        ),
                                       ),
-                                    ),
+                                      const SizedBox(width: 12),
+                                 SizedBox(
+  width: 140,
+  child: TextField(
+    controller: _gcashNumberController,
+    keyboardType: TextInputType.number,
+    inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+    maxLength: 11, // <-- Limit to 11 digits
+    decoration: const InputDecoration(
+      labelText: 'GCash Number',
+      border: OutlineInputBorder(),
+      counterText: '', // Hide character counter if you want
+    ),
+                                        ),
+                                      ),
+                                    ],
                                   ),
                                   const SizedBox(height: 12),
                                   _qrImageBytes != null
@@ -321,14 +372,23 @@ class _GcashQrPageState extends State<GcashQrPage> {
                                   ),
                                   const SizedBox(height: 12),
                                   ElevatedButton.icon(
-                                    icon: Icon(_hasQrForUnit ? Icons.update : Icons.save),
+                                    icon: _isLoading
+                                  ? const SizedBox(
+                                      width: 18,
+                                      height: 18,
+                                      child: CircularProgressIndicator(
+                                        color: Colors.white,
+                                        strokeWidth: 2,
+                                      ),
+                                    )
+                                  : Icon(_hasQrForUnit ? Icons.update : Icons.save),
                                     label: Text(_hasQrForUnit ? 'Update QR' : 'Save QR'),
                                     style: ElevatedButton.styleFrom(
                                       backgroundColor: kAccent,
                                       foregroundColor: Colors.white,
                                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                                     ),
-                                    onPressed: _saveQrCode,
+                                    onPressed: _isLoading ? null : _saveQrCode, // <-- Disable if loading
                                   ),
                                   if (_showUpdateSuccess)
                                     Padding(

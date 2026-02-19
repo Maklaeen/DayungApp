@@ -63,6 +63,7 @@ class _SubmitClaimFormState extends State<SubmitClaimForm> {
   @override
   void initState() {
     super.initState();
+      _title.text = 'You Will Always Be With Us'; 
     _fetchBeneficiaries();
   }
 
@@ -517,43 +518,45 @@ class _SubmitClaimFormState extends State<SubmitClaimForm> {
     }
   }
 
-  Widget _buildModernField({
-    required TextEditingController controller,
-    required String label,
-    required IconData icon,
-    String? Function(String?)? validator,
-    int maxLines = 1,
-    int minLines = 1,
-  }) {
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.grey.shade50,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.grey.shade200),
-      ),
-      child: TextFormField(
-        controller: controller,
-        maxLines: maxLines,
-        minLines: minLines,
-        textInputAction: TextInputAction.next,
-        decoration: InputDecoration(
-          labelText: label,
-          prefixIcon: Icon(icon, color: kPrimaryDark, size: 20),
-          border: InputBorder.none,
-          contentPadding: const EdgeInsets.symmetric(
-            horizontal: 16,
-            vertical: 16,
-          ),
-          labelStyle: TextStyle(
-            color: Colors.grey.shade600,
-            fontSize: 14,
-            fontWeight: FontWeight.w500,
-          ),
+Widget _buildModernField({
+  required TextEditingController controller,
+  required String label,
+  required IconData icon,
+  String? Function(String?)? validator,
+  int maxLines = 1,
+  int minLines = 1,
+  bool readOnly = false,
+}) {
+  return Container(
+    decoration: BoxDecoration(
+      color: Colors.grey.shade50,
+      borderRadius: BorderRadius.circular(12),
+      border: Border.all(color: Colors.grey.shade200),
+    ),
+    child: TextFormField(
+      controller: controller,
+      maxLines: maxLines,
+      minLines: minLines,
+      textInputAction: TextInputAction.next,
+      readOnly: readOnly, 
+      decoration: InputDecoration(
+        labelText: label,
+        prefixIcon: Icon(icon, color: kPrimaryDark, size: 20),
+        border: InputBorder.none,
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 16,
+          vertical: 16,
         ),
-        validator: validator,
+        labelStyle: TextStyle(
+          color: Colors.grey.shade600,
+          fontSize: 14,
+          fontWeight: FontWeight.w500,
+        ),
       ),
-    );
-  }
+      validator: validator,
+    ),
+  );
+}
 
   Widget _buildModernDropdown() {
     return Container(
@@ -722,7 +725,7 @@ class _SubmitClaimFormState extends State<SubmitClaimForm> {
               Expanded(
                 child: Text(
                   _validIdOrigName == null
-                      ? 'Attach valid ID'
+                      ? 'Attach Valid ID of the claimant / Valid ID sa person na mo claim'
                       : _validIdOrigName!,
                   style: TextStyle(
                     fontSize: 14,
@@ -998,6 +1001,7 @@ class _SubmitClaimFormState extends State<SubmitClaimForm> {
                         if (t.length < 4) return 'Too short';
                         return null;
                       },
+                        readOnly: true, 
                     ),
                     const SizedBox(height: 16),
 

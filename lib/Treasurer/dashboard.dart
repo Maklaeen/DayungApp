@@ -1,7 +1,6 @@
 import 'dart:convert';
 import 'package:capstone_app/Auth/logout.dart';
 import 'package:capstone_app/Beneficiary/beneficiary.dart';
-import 'package:capstone_app/Providers/apptheme_provider.dart';
 import 'package:capstone_app/Providers/dayung_provider.dart';
 import 'package:capstone_app/Providers/dayung_role_provider.dart';
 import 'package:capstone_app/Treasurer/collected.dart';
@@ -161,10 +160,10 @@ class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
 
       // Only fetch notices where dayung_unit_id matches
    final dnDirect = await sb
-    .from('death_notices')
-    .select(
-      'id,name,date_of_death,dayung_unit_id,user_id,beneficiary_id,deceased_type,paid_count,unpaid_count,total_paid_amount,total_payment_amount',
-    )
+  .from('death_notices')
+  .select(
+    'id,name,date_of_death,dayung_unit_id,user_id,beneficiary_id,deceased_type,paid_count,unpaid_count,total_paid_amount,total_payment_amount',
+  )
     .inFilter('dayung_unit_id', ids)
     .order('date_of_death', ascending: false);
 
@@ -360,182 +359,101 @@ class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
       _recentDeaths = [];
     }
   }
-
-  Future<void> _triggerPaymentCollection(
-    int deathNoticeId,
-    int dayungUnitId,
-  ) async {
-    Map<String, dynamic>? dn;
-    try {
-      final res = await sb
-          .from('death_notices')
-          .select('id,deceased_type,user_id,beneficiary_id')
-          .eq('id', deathNoticeId)
-          .single();
-      dn = Map<String, dynamic>.from(res);
-    } catch (_) {}
-
-    // Exclude this user from billing (self for member, parent for beneficiary)
-    final String? excludedUserId = (dn?['user_id'] ?? '').toString().isNotEmpty
-        ? (dn!['user_id']).toString()
-        : null;
-
-    // Cleanup: remove any existing payment row for the excluded user (if any)
-    if (excludedUserId != null && excludedUserId.isNotEmpty) {
-      try {
-        await sb
-            .from('payments')
-            .delete()
-            .eq('userdeceased', deathNoticeId)
-            .eq('dayung_unit_id', dayungUnitId)
-            .eq('user_id', excludedUserId);
-      } catch (_) {}
-    }
-
-    // Get active, alive members for the dayung (exclude kicked and deceased)
-    final appsRes = await sb
-        .from('applications')
-        .select('user_id')
-        .eq('dayung_unit_id', dayungUnitId)
-        .eq('status', 'approved');
-    final memberIds = List<Map<String, dynamic>>.from(appsRes)
-        .map((u) => u['user_id']?.toString())
-        .where((id) => id != null && id.isNotEmpty)
-        .toList();
-
-    // Only include members who are alive
-    List<Map<String, dynamic>> aliveMembers = [];
-    if (memberIds.isNotEmpty) {
-      final usersRes = await sb
-          .from('users')
-          .select('id, is_deceased')
-          .inFilter('id', memberIds);
-      aliveMembers = List<Map<String, dynamic>>.from(
-        usersRes,
-      ).where((u) => (u['is_deceased'] ?? false) == false).toList();
-    }
-
-    if (aliveMembers.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('No active (alive) members to charge.')),
-      );
-      return;
-    }
-
-    // Already generated payments for this notice/dayung
-    final existingRes = await sb
-        .from('payments')
-        .select('user_id')
-        .eq('death_notice_id', deathNoticeId)
-        .eq('dayung_unit_id', dayungUnitId);
-    final existingIds = {
-      for (final r in List<Map<String, dynamic>>.from(existingRes))
-        (r['user_id'] ?? '').toString(),
-    };
-
-    // Prepare new rows (skip duplicates and excluded user)
-    final rows = <Map<String, dynamic>>[];
-    for (final u in aliveMembers) {
-      final uid = (u['id'] ?? '').toString();
-      if (uid.isEmpty) continue;
-      if (excludedUserId != null && uid == excludedUserId) continue;
-      if (existingIds.contains(uid)) continue;
-      rows.add({
-        'user_id': uid,
-        'amount': 1, // adjust as needed
-        'status': 'pending',
-        'death_notice_id': deathNoticeId,
-        'dayung_unit_id': dayungUnitId,
-      });
-    }
-
-    if (rows.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('No new payments to create.')),
-      );
-      await _fetchAll();
-      return;
-    }
-
-    try {
-      await sb.from('payments').insert(rows);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Created ${rows.length} payment(s).')),
-      );
-    } on PostgrestException catch (e) {
-      if (e.code == '23505') {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Some payments already existed. New ones added.'),
-          ),
-        );
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to create payments: ${e.message}')),
-        );
-      }
-    }
-
-    await _fetchAll();
+Future<void> _triggerPaymentCollection(String userDeceasedId) async {
+  final sb = Supabase.instance.client;
+  debugPrint('Triggering payment collection for userDeceasedId: $userDeceasedId');
+  if (userDeceasedId.isEmpty) {
+    debugPrint('No userdeceased provided!');
+    return;
   }
+  try {
+    // Fetch full_name from users table
+    final userRes = await sb
+      .from('users')
+      .select('full_name')
+      .eq('id', userDeceasedId)
+      .maybeSingle();
+    final userDeceasedName = (userRes?['full_name'] ?? 'Member').toString();
+
+    // Compute date range
+    final now = DateTime.now();
+    final deadline = now.add(const Duration(days: 3));
+    final dateStr = '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
+    final deadlineStr = '${deadline.year}-${deadline.month.toString().padLeft(2, '0')}-${deadline.day.toString().padLeft(2, '0')}';
+
+    // Update payments with personalized message
+    final response = await sb
+      .from('payments')
+      .update({
+        'message': 'Due na ang inyong bayad para kay $userDeceasedName. Palihog magbayad wala pay $deadlineStr. Daghang Salamat!'
+      })
+      .eq('userdeceased', userDeceasedId)
+      .eq('status', 'unpaid')
+      .select('*');
+    debugPrint('Updated unpaid payments for userdeceased $userDeceasedId: $response');
+  } catch (e) {
+    debugPrint('Failed to update payments: $e');
+  }
+  await _fetchAll();
+}
 
   Future<Map<String, Map<String, dynamic>>> _paymentStatsByNotice(
   List<String> userDeceasedIds,
   int dayungUnitId,
 ) async {
-  if (userDeceasedIds.isEmpty) return {};
-  final rows = await sb
-      .from('payments')
-      .select('userdeceased,status,amount,user_id')
-      .inFilter('userdeceased', userDeceasedIds)
-      .eq('dayung_unit_id', dayungUnitId);
+    if (userDeceasedIds.isEmpty) return {};
+    final rows = await sb
+        .from('payments')
+        .select('userdeceased,status,amount,user_id')
+        .inFilter('userdeceased', userDeceasedIds)
+        .eq('dayung_unit_id', dayungUnitId);
 
-  final stats = <String, Map<String, dynamic>>{};
-  final paidUsersPerNotice = <String, Set<String>>{};
-  final unpaidUsersPerNotice = <String, Set<String>>{};
+    final stats = <String, Map<String, dynamic>>{};
+    final paidUsersPerNotice = <String, Set<String>>{};
+    final unpaidUsersPerNotice = <String, Set<String>>{};
 
-  for (final r in List<Map<String, dynamic>>.from(rows)) {
-    final id = r['userdeceased']?.toString();
-    if (id == null) continue;
-    final s = (r['status'] ?? '').toString().toLowerCase();
-    final uid = (r['user_id'] ?? '').toString();
-    final amt = (r['amount'] is num)
-        ? (r['amount'] as num).toDouble()
-        : double.tryParse('${r['amount']}') ?? 0.0;
-    final m = stats.putIfAbsent(
-      id,
-      () => {
-        'paidCount': 0,
-        'unpaidCount': 0,
-        'paidAmount': 0.0,
-        'pendingAmount': 0.0,
-        'totalCount': 0,
-        'paidUserIds': <String>{},
-      },
-    );
-    paidUsersPerNotice.putIfAbsent(id, () => <String>{});
-    unpaidUsersPerNotice.putIfAbsent(id, () => <String>{});
-    m['totalCount'] = (m['totalCount'] as int) + 1;
-    if (s == 'paid') {
-      if (!paidUsersPerNotice[id]!.contains(uid)) {
-        paidUsersPerNotice[id]!.add(uid);
-        m['paidCount'] = (m['paidCount'] as int) + 1;
-        (m['paidUserIds'] as Set<String>).add(uid);
+    for (final r in List<Map<String, dynamic>>.from(rows)) {
+      final id = r['userdeceased']?.toString();
+      if (id == null) continue;
+      final s = (r['status'] ?? '').toString().toLowerCase();
+      final uid = (r['user_id'] ?? '').toString();
+      final amt = (r['amount'] is num)
+          ? (r['amount'] as num).toDouble()
+          : double.tryParse('${r['amount']}') ?? 0.0;
+      final m = stats.putIfAbsent(
+        id,
+        () => {
+          'paidCount': 0,
+          'unpaidCount': 0,
+          'paidAmount': 0.0,
+          'pendingAmount': 0.0,
+          'totalCount': 0,
+          'paidUserIds': <String>{},
+        },
+      );
+      paidUsersPerNotice.putIfAbsent(id, () => <String>{});
+      unpaidUsersPerNotice.putIfAbsent(id, () => <String>{});
+      m['totalCount'] = (m['totalCount'] as int) + 1;
+      if (s == 'paid') {
+        if (!paidUsersPerNotice[id]!.contains(uid)) {
+          paidUsersPerNotice[id]!.add(uid);
+          m['paidCount'] = (m['paidCount'] as int) + 1;
+          (m['paidUserIds'] as Set<String>).add(uid);
+        }
+        m['paidAmount'] = (m['paidAmount'] as double) + amt;
+      } else {
+        if (!unpaidUsersPerNotice[id]!.contains(uid)) {
+          unpaidUsersPerNotice[id]!.add(uid);
+          m['unpaidCount'] = (m['unpaidCount'] as int) + 1;
+        }
+        m['pendingAmount'] = (m['pendingAmount'] as double) + amt;
       }
-      m['paidAmount'] = (m['paidAmount'] as double) + amt;
-    } else {
-      if (!unpaidUsersPerNotice[id]!.contains(uid)) {
-        unpaidUsersPerNotice[id]!.add(uid);
-        m['unpaidCount'] = (m['unpaidCount'] as int) + 1;
-      }
-      m['pendingAmount'] = (m['pendingAmount'] as double) + amt;
     }
-  }
-  // Convert Set to List for debug print compatibility
-  for (final m in stats.values) {
-    m['paidUserIds'] = (m['paidUserIds'] as Set<String>).toList();
-  }
-  return stats;
+    // Convert Set to List for debug print compatibility
+    for (final m in stats.values) {
+      m['paidUserIds'] = (m['paidUserIds'] as Set<String>).toList();
+    }
+    return stats;
 }
 
   Future<Map<String, dynamic>> _paymentStatsByDayung(int dayungUnitId) async {
@@ -1749,7 +1667,7 @@ class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
     Map<String, Map<String, dynamic>> stats,
     int dayungId,
   ) {
-    final sid = (notice['id'] ?? '').toString();
+   final sid = (notice['id'] ?? '').toString();
     final dId =
         int.tryParse((notice['dayung_unit_id'] ?? dayungId).toString()) ?? 0;
     final st =
@@ -1945,12 +1863,15 @@ final totalPaymentAmount = double.tryParse('${notice['total_payment_amount'] ?? 
               ),
               const SizedBox(width: 12),
               Expanded(
-                child: ElevatedButton.icon(
-                  onPressed: completed
-                      ? null
-                      : () => _triggerPaymentCollection(int.tryParse(sid) ?? 0, dId),
-                  icon: const Icon(Icons.campaign_rounded, size: 18),
-                  label: const Text('Collect'),
+  child: ElevatedButton.icon(
+// ...inside _buildModernNoticeCard...
+onPressed: completed
+    ? null
+    : () => _triggerPaymentCollection(notice['user_id']?.toString() ?? ''),
+// Make sure sid is the UUID, not an integer!
+
+    icon: const Icon(Icons.campaign_rounded, size: 18),
+    label: const Text('Collect'),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFF3B82F6),
                     foregroundColor: Colors.white,
@@ -2098,7 +2019,7 @@ Widget _buildCountChip(
       final items = await sb
           .from('payments')
           .select('id, user_id, status, amount, paid_at, collected_by')
-          .eq('death_notice_id', deathNoticeId)
+          .eq('userdeceased', deathNoticeId)
           .eq('dayung_unit_id', ids.first);
 
       if (!mounted) return;
@@ -2110,12 +2031,12 @@ Widget _buildCountChip(
         ),
         builder: (context) {
           // Separate paid and pending
-          final paidItems = List<Map<String, dynamic>>.from(items)
+          final paidItems = items
               .where(
                 (r) => (r['status'] ?? '').toString().toLowerCase() == 'paid',
               )
               .toList();
-          final pendingItems = List<Map<String, dynamic>>.from(items)
+          final pendingItems = items
               .where(
                 (r) => (r['status'] ?? '').toString().toLowerCase() != 'paid',
               )
@@ -2224,145 +2145,145 @@ Widget _buildCountChip(
             'user:users!payments_user_id_fkey(full_name), '
             'collector:users!payments_collected_by_fkey(full_name)',
           )
-          .eq('death_notice_id', noticeId)
+          .eq('userdeceased', noticeId)
           .eq('dayung_unit_id', dayungUnitId);
 
       final items = List<Map<String, dynamic>>.from(rows);
 
-      // Fallback: if some collector names are missing from the embed, fetch them by ID
-      final missingCollectorIds = <String>{
-        for (final r in items)
-          if ((r['collected_by'] ?? '').toString().isNotEmpty &&
-              ((((r['collector'] as Map?)?['full_name']) ?? '')
-                  .toString()
-                  .isEmpty))
-            (r['collected_by']).toString(),
-      }.toList();
+    // Fallback: if some collector names are missing from the embed, fetch them by ID
+    final missingCollectorIds = <String>{
+      for (final r in items)
+        if ((r['collected_by'] ?? '').toString().isNotEmpty &&
+            ((((r['collector'] as Map?)?['full_name']) ?? '')
+                .toString()
+                .isEmpty))
+          (r['collected_by']).toString(),
+    }.toList();
 
-      final collectorLookup = <String, String>{};
-      if (missingCollectorIds.isNotEmpty) {
-        try {
-          final u = await sb
-              .from('users')
-              .select('id, full_name')
-              .inFilter('id', missingCollectorIds);
-          for (final m in List<Map<String, dynamic>>.from(u)) {
-            collectorLookup[(m['id'] ?? '').toString()] =
-                (m['full_name'] ?? 'Collector').toString();
-          }
-        } catch (_) {}
-      }
-
-      // Sort client-side by payer full_name
-      items.sort((a, b) {
-        final an = (((a['user'] as Map?)?['full_name']) ?? '')
-            .toString()
-            .toLowerCase();
-        final bn = (((b['user'] as Map?)?['full_name']) ?? '')
-            .toString()
-            .toLowerCase();
-        if (an.isEmpty && bn.isEmpty) return 0;
-        if (an.isEmpty) return 1;
-        if (bn.isEmpty) return -1;
-        return an.compareTo(bn);
-      });
-
-      int paid = 0, unpaid = 0;
-      double paidAmt = 0, totalAmt = 0;
-      for (final r in items) {
-        final s = (r['status'] ?? '').toString().trim().toLowerCase();
-       final amt = (r['amount'] is num)
-    ? (r['amount'] as num).toDouble()
-    : double.tryParse('${r['amount']}') ?? 0.0;
-        totalAmt += amt;
-        if (s == 'paid') {
-          paid++;
-          paidAmt += amt;
-        } else {
-          unpaid++;
+    final collectorLookup = <String, String>{};
+    if (missingCollectorIds.isNotEmpty) {
+      try {
+        final u = await sb
+            .from('users')
+            .select('id, full_name')
+            .inFilter('id', missingCollectorIds);
+        for (final m in List<Map<String, dynamic>>.from(u)) {
+          collectorLookup[(m['id'] ?? '').toString()] =
+              (m['full_name'] ?? 'Collector').toString();
         }
+      } catch (_) {}
+    }
+
+    // Sort client-side by payer full_name
+    items.sort((a, b) {
+      final an = (((a['user'] as Map?)?['full_name']) ?? '')
+          .toString()
+          .toLowerCase();
+      final bn = (((b['user'] as Map?)?['full_name']) ?? '')
+          .toString()
+          .toLowerCase();
+      if (an.isEmpty && bn.isEmpty) return 0;
+      if (an.isEmpty) return 1;
+      if (bn.isEmpty) return -1;
+      return an.compareTo(bn);
+    });
+
+    int paid = 0, unpaid = 0;
+    double paidAmt = 0, totalAmt = 0;
+    for (final r in items) {
+      final s = (r['status'] ?? '').toString().trim().toLowerCase();
+      final amt = (r['amount'] is num)
+          ? (r['amount'] as num).toDouble()
+          : double.tryParse('${r['amount']}') ?? 0.0;
+      totalAmt += amt;
+      if (s == 'paid') {
+        paid++;
+        paidAmt += amt;
+      } else {
+        unpaid++;
       }
+    }
 
-      if (!mounted) return;
-      await showModalBottomSheet(
-        context: context,
-        isScrollControlled: true,
-        shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-        ),
-        builder: (context) {
-          // Separate paid and pending
-          final paidItems = items
-              .where(
-                (r) => (r['status'] ?? '').toString().toLowerCase() == 'paid',
-              )
-              .toList();
-          final pendingItems = items
-              .where(
-                (r) => (r['status'] ?? '').toString().toLowerCase() != 'paid',
-              )
-              .toList();
+    if (!mounted) return;
+    await showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (context) {
+        // Separate paid and pending
+        final paidItems = items
+            .where(
+              (r) => (r['status'] ?? '').toString().toLowerCase() == 'paid',
+            )
+            .toList();
+        final pendingItems = items
+            .where(
+              (r) => (r['status'] ?? '').toString().toLowerCase() != 'paid',
+            )
+            .toList();
 
-          return SafeArea(
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Padding(
-                    padding: EdgeInsets.only(bottom: 12),
-                    child: Text(
-                      'Status',
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.w800,
-                        color: kPrimaryDark,
-                        fontFamily: 'Montserrat',
-                      ),
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Padding(
+                  padding: EdgeInsets.only(bottom: 12),
+                  child: Text(
+                    'Status',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w800,
+                      color: kPrimaryDark,
+                      fontFamily: 'Montserrat',
                     ),
                   ),
-                  Flexible(
-                    child: ConstrainedBox(
-                      constraints: const BoxConstraints(maxHeight: 460),
-                      child: ListView(
-                        children: [
-                          if (paidItems.isNotEmpty) ...[
-                            const Padding(
-                              padding: EdgeInsets.symmetric(vertical: 8),
-                              child: Text(
-                                'Paid Members',
-                                style: TextStyle(fontWeight: FontWeight.bold),
-                              ),
+                ),
+                Flexible(
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxHeight: 460),
+                    child: ListView(
+                      children: [
+                        if (paidItems.isNotEmpty) ...[
+                          const Padding(
+                            padding: EdgeInsets.symmetric(vertical: 8),
+                            child: Text(
+                              'Paid Members',
+                              style: TextStyle(fontWeight: FontWeight.bold),
                             ),
-                            ...paidItems.map((r) => _buildStatusTile(r, true)),
-                          ],
-                          if (pendingItems.isNotEmpty) ...[
-                            const Padding(
-                              padding: EdgeInsets.symmetric(vertical: 8),
-                              child: Text(
-                                'Pending Members',
-                                style: TextStyle(fontWeight: FontWeight.bold),
-                              ),
-                            ),
-                            ...pendingItems.map(
-                              (r) => _buildStatusTile(r, false),
-                            ),
-                          ],
+                          ),
+                          ...paidItems.map((r) => _buildStatusTile(r, true)),
                         ],
-                      ),
+                        if (pendingItems.isNotEmpty) ...[
+                          const Padding(
+                            padding: EdgeInsets.symmetric(vertical: 8),
+                            child: Text(
+                              'Pending Members',
+                              style: TextStyle(fontWeight: FontWeight.bold),
+                            ),
+                          ),
+                          ...pendingItems.map(
+                            (r) => _buildStatusTile(r, false),
+                          ),
+                        ],
+                      ],
                     ),
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
-          );
-        },
-      );
+          ),
+        );
+      },
+    );
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Failed to load payments: $e')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to load payment status: $e')),
+      );
     }
   }
 
