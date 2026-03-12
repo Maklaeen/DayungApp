@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:capstone_app/ui/theme/branding.dart';
+import 'package:capstone_app/utils/input_safety.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 
@@ -54,58 +55,118 @@ class _PostAnnouncementPageState extends State<PostAnnouncementPage> {
     }
   }
 
-  // twilio
   Future<void> _sendSmsNotification(
     int unitId,
     String title,
     String body,
   ) async {
+    final accessToken = sb.auth.currentSession?.accessToken;
+    if (accessToken == null || accessToken.isEmpty) {
+      throw StateError('Your session has expired. Please sign in again.');
+    }
+
     final url = Uri.parse(
       'https://dayungapp.onrender.com/send-announcement-sms',
     );
+
     final resp = await http.post(
       url,
-      headers: {'Content-Type': 'application/json'},
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $accessToken',
+      },
       body: jsonEncode({
         'dayung_unit_id': unitId,
-        'title': title,
-        'body': body,
+        'title': title.trim(),
+        'body': body.trim(),
       }),
     );
+
+    if (resp.statusCode == 401) {
+      throw StateError(
+        'Your session is no longer valid. Please sign in again.',
+      );
+    }
+
+    if (resp.statusCode == 403) {
+      throw StateError(
+        'You are not allowed to send announcements for this Dayung unit.',
+      );
+    }
+
+    if (resp.statusCode == 400) {
+      throw StateError('The announcement request was rejected by the server.');
+    }
+
     if (resp.statusCode != 200) {
-      print('Failed to send SMS: ${resp.body}');
+      throw StateError('Failed to send SMS notifications.');
     }
   }
 
+  String _messageForPostError(Object error) {
+    final text = error.toString();
+    if (text.contains('session')) {
+      return 'Your session has expired. Please sign in again.';
+    }
+    if (text.contains('not allowed')) {
+      return 'You are not allowed to send announcements for this unit.';
+    }
+    if (text.contains('rejected')) {
+      return 'The server rejected the announcement. Please review the form and try again.';
+    }
+    return 'Failed to post announcement. Please try again.';
+  }
+
   Future<void> _save() async {
+    final title = AppInputSecurity.sanitizePlainText(
+      _title.text,
+      maxLength: 120,
+    );
+    final body = AppInputSecurity.sanitizePlainText(
+      _body.text,
+      allowNewLines: true,
+      maxLength: 1000,
+    );
+
     if (_unitId == null ||
-        _title.text.trim().isEmpty ||
-        _body.text.trim().isEmpty) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Fill all fields')));
+        AppInputSecurity.validateSafeText(
+              title,
+              fieldName: 'Title',
+              minLength: 4,
+              maxLength: 120,
+            ) !=
+            null ||
+        AppInputSecurity.validateSafeText(
+              body,
+              fieldName: 'Body',
+              minLength: 8,
+              maxLength: 1000,
+              allowNewLines: true,
+            ) !=
+            null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Enter a valid title and announcement body'),
+        ),
+      );
       return;
     }
     setState(() => _loading = true);
     try {
       await sb.from('announcements').insert({
         'dayung_unit_id': _unitId,
-        'title': _title.text.trim(),
-        'body': _body.text.trim(),
+        'title': title,
+        'body': body,
         'created_by': sb.auth.currentUser?.id,
       });
-      await _sendSmsNotification(
-        _unitId!,
-        _title.text.trim(),
-        _body.text.trim(),
-      );
+      await _sendSmsNotification(_unitId!, title, body);
       if (!mounted) return;
       await _showAnnouncementPostedDialog(context);
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(SnackBar(content: Text('Failed: $e')));
+      ).showSnackBar(SnackBar(content: Text(_messageForPostError(e))));
     } finally {
       if (mounted) setState(() => _loading = false);
     }
@@ -430,6 +491,10 @@ class _PostAnnouncementPageState extends State<PostAnnouncementPage> {
                                     const SizedBox(height: 16),
                                     TextFormField(
                                       controller: _title,
+                                      inputFormatters:
+                                          AppInputSecurity.singleLineFormatters(
+                                            maxLength: 120,
+                                          ),
                                       style: const TextStyle(
                                         fontFamily: 'OpenSans',
                                         fontWeight: FontWeight.w600,
@@ -528,6 +593,10 @@ class _PostAnnouncementPageState extends State<PostAnnouncementPage> {
                                     const SizedBox(height: 16),
                                     TextFormField(
                                       controller: _body,
+                                      inputFormatters:
+                                          AppInputSecurity.multiLineFormatters(
+                                            maxLength: 1000,
+                                          ),
                                       minLines: 5,
                                       maxLines: null,
                                       style: const TextStyle(

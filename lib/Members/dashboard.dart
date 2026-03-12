@@ -5,6 +5,7 @@ import 'package:capstone_app/Beneficiary/beneficiary.dart';
 import 'package:capstone_app/Members/gcash_payment_page.dart';
 import 'package:capstone_app/Members/memclaims.dart';
 import 'package:capstone_app/Members/memcontributions.dart';
+import 'package:capstone_app/Members/receipts.dart';
 import 'package:capstone_app/Providers/dayung_provider.dart';
 import 'package:capstone_app/pages/notification.dart';
 import 'package:capstone_app/pages/recentdeathnotices.dart';
@@ -17,6 +18,7 @@ import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:capstone_app/Members/top_notification.dart';
+import 'package:capstone_app/utils/supabase_storage.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:file_picker/file_picker.dart';
 
@@ -332,13 +334,13 @@ class _MemberDashboardPageState extends State<MemberDashboardPage>
             fileOptions: const FileOptions(upsert: true),
           );
 
-      final publicUrl = supabase.storage.from(bucket).getPublicUrl(fileName);
+      final storageRef = buildStorageRef(bucket, fileName);
 
       await supabase
           .from('users')
           .update({
-            if (type == 'birth') 'birth_certificate_url': publicUrl,
-            if (type == 'marriage') 'marriage_certificate_url': publicUrl,
+            if (type == 'birth') 'birth_certificate_url': storageRef,
+            if (type == 'marriage') 'marriage_certificate_url': storageRef,
           })
           .eq('id', userId)
           .select()
@@ -346,8 +348,8 @@ class _MemberDashboardPageState extends State<MemberDashboardPage>
 
       if (!mounted) return;
       setState(() {
-        if (type == 'birth') birthCertificateUrl = publicUrl;
-        if (type == 'marriage') marriageCertificateUrl = publicUrl;
+        if (type == 'birth') birthCertificateUrl = storageRef;
+        if (type == 'marriage') marriageCertificateUrl = storageRef;
         _uploadingImage = false;
       });
       _showTopPopup(
@@ -366,25 +368,27 @@ class _MemberDashboardPageState extends State<MemberDashboardPage>
     }
   }
 
-  void _openCertificate(String? url) {
+  Future<void> _openCertificate(String? url) async {
     if (url == null || url.isEmpty) return;
+    final resolved = await resolveSupabaseStorageUrl(url, client: supabase);
+    if (resolved == null) return;
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('Certificate'),
-        content: url.endsWith('.pdf')
+        content: storageLooksLikePdf(resolved)
             ? const Text('Open this PDF in browser?')
-            : Image.network(url, fit: BoxFit.contain, height: 300),
+            : Image.network(resolved, fit: BoxFit.contain, height: 300),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
             child: const Text('Close'),
           ),
-          if (url.endsWith('.pdf'))
+          if (storageLooksLikePdf(resolved))
             TextButton(
               onPressed: () {
                 Navigator.pop(ctx);
-                launchUrl(Uri.parse(url));
+                launchUrl(Uri.parse(resolved));
               },
               child: const Text('Open PDF'),
             ),
@@ -1214,7 +1218,7 @@ class _MemberDashboardPageState extends State<MemberDashboardPage>
       _pendingPaymentMessages = [
         for (final row in unpaidRows)
           if ((row['message'] ?? '').toString().trim().isNotEmpty)
-            row['message'].toString()
+            row['message'].toString(),
       ];
     } catch (e) {
       _pendingPaymentsAmount = 0;
@@ -1357,7 +1361,7 @@ class _MemberDashboardPageState extends State<MemberDashboardPage>
             const SizedBox(height: 24),
             _modernRecentActivity(),
             const SizedBox(height: 24),
-            _modernQuickActions(),
+            // _modernQuickActions(),
             const SizedBox(height: 100), // Space for bottom nav
           ],
         ),
@@ -1715,7 +1719,12 @@ class _MemberDashboardPageState extends State<MemberDashboardPage>
           title: 'View Receipts',
           subtitle: 'See your payment receipts',
           color: const Color(0xFF10B981),
-          onTap: () {},
+          onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const ReceiptsPage()),
+            );
+          },
         ),
         const SizedBox(height: 8),
         _modernActionCard(
@@ -1858,7 +1867,11 @@ class _MemberDashboardPageState extends State<MemberDashboardPage>
                     for (final msg in _pendingPaymentMessages)
                       Row(
                         children: [
-                          const Icon(Icons.info_outline, color: Colors.redAccent, size:25),
+                          const Icon(
+                            Icons.info_outline,
+                            color: Colors.redAccent,
+                            size: 25,
+                          ),
                           const SizedBox(width: 8),
                           Expanded(
                             child: Text(
@@ -1879,49 +1892,49 @@ class _MemberDashboardPageState extends State<MemberDashboardPage>
     );
   }
 
-  // Quick Access
-  Widget _modernQuickActions() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Text(
-          "Quick Access",
-          style: TextStyle(
-            fontSize: 18,
-            fontWeight: FontWeight.w800,
-            color: Color(0xFF111827),
-            fontFamily: 'Montserrat',
-          ),
-        ),
-        const SizedBox(height: 16),
-        Row(
-          children: [
-            Expanded(
-              child: _modernQuickActionCard(
-                icon: Icons.info_outline_rounded,
-                title: "Contribution Tips",
-                color: const Color(0xFF3B82F6),
-                onTap: () {
-                  // Implement tips action
-                },
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: _modernQuickActionCard(
-                icon: Icons.analytics_rounded,
-                title: "View Reports",
-                color: const Color(0xFFF59E0B),
-                onTap: () {
-                  // Implement reports action
-                },
-              ),
-            ),
-          ],
-        ),
-      ],
-    );
-  }
+  // // Quick Access
+  // Widget _modernQuickActions() {
+  //   return Column(
+  //     crossAxisAlignment: CrossAxisAlignment.start,
+  //     children: [
+  //       const Text(
+  //         "Quick Access",
+  //         style: TextStyle(
+  //           fontSize: 18,
+  //           fontWeight: FontWeight.w800,
+  //           color: Color(0xFF111827),
+  //           fontFamily: 'Montserrat',
+  //         ),
+  //       ),
+  //       const SizedBox(height: 16),
+  //       Row(
+  //         children: [
+  //           Expanded(
+  //             child: _modernQuickActionCard(
+  //               icon: Icons.info_outline_rounded,
+  //               title: "Contribution Tips",
+  //               color: const Color(0xFF3B82F6),
+  //               onTap: () {
+  //                 // Implement tips action
+  //               },
+  //             ),
+  //           ),
+  //           const SizedBox(width: 12),
+  //           Expanded(
+  //             child: _modernQuickActionCard(
+  //               icon: Icons.analytics_rounded,
+  //               title: "View Reports",
+  //               color: const Color(0xFFF59E0B),
+  //               onTap: () {
+  //                 // Implement reports action
+  //               },
+  //             ),
+  //           ),
+  //         ],
+  //       ),
+  //     ],
+  //   );
+  // }
 
   Widget _modernQuickActionCard({
     required IconData icon,
@@ -2347,21 +2360,19 @@ class _MemberDashboardPageState extends State<MemberDashboardPage>
           SizedBox(
             width: double.infinity,
             child: ElevatedButton.icon(
-       onPressed: loading
-    ? null
-    : () {
-        final id = _asInt(_selectedDayungUnitObj?['id']);
-        if (id == null) {
-          // Show an error, fallback, or prevent navigation
-          return;
-        }
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (_) => GCashPaymentPage(
-              dayungUnitId: id,
-            ),
-          ),
+              onPressed: loading
+                  ? null
+                  : () {
+                      final id = _asInt(_selectedDayungUnitObj?['id']);
+                      if (id == null) {
+                        // Show an error, fallback, or prevent navigation
+                        return;
+                      }
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => GCashPaymentPage(dayungUnitId: id),
+                        ),
                       );
                     },
               icon: loading
@@ -2374,15 +2385,15 @@ class _MemberDashboardPageState extends State<MemberDashboardPage>
                       ),
                     )
                   : const Icon(Icons.payments_rounded),
-             label: Text(
-  loading ? 'Loading…' : 'Pay Now',
-  style: const TextStyle(
-    fontSize: 17,
-    fontWeight: FontWeight.w700,
-    color: Colors.white,
-    fontFamily: 'Montserrat',
-    letterSpacing: .3,
-  ),
+              label: Text(
+                loading ? 'Loading…' : 'Pay Now',
+                style: const TextStyle(
+                  fontSize: 17,
+                  fontWeight: FontWeight.w700,
+                  color: Colors.white,
+                  fontFamily: 'Montserrat',
+                  letterSpacing: .3,
+                ),
               ),
               style: ElevatedButton.styleFrom(
                 backgroundColor: kPrimary,

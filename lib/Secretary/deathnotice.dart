@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:capstone_app/utils/supabase_storage.dart';
+import 'package:capstone_app/utils/input_safety.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -449,8 +452,24 @@ class _CreateDeathNoticePageState extends State<CreateDeathNoticePage> {
                                               label:
                                                   const SizedBox.shrink(), // No label text
                                               onPressed: () async {
-                                                final url = deathCert
-                                                    .toString();
+                                                final url =
+                                                    await resolveSupabaseStorageUrl(
+                                                      deathCert.toString(),
+                                                      client: supabase,
+                                                    );
+                                                if (url == null) {
+                                                  if (!mounted) return;
+                                                  ScaffoldMessenger.of(
+                                                    context,
+                                                  ).showSnackBar(
+                                                    const SnackBar(
+                                                      content: Text(
+                                                        'Could not open file.',
+                                                      ),
+                                                    ),
+                                                  );
+                                                  return;
+                                                }
                                                 if (await canLaunchUrl(
                                                   Uri.parse(url),
                                                 )) {
@@ -691,6 +710,10 @@ class _CreateDeathNoticePageState extends State<CreateDeathNoticePage> {
         content: TextField(
           controller: amountController,
           keyboardType: TextInputType.numberWithOptions(decimal: true),
+          inputFormatters: [
+            FilteringTextInputFormatter.allow(RegExp(r'[0-9.,]')),
+            LengthLimitingTextInputFormatter(12),
+          ],
           decoration: const InputDecoration(
             labelText: 'Amount',
             prefixIcon: Icon(Icons.attach_money),
@@ -703,7 +726,12 @@ class _CreateDeathNoticePageState extends State<CreateDeathNoticePage> {
           ),
           ElevatedButton(
             onPressed: () {
-              final amount = double.tryParse(amountController.text);
+              final amount = double.tryParse(
+                AppInputSecurity.sanitizePlainText(
+                  amountController.text,
+                  maxLength: 12,
+                ).replaceAll(',', ''),
+              );
               if (amount == null) {
                 ScaffoldMessenger.of(parentContext).showSnackBar(
                   const SnackBar(content: Text('Please enter a valid amount.')),

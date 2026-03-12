@@ -1,5 +1,8 @@
+import 'package:capstone_app/ui/loading/page_skeleton.dart';
 import 'package:capstone_app/ui/theme/branding.dart';
+import 'package:capstone_app/utils/input_safety.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 const kBg = Color(0xFFFAFAF7);
@@ -198,6 +201,10 @@ class _PaymentMethodPageState extends State<PaymentMethodPage> {
                 keyboardType: const TextInputType.numberWithOptions(
                   decimal: true,
                 ),
+                inputFormatters: [
+                  FilteringTextInputFormatter.allow(RegExp(r'[0-9.,]')),
+                  LengthLimitingTextInputFormatter(12),
+                ],
                 decoration: const InputDecoration(
                   labelText: 'Amount',
                   hintText: 'Enter amount received',
@@ -310,6 +317,9 @@ class _PaymentMethodPageState extends State<PaymentMethodPage> {
               const SizedBox(height: 12),
               TextFormField(
                 controller: receiptCtrl,
+                inputFormatters: AppInputSecurity.singleLineFormatters(
+                  maxLength: 120,
+                ),
                 decoration: const InputDecoration(
                   labelText: 'GCash Reference No. or Upload Screenshot',
                   border: OutlineInputBorder(),
@@ -326,7 +336,10 @@ class _PaymentMethodPageState extends State<PaymentMethodPage> {
                     Navigator.of(context).pop();
                     await _markPaymentAsGCashPending(
                       paymentRow['id'],
-                      receiptCtrl.text,
+                      AppInputSecurity.sanitizePlainText(
+                        receiptCtrl.text,
+                        maxLength: 120,
+                      ),
                     );
                   },
                 ),
@@ -433,6 +446,9 @@ class _PaymentMethodPageState extends State<PaymentMethodPage> {
                     const SizedBox(width: 12),
                     Expanded(
                       child: TextField(
+                        inputFormatters: AppInputSecurity.singleLineFormatters(
+                          maxLength: 80,
+                        ),
                         decoration: const InputDecoration(
                           hintText: 'Search payment',
                           border: InputBorder.none,
@@ -449,8 +465,9 @@ class _PaymentMethodPageState extends State<PaymentMethodPage> {
             // Content
             Expanded(
               child: _loading
-                  ? const Center(
-                      child: CircularProgressIndicator(color: kAccent),
+                  ? const DayungPageSkeleton(
+                      layout: DayungSkeletonLayout.list,
+                      itemCount: 4,
                     )
                   : _error != null
                   ? Center(

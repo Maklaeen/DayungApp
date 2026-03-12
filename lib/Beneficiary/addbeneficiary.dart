@@ -6,6 +6,8 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:cupertino_calendar_picker/cupertino_calendar_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:capstone_app/utils/supabase_storage.dart';
+import 'package:capstone_app/utils/input_safety.dart';
 import 'dart:convert';
 
 // Modern palette
@@ -350,12 +352,8 @@ class _AddBeneficiaryPageState extends State<AddBeneficiaryPage> {
             fileOptions: const FileOptions(upsert: true),
           );
 
-      final publicUrl = Supabase.instance.client.storage
-          .from('birth_certificates')
-          .getPublicUrl(filePath);
-
       setState(() {
-        birthCertificateFile = publicUrl;
+        birthCertificateFile = buildStorageRef('birth_certificates', filePath);
       });
 
       if (!mounted) return;
@@ -404,12 +402,8 @@ class _AddBeneficiaryPageState extends State<AddBeneficiaryPage> {
             fileOptions: const FileOptions(upsert: true),
           );
 
-      final publicUrl = Supabase.instance.client.storage
-          .from('valid_ids')
-          .getPublicUrl(filePath);
-
       setState(() {
-        validIdFile = publicUrl;
+        validIdFile = buildStorageRef('valid_ids', filePath);
       });
 
       if (!mounted) return;
@@ -474,7 +468,10 @@ class _AddBeneficiaryPageState extends State<AddBeneficiaryPage> {
     final String? unitText = unitFromPrefs?.toString();
     setState(() => _isSubmitting = true);
 
-    final fullName = fullNameController.text.trim();
+    final fullName = AppInputSecurity.sanitizePlainText(
+      fullNameController.text,
+      maxLength: 120,
+    );
     final maritalStatus = selectedMaritalStatus?.trim();
     final relationship = selectedRelationship!.trim();
     final dob = _formatDob(_selectedDob!);
@@ -637,6 +634,10 @@ class _AddBeneficiaryPageState extends State<AddBeneficiaryPage> {
                               TextFormField(
                                 controller: fullNameController,
                                 textInputAction: TextInputAction.next,
+                                inputFormatters:
+                                    AppInputSecurity.singleLineFormatters(
+                                      maxLength: 120,
+                                    ),
                                 style: const TextStyle(
                                   fontSize: 14,
                                   color: kText,
@@ -648,9 +649,12 @@ class _AddBeneficiaryPageState extends State<AddBeneficiaryPage> {
                                   icon: Icons.badge_outlined,
                                 ),
                                 validator: (v) =>
-                                    (v == null || v.trim().isEmpty)
-                                    ? 'Full Name is required'
-                                    : null,
+                                    AppInputSecurity.validateSafeText(
+                                      v,
+                                      fieldName: 'Full Name',
+                                      minLength: 2,
+                                      maxLength: 120,
+                                    ),
                               ),
                               const SizedBox(height: 14),
                               _dobField(context),

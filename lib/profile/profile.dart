@@ -10,7 +10,9 @@ import 'package:capstone_app/Providers/dayung_provider.dart';
 import 'package:capstone_app/Providers/dayung_role_provider.dart';
 import 'package:capstone_app/profile/required_application_page.dart'
     hide kAccent;
+import 'package:capstone_app/ui/loading/page_skeleton.dart';
 import 'package:capstone_app/ui/theme/branding.dart';
+import 'package:capstone_app/utils/input_safety.dart';
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:image_cropper/image_cropper.dart';
@@ -46,6 +48,7 @@ class _ProfilePageState extends State<ProfilePage> {
   final _addressController = TextEditingController();
   final _sexController = TextEditingController();
   final _formKey = GlobalKey<FormState>();
+  final _personalInfoKey = GlobalKey();
   final ImagePicker _imagePicker = ImagePicker();
   final _currentPwController = TextEditingController();
   final _newPwController = TextEditingController();
@@ -55,6 +58,14 @@ class _ProfilePageState extends State<ProfilePage> {
   String mobileNumber = '';
   String address = '';
   String sex = '';
+  String email = '';
+  String? dateOfBirth;
+  String? barangay;
+  String? city;
+  String? province;
+  int? activeDayungUnitId;
+  String? activeDayungName;
+  String? activeApplicationStatus;
   String? profileUrl;
   String? birthCertificateUrl;
   String? marriageCertificateUrl;
@@ -749,18 +760,46 @@ class _ProfilePageState extends State<ProfilePage> {
       final response = await supabase
           .from('users')
           .select(
-            'full_name, mobile_number, address, sex, profile_url, birth_certificate_url, marriage_certificate_url, valid_id, proof_of_residency_url',
+            'full_name, mobile_number, address, sex, email, dob, barangay, city, province, profile_url, birth_certificate_url, marriage_certificate_url, valid_id, proof_of_residency_url',
           )
           .eq('id', currentUser.id)
           .maybeSingle();
 
+      final application = await supabase
+          .from('applications')
+          .select('dayung_unit_id, status, approved_at')
+          .eq('user_id', currentUser.id)
+          .eq('status', 'approved')
+          .order('approved_at', ascending: false)
+          .limit(1)
+          .maybeSingle();
+
+      Map<String, dynamic>? dayungUnit;
+      final dayungId = application?['dayung_unit_id'] as int?;
+      if (dayungId != null) {
+        dayungUnit = await supabase
+            .from('dayung_units')
+            .select('id, name')
+            .eq('id', dayungId)
+            .maybeSingle();
+      }
+
       if (!mounted) return;
+
       if (response == null) {
         setState(() {
           fullName = '';
           mobileNumber = '';
           address = '';
           sex = '';
+          email = currentUser.email ?? '';
+          dateOfBirth = null;
+          barangay = null;
+          city = null;
+          province = null;
+          activeDayungUnitId = null;
+          activeDayungName = null;
+          activeApplicationStatus = null;
           profileUrl = null;
           birthCertificateUrl = null;
           marriageCertificateUrl = null;
@@ -768,25 +807,35 @@ class _ProfilePageState extends State<ProfilePage> {
           proofOfResidencyUrl = null;
           isLoading = false;
         });
-      } else {
-        setState(() {
-          fullName = (response['full_name'] as String?)?.trim() ?? '';
-          mobileNumber = (response['mobile_number'] as String?)?.trim() ?? '';
-          address = (response['address'] as String?)?.trim() ?? '';
-          sex = (response['sex'] as String?)?.trim() ?? '';
-          profileUrl = response['profile_url'] as String?;
-          birthCertificateUrl = response['birth_certificate_url'] as String?;
-          marriageCertificateUrl =
-              response['marriage_certificate_url'] as String?;
-          validIdUrl = response['valid_id'] as String?;
-          proofOfResidencyUrl = response['proof_of_residency_url'] as String?;
-          _fullNameController.text = fullName;
-          _mobileController.text = mobileNumber;
-          _addressController.text = address;
-          _sexController.text = sex;
-          isLoading = false;
-        });
+        return;
       }
+
+      setState(() {
+        fullName = (response['full_name'] as String?)?.trim() ?? '';
+        mobileNumber = (response['mobile_number'] as String?)?.trim() ?? '';
+        address = (response['address'] as String?)?.trim() ?? '';
+        sex = (response['sex'] as String?)?.trim() ?? '';
+        email =
+            (response['email'] as String?)?.trim() ?? currentUser.email ?? '';
+        dateOfBirth = response['dob']?.toString();
+        barangay = (response['barangay'] as String?)?.trim();
+        city = (response['city'] as String?)?.trim();
+        province = (response['province'] as String?)?.trim();
+        activeDayungUnitId = dayungId;
+        activeApplicationStatus = application?['status']?.toString();
+        activeDayungName = dayungUnit?['name']?.toString();
+        profileUrl = response['profile_url'] as String?;
+        birthCertificateUrl = response['birth_certificate_url'] as String?;
+        marriageCertificateUrl =
+            response['marriage_certificate_url'] as String?;
+        validIdUrl = response['valid_id'] as String?;
+        proofOfResidencyUrl = response['proof_of_residency_url'] as String?;
+        _fullNameController.text = fullName;
+        _mobileController.text = mobileNumber;
+        _addressController.text = address;
+        _sexController.text = sex;
+        isLoading = false;
+      });
     } catch (e) {
       if (!mounted) return;
       setState(() => isLoading = false);
@@ -804,6 +853,79 @@ class _ProfilePageState extends State<ProfilePage> {
   }
 
   String _displayName() => removeTitle(fullName);
+
+  String _displayDateOfBirth() {
+    final raw = dateOfBirth?.trim();
+    if (raw == null || raw.isEmpty) return 'Not provided';
+    final parsed = DateTime.tryParse(raw);
+    if (parsed == null) return raw;
+    const months = [
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
+    ];
+    return '${months[parsed.month - 1]} ${parsed.day}, ${parsed.year}';
+  }
+
+  String _displayLocationSummary() {
+    final parts = [barangay, city, province]
+        .where((part) => part != null && part.trim().isNotEmpty)
+        .map((part) => part!.trim())
+        .toList();
+    if (parts.isNotEmpty) {
+      return parts.join(', ');
+    }
+    return address.isNotEmpty ? address : 'Not provided';
+  }
+
+  void _toggleEditingMode() {
+    if (_editing) {
+      _fullNameController.text = fullName;
+      _mobileController.text = mobileNumber;
+      _addressController.text = address;
+      _sexController.text = sex;
+    }
+
+    final nextEditing = !_editing;
+    setState(() => _editing = nextEditing);
+
+    if (nextEditing) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        final targetContext = _personalInfoKey.currentContext;
+        if (targetContext == null) return;
+        Scrollable.ensureVisible(
+          targetContext,
+          duration: const Duration(milliseconds: 350),
+          curve: Curves.easeInOutCubic,
+          alignment: 0.08,
+        );
+      });
+    }
+  }
+
+  String _maskedMobileNumber() {
+    final value = mobileNumber.trim();
+    if (value.isEmpty) return 'Not provided';
+
+    final visiblePrefix = value.startsWith('+63') && value.length > 6 ? 4 : 3;
+    final visibleSuffix = value.length - visiblePrefix > 2 ? 2 : 1;
+
+    if (value.length <= visiblePrefix + visibleSuffix) {
+      return '*' * value.length;
+    }
+
+    final hiddenLength = value.length - visiblePrefix - visibleSuffix;
+    return '${value.substring(0, visiblePrefix)}${'*' * hiddenLength}${value.substring(value.length - visibleSuffix)}';
+  }
 
   String _initialOf(String? name) {
     final t = (name ?? '').trim();
@@ -1040,9 +1162,15 @@ class _ProfilePageState extends State<ProfilePage> {
     try {
       final userId = supabase.auth.currentUser!.id;
       final updated = {
-        'full_name': _fullNameController.text.trim(),
-        'mobile_number': _mobileController.text.trim(),
-        'address': _addressController.text.trim(),
+        'full_name': AppInputSecurity.sanitizePlainText(
+          _fullNameController.text,
+          maxLength: 120,
+        ),
+        'mobile_number': AppInputSecurity.sanitizePhone(_mobileController.text),
+        'address': AppInputSecurity.sanitizePlainText(
+          _addressController.text,
+          maxLength: 200,
+        ),
         'sex': _sexController.text.trim(),
         'profile_url': profileUrl,
       };
@@ -1157,206 +1285,189 @@ class _ProfilePageState extends State<ProfilePage> {
     final isWide = width > 700;
 
     if (isLoading) {
-      return Scaffold(
+      return DayungLoadingScaffold(
+        layout: DayungSkeletonLayout.profile,
         backgroundColor: themeBg,
-        body: const Center(child: CircularProgressIndicator()),
       );
     }
 
     return Scaffold(
       backgroundColor: themeBg,
-      body: Column(
-        children: [
-          // Modern Curved Header
-          _buildModernHeader(context, isWide),
-          // Container(
-          //   width: double.infinity,
-          //   padding: const EdgeInsets.fromLTRB(24, 36, 24, 32),
-          //   decoration: const BoxDecoration(
-          //     gradient: LinearGradient(
-          //       begin: Alignment.topLeft,
-          //       end: Alignment.bottomRight,
-          //       colors: [kPrimaryLight, kAccentDark],
-          //     ),
-          //     borderRadius: BorderRadius.vertical(bottom: Radius.circular(32)),
-          //   ),
-          //   child: Row(
-          //     children: [
-          //       GestureDetector(
-          //         onTap: _editing ? _chooseImageSource : _openProfilePreview,
-          //         child: Hero(
-          //           tag: 'profilePhotoHero',
-          //           child: CircleAvatar(
-          //             radius: 36,
-          //             backgroundColor: kAccentDark.withOpacity(0.15),
-          //             backgroundImage:
-          //                 profileUrl != null && profileUrl!.isNotEmpty
-          //                 ? NetworkImage(profileUrl!)
-          //                 : null,
-          //             child: profileUrl == null || profileUrl!.isEmpty
-          //                 ? Icon(Icons.person, size: 36, color: kAccentDark)
-          //                 : null,
-          //           ),
-          //         ),
-          //       ),
-          //       const SizedBox(width: 18),
-          //       Expanded(
-          //         child: Column(
-          //           crossAxisAlignment: CrossAxisAlignment.start,
-          //           children: [
-          //             Text(
-          //               _displayName().isNotEmpty
-          //                   ? _displayName()
-          //                   : 'Your name',
-          //               style: const TextStyle(
-          //                 color: Colors.white,
-          //                 fontWeight: FontWeight.bold,
-          //                 fontSize: 22,
-          //                 fontFamily: 'Montserrat',
-          //               ),
-          //             ),
-          //             const SizedBox(height: 4),
-          //             Text(
-          //               address.isNotEmpty ? address : 'No address set',
-          //               style: TextStyle(
-          //                 color: Colors.white.withOpacity(0.85),
-          //                 fontSize: 15,
-          //                 fontFamily: 'OpenSans',
-          //               ),
-          //             ),
-          //           ],
-          //         ),
-          //       ),
-          //       const SizedBox(width: 8),
-          //       ElevatedButton.icon(
-          //         icon: Icon(
-          //           _editing ? Icons.close_rounded : Icons.edit_rounded,
-          //           size: 18,
-          //           color: Colors.white,
-          //         ),
-          //         label: Text(
-          //           _editing ? 'Cancel' : 'Edit',
-          //           style: const TextStyle(
-          //             color: Colors.white,
-          //             fontWeight: FontWeight.w600,
-          //             fontSize: 14,
-          //           ),
-          //         ),
-          //         style: ElevatedButton.styleFrom(
-          //           backgroundColor: _editing
-          //               ? kWarn
-          //               : const Color.fromARGB(255, 11, 101, 73),
-          //           foregroundColor: Colors.white,
-          //           shape: RoundedRectangleBorder(
-          //             borderRadius: BorderRadius.circular(12),
-          //           ),
-          //           elevation: 0,
-          //           padding: const EdgeInsets.symmetric(
-          //             horizontal: 16,
-          //             vertical: 10,
-          //           ),
-          //         ),
-          //         onPressed: () {
-          //           if (_editing) {
-          //             _fullNameController.text = fullName;
-          //             _mobileController.text = mobileNumber;
-          //             _addressController.text = address;
-          //             _sexController.text = sex;
-          //           }
-          //           setState(() => _editing = !_editing);
-          //         },
-          //       ),
-          //     ],
-          //   ),
-          // ),
-          // Main Profile Card
-          Expanded(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.fromLTRB(18, 18, 18, 24),
-              child: Card(
-                elevation: 4,
-                color: themeCard,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(24),
-                ),
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 22,
-                    vertical: 28,
+      body: Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [const Color(0xFFEAF3FF), themeBg],
+          ),
+        ),
+        child: SafeArea(
+          child: Column(
+            children: [
+              _buildModernHeader(context, isWide),
+              Expanded(
+                child: Container(
+                  width: double.infinity,
+                  decoration: BoxDecoration(
+                    color: themeCard,
+                    borderRadius: const BorderRadius.only(
+                      topLeft: Radius.circular(28),
+                      topRight: Radius.circular(28),
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.05),
+                        blurRadius: 18,
+                        offset: const Offset(0, -4),
+                      ),
+                    ],
                   ),
-                  child: Form(
-                    key: _formKey,
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        // Profile Fields
-                        _buildProfileFields(
-                          themeCard,
-                          themeText,
-                          themeSubText,
-                          themeField,
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.fromLTRB(18, 20, 18, 24),
+                    child: Center(
+                      child: ConstrainedBox(
+                        constraints: BoxConstraints(
+                          maxWidth: isWide ? 760 : double.infinity,
                         ),
-                        const SizedBox(height: 18),
-                        if (_editing)
-                          SizedBox(
-                            width: double.infinity,
-                            child: ElevatedButton.icon(
-                              icon: _saving
-                                  ? const SizedBox(
-                                      width: 18,
-                                      height: 18,
-                                      child: CircularProgressIndicator(
-                                        color: Colors.white,
-                                        strokeWidth: 2,
+                        child: Form(
+                          key: _formKey,
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              _buildModernProfileSection(
+                                themeCard,
+                                themeText,
+                                themeSubText,
+                              ),
+                              const SizedBox(height: 18),
+                              Container(
+                                key: _personalInfoKey,
+                                padding: const EdgeInsets.all(22),
+                                decoration: BoxDecoration(
+                                  color: themeCard,
+                                  borderRadius: BorderRadius.circular(24),
+                                  border: Border.all(
+                                    color: kBorderColor.withOpacity(0.75),
+                                  ),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: Colors.black.withOpacity(0.04),
+                                      blurRadius: 14,
+                                      offset: const Offset(0, 4),
+                                    ),
+                                  ],
+                                ),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      _editing
+                                          ? 'Update Profile Details'
+                                          : 'Personal Information',
+                                      style: TextStyle(
+                                        fontSize: 20,
+                                        fontWeight: FontWeight.w800,
+                                        color: themeText,
+                                        fontFamily: 'Montserrat',
                                       ),
-                                    )
-                                  : const Icon(Icons.save, color: Colors.white),
-                              label: Text(
-                                _saving ? 'Saving...' : 'Save Changes',
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 16,
-                                  fontFamily: 'Montserrat',
+                                    ),
+                                    const SizedBox(height: 6),
+                                    Text(
+                                      _editing
+                                          ? 'Review your information carefully before saving changes.'
+                                          : 'Your important account details are shown here in a simple and easy-to-read format.',
+                                      style: TextStyle(
+                                        fontSize: 14,
+                                        height: 1.45,
+                                        color: themeSubText,
+                                        fontFamily: 'OpenSans',
+                                      ),
+                                    ),
+                                    const SizedBox(height: 18),
+                                    _buildProfileFields(
+                                      themeCard,
+                                      themeText,
+                                      themeSubText,
+                                      themeField,
+                                    ),
+                                    const SizedBox(height: 18),
+                                    if (_editing)
+                                      SizedBox(
+                                        width: double.infinity,
+                                        child: ElevatedButton.icon(
+                                          icon: _saving
+                                              ? const SizedBox(
+                                                  width: 18,
+                                                  height: 18,
+                                                  child:
+                                                      CircularProgressIndicator(
+                                                        color: Colors.white,
+                                                        strokeWidth: 2,
+                                                      ),
+                                                )
+                                              : const Icon(
+                                                  Icons.save_rounded,
+                                                  color: Colors.white,
+                                                ),
+                                          label: Text(
+                                            _saving
+                                                ? 'Saving...'
+                                                : 'Save Changes',
+                                            style: const TextStyle(
+                                              color: Colors.white,
+                                              fontWeight: FontWeight.bold,
+                                              fontSize: 17,
+                                              fontFamily: 'Montserrat',
+                                            ),
+                                          ),
+                                          style: ElevatedButton.styleFrom(
+                                            backgroundColor: kAccentDark,
+                                            foregroundColor: Colors.white,
+                                            minimumSize: const Size.fromHeight(
+                                              56,
+                                            ),
+                                            shape: RoundedRectangleBorder(
+                                              borderRadius:
+                                                  BorderRadius.circular(18),
+                                            ),
+                                            elevation: 0,
+                                          ),
+                                          onPressed: _saving
+                                              ? null
+                                              : _saveProfile,
+                                        ),
+                                      ),
+                                    if (!_editing) ...[
+                                      const SizedBox(height: 10),
+                                      _buildActionButtons(),
+                                    ],
+                                  ],
                                 ),
                               ),
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: kAccentDark,
-                                foregroundColor: Colors.white,
-                                minimumSize: const Size.fromHeight(48),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(16),
-                                ),
-                                elevation: 2,
-                              ),
-                              onPressed: _saving ? null : _saveProfile,
-                            ),
+                            ],
                           ),
-                        if (!_editing) ...[
-                          const SizedBox(height: 18),
-                          _buildActionButtons(),
-                        ],
-                      ],
+                        ),
+                      ),
                     ),
                   ),
                 ),
               ),
-            ),
+            ],
           ),
-        ],
+        ),
       ),
       bottomNavigationBar: Padding(
         padding: const EdgeInsets.fromLTRB(18, 0, 18, 18),
         child: SizedBox(
           width: double.infinity,
-          height: 52,
+          height: 54,
           child: ElevatedButton.icon(
             icon: const Icon(Icons.dashboard_rounded, color: Colors.white),
             label: const Text(
               'Dashboard',
               style: TextStyle(
                 color: Colors.white,
-                fontWeight: FontWeight.w600,
+                fontWeight: FontWeight.w700,
                 fontSize: 16,
                 fontFamily: 'Montserrat',
               ),
@@ -1365,7 +1476,7 @@ class _ProfilePageState extends State<ProfilePage> {
               backgroundColor: kPrimaryLight,
               foregroundColor: Colors.white,
               shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(14),
+                borderRadius: BorderRadius.circular(16),
               ),
               elevation: 2,
               padding: const EdgeInsets.symmetric(vertical: 12),
@@ -1382,93 +1493,186 @@ class _ProfilePageState extends State<ProfilePage> {
     Color themeText,
     Color themeSubText,
   ) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: themeCard,
-        borderRadius: BorderRadius.circular(12),
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: kBorderColor.withOpacity(0.9)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.04),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
       ),
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(6),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(44),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.08),
+                      blurRadius: 12,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
+                ),
+                child: _buildProfileAvatar(themeCard),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      _displayName().isNotEmpty ? _displayName() : 'Your name',
+                      style: TextStyle(
+                        fontSize: 21,
+                        fontWeight: FontWeight.w800,
+                        color: themeText,
+                        fontFamily: 'Montserrat',
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      activeDayungName ?? 'No approved Dayung unit yet',
+                      style: TextStyle(
+                        fontSize: 14,
+                        height: 1.4,
+                        color: themeSubText,
+                        fontFamily: 'OpenSans',
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 18),
+          Column(
+            children: [
+              _buildSummaryInfoRow(
+                icon: Icons.badge_rounded,
+                label: 'Dayung Unit',
+                value: activeDayungName ?? 'No approved unit yet',
+              ),
+              _buildSummaryInfoRow(
+                icon: Icons.alternate_email_rounded,
+                label: 'Email Address',
+                value: email.isNotEmpty ? email : 'Not provided',
+              ),
+              _buildSummaryInfoRow(
+                icon: Icons.phone_rounded,
+                label: 'Mobile Number',
+                value: mobileNumber.isNotEmpty
+                    ? _maskedMobileNumber()
+                    : 'Not provided',
+              ),
+              _buildSummaryInfoRow(
+                icon: Icons.home_rounded,
+                label: 'Address',
+                value: _displayLocationSummary(),
+              ),
+              _buildSummaryInfoRow(
+                icon: Icons.cake_rounded,
+                label: 'Date of Birth',
+                value: _displayDateOfBirth(),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
           Container(
-            padding: const EdgeInsets.all(6),
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
             decoration: BoxDecoration(
-              color: isDark
-                  ? const Color(0xFF44444A)
-                  : const Color.fromARGB(255, 215, 215, 215),
-              borderRadius: BorderRadius.circular(45),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.10),
-                  blurRadius: 16,
-                  offset: const Offset(0, 6),
+              color: const Color(0xFFEFF6FF),
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Row(
+              children: [
+                const Icon(
+                  Icons.verified_user_rounded,
+                  color: kPrimaryLight,
+                  size: 20,
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    _editing
+                        ? 'Editing mode is active. Review your details before saving.'
+                        : 'Sensitive details like your mobile number are partially hidden for privacy.',
+                    style: TextStyle(
+                      fontSize: 13,
+                      height: 1.4,
+                      color: themeText,
+                      fontFamily: 'OpenSans',
+                    ),
+                  ),
                 ),
               ],
             ),
-            child: _buildProfileAvatar(themeCard),
           ),
-          const SizedBox(width: 16),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSummaryInfoRow({
+    required IconData icon,
+    required String label,
+    required String value,
+  }) {
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF8FAFC),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: kBorderColor.withOpacity(0.9)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: kPrimary.withOpacity(0.08),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Icon(icon, size: 18, color: kPrimary),
+          ),
+          const SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  _displayName().isNotEmpty ? _displayName() : 'Your name',
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
-                    color: themeText,
+                  label,
+                  style: const TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                    color: kSubText,
                     fontFamily: 'Montserrat',
                   ),
                 ),
-                const SizedBox(height: 6),
+                const SizedBox(height: 4),
                 Text(
-                  mobileNumber.isNotEmpty ? mobileNumber : 'Mobile not set',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: themeSubText,
+                  value,
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                    color: kText,
                     fontFamily: 'OpenSans',
-                  ),
-                ),
-                const SizedBox(height: 12),
-                Container(
-                  height: 36,
-                  decoration: BoxDecoration(
-                    color: _editing ? kWarn : kAccent,
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: ElevatedButton.icon(
-                    icon: Icon(
-                      _editing ? Icons.close_rounded : Icons.edit_rounded,
-                      size: 14,
-                      color: Colors.white,
-                    ),
-                    label: Text(
-                      _editing ? 'Cancel' : 'Edit Profile',
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.w500,
-                        fontSize: 12,
-                      ),
-                    ),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.transparent,
-                      shadowColor: Colors.transparent,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      elevation: 0,
-                    ),
-                    onPressed: () {
-                      if (_editing) {
-                        _fullNameController.text = fullName;
-                        _mobileController.text = mobileNumber;
-                        _addressController.text = address;
-                        _sexController.text = sex;
-                      }
-                      setState(() => _editing = !_editing);
-                    },
+                    height: 1.35,
                   ),
                 ),
               ],
@@ -1485,8 +1689,8 @@ class _ProfilePageState extends State<ProfilePage> {
         width: double.infinity,
         margin: const EdgeInsets.only(top: 12, left: 12, right: 12, bottom: 8),
         padding: EdgeInsets.symmetric(
-          horizontal: isWide ? 32 : 20,
-          vertical: isWide ? 32 : 20,
+          horizontal: isWide ? 28 : 18,
+          vertical: isWide ? 24 : 18,
         ),
         decoration: BoxDecoration(
           gradient: const LinearGradient(
@@ -1503,133 +1707,113 @@ class _ProfilePageState extends State<ProfilePage> {
             ),
           ],
         ),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.center,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Avatar with edit/click logic
-            Stack(
-              alignment: Alignment.center,
+            Row(
               children: [
-                GestureDetector(
-                  onTap: _editing ? _chooseImageSource : _openProfilePreview,
-                  child: Hero(
-                    tag: 'profilePhotoHero',
-                    child: CircleAvatar(
-                      radius: isWide ? 36 : 32,
-                      backgroundColor: kAccentDark.withOpacity(0.15),
-                      backgroundImage:
-                          (profileUrl != null && profileUrl!.isNotEmpty)
-                          ? NetworkImage(profileUrl!)
-                          : null,
-                      child: (profileUrl == null || profileUrl!.isEmpty)
-                          ? Icon(
-                              Icons.person,
-                              size: isWide ? 36 : 32,
-                              color: kAccentDark,
-                            )
-                          : null,
-                    ),
+                Container(
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.18),
+                    borderRadius: BorderRadius.circular(14),
                   ),
+                  // child: IconButton(
+                  //   onPressed: () => Navigator.of(context).maybePop(),
+                  //   icon: const Icon(
+                  //     Icons.arrow_back_ios_new_rounded,
+                  //     color: Colors.white,
+                  //   ),
+                  // ),
                 ),
-                if (_editing)
-                  Positioned(
-                    bottom: 4,
-                    right: 4,
-                    child: Container(
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        shape: BoxShape.circle,
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withOpacity(0.15),
-                            blurRadius: 4,
-                          ),
-                        ],
-                      ),
-                      padding: const EdgeInsets.all(3),
-                      child: Icon(Icons.edit, size: 18, color: kAccentDark),
-                    ),
-                  ),
-              ],
-            ),
-            const SizedBox(width: 18),
-            // Title and subtitle
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'My Profile',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.bold,
-                      fontSize: isWide ? 28 : 22,
-                      fontFamily: 'Montserrat',
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    _displayName().isNotEmpty ? _displayName() : 'Your name',
-                    style: TextStyle(
-                      color: Colors.white.withOpacity(0.85),
-                      fontSize: 15,
-                      fontFamily: 'OpenSans',
-                    ),
-                  ),
-                  if (address.isNotEmpty)
-                    Padding(
-                      padding: const EdgeInsets.only(top: 2.0),
-                      child: Text(
-                        address,
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'My Profile',
                         style: TextStyle(
-                          color: Colors.white.withOpacity(0.7),
-                          fontSize: 13,
+                          color: Colors.white,
+                          fontWeight: FontWeight.w800,
+                          fontSize: isWide ? 28 : 22,
+                          fontFamily: 'Montserrat',
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        'Simple account details in one place.',
+                        style: TextStyle(
+                          color: Colors.white.withOpacity(0.88),
+                          fontSize: isWide ? 14 : 12,
+                          height: 1.4,
                           fontFamily: 'OpenSans',
                         ),
                       ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 8),
+                ElevatedButton.icon(
+                  icon: Icon(
+                    _editing ? Icons.close_rounded : Icons.edit_rounded,
+                    size: 17,
+                    color: Colors.white,
+                  ),
+                  label: Text(
+                    _editing ? 'Cancel' : 'Edit',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w700,
+                      fontSize: 14,
                     ),
+                  ),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: _editing
+                        ? kWarn
+                        : const Color.fromARGB(255, 11, 101, 73),
+                    foregroundColor: Colors.white,
+                    minimumSize: const Size(112, 46),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    elevation: 0,
+                  ),
+                  onPressed: _toggleEditingMode,
+                ),
+              ],
+            ),
+            const SizedBox(height: 18),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.14),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: Colors.white.withOpacity(0.12)),
+              ),
+              child: Row(
+                children: [
+                  const Icon(
+                    Icons.info_outline_rounded,
+                    color: Colors.white,
+                    size: 20,
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      _editing
+                          ? 'You can now update your details. Tap your photo if you want to change it.'
+                          : 'Review your profile details below.',
+                      style: TextStyle(
+                        color: Colors.white.withOpacity(0.94),
+                        fontSize: 12,
+                        height: 1.4,
+                        fontFamily: 'OpenSans',
+                      ),
+                    ),
+                  ),
                 ],
               ),
-            ),
-            const SizedBox(width: 8),
-            // Edit/Cancel button
-            ElevatedButton.icon(
-              icon: Icon(
-                _editing ? Icons.close_rounded : Icons.edit_rounded,
-                size: 18,
-                color: Colors.white,
-              ),
-              label: Text(
-                _editing ? 'Cancel' : 'Edit',
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.w600,
-                  fontSize: 14,
-                ),
-              ),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: _editing
-                    ? kWarn
-                    : const Color.fromARGB(255, 11, 101, 73),
-                foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                elevation: 0,
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 10,
-                ),
-              ),
-              onPressed: () {
-                if (_editing) {
-                  _fullNameController.text = fullName;
-                  _mobileController.text = mobileNumber;
-                  _addressController.text = address;
-                  _sexController.text = sex;
-                }
-                setState(() => _editing = !_editing);
-              },
             ),
           ],
         ),
@@ -1649,7 +1833,15 @@ class _ProfilePageState extends State<ProfilePage> {
               ? NetworkImage(profileUrl!)
               : null,
           child: (profileUrl == null || profileUrl!.isEmpty)
-              ? Icon(Icons.person, color: kPrimary, size: 28)
+              ? Text(
+                  _initialOf(_displayName()),
+                  style: const TextStyle(
+                    color: kPrimary,
+                    fontSize: 28,
+                    fontWeight: FontWeight.w800,
+                    fontFamily: 'Montserrat',
+                  ),
+                )
               : null,
         ),
       ),
@@ -1666,15 +1858,15 @@ class _ProfilePageState extends State<ProfilePage> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          'Personal Information',
+          'Profile Details',
           style: TextStyle(
-            fontSize: 14,
-            fontWeight: FontWeight.w600,
+            fontSize: 16,
+            fontWeight: FontWeight.w700,
             color: themeText,
             fontFamily: 'Montserrat',
           ),
         ),
-        const SizedBox(height: 12),
+        const SizedBox(height: 14),
         _buildSimpleField(
           icon: Icons.person_rounded,
           label: 'Full Name',
@@ -1682,8 +1874,15 @@ class _ProfilePageState extends State<ProfilePage> {
           editingChild: TextFormField(
             controller: _fullNameController,
             textCapitalization: TextCapitalization.words,
-            validator: (v) =>
-                v == null || v.trim().isEmpty ? 'Full name is required' : null,
+            inputFormatters: AppInputSecurity.singleLineFormatters(
+              maxLength: 120,
+            ),
+            validator: (v) => AppInputSecurity.validateSafeText(
+              v,
+              fieldName: 'Full name',
+              minLength: 2,
+              maxLength: 120,
+            ),
             style: TextStyle(
               fontSize: 16,
               fontWeight: FontWeight.w500,
@@ -1704,6 +1903,15 @@ class _ProfilePageState extends State<ProfilePage> {
           editingChild: TextFormField(
             controller: _addressController,
             textCapitalization: TextCapitalization.sentences,
+            inputFormatters: AppInputSecurity.singleLineFormatters(
+              maxLength: 200,
+            ),
+            validator: (v) => AppInputSecurity.validateSafeText(
+              v,
+              fieldName: 'Address',
+              minLength: 6,
+              maxLength: 200,
+            ),
             style: TextStyle(
               fontSize: 16,
               fontWeight: FontWeight.w500,
@@ -1720,14 +1928,18 @@ class _ProfilePageState extends State<ProfilePage> {
         _buildSimpleField(
           icon: Icons.phone_rounded,
           label: 'Mobile Number',
-          value: mobileNumber.isNotEmpty ? mobileNumber : 'Not provided',
+          value: _maskedMobileNumber(),
           editingChild: TextFormField(
             controller: _mobileController,
             keyboardType: TextInputType.phone,
+            inputFormatters: AppInputSecurity.phoneFormatters(),
             validator: (v) {
-              final t = (v ?? '').trim();
-              if (t.isEmpty) return 'Mobile number is required';
-              if (t.length < 7) return 'Enter a valid number';
+              final err = AppInputSecurity.validatePhone(v);
+              if (err != null) return err;
+              final t = AppInputSecurity.sanitizePhone(
+                v ?? '',
+              ).replaceAll('+', '');
+              if (t.length < 10) return 'Enter a valid number';
               return null;
             },
             style: TextStyle(
@@ -1827,11 +2039,11 @@ class _ProfilePageState extends State<ProfilePage> {
     required Color themeSubText,
   }) {
     return Container(
-      margin: const EdgeInsets.only(bottom: 12),
+      margin: const EdgeInsets.only(bottom: 14),
       padding: const EdgeInsets.all(0),
       decoration: BoxDecoration(
         color: _editing ? themeCard : kCardBg,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(18),
         border: Border.all(
           color: _editing
               ? kPrimaryLight.withOpacity(0.18)
@@ -1848,7 +2060,7 @@ class _ProfilePageState extends State<ProfilePage> {
         ],
       ),
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -1866,23 +2078,24 @@ class _ProfilePageState extends State<ProfilePage> {
                 Text(
                   label,
                   style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w500,
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
                     color: themeText,
                     fontFamily: 'Montserrat',
                   ),
                 ),
               ],
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 10),
             _editing
                 ? editingChild
                 : Text(
                     value,
                     style: TextStyle(
                       color: themeSubText,
-                      fontSize: 15,
+                      fontSize: 16,
                       fontWeight: FontWeight.w500,
+                      height: 1.4,
                     ),
                   ),
           ],
@@ -1895,7 +2108,6 @@ class _ProfilePageState extends State<ProfilePage> {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final themeButtonBeneficiary = isDark ? kAccentDark : kSuccess;
     final themeButtonChangePw = isDark ? kAccentDark : kPrimaryLight;
-    final themeButtonLogout = isDark ? kDanger : kWarn;
     final textColor = Colors.white;
 
     if (_editing) {

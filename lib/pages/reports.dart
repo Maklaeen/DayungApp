@@ -1,3 +1,4 @@
+import 'package:capstone_app/ui/loading/page_skeleton.dart';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:fl_chart/fl_chart.dart';
@@ -211,7 +212,10 @@ class _ReportsPageState extends State<ReportsPage> {
               // Content
               Expanded(
                 child: loading
-                    ? const Center(child: CircularProgressIndicator())
+                    ? const DayungPageSkeleton(
+                        layout: DayungSkeletonLayout.dashboard,
+                        itemCount: 4,
+                      )
                     : ListView(
                         padding: EdgeInsets.fromLTRB(
                           horizontalPadding,

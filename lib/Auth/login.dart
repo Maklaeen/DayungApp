@@ -6,6 +6,8 @@ import 'package:capstone_app/Providers/dayung_provider.dart';
 import 'package:capstone_app/Providers/dayung_role_provider.dart';
 import 'package:capstone_app/screens/selectdayung.dart'
     hide kAccent, kPrimary, kBg;
+import 'package:capstone_app/utils/input_safety.dart';
+import 'package:capstone_app/utils/network_error_dialog.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -39,44 +41,162 @@ class _LoginState extends State<Login> {
   bool _obscurePassword = true;
 
   Future<void> _forgotPassword() async {
-    final input = emailController.text.trim(); // phone or email
-    if (input.isEmpty) {
-      _showErrorDialog('Missing Phone', 'Please enter your phone number.');
-      return;
-    }
+    final forgotEmailController = TextEditingController(
+      text:
+          _looksLikeEmail(AppInputSecurity.sanitizeEmail(emailController.text))
+          ? AppInputSecurity.sanitizeEmail(emailController.text)
+          : '',
+    );
+    final forgotFormKey = GlobalKey<FormState>();
+    bool submitting = false;
 
-    setState(() => _isLoading = true);
-    try {
-      String? email;
-      if (input.contains('@')) {
-        email = input;
-      } else {
-        email = await _emailForPhone(input);
-      }
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      backgroundColor: Colors.transparent,
+      builder: (sheetContext) {
+        return StatefulBuilder(
+          builder: (sheetContext, setSheetState) {
+            Future<void> submitReset() async {
+              if (!forgotFormKey.currentState!.validate()) return;
 
-      if (email == null || email.isEmpty) {
-        setState(() => _isLoading = false);
-        await _showErrorDialog(
-          'Not found',
-          'We could not find an account for that phone.',
+              setSheetState(() => submitting = true);
+              final email = AppInputSecurity.sanitizeEmail(
+                forgotEmailController.text,
+              );
+
+              try {
+                await Supabase.instance.client.auth.resetPasswordForEmail(
+                  email,
+                );
+                if (sheetContext.mounted) {
+                  Navigator.of(sheetContext).pop();
+                }
+                await _showErrorDialog(
+                  'Check Your Email',
+                  'We sent a password reset link to $email.',
+                  color: kAccent,
+                  icon: Icons.mark_email_read_outlined,
+                  actionLabel: 'OK',
+                );
+              } catch (_) {
+                if (sheetContext.mounted) {
+                  setSheetState(() => submitting = false);
+                }
+                await _showErrorDialog(
+                  'Reset Failed',
+                  'Could not send reset link. Please check the email and try again.',
+                );
+              }
+            }
+
+            final bottomInset = MediaQuery.of(sheetContext).viewInsets.bottom;
+            return Padding(
+              padding: EdgeInsets.only(bottom: bottomInset),
+              child: SafeArea(
+                top: false,
+                child: Container(
+                  decoration: const BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.vertical(
+                      top: Radius.circular(28),
+                    ),
+                  ),
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
+                    child: Form(
+                      key: forgotFormKey,
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'Forgot Password',
+                            style: TextStyle(
+                              fontSize: 22,
+                              fontWeight: FontWeight.w800,
+                              color: kNeutralText,
+                              fontFamily: 'Montserrat',
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          const Text(
+                            'Enter the email connected to your account. We will send the reset link there.',
+                            style: TextStyle(
+                              fontSize: 14,
+                              height: 1.45,
+                              color: kSubtleText,
+                              fontFamily: 'OpenSans',
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          const SizedBox(height: 18),
+                          TextFormField(
+                            controller: forgotEmailController,
+                            keyboardType: TextInputType.emailAddress,
+                            textInputAction: TextInputAction.done,
+                            inputFormatters:
+                                AppInputSecurity.singleLineFormatters(
+                                  maxLength: 120,
+                                ),
+                            decoration: _inputDecoration(
+                              'Email address',
+                              icon: Icons.alternate_email_rounded,
+                            ),
+                            validator: AppInputSecurity.validateEmail,
+                            onFieldSubmitted: (_) =>
+                                submitting ? null : submitReset(),
+                          ),
+                          const SizedBox(height: 18),
+                          SizedBox(
+                            width: double.infinity,
+                            height: 54,
+                            child: ElevatedButton.icon(
+                              onPressed: submitting ? null : submitReset,
+                              icon: submitting
+                                  ? const SizedBox(
+                                      width: 20,
+                                      height: 20,
+                                      child: CircularProgressIndicator(
+                                        color: Colors.white,
+                                        strokeWidth: 2.4,
+                                      ),
+                                    )
+                                  : const Icon(
+                                      Icons.mail_outline_rounded,
+                                      color: Colors.white,
+                                    ),
+                              label: Text(
+                                submitting ? 'Sending...' : 'Send Reset Link',
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.w700,
+                                  fontSize: 16,
+                                ),
+                              ),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: kPrimary,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(16),
+                                ),
+                                elevation: 0,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            );
+          },
         );
-        return;
-      }
+      },
+    );
 
-      await Supabase.instance.client.auth.resetPasswordForEmail(email);
-      setState(() => _isLoading = false);
-      await _showErrorDialog(
-        'Check Your Email',
-        'We sent a password reset link to $email.',
-        color: kAccent,
-      );
-    } catch (e) {
-      setState(() => _isLoading = false);
-      await _showErrorDialog(
-        'Reset Failed',
-        'Could not send reset link. Please try again.',
-      );
-    }
+    forgotEmailController.dispose();
   }
 
   Future<void> _showErrorDialog(
@@ -84,11 +204,13 @@ class _LoginState extends State<Login> {
     String message, {
     Color color = kDanger,
     VoidCallback? onTryAgain,
+    IconData icon = Icons.error_outline_rounded,
+    String? actionLabel,
   }) async {
     return showGeneralDialog<void>(
       context: context,
       barrierDismissible: true,
-      barrierLabel: 'Error',
+      barrierLabel: 'Dialog',
       barrierColor: Colors.black.withOpacity(0.35),
       transitionDuration: const Duration(milliseconds: 220),
       pageBuilder: (ctx, a1, a2) => const SizedBox.shrink(),
@@ -145,11 +267,7 @@ class _LoginState extends State<Login> {
                                 color: Colors.white.withOpacity(0.2),
                                 borderRadius: BorderRadius.circular(8),
                               ),
-                              child: Icon(
-                                Icons.error_outline_rounded,
-                                color: Colors.white,
-                                size: 24,
-                              ),
+                              child: Icon(icon, color: Colors.white, size: 24),
                             ),
                             const SizedBox(width: 16),
                             Expanded(
@@ -222,9 +340,12 @@ class _LoginState extends State<Login> {
                                     ),
                                     elevation: 0,
                                   ),
-                                  child: const Text(
-                                    'Try again',
-                                    style: TextStyle(
+                                  child: Text(
+                                    actionLabel ??
+                                        (onTryAgain != null
+                                            ? 'Try again'
+                                            : 'OK'),
+                                    style: const TextStyle(
                                       fontWeight: FontWeight.w700,
                                     ),
                                   ),
@@ -255,42 +376,164 @@ class _LoginState extends State<Login> {
   }
 
   String _normalizePhone(String raw) {
-    final s = raw.replaceAll(RegExp(r'\s+'), '');
-    if (s.startsWith('+')) return s;
-    // Simple PH normalization: 09XXXXXXXXX -> +639XXXXXXXXX
-    if (s.startsWith('09') && s.length == 11) {
-      return '+63${s.substring(1)}';
+    final digits = raw.replaceAll(RegExp(r'\D'), '');
+    if (digits.length == 10 && digits.startsWith('9')) {
+      return '+63$digits';
     }
-    return s; // fallback
+    if (digits.length == 11 && digits.startsWith('09')) {
+      return '+63${digits.substring(1)}';
+    }
+    if (digits.length == 12 && digits.startsWith('63')) {
+      return '+$digits';
+    }
+    throw Exception('Enter a valid Philippine mobile number.');
+  }
+
+  bool _looksLikeEmail(String raw) {
+    final value = raw.trim();
+    return RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$').hasMatch(value);
+  }
+
+  List<String> _phoneLookupCandidates(String raw) {
+    final normalized = _normalizePhone(raw);
+    final localNumber = normalized.substring(3);
+    final candidates = <String>{
+      normalized,
+      localNumber,
+      '0$localNumber',
+      '63$localNumber',
+    };
+
+    final compactRaw = raw.replaceAll(RegExp(r'\s+|-'), '');
+    if (compactRaw.isNotEmpty) {
+      candidates.add(compactRaw);
+    }
+
+    return candidates.toList();
+  }
+
+  String? _normalizeStoredPhoneOrNull(String? raw) {
+    if (raw == null) return null;
+    final trimmed = raw.trim();
+    if (trimmed.isEmpty) return null;
+
+    try {
+      return _normalizePhone(trimmed);
+    } catch (_) {
+      return null;
+    }
   }
 
   Future<String?> _emailForPhone(String phone) async {
     final sb = Supabase.instance.client;
     final normalized = _normalizePhone(phone);
-    final email = await sb.rpc(
-      'auth_email_for_phone',
-      params: {'p_mobile': normalized},
+    final lastFourDigits = normalized.substring(normalized.length - 4);
+
+    try {
+      final rpcEmail = await sb.rpc(
+        'auth_email_for_phone',
+        params: {'p_mobile': normalized},
+      );
+      final resolved = rpcEmail?.toString().trim();
+      if (resolved != null && resolved.isNotEmpty) {
+        return resolved;
+      }
+    } catch (_) {
+      // Fall back to direct table lookup for projects that do not have the RPC.
+    }
+
+    final normalizedRow = await sb
+        .from('users')
+        .select('id, email, mobile_number, mobile_number_normalized')
+        .eq('mobile_number_normalized', normalized)
+        .maybeSingle();
+
+    final normalizedEmail = normalizedRow?['email']?.toString().trim();
+    if (normalizedEmail != null && normalizedEmail.isNotEmpty) {
+      return normalizedEmail;
+    }
+
+    for (final candidate in _phoneLookupCandidates(phone)) {
+      final row = await sb
+          .from('users')
+          .select('id, email, mobile_number, mobile_number_normalized')
+          .eq('mobile_number', candidate)
+          .maybeSingle();
+      final email = row?['email']?.toString().trim();
+      if (email != null && email.isNotEmpty) {
+        return email;
+      }
+    }
+
+    final rows = List<Map<String, dynamic>>.from(
+      await sb
+          .from('users')
+          .select('id, email, mobile_number, mobile_number_normalized')
+          .or(
+            'mobile_number.ilike.*$lastFourDigits*,mobile_number_normalized.eq.$normalized',
+          )
+          .limit(20),
     );
-    if (email == null) return null;
-    final e = (email as String).trim();
-    return e.isEmpty ? null : e;
+
+    for (final row in rows) {
+      final email = row['email']?.toString().trim();
+      if (email == null || email.isEmpty) continue;
+
+      final storedNormalized = _normalizeStoredPhoneOrNull(
+        row['mobile_number_normalized']?.toString(),
+      );
+      if (storedNormalized == normalized) {
+        return email;
+      }
+
+      final storedRawNormalized = _normalizeStoredPhoneOrNull(
+        row['mobile_number']?.toString(),
+      );
+      if (storedRawNormalized == normalized) {
+        return email;
+      }
+    }
+
+    return null;
+  }
+
+  Future<String?> _resolveLoginEmail(String input) async {
+    final trimmed = input.trim();
+    if (trimmed.isEmpty) return null;
+
+    if (_looksLikeEmail(trimmed)) {
+      final row = await Supabase.instance.client
+          .from('users')
+          .select('email')
+          .ilike('email', trimmed)
+          .maybeSingle();
+      final email = row?['email']?.toString().trim();
+      return (email == null || email.isEmpty) ? trimmed.toLowerCase() : email;
+    }
+
+    return _emailForPhone(trimmed);
   }
 
   Future<void> _handleLogin() async {
     if (!_formKey.currentState!.validate()) return;
+
     setState(() => _isLoading = true);
 
     final inputRaw = emailController.text.trim();
     final password = passwordController.text.trim();
+    String? resolvedEmail;
 
     try {
-      final resolvedEmail = inputRaw.contains('@')
-          ? inputRaw.trim()
-          : await _emailForPhone(inputRaw);
+      resolvedEmail = await _resolveLoginEmail(inputRaw);
 
-      if (resolvedEmail == null) {
+      if (resolvedEmail == null || resolvedEmail.isEmpty) {
         setState(() => _isLoading = false);
-        await _showErrorDialog('Sign-in Failed', 'No account for that phone.');
+        await _showErrorDialog(
+          'Sign-in Failed',
+          _looksLikeEmail(inputRaw)
+              ? 'No account found for that email.'
+              : 'No account found for that phone number.',
+        );
         return;
       }
 
@@ -308,7 +551,6 @@ class _LoginState extends State<Login> {
         return;
       }
 
-      // Log to audit_logs table
       await Supabase.instance.client.from('audit_logs').insert({
         'action': 'Signed in successfully',
         'created_at': DateTime.now().toIso8601String(),
@@ -320,18 +562,26 @@ class _LoginState extends State<Login> {
       setState(() => _isLoading = false);
       debugPrint('AUTH ERROR code=${e.statusCode} msg=${e.message}');
 
-      // Diagnostic: does stored bcrypt match entered password?
+      final msg = e.message.toLowerCase();
+      final isOffline =
+          _looksOffline(e) ||
+          msg.contains('network') ||
+          msg.contains('fetch') ||
+          msg.contains('socket') ||
+          msg.contains('timeout');
+
+      if (isOffline) {
+        await NetworkMonitor().checkNow();
+        return;
+      }
+
       try {
         final row = await Supabase.instance.client
             .from('users')
             .select('password_hash')
-            .eq(
-              'email',
-              inputRaw.contains('@')
-                  ? inputRaw
-                  : await _emailForPhone(inputRaw) ?? '',
-            )
+            .eq('email', (resolvedEmail ?? inputRaw).toLowerCase())
             .maybeSingle();
+
         if (row != null && row['password_hash'] is String) {
           final okBcrypt = BCrypt.checkpw(
             password,
@@ -345,12 +595,15 @@ class _LoginState extends State<Login> {
     } catch (e) {
       setState(() => _isLoading = false);
       debugPrint('Generic login error: $e');
+
+      if (_looksOffline(e)) {
+        await NetworkMonitor().checkNow();
+        return;
+      }
+
       await _showErrorDialog(
-        _looksOffline(e) ? 'No Internet Connection' : 'Sign-in Failed',
-        _looksOffline(e)
-            ? 'Connect to your internet connection'
-            : 'Please check your credentials and try again.',
-        color: _looksOffline(e) ? kWarn : kDanger,
+        'Sign-in Failed',
+        'Please check your credentials and try again.',
       );
     }
   }
@@ -711,42 +964,59 @@ class _LoginState extends State<Login> {
                                 controller: emailController,
                                 keyboardType: TextInputType.emailAddress,
                                 textInputAction: TextInputAction.next,
+                                inputFormatters:
+                                    AppInputSecurity.singleLineFormatters(
+                                      maxLength: 120,
+                                    ),
                                 style: TextStyle(
                                   fontSize: isWide ? 20 : 18,
                                   color: kNeutralText,
                                   fontWeight: FontWeight.w500,
                                 ),
                                 decoration: _inputDecoration(
-                                  'Phone number (or email)',
+                                  'Email',
                                   icon: Icons.phone_rounded,
                                 ),
-                                validator: (value) {
-                                  if (value == null || value.trim().isEmpty) {
-                                    return 'Phone number is required';
-                                  }
-                                  final s = value.trim();
-                                  if (s.contains('@')) {
-                                    final emailRegex = RegExp(
-                                      r'^[^@]+@[^@]+\.[^@]+$',
-                                    );
-                                    if (!emailRegex.hasMatch(s)) {
-                                      return 'Enter a valid email';
-                                    }
-                                    return null;
-                                  }
-                                  // Basic phone validation: 10–15 digits, allow leading +
-                                  final phone = s.replaceAll(
-                                    RegExp(r'\s+'),
-                                    '',
-                                  );
-                                  if (!RegExp(
-                                    r'^\+?\d{10,15}$',
-                                  ).hasMatch(phone)) {
-                                    return 'Enter a valid phone number';
-                                  }
-                                  return null;
-                                },
+                                validator:
+                                    AppInputSecurity.validateEmailOrPhone,
                               ),
+                              // const SizedBox(height: 10),
+                              // Container(
+                              //   width: double.infinity,
+                              //   padding: const EdgeInsets.symmetric(
+                              //     horizontal: 14,
+                              //     vertical: 12,
+                              //   ),
+                              //   decoration: BoxDecoration(
+                              //     color: kPrimary.withOpacity(0.06),
+                              //     borderRadius: BorderRadius.circular(12),
+                              //     border: Border.all(
+                              //       color: kPrimary.withOpacity(0.12),
+                              //     ),
+                              //   ),
+                              //   child: const Row(
+                              //     crossAxisAlignment: CrossAxisAlignment.start,
+                              //     children: [
+                              //       Icon(
+                              //         Icons.info_outline_rounded,
+                              //         color: kPrimary,
+                              //         size: 18,
+                              //       ),
+                              //       SizedBox(width: 8),
+                              //       Expanded(
+                              //         child: Text(
+                              //           'You can sign in using your registered phone number or your email address.',
+                              //           style: TextStyle(
+                              //             color: kPrimary,
+                              //             fontSize: 13,
+                              //             height: 1.4,
+                              //             fontWeight: FontWeight.w600,
+                              //           ),
+                              //         ),
+                              //       ),
+                              //     ],
+                              //   ),
+                              // ),
                               const SizedBox(height: 16),
 
                               // Password

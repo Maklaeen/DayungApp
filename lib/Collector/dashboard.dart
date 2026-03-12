@@ -3,6 +3,7 @@ import 'package:capstone_app/Auth/logout.dart';
 import 'package:capstone_app/Beneficiary/beneficiary.dart' hide kPrimary;
 import 'package:capstone_app/Collector/collclaims.dart' hide kPrimary;
 import 'package:capstone_app/Collector/collcontributions.dart';
+import 'package:capstone_app/Collector/collector_payment_page.dart';
 import 'package:capstone_app/Collector/collect_cash.dart';
 import 'package:capstone_app/Providers/dayung_provider.dart';
 import 'package:capstone_app/Providers/dayung_role_provider.dart';
@@ -48,7 +49,6 @@ class _CollectorDashboardPageState extends State<CollectorDashboardPage> {
   bool _loading = true;
   int _activeMembers = 0;
   double _pendingAmount = 0;
-  int _pendingMembers = 0;
   List<String> _recentDeaths = [];
 
   int _tab = 0;
@@ -215,7 +215,6 @@ class _CollectorDashboardPageState extends State<CollectorDashboardPage> {
   Future<void> _fetchPendingPayments(List<int> ids) async {
     try {
       _pendingAmount = 0;
-      _pendingMembers = 0;
 
       // RPC if available
       try {
@@ -225,7 +224,6 @@ class _CollectorDashboardPageState extends State<CollectorDashboardPage> {
         );
         if (rpc is Map && rpc['total_amount'] != null) {
           _pendingAmount = double.tryParse(rpc['total_amount'].toString()) ?? 0;
-          _pendingMembers = int.tryParse(rpc['member_count'].toString()) ?? 0;
           return;
         }
       } catch (_) {}
@@ -248,10 +246,8 @@ class _CollectorDashboardPageState extends State<CollectorDashboardPage> {
         }
       }
       _pendingAmount = total;
-      _pendingMembers = memberSet.length;
     } catch (_) {
       _pendingAmount = 0;
-      _pendingMembers = 0;
     }
   }
 
@@ -969,6 +965,28 @@ class _CollectorDashboardPageState extends State<CollectorDashboardPage> {
         ),
         const SizedBox(height: 8),
         _modernActionCard(
+          icon: Icons.payments_rounded,
+          title: 'My Payment Page',
+          subtitle: 'Pay your own contribution records',
+          color: const Color(0xFF2563EB),
+          onTap: () {
+            if (_dayungUnitId == null) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Select a Dayung first')),
+              );
+              return;
+            }
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) =>
+                    CollectorPaymentPage(dayungUnitId: _dayungUnitId!),
+              ),
+            ).then((_) => _fetchAll());
+          },
+        ),
+        const SizedBox(height: 8),
+        _modernActionCard(
           icon: Icons.receipt_long_rounded,
           title: 'Show Receipts',
           subtitle: 'View payment receipts',
@@ -1167,7 +1185,6 @@ class _CollectorDashboardPageState extends State<CollectorDashboardPage> {
   }
 
   Widget _buildSideDrawer(BuildContext context) {
-    final isDarkMode = Theme.of(context).brightness == Brightness.dark;
     return Drawer(
       backgroundColor: kBg,
       child: Column(
@@ -1296,13 +1313,6 @@ class _CollectorDashboardPageState extends State<CollectorDashboardPage> {
           ),
         ],
       ),
-    );
-  }
-
-  void _openGcashQr() {
-    // TODO: integrate actual QR view
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Open GCASH QR (coming soon)')),
     );
   }
 

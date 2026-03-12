@@ -5,6 +5,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:math';
 import 'package:flutter/material.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
@@ -509,8 +510,19 @@ class _DayungMapPageState extends State<DayungMapPage> {
     if (_pos == null || dayungLat == null || dayungLng == null) return;
     setState(() => _loadingRoute = true);
 
-    final apiKey =
-        'eyJvcmciOiI1YjNjZTM1OTc4NTExMTAwMDFjZjYyNDgiLCJpZCI6IjJmYTI4ZjFkODc3NzQ1ZTNiNGI3ZGIxNGI5MGFlYzI1IiwiaCI6Im11cm11cjY0In0='; // <-- Replace with your ORS key
+    final apiKey = dotenv.env['OPENROUTESERVICE_API_KEY'];
+    if (apiKey == null || apiKey.isEmpty) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Missing OPENROUTESERVICE_API_KEY in .env'),
+          ),
+        );
+      }
+      setState(() => _loadingRoute = false);
+      return;
+    }
+
     final startLng = _pos!.longitude;
     final startLat = _pos!.latitude;
     final endLng = dayungLng!;
@@ -704,37 +716,37 @@ class _DayungMapPageState extends State<DayungMapPage> {
   }
 
   Future<void> _fetchRules() async {
-  setState(() => _loadingRules = true);
-  try {
-    final supabase = Supabase.instance.client;
-    final id = widget.dayung['id'];
-    final res = await supabase
-        .from('dayung_rules')
-        .select()
-        .eq('dayung_unit_id', id)
-        .maybeSingle();
-
-    // Fetch required_applications if no rules
-    Map<String, dynamic>? requiredApp;
-    if (res == null) {
-      requiredApp = await supabase
-          .from('required_applications')
-          .select('title, description')
+    setState(() => _loadingRules = true);
+    try {
+      final supabase = Supabase.instance.client;
+      final id = widget.dayung['id'];
+      final res = await supabase
+          .from('dayung_rules')
+          .select()
           .eq('dayung_unit_id', id)
           .maybeSingle();
-    }
 
-    if (mounted) {
-      setState(() {
-        _rules = res;
-        _requiredApplication = requiredApp;
-        _loadingRules = false;
-      });
+      // Fetch required_applications if no rules
+      Map<String, dynamic>? requiredApp;
+      if (res == null) {
+        requiredApp = await supabase
+            .from('required_applications')
+            .select('title, description')
+            .eq('dayung_unit_id', id)
+            .maybeSingle();
+      }
+
+      if (mounted) {
+        setState(() {
+          _rules = res;
+          _requiredApplication = requiredApp;
+          _loadingRules = false;
+        });
+      }
+    } catch (_) {
+      if (mounted) setState(() => _loadingRules = false);
     }
-  } catch (_) {
-    if (mounted) setState(() => _loadingRules = false);
   }
-}
 
   Future<void> _initLocation() async {
     print('Requesting location permission...');
@@ -1154,10 +1166,7 @@ class _DayungMapPageState extends State<DayungMapPage> {
               const SizedBox(height: 4),
               Text(
                 _requiredApplication!['description'] ?? '',
-                style: const TextStyle(
-                  color: kSubtleText,
-                  fontSize: 13,
-                ),
+                style: const TextStyle(color: kSubtleText, fontSize: 13),
               ),
             ],
           ),
@@ -1560,7 +1569,7 @@ class _DayungMapPageState extends State<DayungMapPage> {
     }
     return SizedBox(
       width: double.infinity,
-        height: 350,
+      height: 350,
       child: ml.MapLibreMap(
         styleString:
             'https://api.maptiler.com/maps/streets/style.json?key=ZgS5pYNNGTrRGUAnlS71',

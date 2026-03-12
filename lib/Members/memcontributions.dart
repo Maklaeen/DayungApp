@@ -321,7 +321,7 @@ class _MembersContributionHistoryState
             (userDeceasedId != null &&
                 userDeceasedNames[userDeceasedId]?.isNotEmpty == true)
             ? userDeceasedNames[userDeceasedId]
-            : userDeceasedId ?? 'Unknown';
+            : 'Unknown member';
         return {
           'date': (p['created_at'] ?? '').toString(),
           'amount': (p['amount'] is num)

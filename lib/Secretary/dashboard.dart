@@ -8,6 +8,7 @@ import 'package:capstone_app/Secretary/secclaims.dart';
 import 'package:capstone_app/Secretary/seccontributions.dart';
 import 'package:capstone_app/Secretary/deathnotice.dart';
 import 'package:capstone_app/Secretary/manage_applications.dart';
+import 'package:capstone_app/Secretary/secretary_payment_page.dart';
 import 'package:capstone_app/Secretary/secretarymemberspage.dart';
 import 'package:capstone_app/Secretary/service_tracker.dart';
 import 'package:capstone_app/pages/notification.dart';
@@ -50,7 +51,6 @@ class _SecretaryDashboardPageState extends State<SecretaryDashboardPage> {
   String? _unitBarangay;
   // ignore: unused_field
   String? _unitCity;
-  String? _profileUrl;
 
   double _pendingPaymentsAmount = 0;
 
@@ -656,7 +656,6 @@ class _SecretaryDashboardPageState extends State<SecretaryDashboardPage> {
   }
 
   Widget _buildSideDrawer(BuildContext context) {
-    final isDarkMode = Theme.of(context).brightness == Brightness.dark;
     return Drawer(
       backgroundColor: kBg,
       child: Column(
@@ -1285,6 +1284,29 @@ class _SecretaryDashboardPageState extends State<SecretaryDashboardPage> {
                   ),
                 ),
               ],
+            ),
+            const SizedBox(height: 12),
+            _modernActionCard(
+              icon: Icons.payments_rounded,
+              title: 'My Payment Page',
+              subtitle: 'Pay your own contribution records',
+              color: const Color(0xFF2563EB),
+              height: 110,
+              onTap: () {
+                if (_dayungUnitId == null) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Select a Dayung first')),
+                  );
+                  return;
+                }
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) =>
+                        SecretaryPaymentPage(dayungUnitId: _dayungUnitId!),
+                  ),
+                ).then((_) => _refreshAll());
+              },
             ),
           ],
         ),

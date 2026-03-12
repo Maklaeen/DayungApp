@@ -1,3 +1,4 @@
+import 'package:capstone_app/ui/loading/page_skeleton.dart';
 import 'package:capstone_app/pages/submit_claim.dart';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -130,7 +131,10 @@ class _CollectorClaimsPageState extends State<CollectorClaimsPage> {
       ),
       floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
       body: _loading
-          ? const Center(child: CircularProgressIndicator(color: kPrimary))
+          ? const DayungPageSkeleton(
+              layout: DayungSkeletonLayout.dashboard,
+              itemCount: 4,
+            )
           : RefreshIndicator(
               color: kPrimary,
               onRefresh: _load,

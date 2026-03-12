@@ -1,3 +1,4 @@
+import 'package:capstone_app/ui/loading/page_skeleton.dart';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -20,6 +21,7 @@ class _PresidentClaimsPageState extends State<PresidentClaimsPage> {
   final _sb = Supabase.instance.client;
   bool _loading = true;
   List<Map<String, dynamic>> _claims = [];
+  Map<String, String> _userNames = {};
 
   @override
   void initState() {
@@ -33,8 +35,32 @@ class _PresidentClaimsPageState extends State<PresidentClaimsPage> {
         .from('claims')
         .select()
         .eq('dayung_unit_id', widget.dayungUnitId);
+
+    final claims = List<Map<String, dynamic>>.from(rows);
+    final userIds = claims
+        .map((row) => (row['user_id'] ?? '').toString())
+        .where((id) => id.isNotEmpty)
+        .toSet()
+        .toList();
+
+    final userNames = <String, String>{};
+    if (userIds.isNotEmpty) {
+      final users = await _sb
+          .from('users')
+          .select('id, full_name')
+          .inFilter('id', userIds);
+      for (final user in List<Map<String, dynamic>>.from(users)) {
+        final id = (user['id'] ?? '').toString();
+        final fullName = (user['full_name'] ?? '').toString().trim();
+        if (id.isNotEmpty && fullName.isNotEmpty) {
+          userNames[id] = fullName;
+        }
+      }
+    }
+
     setState(() {
-      _claims = List<Map<String, dynamic>>.from(rows);
+      _claims = claims;
+      _userNames = userNames;
       _loading = false;
     });
   }
@@ -44,7 +70,10 @@ class _PresidentClaimsPageState extends State<PresidentClaimsPage> {
     return Container(
       color: const Color(0xFFF8FAFC),
       child: _loading
-          ? const Center(child: CircularProgressIndicator(color: kPrimaryLight))
+          ? const DayungPageSkeleton(
+              layout: DayungSkeletonLayout.list,
+              itemCount: 5,
+            )
           : _claims.isEmpty
           ? Center(
               child: Column(
@@ -69,6 +98,7 @@ class _PresidentClaimsPageState extends State<PresidentClaimsPage> {
                 final status = claim['status']?.toString() ?? '';
                 final claimType = claim['claim_type']?.toString() ?? 'Claim';
                 final userId = claim['user_id']?.toString() ?? '';
+                final memberName = _userNames[userId] ?? 'Unknown member';
                 return Card(
                   margin: const EdgeInsets.symmetric(vertical: 8),
                   elevation: 2,
@@ -109,7 +139,7 @@ class _PresidentClaimsPageState extends State<PresidentClaimsPage> {
                               ),
                               const SizedBox(height: 4),
                               Text(
-                                'By: $userId',
+                                'Filed by: $memberName',
                                 style: const TextStyle(
                                   fontSize: 13,
                                   color: kText,

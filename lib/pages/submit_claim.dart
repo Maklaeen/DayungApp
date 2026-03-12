@@ -2,12 +2,16 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:geocoding/geocoding.dart';
 import 'dart:io';
 import 'package:flutter/foundation.dart'; // add for kIsWeb
+import 'package:capstone_app/data/ph_address_data.dart';
+import 'package:capstone_app/utils/input_safety.dart';
+import 'package:capstone_app/utils/supabase_storage.dart';
 
 // Shared palette (aligned with claims page)
 const Color kPrimary = Color(0xFF0D47A1);
@@ -32,7 +36,6 @@ class _SubmitClaimFormState extends State<SubmitClaimForm> {
   final _formKey = GlobalKey<FormState>();
   final _title = TextEditingController();
   final _desc = TextEditingController();
-  Position? _vigilPos;
   String? _vigilAddress;
   String? _vigilBarangay;
   bool _submitting = false;
@@ -42,6 +45,10 @@ class _SubmitClaimFormState extends State<SubmitClaimForm> {
   String? _deathCertOrigName;
   double? _vigilLat;
   double? _vigilLng;
+  String? _pickedVigilRegion;
+  String? _pickedVigilProvince;
+  String? _pickedVigilCity;
+  String? _pickedVigilBarangay;
   // ADD: valid ID state
   File? _validIdFile;
   Uint8List? _validIdBytes;
@@ -63,7 +70,7 @@ class _SubmitClaimFormState extends State<SubmitClaimForm> {
   @override
   void initState() {
     super.initState();
-      _title.text = 'You Will Always Be With Us'; 
+    _title.text = 'You Will Always Be With Us';
     _fetchBeneficiaries();
   }
 
@@ -180,6 +187,131 @@ class _SubmitClaimFormState extends State<SubmitClaimForm> {
     });
   }
 
+  Future<Map<String, double>?> _geocodeVigilAddress(
+    String? barangay,
+    String? city,
+    String? province,
+  ) async {
+    final cleanBarangay = barangay
+        ?.replaceAll(RegExp(r'\s*\(.*?\)'), '')
+        .trim();
+    final cleanCity = city?.trim();
+    final cleanProvince = province?.trim();
+
+    final addressVariants = [
+      [
+        if (cleanBarangay != null && cleanBarangay.isNotEmpty) cleanBarangay,
+        if (cleanCity != null && cleanCity.isNotEmpty) cleanCity,
+        if (cleanProvince != null && cleanProvince.isNotEmpty) cleanProvince,
+        'Philippines',
+      ].join(', '),
+      [
+        if (cleanCity != null && cleanCity.isNotEmpty) cleanCity,
+        if (cleanProvince != null && cleanProvince.isNotEmpty) cleanProvince,
+        'Philippines',
+      ].join(', '),
+    ];
+
+    for (final address in addressVariants) {
+      if (address.trim().isEmpty) continue;
+      try {
+        final locations = await locationFromAddress(address);
+        if (locations.isNotEmpty) {
+          return {
+            'lat': locations.first.latitude,
+            'lng': locations.first.longitude,
+          };
+        }
+      } catch (_) {}
+    }
+
+    for (final address in addressVariants) {
+      if (address.trim().isEmpty) continue;
+      try {
+        final url =
+            'https://nominatim.openstreetmap.org/search?format=json&q=${Uri.encodeComponent(address)}&countrycodes=ph&limit=1&addressdetails=1';
+        final resp = await http.get(
+          Uri.parse(url),
+          headers: {'User-Agent': 'capstone-app/1.0'},
+        );
+        if (resp.statusCode != 200) continue;
+
+        final data = json.decode(resp.body);
+        if (data is List && data.isNotEmpty) {
+          final lat = double.tryParse(data[0]['lat']?.toString() ?? '');
+          final lng = double.tryParse(data[0]['lon']?.toString() ?? '');
+          if (lat != null && lng != null) {
+            return {'lat': lat, 'lng': lng};
+          }
+        }
+      } catch (_) {}
+    }
+
+    return null;
+  }
+
+  Future<void> _openVigilLocationPicker() async {
+    final result = await showModalBottomSheet<_ClaimAddressPickResult>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => _ClaimAddressPickerSheet(
+        onUseMyLocation: () async {
+          await _pickVigilLocation();
+          if (!ctx.mounted) return;
+          Navigator.pop(
+            ctx,
+            _ClaimAddressPickResult(
+              rawText: _vigilAddress ?? '',
+              region: _pickedVigilRegion,
+              province: _pickedVigilProvince,
+              city: _pickedVigilCity,
+              barangay: _pickedVigilBarangay,
+            ),
+          );
+        },
+        initialRegion: _pickedVigilRegion,
+        initialProvince: _pickedVigilProvince,
+        initialCity: _pickedVigilCity,
+        initialBarangay: _pickedVigilBarangay,
+      ),
+    );
+
+    if (result == null || result.rawText.trim().isEmpty) return;
+
+    final geocoded = await _geocodeVigilAddress(
+      result.barangay,
+      result.city,
+      result.province,
+    );
+
+    if (!mounted) return;
+
+    setState(() {
+      _vigilAddress = result.rawText;
+      _vigilBarangay = result.barangay ?? result.city;
+      _pickedVigilRegion = result.region;
+      _pickedVigilProvince = result.province;
+      _pickedVigilCity = result.city;
+      _pickedVigilBarangay = result.barangay;
+      _vigilLat = geocoded?['lat'];
+      _vigilLng = geocoded?['lng'];
+    });
+
+    if (geocoded == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Address saved, but exact coordinates could not be determined.',
+          ),
+        ),
+      );
+    }
+  }
+
   Future<void> _pickVigilLocation() async {
     if (_locating) return;
     setState(() => _locating = true);
@@ -200,9 +332,6 @@ class _SubmitClaimFormState extends State<SubmitClaimForm> {
       final pos = await Geolocator.getCurrentPosition(
         desiredAccuracy: LocationAccuracy.high,
       );
-
-      _vigilLat = pos.latitude;
-      _vigilLng = pos.longitude;
 
       String? composed;
       String? street;
@@ -250,9 +379,16 @@ class _SubmitClaimFormState extends State<SubmitClaimForm> {
       }
 
       setState(() {
-        _vigilPos = pos;
+        _vigilLat = pos.latitude;
+        _vigilLng = pos.longitude;
         _vigilAddress = composed ?? '(${pos.latitude}, ${pos.longitude})';
         _vigilBarangay = barangay?.isNotEmpty == true ? barangay : city;
+        _pickedVigilRegion = 'Mindanao';
+        _pickedVigilProvince = province?.isNotEmpty == true ? province : null;
+        _pickedVigilCity = city?.isNotEmpty == true ? city : null;
+        _pickedVigilBarangay = barangay?.isNotEmpty == true
+            ? barangay
+            : _vigilBarangay;
       });
     } catch (e) {
       ScaffoldMessenger.of(
@@ -304,9 +440,7 @@ class _SubmitClaimFormState extends State<SubmitClaimForm> {
 
       print('[UPLOAD] stored path: $storedPath');
 
-      final publicUrl = storage.from(bucket).getPublicUrl(fileName);
-      print('[UPLOAD] public URL: $publicUrl');
-      return publicUrl;
+      return buildStorageRef(bucket, fileName);
     } on StorageException catch (e, st) {
       print('[UPLOAD][StorageException] ${e.message}\n$st');
       rethrow;
@@ -349,8 +483,7 @@ class _SubmitClaimFormState extends State<SubmitClaimForm> {
             bytes,
             fileOptions: FileOptions(contentType: mime, upsert: false),
           );
-      final publicUrl = storage.from(bucket).getPublicUrl(fileName);
-      return publicUrl;
+      return buildStorageRef(bucket, fileName);
     } on StorageException catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Valid ID storage error: ${e.message}')),
@@ -449,17 +582,34 @@ class _SubmitClaimFormState extends State<SubmitClaimForm> {
     try {
       final claimData = {
         'user_id': user.id,
-        'title': _title.text.trim(),
-        'description': _desc.text.trim(),
+        'title': AppInputSecurity.sanitizePlainText(
+          _title.text,
+          maxLength: 120,
+        ),
+        'description': AppInputSecurity.sanitizePlainText(
+          _desc.text,
+          allowNewLines: true,
+          maxLength: 500,
+        ),
         'status': 'Pending',
         if (_selectedBeneficiaryId != null)
           'beneficiary_id': _selectedBeneficiaryId,
         'date_of_death': fmtDate(_dateOfDeath!),
         'dayung_unit_id': effectiveUnitId,
-        'vigil_latitude': _vigilPos?.latitude,
-        'vigil_longitude': _vigilPos?.longitude,
-        'vigil_address': _vigilAddress,
-        'vigil_barangay': _vigilBarangay,
+        'vigil_latitude': _vigilLat,
+        'vigil_longitude': _vigilLng,
+        'vigil_address': _vigilAddress == null
+            ? null
+            : AppInputSecurity.sanitizePlainText(
+                _vigilAddress!,
+                maxLength: 200,
+              ),
+        'vigil_barangay': _vigilBarangay == null
+            ? null
+            : AppInputSecurity.sanitizePlainText(
+                _vigilBarangay!,
+                maxLength: 120,
+              ),
       };
 
       final insertRes = await sb
@@ -518,45 +668,47 @@ class _SubmitClaimFormState extends State<SubmitClaimForm> {
     }
   }
 
-Widget _buildModernField({
-  required TextEditingController controller,
-  required String label,
-  required IconData icon,
-  String? Function(String?)? validator,
-  int maxLines = 1,
-  int minLines = 1,
-  bool readOnly = false,
-}) {
-  return Container(
-    decoration: BoxDecoration(
-      color: Colors.grey.shade50,
-      borderRadius: BorderRadius.circular(12),
-      border: Border.all(color: Colors.grey.shade200),
-    ),
-    child: TextFormField(
-      controller: controller,
-      maxLines: maxLines,
-      minLines: minLines,
-      textInputAction: TextInputAction.next,
-      readOnly: readOnly, 
-      decoration: InputDecoration(
-        labelText: label,
-        prefixIcon: Icon(icon, color: kPrimaryDark, size: 20),
-        border: InputBorder.none,
-        contentPadding: const EdgeInsets.symmetric(
-          horizontal: 16,
-          vertical: 16,
-        ),
-        labelStyle: TextStyle(
-          color: Colors.grey.shade600,
-          fontSize: 14,
-          fontWeight: FontWeight.w500,
-        ),
+  Widget _buildModernField({
+    required TextEditingController controller,
+    required String label,
+    required IconData icon,
+    String? Function(String?)? validator,
+    List<TextInputFormatter>? inputFormatters,
+    int maxLines = 1,
+    int minLines = 1,
+    bool readOnly = false,
+  }) {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.grey.shade50,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.grey.shade200),
       ),
-      validator: validator,
-    ),
-  );
-}
+      child: TextFormField(
+        controller: controller,
+        inputFormatters: inputFormatters,
+        maxLines: maxLines,
+        minLines: minLines,
+        textInputAction: TextInputAction.next,
+        readOnly: readOnly,
+        decoration: InputDecoration(
+          labelText: label,
+          prefixIcon: Icon(icon, color: kPrimaryDark, size: 20),
+          border: InputBorder.none,
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 16,
+            vertical: 16,
+          ),
+          labelStyle: TextStyle(
+            color: Colors.grey.shade600,
+            fontSize: 14,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+        validator: validator,
+      ),
+    );
+  }
 
   Widget _buildModernDropdown() {
     return Container(
@@ -764,32 +916,19 @@ Widget _buildModernField({
   Widget _buildModernVigilLocation() {
     final disabled = _submitting || _locating;
     return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Align(
-        //   alignment: Alignment.centerLeft,
-        //   child: ElevatedButton.icon(
-        //     onPressed: disabled ? null : _pickVigilLocation,
-        //     style: ElevatedButton.styleFrom(
-        //       backgroundColor: kPrimaryDark,
-        //       foregroundColor: Colors.white,
-        //     ),
-        //     icon: _locating
-        //         ? const SizedBox(
-        //             width: 18,
-        //             height: 18,
-        //             child: CircularProgressIndicator(
-        //               strokeWidth: 2,
-        //               valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-        //             ),
-        //           )
-        //         : const Icon(Icons.my_location, size: 18),
-        //     label: Text(
-        //       _locating ? 'Setting location...' : 'Use My Current Location',
-        //       style: const TextStyle(fontWeight: FontWeight.w600),
-        //     ),
-        //   ),
-        // ),
-        // const SizedBox(height: 8),
+        Padding(
+          padding: const EdgeInsets.only(bottom: 8),
+          child: Text(
+            'Vigil location',
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w700,
+              color: Colors.grey.shade700,
+            ),
+          ),
+        ),
         Container(
           decoration: BoxDecoration(
             color: Colors.grey.shade50,
@@ -797,14 +936,14 @@ Widget _buildModernField({
             border: Border.all(color: Colors.grey.shade200),
           ),
           child: InkWell(
-            onTap: disabled ? null : _pickVigilLocation,
+            onTap: disabled ? null : _openVigilLocationPicker,
             borderRadius: BorderRadius.circular(12),
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
               child: Row(
                 children: [
                   Icon(
-                    Icons.my_location,
+                    Icons.location_on_outlined,
                     color: _locating ? Colors.orange : kPrimaryDark,
                     size: 20,
                   ),
@@ -814,7 +953,7 @@ Widget _buildModernField({
                       _locating
                           ? 'Setting location...'
                           : (_vigilAddress == null
-                                ? 'Set vigil location'
+                                ? 'Set Vigil Location'
                                 : 'Barangay: ${_vigilBarangay ?? '-'}\n$_vigilAddress'),
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
@@ -995,13 +1134,18 @@ Widget _buildModernField({
                       controller: _title,
                       label: 'Title',
                       icon: Icons.title_rounded,
+                      inputFormatters: AppInputSecurity.singleLineFormatters(
+                        maxLength: 120,
+                      ),
                       validator: (v) {
-                        final t = (v ?? '').trim();
-                        if (t.isEmpty) return 'Enter a title';
-                        if (t.length < 4) return 'Too short';
-                        return null;
+                        return AppInputSecurity.validateSafeText(
+                          v,
+                          fieldName: 'Title',
+                          minLength: 4,
+                          maxLength: 120,
+                        );
                       },
-                        readOnly: true, 
+                      readOnly: true,
                     ),
                     const SizedBox(height: 16),
 
@@ -1010,6 +1154,16 @@ Widget _buildModernField({
                       controller: _desc,
                       label: 'Description (optional)',
                       icon: Icons.notes_rounded,
+                      inputFormatters: AppInputSecurity.multiLineFormatters(
+                        maxLength: 500,
+                      ),
+                      validator: (v) => AppInputSecurity.validateSafeText(
+                        v,
+                        fieldName: 'Description',
+                        required: false,
+                        maxLength: 500,
+                        allowNewLines: true,
+                      ),
                       maxLines: 3,
                       minLines: 2,
                     ),
@@ -1060,6 +1214,445 @@ Widget _buildModernField({
           ),
         ],
       ),
+    );
+  }
+}
+
+class _ClaimAddressPickResult {
+  final String rawText;
+  final String? region;
+  final String? province;
+  final String? city;
+  final String? barangay;
+
+  const _ClaimAddressPickResult({
+    required this.rawText,
+    this.region,
+    this.province,
+    this.city,
+    this.barangay,
+  });
+}
+
+class _ClaimAddressPickerSheet extends StatefulWidget {
+  final Future<void> Function() onUseMyLocation;
+  final String? initialRegion;
+  final String? initialProvince;
+  final String? initialCity;
+  final String? initialBarangay;
+
+  const _ClaimAddressPickerSheet({
+    required this.onUseMyLocation,
+    this.initialRegion,
+    this.initialProvince,
+    this.initialCity,
+    this.initialBarangay,
+  });
+
+  @override
+  State<_ClaimAddressPickerSheet> createState() =>
+      _ClaimAddressPickerSheetState();
+}
+
+class _ClaimAddressPickerSheetState extends State<_ClaimAddressPickerSheet> {
+  String? _region;
+  String? _province;
+  String? _city;
+  String? _barangay;
+  String _barangaySearch = '';
+  bool _locating = false;
+
+  int get _stepIndex {
+    if (_region == null) return 0;
+    if (_province == null) return 1;
+    if (_city == null) return 2;
+    return 3;
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _region = widget.initialRegion;
+    _province = widget.initialProvince;
+    _city = widget.initialCity;
+    _barangay = widget.initialBarangay;
+  }
+
+  List<Map<String, dynamic>> get _mindanaoProvinces {
+    return phProvinces.cast<Map<String, dynamic>>();
+  }
+
+  List<Map<String, dynamic>> get _citiesInProvince {
+    if (_province == null) return const [];
+    final province = _mindanaoProvinces.firstWhere(
+      (item) => item['name'] == _province,
+      orElse: () => <String, dynamic>{},
+    );
+    final rawCities = province['cities'];
+    if (rawCities is! List) return const [];
+    return rawCities.cast<Map<String, dynamic>>();
+  }
+
+  List<String> get _barangaysInCity {
+    if (_city == null) return const [];
+    final city = _citiesInProvince.firstWhere(
+      (item) => item['name'] == _city,
+      orElse: () => <String, dynamic>{},
+    );
+    final rawBarangays = city['barangays'];
+    if (rawBarangays is! List) return const [];
+    return rawBarangays
+        .where(
+          (item) =>
+              item is String &&
+              item.trim().isNotEmpty &&
+              !RegExp(r'^[A-Z]$').hasMatch(item.trim()),
+        )
+        .cast<String>()
+        .toList();
+  }
+
+  void _goBackOneStep() {
+    setState(() {
+      if (_stepIndex == 1) {
+        _region = null;
+        _province = null;
+        _city = null;
+        _barangay = null;
+      } else if (_stepIndex == 2) {
+        _province = null;
+        _city = null;
+        _barangay = null;
+      } else if (_stepIndex == 3) {
+        _city = null;
+        _barangay = null;
+      }
+    });
+  }
+
+  String _composeAddress() {
+    return [
+      if (_barangay?.isNotEmpty == true) _barangay,
+      if (_city?.isNotEmpty == true) _city,
+      if (_province?.isNotEmpty == true) _province,
+      if (_region?.isNotEmpty == true) _region,
+    ].join(', ');
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final size = MediaQuery.of(context).size;
+
+    return SafeArea(
+      child: SizedBox(
+        height: size.height * 0.75,
+        child: Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 14, 16, 8),
+              child: Row(
+                children: [
+                  const Text(
+                    'Set Vigil Location',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w700,
+                      color: kNeutralText,
+                    ),
+                  ),
+                  const Spacer(),
+                  TextButton(
+                    onPressed: () => setState(() {
+                      _region = null;
+                      _province = null;
+                      _city = null;
+                      _barangay = null;
+                      _barangaySearch = '';
+                    }),
+                    child: const Text(
+                      'Reset',
+                      style: TextStyle(fontWeight: FontWeight.w600),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: _ClaimVerticalTrail(
+                region: _region,
+                province: _province,
+                city: _city,
+                barangay: _barangay,
+                activeStep: _stepIndex,
+              ),
+            ),
+            Expanded(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  children: [
+                    if (_stepIndex == 0) ...[
+                      SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton.icon(
+                          onPressed: _locating
+                              ? null
+                              : () async {
+                                  setState(() => _locating = true);
+                                  await widget.onUseMyLocation();
+                                  if (mounted) {
+                                    setState(() => _locating = false);
+                                  }
+                                },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: kPrimary,
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(vertical: 14),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                          icon: _locating
+                              ? const SizedBox(
+                                  width: 18,
+                                  height: 18,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    valueColor: AlwaysStoppedAnimation<Color>(
+                                      Colors.white,
+                                    ),
+                                  ),
+                                )
+                              : const Icon(Icons.my_location_rounded),
+                          label: Text(
+                            _locating
+                                ? 'Getting current location...'
+                                : 'Use My Current Location',
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      const Align(
+                        alignment: Alignment.centerLeft,
+                        child: Text(
+                          'Region',
+                          style: TextStyle(color: kSubtleText),
+                        ),
+                      ),
+                      ListTile(
+                        contentPadding: EdgeInsets.zero,
+                        title: const Text('Mindanao'),
+                        trailing: const Icon(
+                          Icons.arrow_forward_ios_rounded,
+                          size: 16,
+                        ),
+                        onTap: () => setState(() {
+                          _region = 'Mindanao';
+                          _province = null;
+                          _city = null;
+                          _barangay = null;
+                        }),
+                      ),
+                    ],
+                    if (_stepIndex == 1) ...[
+                      _ClaimBackButton(onPressed: _goBackOneStep),
+                      const Align(
+                        alignment: Alignment.centerLeft,
+                        child: Text(
+                          'Province',
+                          style: TextStyle(color: kSubtleText),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      ..._mindanaoProvinces.map((province) {
+                        final name = (province['name'] ?? '').toString();
+                        return ListTile(
+                          contentPadding: EdgeInsets.zero,
+                          title: Text(name),
+                          trailing: const Icon(
+                            Icons.arrow_forward_ios_rounded,
+                            size: 16,
+                          ),
+                          onTap: () => setState(() {
+                            _province = name;
+                            _city = null;
+                            _barangay = null;
+                          }),
+                        );
+                      }),
+                    ],
+                    if (_stepIndex == 2) ...[
+                      _ClaimBackButton(onPressed: _goBackOneStep),
+                      const Align(
+                        alignment: Alignment.centerLeft,
+                        child: Text(
+                          'City / Municipality',
+                          style: TextStyle(color: kSubtleText),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      ..._citiesInProvince.map((city) {
+                        final name = (city['name'] ?? '').toString().trim();
+                        if (name.isEmpty) {
+                          return const SizedBox.shrink();
+                        }
+                        return ListTile(
+                          contentPadding: EdgeInsets.zero,
+                          title: Text(name),
+                          trailing: const Icon(
+                            Icons.arrow_forward_ios_rounded,
+                            size: 16,
+                          ),
+                          onTap: () => setState(() {
+                            _city = name;
+                            _barangay = null;
+                          }),
+                        );
+                      }),
+                    ],
+                    if (_stepIndex == 3) ...[
+                      _ClaimBackButton(onPressed: _goBackOneStep),
+                      TextField(
+                        inputFormatters: AppInputSecurity.singleLineFormatters(
+                          maxLength: 80,
+                        ),
+                        decoration: InputDecoration(
+                          hintText: 'Search barangay...',
+                          prefixIcon: const Icon(Icons.search),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                        onChanged: (value) {
+                          setState(
+                            () => _barangaySearch =
+                                AppInputSecurity.sanitizeSearchQuery(value),
+                          );
+                        },
+                      ),
+                      const SizedBox(height: 12),
+                      ..._barangaysInCity
+                          .where(
+                            (name) => name.toLowerCase().contains(
+                              _barangaySearch.toLowerCase(),
+                            ),
+                          )
+                          .map((name) {
+                            return RadioListTile<String>(
+                              contentPadding: EdgeInsets.zero,
+                              value: name,
+                              groupValue: _barangay,
+                              title: Text(name),
+                              activeColor: kPrimary,
+                              onChanged: (value) {
+                                if (value == null) return;
+                                setState(() => _barangay = value);
+                                Navigator.pop(
+                                  context,
+                                  _ClaimAddressPickResult(
+                                    rawText: _composeAddress(),
+                                    region: _region,
+                                    province: _province,
+                                    city: _city,
+                                    barangay: value,
+                                  ),
+                                );
+                              },
+                            );
+                          }),
+                    ],
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ClaimBackButton extends StatelessWidget {
+  final VoidCallback onPressed;
+
+  const _ClaimBackButton({required this.onPressed});
+
+  @override
+  Widget build(BuildContext context) {
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: TextButton.icon(
+        onPressed: onPressed,
+        icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 14),
+        label: const Text('Back'),
+      ),
+    );
+  }
+}
+
+class _ClaimVerticalTrail extends StatelessWidget {
+  final String? region;
+  final String? province;
+  final String? city;
+  final String? barangay;
+  final int activeStep;
+
+  const _ClaimVerticalTrail({
+    required this.region,
+    required this.province,
+    required this.city,
+    required this.barangay,
+    required this.activeStep,
+  });
+
+  Widget _step(String label, String? value, bool active, bool showDivider) {
+    final highlight = value != null || active;
+    return Column(
+      children: [
+        Row(
+          children: [
+            Container(
+              width: 10,
+              height: 10,
+              decoration: BoxDecoration(
+                color: highlight ? kPrimary : Colors.grey.shade300,
+                shape: BoxShape.circle,
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                value == null ? label : '$label: $value',
+                style: TextStyle(
+                  fontSize: 12,
+                  color: highlight ? kNeutralText : Colors.grey.shade500,
+                  fontWeight: highlight ? FontWeight.w600 : FontWeight.w400,
+                ),
+              ),
+            ),
+          ],
+        ),
+        if (showDivider)
+          Container(
+            margin: const EdgeInsets.only(left: 4, top: 4, bottom: 4),
+            width: 2,
+            height: 16,
+            color: Colors.grey.shade300,
+          ),
+      ],
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        _step('Region', region, activeStep == 0, true),
+        _step('Province', province, activeStep == 1, true),
+        _step('City', city, activeStep == 2, true),
+        _step('Barangay', barangay, activeStep == 3, false),
+      ],
     );
   }
 }

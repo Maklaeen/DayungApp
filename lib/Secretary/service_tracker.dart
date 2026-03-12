@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/legacy.dart';
+import 'package:capstone_app/utils/input_safety.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:intl/intl.dart'; 
+import 'package:intl/intl.dart';
 
 const kText = Color(0xFF111827);
 const kSubText = Color(0xFF6B7280);
@@ -17,10 +18,13 @@ const kDanger = Color(0xFFEF4444);
 const double kEdge = 16;
 
 final serviceChecklistProvider =
-    StateNotifierProvider.family<ServiceChecklistNotifier,
-        List<Map<String, dynamic>>, int>((ref, deathNoticeId) {
-  return ServiceChecklistNotifier(deathNoticeId);
-});
+    StateNotifierProvider.family<
+      ServiceChecklistNotifier,
+      List<Map<String, dynamic>>,
+      int
+    >((ref, deathNoticeId) {
+      return ServiceChecklistNotifier(deathNoticeId);
+    });
 
 class ServiceChecklistNotifier
     extends StateNotifier<List<Map<String, dynamic>>> {
@@ -30,10 +34,7 @@ class ServiceChecklistNotifier
   Future<void> removeService(int checklistId) async {
     final sb = Supabase.instance.client;
     try {
-      await sb
-          .from('service_checklist')
-          .delete()
-          .eq('id', checklistId);
+      await sb.from('service_checklist').delete().eq('id', checklistId);
       state = state.where((item) => item['id'] != checklistId).toList();
     } catch (e) {
       debugPrint('Error removing service: $e');
@@ -56,7 +57,8 @@ class ServiceChecklistNotifier
 
 class ServiceTrackerPage extends StatefulWidget {
   final int dayungUnitId;
-  const ServiceTrackerPage({Key? key, required this.dayungUnitId}) : super(key: key);
+  const ServiceTrackerPage({Key? key, required this.dayungUnitId})
+    : super(key: key);
 
   @override
   _ServiceTrackerPageState createState() => _ServiceTrackerPageState();
@@ -65,7 +67,8 @@ class ServiceTrackerPage extends StatefulWidget {
 class _ServiceTrackerPageState extends State<ServiceTrackerPage> {
   bool _loading = true;
   List<Map<String, dynamic>> _notices = [];
-  Map<int, List<Map<String, dynamic>>> _servicesByUser = {}; // user_id -> services
+  Map<int, List<Map<String, dynamic>>> _servicesByUser =
+      {}; // user_id -> services
 
   @override
   void initState() {
@@ -91,7 +94,9 @@ class _ServiceTrackerPageState extends State<ServiceTrackerPage> {
             .select()
             .eq('userdeceased', userId)
             .eq('is_removed', false);
-        servicesByUser[userId] = List<Map<String, dynamic>>.from(services as List);
+        servicesByUser[userId] = List<Map<String, dynamic>>.from(
+          services as List,
+        );
       }
 
       setState(() {
@@ -138,6 +143,9 @@ class _ServiceTrackerPageState extends State<ServiceTrackerPage> {
                     children: [
                       // Type of Service
                       TextFormField(
+                        inputFormatters: AppInputSecurity.singleLineFormatters(
+                          maxLength: 120,
+                        ),
                         decoration: InputDecoration(
                           labelText: 'Type of Service',
                           border: OutlineInputBorder(
@@ -145,8 +153,17 @@ class _ServiceTrackerPageState extends State<ServiceTrackerPage> {
                           ),
                           prefixIcon: const Icon(Icons.design_services),
                         ),
-                        onChanged: (val) => serviceName = val,
-                        validator: (val) => val == null || val.isEmpty ? 'Required' : null,
+                        onChanged: (val) =>
+                            serviceName = AppInputSecurity.sanitizePlainText(
+                              val,
+                              maxLength: 120,
+                            ),
+                        validator: (val) => AppInputSecurity.validateSafeText(
+                          val,
+                          fieldName: 'Type of Service',
+                          minLength: 2,
+                          maxLength: 120,
+                        ),
                       ),
                       const SizedBox(height: 16),
 
@@ -155,7 +172,10 @@ class _ServiceTrackerPageState extends State<ServiceTrackerPage> {
                         children: [
                           Expanded(
                             child: Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 16,
+                              ),
                               decoration: BoxDecoration(
                                 border: Border.all(color: Colors.grey.shade400),
                                 borderRadius: BorderRadius.circular(12),
@@ -163,7 +183,9 @@ class _ServiceTrackerPageState extends State<ServiceTrackerPage> {
                               child: Text(
                                 timeService == null
                                     ? 'Select Time Start'
-                                    : DateFormat('yyyy-MM-dd HH:mm').format(timeService!),
+                                    : DateFormat(
+                                        'yyyy-MM-dd HH:mm',
+                                      ).format(timeService!),
                               ),
                             ),
                           ),
@@ -202,6 +224,9 @@ class _ServiceTrackerPageState extends State<ServiceTrackerPage> {
 
                       // Notes
                       TextFormField(
+                        inputFormatters: AppInputSecurity.multiLineFormatters(
+                          maxLength: 300,
+                        ),
                         decoration: InputDecoration(
                           labelText: 'Notes',
                           border: OutlineInputBorder(
@@ -209,7 +234,12 @@ class _ServiceTrackerPageState extends State<ServiceTrackerPage> {
                           ),
                           prefixIcon: const Icon(Icons.note),
                         ),
-                        onChanged: (val) => notes = val,
+                        onChanged: (val) =>
+                            notes = AppInputSecurity.sanitizePlainText(
+                              val,
+                              allowNewLines: true,
+                              maxLength: 300,
+                            ),
                       ),
                       const SizedBox(height: 16),
 
@@ -224,7 +254,9 @@ class _ServiceTrackerPageState extends State<ServiceTrackerPage> {
                           prefixIcon: const Icon(Icons.group),
                         ),
                         items: requiredOptions
-                            .map((e) => DropdownMenuItem(value: e, child: Text(e)))
+                            .map(
+                              (e) => DropdownMenuItem(value: e, child: Text(e)),
+                            )
                             .toList(),
                         onChanged: (val) {
                           setState(() {
@@ -236,6 +268,9 @@ class _ServiceTrackerPageState extends State<ServiceTrackerPage> {
 
                       if (required == 'Custom')
                         TextFormField(
+                          inputFormatters: AppInputSecurity.phoneFormatters(
+                            maxLength: 3,
+                          ),
                           decoration: InputDecoration(
                             labelText: 'How many persons?',
                             border: OutlineInputBorder(
@@ -244,7 +279,8 @@ class _ServiceTrackerPageState extends State<ServiceTrackerPage> {
                             prefixIcon: const Icon(Icons.person),
                           ),
                           keyboardType: TextInputType.number,
-                          onChanged: (val) => customRequired = int.tryParse(val),
+                          onChanged: (val) =>
+                              customRequired = int.tryParse(val),
                         ),
                     ],
                   ),
@@ -259,14 +295,22 @@ class _ServiceTrackerPageState extends State<ServiceTrackerPage> {
                   child: const Text('Save'),
                   onPressed: () async {
                     debugPrint('Save button pressed');
-                    if (_formKey.currentState!.validate() && timeService != null) {
+                    if (_formKey.currentState!.validate() &&
+                        timeService != null) {
                       debugPrint('Form validated. Preparing to insert...');
                       try {
                         final sb = Supabase.instance.client;
                         final insertData = {
-                          'service_name': serviceName,
+                          'service_name': AppInputSecurity.sanitizePlainText(
+                            serviceName,
+                            maxLength: 120,
+                          ),
                           'time_service': timeService!.toIso8601String(),
-                          'notes': notes,
+                          'notes': AppInputSecurity.sanitizePlainText(
+                            notes,
+                            allowNewLines: true,
+                            maxLength: 300,
+                          ),
                           'required': required == 'All'
                               ? notice['person_needed'] ?? 'All'
                               : customRequired ?? 1,
@@ -276,26 +320,33 @@ class _ServiceTrackerPageState extends State<ServiceTrackerPage> {
                           'is_removed': false,
                         };
                         debugPrint('Insert data: $insertData');
-                        final response = await sb.from('service_checklist').insert(insertData).select();
+                        final response = await sb
+                            .from('service_checklist')
+                            .insert(insertData)
+                            .select();
                         debugPrint('Insert response: $response');
                         Navigator.pop(context);
                       } on PostgrestException catch (e) {
-                        debugPrint('PostgrestException: ${e.message}, code: ${e.code}, details: ${e.details}, hint: ${e.hint}');
+                        debugPrint(
+                          'PostgrestException: ${e.message}, code: ${e.code}, details: ${e.details}, hint: ${e.hint}',
+                        );
                         ScaffoldMessenger.of(context).showSnackBar(
                           SnackBar(content: Text('Error: ${e.message}')),
                         );
                       } catch (e, stack) {
                         debugPrint('Error inserting service: $e');
                         debugPrint('Stack trace: $stack');
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(content: Text('Error: $e')),
-                        );
+                        ScaffoldMessenger.of(
+                          context,
+                        ).showSnackBar(SnackBar(content: Text('Error: $e')));
                       }
                     } else {
                       debugPrint('Form not valid or timeService is null');
                       if (timeService == null) {
                         ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Please select a start time')),
+                          const SnackBar(
+                            content: Text('Please select a start time'),
+                          ),
                         );
                       }
                     }
@@ -391,14 +442,18 @@ class _ServiceTrackerPageState extends State<ServiceTrackerPage> {
                             borderRadius: BorderRadius.circular(12),
                           ),
                           child: Padding(
-                            padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+                            padding: const EdgeInsets.symmetric(
+                              vertical: 12,
+                              horizontal: 16,
+                            ),
                             child: Column(
                               children: [
                                 Row(
                                   children: [
                                     Expanded(
                                       child: Column(
-                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
                                         children: [
                                           Text(
                                             notice['name'] ?? 'No Name',
@@ -411,17 +466,28 @@ class _ServiceTrackerPageState extends State<ServiceTrackerPage> {
                                           const SizedBox(height: 8),
                                           Row(
                                             children: [
-                                              const Icon(Icons.calendar_today, size: 16, color: kSubText),
+                                              const Icon(
+                                                Icons.calendar_today,
+                                                size: 16,
+                                                color: kSubText,
+                                              ),
                                               const SizedBox(width: 4),
                                               Text(
                                                 'Date of Death: ',
-                                                style: const TextStyle(fontWeight: FontWeight.w600, color: kSubText),
+                                                style: const TextStyle(
+                                                  fontWeight: FontWeight.w600,
+                                                  color: kSubText,
+                                                ),
                                               ),
                                               Flexible(
                                                 child: Text(
-                                                  notice['date_of_death'] ?? 'N/A',
-                                                  style: const TextStyle(color: kSubText),
-                                                  overflow: TextOverflow.ellipsis,
+                                                  notice['date_of_death'] ??
+                                                      'N/A',
+                                                  style: const TextStyle(
+                                                    color: kSubText,
+                                                  ),
+                                                  overflow:
+                                                      TextOverflow.ellipsis,
                                                 ),
                                               ),
                                             ],
@@ -429,32 +495,51 @@ class _ServiceTrackerPageState extends State<ServiceTrackerPage> {
                                           const SizedBox(height: 4),
                                           Row(
                                             children: [
-                                              const Icon(Icons.account_tree, size: 16, color: kSubText),
+                                              const Icon(
+                                                Icons.account_tree,
+                                                size: 16,
+                                                color: kSubText,
+                                              ),
                                               const SizedBox(width: 4),
                                               Text(
                                                 'Dayung Unit ID: ',
-                                                style: const TextStyle(fontWeight: FontWeight.w600, color: kSubText),
+                                                style: const TextStyle(
+                                                  fontWeight: FontWeight.w600,
+                                                  color: kSubText,
+                                                ),
                                               ),
                                               Text(
                                                 '${notice['dayung_unit_id'] ?? 'N/A'}',
-                                                style: const TextStyle(color: kSubText),
+                                                style: const TextStyle(
+                                                  color: kSubText,
+                                                ),
                                               ),
                                             ],
                                           ),
                                           const SizedBox(height: 4),
                                           Row(
                                             children: [
-                                              const Icon(Icons.cake, size: 16, color: kSubText),
+                                              const Icon(
+                                                Icons.cake,
+                                                size: 16,
+                                                color: kSubText,
+                                              ),
                                               const SizedBox(width: 4),
                                               Text(
                                                 'Date of Birth: ',
-                                                style: const TextStyle(fontWeight: FontWeight.w600, color: kSubText),
+                                                style: const TextStyle(
+                                                  fontWeight: FontWeight.w600,
+                                                  color: kSubText,
+                                                ),
                                               ),
                                               Flexible(
                                                 child: Text(
                                                   notice['dob'] ?? 'N/A',
-                                                  style: const TextStyle(color: kSubText),
-                                                  overflow: TextOverflow.ellipsis,
+                                                  style: const TextStyle(
+                                                    color: kSubText,
+                                                  ),
+                                                  overflow:
+                                                      TextOverflow.ellipsis,
                                                 ),
                                               ),
                                             ],
@@ -462,15 +547,24 @@ class _ServiceTrackerPageState extends State<ServiceTrackerPage> {
                                           const SizedBox(height: 4),
                                           Row(
                                             children: [
-                                              const Icon(Icons.accessibility_new, size: 16, color: kSubText),
+                                              const Icon(
+                                                Icons.accessibility_new,
+                                                size: 16,
+                                                color: kSubText,
+                                              ),
                                               const SizedBox(width: 4),
                                               Text(
                                                 'Deceased Age: ',
-                                                style: const TextStyle(fontWeight: FontWeight.w600, color: kSubText),
+                                                style: const TextStyle(
+                                                  fontWeight: FontWeight.w600,
+                                                  color: kSubText,
+                                                ),
                                               ),
                                               Text(
                                                 '${notice['deceased_age'] ?? 'N/A'} yrs',
-                                                style: const TextStyle(color: kSubText),
+                                                style: const TextStyle(
+                                                  color: kSubText,
+                                                ),
                                               ),
                                             ],
                                           ),
@@ -481,9 +575,13 @@ class _ServiceTrackerPageState extends State<ServiceTrackerPage> {
                                       mainAxisAlignment: MainAxisAlignment.end,
                                       children: [
                                         TextButton.icon(
-                                          icon: const Icon(Icons.add, color: kPrimary),
+                                          icon: const Icon(
+                                            Icons.add,
+                                            color: kPrimary,
+                                          ),
                                           label: const Text('Add Service'),
-                                          onPressed: () => _showAddServiceDialog(notice),
+                                          onPressed: () =>
+                                              _showAddServiceDialog(notice),
                                         ),
                                       ],
                                     ),

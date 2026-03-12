@@ -1,4 +1,5 @@
 import 'package:capstone_app/Providers/dayung_provider.dart';
+import 'package:capstone_app/ui/loading/page_skeleton.dart';
 import 'package:capstone_app/ui/theme/branding.dart';
 import 'package:flutter/material.dart';
 import 'package:auto_size_text/auto_size_text.dart';
@@ -14,6 +15,15 @@ const kCardBg = Color(0xFFFFFFFF);
 const kBorderColor = Color(0xFFE5E7EB);
 const kSuccess = Color(0xFF10B981);
 const double kEdge = 16;
+
+enum _NotificationKind {
+  announcement,
+  pendingPayment,
+  recentDeath,
+  membership,
+  application,
+  other,
+}
 
 class NotificationPage extends StatefulWidget {
   const NotificationPage({super.key});
@@ -55,7 +65,7 @@ class NotificationPage extends StatefulWidget {
               child: Icon(
                 Icons.notifications_none_rounded,
                 size: isWide ? 64 : 56,
-                color: Colors.white,
+                color: kPrimary,
               ),
             ),
             const SizedBox(height: 20),
@@ -88,8 +98,11 @@ class NotificationPage extends StatefulWidget {
   static Widget _notificationCard({
     required String title,
     required String message,
+    required String category,
     required String time,
     required IconData icon,
+    required Color accentColor,
+    required Color surfaceColor,
     required Color iconBg,
     required Color iconColor,
     required bool isWide,
@@ -97,127 +110,151 @@ class NotificationPage extends StatefulWidget {
   }) {
     return Semantics(
       label: '$title. $message. $time.',
-      child: Stack(
-        children: [
-          Container(
-            margin: EdgeInsets.symmetric(horizontal: isWide ? 24 : 16),
-            decoration: BoxDecoration(
-              color: kCardBg,
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(
-                color: kBorderColor.withOpacity(0.3),
-                width: 1,
-              ),
-              boxShadow: [
-                BoxShadow(
-                  color: kPrimary.withOpacity(0.08),
-                  blurRadius: 20,
-                  offset: Offset(0, 8),
-                ),
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.03),
-                  blurRadius: 10,
-                  offset: Offset(0, 2),
-                ),
-              ],
+      child: Container(
+        margin: EdgeInsets.symmetric(horizontal: isWide ? 24 : 16),
+        decoration: BoxDecoration(
+          color: isUnread ? surfaceColor : kCardBg,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: isUnread
+                ? accentColor.withOpacity(0.28)
+                : kBorderColor.withOpacity(0.45),
+            width: 1.2,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: accentColor.withOpacity(isUnread ? 0.10 : 0.05),
+              blurRadius: 18,
+              offset: const Offset(0, 8),
             ),
-            padding: EdgeInsets.all(isWide ? 20 : 18),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Container(
-                  width: isWide ? 52 : 48,
-                  height: isWide ? 52 : 48,
-                  decoration: BoxDecoration(
-                    color: iconBg, // use the passed bg color
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Icon(icon, color: iconColor, size: isWide ? 28 : 26),
-                ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+            BoxShadow(
+              color: Colors.black.withOpacity(0.03),
+              blurRadius: 10,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        padding: EdgeInsets.all(isWide ? 22 : 18),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              width: isWide ? 56 : 52,
+              height: isWide ? 56 : 52,
+              decoration: BoxDecoration(
+                color: iconBg,
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: Icon(icon, color: iconColor, size: isWide ? 30 : 28),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
                     children: [
-                      AutoSizeText(
-                        title,
-                        style: TextStyle(
-                          fontSize: isWide ? 18 : 16,
-                          fontWeight: FontWeight.w800,
-                          color: kText,
-                          fontFamily: 'Montserrat',
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 6,
                         ),
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      const SizedBox(height: 6),
-                      Text(
-                        message,
-                        style: TextStyle(
-                          fontSize: isWide ? 15 : 14,
-                          height: 1.4,
-                          color: kText,
-                          fontFamily: 'OpenSans',
-                          fontWeight: FontWeight.w500,
+                        decoration: BoxDecoration(
+                          color: iconBg,
+                          borderRadius: BorderRadius.circular(999),
                         ),
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      const SizedBox(height: 8),
-                      Row(
-                        children: [
-                          Icon(
-                            Icons.access_time_rounded,
-                            size: 14,
-                            color: kSubText,
+                        child: Text(
+                          category,
+                          style: TextStyle(
+                            fontSize: isWide ? 13 : 12,
+                            fontWeight: FontWeight.w700,
+                            color: iconColor,
+                            fontFamily: 'Montserrat',
                           ),
-                          const SizedBox(width: 4),
-                          Text(
-                            time,
+                        ),
+                      ),
+                      if (isUnread)
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 6,
+                          ),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFFEF2F2),
+                            borderRadius: BorderRadius.circular(999),
+                          ),
+                          child: const Text(
+                            'Unread',
                             style: TextStyle(
-                              fontSize: isWide ? 13 : 12,
-                              color: kSubText,
-                              fontFamily: 'OpenSans',
-                              fontWeight: FontWeight.w500,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w700,
+                              color: Color(0xFFDC2626),
+                              fontFamily: 'Montserrat',
                             ),
                           ),
-                        ],
+                        ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  AutoSizeText(
+                    title,
+                    style: TextStyle(
+                      fontSize: isWide ? 19 : 17,
+                      fontWeight: FontWeight.w800,
+                      color: kText,
+                      fontFamily: 'Montserrat',
+                      height: 1.2,
+                    ),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    message,
+                    style: TextStyle(
+                      fontSize: isWide ? 16 : 15,
+                      height: 1.5,
+                      color: kText,
+                      fontFamily: 'OpenSans',
+                      fontWeight: FontWeight.w600,
+                    ),
+                    maxLines: 3,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      Icon(
+                        Icons.access_time_rounded,
+                        size: 16,
+                        color: kSubText,
+                      ),
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: Text(
+                          time,
+                          style: TextStyle(
+                            fontSize: isWide ? 14 : 13,
+                            color: kSubText,
+                            fontFamily: 'OpenSans',
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                      const Icon(
+                        Icons.chevron_right_rounded,
+                        color: kSubText,
+                        size: 22,
                       ),
                     ],
                   ),
-                ),
-                const SizedBox(width: 8),
-                IconButton(
-                  tooltip: 'More options',
-                  onPressed: () {
-                    // TODO: Add actions (e.g., view details, delete)
-                  },
-                  icon: Icon(Icons.more_vert_rounded, color: kSubText),
-                ),
-              ],
-            ),
-          ),
-          if (isUnread)
-            Positioned(
-              top: 12,
-              right: isWide ? 40 : 32,
-              child: Container(
-                width: 8,
-                height: 8,
-                decoration: BoxDecoration(
-                  color: Colors.red,
-                  shape: BoxShape.circle,
-                  boxShadow: [
-                    BoxShadow(
-                      color: kPrimary.withOpacity(0.3),
-                      blurRadius: 4,
-                      offset: const Offset(0, 2),
-                    ),
-                  ],
-                ),
+                ],
               ),
             ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -226,6 +263,7 @@ class NotificationPage extends StatefulWidget {
 class _NotificationPageState extends State<NotificationPage> {
   List<Map<String, dynamic>> _items = [];
   bool _loading = true;
+  bool _markingAllRead = false;
   int? _currentUnitId;
 
   @override
@@ -233,16 +271,8 @@ class _NotificationPageState extends State<NotificationPage> {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final unitId = context.read<DayungUnitProvider>().currentUnitId;
-      if (unitId != null) {
-        _currentUnitId = unitId;
-        _fetchAll(unitId: _currentUnitId);
-      } else {
-        setState(() {
-          _currentUnitId = null;
-          _items = [];
-          _loading = false;
-        });
-      }
+      _currentUnitId = unitId;
+      _fetchAll(unitId: _currentUnitId);
     });
   }
 
@@ -252,25 +282,20 @@ class _NotificationPageState extends State<NotificationPage> {
     final newId = context.watch<DayungUnitProvider>().currentUnitId;
     if (newId != _currentUnitId) {
       _currentUnitId = newId;
-      if (_currentUnitId != null) {
-        if (mounted) setState(() => _items = []);
-        _fetchAll(unitId: _currentUnitId);
-      } else {
-        setState(() {
-          _items = [];
-          _loading = false;
-        });
+      if (mounted) {
+        setState(() => _items = []);
       }
+      _fetchAll(unitId: _currentUnitId);
     }
   }
 
   void _showNotificationModal({
     required String title,
     required String message,
+    required String category,
     required String time,
     required IconData icon,
     required Color iconColor,
-    required bool isAnnouncement,
   }) {
     if (!mounted) return;
     showModalBottomSheet(
@@ -375,28 +400,27 @@ class _NotificationPageState extends State<NotificationPage> {
                             fontWeight: FontWeight.w500,
                           ),
                         ),
-                        if (isAnnouncement)
-                          Padding(
-                            padding: const EdgeInsets.only(left: 16),
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 10,
-                                vertical: 4,
-                              ),
-                              decoration: BoxDecoration(
-                                color: kPrimary.withOpacity(0.08),
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              child: const Text(
-                                'Announcement',
-                                style: TextStyle(
-                                  color: kPrimary,
-                                  fontWeight: FontWeight.w700,
-                                  fontSize: 13,
-                                ),
+                        Padding(
+                          padding: const EdgeInsets.only(left: 16),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 10,
+                              vertical: 4,
+                            ),
+                            decoration: BoxDecoration(
+                              color: iconColor.withOpacity(0.10),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Text(
+                              category,
+                              style: TextStyle(
+                                color: iconColor,
+                                fontWeight: FontWeight.w700,
+                                fontSize: 13,
                               ),
                             ),
                           ),
+                        ),
                       ],
                     ),
                   ],
@@ -435,18 +459,15 @@ class _NotificationPageState extends State<NotificationPage> {
     }
 
     try {
-      // 1) Notifications for this user (optionally scoped to unit)
-      var notifQuery = sb
-          .from('notifications')
-          .select(
-            'id, type, title, body, created_at, read_at, dayung_unit_id, announcement_id',
-          )
-          .eq('recipient_id', uid);
-      if (scopedUnitId != null) {
-        notifQuery = notifQuery.eq('dayung_unit_id', scopedUnitId);
-      }
+      // 1) Personal notifications for this user across the account.
       final notifData = List<Map<String, dynamic>>.from(
-        await notifQuery.order('created_at', ascending: false),
+        await sb
+            .from('notifications')
+            .select(
+              'id, type, title, body, created_at, read_at, dayung_unit_id, announcement_id',
+            )
+            .eq('recipient_id', uid)
+            .order('created_at', ascending: false),
       );
 
       // Capture announcement_ids already present in notifications to avoid duplicates
@@ -515,7 +536,7 @@ class _NotificationPageState extends State<NotificationPage> {
                 'type': 'application_new',
                 'title': 'New Application',
                 'body':
-                    '${(r['applications']?['name'] ?? 'Applicant')}: ${(r['applications']?['status'] ?? 'pending')}',
+                    '${(r['applications']?['name'] ?? 'Applicant')} submitted an application that is ${(r['applications']?['status'] ?? 'pending')}.',
                 'created_at': r['created_at'],
                 'read_at': r['seen'] == true ? r['created_at'] : null,
                 'is_read': r['seen'] == true,
@@ -556,10 +577,261 @@ class _NotificationPageState extends State<NotificationPage> {
     }
   }
 
+  bool _isDirectAnnouncement(Map<String, dynamic> item) {
+    return item['type'] == 'announcement_direct';
+  }
+
+  bool _isApplicationNotification(Map<String, dynamic> item) {
+    return item['type'] == 'application_new';
+  }
+
+  _NotificationKind _itemKind(Map<String, dynamic> item) {
+    final type = '${item['type'] ?? ''}'.toLowerCase();
+    final title = '${item['title'] ?? ''}'.toLowerCase();
+    final body = '${item['body'] ?? ''}'.toLowerCase();
+    final hasAnnouncementLink =
+        item['announcement_id'] != null || type == 'announcement_direct';
+
+    if (type == 'application_new') return _NotificationKind.application;
+    if (hasAnnouncementLink) return _NotificationKind.announcement;
+    if (title.contains('payment reminder') ||
+        title.contains('pending payment') ||
+        title.contains('payment')) {
+      return _NotificationKind.pendingPayment;
+    }
+    if (type == 'recent_activity' ||
+        title.contains('recent death') ||
+        title.contains('death') ||
+        body.contains('passed away') ||
+        body.contains('death notice')) {
+      return _NotificationKind.recentDeath;
+    }
+    if (type == 'membership_approved') return _NotificationKind.membership;
+    return _NotificationKind.other;
+  }
+
+  bool _isUnread(Map<String, dynamic> item) {
+    if (_isApplicationNotification(item) || _isDirectAnnouncement(item)) {
+      return item['is_read'] != true;
+    }
+    return item['read_at'] == null;
+  }
+
+  String _categoryLabel(Map<String, dynamic> item) {
+    switch (_itemKind(item)) {
+      case _NotificationKind.announcement:
+        return 'Announcement';
+      case _NotificationKind.pendingPayment:
+        return 'Pending Payment';
+      case _NotificationKind.recentDeath:
+        return 'Recent Death';
+      case _NotificationKind.membership:
+        return 'Membership';
+      case _NotificationKind.application:
+        return 'Application';
+      case _NotificationKind.other:
+        return 'Notification';
+    }
+  }
+
+  IconData _itemIcon(Map<String, dynamic> item) {
+    switch (_itemKind(item)) {
+      case _NotificationKind.announcement:
+        return Icons.campaign_rounded;
+      case _NotificationKind.pendingPayment:
+        return Icons.payments_rounded;
+      case _NotificationKind.recentDeath:
+        return Icons.local_florist_rounded;
+      case _NotificationKind.membership:
+        return Icons.verified_rounded;
+      case _NotificationKind.application:
+        return Icons.assignment_rounded;
+      case _NotificationKind.other:
+        return Icons.notifications_active_rounded;
+    }
+  }
+
+  Color _itemAccent(Map<String, dynamic> item) {
+    switch (_itemKind(item)) {
+      case _NotificationKind.announcement:
+        return kPrimary;
+      case _NotificationKind.pendingPayment:
+        return const Color(0xFFB45309);
+      case _NotificationKind.recentDeath:
+        return const Color(0xFFBE123C);
+      case _NotificationKind.membership:
+        return kSuccess;
+      case _NotificationKind.application:
+        return kAccentDark;
+      case _NotificationKind.other:
+        return kAccent;
+    }
+  }
+
+  Color _itemSurface(Map<String, dynamic> item) {
+    switch (_itemKind(item)) {
+      case _NotificationKind.announcement:
+        return const Color(0xFFF5F9FF);
+      case _NotificationKind.pendingPayment:
+        return const Color(0xFFFFFBEB);
+      case _NotificationKind.recentDeath:
+        return const Color(0xFFFFF1F2);
+      case _NotificationKind.membership:
+        return const Color(0xFFF0FDF4);
+      case _NotificationKind.application:
+        return const Color(0xFFECFDF5);
+      case _NotificationKind.other:
+        return const Color(0xFFF8FAFC);
+    }
+  }
+
+  String _itemTitle(Map<String, dynamic> item) {
+    final title = '${item['title'] ?? ''}'.trim();
+    if (title.isNotEmpty) return title;
+    switch (_itemKind(item)) {
+      case _NotificationKind.announcement:
+        return 'Announcement';
+      case _NotificationKind.pendingPayment:
+        return 'Pending Payment';
+      case _NotificationKind.recentDeath:
+        return 'Recent Death';
+      case _NotificationKind.membership:
+        return 'Membership Update';
+      case _NotificationKind.application:
+        return 'New Application';
+      case _NotificationKind.other:
+        return 'Notification';
+    }
+  }
+
+  String _itemMessage(Map<String, dynamic> item) {
+    final message = '${item['body'] ?? ''}'.trim();
+    if (message.isNotEmpty) return message;
+    if (_isApplicationNotification(item)) {
+      return 'A new application needs your attention.';
+    }
+    return 'Open this notification to see more details.';
+  }
+
+  int _countByKind(_NotificationKind kind) {
+    return _items.where((item) => _itemKind(item) == kind).length;
+  }
+
+  Widget _buildTopCategoryChip({
+    required String label,
+    required int count,
+    required Color color,
+    required Color background,
+  }) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: background,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: color.withOpacity(0.16)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 24,
+            height: 24,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: color.withOpacity(0.12),
+              borderRadius: BorderRadius.circular(999),
+            ),
+            child: Text(
+              '$count',
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w800,
+                color: color,
+                fontFamily: 'Montserrat',
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+              color: color,
+              fontFamily: 'Montserrat',
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _markVisibleNotificationsRead() async {
+    if (_markingAllRead) return;
+
+    final sb = Supabase.instance.client;
+    final uid = sb.auth.currentUser?.id;
+    if (uid == null) return;
+
+    setState(() => _markingAllRead = true);
+    try {
+      await sb
+          .from('notifications')
+          .update({'read_at': DateTime.now().toIso8601String()})
+          .eq('recipient_id', uid)
+          .isFilter('read_at', null);
+
+      final unreadDirect = _items.where(
+        (item) => _isDirectAnnouncement(item) && _isUnread(item),
+      );
+      for (final item in unreadDirect) {
+        final id = item['id'];
+        if (id is int) {
+          await _markAnnouncementRead(id);
+        } else if (id is num) {
+          await _markAnnouncementRead(id.toInt());
+        }
+      }
+
+      final unreadApplications = _items.where(
+        (item) => _isApplicationNotification(item) && _isUnread(item),
+      );
+      for (final item in unreadApplications) {
+        final id = item['app_notif_id'];
+        if (id is int) {
+          await _markApplicationNotifSeen(id);
+        } else if (id is num) {
+          await _markApplicationNotifSeen(id.toInt());
+        }
+      }
+
+      await _fetchAll(unitId: _currentUnitId);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('All visible notifications marked as read'),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Failed to mark all as read: $e')));
+    } finally {
+      if (mounted) {
+        setState(() => _markingAllRead = false);
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final width = MediaQuery.of(context).size.width;
     final isWide = width > 700;
+    final unreadCount = _items.where(_isUnread).length;
+    final announcementCount = _countByKind(_NotificationKind.announcement);
+    final pendingPaymentCount = _countByKind(_NotificationKind.pendingPayment);
+    final recentDeathCount = _countByKind(_NotificationKind.recentDeath);
 
     return Scaffold(
       backgroundColor: kBg,
@@ -619,57 +891,26 @@ class _NotificationPageState extends State<NotificationPage> {
                     ),
                   ),
                   TextButton.icon(
-                    onPressed: () async {
-                      final sb = Supabase.instance.client;
-                      final uid = sb.auth.currentUser?.id;
-                      if (uid != null) {
-                        // notifications
-                        var upd = sb
-                            .from('notifications')
-                            .update({
-                              'read_at': DateTime.now().toIso8601String(),
-                            })
-                            .eq('recipient_id', uid)
-                            .isFilter('read_at', null);
-                        if (_currentUnitId != null) {
-                          upd = upd.eq(
-                            'dayung_unit_id',
-                            _currentUnitId as Object,
-                          );
-                        }
-                        await upd;
-
-                        // direct announcements (no corresponding notification)
-                        final unreadDirect = _items.where(
-                          (n) =>
-                              n['type'] == 'announcement_direct' &&
-                              (n['is_read'] != true),
-                        );
-                        for (final ann in unreadDirect) {
-                          final id = ann['id'];
-                          if (id is int) {
-                            await _markAnnouncementRead(id);
-                          } else if (id is num) {
-                            await _markAnnouncementRead(id.toInt());
-                          }
-                        }
-
-                        await _fetchAll(unitId: _currentUnitId);
-                      }
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('Marked current unit as read'),
-                        ),
-                      );
-                    },
-                    icon: const Icon(
-                      Icons.done_all_rounded,
-                      color: Colors.white,
-                      size: 20,
-                    ),
-                    label: const Text(
-                      'Mark all read',
-                      style: TextStyle(
+                    onPressed: _markingAllRead
+                        ? null
+                        : _markVisibleNotificationsRead,
+                    icon: _markingAllRead
+                        ? const SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: Colors.white,
+                            ),
+                          )
+                        : const Icon(
+                            Icons.done_all_rounded,
+                            color: Colors.white,
+                            size: 20,
+                          ),
+                    label: Text(
+                      _markingAllRead ? 'Updating...' : 'Mark all read',
+                      style: const TextStyle(
                         color: Colors.white,
                         fontWeight: FontWeight.w600,
                         fontFamily: 'OpenSans',
@@ -687,77 +928,150 @@ class _NotificationPageState extends State<NotificationPage> {
                 ],
               ),
             ),
+            Padding(
+              padding: EdgeInsets.fromLTRB(
+                isWide ? 24 : 16,
+                16,
+                isWide ? 24 : 16,
+                0,
+              ),
+              child: Container(
+                width: double.infinity,
+                padding: EdgeInsets.symmetric(
+                  horizontal: isWide ? 20 : 16,
+                  vertical: isWide ? 18 : 16,
+                ),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(18),
+                  border: Border.all(color: kBorderColor.withOpacity(0.45)),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.04),
+                      blurRadius: 14,
+                      offset: const Offset(0, 6),
+                    ),
+                  ],
+                ),
+                child: Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: kPrimary.withOpacity(0.10),
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                      child: const Icon(
+                        Icons.notifications_active_rounded,
+                        color: kPrimary,
+                        size: 24,
+                      ),
+                    ),
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            unreadCount == 0
+                                ? 'All caught up'
+                                : '$unreadCount unread notification${unreadCount == 1 ? '' : 's'}',
+                            style: TextStyle(
+                              fontSize: isWide ? 18 : 16,
+                              fontWeight: FontWeight.w800,
+                              color: kText,
+                              fontFamily: 'Montserrat',
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            _currentUnitId == null
+                                ? 'Showing your account notifications.'
+                                : 'Showing your account notifications and the current unit updates.',
+                            style: TextStyle(
+                              fontSize: isWide ? 14 : 13,
+                              color: kSubText,
+                              fontFamily: 'OpenSans',
+                              fontWeight: FontWeight.w600,
+                              height: 1.4,
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          Wrap(
+                            spacing: 8,
+                            runSpacing: 8,
+                            children: [
+                              _buildTopCategoryChip(
+                                label: 'Pending Payment',
+                                count: pendingPaymentCount,
+                                color: const Color(0xFFB45309),
+                                background: const Color(0xFFFFFBEB),
+                              ),
+                              _buildTopCategoryChip(
+                                label: 'Announcement',
+                                count: announcementCount,
+                                color: kPrimary,
+                                background: const Color(0xFFF5F9FF),
+                              ),
+                              _buildTopCategoryChip(
+                                label: 'Recent Death',
+                                count: recentDeathCount,
+                                color: const Color(0xFFBE123C),
+                                background: const Color(0xFFFFF1F2),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
             Expanded(
               child: _loading
-                  ? Center(
-                      child: Container(
-                        padding: const EdgeInsets.all(32),
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(20),
-                          boxShadow: [
-                            BoxShadow(
-                              color: kPrimary.withOpacity(0.08),
-                              blurRadius: 20,
-                              offset: const Offset(0, 8),
-                            ),
-                          ],
-                        ),
-                        child: const Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            CircularProgressIndicator(
-                              color: kPrimary,
-                              strokeWidth: 3,
-                            ),
-                            SizedBox(height: 18),
-                            Text(
-                              'Loading notifications...',
-                              style: TextStyle(
-                                color: kSubText,
-                                fontSize: 15,
-                                fontFamily: 'OpenSans',
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
+                  ? const DayungPageSkeleton(
+                      layout: DayungSkeletonLayout.list,
+                      itemCount: 6,
+                      padding: EdgeInsets.fromLTRB(0, 20, 0, 24),
                     )
                   : _items.isEmpty
                   ? NotificationPage._emptyState(isWide: isWide)
-                  : ListView.separated(
-                      padding: EdgeInsets.symmetric(vertical: 24),
-                      itemCount: _items.length,
-                      separatorBuilder: (_, __) => const SizedBox(height: 16),
-                      itemBuilder: (context, i) {
-                        final n = _items[i];
-                        final isAnnouncement =
-                            n['type'] == 'announcement' ||
-                            n['type'] == 'announcement_direct';
-                        final isDirect = n['type'] == 'announcement_direct';
-                        final isApplication = n['type'] == 'application_new';
-                        final isUnread = isApplication
-                            ? (n['is_read'] != true)
-                            : (isDirect
-                                  ? (n['is_read'] != true)
-                                  : (n['read_at'] == null));
+                  : RefreshIndicator(
+                      color: kPrimary,
+                      onRefresh: () => _fetchAll(unitId: _currentUnitId),
+                      child: ListView.separated(
+                        padding: EdgeInsets.fromLTRB(0, 20, 0, 24),
+                        itemCount: _items.length,
+                        separatorBuilder: (_, __) => const SizedBox(height: 14),
+                        itemBuilder: (context, i) {
+                          final n = _items[i];
+                          final isDirect = _isDirectAnnouncement(n);
+                          final isApplication = _isApplicationNotification(n);
+                          final isUnread = _isUnread(n);
+                          final iconColor = _itemAccent(n);
+                          final category = _categoryLabel(n);
 
-                        return Material(
-                          color: Colors.transparent,
-                          child: InkWell(
-                            borderRadius: BorderRadius.circular(18),
-                            onTap: () async {
-                              // Optimistic UI: mark as read locally to avoid “hang” feel
-                              if (isDirect && isUnread) {
-                                setState(() {
-                                  _items[i] = {...n, 'is_read': true};
-                                });
-                              }
+                          return Material(
+                            color: Colors.transparent,
+                            child: InkWell(
+                              borderRadius: BorderRadius.circular(22),
+                              onTap: () async {
+                                if (isUnread && mounted) {
+                                  setState(() {
+                                    _items[i] = {
+                                      ...n,
+                                      if (isApplication || isDirect)
+                                        'is_read': true
+                                      else
+                                        'read_at': DateTime.now()
+                                            .toIso8601String(),
+                                    };
+                                  });
+                                }
 
-                              bool ok = true;
-                              try {
-                                if (isDirect) {
+                                bool ok = true;
+                                try {
                                   if (isApplication && isUnread) {
                                     final id = n['app_notif_id'];
                                     if (id != null) {
@@ -766,77 +1080,70 @@ class _NotificationPageState extends State<NotificationPage> {
                                             ? id.toInt()
                                             : int.parse('$id'),
                                       );
-                                      setState(() {
-                                        _items[i] = {...n, 'is_read': true};
-                                      });
                                     }
+                                  } else if (isDirect && isUnread) {
+                                    final id = n['id'];
+                                    if (id is int) {
+                                      ok = await _markAnnouncementRead(id);
+                                    } else if (id is num) {
+                                      ok = await _markAnnouncementRead(
+                                        id.toInt(),
+                                      );
+                                    }
+                                  } else if (isUnread) {
+                                    final sb = Supabase.instance.client;
+                                    await sb
+                                        .from('notifications')
+                                        .update({
+                                          'read_at': DateTime.now()
+                                              .toIso8601String(),
+                                        })
+                                        .eq('id', n['id'])
+                                        .isFilter('read_at', null);
                                   }
-                                } else {
-                                  final sb = Supabase.instance.client;
-                                  await sb
-                                      .from('notifications')
-                                      .update({
-                                        'read_at': DateTime.now()
-                                            .toIso8601String(),
-                                      })
-                                      .eq('id', n['id'])
-                                      .isFilter('read_at', null);
+                                } catch (_) {
+                                  ok = false;
                                 }
-                              } catch (_) {
-                                ok = false;
-                              }
 
-                              // Show modal regardless of backend outcome
-                              _showNotificationModal(
-                                title:
-                                    n['title'] ??
-                                    (isAnnouncement
-                                        ? 'Announcement'
-                                        : 'Notification'),
-                                message: n['body'] ?? '',
-                                time: _formatTime(n['created_at']),
-                                icon: isAnnouncement
-                                    ? Icons.campaign_rounded
-                                    : Icons.notifications_active_rounded,
-                                iconColor: isAnnouncement ? kPrimary : kAccent,
-                                isAnnouncement: isAnnouncement,
-                              );
-
-                              // Refresh list in background (do not await)
-                              // ignore: unawaited_futures
-                              _fetchAll(unitId: _currentUnitId);
-
-                              if (!ok && mounted) {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(
-                                    content: Text(
-                                      'Could not mark announcement as read.',
-                                    ),
-                                  ),
+                                _showNotificationModal(
+                                  title: _itemTitle(n),
+                                  message: _itemMessage(n),
+                                  category: category,
+                                  time: _formatTime(n['created_at']),
+                                  icon: _itemIcon(n),
+                                  iconColor: iconColor,
                                 );
-                              }
-                            },
-                            child: NotificationPage._notificationCard(
-                              title:
-                                  n['title'] ??
-                                  (isAnnouncement
-                                      ? 'Announcement'
-                                      : 'Notification'),
-                              message: n['body'] ?? '',
-                              time: _formatTime(n['created_at']),
-                              icon: isAnnouncement
-                                  ? Icons.campaign_rounded
-                                  : Icons.notifications_active_rounded,
-                              iconBg: isAnnouncement
-                                  ? kPrimary.withOpacity(0.10)
-                                  : kAccent.withOpacity(0.10),
-                              iconColor: isAnnouncement ? kPrimary : kAccent,
-                              isWide: isWide,
-                              isUnread: isUnread,
+
+                                // ignore: unawaited_futures
+                                _fetchAll(unitId: _currentUnitId);
+
+                                if (!ok && mounted) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(
+                                      content: Text(
+                                        'Could not update the notification status.',
+                                      ),
+                                    ),
+                                  );
+                                }
+                              },
+                              child: NotificationPage._notificationCard(
+                                title: _itemTitle(n),
+                                message: _itemMessage(n),
+                                category: category,
+                                time: _formatTime(n['created_at']),
+                                icon: _itemIcon(n),
+                                accentColor: iconColor,
+                                surfaceColor: _itemSurface(n),
+                                iconBg: iconColor.withOpacity(0.12),
+                                iconColor: iconColor,
+                                isWide: isWide,
+                                isUnread: isUnread,
+                              ),
                             ),
-                          ),
-                        );
-                      },
+                          );
+                        },
+                      ),
                     ),
             ),
           ],

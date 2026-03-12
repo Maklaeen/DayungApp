@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:capstone_app/Auth/logout.dart';
 import 'package:capstone_app/Beneficiary/beneficiary.dart' hide kPrimary;
 import 'package:capstone_app/President/manage_roles.dart';
+import 'package:capstone_app/President/president_payment_page.dart';
 import 'package:capstone_app/President/post_announcement.dart';
 import 'package:capstone_app/President/presclaims.dart';
 import 'package:capstone_app/President/prescontribution.dart';
@@ -10,7 +11,6 @@ import 'package:capstone_app/President/presidentmemberspage.dart'
     hide kPrimary, kNeutralText;
 import 'package:capstone_app/Providers/dayung_provider.dart';
 import 'package:capstone_app/Providers/dayung_role_provider.dart';
-import 'package:capstone_app/pages/paymentmethod.dart';
 import 'package:capstone_app/pages/recentdeathnotices.dart';
 import 'package:capstone_app/settings/profsettings.dart' hide kPrimary;
 import 'package:capstone_app/ui/theme/branding.dart';
@@ -352,7 +352,6 @@ class _PresidentDashboardPageState extends State<PresidentDashboardPage> {
   }
 
   Widget _buildSideDrawer(BuildContext context) {
-    final isDarkMode = Theme.of(context).brightness == Brightness.dark;
     return Drawer(
       backgroundColor: kBg,
       child: Column(
@@ -879,9 +878,6 @@ class _PresidentDashboardPageState extends State<PresidentDashboardPage> {
   Widget _buildOverviewRecentDeathsTile() {
     final hasDeaths = _recentDeaths.isNotEmpty;
     final subtitle = hasDeaths ? _recentDeaths.take(2).join(', ') : 'None';
-    final effectiveUnitId =
-        context.read<DayungRoleProvider>().unitId ??
-        context.read<DayungUnitProvider>().currentUnitId;
     return InkWell(
       borderRadius: BorderRadius.circular(16),
       onTap: () {
@@ -1043,7 +1039,8 @@ class _PresidentDashboardPageState extends State<PresidentDashboardPage> {
           Navigator.push(
             context,
             MaterialPageRoute(
-              builder: (context) => PaymentMethodPage(dayungUnitId: ids.first),
+              builder: (context) =>
+                  PresidentPaymentPage(dayungUnitId: ids.first),
             ),
           );
         },
@@ -1158,136 +1155,6 @@ class _PresidentDashboardPageState extends State<PresidentDashboardPage> {
       ),
     );
   }
-
-  Widget _buildRecentDeathsCard() {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: const Color(0xFFFDF2F8),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFEC4899).withOpacity(0.2)),
-      ),
-      child: Row(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: const Color(0xFFEC4899).withOpacity(0.1),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: const Icon(
-              Icons.local_florist_rounded,
-              color: Color(0xFFEC4899),
-              size: 20,
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'Recent Deaths',
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w700,
-                    color: Color(0xFFEC4899),
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  _recentDeaths.take(2).join(', '),
-                  style: const TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                    color: Color(0xFF9F1239),
-                  ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildModernActionCard({
-    required IconData icon,
-    required String title,
-    required String subtitle,
-    required Color color,
-    required VoidCallback onTap,
-  }) {
-    return Container(
-      width: double.infinity,
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: color.withOpacity(0.2)),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.03),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          borderRadius: BorderRadius.circular(16),
-          onTap: onTap,
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: color.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Icon(icon, color: color, size: 24),
-                ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        title,
-                        style: const TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w700,
-                          color: Color(0xFF1F2937),
-                        ),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        subtitle,
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: const Color(0xFF6B7280),
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                Icon(
-                  Icons.arrow_forward_ios_rounded,
-                  color: color.withOpacity(0.6),
-                  size: 16,
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
 }
 
 /* ----------------------- POST ANNOUNCEMENT BUTTON ----------------------- */
@@ -1346,58 +1213,6 @@ class _PostAnnouncementButton extends StatelessWidget {
             ],
           ),
         ),
-      ),
-    );
-  }
-}
-
-/* ------------------------------ UPCOMING TEXT --------------------------- */
-
-class _UpcomingText extends StatelessWidget {
-  const _UpcomingText();
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 20),
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-      decoration: BoxDecoration(
-        color: kCardBg,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: kBorderColor.withOpacity(0.3), width: 1),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Row(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: kPrimary.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: const Icon(Icons.event_rounded, color: kPrimary, size: 20),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Text(
-              'Upcoming: July 16 - Monthly Meeting @ 3PM',
-              style: TextStyle(
-                fontFamily: 'Montserrat',
-                fontSize: 16,
-                height: 1.3,
-                color: kNeutralText,
-                fontWeight: FontWeight.w700,
-                letterSpacing: 0.2,
-              ),
-            ),
-          ),
-        ],
       ),
     );
   }

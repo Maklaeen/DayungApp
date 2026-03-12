@@ -25,6 +25,17 @@ class _CollectedFromCollectorsPageState
   int? _selectedDeceasedId;
   DateTimeRange? _selectedDateRange;
 
+  double _asDouble(dynamic value, {double fallback = 0.0}) {
+    if (value is num) return value.toDouble();
+    return double.tryParse('${value ?? ''}') ?? fallback;
+  }
+
+  int _gridColumns(double width) {
+    if (width >= 1200) return 3;
+    if (width >= 720) return 2;
+    return 1;
+  }
+
   @override
   void initState() {
     super.initState();
@@ -55,27 +66,7 @@ class _CollectedFromCollectorsPageState
       _error = null;
     });
     try {
-      // 1. Get all collectors for this dayung
-      final collectorRows = await sb
-          .from('dayung_collectors')
-          .select('user_id')
-          .eq('dayung_unit_id', widget.dayungUnitId);
-      final collectorIds = List<String>.from(
-        collectorRows.map((r) => r['user_id']),
-      );
-
-      // 2. Get collector user info
-      final users = collectorIds.isNotEmpty
-          ? await sb
-                .from('users')
-                .select('id, full_name')
-                .inFilter('id', collectorIds)
-          : [];
-      final userMap = {
-        for (final u in users) u['id']: u['full_name'] ?? 'Collector',
-      };
-
-      // 3. Get all paid payments for this dayung (with filters)
+      // 1. Get all paid payments for this dayung (with filters)
       var query = sb
           .from('payments')
           .select('collected_by, amount, user_id, paid_at, death_notice_id')
@@ -98,32 +89,63 @@ class _CollectedFromCollectorsPageState
 
       final payments = List<Map<String, dynamic>>.from(await query);
 
-      // 4. Group by collector
+      // 2. Merge designated collectors with whoever actually collected payments.
+      final collectorRows = await sb
+          .from('dayung_collectors')
+          .select('user_id')
+          .eq('dayung_unit_id', widget.dayungUnitId);
+      final collectorIds = <String>{
+        for (final row in List<Map<String, dynamic>>.from(collectorRows))
+          (row['user_id'] ?? '').toString(),
+        for (final payment in payments)
+          if ((payment['collected_by'] ?? '').toString().isNotEmpty)
+            (payment['collected_by']).toString(),
+      }..remove('');
+
+      final users = collectorIds.isNotEmpty
+          ? await sb
+                .from('users')
+                .select('id, full_name')
+                .inFilter('id', collectorIds.toList())
+          : [];
+      final userMap = {
+        for (final u in List<Map<String, dynamic>>.from(users))
+          (u['id'] ?? '').toString(): (u['full_name'] ?? 'Collector')
+              .toString(),
+      };
+
+      // 3. Group by collector
       final collectorMap = <String, Map<String, dynamic>>{};
       for (final p in payments) {
-        final collectorId = p['collected_by']?.toString();
-        if (collectorId != null && collectorIds.contains(collectorId)) {
-          if (!collectorMap.containsKey(collectorId)) {
-            collectorMap[collectorId] = {
-              'collector_id': collectorId,
-              'collector_name': userMap[collectorId] ?? 'Collector',
-              'total_collected': 0.0,
-              'payment_count': 0,
-              'recent_payment': null,
-            };
-          }
-          final collector = collectorMap[collectorId]!;
-          collector['total_collected'] =
-              (collector['total_collected'] as double) +
-              (p['amount'] as num).toDouble();
-          collector['payment_count'] = (collector['payment_count'] as int) + 1;
-          if (collector['recent_payment'] == null ||
-              (p['paid_at'] as String).compareTo(
-                    collector['recent_payment'] as String,
-                  ) >
-                  0) {
-            collector['recent_payment'] = p['paid_at'];
-          }
+        final collectorId = (p['collected_by'] ?? '').toString();
+        final groupingKey = collectorId.isNotEmpty
+            ? collectorId
+            : '__unassigned__';
+
+        if (!collectorMap.containsKey(groupingKey)) {
+          collectorMap[groupingKey] = {
+            'collector_id': collectorId,
+            'collector_name': collectorId.isNotEmpty
+                ? (userMap[collectorId] ?? 'Collector')
+                : 'Collector not recorded',
+            'collector_note': collectorId.isNotEmpty
+                ? 'Recorded paid collections'
+                : 'Payments exist but collected_by is empty',
+            'total_collected': 0.0,
+            'payment_count': 0,
+            'recent_payment': null,
+          };
+        }
+
+        final collector = collectorMap[groupingKey]!;
+        collector['total_collected'] =
+            _asDouble(collector['total_collected']) + _asDouble(p['amount']);
+        collector['payment_count'] = (collector['payment_count'] as int) + 1;
+        final paidAt = (p['paid_at'] ?? '').toString();
+        final recent = (collector['recent_payment'] ?? '').toString();
+        if (recent.isEmpty ||
+            (paidAt.isNotEmpty && paidAt.compareTo(recent) > 0)) {
+          collector['recent_payment'] = paidAt;
         }
       }
 
@@ -440,8 +462,10 @@ class _CollectedFromCollectorsPageState
                                         ),
                                       ),
                                       const SizedBox(height: 16),
-                                      const Text(
-                                        'No collectors found',
+                                      Text(
+                                        _selectedDeceasedId != null
+                                            ? 'No collector records for this deceased'
+                                            : 'No collectors found',
                                         style: TextStyle(
                                           fontSize: 18,
                                           color: Colors.grey,
@@ -450,8 +474,10 @@ class _CollectedFromCollectorsPageState
                                         ),
                                       ),
                                       const SizedBox(height: 8),
-                                      const Text(
-                                        'No collection data available',
+                                      Text(
+                                        _selectedDeceasedId != null
+                                            ? 'Try another deceased or check if the payment has been marked paid.'
+                                            : 'No collection data available',
                                         style: TextStyle(
                                           fontSize: 14,
                                           color: Colors.grey,
@@ -461,140 +487,174 @@ class _CollectedFromCollectorsPageState
                                     ],
                                   ),
                                 )
-                              : GridView.builder(
-                                  itemCount: _collectors.length,
-                                  gridDelegate:
-                                      const SliverGridDelegateWithFixedCrossAxisCount(
-                                        crossAxisCount: 2,
-                                        childAspectRatio: 1.1,
-                                        crossAxisSpacing: 16,
-                                        mainAxisSpacing: 16,
-                                      ),
-                                  itemBuilder: (context, index) {
-                                    final collector = _collectors[index];
-                                    return Container(
-                                      padding: const EdgeInsets.all(20),
-                                      decoration: BoxDecoration(
-                                        color: Colors.white,
-                                        borderRadius: BorderRadius.circular(20),
-                                        border: Border.all(
-                                          color: const Color(
-                                            0xFF1E40AF,
-                                          ).withValues(alpha: 0.2),
-                                          width: 1,
-                                        ),
-                                        boxShadow: [
-                                          BoxShadow(
-                                            color: Colors.black.withValues(
-                                              alpha: 0.05,
-                                            ),
-                                            blurRadius: 15,
-                                            offset: const Offset(0, 5),
+                              : LayoutBuilder(
+                                  builder: (context, constraints) {
+                                    final columns = _gridColumns(
+                                      constraints.maxWidth,
+                                    );
+                                    final ratio = columns == 1 ? 1.6 : 1.15;
+                                    return GridView.builder(
+                                      itemCount: _collectors.length,
+                                      gridDelegate:
+                                          SliverGridDelegateWithFixedCrossAxisCount(
+                                            crossAxisCount: columns,
+                                            childAspectRatio: ratio,
+                                            crossAxisSpacing: 16,
+                                            mainAxisSpacing: 16,
                                           ),
-                                        ],
-                                      ),
-                                      child: Column(
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.start,
-                                        children: [
-                                          Row(
+                                      itemBuilder: (context, index) {
+                                        final collector = _collectors[index];
+                                        return Container(
+                                          padding: const EdgeInsets.all(20),
+                                          decoration: BoxDecoration(
+                                            color: Colors.white,
+                                            borderRadius: BorderRadius.circular(
+                                              20,
+                                            ),
+                                            border: Border.all(
+                                              color: const Color(
+                                                0xFF1E40AF,
+                                              ).withValues(alpha: 0.2),
+                                              width: 1,
+                                            ),
+                                            boxShadow: [
+                                              BoxShadow(
+                                                color: Colors.black.withValues(
+                                                  alpha: 0.05,
+                                                ),
+                                                blurRadius: 15,
+                                                offset: const Offset(0, 5),
+                                              ),
+                                            ],
+                                          ),
+                                          child: Column(
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.start,
                                             children: [
-                                              Container(
-                                                padding: const EdgeInsets.all(
-                                                  10,
-                                                ),
-                                                decoration: BoxDecoration(
-                                                  gradient:
-                                                      const LinearGradient(
-                                                        colors: [
-                                                          Color(0xFF1E40AF),
-                                                          Color(0xFF3B82F6),
-                                                        ],
-                                                        begin:
-                                                            Alignment.topLeft,
-                                                        end: Alignment
-                                                            .bottomRight,
-                                                      ),
-                                                  borderRadius:
-                                                      BorderRadius.circular(12),
-                                                  boxShadow: [
-                                                    BoxShadow(
-                                                      color: const Color(
-                                                        0xFF1E40AF,
-                                                      ).withValues(alpha: 0.3),
-                                                      blurRadius: 8,
-                                                      offset: const Offset(
-                                                        0,
-                                                        4,
-                                                      ),
+                                              Row(
+                                                children: [
+                                                  Container(
+                                                    padding:
+                                                        const EdgeInsets.all(
+                                                          10,
+                                                        ),
+                                                    decoration: BoxDecoration(
+                                                      gradient:
+                                                          const LinearGradient(
+                                                            colors: [
+                                                              Color(0xFF1E40AF),
+                                                              Color(0xFF3B82F6),
+                                                            ],
+                                                            begin: Alignment
+                                                                .topLeft,
+                                                            end: Alignment
+                                                                .bottomRight,
+                                                          ),
+                                                      borderRadius:
+                                                          BorderRadius.circular(
+                                                            12,
+                                                          ),
+                                                      boxShadow: [
+                                                        BoxShadow(
+                                                          color:
+                                                              const Color(
+                                                                0xFF1E40AF,
+                                                              ).withValues(
+                                                                alpha: 0.3,
+                                                              ),
+                                                          blurRadius: 8,
+                                                          offset: const Offset(
+                                                            0,
+                                                            4,
+                                                          ),
+                                                        ),
+                                                      ],
                                                     ),
-                                                  ],
-                                                ),
-                                                child: const Icon(
-                                                  Icons.person_rounded,
-                                                  color: Colors.white,
-                                                  size: 20,
+                                                    child: const Icon(
+                                                      Icons.person_rounded,
+                                                      color: Colors.white,
+                                                      size: 20,
+                                                    ),
+                                                  ),
+                                                  const SizedBox(width: 12),
+                                                  Expanded(
+                                                    child: Text(
+                                                      collector['collector_name'] ??
+                                                          'Collector',
+                                                      style: const TextStyle(
+                                                        fontSize: 16,
+                                                        fontWeight:
+                                                            FontWeight.w700,
+                                                        color: Color(
+                                                          0xFF1F2937,
+                                                        ),
+                                                        fontFamily:
+                                                            'Montserrat',
+                                                      ),
+                                                      maxLines: 1,
+                                                      overflow:
+                                                          TextOverflow.ellipsis,
+                                                    ),
+                                                  ),
+                                                ],
+                                              ),
+                                              const SizedBox(height: 8),
+                                              Text(
+                                                (collector['collector_note'] ??
+                                                        '')
+                                                    .toString(),
+                                                maxLines: 2,
+                                                overflow: TextOverflow.ellipsis,
+                                                style: const TextStyle(
+                                                  fontSize: 12,
+                                                  fontWeight: FontWeight.w600,
+                                                  color: Color(0xFF64748B),
                                                 ),
                                               ),
-                                              const SizedBox(width: 12),
-                                              Expanded(
+                                              const SizedBox(height: 16),
+                                              Text(
+                                                '₱${_asDouble(collector['total_collected']).toStringAsFixed(2)}',
+                                                style: const TextStyle(
+                                                  fontSize: 24,
+                                                  fontWeight: FontWeight.w900,
+                                                  color: Color(0xFF1E40AF),
+                                                  fontFamily: 'Montserrat',
+                                                ),
+                                              ),
+                                              const SizedBox(height: 8),
+                                              Container(
+                                                padding:
+                                                    const EdgeInsets.symmetric(
+                                                      horizontal: 12,
+                                                      vertical: 6,
+                                                    ),
+                                                decoration: BoxDecoration(
+                                                  color: const Color(
+                                                    0xFF10B981,
+                                                  ).withValues(alpha: 0.1),
+                                                  borderRadius:
+                                                      BorderRadius.circular(20),
+                                                  border: Border.all(
+                                                    color: const Color(
+                                                      0xFF10B981,
+                                                    ).withValues(alpha: 0.3),
+                                                    width: 1,
+                                                  ),
+                                                ),
                                                 child: Text(
-                                                  collector['collector_name'] ??
-                                                      'Collector',
+                                                  '${collector['payment_count']} payments',
                                                   style: const TextStyle(
-                                                    fontSize: 16,
+                                                    fontSize: 12,
+                                                    color: Color(0xFF10B981),
                                                     fontWeight: FontWeight.w700,
-                                                    color: Color(0xFF1F2937),
                                                     fontFamily: 'Montserrat',
                                                   ),
-                                                  maxLines: 1,
-                                                  overflow:
-                                                      TextOverflow.ellipsis,
                                                 ),
                                               ),
                                             ],
                                           ),
-                                          const SizedBox(height: 16),
-                                          Text(
-                                            '₱${(collector['total_collected'] as double).toStringAsFixed(2)}',
-                                            style: const TextStyle(
-                                              fontSize: 24,
-                                              fontWeight: FontWeight.w900,
-                                              color: Color(0xFF1E40AF),
-                                              fontFamily: 'Montserrat',
-                                            ),
-                                          ),
-                                          const SizedBox(height: 8),
-                                          Container(
-                                            padding: const EdgeInsets.symmetric(
-                                              horizontal: 12,
-                                              vertical: 6,
-                                            ),
-                                            decoration: BoxDecoration(
-                                              color: const Color(
-                                                0xFF10B981,
-                                              ).withValues(alpha: 0.1),
-                                              borderRadius:
-                                                  BorderRadius.circular(20),
-                                              border: Border.all(
-                                                color: const Color(
-                                                  0xFF10B981,
-                                                ).withValues(alpha: 0.3),
-                                                width: 1,
-                                              ),
-                                            ),
-                                            child: Text(
-                                              '${collector['payment_count']} payments',
-                                              style: const TextStyle(
-                                                fontSize: 12,
-                                                color: Color(0xFF10B981),
-                                                fontWeight: FontWeight.w700,
-                                                fontFamily: 'Montserrat',
-                                              ),
-                                            ),
-                                          ),
-                                        ],
-                                      ),
+                                        );
+                                      },
                                     );
                                   },
                                 ),

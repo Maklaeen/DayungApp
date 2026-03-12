@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:capstone_app/utils/input_safety.dart';
 
 const kPrimary = Color(0xFF1E40AF);
 const kCardBg = Color(0xFFFFFFFF);
@@ -234,11 +235,26 @@ class _EditUserDialogState extends State<_EditUserDialog> {
 
   Future<void> _save() async {
     final sb = Supabase.instance.client;
+    final fullName = AppInputSecurity.sanitizePlainText(
+      _nameController.text,
+      maxLength: 120,
+    );
+    final email = AppInputSecurity.sanitizeEmail(_emailController.text);
+    if (AppInputSecurity.validateSafeText(
+              fullName,
+              fieldName: 'Full Name',
+              minLength: 2,
+              maxLength: 120,
+            ) !=
+            null ||
+        AppInputSecurity.validateEmail(email) != null) {
+      return;
+    }
     await sb
         .from('users')
         .update({
-          'full_name': _nameController.text,
-          'email': _emailController.text,
+          'full_name': fullName,
+          'email': email,
           'role': _role,
           'is_deceased': _isDeceased,
         })
@@ -271,6 +287,9 @@ class _EditUserDialogState extends State<_EditUserDialog> {
               const SizedBox(height: 20),
               TextField(
                 controller: _nameController,
+                inputFormatters: AppInputSecurity.singleLineFormatters(
+                  maxLength: 120,
+                ),
                 decoration: InputDecoration(
                   labelText: 'Full Name',
                   border: OutlineInputBorder(
@@ -284,6 +303,9 @@ class _EditUserDialogState extends State<_EditUserDialog> {
               const SizedBox(height: 14),
               TextField(
                 controller: _emailController,
+                inputFormatters: AppInputSecurity.singleLineFormatters(
+                  maxLength: 120,
+                ),
                 decoration: InputDecoration(
                   labelText: 'Email',
                   border: OutlineInputBorder(

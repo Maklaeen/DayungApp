@@ -1,3 +1,4 @@
+import 'package:capstone_app/ui/loading/page_skeleton.dart';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -85,7 +86,7 @@ class _DayungProfilePageState extends State<DayungProfilePage> {
   @override
   Widget build(BuildContext context) {
     if (_loading) {
-      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+      return const DayungLoadingScaffold(layout: DayungSkeletonLayout.detail);
     }
     if (dayung == null) {
       return const Scaffold(body: Center(child: Text('No Dayung selected.')));

@@ -1,7 +1,9 @@
 import 'package:capstone_app/Beneficiary/addbeneficiary.dart' as add;
+import 'package:capstone_app/utils/supabase_storage.dart';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:auto_size_text/auto_size_text.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 // Modern palette (reuse from dashboard/gcash)
 const kBg = Color(0xFFFAFAF7);
@@ -65,7 +67,7 @@ class _BeneficiaryPageState extends State<BeneficiaryPage>
       activeBeneficiaries = active;
       isLoading = false;
     });
-    }
+  }
 
   Future<void> _navigateToAddBeneficiary(BuildContext context) async {
     await Navigator.push(
@@ -193,7 +195,18 @@ class _BeneficiaryPageState extends State<BeneficiaryPage>
               'View',
               style: TextStyle(color: kAccent, fontWeight: FontWeight.w600),
             ),
-            onPressed: () {
+            onPressed: () async {
+              final resolved = await resolveSupabaseStorageUrl(url);
+              if (resolved == null) return;
+
+              if (storageLooksLikePdf(resolved)) {
+                await launchUrl(
+                  Uri.parse(resolved),
+                  mode: LaunchMode.externalApplication,
+                );
+                return;
+              }
+
               showDialog(
                 context: context,
                 builder: (context) => Dialog(
@@ -206,7 +219,7 @@ class _BeneficiaryPageState extends State<BeneficiaryPage>
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         Image.network(
-                          url,
+                          resolved,
                           fit: BoxFit.contain,
                           errorBuilder: (context, error, stackTrace) =>
                               const Text('Could not load image'),

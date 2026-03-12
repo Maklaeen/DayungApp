@@ -7,6 +7,7 @@ import 'package:capstone_app/President/dashboard.dart' as pres;
 import 'package:capstone_app/Treasurer/dashboard.dart' as treas;
 import 'package:capstone_app/Collector/dashboard.dart' as coll;
 import 'package:capstone_app/SuperAdmin/dashboard.dart' as superadmin;
+import 'package:capstone_app/ui/loading/page_skeleton.dart';
 
 class RoleRouter extends StatelessWidget {
   const RoleRouter({super.key});
@@ -15,7 +16,9 @@ class RoleRouter extends StatelessWidget {
   Widget build(BuildContext context) {
     final roles = context.watch<DayungRoleProvider>();
     if (roles.loading) {
-      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+      return const DayungLoadingScaffold(
+        layout: DayungSkeletonLayout.dashboard,
+      );
     }
     if (roles.isSuperAdmin) return const superadmin.SuperAdminDashboardPage();
     if (roles.isPresident) {

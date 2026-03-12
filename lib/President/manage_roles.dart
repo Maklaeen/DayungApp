@@ -503,7 +503,14 @@ class _ManageRolesPageState extends State<ManageRolesPagePres> {
                   child: Text(
                     currentUserId == null
                         ? 'Not assigned'
-                        : '${current['full_name'] ?? currentUserId} (${currentUserId.substring(0, 6)}...)',
+                        : (() {
+                            final rawName = (current['full_name'] ?? '')
+                                .toString()
+                                .trim();
+                            return rawName.isNotEmpty
+                                ? rawName
+                                : 'Assigned member';
+                          })(),
                     style: TextStyle(
                       fontWeight: FontWeight.w600,
                       fontSize: 14,
@@ -652,7 +659,10 @@ class _ManageRolesPageState extends State<ManageRolesPagePres> {
                       (m) => (m['id'] ?? '').toString() == id,
                       orElse: () => const {'full_name': null},
                     );
-                    final name = (user['full_name'] ?? id).toString();
+                    final rawName = (user['full_name'] ?? '').toString().trim();
+                    final name = rawName.isNotEmpty
+                        ? rawName
+                        : 'Unknown member';
                     return Container(
                       padding: const EdgeInsets.symmetric(
                         horizontal: 12,

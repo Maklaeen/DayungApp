@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:capstone_app/utils/supabase_storage.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -50,7 +51,7 @@ class _CertificatesPageState extends State<CertificatesPage>
             .toList();
         _loading = false;
       });
-        } catch (e, st) {
+    } catch (e, st) {
       debugPrint("Error fetching certificates: $e\n$st");
       setState(() => _loading = false);
     }
@@ -234,9 +235,14 @@ class _CertificatesPageState extends State<CertificatesPage>
                           onPressed:
                               fileUrl != null && fileUrl.toString().isNotEmpty
                               ? () async {
-                                  if (await canLaunchUrl(Uri.parse(fileUrl))) {
+                                  final resolved =
+                                      await resolveSupabaseStorageUrl(
+                                        fileUrl.toString(),
+                                      );
+                                  if (resolved != null &&
+                                      await canLaunchUrl(Uri.parse(resolved))) {
                                     await launchUrl(
-                                      Uri.parse(fileUrl),
+                                      Uri.parse(resolved),
                                       mode: LaunchMode.externalApplication,
                                     );
                                   }

@@ -1,5 +1,4 @@
 import 'package:capstone_app/Auth/idle_timeout_manage.dart';
-import 'package:capstone_app/SuperAdmin/dashboard.dart';
 import 'package:capstone_app/Collector/dashboard.dart';
 import 'package:capstone_app/Members/dashboard.dart';
 import 'package:capstone_app/President/dashboard.dart';
@@ -9,30 +8,45 @@ import 'package:capstone_app/Providers/dayung_role_provider.dart';
 import 'package:capstone_app/Providers/route_observer.dart';
 import 'package:capstone_app/Providers/user_provider.dart';
 import 'package:capstone_app/Secretary/dashboard.dart';
+import 'package:capstone_app/SuperAdmin/dashboard.dart';
 import 'package:capstone_app/Treasurer/dashboard.dart';
-import 'package:flutter/material.dart';
 import 'package:capstone_app/settings/custom_scroll_behavior.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:capstone_app/utils/network_error_dialog.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'screens/splash_screen.dart';
-import 'Auth/login.dart';
-import 'Auth/register.dart';
-import 'Auth/reapply.dart';
 import 'package:provider/provider.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+
+import 'Auth/login.dart';
+import 'Auth/reapply.dart';
+import 'Auth/register.dart';
+import 'screens/splash_screen.dart';
 
 final GlobalKey<NavigatorState> globalNavigatorKey =
     GlobalKey<NavigatorState>();
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  await dotenv.load(fileName: '.env');
+
+  final supabaseUrl = dotenv.env['SUPABASE_URL'];
+  final supabaseAnonKey = dotenv.env['SUPABASE_ANON_KEY'];
+
+  if (supabaseUrl == null ||
+      supabaseUrl.isEmpty ||
+      supabaseAnonKey == null ||
+      supabaseAnonKey.isEmpty) {
+    throw StateError('Missing SUPABASE_URL or SUPABASE_ANON_KEY');
+  }
+
   final appTheme = AppTheme();
   await appTheme.load();
-  await Supabase.initialize(
-    url: 'https://cbplyfoporianakushyz.supabase.co',
-    anonKey:
-        'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNicGx5Zm9wb3JpYW5ha3VzaHl6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTA3Mzk5OTAsImV4cCI6MjA2NjMxNTk5MH0.6xtt3Ajrs0j_Zo-wLuTpTut-Qi0DEg_vxvXkLWsBXgw',
-  );
-  runApp(ProviderScope(child: MyApp(appTheme: appTheme))  );
+
+  await Supabase.initialize(url: supabaseUrl, anonKey: supabaseAnonKey);
+
+  runApp(ProviderScope(child: MyApp(appTheme: appTheme)));
 }
 
 class MyApp extends StatelessWidget {
@@ -43,7 +57,7 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return Listener(
       behavior: HitTestBehavior.translucent,
-      onPointerDown: (_) => IdleTimeoutManager().reset(), 
+      onPointerDown: (_) => IdleTimeoutManager().reset(),
       onPointerMove: (_) => IdleTimeoutManager().reset(),
       onPointerUp: (_) => IdleTimeoutManager().reset(),
       child: MultiProvider(
@@ -67,17 +81,20 @@ class MyApp extends StatelessWidget {
         ],
         child: Builder(
           builder: (context) {
-            // Start the idle timer when the app is built
-            // WidgetsBinding.instance.addPostFrameCallback((_) {
-            //   IdleTimeoutManager().start(context);
-            // });
             final mode = context.watch<AppTheme>().mode;
+
             return MaterialApp(
               navigatorKey: globalNavigatorKey,
               debugShowCheckedModeBanner: false,
               scrollBehavior: NoGlowScrollBehavior(),
               title: 'Dayung',
               navigatorObservers: [appRouteObserver],
+              builder: (context, child) {
+                WidgetsBinding.instance.addPostFrameCallback((_) {
+                  NetworkMonitor().start();
+                });
+                return child!;
+              },
               theme: ThemeData(
                 useMaterial3: true,
                 brightness: Brightness.light,

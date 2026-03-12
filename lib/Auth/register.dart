@@ -6,6 +6,8 @@ import 'package:capstone_app/data/ph_address_data.dart';
 import 'package:capstone_app/screens/dayungquestion.dart'
     hide kPrimary, kBg, kAccent;
 import 'package:capstone_app/ui/theme/branding.dart';
+import 'package:capstone_app/utils/input_safety.dart';
+import 'package:capstone_app/utils/network_error_dialog.dart';
 import 'package:cupertino_calendar_picker/cupertino_calendar_picker.dart';
 import 'package:dropdown_button2/dropdown_button2.dart';
 import 'package:flutter/cupertino.dart';
@@ -53,7 +55,6 @@ class _RegisterState extends State<Register> {
   String? selectedDay;
   String? selectedYear;
   String? selectedSex;
-  String? _addressDisplay;
   String? _pickedRegion, _pickedProvince, _pickedCity, _pickedBarangay;
 
   String _normalizePhone(String raw) {
@@ -69,10 +70,17 @@ class _RegisterState extends State<Register> {
 
   bool _obscurePassword = true;
   bool _isSubmitting = false;
-  bool _isValidPHPhone(String input) {
-    final normalized = input.replaceAll(RegExp(r'\s+|-'), '');
-    final regex = RegExp(r'^(09\d{9}|\+639\d{9})$');
-    return regex.hasMatch(normalized);
+
+  bool _looksOffline(Object e) {
+    final s = e.toString().toLowerCase();
+    return s.contains('failed to fetch') ||
+        s.contains('failed host lookup') ||
+        s.contains('network is unreachable') ||
+        s.contains('socketexception') ||
+        s.contains('handshake') ||
+        s.contains('network') ||
+        s.contains('socket') ||
+        s.contains('timeout');
   }
 
   DateTime? _selectedDob;
@@ -301,7 +309,6 @@ class _RegisterState extends State<Register> {
     if (result != null) {
       setState(() {
         addressController.text = result.rawText;
-        _addressDisplay = result.rawText;
         _pickedRegion = result.region;
         _pickedProvince = result.province;
         _pickedCity = result.city;
@@ -331,10 +338,10 @@ class _RegisterState extends State<Register> {
       ];
 
       bool found = false;
-      String triedAddresses = "";
+      String triedAddresses = '';
 
       for (final addr in addressVariants) {
-        triedAddresses += "$addr\n";
+        triedAddresses += '$addr\n';
         try {
           final locations = await locationFromAddress(addr);
           if (locations.isNotEmpty) {
@@ -345,21 +352,32 @@ class _RegisterState extends State<Register> {
             found = true;
             break;
           }
-        } catch (_) {
+        } catch (e) {
+          if (_looksOffline(e)) {
+            await NetworkMonitor().checkNow();
+            return;
+          }
         }
       }
 
       if (!found) {
         for (final addr in addressVariants) {
           triedAddresses += '[Nominatim] $addr\n';
-          final nominatimResult = await _geocodeViaNominatim(addr);
-          if (nominatimResult != null) {
-            setState(() {
-              _latitude = nominatimResult['lat'];
-              _longitude = nominatimResult['lon'];
-            });
-            found = true;
-            break;
+          try {
+            final nominatimResult = await _geocodeViaNominatim(addr);
+            if (nominatimResult != null) {
+              setState(() {
+                _latitude = nominatimResult['lat'];
+                _longitude = nominatimResult['lon'];
+              });
+              found = true;
+              break;
+            }
+          } catch (e) {
+            if (_looksOffline(e)) {
+              await NetworkMonitor().checkNow();
+              return;
+            }
           }
         }
       }
@@ -385,22 +403,22 @@ class _RegisterState extends State<Register> {
         _showTopErrorDialog(context, 'Location permission denied.');
         return;
       }
+
       final pos = await Geolocator.getCurrentPosition(
         desiredAccuracy: LocationAccuracy.high,
       );
 
       String? composed;
       String? street;
-      String? block;
-      String? purok;
       String? barangay;
       String? city;
       String? province;
+      bool neededInternetLookup = false;
 
       if (kIsWeb) {
+        neededInternetLookup = true;
         composed = await _reverseViaNominatim(pos.latitude, pos.longitude);
       } else {
-        // First: native placemark
         try {
           final placemarks = await placemarkFromCoordinates(
             pos.latitude,
@@ -419,9 +437,13 @@ class _RegisterState extends State<Register> {
               if (province.isNotEmpty) province,
             ].join(', ');
           }
-        } catch (_) {}
+        } catch (e) {
+          if (_looksOffline(e)) {
+            await NetworkMonitor().checkNow();
+            return;
+          }
+        }
 
-        // Fallback if missing key parts OR looks like Plus Code (contains '+')
         final needsFallback =
             composed == null ||
             composed.isEmpty ||
@@ -430,71 +452,92 @@ class _RegisterState extends State<Register> {
             (street == null || street.isEmpty);
 
         if (needsFallback) {
+          neededInternetLookup = true;
           final nominatim = await _reverseViaNominatim(
             pos.latitude,
             pos.longitude,
           );
-          if (nominatim != null && nominatim.isNotEmpty) composed = nominatim;
+          if (nominatim != null && nominatim.isNotEmpty) {
+            composed = nominatim;
+          }
         }
+      }
+
+      if (composed == null || composed.isEmpty) {
+        if (neededInternetLookup) {
+          await NetworkMonitor().checkNow();
+          return;
+        }
+
+        _showTopErrorDialog(
+          context,
+          'Could not determine your address. Please try again.',
+        );
+        return;
       }
 
       setState(() {
         _latitude = pos.latitude;
         _longitude = pos.longitude;
-        addressController.text = (composed != null && composed.isNotEmpty)
-            ? composed
-            : '(${pos.latitude}, ${pos.longitude})';
-        _addressDisplay = addressController.text;
+        addressController.text = composed!;
       });
     } catch (e) {
+      if (_looksOffline(e)) {
+        await NetworkMonitor().checkNow();
+        return;
+      }
       _showTopErrorDialog(context, 'Location error: $e');
     }
   }
 
   Future<String?> _reverseViaNominatim(double lat, double lng) async {
-    try {
-      final url =
-          'https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=$lat&lon=$lng&zoom=18&addressdetails=1';
-      final resp = await http.get(
-        Uri.parse(url),
-        headers: {'User-Agent': 'capstone-app/1.0'},
-      );
-      if (resp.statusCode != 200) return null;
-      final data = json.decode(resp.body);
-      final a = (data['address'] ?? {}) as Map;
-      final street = _firstNonEmpty([
-        a['road'],
-        a['residential'],
-        a['pedestrian'],
-        a['path'],
-      ]);
-      final block = _firstNonEmpty([a['block'], a['quarter']]);
-      final purok = _firstNonEmpty([
-        a['neighbourhood'],
-        a['hamlet'],
-        a['subdivision'],
-      ]);
-      final barangay = _firstNonEmpty([a['suburb'], a['barangay']]);
-      final city = _firstNonEmpty([
-        a['city'],
-        a['municipality'],
-        a['town'],
-        a['village'],
-      ]);
-      final province = _firstNonEmpty([a['state'], a['province']]);
+    final url =
+        'https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=$lat&lon=$lng&zoom=18&addressdetails=1';
+    final resp = await http.get(
+      Uri.parse(url),
+      headers: {'User-Agent': 'capstone-app/1.0'},
+    );
 
-      final parts = [
-        if (street != null) street,
-        if (block != null) block,
-        if (purok != null) purok,
-        if (barangay != null) barangay,
-        if (city != null) city,
-        if (province != null) province,
-      ];
-      return parts.where((e) => e.trim().isNotEmpty).join(', ');
-    } catch (_) {
-      return null;
+    if (resp.statusCode != 200) {
+      throw Exception(
+        'Reverse geocoding failed with status ${resp.statusCode}',
+      );
     }
+
+    final data = json.decode(resp.body);
+    final a = (data['address'] ?? {}) as Map;
+
+    final street = _firstNonEmpty([
+      a['road'],
+      a['residential'],
+      a['pedestrian'],
+      a['path'],
+    ]);
+    final block = _firstNonEmpty([a['block'], a['quarter']]);
+    final purok = _firstNonEmpty([
+      a['neighbourhood'],
+      a['hamlet'],
+      a['subdivision'],
+    ]);
+    final barangay = _firstNonEmpty([a['suburb'], a['barangay']]);
+    final city = _firstNonEmpty([
+      a['city'],
+      a['municipality'],
+      a['town'],
+      a['village'],
+    ]);
+    final province = _firstNonEmpty([a['state'], a['province']]);
+
+    final parts = [
+      if (street != null) street,
+      if (block != null) block,
+      if (purok != null) purok,
+      if (barangay != null) barangay,
+      if (city != null) city,
+      if (province != null) province,
+    ];
+
+    return parts.where((e) => e.trim().isNotEmpty).join(', ');
   }
 
   String? _firstNonEmpty(List values) {
@@ -604,7 +647,6 @@ class _RegisterState extends State<Register> {
     if (!_formKey.currentState!.validate()) return;
     if (_confirmPasswordError != null) return;
 
-    // Prevent registration if lat/lng are missing
     if (_latitude == null || _longitude == null) {
       _showTopErrorDialog(
         context,
@@ -615,11 +657,19 @@ class _RegisterState extends State<Register> {
 
     setState(() => _isSubmitting = true);
 
-    final email = emailController.text.trim().toLowerCase();
+    final email = AppInputSecurity.sanitizeEmail(emailController.text);
     final password = passwordController.text.trim();
     const role = 'member';
 
-    final rawPhone = mobileController.text.trim();
+    final fullName = AppInputSecurity.sanitizePlainText(
+      fullNameController.text,
+      maxLength: 120,
+    );
+    final address = AppInputSecurity.sanitizePlainText(
+      addressController.text,
+      maxLength: 200,
+    );
+    final rawPhone = AppInputSecurity.sanitizePhone(mobileController.text);
     String normalizedPhone;
     try {
       normalizedPhone = _normalizePhone(rawPhone);
@@ -647,14 +697,14 @@ class _RegisterState extends State<Register> {
 
       await Supabase.instance.client.from('users').insert({
         'id': user.id,
-        'full_name': fullNameController.text.trim(),
+        'full_name': fullName,
         'dob': dob,
         'sex': selectedSex,
         'mobile_number': rawPhone,
         'mobile_number_normalized': normalizedPhone,
         'latitude': _latitude,
         'longitude': _longitude,
-        'address': addressController.text,
+        'address': address,
         'barangay': _pickedBarangay,
         'city': _pickedCity,
         'province': _pickedProvince,
@@ -678,34 +728,56 @@ class _RegisterState extends State<Register> {
       );
     } on AuthException catch (e) {
       setState(() => _isSubmitting = false);
+
+      final msg = e.message.toLowerCase();
+      final isOffline =
+          _looksOffline(e) ||
+          msg.contains('network') ||
+          msg.contains('fetch') ||
+          msg.contains('socket') ||
+          msg.contains('timeout');
+
+      if (isOffline) {
+        await NetworkMonitor().checkNow();
+        return;
+      }
+
       _showTopErrorDialog(context, 'Auth error: ${e.message}');
     } catch (e) {
       setState(() => _isSubmitting = false);
+
+      if (_looksOffline(e)) {
+        await NetworkMonitor().checkNow();
+        return;
+      }
+
       _showTopErrorDialog(context, 'Error: $e');
     }
   }
 
   Future<Map<String, double>?> _geocodeViaNominatim(String address) async {
-    try {
-      final url =
-          'https://nominatim.openstreetmap.org/search?format=json&q=${Uri.encodeComponent(address)}&countrycodes=ph&limit=1&addressdetails=1';
-      final resp = await http.get(
-        Uri.parse(url),
-        headers: {'User-Agent': 'capstone-app/1.0'},
-      );
-      if (resp.statusCode != 200) return null;
-      final data = json.decode(resp.body);
-      if (data is List && data.isNotEmpty) {
-        final lat = double.tryParse(data[0]['lat'] ?? '');
-        final lon = double.tryParse(data[0]['lon'] ?? '');
-        if (lat != null && lon != null) {
-          return {'lat': lat, 'lon': lon};
-        }
-      }
-      return null;
-    } catch (_) {
-      return null;
+    final url =
+        'https://nominatim.openstreetmap.org/search?format=json&q=${Uri.encodeComponent(address)}&countrycodes=ph&limit=1&addressdetails=1';
+
+    final resp = await http.get(
+      Uri.parse(url),
+      headers: {'User-Agent': 'capstone-app/1.0'},
+    );
+
+    if (resp.statusCode != 200) {
+      throw Exception('Geocoding failed with status ${resp.statusCode}');
     }
+
+    final data = json.decode(resp.body);
+    if (data is List && data.isNotEmpty) {
+      final lat = double.tryParse(data[0]['lat'] ?? '');
+      final lon = double.tryParse(data[0]['lon'] ?? '');
+      if (lat != null && lon != null) {
+        return {'lat': lat, 'lon': lon};
+      }
+    }
+
+    return null;
   }
 
   Widget _dobField(BuildContext rootContext) {
@@ -943,6 +1015,10 @@ class _RegisterState extends State<Register> {
                                 TextFormField(
                                   controller: fullNameController,
                                   textInputAction: TextInputAction.next,
+                                  inputFormatters:
+                                      AppInputSecurity.singleLineFormatters(
+                                        maxLength: 120,
+                                      ),
                                   style: TextStyle(
                                     fontSize: isWide ? 18 : 16,
                                     color: kNeutralText,
@@ -954,9 +1030,12 @@ class _RegisterState extends State<Register> {
                                     icon: Icons.person_rounded,
                                   ),
                                   validator: (v) =>
-                                      (v == null || v.trim().isEmpty)
-                                      ? 'Full Name is required'
-                                      : null,
+                                      AppInputSecurity.validateSafeText(
+                                        v,
+                                        fieldName: 'Full Name',
+                                        minLength: 2,
+                                        maxLength: 120,
+                                      ),
                                 ),
                                 const SizedBox(height: 16),
                                 DropdownButtonFormField2<String>(
@@ -1037,10 +1116,18 @@ class _RegisterState extends State<Register> {
                                   ).copyWith(prefixText: '+63 '),
                                   keyboardType: TextInputType.number,
                                   maxLength: 10,
+                                  inputFormatters:
+                                      AppInputSecurity.phoneFormatters(
+                                        maxLength: 10,
+                                      ),
                                   validator: (value) {
-                                    final v =
-                                        value?.replaceAll(RegExp(r'\D'), '') ??
-                                        '';
+                                    final err = AppInputSecurity.validatePhone(
+                                      value,
+                                    );
+                                    if (err != null) return err;
+                                    final v = AppInputSecurity.sanitizePhone(
+                                      value ?? '',
+                                    ).replaceAll('+', '');
                                     if (v.length != 10) {
                                       return 'Enter 10 digits (e.g., 9123456789)';
                                     }
@@ -1057,6 +1144,10 @@ class _RegisterState extends State<Register> {
                                     child: TextFormField(
                                       controller: addressController,
                                       readOnly: true,
+                                      inputFormatters:
+                                          AppInputSecurity.singleLineFormatters(
+                                            maxLength: 200,
+                                          ),
                                       decoration: _dec(
                                         'Address',
                                         hint:
@@ -1064,9 +1155,12 @@ class _RegisterState extends State<Register> {
                                         icon: Icons.location_on_rounded,
                                       ),
                                       validator: (v) =>
-                                          (v == null || v.trim().isEmpty)
-                                          ? 'Address is required'
-                                          : null,
+                                          AppInputSecurity.validateSafeText(
+                                            v,
+                                            fieldName: 'Address',
+                                            minLength: 6,
+                                            maxLength: 200,
+                                          ),
                                     ),
                                   ),
                                 ),
@@ -1115,6 +1209,10 @@ class _RegisterState extends State<Register> {
                                   controller: emailController,
                                   keyboardType: TextInputType.emailAddress,
                                   textInputAction: TextInputAction.next,
+                                  inputFormatters:
+                                      AppInputSecurity.singleLineFormatters(
+                                        maxLength: 120,
+                                      ),
                                   style: TextStyle(
                                     fontSize: isWide ? 18 : 16,
                                     color: kNeutralText,
@@ -1125,17 +1223,7 @@ class _RegisterState extends State<Register> {
                                     hint: 'example@email.com',
                                     icon: Icons.email_rounded,
                                   ),
-                                  validator: (v) {
-                                    if (v == null || v.trim().isEmpty) {
-                                      return 'Email is required';
-                                    }
-                                    if (!RegExp(
-                                      r'^[^@]+@[^@]+\.[^@]+',
-                                    ).hasMatch(v.trim())) {
-                                      return 'Enter a valid email';
-                                    }
-                                    return null;
-                                  },
+                                  validator: AppInputSecurity.validateEmail,
                                 ),
                                 const SizedBox(height: 16),
 
@@ -1154,20 +1242,35 @@ class _RegisterState extends State<Register> {
                                         hint: '********',
                                         icon: Icons.lock_rounded,
                                       ).copyWith(
-                                        helperText: 'At least 6 characters',
+                                        helperText:
+                                            'At least 8 chars with upper, lower, number, and symbol',
                                         helperStyle: TextStyle(
                                           color: kSubtleText,
                                           fontSize: 12,
                                           fontWeight: FontWeight.w500,
                                         ),
-                                        // No suffixIcon here!
                                       ),
                                   validator: (v) {
                                     if (v == null || v.trim().isEmpty) {
                                       return 'Password is required';
                                     }
-                                    if (v.trim().length < 6) {
-                                      return 'Password must be at least 6 characters';
+                                    final value = v.trim();
+                                    if (value.length < 8) {
+                                      return 'Password must be at least 8 characters';
+                                    }
+                                    if (!RegExp(r'[A-Z]').hasMatch(value)) {
+                                      return 'Password must include an uppercase letter';
+                                    }
+                                    if (!RegExp(r'[a-z]').hasMatch(value)) {
+                                      return 'Password must include a lowercase letter';
+                                    }
+                                    if (!RegExp(r'\d').hasMatch(value)) {
+                                      return 'Password must include a number';
+                                    }
+                                    if (!RegExp(
+                                      r'[^A-Za-z0-9]',
+                                    ).hasMatch(value)) {
+                                      return 'Password must include a special character';
                                     }
                                     return null;
                                   },

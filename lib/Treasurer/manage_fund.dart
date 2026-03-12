@@ -1,4 +1,5 @@
 import 'dart:math';
+import 'package:capstone_app/ui/loading/page_skeleton.dart';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -32,6 +33,12 @@ class _ManageFundPageState extends State<ManageFundPage> {
 
   double _totalPaid = 0.0;
   double _totalGoal = 0.0;
+  int _approvedMemberCount = 0;
+
+  double _asDouble(dynamic value, {double fallback = 0.0}) {
+    if (value is num) return value.toDouble();
+    return double.tryParse('${value ?? ''}') ?? fallback;
+  }
 
   @override
   void initState() {
@@ -46,44 +53,102 @@ class _ManageFundPageState extends State<ManageFundPage> {
     });
 
     try {
-      final res = await sb
+      final approvedRes = await sb
+          .from('applications')
+          .select('user_id')
+          .eq('dayung_unit_id', widget.dayungUnitId)
+          .eq('status', 'approved');
+      final approvedUserIds = {
+        for (final row in List<Map<String, dynamic>>.from(approvedRes))
+          (row['user_id'] ?? '').toString(),
+      }..remove('');
+
+      final noticeRes = await sb
+          .from('death_notices')
+          .select('id, name, date_of_death, deceased_type, user_id')
+          .eq('dayung_unit_id', widget.dayungUnitId)
+          .order('date_of_death', ascending: false);
+
+      final paymentRes = await sb
           .from('payments')
-          .select(
-            // include deceased_type so we can separate Members vs Beneficiaries
-            'death_notice_id, amount, status, paid_at, notice:death_notices(id,name,date_of_death,deceased_type)',
-          )
+          .select('death_notice_id, amount, status, paid_at, user_id')
           .eq('dayung_unit_id', widget.dayungUnitId);
 
-      final rows = List<Map<String, dynamic>>.from(res);
+      final rows = List<Map<String, dynamic>>.from(paymentRes);
+
+      final noticeLookup = <int, Map<String, dynamic>>{};
+      for (final row in List<Map<String, dynamic>>.from(noticeRes)) {
+        final id = int.tryParse('${row['id']}');
+        if (id != null) {
+          noticeLookup[id] = row;
+        }
+      }
 
       final byNotice = <int, Map<String, dynamic>>{};
+      for (final entry in noticeLookup.entries) {
+        final notice = entry.value;
+        final excludedUserId = (notice['user_id'] ?? '').toString();
+        final expectedMembers = approvedUserIds
+            .where((userId) => userId != excludedUserId)
+            .length;
+
+        byNotice[entry.key] = {
+          'id': entry.key,
+          'name': (notice['name'] ?? 'Death Notice').toString(),
+          'paid': 0.0,
+          'goal': 0.0,
+          'deadline': (notice['date_of_death'] ?? '').toString(),
+          'status': '',
+          'progress': 0.0,
+          'type': (notice['deceased_type'] ?? 'member').toString(),
+          'expectedMembers': expectedMembers,
+          'recordedMembers': 0,
+          'missingMembers': expectedMembers,
+          'excludedUserId': excludedUserId,
+          'rowUserIds': <String>{},
+        };
+      }
+
       for (final r in rows) {
-        final dnId = r['death_notice_id'] as int?;
+        final dnId = int.tryParse('${r['death_notice_id'] ?? ''}');
         if (dnId == null) continue;
 
-        final notice = (r['notice'] as Map?)?.cast<String, dynamic>();
+        final notice = noticeLookup[dnId];
         final name = (notice?['name'] ?? 'Death Notice').toString();
         final dateStr = (notice?['date_of_death'] ?? '').toString();
         final dtype = (notice?['deceased_type'] ?? '').toString().isEmpty
             ? 'member'
             : (notice?['deceased_type']).toString().toLowerCase().trim();
-        final amt = (r['amount'] is num)
-            ? (r['amount'] as num).toDouble()
-            : double.tryParse('${r['amount']}') ?? 0.0;
+        final amt = _asDouble(r['amount']);
         final status = (r['status'] ?? '').toString().toLowerCase();
+        final rowUserId = (r['user_id'] ?? '').toString();
 
         final bucket = byNotice.putIfAbsent(dnId, () {
+          final excludedUserId = (notice?['user_id'] ?? '').toString();
+          final expectedMembers = approvedUserIds
+              .where((userId) => userId != excludedUserId)
+              .length;
           return {
             'id': dnId,
             'name': name,
             'paid': 0.0,
             'goal': 0.0,
             'deadline': dateStr,
-            'status': '', // computed later
-            'progress': 0.0, // computed later
-            'type': dtype, // NEW: member | beneficiary
+            'status': '',
+            'progress': 0.0,
+            'type': dtype,
+            'expectedMembers': expectedMembers,
+            'recordedMembers': 0,
+            'missingMembers': expectedMembers,
+            'excludedUserId': excludedUserId,
+            'rowUserIds': <String>{},
           };
         });
+
+        final rowUserIds = bucket['rowUserIds'] as Set<String>;
+        if (rowUserId.isNotEmpty && approvedUserIds.contains(rowUserId)) {
+          rowUserIds.add(rowUserId);
+        }
 
         bucket['goal'] = (bucket['goal'] as double) + amt;
         if (status == 'paid') {
@@ -97,19 +162,24 @@ class _ManageFundPageState extends State<ManageFundPage> {
       }
 
       final list = byNotice.values.toList();
-      double totalPaid = 0, totalGoal = 0;
 
       for (final f in list) {
+        final expectedMembers = (f['expectedMembers'] as int?) ?? 0;
+        final rowUserIds = (f['rowUserIds'] as Set<String>? ?? <String>{});
+        final recordedMembers = rowUserIds.length;
+        final missingMembers = max(0, expectedMembers - recordedMembers);
         final paid = (f['paid'] as double);
-        final goal = (f['goal'] as double);
+        final storedGoal = (f['goal'] as double);
+        final goal = max(storedGoal, expectedMembers.toDouble());
         final p = goal <= 0 ? 0.0 : (paid / goal).clamp(0.0, 1.0);
+        f['goal'] = goal;
         f['progress'] = p;
+        f['recordedMembers'] = recordedMembers;
+        f['missingMembers'] = missingMembers;
         f['status'] = (paid >= goal && goal > 0)
             ? 'Completed'
             : 'Still Collecting...';
-
-        totalPaid += paid;
-        totalGoal += goal;
+        f.remove('rowUserIds');
       }
 
       // Default sort: latest date first
@@ -158,17 +228,41 @@ class _ManageFundPageState extends State<ManageFundPage> {
       }
       // --- END ADVANCE FUND LOGIC ---
 
+      double totalPaid = 0.0;
+      double totalGoal = 0.0;
+      for (final fund in list) {
+        totalPaid += _asDouble(fund['paid']);
+        totalGoal += _asDouble(fund['goal']);
+      }
+
       if (!mounted) return;
       setState(() {
         _funds = list;
         _totalPaid = totalPaid;
         _totalGoal = totalGoal;
+        _approvedMemberCount = approvedUserIds.length;
         _loading = false;
       });
-    } on PostgrestException {
-      // ...existing code...
+    } on PostgrestException catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _funds = [];
+        _totalPaid = 0.0;
+        _totalGoal = 0.0;
+        _approvedMemberCount = 0;
+        _error = e.message;
+        _loading = false;
+      });
     } catch (e) {
-      // ...existing code...
+      if (!mounted) return;
+      setState(() {
+        _funds = [];
+        _totalPaid = 0.0;
+        _totalGoal = 0.0;
+        _approvedMemberCount = 0;
+        _error = e.toString();
+        _loading = false;
+      });
     }
   }
 
@@ -290,7 +384,10 @@ class _ManageFundPageState extends State<ManageFundPage> {
         ),
       ),
       body: _loading
-          ? const Center(child: CircularProgressIndicator())
+          ? const DayungPageSkeleton(
+              layout: DayungSkeletonLayout.dashboard,
+              itemCount: 4,
+            )
           : _error != null
           ? Center(
               child: Padding(
@@ -363,21 +460,69 @@ class _ManageFundPageState extends State<ManageFundPage> {
           const Text(
             'Overview',
             style: TextStyle(
-              fontSize: 18,
+              fontSize: 22,
               fontWeight: FontWeight.w800,
               color: kSubtleText,
               fontFamily: 'Montserrat',
             ),
           ),
-          const SizedBox(height: 12),
-          Row(
-            children: [
-              _kpi('Collected', _currency(_totalPaid), color: Colors.teal),
-              const SizedBox(width: 12),
-              _kpi('Goal', _currency(_totalGoal), color: Colors.indigo),
-              const SizedBox(width: 12),
-              _kpi('Remaining', _currency(remaining), color: Colors.orange),
-            ],
+          // const SizedBox(height: 6),
+          // const Text(
+          //   'Review all active death notices, check missing funds, and create payment rows for members who still do not have one.',
+          //   style: TextStyle(
+          //     fontSize: 15,
+          //     height: 1.45,
+          //     color: kSubtleText,
+          //     fontWeight: FontWeight.w600,
+          //   ),
+          // ),
+          // const SizedBox(height: 12),
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final compact = constraints.maxWidth < 520;
+              if (compact) {
+                return Column(
+                  children: [
+                    Row(
+                      children: [
+                        _kpi(
+                          'Collected',
+                          _currency(_totalPaid),
+                          color: Colors.teal,
+                        ),
+                        const SizedBox(width: 12),
+                        _kpi(
+                          'Goal',
+                          _currency(_totalGoal),
+                          color: Colors.indigo,
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        _kpi(
+                          'Remaining',
+                          _currency(remaining),
+                          color: Colors.orange,
+                        ),
+                        const Spacer(),
+                      ],
+                    ),
+                  ],
+                );
+              }
+
+              return Row(
+                children: [
+                  _kpi('Collected', _currency(_totalPaid), color: Colors.teal),
+                  const SizedBox(width: 12),
+                  _kpi('Goal', _currency(_totalGoal), color: Colors.indigo),
+                  const SizedBox(width: 12),
+                  _kpi('Remaining', _currency(remaining), color: Colors.orange),
+                ],
+              );
+            },
           ),
         ],
       ),
@@ -391,7 +536,7 @@ class _ManageFundPageState extends State<ManageFundPage> {
         // Search
         TextField(
           decoration: InputDecoration(
-            hintText: 'Search...',
+            hintText: 'Search deceased name',
             hintStyle: const TextStyle(fontWeight: FontWeight.w500),
             prefixIcon: const Icon(Icons.search),
             filled: true,
@@ -411,6 +556,25 @@ class _ManageFundPageState extends State<ManageFundPage> {
           ),
           onChanged: (v) => setState(() => _search = v.trim()),
         ),
+        const SizedBox(height: 8),
+        // Container(
+        //   width: double.infinity,
+        //   padding: const EdgeInsets.all(14),
+        //   decoration: BoxDecoration(
+        //     color: Colors.white,
+        //     borderRadius: BorderRadius.circular(16),
+        //     border: Border.all(color: const Color(0xFFE2E8F0)),
+        //   ),
+        //   child: const Text(
+        //     'Tip: Tap View Members to check who already has a fund. Tap Create Missing Funds to add pending rows for members still missing one.',
+        //     style: TextStyle(
+        //       fontSize: 14,
+        //       height: 1.45,
+        //       color: kSubtleText,
+        //       fontWeight: FontWeight.w600,
+        //     ),
+        //   ),
+        // ),
         const SizedBox(height: 10),
         // Status segmented (All | Collecting | Completed)
         Center(
@@ -501,60 +665,18 @@ class _ManageFundPageState extends State<ManageFundPage> {
     );
   }
 
-  // NEW: Section builder for grouped lists
-  List<Widget> _typeSection({
-    required String title,
-    required List<Map<String, dynamic>> items,
-  }) {
-    if (items.isEmpty) return [];
-    return [
-      Row(
-        children: [
-          Text(
-            title,
-            style: const TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.w900,
-              color: kNeutralText,
-              fontFamily: 'Montserrat',
-            ),
-          ),
-          const SizedBox(width: 8),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-            decoration: BoxDecoration(
-              color: const Color(0xFFEFF6FF),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: const Color(0xFFBFDBFE)),
-            ),
-            child: Text(
-              '${items.length}',
-              style: const TextStyle(
-                color: Color(0xFF1E40AF),
-                fontWeight: FontWeight.w800,
-                fontSize: 12,
-              ),
-            ),
-          ),
-        ],
-      ),
-      const SizedBox(height: 8),
-      ...List.generate(
-        items.length,
-        (i) => Padding(
-          padding: const EdgeInsets.symmetric(vertical: 8),
-          child: _fundCard(items[i]),
-        ),
-      ),
-    ];
-  }
-
   Widget _fundCard(Map<String, dynamic> fund) {
     final paid = (fund['paid'] as double?) ?? 0.0;
     final goal = (fund['goal'] as double?) ?? 0.0;
     final progress = (fund['progress'] as double?)?.clamp(0.0, 1.0) ?? 0.0;
     final deadline = (fund['deadline'] ?? '').toString();
     final completed = (fund['status'] ?? '').toString() == 'Completed';
+    final recordedMembers = (fund['recordedMembers'] as int?) ?? 0;
+    final missingMembers = (fund['missingMembers'] as int?) ?? 0;
+    final expectedMembers = (fund['expectedMembers'] as int?) ?? 0;
+    final noticeId = fund['id'] is int
+        ? fund['id'] as int
+        : int.tryParse('${fund['id']}') ?? 0;
 
     return InkWell(
       borderRadius: BorderRadius.circular(20),
@@ -582,6 +704,29 @@ class _ManageFundPageState extends State<ManageFundPage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      _metricPill(
+                        icon: Icons.groups_rounded,
+                        label: '$expectedMembers members',
+                        color: const Color(0xFF1E40AF),
+                      ),
+                      _metricPill(
+                        icon: Icons.receipt_long_rounded,
+                        label: '$recordedMembers with fund',
+                        color: const Color(0xFF10B981),
+                      ),
+                      if (missingMembers > 0)
+                        _metricPill(
+                          icon: Icons.warning_amber_rounded,
+                          label: '$missingMembers missing fund',
+                          color: const Color(0xFFF59E0B),
+                        ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
                   // Title + pill
                   Row(
                     children: [
@@ -680,6 +825,89 @@ class _ManageFundPageState extends State<ManageFundPage> {
                       ),
                     ],
                   ),
+                  const SizedBox(height: 14),
+                  LayoutBuilder(
+                    builder: (context, constraints) {
+                      final compact = constraints.maxWidth < 430;
+                      final buttons = [
+                        SizedBox(
+                          width: compact ? double.infinity : null,
+                          child: OutlinedButton.icon(
+                            onPressed: noticeId <= 0
+                                ? null
+                                : () => _showPaymentStatusSheet(
+                                    noticeId,
+                                    widget.dayungUnitId,
+                                  ),
+                            icon: const Icon(
+                              Icons.people_alt_rounded,
+                              size: 20,
+                            ),
+                            label: const Text('View Members'),
+                            style: OutlinedButton.styleFrom(
+                              minimumSize: const Size.fromHeight(52),
+                              textStyle: const TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w800,
+                              ),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(14),
+                              ),
+                            ),
+                          ),
+                        ),
+                        SizedBox(
+                          width: compact ? double.infinity : null,
+                          child: ElevatedButton.icon(
+                            onPressed: noticeId <= 0 || completed
+                                ? null
+                                : () => _triggerPaymentCollection(
+                                    noticeId,
+                                    widget.dayungUnitId,
+                                  ),
+                            icon: const Icon(Icons.campaign_rounded, size: 20),
+                            label: Text(
+                              missingMembers > 0
+                                  ? 'Create Missing Funds'
+                                  : 'Collect',
+                            ),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: const Color(0xFF1E40AF),
+                              foregroundColor: Colors.white,
+                              minimumSize: const Size.fromHeight(52),
+                              textStyle: const TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w800,
+                              ),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(14),
+                              ),
+                              elevation: 0,
+                            ),
+                          ),
+                        ),
+                      ];
+
+                      if (compact) {
+                        return Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            buttons[0],
+                            const SizedBox(height: 10),
+                            buttons[1],
+                          ],
+                        );
+                      }
+
+                      return Row(
+                        children: [
+                          Expanded(child: buttons[0]),
+                          const SizedBox(width: 10),
+                          Expanded(child: buttons[1]),
+                        ],
+                      );
+                    },
+                  ),
                 ],
               ),
             ),
@@ -701,6 +929,17 @@ class _ManageFundPageState extends State<ManageFundPage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            if (label == 'Goal')
+              Text(
+                '$_approvedMemberCount active members',
+                style: TextStyle(
+                  color: color.withOpacity(.7),
+                  fontWeight: FontWeight.w600,
+                  fontSize: 12,
+                ),
+              )
+            else
+              const SizedBox(height: 0),
             Text(
               label,
               style: TextStyle(
@@ -723,26 +962,12 @@ class _ManageFundPageState extends State<ManageFundPage> {
     );
   }
 
-  Widget _statusChip(String label, String key) {
-    final selected = _statusFilter == key;
-    return ChoiceChip(
-      label: Text(label),
-      selected: selected,
-      labelStyle: TextStyle(
-        color: selected ? Colors.white : kNeutralText,
-        fontWeight: FontWeight.w700,
-      ),
-      selectedColor: kPrimary,
-      backgroundColor: Colors.white,
-      side: BorderSide(color: selected ? kPrimary : Colors.grey.shade300),
-      onSelected: (_) => setState(() => _statusFilter = key),
-    );
-  }
-
   Future<void> _triggerPaymentCollection(
     int deathNoticeId,
     int dayungUnitId,
   ) async {
+    final createdAt = DateTime.now().toUtc().toIso8601String();
+
     // Fetch notice meta (always contains the member/parent user_id snapshot)
     Map<String, dynamic>? dn;
     try {
@@ -799,10 +1024,11 @@ class _ManageFundPageState extends State<ManageFundPage> {
       if (existingIds.contains(uid)) continue;
       rows.add({
         'user_id': uid,
-        'amount': 1,
+        'amount': '1',
         'status': 'pending',
         'death_notice_id': deathNoticeId,
         'dayung_unit_id': dayungUnitId,
+        'created_at': createdAt,
       });
     }
 
@@ -850,6 +1076,19 @@ class _ManageFundPageState extends State<ManageFundPage> {
     int dayungUnitId,
   ) async {
     try {
+      final noticeRes = await sb
+          .from('death_notices')
+          .select('id, name, user_id')
+          .eq('id', deathNoticeId)
+          .maybeSingle();
+      final excludedUserId = (noticeRes?['user_id'] ?? '').toString();
+
+      final approvedRes = await sb
+          .from('applications')
+          .select('user_id, user:users!applications_user_id_fkey(full_name)')
+          .eq('dayung_unit_id', dayungUnitId)
+          .eq('status', 'approved');
+
       final rows = await sb
           .from('payments')
           .select(
@@ -861,6 +1100,27 @@ class _ManageFundPageState extends State<ManageFundPage> {
           .eq('dayung_unit_id', dayungUnitId);
 
       final items = List<Map<String, dynamic>>.from(rows);
+      final existingUserIds = {
+        for (final row in items) (row['user_id'] ?? '').toString(),
+      };
+
+      for (final row in List<Map<String, dynamic>>.from(approvedRes)) {
+        final userId = (row['user_id'] ?? '').toString();
+        if (userId.isEmpty || userId == excludedUserId) continue;
+        if (existingUserIds.contains(userId)) continue;
+
+        items.add({
+          'id': 'virtual_$userId',
+          'user_id': userId,
+          'amount': '1',
+          'status': 'pending',
+          'paid_at': null,
+          'collected_by': null,
+          'user': row['user'],
+          'collector': null,
+          'is_virtual_pending': true,
+        });
+      }
 
       // Fallback fetch for missing collector names
       final missingCollectorIds = <String>{
@@ -900,113 +1160,111 @@ class _ManageFundPageState extends State<ManageFundPage> {
         return an.compareTo(bn);
       });
 
-      int paid = 0, unpaid = 0;
-      double paidAmt = 0, totalAmt = 0;
-      for (final r in items) {
-        final s = (r['status'] ?? '').toString().toLowerCase();
-        final amt = (r['amount'] is num)
-            ? (r['amount'] as num).toDouble()
-            : double.tryParse('${r['amount']}') ?? 0.0;
-        totalAmt += amt;
-        if (s == 'paid') {
-          paid++;
-          paidAmt += amt;
-        } else {
-          unpaid++;
-        }
-      }
-
       if (!mounted) return;
+      final paidItems = items
+          .where((r) => (r['status'] ?? '').toString().toLowerCase() == 'paid')
+          .toList();
+      final pendingItems = items
+          .where((r) => (r['status'] ?? '').toString().toLowerCase() != 'paid')
+          .toList();
+      final virtualPendingCount = pendingItems
+          .where((r) => r['is_virtual_pending'] == true)
+          .length;
+
       await showModalBottomSheet(
         context: context,
         isScrollControlled: true,
         shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+          borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
         ),
         builder: (context) {
+          final noticeName = (noticeRes?['name'] ?? 'Fund members').toString();
           return SafeArea(
             child: Padding(
               padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // ...existing header...
+                  Center(
+                    child: Container(
+                      width: 56,
+                      height: 6,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFCBD5E1),
+                        borderRadius: BorderRadius.circular(999),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    noticeName,
+                    style: const TextStyle(
+                      fontSize: 24,
+                      fontWeight: FontWeight.w900,
+                      color: kPrimaryDark,
+                      fontFamily: 'Montserrat',
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    'Review who already has a fund and who still needs one.',
+                    style: const TextStyle(
+                      fontSize: 15,
+                      height: 1.4,
+                      color: kSubtleText,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _sheetStatCard(
+                          label: 'With Fund',
+                          value: '${items.length - virtualPendingCount}',
+                          icon: Icons.receipt_long_rounded,
+                          color: const Color(0xFF10B981),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: _sheetStatCard(
+                          label: 'Missing Fund',
+                          value: '$virtualPendingCount',
+                          icon: Icons.warning_amber_rounded,
+                          color: const Color(0xFFF59E0B),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 14),
                   Flexible(
                     child: ConstrainedBox(
                       constraints: const BoxConstraints(maxHeight: 460),
-                      child: ListView.separated(
-                        itemCount: items.length,
-                        separatorBuilder: (_, __) =>
-                            Divider(height: 1, color: Colors.grey.shade300),
-                        itemBuilder: (_, i) {
-                          final r = items[i];
-                          final s = (r['status'] ?? '')
-                              .toString()
-                              .toLowerCase();
-                          final amt = (r['amount'] is num)
-                              ? (r['amount'] as num).toDouble()
-                              : double.tryParse('${r['amount']}') ?? 0.0;
-
-                          final payerName =
-                              (((r['user'] as Map?)?['full_name']) ?? '')
-                                  .toString();
-                          final title = payerName.isNotEmpty
-                              ? payerName
-                              : 'Payment #${r['id']}';
-
-                          final paidAtStr = _fmtDateTime(r['paid_at']);
-                          String collectorName =
-                              (((r['collector'] as Map?)?['full_name']) ?? '')
-                                  .toString();
-                          if (collectorName.isEmpty &&
-                              (r['collected_by'] ?? '').toString().isNotEmpty) {
-                            collectorName =
-                                collectorLookup[(r['collected_by'])
-                                    .toString()] ??
-                                '';
-                          }
-
-                          final subtitleText = s == 'paid'
-                              ? 'Collected'
-                                    '${paidAtStr.isNotEmpty ? ' on: $paidAtStr' : ''}'
-                                    '${collectorName.isNotEmpty ? '\nCollected by: $collectorName' : ''}'
-                              : 'Pending';
-
-                          return ListTile(
-                            leading: CircleAvatar(
-                              backgroundColor: s == 'paid'
-                                  ? Colors.green.withOpacity(.15)
-                                  : Colors.orange.withOpacity(.15),
-                              child: Icon(
-                                s == 'paid'
-                                    ? Icons.check
-                                    : Icons.hourglass_empty,
-                                color: s == 'paid'
-                                    ? Colors.green[800]
-                                    : Colors.orange[800],
+                      child: ListView(
+                        children: [
+                          if (paidItems.isNotEmpty) ...[
+                            _sectionLabel('Paid Members'),
+                            ...paidItems.map(
+                              (row) => _buildPaymentTile(
+                                row,
+                                collectorLookup: collectorLookup,
                               ),
                             ),
-                            title: Text(
-                              title,
-                              overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
-                                fontWeight: FontWeight.w700,
-                                color: kNeutralText,
+                          ],
+                          if (pendingItems.isNotEmpty) ...[
+                            if (paidItems.isNotEmpty)
+                              const SizedBox(height: 12),
+                            _sectionLabel('Pending Members'),
+                            ...pendingItems.map(
+                              (row) => _buildPaymentTile(
+                                row,
+                                collectorLookup: collectorLookup,
                               ),
                             ),
-                            subtitle: Text(
-                              subtitleText,
-                              style: const TextStyle(color: kSubtleText),
-                            ),
-                            trailing: Text(
-                              '₱${amt.toStringAsFixed(0)}',
-                              style: const TextStyle(
-                                fontWeight: FontWeight.w800,
-                                color: kNeutralText,
-                              ),
-                            ),
-                          );
-                        },
+                          ],
+                        ],
                       ),
                     ),
                   ),
@@ -1034,7 +1292,11 @@ class _ManageFundPageState extends State<ManageFundPage> {
     return '${dt.year}-${two(dt.month)}-${two(dt.day)} ${two(dt.hour)}:${two(dt.minute)}';
   }
 
-  Widget _chip(IconData icon, String label, Color color) {
+  Widget _metricPill({
+    required IconData icon,
+    required String label,
+    required Color color,
+  }) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
@@ -1053,6 +1315,182 @@ class _ManageFundPageState extends State<ManageFundPage> {
               color: color.withOpacity(.95),
               fontWeight: FontWeight.w800,
             ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _sheetStatCard({
+    required String label,
+    required String value,
+    required IconData icon,
+    required Color color,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: color.withOpacity(0.2)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, color: color, size: 24),
+          const SizedBox(height: 10),
+          Text(
+            value,
+            style: const TextStyle(
+              fontSize: 22,
+              fontWeight: FontWeight.w900,
+              color: kNeutralText,
+              fontFamily: 'Montserrat',
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            label,
+            style: const TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w700,
+              color: kSubtleText,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _sectionLabel(String title) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Text(
+        title,
+        style: const TextStyle(
+          fontSize: 17,
+          fontWeight: FontWeight.w800,
+          color: kPrimaryDark,
+          fontFamily: 'Montserrat',
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPaymentTile(
+    Map<String, dynamic> row, {
+    required Map<String, String> collectorLookup,
+  }) {
+    final status = (row['status'] ?? '').toString().toLowerCase();
+    final isPaid = status == 'paid';
+    final isVirtualPending = row['is_virtual_pending'] == true;
+    final payerName = (((row['user'] as Map?)?['full_name']) ?? '').toString();
+    final title = payerName.isNotEmpty ? payerName : 'Payment #${row['id']}';
+    final amt = _asDouble(row['amount'], fallback: 1.0);
+    final paidAtStr = _fmtDateTime(row['paid_at']);
+    final directCollectorName =
+        (((row['collector'] as Map?)?['full_name']) ?? '').toString();
+    final collectorName = directCollectorName.isNotEmpty
+        ? directCollectorName
+        : (collectorLookup[(row['collected_by'] ?? '').toString()] ?? '');
+
+    final subtitle = isPaid
+        ? 'Collected${paidAtStr.isNotEmpty ? ' on: $paidAtStr' : ''}${collectorName.isNotEmpty ? '\nCollected by: $collectorName' : ''}'
+        : isVirtualPending
+        ? 'No fund created yet for this member.'
+        : 'Fund created, waiting for payment.';
+
+    final accent = isPaid
+        ? const Color(0xFF10B981)
+        : isVirtualPending
+        ? const Color(0xFFF59E0B)
+        : const Color(0xFF3B82F6);
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: accent.withOpacity(0.18)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          CircleAvatar(
+            radius: 24,
+            backgroundColor: accent.withOpacity(0.12),
+            child: Icon(
+              isPaid
+                  ? Icons.check_circle_rounded
+                  : isVirtualPending
+                  ? Icons.warning_amber_rounded
+                  : Icons.receipt_long_rounded,
+              color: accent,
+            ),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: const TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w800,
+                    color: kNeutralText,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  subtitle,
+                  style: const TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w600,
+                    color: kSubtleText,
+                    height: 1.45,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 10),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Text(
+                '₱${amt.toStringAsFixed(0)}',
+                style: const TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w900,
+                  color: kNeutralText,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 6,
+                ),
+                decoration: BoxDecoration(
+                  color: accent.withOpacity(0.12),
+                  borderRadius: BorderRadius.circular(999),
+                ),
+                child: Text(
+                  isPaid
+                      ? 'Paid'
+                      : isVirtualPending
+                      ? 'No Fund Yet'
+                      : 'Pending',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w800,
+                    color: accent,
+                  ),
+                ),
+              ),
+            ],
           ),
         ],
       ),

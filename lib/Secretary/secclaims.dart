@@ -1,14 +1,13 @@
-import 'dart:io';
-
 import 'package:capstone_app/Providers/dayung_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:capstone_app/utils/input_safety.dart';
+import 'package:capstone_app/utils/supabase_storage.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:photo_view/photo_view.dart';
-import 'package:path_provider/path_provider.dart';
-import 'package:http/http.dart' as http;
+import 'package:flutter/services.dart';
 
 // Old palette (kept so old logic/widgets compile)
 const Color kPrimary = Color(0xFF0D47A1);
@@ -318,7 +317,10 @@ class _SecretaryClaimsPageState extends State<SecretaryClaimsPage>
     setState(() => _updating = true);
     try {
       final storeVal = _storeClaimedValue(newValue, existingColumnValue);
-      await supabase.from('claims').update({'claimedmoney': storeVal}).eq('id', claimId);
+      await supabase
+          .from('claims')
+          .update({'claimedmoney': storeVal})
+          .eq('id', claimId);
       await _fetchClaims();
     } catch (e) {
       debugPrint("Error updating claimedmoney: $e");
@@ -711,12 +713,17 @@ class _SecretaryClaimsPageState extends State<SecretaryClaimsPage>
                 if (status.toLowerCase() == 'approved') ...[
                   const SizedBox(width: 8),
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 4,
+                    ),
                     decoration: BoxDecoration(
                       color: (claimed ? kAccent : Colors.grey).withOpacity(.1),
                       borderRadius: BorderRadius.circular(16),
                       border: Border.all(
-                        color: (claimed ? kAccent : Colors.grey).withOpacity(.3),
+                        color: (claimed ? kAccent : Colors.grey).withOpacity(
+                          .3,
+                        ),
                       ),
                     ),
                     child: Row(
@@ -1027,7 +1034,9 @@ class _SecretaryClaimsPageState extends State<SecretaryClaimsPage>
                       ),
                       const SizedBox(height: 16),
                       // Death Certificate Button
-                      if ((claim['death_certificate_url'] ?? '').toString().isNotEmpty)
+                      if ((claim['death_certificate_url'] ?? '')
+                          .toString()
+                          .isNotEmpty)
                         SizedBox(
                           width: double.infinity,
                           child: ElevatedButton.icon(
@@ -1042,9 +1051,24 @@ class _SecretaryClaimsPageState extends State<SecretaryClaimsPage>
                               ),
                             ),
                             onPressed: () async {
-                              final url = claim['death_certificate_url'].toString();
-                              final isImage = url.endsWith('.jpg') || url.endsWith('.jpeg') || url.endsWith('.png');
-                              final isPdf = url.endsWith('.pdf');
+                              final raw = claim['death_certificate_url']
+                                  .toString();
+                              final url = await resolveSupabaseStorageUrl(
+                                raw,
+                                client: supabase,
+                              );
+                              if (url == null) {
+                                if (!mounted) return;
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text('Could not open file.'),
+                                  ),
+                                );
+                                return;
+                              }
+
+                              final isImage = storageLooksLikeImage(url);
+                              final isPdf = storageLooksLikePdf(url);
 
                               if (isImage) {
                                 showDialog(
@@ -1057,44 +1081,17 @@ class _SecretaryClaimsPageState extends State<SecretaryClaimsPage>
                                       backgroundDecoration: const BoxDecoration(
                                         color: Colors.black,
                                       ),
-                                      minScale: PhotoViewComputedScale.contained,
-                                      maxScale: PhotoViewComputedScale.covered * 3,
+                                      minScale:
+                                          PhotoViewComputedScale.contained,
+                                      maxScale:
+                                          PhotoViewComputedScale.covered * 3,
                                     ),
                                   ),
                                 );
                               } else if (isPdf) {
-                                final tempDir = await getTemporaryDirectory();
-                                final filePath = '${tempDir.path}/death_cert.pdf';
-                                final response = await http.get(Uri.parse(url));
-                                final file = File(filePath);
-                                await file.writeAsBytes(response.bodyBytes);
-
-                                showDialog(
-                                  context: context,
-                                  builder: (ctx) => Dialog(
-                                    backgroundColor: Colors.black,
-                                    insetPadding: const EdgeInsets.all(12),
-                                    child: Stack(
-                                      children: [
-                                        PhotoView(
-                                          imageProvider: NetworkImage(url),
-                                          backgroundDecoration: const BoxDecoration(
-                                            color: Colors.black,
-                                          ),
-                                          minScale: PhotoViewComputedScale.contained,
-                                          maxScale: PhotoViewComputedScale.covered * 3,
-                                        ),
-                                        Positioned(
-                                          top: 12,
-                                          right: 12,
-                                          child: IconButton(
-                                            icon: const Icon(Icons.close, color: Colors.white, size: 24),
-                                            onPressed: () => Navigator.of(ctx).pop(),
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
+                                await launchUrl(
+                                  Uri.parse(url),
+                                  mode: LaunchMode.externalApplication,
                                 );
                               } else {
                                 if (await canLaunchUrl(Uri.parse(url))) {
@@ -1125,15 +1122,31 @@ class _SecretaryClaimsPageState extends State<SecretaryClaimsPage>
                               style: ElevatedButton.styleFrom(
                                 backgroundColor: kPrimary,
                                 foregroundColor: Colors.white,
-                                padding: const EdgeInsets.symmetric(vertical: 16),
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 16,
+                                ),
                                 shape: RoundedRectangleBorder(
                                   borderRadius: BorderRadius.circular(12),
                                 ),
                               ),
                               onPressed: () async {
-                                final url = claim['valid_ids_url'].toString();
-                                final isImage = url.endsWith('.jpg') || url.endsWith('.jpeg') || url.endsWith('.png');
-                                final isPdf = url.endsWith('.pdf');
+                                final raw = claim['valid_ids_url'].toString();
+                                final url = await resolveSupabaseStorageUrl(
+                                  raw,
+                                  client: supabase,
+                                );
+                                if (url == null) {
+                                  if (!mounted) return;
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(
+                                      content: Text('Could not open file.'),
+                                    ),
+                                  );
+                                  return;
+                                }
+
+                                final isImage = storageLooksLikeImage(url);
+                                final isPdf = storageLooksLikePdf(url);
 
                                 if (isImage) {
                                   showDialog(
@@ -1143,47 +1156,21 @@ class _SecretaryClaimsPageState extends State<SecretaryClaimsPage>
                                       insetPadding: const EdgeInsets.all(12),
                                       child: PhotoView(
                                         imageProvider: NetworkImage(url),
-                                        backgroundDecoration: const BoxDecoration(
-                                          color: Colors.black,
-                                        ),
-                                        minScale: PhotoViewComputedScale.contained,
-                                        maxScale: PhotoViewComputedScale.covered * 3,
+                                        backgroundDecoration:
+                                            const BoxDecoration(
+                                              color: Colors.black,
+                                            ),
+                                        minScale:
+                                            PhotoViewComputedScale.contained,
+                                        maxScale:
+                                            PhotoViewComputedScale.covered * 3,
                                       ),
                                     ),
                                   );
                                 } else if (isPdf) {
-                                  final tempDir = await getTemporaryDirectory();
-                                  final filePath = '${tempDir.path}/valid_ids.pdf';
-                                  final response = await http.get(Uri.parse(url));
-                                  final file = File(filePath);
-                                  await file.writeAsBytes(response.bodyBytes);
-
-                                  showDialog(
-                                    context: context,
-                                    builder: (ctx) => Dialog(
-                                      backgroundColor: Colors.black,
-                                      insetPadding: const EdgeInsets.all(12),
-                                      child: Stack(
-                                        children: [
-                                          PhotoView(
-                                            imageProvider: NetworkImage(url),
-                                            backgroundDecoration: const BoxDecoration(
-                                              color: Colors.black,
-                                            ),
-                                            minScale: PhotoViewComputedScale.contained,
-                                            maxScale: PhotoViewComputedScale.covered * 3,
-                                          ),
-                                          Positioned(
-                                            top: 12,
-                                            right: 12,
-                                            child: IconButton(
-                                              icon: const Icon(Icons.close, color: Colors.white, size: 24),
-                                              onPressed: () => Navigator.of(ctx).pop(),
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    ),
+                                  await launchUrl(
+                                    Uri.parse(url),
+                                    mode: LaunchMode.externalApplication,
                                   );
                                 } else {
                                   if (await canLaunchUrl(Uri.parse(url))) {
@@ -1212,38 +1199,58 @@ class _SecretaryClaimsPageState extends State<SecretaryClaimsPage>
                               onPressed: _updating
                                   ? null
                                   : () async {
-                                    final confirm = await showDialog<bool>(
-                                      context: context,
-                                      builder: (ctx) => AlertDialog(
-                                        title: Text(claimed ? 'Mark as Not Claimed?' : 'Mark as Claimed?'),
-                                        content: Text(
-                                          claimed
-                                              ? 'Are you sure you want to mark this claim as NOT claimed?'
-                                              : 'Are you sure you want to mark this claim as claimed?',
+                                      final confirm = await showDialog<bool>(
+                                        context: context,
+                                        builder: (ctx) => AlertDialog(
+                                          title: Text(
+                                            claimed
+                                                ? 'Mark as Not Claimed?'
+                                                : 'Mark as Claimed?',
+                                          ),
+                                          content: Text(
+                                            claimed
+                                                ? 'Are you sure you want to mark this claim as NOT claimed?'
+                                                : 'Are you sure you want to mark this claim as claimed?',
+                                          ),
+                                          actions: [
+                                            TextButton(
+                                              onPressed: () =>
+                                                  Navigator.of(ctx).pop(false),
+                                              child: const Text('Cancel'),
+                                            ),
+                                            ElevatedButton(
+                                              onPressed: () =>
+                                                  Navigator.of(ctx).pop(true),
+                                              child: const Text('Confirm'),
+                                            ),
+                                          ],
                                         ),
-                                        actions: [
-                                          TextButton(
-                                            onPressed: () => Navigator.of(ctx).pop(false),
-                                            child: const Text('Cancel'),
-                                          ),
-                                          ElevatedButton(
-                                            onPressed: () => Navigator.of(ctx).pop(true),
-                                            child: const Text('Confirm'),
-                                          ),
-                                        ],
-                                      ),
-                                    );
-                                    if (confirm == true) {
-                                      _updateClaimed(claim['id'].toString(), !claimed, claim['claimedmoney']);
-                                      Navigator.pop(context);
-                                    }
-                                  },
-                              icon: Icon(claimed ? Icons.money_off : Icons.payments),
-                              label: Text(claimed ? 'Mark Not Claimed' : 'Mark Claimed'),
+                                      );
+                                      if (confirm == true) {
+                                        _updateClaimed(
+                                          claim['id'].toString(),
+                                          !claimed,
+                                          claim['claimedmoney'],
+                                        );
+                                        Navigator.pop(context);
+                                      }
+                                    },
+                              icon: Icon(
+                                claimed ? Icons.money_off : Icons.payments,
+                              ),
+                              label: Text(
+                                claimed ? 'Mark Not Claimed' : 'Mark Claimed',
+                              ),
                               style: OutlinedButton.styleFrom(
-                                padding: const EdgeInsets.symmetric(vertical: 16),
-                                side: BorderSide(color: claimed ? Colors.grey : kAccent),
-                                foregroundColor: claimed ? Colors.grey.shade800 : kAccent,
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 16,
+                                ),
+                                side: BorderSide(
+                                  color: claimed ? Colors.grey : kAccent,
+                                ),
+                                foregroundColor: claimed
+                                    ? Colors.grey.shade800
+                                    : kAccent,
                                 shape: RoundedRectangleBorder(
                                   borderRadius: BorderRadius.circular(12),
                                 ),
@@ -1325,183 +1332,234 @@ class _SecretaryClaimsPageState extends State<SecretaryClaimsPage>
               onPressed: _updating
                   ? null
                   : () async {
-                  // Prompt for amount before approving
-                  final TextEditingController amountController = TextEditingController();
-                  final parentContext = context;
-                  final fullName = _userMap[claim['user_id']?.toString()]?['full_name'] ?? 'Member';
+                      // Prompt for amount before approving
+                      final TextEditingController amountController =
+                          TextEditingController();
+                      final parentContext = context;
+                      final fullName =
+                          _userMap[claim['user_id']
+                              ?.toString()]?['full_name'] ??
+                          'Member';
 
-                  // Fetch secretary_id before showing the dialog
-                  final unit = await supabase
-                      .from('dayung_units')
-                      .select('secretary_id')
-                      .eq('id', claim['dayung_unit_id'])
-                      .maybeSingle();
-                  final secretaryId = unit?['secretary_id'];
+                      // Fetch secretary_id before showing the dialog
+                      final unit = await supabase
+                          .from('dayung_units')
+                          .select('secretary_id')
+                          .eq('id', claim['dayung_unit_id'])
+                          .maybeSingle();
+                      final secretaryId = unit?['secretary_id'];
 
-                  final result = await showDialog<double>(
-                    context: parentContext,
-                    builder: (dialogContext) => AlertDialog(
-                      title: Text('Contribution Amount for $fullName'),
-                      content: TextField(
-                        controller: amountController,
-                        keyboardType: TextInputType.numberWithOptions(decimal: true),
-                        decoration: const InputDecoration(
-                          labelText: 'Amount',
-                          prefixIcon: Padding(
-                            padding: EdgeInsets.only(left: 12, right: 8), // <-- Not a const constructor
-                            child: Text('₱', style: TextStyle(fontSize: 20)),
+                      final result = await showDialog<double>(
+                        context: parentContext,
+                        builder: (dialogContext) => AlertDialog(
+                          title: Text('Contribution Amount for $fullName'),
+                          content: TextField(
+                            controller: amountController,
+                            keyboardType: TextInputType.numberWithOptions(
+                              decimal: true,
+                            ),
+                            inputFormatters: [
+                              FilteringTextInputFormatter.allow(
+                                RegExp(r'[0-9.,]'),
+                              ),
+                              LengthLimitingTextInputFormatter(12),
+                            ],
+                            decoration: const InputDecoration(
+                              labelText: 'Amount',
+                              prefixIcon: Padding(
+                                padding: EdgeInsets.only(
+                                  left: 12,
+                                  right: 8,
+                                ), // <-- Not a const constructor
+                                child: Text(
+                                  '₱',
+                                  style: TextStyle(fontSize: 20),
+                                ),
+                              ),
+                            ),
                           ),
+                          actions: [
+                            TextButton(
+                              onPressed: () =>
+                                  Navigator.pop(dialogContext, null),
+                              child: const Text('Cancel'),
+                            ),
+                            ElevatedButton(
+                              onPressed: () {
+                                final amount = double.tryParse(
+                                  AppInputSecurity.sanitizePlainText(
+                                    amountController.text,
+                                    maxLength: 12,
+                                  ).replaceAll(',', ''),
+                                );
+                                if (amount == null) {
+                                  ScaffoldMessenger.of(
+                                    parentContext,
+                                  ).showSnackBar(
+                                    const SnackBar(
+                                      content: Text(
+                                        'Please enter a valid amount.',
+                                      ),
+                                    ),
+                                  );
+                                  return;
+                                }
+                                Navigator.pop(dialogContext, amount);
+                              },
+                              child: const Text('Save'),
+                            ),
+                          ],
                         ),
-                      ),
-                      actions: [
-                        TextButton(
-                          onPressed: () => Navigator.pop(dialogContext, null),
-                          child: const Text('Cancel'),
-                        ),
-                        ElevatedButton(
-                          onPressed: () {
-                            final amount = double.tryParse(amountController.text);
-                            if (amount == null) {
-                              ScaffoldMessenger.of(parentContext).showSnackBar(
-                                const SnackBar(content: Text('Please enter a valid amount.')),
-                              );
-                              return;
-                            }
-                            Navigator.pop(dialogContext, amount);
-                          },
-                          child: const Text('Save'),
-                        ),
-                      ],
-                    ),
-                  );
-
-                  if (result != null) {
-                    showDialog(
-                      context: parentContext,
-                      barrierDismissible: false,
-                      builder: (_) => const Center(child: CircularProgressIndicator()),
-                    );
-                    try {
-                      // Save set_amount
-                      await supabase.from('set_amount').insert({
-                        'userdeceased': claim['user_id'],
-                        'payment_id': claim['id'],
-                        'amount': result,
-                        'secretary_id': secretaryId,
-                        'dayung_unit_id': claim['dayung_unit_id'],
-                      });
-
-                      // Prepare death_notices data (same as before)
-                      final userId = claim['user_id'];
-                      final beneficiaryId = claim['beneficiary_id'];
-                      final deathCert = claim['death_certificate_url'];
-                      final dayungId = claim['dayung_unit_id'];
-                      final dod = claim['date_of_death'];
-                      final deceasedType = beneficiaryId != null ? 'beneficiary' : 'member';
-
-                      // Fetch user/beneficiary info for name/dob
-                      Map<String, dynamic>? user;
-                      Map<String, dynamic>? ben;
-                      if (beneficiaryId != null) {
-                        ben = await supabase
-                            .from('beneficiaries')
-                            .select('full_name, dob, user_id')
-                            .eq('id', beneficiaryId)
-                            .maybeSingle();
-                      } else {
-                        user = await supabase
-                            .from('users')
-                            .select('full_name, dob')
-                            .eq('id', userId)
-                            .maybeSingle();
-                      }
-                      final name = beneficiaryId != null
-                          ? (ben?['full_name'] ?? '')
-                          : (user?['full_name'] ?? '');
-                      final dob = beneficiaryId != null
-                          ? (ben?['dob'])
-                          : (user?['dob']);
-                      final computedAge = (() {
-                        if (dob == null || dod == null) return null;
-                        final b = DateTime.tryParse(dob.toString());
-                        final d = DateTime.tryParse(dod.toString());
-                        if (b == null || d == null) return null;
-                        var age = d.year - b.year;
-                        if (d.month < b.month || (d.month == b.month && d.day < b.day)) age--;
-                        return age;
-                      })();
-
-                      // Optionally, fetch vigil location/barangay if needed
-                      final barangay = null;
-                      final latitude = null;
-                      final longitude = null;
-
-                      // Insert into death_notices
-                      await supabase.from('death_notices').insert({
-                        if (beneficiaryId != null) 'beneficiary_id': beneficiaryId,
-                        'user_id': beneficiaryId != null ? (ben?['user_id'] ?? userId) : userId,
-                        'name': name,
-                        'date_of_death': dod?.toString().split('T').first,
-                        'death_certificate_url': deathCert,
-                        'dayung_unit_id': dayungId,
-                        'deceased_type': deceasedType,
-                        'barangay': barangay,
-                        'latitude': latitude,
-                        'longitude': longitude,
-                        'dob': dob?.toString().split('T').first,
-                        if (computedAge != null) 'deceased_age': computedAge,
-                      });
-
-                      // --- ADD THIS BLOCK ---
-                      final approvedApplications = await supabase
-                          .from('applications')
-                          .select('user_id')
-                          .eq('dayung_unit_id', claim['dayung_unit_id'])
-                          .eq('status', 'approved');
-
-                      final now = DateTime.now().toIso8601String();
-                      final notificationBody =
-                          '$fullName passed away. Amount: ₱${result.toStringAsFixed(2)}';
-
-                      // Insert notification for each approved user
-                      for (final app in List<Map<String, dynamic>>.from(approvedApplications)) {
-                        await supabase.from('notifications').insert({
-                          'recipient_id': app['user_id'],
-                          'body': notificationBody,
-                          'type': 'announcement',
-                          'title': 'Payment Reminder',
-                          'dayung_unit_id': claim['dayung_unit_id'],
-                          'read_at': null,
-                          'created_at': now,
-                          'sender_id': secretaryId,
-                        });
-                      }
-
-                      // Insert into payments table for each member who needs to pay
-                      for (final app in List<Map<String, dynamic>>.from(approvedApplications)) {
-                        await supabase.from('payments').insert({
-                          'user_id': app['user_id'],
-                          'userdeceased': claim['user_id'],
-                          'dayung_unit_id': claim['dayung_unit_id'],
-                          'amount': result,
-                          'status': 'unpaid',
-                          'created_at': now,
-                        });
-                      }
-                      // --- END BLOCK ---
-
-                      Navigator.of(parentContext, rootNavigator: true).pop(); // Close loading
-                      // Now approve the claim
-                      _updateStatus(id, 'Approved');
-                      Navigator.pop(context);
-                    } catch (e) {
-                      Navigator.of(parentContext, rootNavigator: true).pop(); // Close loading
-                      ScaffoldMessenger.of(parentContext).showSnackBar(
-                        SnackBar(content: Text('Failed to save amount: $e')),
                       );
-                    }
-                  }
-                },
+
+                      if (result != null) {
+                        showDialog(
+                          context: parentContext,
+                          barrierDismissible: false,
+                          builder: (_) =>
+                              const Center(child: CircularProgressIndicator()),
+                        );
+                        try {
+                          // Save set_amount
+                          await supabase.from('set_amount').insert({
+                            'userdeceased': claim['user_id'],
+                            'payment_id': claim['id'],
+                            'amount': result,
+                            'secretary_id': secretaryId,
+                            'dayung_unit_id': claim['dayung_unit_id'],
+                          });
+
+                          // Prepare death_notices data (same as before)
+                          final userId = claim['user_id'];
+                          final beneficiaryId = claim['beneficiary_id'];
+                          final deathCert = claim['death_certificate_url'];
+                          final dayungId = claim['dayung_unit_id'];
+                          final dod = claim['date_of_death'];
+                          final deceasedType = beneficiaryId != null
+                              ? 'beneficiary'
+                              : 'member';
+
+                          // Fetch user/beneficiary info for name/dob
+                          Map<String, dynamic>? user;
+                          Map<String, dynamic>? ben;
+                          if (beneficiaryId != null) {
+                            ben = await supabase
+                                .from('beneficiaries')
+                                .select('full_name, dob, user_id')
+                                .eq('id', beneficiaryId)
+                                .maybeSingle();
+                          } else {
+                            user = await supabase
+                                .from('users')
+                                .select('full_name, dob')
+                                .eq('id', userId)
+                                .maybeSingle();
+                          }
+                          final name = beneficiaryId != null
+                              ? (ben?['full_name'] ?? '')
+                              : (user?['full_name'] ?? '');
+                          final dob = beneficiaryId != null
+                              ? (ben?['dob'])
+                              : (user?['dob']);
+                          final computedAge = (() {
+                            if (dob == null || dod == null) return null;
+                            final b = DateTime.tryParse(dob.toString());
+                            final d = DateTime.tryParse(dod.toString());
+                            if (b == null || d == null) return null;
+                            var age = d.year - b.year;
+                            if (d.month < b.month ||
+                                (d.month == b.month && d.day < b.day))
+                              age--;
+                            return age;
+                          })();
+
+                          // Optionally, fetch vigil location/barangay if needed
+                          final barangay = null;
+                          final latitude = null;
+                          final longitude = null;
+
+                          // Insert into death_notices
+                          await supabase.from('death_notices').insert({
+                            if (beneficiaryId != null)
+                              'beneficiary_id': beneficiaryId,
+                            'user_id': beneficiaryId != null
+                                ? (ben?['user_id'] ?? userId)
+                                : userId,
+                            'name': name,
+                            'date_of_death': dod?.toString().split('T').first,
+                            'death_certificate_url': deathCert,
+                            'dayung_unit_id': dayungId,
+                            'deceased_type': deceasedType,
+                            'barangay': barangay,
+                            'latitude': latitude,
+                            'longitude': longitude,
+                            'dob': dob?.toString().split('T').first,
+                            if (computedAge != null)
+                              'deceased_age': computedAge,
+                          });
+
+                          // --- ADD THIS BLOCK ---
+                          final approvedApplications = await supabase
+                              .from('applications')
+                              .select('user_id')
+                              .eq('dayung_unit_id', claim['dayung_unit_id'])
+                              .eq('status', 'approved');
+
+                          final now = DateTime.now().toIso8601String();
+                          final notificationBody =
+                              '$fullName passed away. Amount: ₱${result.toStringAsFixed(2)}';
+
+                          // Insert notification for each approved user
+                          for (final app in List<Map<String, dynamic>>.from(
+                            approvedApplications,
+                          )) {
+                            await supabase.from('notifications').insert({
+                              'recipient_id': app['user_id'],
+                              'body': notificationBody,
+                              'type': 'announcement',
+                              'title': 'Payment Reminder',
+                              'dayung_unit_id': claim['dayung_unit_id'],
+                              'read_at': null,
+                              'created_at': now,
+                              'sender_id': secretaryId,
+                            });
+                          }
+
+                          // Insert into payments table for each member who needs to pay
+                          for (final app in List<Map<String, dynamic>>.from(
+                            approvedApplications,
+                          )) {
+                            await supabase.from('payments').insert({
+                              'user_id': app['user_id'],
+                              'userdeceased': claim['user_id'],
+                              'dayung_unit_id': claim['dayung_unit_id'],
+                              'amount': result,
+                              'status': 'unpaid',
+                              'created_at': now,
+                            });
+                          }
+                          // --- END BLOCK ---
+
+                          Navigator.of(
+                            parentContext,
+                            rootNavigator: true,
+                          ).pop(); // Close loading
+                          // Now approve the claim
+                          _updateStatus(id, 'Approved');
+                          Navigator.pop(context);
+                        } catch (e) {
+                          Navigator.of(
+                            parentContext,
+                            rootNavigator: true,
+                          ).pop(); // Close loading
+                          ScaffoldMessenger.of(parentContext).showSnackBar(
+                            SnackBar(
+                              content: Text('Failed to save amount: $e'),
+                            ),
+                          );
+                        }
+                      }
+                    },
               icon: const Icon(Icons.check_circle, size: 20),
               label: const Text("Approve"),
               style: ElevatedButton.styleFrom(
@@ -1520,28 +1578,30 @@ class _SecretaryClaimsPageState extends State<SecretaryClaimsPage>
               onPressed: _updating
                   ? null
                   : () async {
-                    final confirm = await showDialog<bool>(
-                      context: context,
-                      builder: (ctx) => AlertDialog(
-                        title: const Text('Reject Claim?'),
-                        content: const Text('Are you sure you want to reject this claim?'),
-                        actions: [
-                          TextButton(
-                            onPressed: () => Navigator.of(ctx).pop(false),
-                            child: const Text('Cancel'),
+                      final confirm = await showDialog<bool>(
+                        context: context,
+                        builder: (ctx) => AlertDialog(
+                          title: const Text('Reject Claim?'),
+                          content: const Text(
+                            'Are you sure you want to reject this claim?',
                           ),
-                          ElevatedButton(
-                            onPressed: () => Navigator.of(ctx).pop(true),
-                            child: const Text('Reject'),
-                          ),
-                        ],
-                      ),
-                    );
-                    if (confirm == true) {
-                      _updateStatus(id, 'Rejected');
-                      Navigator.pop(context);
-                    }
-                  },
+                          actions: [
+                            TextButton(
+                              onPressed: () => Navigator.of(ctx).pop(false),
+                              child: const Text('Cancel'),
+                            ),
+                            ElevatedButton(
+                              onPressed: () => Navigator.of(ctx).pop(true),
+                              child: const Text('Reject'),
+                            ),
+                          ],
+                        ),
+                      );
+                      if (confirm == true) {
+                        _updateStatus(id, 'Rejected');
+                        Navigator.pop(context);
+                      }
+                    },
               icon: const Icon(Icons.cancel, size: 20),
               label: const Text("Reject"),
               style: ElevatedButton.styleFrom(
@@ -1558,9 +1618,7 @@ class _SecretaryClaimsPageState extends State<SecretaryClaimsPage>
       );
     }
 
-  
-
-   // Rejected: remove Set Pending button, show nothing or SizedBox
+    // Rejected: remove Set Pending button, show nothing or SizedBox
     return const SizedBox.shrink();
   }
 }

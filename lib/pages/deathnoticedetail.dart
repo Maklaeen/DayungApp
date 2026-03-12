@@ -1,5 +1,7 @@
 import 'dart:convert';
 import 'dart:math';
+import 'dart:async';
+import 'package:capstone_app/ui/loading/page_skeleton.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:geocoding/geocoding.dart';
@@ -8,7 +10,6 @@ import 'package:maplibre_gl/maplibre_gl.dart' as ml;
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:http/http.dart' as http;
-import 'dart:async';
 
 class DeathNoticeDetail extends StatefulWidget {
   final int? noticeId;
@@ -52,6 +53,7 @@ class DeathNoticeDetail extends StatefulWidget {
 
 class _DeathNoticeDetailState extends State<DeathNoticeDetail> {
   final _sb = Supabase.instance.client;
+  static const _missingLocationMessage = 'No location was set by the sender.';
 
   String? _fName;
   String? _fDateOfDeath;
@@ -60,6 +62,7 @@ class _DeathNoticeDetailState extends State<DeathNoticeDetail> {
   double? _fLng;
   String? _fBarangay;
   int? _fStoredAge;
+  String? _locationWarning;
 
   double? _userLat;
   double? _userLng;
@@ -532,9 +535,36 @@ class _DeathNoticeDetailState extends State<DeathNoticeDetail> {
     _fBarangay = widget.barangay;
   }
 
+  bool _isMissingLocationColumnError(Object error) {
+    if (error is! PostgrestException) return false;
+    final message = error.message.toLowerCase();
+    return message.contains('death_notices.latitude') ||
+        message.contains('death_notices.longitude') ||
+        message.contains('column latitude does not exist') ||
+        message.contains('column longitude does not exist');
+  }
+
+  Future<Map<String, dynamic>?> _fetchNoticeRecord({
+    required bool includeLocationFields,
+  }) {
+    final fields = includeLocationFields
+        ? 'id, name, dob, deceased_age, date_of_death, barangay, latitude, longitude, deceased_type, user_id, beneficiary_id'
+        : 'id, name, dob, deceased_age, date_of_death, barangay, deceased_type, user_id, beneficiary_id';
+
+    return _sb
+        .from('death_notices')
+        .select(fields)
+        .eq('id', widget.noticeId!)
+        .maybeSingle();
+  }
+
   Future<void> _loadIfNeeded() async {
     if (widget.noticeId == null) {
       await _resolveLocation();
+      _locationWarning =
+          (_fLat == null && _fLng == null && (_fBarangay ?? '').trim().isEmpty)
+          ? _missingLocationMessage
+          : null;
       setState(() => _loading = false);
       return;
     }
@@ -542,16 +572,18 @@ class _DeathNoticeDetailState extends State<DeathNoticeDetail> {
     setState(() {
       _loading = true;
       _error = null;
+      _locationWarning = null;
     });
 
     try {
-      final notice = await _sb
-          .from('death_notices')
-          .select(
-            'id, name, dob, deceased_age, date_of_death, barangay, latitude, longitude, deceased_type, user_id, beneficiary_id',
-          )
-          .eq('id', widget.noticeId!)
-          .maybeSingle();
+      Map<String, dynamic>? notice;
+      try {
+        notice = await _fetchNoticeRecord(includeLocationFields: true);
+      } catch (error) {
+        if (!_isMissingLocationColumnError(error)) rethrow;
+        notice = await _fetchNoticeRecord(includeLocationFields: false);
+        _locationWarning = _missingLocationMessage;
+      }
 
       if (notice == null) {
         setState(() {
@@ -626,6 +658,10 @@ class _DeathNoticeDetailState extends State<DeathNoticeDetail> {
 
       // 3) Resolve location label/coords if needed
       await _resolveLocation();
+
+      if (_fLat == null && _fLng == null && (_fBarangay ?? '').trim().isEmpty) {
+        _locationWarning = _missingLocationMessage;
+      }
 
       if (!mounted) return;
       setState(() => _loading = false);
@@ -803,6 +839,61 @@ class _DeathNoticeDetailState extends State<DeathNoticeDetail> {
     }
   }
 
+  Widget _buildLocationWarningCard() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFFF4F2),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: const Color(0xFFF7C9C4)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 42,
+            height: 42,
+            decoration: BoxDecoration(
+              color: const Color(0xFFFFE0DC),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: const Icon(
+              Icons.location_off_rounded,
+              color: Color(0xFFD84C3F),
+              size: 22,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Location unavailable',
+                  style: TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                    color: Color(0xFF7A1F16),
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  _locationWarning ?? _missingLocationMessage,
+                  style: const TextStyle(
+                    fontSize: 13,
+                    height: 1.4,
+                    color: Color(0xFFA3362B),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final screenHeight = MediaQuery.of(context).size.height;
@@ -810,6 +901,7 @@ class _DeathNoticeDetailState extends State<DeathNoticeDetail> {
     final dDate = _fDateOfDeath;
     final bDate = _fBirthDate;
     final age = _fStoredAge ?? _computeAge(bDate, dDate);
+    final hasMapLocation = _fLat != null && _fLng != null;
 
     return SafeArea(
       top: false,
@@ -861,7 +953,10 @@ class _DeathNoticeDetailState extends State<DeathNoticeDetail> {
             // Content
             Expanded(
               child: _loading
-                  ? const Center(child: CircularProgressIndicator())
+                  ? const DayungPageSkeleton(
+                      layout: DayungSkeletonLayout.detail,
+                      itemCount: 3,
+                    )
                   : _error != null
                   ? Center(
                       child: Column(
@@ -950,11 +1045,14 @@ class _DeathNoticeDetailState extends State<DeathNoticeDetail> {
                             value:
                                 _fBarangay ??
                                 _locationName ??
+                                _locationWarning ??
                                 'Location unavailable',
-                            showMapButton: _fLat != null && _fLng != null,
+                            showMapButton: hasMapLocation,
                           ),
-                          if (_fLat != null && _fLng != null) ...[
-                            const SizedBox(height: 16),
+                          const SizedBox(height: 16),
+                          if (!hasMapLocation && _locationWarning != null)
+                            _buildLocationWarningCard(),
+                          if (hasMapLocation) ...[
                             SizedBox(
                               height: 240,
                               width: double.infinity,

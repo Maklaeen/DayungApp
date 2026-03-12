@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:capstone_app/utils/input_safety.dart';
 
 class AddServiceDialog extends StatefulWidget {
   final Map<String, dynamic> deathNotice;
@@ -33,15 +34,26 @@ class _AddServiceDialogState extends State<AddServiceDialog> {
           child: Column(
             children: [
               TextFormField(
+                inputFormatters: AppInputSecurity.singleLineFormatters(
+                  maxLength: 120,
+                ),
                 decoration: const InputDecoration(labelText: 'Type of Service'),
-                onChanged: (v) => _serviceName = v,
-                validator: (v) => v == null || v.isEmpty ? 'Required' : null,
+                onChanged: (v) => _serviceName =
+                    AppInputSecurity.sanitizePlainText(v, maxLength: 120),
+                validator: (v) => AppInputSecurity.validateSafeText(
+                  v,
+                  fieldName: 'Type of Service',
+                  minLength: 2,
+                  maxLength: 120,
+                ),
               ),
               const SizedBox(height: 8),
               ListTile(
-                title: Text(_timeService == null
-                    ? 'Choose Time & Date'
-                    : _timeService.toString()),
+                title: Text(
+                  _timeService == null
+                      ? 'Choose Time & Date'
+                      : _timeService.toString(),
+                ),
                 trailing: const Icon(Icons.calendar_today),
                 onTap: () async {
                   final date = await showDatePicker(
@@ -71,8 +83,15 @@ class _AddServiceDialogState extends State<AddServiceDialog> {
               ),
               const SizedBox(height: 8),
               TextFormField(
+                inputFormatters: AppInputSecurity.multiLineFormatters(
+                  maxLength: 300,
+                ),
                 decoration: const InputDecoration(labelText: 'Notes'),
-                onChanged: (v) => _notes = v,
+                onChanged: (v) => _notes = AppInputSecurity.sanitizePlainText(
+                  v,
+                  allowNewLines: true,
+                  maxLength: 300,
+                ),
               ),
               const SizedBox(height: 8),
               Row(
@@ -94,6 +113,9 @@ class _AddServiceDialogState extends State<AddServiceDialog> {
                           labelText: 'Person Needed',
                         ),
                         keyboardType: TextInputType.number,
+                        inputFormatters: AppInputSecurity.phoneFormatters(
+                          maxLength: 3,
+                        ),
                         onChanged: (v) => _required = int.tryParse(v) ?? 1,
                         enabled: !_obligated,
                       ),
@@ -111,12 +133,21 @@ class _AddServiceDialogState extends State<AddServiceDialog> {
         ),
         ElevatedButton(
           onPressed: () async {
-            if (_formKey.currentState?.validate() != true || _timeService == null) return;
+            if (_formKey.currentState?.validate() != true ||
+                _timeService == null)
+              return;
             final sb = Supabase.instance.client;
             await sb.from('service_checklist').insert({
-              'service_name': _serviceName,
+              'service_name': AppInputSecurity.sanitizePlainText(
+                _serviceName,
+                maxLength: 120,
+              ),
               'time_service': _timeService!.toIso8601String(),
-              'notes': _notes,
+              'notes': AppInputSecurity.sanitizePlainText(
+                _notes,
+                allowNewLines: true,
+                maxLength: 300,
+              ),
               'required': _required,
               'userdeceased': widget.deathNotice['user_id'],
               'dayung_unit_id': widget.deathNotice['dayung_unit_id'],

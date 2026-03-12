@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:capstone_app/ui/theme/branding.dart';
+import 'package:capstone_app/Secretary/secretary_payment_page.dart';
 
 // Additional colors for secretary contributions specific styling (new UI)
 const kText = Color(0xFF111827);
@@ -124,6 +125,61 @@ class _SecretaryContributionsPageState
       )
       .length;
 
+  Widget _paymentShortcutCard() {
+    return Container(
+      margin: const EdgeInsets.fromLTRB(20, 20, 20, 0),
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [Color(0xFF083366), Color(0xFF0D47A1)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(18),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Need to settle your own contribution?',
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: 17,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          const SizedBox(height: 8),
+          const Text(
+            'Open your payment page to review your pending records and choose cash or GCash.',
+            style: TextStyle(
+              color: Colors.white70,
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: 14),
+          ElevatedButton.icon(
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) =>
+                      SecretaryPaymentPage(dayungUnitId: widget.dayungUnitId),
+                ),
+              ).then((_) => _fetchContributions());
+            },
+            icon: const Icon(Icons.arrow_forward_rounded),
+            label: const Text('Open Payment Page'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.white,
+              foregroundColor: kPrimary,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -138,6 +194,7 @@ class _SecretaryContributionsPageState
         ),
         child: Column(
           children: [
+            _paymentShortcutCard(),
             // Stats Overview Cards (new UI)
             Container(
               padding: const EdgeInsets.fromLTRB(20, 40, 20, 12),

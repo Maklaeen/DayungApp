@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:capstone_app/utils/supabase_storage.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 // Modern palette (reuse from beneficiary.dart)
 const Color kBg = Color(0xFFFAFAF7);
@@ -261,14 +263,12 @@ class _SecretaryBeneficiariesTabState extends State<SecretaryBeneficiariesTab> {
                 ],
               ),
             ),
-            ...beneficiaries
-                .map(
-                  (b) => _beneficiaryCard(
-                    Map<String, dynamic>.from(b as Map),
-                    isPending: isPending,
-                  ),
-                )
-                ,
+            ...beneficiaries.map(
+              (b) => _beneficiaryCard(
+                Map<String, dynamic>.from(b as Map),
+                isPending: isPending,
+              ),
+            ),
           ],
         );
       },
@@ -543,7 +543,18 @@ class _SecretaryBeneficiariesTabState extends State<SecretaryBeneficiariesTab> {
               'View',
               style: TextStyle(color: kAccent, fontWeight: FontWeight.w600),
             ),
-            onPressed: () {
+            onPressed: () async {
+              final resolved = await resolveSupabaseStorageUrl(url);
+              if (resolved == null) return;
+
+              if (storageLooksLikePdf(resolved)) {
+                await launchUrl(
+                  Uri.parse(resolved),
+                  mode: LaunchMode.externalApplication,
+                );
+                return;
+              }
+
               showDialog(
                 context: context,
                 builder: (context) => Dialog(
@@ -556,7 +567,7 @@ class _SecretaryBeneficiariesTabState extends State<SecretaryBeneficiariesTab> {
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         Image.network(
-                          url,
+                          resolved,
                           fit: BoxFit.contain,
                           errorBuilder: (context, error, stackTrace) =>
                               const Text('Could not load image'),

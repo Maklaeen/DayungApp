@@ -7,6 +7,7 @@ import 'package:capstone_app/Treasurer/collected.dart';
 import 'package:capstone_app/Treasurer/manage_fund.dart';
 import 'package:capstone_app/Treasurer/treasclaims.dart';
 import 'package:capstone_app/Treasurer/treascontributions.dart';
+import 'package:capstone_app/Treasurer/treasurer_payment_page.dart';
 import 'package:capstone_app/pages/notification.dart';
 import 'package:capstone_app/Collector/gcash_qr_page.dart';
 import 'package:capstone_app/pages/recentdeathnotices.dart';
@@ -43,7 +44,6 @@ class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
   final ScrollController _scrollController = ScrollController();
 
   String _fullName = 'Treasurer';
-  String? _profileUrl;
 
   Future<List<Map<String, dynamic>>>? _deathNoticesFutureCached;
   Future<Map<String, Map<String, dynamic>>>? _paymentStatsFutureCached;
@@ -58,7 +58,6 @@ class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
   bool _loading = true;
   int _activeMembers = 0;
   double _pendingAmount = 0;
-  int _pendingMembers = 0;
   DateTime? _lastRefreshTime;
   List<String> _recentDeaths = [];
   String _noticeFilter = 'members';
@@ -119,7 +118,6 @@ class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
       if (!mounted) return;
       setState(() {
         _fullName = ((res?['full_name'] ?? 'Treasurer') as String).trim();
-        _profileUrl = (res?['profile_url'] as String?)?.trim();
       });
     } catch (_) {}
   }
@@ -132,10 +130,18 @@ class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
     }
     _lastNoticeIds = List<int>.from(noticeIds);
     _lastStatsDayungId = dayungUnitId;
-    _paymentStatsFutureCached = _paymentStatsByNotice(
-      noticeIds.map((e) => e.toString()).toList(),
-      dayungUnitId,
-    );
+    _paymentStatsFutureCached = _paymentStatsByNotice(noticeIds, dayungUnitId);
+  }
+
+  int _asInt(dynamic value, {int fallback = 0}) {
+    if (value is int) return value;
+    if (value is num) return value.toInt();
+    return int.tryParse('${value ?? ''}') ?? fallback;
+  }
+
+  double _asDouble(dynamic value, {double fallback = 0.0}) {
+    if (value is num) return value.toDouble();
+    return double.tryParse('${value ?? ''}') ?? fallback;
   }
 
   Future<List<int>> _selectedDayungIds() async {
@@ -159,13 +165,13 @@ class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
       if (ids.isEmpty) return [];
 
       // Only fetch notices where dayung_unit_id matches
-   final dnDirect = await sb
-  .from('death_notices')
-  .select(
-    'id,name,date_of_death,dayung_unit_id,user_id,beneficiary_id,deceased_type,paid_count,unpaid_count,total_paid_amount,total_payment_amount',
-  )
-    .inFilter('dayung_unit_id', ids)
-    .order('date_of_death', ascending: false);
+      final dnDirect = await sb
+          .from('death_notices')
+          .select(
+            'id,name,date_of_death,dayung_unit_id,user_id,beneficiary_id,deceased_type,paid_count,unpaid_count,total_paid_amount,total_payment_amount',
+          )
+          .inFilter('dayung_unit_id', ids)
+          .order('date_of_death', ascending: false);
 
       final direct = List<Map<String, dynamic>>.from(dnDirect);
 
@@ -278,7 +284,6 @@ class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
   Future<void> _fetchPendingPayments(List<int> ids) async {
     try {
       _pendingAmount = 0;
-      _pendingMembers = 0;
 
       if (ids.isEmpty) return;
 
@@ -290,7 +295,6 @@ class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
         );
         if (rpc is Map && rpc['total_amount'] != null) {
           _pendingAmount = double.tryParse(rpc['total_amount'].toString()) ?? 0;
-          _pendingMembers = int.tryParse(rpc['member_count'].toString()) ?? 0;
           return;
         }
       } catch (_) {}
@@ -310,10 +314,8 @@ class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
         if (uid.isNotEmpty) memberSet.add(uid);
       }
       _pendingAmount = total;
-      _pendingMembers = memberSet.length;
     } catch (_) {
       _pendingAmount = 0;
-      _pendingMembers = 0;
     }
   }
 
@@ -359,53 +361,55 @@ class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
       _recentDeaths = [];
     }
   }
-Future<void> _triggerPaymentCollection(String userDeceasedId) async {
-  final sb = Supabase.instance.client;
-  debugPrint('Triggering payment collection for userDeceasedId: $userDeceasedId');
-  if (userDeceasedId.isEmpty) {
-    debugPrint('No userdeceased provided!');
-    return;
-  }
-  try {
-    // Fetch full_name from users table
-    final userRes = await sb
-      .from('users')
-      .select('full_name')
-      .eq('id', userDeceasedId)
-      .maybeSingle();
-    final userDeceasedName = (userRes?['full_name'] ?? 'Member').toString();
 
-    // Compute date range
-    final now = DateTime.now();
-    final deadline = now.add(const Duration(days: 3));
-    final dateStr = '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
-    final deadlineStr = '${deadline.year}-${deadline.month.toString().padLeft(2, '0')}-${deadline.day.toString().padLeft(2, '0')}';
+  Future<void> _triggerPaymentCollection(int deathNoticeId) async {
+    if (deathNoticeId <= 0 || _dayungUnitId == null) return;
 
-    // Update payments with personalized message
-    final response = await sb
-      .from('payments')
-      .update({
-        'message': 'Due na ang inyong bayad para kay $userDeceasedName. Palihog magbayad wala pay $deadlineStr. Daghang Salamat!'
-      })
-      .eq('userdeceased', userDeceasedId)
-      .eq('status', 'unpaid')
-      .select('*');
-    debugPrint('Updated unpaid payments for userdeceased $userDeceasedId: $response');
-  } catch (e) {
-    debugPrint('Failed to update payments: $e');
+    try {
+      final notice = await sb
+          .from('death_notices')
+          .select('name')
+          .eq('id', deathNoticeId)
+          .maybeSingle();
+
+      final deceasedName = (notice?['name'] ?? 'member').toString();
+      final deadline = DateTime.now().add(const Duration(days: 3));
+      final deadlineStr =
+          '${deadline.year}-${deadline.month.toString().padLeft(2, '0')}-${deadline.day.toString().padLeft(2, '0')}';
+
+      await sb
+          .from('payments')
+          .update({
+            'message':
+                'Due na ang inyong bayad para kay $deceasedName. Palihog magbayad wala pay $deadlineStr. Daghang salamat!',
+          })
+          .eq('death_notice_id', deathNoticeId)
+          .eq('dayung_unit_id', _dayungUnitId!)
+          .neq('status', 'paid');
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Collection reminder updated.')),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to trigger collection: $e')),
+      );
+    }
+
+    await _fetchAll();
   }
-  await _fetchAll();
-}
 
   Future<Map<String, Map<String, dynamic>>> _paymentStatsByNotice(
-  List<String> userDeceasedIds,
-  int dayungUnitId,
-) async {
-    if (userDeceasedIds.isEmpty) return {};
+    List<int> deathNoticeIds,
+    int dayungUnitId,
+  ) async {
+    if (deathNoticeIds.isEmpty) return {};
     final rows = await sb
         .from('payments')
-        .select('userdeceased,status,amount,user_id')
-        .inFilter('userdeceased', userDeceasedIds)
+        .select('death_notice_id,status,amount,user_id')
+        .inFilter('death_notice_id', deathNoticeIds)
         .eq('dayung_unit_id', dayungUnitId);
 
     final stats = <String, Map<String, dynamic>>{};
@@ -413,13 +417,11 @@ Future<void> _triggerPaymentCollection(String userDeceasedId) async {
     final unpaidUsersPerNotice = <String, Set<String>>{};
 
     for (final r in List<Map<String, dynamic>>.from(rows)) {
-      final id = r['userdeceased']?.toString();
+      final id = r['death_notice_id']?.toString();
       if (id == null) continue;
       final s = (r['status'] ?? '').toString().toLowerCase();
       final uid = (r['user_id'] ?? '').toString();
-      final amt = (r['amount'] is num)
-          ? (r['amount'] as num).toDouble()
-          : double.tryParse('${r['amount']}') ?? 0.0;
+      final amt = _asDouble(r['amount']);
       final m = stats.putIfAbsent(
         id,
         () => {
@@ -454,41 +456,6 @@ Future<void> _triggerPaymentCollection(String userDeceasedId) async {
       m['paidUserIds'] = (m['paidUserIds'] as Set<String>).toList();
     }
     return stats;
-}
-
-  Future<Map<String, dynamic>> _paymentStatsByDayung(int dayungUnitId) async {
-    final rows = await sb
-        .from('payments')
-        .select('status,amount')
-        .eq('dayung_unit_id', dayungUnitId);
-
-    int paidCount = 0;
-    int unpaidCount = 0;
-    double paidAmount = 0.0;
-    double pendingAmount = 0.0;
-    int totalCount = 0;
-
-    for (final r in List<Map<String, dynamic>>.from(rows)) {
-      final s = (r['status'] ?? '').toString().toLowerCase();
-      final amt = (r['amount'] is num)
-          ? (r['amount'] as num).toDouble()
-          : double.tryParse('${r['amount']}') ?? 0.0;
-      totalCount++;
-      if (s == 'paid') {
-        paidCount++;
-        paidAmount += amt;
-      } else {
-        unpaidCount++;
-        pendingAmount += amt;
-      }
-    }
-    return {
-      'paidCount': paidCount,
-      'unpaidCount': unpaidCount,
-      'paidAmount': paidAmount,
-      'pendingAmount': pendingAmount,
-      'totalCount': totalCount,
-    };
   }
 
   List<Widget> get _pages => [
@@ -736,7 +703,6 @@ Future<void> _triggerPaymentCollection(String userDeceasedId) async {
   }
 
   Widget _buildSideDrawer(BuildContext context) {
-    final isDarkMode = Theme.of(context).brightness == Brightness.dark;
     return Drawer(
       backgroundColor: kBg,
       child: Column(
@@ -1241,6 +1207,28 @@ Future<void> _triggerPaymentCollection(String userDeceasedId) async {
         ),
         const SizedBox(height: 8),
         _buildModernActionCard(
+          icon: Icons.payments_rounded,
+          title: 'My Payment Page',
+          subtitle: 'Pay your own contribution records',
+          color: const Color(0xFF2563EB),
+          onTap: () {
+            if (_dayungUnitId == null) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Select a Dayung first')),
+              );
+              return;
+            }
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) =>
+                    TreasurerPaymentPage(dayungUnitId: _dayungUnitId!),
+              ),
+            ).then((_) => _fetchAll());
+          },
+        ),
+        const SizedBox(height: 8),
+        _buildModernActionCard(
           icon: Icons.verified_user_rounded,
           title: 'Paid Members',
           subtitle: 'View members who have paid',
@@ -1554,8 +1542,9 @@ Future<void> _triggerPaymentCollection(String userDeceasedId) async {
         return FutureBuilder<Map<String, Map<String, dynamic>>>(
           future: _paymentStatsFutureCached,
           builder: (context, statSnap) {
-            final stats = statSnap.data ?? const <String, Map<String, dynamic>>{};
-        
+            final stats =
+                statSnap.data ?? const <String, Map<String, dynamic>>{};
+
             return Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -1667,7 +1656,7 @@ Future<void> _triggerPaymentCollection(String userDeceasedId) async {
     Map<String, Map<String, dynamic>> stats,
     int dayungId,
   ) {
-   final sid = (notice['id'] ?? '').toString();
+    final sid = (notice['id'] ?? '').toString();
     final dId =
         int.tryParse((notice['dayung_unit_id'] ?? dayungId).toString()) ?? 0;
     final st =
@@ -1681,23 +1670,27 @@ Future<void> _triggerPaymentCollection(String userDeceasedId) async {
           'paidUserIds': [],
         };
 
-   final paid = int.tryParse('${notice['paid_count'] ?? st['paidCount'] ?? 0}') ?? 0;
-final unpaid = int.tryParse('${notice['unpaid_count'] ?? st['unpaidCount'] ?? 0}') ?? 0;
-final totalCount = paid + unpaid;
+    final paid =
+        int.tryParse('${notice['paid_count'] ?? st['paidCount'] ?? 0}') ?? 0;
+    final unpaid =
+        int.tryParse('${notice['unpaid_count'] ?? st['unpaidCount'] ?? 0}') ??
+        0;
+    final totalCount = paid + unpaid;
 
-    final paidAmt = (st['paidAmount'] ?? 0.0) as double;
-    final pendingAmt = (st['pendingAmount'] ?? 0.0) as double;
-    final paidUserIds = (st['paidUserIds'] ?? []) as List;
+    final paidAmt = _asDouble(st['paidAmount']);
+    final pendingAmt = _asDouble(st['pendingAmount']);
 
     final completed = unpaid == 0 && totalCount > 0;
     final progress = totalCount == 0
         ? 0.0
         : (paid / totalCount).clamp(0.0, 1.0);
-final totalPaidAmount = double.tryParse('${notice['total_paid_amount'] ?? 0}') ?? 0;
-final totalPaymentAmount = double.tryParse('${notice['total_payment_amount'] ?? (paidAmt + pendingAmt)}') ?? (paidAmt + pendingAmt);
-   
+    final totalPaidAmount = _asDouble(notice['total_paid_amount']);
+    final totalPaymentAmount = _asDouble(
+      notice['total_payment_amount'],
+      fallback: paidAmt + pendingAmt,
+    );
 
-//debugPrint('Notice ID: $sid | Paid: $paid | Unpaid: $unpaid | Total: $totalCount | PaidAmt: $paidAmt | PendingAmt: $pendingAmt | PaidUserIds: $paidUserIds');
+    //debugPrint('Notice ID: $sid | Paid: $paid | Unpaid: $unpaid | Total: $totalCount | PaidAmt: $paidAmt | PendingAmt: $pendingAmt | PaidUserIds: $paidUserIds');
 
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
@@ -1781,33 +1774,31 @@ final totalPaymentAmount = double.tryParse('${notice['total_payment_amount'] ?? 
             ],
           ),
           const SizedBox(height: 16),
-         Row(
-  children: [
-    _buildCountChip(
-      Icons.verified_rounded,
-      'Paid:',
-      paid,
-      const Color(0xFF10B981),
-      // Remove: amount: paidAmt,
-    ),
-    const SizedBox(width: 8),
-    _buildCountChip(
-      Icons.pending_actions_rounded,
-      'Unpaid',
-      unpaid,
-      const Color(0xFFEF4444),
-    ),
-    const Spacer(),
-  Text(
-  '₱${totalPaidAmount.toStringAsFixed(0)} / ₱${totalPaymentAmount.toStringAsFixed(0)}',
-  style: const TextStyle(
-    fontWeight: FontWeight.w800,
-    color: Color(0xFF1F2937),
-    fontSize: 14,
-  ),
+          Row(
+            children: [
+              _buildCountChip(
+                Icons.verified_rounded,
+                'Paid:',
+                paid,
+                const Color(0xFF10B981),
+                // Remove: amount: paidAmt,
               ),
-              
-              
+              const SizedBox(width: 8),
+              _buildCountChip(
+                Icons.pending_actions_rounded,
+                'Unpaid',
+                unpaid,
+                const Color(0xFFEF4444),
+              ),
+              const Spacer(),
+              Text(
+                '₱${totalPaidAmount.toStringAsFixed(0)} / ₱${totalPaymentAmount.toStringAsFixed(0)}',
+                style: const TextStyle(
+                  fontWeight: FontWeight.w800,
+                  color: Color(0xFF1F2937),
+                  fontSize: 14,
+                ),
+              ),
             ],
           ),
           const SizedBox(height: 16),
@@ -1849,7 +1840,8 @@ final totalPaymentAmount = double.tryParse('${notice['total_payment_amount'] ?? 
             children: [
               Expanded(
                 child: OutlinedButton.icon(
-                  onPressed: () => _showPaymentStatusSheet(int.tryParse(sid) ?? 0, dId),
+                  onPressed: () =>
+                      _showPaymentStatusSheet(_asInt(notice['id']), dId),
                   icon: const Icon(Icons.info_outline_rounded, size: 18),
                   label: const Text('View Status'),
                   style: OutlinedButton.styleFrom(
@@ -1863,15 +1855,14 @@ final totalPaymentAmount = double.tryParse('${notice['total_payment_amount'] ?? 
               ),
               const SizedBox(width: 12),
               Expanded(
-  child: ElevatedButton.icon(
-// ...inside _buildModernNoticeCard...
-onPressed: completed
-    ? null
-    : () => _triggerPaymentCollection(notice['user_id']?.toString() ?? ''),
-// Make sure sid is the UUID, not an integer!
+                child: ElevatedButton.icon(
+                  // ...inside _buildModernNoticeCard...
+                  onPressed: completed
+                      ? null
+                      : () => _triggerPaymentCollection(_asInt(notice['id'])),
 
-    icon: const Icon(Icons.campaign_rounded, size: 18),
-    label: const Text('Collect'),
+                  icon: const Icon(Icons.campaign_rounded, size: 18),
+                  label: const Text('Collect'),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFF3B82F6),
                     foregroundColor: Colors.white,
@@ -1890,34 +1881,34 @@ onPressed: completed
     );
   }
 
-Widget _buildCountChip(
-  IconData icon,
-  String label,
-  int count,
-  Color color, {
-  double? amount,
-}) {
-  return Container(
-    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-    decoration: BoxDecoration(
-      color: color.withOpacity(0.1),
-      borderRadius: BorderRadius.circular(8),
-      border: Border.all(color: color.withOpacity(0.3)),
-    ),
-    child: Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Icon(icon, size: 14, color: color),
-        const SizedBox(width: 4),
-        Text(
-          amount != null
-              ? '$label $count (₱${amount.toStringAsFixed(0)})'
-              : '$label $count',
-          style: TextStyle(
-            color: color,
-            fontWeight: FontWeight.w700,
-            fontSize: 12,
-          ),
+  Widget _buildCountChip(
+    IconData icon,
+    String label,
+    int count,
+    Color color, {
+    double? amount,
+  }) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: color.withOpacity(0.3)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 14, color: color),
+          const SizedBox(width: 4),
+          Text(
+            amount != null
+                ? '$label $count (₱${amount.toStringAsFixed(0)})'
+                : '$label $count',
+            style: TextStyle(
+              color: color,
+              fontWeight: FontWeight.w700,
+              fontSize: 12,
+            ),
           ),
         ],
       ),
@@ -1939,9 +1930,9 @@ Widget _buildCountChip(
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      backgroundColor: Colors.white,
+      backgroundColor: const Color(0xFFF8FAFC),
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
       ),
       builder: (ctx) {
         return Padding(
@@ -1956,45 +1947,181 @@ Widget _buildCountChip(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                _modalBackButton(ctx, label: "Close"),
+                Center(
+                  child: Container(
+                    width: 56,
+                    height: 6,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFCBD5E1),
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
                 Text(
                   paid
                       ? 'Paid Members per Deceased'
                       : 'Unpaid Members per Deceased',
                   style: const TextStyle(
-                    fontSize: 18,
+                    fontSize: 24,
                     fontWeight: FontWeight.w800,
                     color: kPrimaryDark,
+                    fontFamily: 'Montserrat',
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  paid
+                      ? 'Choose a deceased member to see who already paid.'
+                      : 'Choose a deceased member to see who still needs to pay.',
+                  style: const TextStyle(
+                    fontSize: 15,
+                    height: 1.4,
+                    color: kSubtleText,
+                    fontWeight: FontWeight.w600,
                   ),
                 ),
                 const SizedBox(height: 10),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(18),
+                    border: Border.all(color: const Color(0xFFDCE7F8)),
+                  ),
+                  child: Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          color:
+                              (paid
+                                      ? const Color(0xFF10B981)
+                                      : const Color(0xFFF59E0B))
+                                  .withOpacity(0.12),
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                        child: Icon(
+                          paid
+                              ? Icons.check_circle_rounded
+                              : Icons.pending_actions_rounded,
+                          color: paid
+                              ? const Color(0xFF10B981)
+                              : const Color(0xFFF59E0B),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          '${notices.length} deceased record${notices.length == 1 ? '' : 's'} available',
+                          style: const TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w700,
+                            color: kNeutralText,
+                          ),
+                        ),
+                      ),
+                      TextButton.icon(
+                        onPressed: () => Navigator.pop(ctx),
+                        icon: const Icon(Icons.close_rounded),
+                        label: const Text('Close'),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 12),
                 Expanded(
                   child: notices.isEmpty
                       ? const Center(child: Text('No death notices found'))
                       : ListView.separated(
                           itemCount: notices.length,
-                          separatorBuilder: (_, __) => const Divider(height: 1),
+                          separatorBuilder: (_, __) =>
+                              const SizedBox(height: 10),
                           itemBuilder: (_, i) {
                             final n = notices[i];
                             final deceasedName = (n['name'] ?? 'Deceased')
                                 .toString();
                             final date = (n['date_of_death'] ?? '').toString();
-                            return ListTile(
-                              leading: const Icon(
-                                Icons.person_off,
-                                color: kDanger,
+                            return Material(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(20),
+                              child: InkWell(
+                                borderRadius: BorderRadius.circular(20),
+                                onTap: () {
+                                  Navigator.pop(ctx);
+                                  _showMembersPerDeathNotice(
+                                    deathNoticeId: n['id'],
+                                    deceasedName: deceasedName,
+                                    paid: paid,
+                                  );
+                                },
+                                child: Padding(
+                                  padding: const EdgeInsets.all(18),
+                                  child: Row(
+                                    children: [
+                                      Container(
+                                        padding: const EdgeInsets.all(14),
+                                        decoration: BoxDecoration(
+                                          color: const Color(0xFFFEE2E2),
+                                          borderRadius: BorderRadius.circular(
+                                            16,
+                                          ),
+                                        ),
+                                        child: const Icon(
+                                          Icons.person_off_rounded,
+                                          color: kDanger,
+                                          size: 28,
+                                        ),
+                                      ),
+                                      const SizedBox(width: 14),
+                                      Expanded(
+                                        child: Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          children: [
+                                            Text(
+                                              deceasedName,
+                                              style: const TextStyle(
+                                                fontSize: 19,
+                                                fontWeight: FontWeight.w800,
+                                                color: kNeutralText,
+                                              ),
+                                            ),
+                                            const SizedBox(height: 6),
+                                            Text(
+                                              date.isEmpty
+                                                  ? 'No date of death recorded'
+                                                  : 'Date of death: $date',
+                                              style: const TextStyle(
+                                                fontSize: 15,
+                                                color: kSubtleText,
+                                                fontWeight: FontWeight.w600,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 14,
+                                          vertical: 10,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          color: const Color(0xFFEFF6FF),
+                                          borderRadius: BorderRadius.circular(
+                                            14,
+                                          ),
+                                        ),
+                                        child: const Icon(
+                                          Icons.chevron_right_rounded,
+                                          color: kPrimaryDark,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
                               ),
-                              title: Text(deceasedName),
-                              subtitle: Text(date),
-                              trailing: const Icon(Icons.chevron_right),
-                              onTap: () {
-                                Navigator.pop(ctx);
-                                _showMembersPerDeathNotice(
-                                  deathNoticeId: n['id'],
-                                  deceasedName: deceasedName,
-                                  paid: paid,
-                                );
-                              },
                             );
                           },
                         ),
@@ -2016,81 +2143,145 @@ Widget _buildCountChip(
     if (ids.isEmpty) return;
 
     try {
-      final items = await sb
+      final rows = await sb
           .from('payments')
-          .select('id, user_id, status, amount, paid_at, collected_by')
-          .eq('userdeceased', deathNoticeId)
+          .select(
+            'id, user_id, status, amount, paid_at, collected_by, '
+            'user:users!payments_user_id_fkey(full_name), '
+            'collector:users!payments_collected_by_fkey(full_name)',
+          )
+          .eq('death_notice_id', deathNoticeId)
           .eq('dayung_unit_id', ids.first);
 
+      final items =
+          List<Map<String, dynamic>>.from(rows)
+              .where(
+                (row) => paid
+                    ? (row['status'] ?? '').toString().toLowerCase() == 'paid'
+                    : (row['status'] ?? '').toString().toLowerCase() != 'paid',
+              )
+              .toList()
+            ..sort((a, b) {
+              final an = (((a['user'] as Map?)?['full_name']) ?? '')
+                  .toString()
+                  .toLowerCase();
+              final bn = (((b['user'] as Map?)?['full_name']) ?? '')
+                  .toString()
+                  .toLowerCase();
+              return an.compareTo(bn);
+            });
+
       if (!mounted) return;
+      final totalAmount = items.fold<double>(
+        0.0,
+        (sum, row) => sum + _asDouble(row['amount']),
+      );
+
       showModalBottomSheet(
         context: context,
         isScrollControlled: true,
         shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+          borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
         ),
         builder: (context) {
-          // Separate paid and pending
-          final paidItems = items
-              .where(
-                (r) => (r['status'] ?? '').toString().toLowerCase() == 'paid',
-              )
-              .toList();
-          final pendingItems = items
-              .where(
-                (r) => (r['status'] ?? '').toString().toLowerCase() != 'paid',
-              )
-              .toList();
-
           return SafeArea(
             child: Padding(
               padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Padding(
-                    padding: EdgeInsets.only(bottom: 12),
-                    child: Text(
-                      'Status',
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.w800,
-                        color: kPrimaryDark,
-                        fontFamily: 'Montserrat',
+                  Center(
+                    child: Container(
+                      width: 56,
+                      height: 6,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFCBD5E1),
+                        borderRadius: BorderRadius.circular(999),
                       ),
                     ),
                   ),
-                  Flexible(
-                    child: ConstrainedBox(
-                      constraints: const BoxConstraints(maxHeight: 460),
-                      child: ListView(
-                        children: [
-                          if (paidItems.isNotEmpty) ...[
-                            const Padding(
-                              padding: EdgeInsets.symmetric(vertical: 8),
-                              child: Text(
-                                'Paid Members',
-                                style: TextStyle(fontWeight: FontWeight.bold),
-                              ),
-                            ),
-                            ...paidItems.map((r) => _buildStatusTile(r, true)),
-                          ],
-                          if (pendingItems.isNotEmpty) ...[
-                            const Padding(
-                              padding: EdgeInsets.symmetric(vertical: 8),
-                              child: Text(
-                                'Pending Members',
-                                style: TextStyle(fontWeight: FontWeight.bold),
-                              ),
-                            ),
-                            ...pendingItems.map(
-                              (r) => _buildStatusTile(r, false),
-                            ),
-                          ],
-                        ],
-                      ),
+                  const SizedBox(height: 16),
+                  Text(
+                    deceasedName,
+                    style: const TextStyle(
+                      fontSize: 24,
+                      fontWeight: FontWeight.w800,
+                      color: kPrimaryDark,
+                      fontFamily: 'Montserrat',
                     ),
                   ),
+                  const SizedBox(height: 4),
+                  Text(
+                    paid ? 'Paid members' : 'Unpaid members',
+                    style: const TextStyle(
+                      fontSize: 16,
+                      color: kSubtleText,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _memberSummaryCard(
+                          icon: paid
+                              ? Icons.people_alt_rounded
+                              : Icons.groups_rounded,
+                          label: paid ? 'Paid Count' : 'Needs Payment',
+                          value: '${items.length}',
+                          accent: paid
+                              ? const Color(0xFF10B981)
+                              : const Color(0xFFF59E0B),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: _memberSummaryCard(
+                          icon: Icons.payments_rounded,
+                          label: paid ? 'Collected' : 'Expected',
+                          value: '₱${totalAmount.toStringAsFixed(0)}',
+                          accent: const Color(0xFF1E40AF),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  if (items.isEmpty)
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(24),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(color: const Color(0xFFE5E7EB)),
+                      ),
+                      child: Text(
+                        paid
+                            ? 'No paid members yet for this deceased.'
+                            : 'No unpaid members for this deceased.',
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                          fontSize: 17,
+                          color: kSubtleText,
+                          fontWeight: FontWeight.w600,
+                          height: 1.45,
+                        ),
+                      ),
+                    )
+                  else
+                    Flexible(
+                      child: ConstrainedBox(
+                        constraints: const BoxConstraints(maxHeight: 460),
+                        child: ListView.separated(
+                          itemCount: items.length,
+                          separatorBuilder: (_, __) =>
+                              Divider(height: 1, color: Colors.grey.shade200),
+                          itemBuilder: (_, i) =>
+                              _buildStatusTile(items[i], paid),
+                        ),
+                      ),
+                    ),
                 ],
               ),
             ),
@@ -2105,36 +2296,6 @@ Widget _buildCountChip(
     }
   }
 
-  Widget _modalBackButton(
-    BuildContext context, {
-    String label = "Back",
-    VoidCallback? onBack,
-  }) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 10),
-      child: Row(
-        children: [
-          IconButton(
-            icon: const Icon(Icons.arrow_back),
-            onPressed: () {
-              Navigator.of(context).pop();
-              if (onBack != null) onBack();
-            },
-            tooltip: label,
-          ),
-          Text(
-            label,
-            style: const TextStyle(
-              fontWeight: FontWeight.w700,
-              fontSize: 16,
-              color: kPrimaryDark,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
   Future<void> _showPaymentStatusSheet(int noticeId, int dayungUnitId) async {
     final sb = Supabase.instance.client;
     try {
@@ -2145,95 +2306,110 @@ Widget _buildCountChip(
             'user:users!payments_user_id_fkey(full_name), '
             'collector:users!payments_collected_by_fkey(full_name)',
           )
-          .eq('userdeceased', noticeId)
+          .eq('death_notice_id', noticeId)
           .eq('dayung_unit_id', dayungUnitId);
 
       final items = List<Map<String, dynamic>>.from(rows);
 
-    // Fallback: if some collector names are missing from the embed, fetch them by ID
-    final missingCollectorIds = <String>{
-      for (final r in items)
-        if ((r['collected_by'] ?? '').toString().isNotEmpty &&
-            ((((r['collector'] as Map?)?['full_name']) ?? '')
-                .toString()
-                .isEmpty))
-          (r['collected_by']).toString(),
-    }.toList();
+      final missingCollectorIds = <String>{
+        for (final r in items)
+          if ((r['collected_by'] ?? '').toString().isNotEmpty &&
+              ((((r['collector'] as Map?)?['full_name']) ?? '')
+                  .toString()
+                  .isEmpty))
+            (r['collected_by']).toString(),
+      }.toList();
 
-    final collectorLookup = <String, String>{};
-    if (missingCollectorIds.isNotEmpty) {
-      try {
-        final u = await sb
-            .from('users')
-            .select('id, full_name')
-            .inFilter('id', missingCollectorIds);
-        for (final m in List<Map<String, dynamic>>.from(u)) {
-          collectorLookup[(m['id'] ?? '').toString()] =
-              (m['full_name'] ?? 'Collector').toString();
-        }
-      } catch (_) {}
-    }
-
-    // Sort client-side by payer full_name
-    items.sort((a, b) {
-      final an = (((a['user'] as Map?)?['full_name']) ?? '')
-          .toString()
-          .toLowerCase();
-      final bn = (((b['user'] as Map?)?['full_name']) ?? '')
-          .toString()
-          .toLowerCase();
-      if (an.isEmpty && bn.isEmpty) return 0;
-      if (an.isEmpty) return 1;
-      if (bn.isEmpty) return -1;
-      return an.compareTo(bn);
-    });
-
-    int paid = 0, unpaid = 0;
-    double paidAmt = 0, totalAmt = 0;
-    for (final r in items) {
-      final s = (r['status'] ?? '').toString().trim().toLowerCase();
-      final amt = (r['amount'] is num)
-          ? (r['amount'] as num).toDouble()
-          : double.tryParse('${r['amount']}') ?? 0.0;
-      totalAmt += amt;
-      if (s == 'paid') {
-        paid++;
-        paidAmt += amt;
-      } else {
-        unpaid++;
+      final collectorLookup = <String, String>{};
+      if (missingCollectorIds.isNotEmpty) {
+        try {
+          final u = await sb
+              .from('users')
+              .select('id, full_name')
+              .inFilter('id', missingCollectorIds);
+          for (final m in List<Map<String, dynamic>>.from(u)) {
+            collectorLookup[(m['id'] ?? '').toString()] =
+                (m['full_name'] ?? 'Collector').toString();
+          }
+        } catch (_) {}
       }
-    }
 
-    if (!mounted) return;
-    await showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-      ),
-      builder: (context) {
-        // Separate paid and pending
-        final paidItems = items
-            .where(
-              (r) => (r['status'] ?? '').toString().toLowerCase() == 'paid',
-            )
-            .toList();
-        final pendingItems = items
-            .where(
-              (r) => (r['status'] ?? '').toString().toLowerCase() != 'paid',
-            )
-            .toList();
+      items.sort((a, b) {
+        final an = (((a['user'] as Map?)?['full_name']) ?? '')
+            .toString()
+            .toLowerCase();
+        final bn = (((b['user'] as Map?)?['full_name']) ?? '')
+            .toString()
+            .toLowerCase();
+        return an.compareTo(bn);
+      });
 
-        return SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
+      if (!mounted) return;
+      await showModalBottomSheet(
+        context: context,
+        isScrollControlled: true,
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+        ),
+        builder: (context) {
+          final paidItems = items
+              .where(
+                (r) => (r['status'] ?? '').toString().toLowerCase() == 'paid',
+              )
+              .toList();
+          final pendingItems = items
+              .where(
+                (r) => (r['status'] ?? '').toString().toLowerCase() != 'paid',
+              )
+              .toList();
+
+          Widget section(
+            String title,
+            List<Map<String, dynamic>> rows,
+            bool isPaid,
+          ) {
+            if (rows.isEmpty) return const SizedBox.shrink();
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Padding(
-                  padding: EdgeInsets.only(bottom: 12),
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 8),
                   child: Text(
-                    'Status',
+                    title,
+                    style: TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w800,
+                      color: kPrimaryDark,
+                    ),
+                  ),
+                ),
+                ...rows.map((r) {
+                  final directCollectorName =
+                      (((r['collector'] as Map?)?['full_name']) ?? '')
+                          .toString();
+                  final collectorName = directCollectorName.isNotEmpty
+                      ? directCollectorName
+                      : (collectorLookup[(r['collected_by'] ?? '')
+                                .toString()] ??
+                            '');
+                  return _buildStatusTile({
+                    ...r,
+                    'resolved_collector_name': collectorName,
+                  }, isPaid);
+                }),
+              ],
+            );
+          }
+
+          return SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Payment Status',
                     style: TextStyle(
                       fontSize: 18,
                       fontWeight: FontWeight.w800,
@@ -2241,44 +2417,24 @@ Widget _buildCountChip(
                       fontFamily: 'Montserrat',
                     ),
                   ),
-                ),
-                Flexible(
-                  child: ConstrainedBox(
-                    constraints: const BoxConstraints(maxHeight: 460),
-                    child: ListView(
-                      children: [
-                        if (paidItems.isNotEmpty) ...[
-                          const Padding(
-                            padding: EdgeInsets.symmetric(vertical: 8),
-                            child: Text(
-                              'Paid Members',
-                              style: TextStyle(fontWeight: FontWeight.bold),
-                            ),
-                          ),
-                          ...paidItems.map((r) => _buildStatusTile(r, true)),
+                  const SizedBox(height: 12),
+                  Flexible(
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(maxHeight: 460),
+                      child: ListView(
+                        children: [
+                          section('Paid Members', paidItems, true),
+                          section('Pending Members', pendingItems, false),
                         ],
-                        if (pendingItems.isNotEmpty) ...[
-                          const Padding(
-                            padding: EdgeInsets.symmetric(vertical: 8),
-                            child: Text(
-                              'Pending Members',
-                              style: TextStyle(fontWeight: FontWeight.bold),
-                            ),
-                          ),
-                          ...pendingItems.map(
-                            (r) => _buildStatusTile(r, false),
-                          ),
-                        ],
-                      ],
+                      ),
                     ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
-          ),
-        );
-      },
-    );
+          );
+        },
+      );
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -2290,54 +2446,152 @@ Widget _buildCountChip(
   Widget _buildStatusTile(Map<String, dynamic> r, bool paid) {
     final payerName = (((r['user'] as Map?)?['full_name']) ?? '').toString();
     final title = payerName.isNotEmpty ? payerName : 'Payment #${r['id']}';
-    final amt = (r['amount'] is num)
-        ? (r['amount'] as num).toDouble()
-        : double.tryParse('${r['amount']}') ?? 0.0;
+    final amt = _asDouble(r['amount']);
     final paidAtStr = _fmtDateTime(r['paid_at']);
-    String collectorName = (((r['collector'] as Map?)?['full_name']) ?? '')
+    final resolvedCollectorName = (r['resolved_collector_name'] ?? '')
         .toString();
+    final fallbackCollectorName =
+        (((r['collector'] as Map?)?['full_name']) ?? '').toString();
+    final collectorName = resolvedCollectorName.isNotEmpty
+        ? resolvedCollectorName
+        : fallbackCollectorName;
+    final effectiveCollectorName = collectorName.isNotEmpty
+        ? collectorName
+        : 'Collector not recorded';
     final subtitleText = paid
-        ? 'Collected${paidAtStr.isNotEmpty ? ' on: $paidAtStr' : ''}${collectorName.isNotEmpty ? '\nCollected by: $collectorName' : ''}'
+        ? 'Collected${paidAtStr.isNotEmpty ? ' on: $paidAtStr' : ''}\nCollected by: $effectiveCollectorName'
         : 'Pending';
 
-    return ListTile(
-      leading: CircleAvatar(
-        backgroundColor: paid
-            ? Colors.green.withOpacity(.15)
-            : Colors.orange.withOpacity(.15),
-        child: Icon(
-          paid ? Icons.check : Icons.hourglass_empty,
-          color: paid ? Colors.green[800] : Colors.orange[800],
-        ),
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: const Color(0xFFE5E7EB)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.04),
+            blurRadius: 10,
+            offset: const Offset(0, 2),
+          ),
+        ],
       ),
-      title: Text(
-        title,
-        style: const TextStyle(
-          fontWeight: FontWeight.w700,
-          color: kNeutralText,
-        ),
-      ),
-      subtitle: Text(subtitleText, style: const TextStyle(color: kSubtleText)),
-      trailing: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        crossAxisAlignment: CrossAxisAlignment.end,
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            '₱${amt.toStringAsFixed(0)}',
-            style: const TextStyle(
-              fontWeight: FontWeight.w800,
-              color: kNeutralText,
+          CircleAvatar(
+            radius: 24,
+            backgroundColor: paid
+                ? Colors.green.withOpacity(.15)
+                : Colors.orange.withOpacity(.15),
+            child: Icon(
+              paid ? Icons.check_rounded : Icons.hourglass_bottom_rounded,
+              color: paid ? Colors.green[800] : Colors.orange[800],
             ),
           ),
-          if (paid)
-            const Text(
-              'paid',
-              style: TextStyle(
-                fontWeight: FontWeight.w700,
-                color: Colors.green,
-                fontSize: 12,
-              ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w800,
+                    fontSize: 18,
+                    color: kNeutralText,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  subtitleText,
+                  style: const TextStyle(
+                    color: kSubtleText,
+                    fontSize: 15,
+                    fontWeight: FontWeight.w600,
+                    height: 1.45,
+                  ),
+                ),
+              ],
             ),
+          ),
+          const SizedBox(width: 12),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Text(
+                '₱${amt.toStringAsFixed(0)}',
+                style: const TextStyle(
+                  fontWeight: FontWeight.w900,
+                  fontSize: 18,
+                  color: kNeutralText,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 6,
+                ),
+                decoration: BoxDecoration(
+                  color: paid
+                      ? Colors.green.withOpacity(0.12)
+                      : Colors.orange.withOpacity(0.12),
+                  borderRadius: BorderRadius.circular(999),
+                ),
+                child: Text(
+                  paid ? 'Paid' : 'Pending',
+                  style: TextStyle(
+                    fontWeight: FontWeight.w800,
+                    fontSize: 12,
+                    color: paid ? Colors.green[800] : Colors.orange[800],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _memberSummaryCard({
+    required IconData icon,
+    required String label,
+    required String value,
+    required Color accent,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: accent.withOpacity(0.18)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, color: accent, size: 24),
+          const SizedBox(height: 10),
+          Text(
+            value,
+            style: const TextStyle(
+              fontSize: 22,
+              fontWeight: FontWeight.w900,
+              color: kNeutralText,
+              fontFamily: 'Montserrat',
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            label,
+            style: const TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w700,
+              color: kSubtleText,
+            ),
+          ),
         ],
       ),
     );
@@ -2351,31 +2605,6 @@ Widget _buildCountChip(
     dt = dt.toLocal();
     String two(int n) => n.toString().padLeft(2, '0');
     return '${dt.year}-${two(dt.month)}-${two(dt.day)} ${two(dt.hour)}:${two(dt.minute)}';
-  }
-
-  Widget _chip(IconData icon, String label, Color color) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-      decoration: BoxDecoration(
-        color: color.withOpacity(.06),
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: color.withOpacity(.25)),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 16, color: color),
-          const SizedBox(width: 6),
-          Text(
-            label,
-            style: TextStyle(
-              color: color.withOpacity(.95),
-              fontWeight: FontWeight.w800,
-            ),
-          ),
-        ],
-      ),
-    );
   }
 }
 

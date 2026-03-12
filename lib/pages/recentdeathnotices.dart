@@ -4,6 +4,7 @@ import 'package:capstone_app/Providers/dayung_role_provider.dart';
 import 'package:capstone_app/screens/dayung_suggestions.dart' hide kPrimary;
 import 'package:flutter/material.dart';
 import 'package:capstone_app/pages/deathnoticedetail.dart';
+import 'package:capstone_app/ui/loading/page_skeleton.dart';
 import 'package:capstone_app/ui/theme/branding.dart';
 import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -36,7 +37,7 @@ class _RecentDeathNoticesState extends State<RecentDeathNotices> {
 
   StreamSubscription<List<Map<String, dynamic>>>? _sub;
 
-    @override
+  @override
   void initState() {
     super.initState();
     if (widget.dayungUnitId == null) {
@@ -479,62 +480,9 @@ class _RecentDeathNoticesState extends State<RecentDeathNotices> {
                       ],
                     ),
                     child: _loading
-                        ? Center(
-                            child: Container(
-                              padding: const EdgeInsets.all(32),
-                              decoration: BoxDecoration(
-                                gradient: const LinearGradient(
-                                  colors: [
-                                    Color(0xFFFFFFFF),
-                                    Color(0xFFF8FAFC),
-                                  ],
-                                  begin: Alignment.topLeft,
-                                  end: Alignment.bottomRight,
-                                ),
-                                borderRadius: BorderRadius.circular(24),
-                                border: Border.all(
-                                  color: kBorderColor.withOpacity(0.3),
-                                  width: 1,
-                                ),
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: Colors.black.withOpacity(0.08),
-                                    blurRadius: 20,
-                                    offset: const Offset(0, 8),
-                                  ),
-                                ],
-                              ),
-                              child: Column(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Container(
-                                    padding: const EdgeInsets.all(16),
-                                    decoration: BoxDecoration(
-                                      color: kPrimary.withOpacity(0.1),
-                                      borderRadius: BorderRadius.circular(16),
-                                    ),
-                                    child: const SizedBox(
-                                      width: 32,
-                                      height: 32,
-                                      child: CircularProgressIndicator(
-                                        color: kPrimary,
-                                        strokeWidth: 3,
-                                      ),
-                                    ),
-                                  ),
-                                  const SizedBox(height: 16),
-                                  Text(
-                                    'Loading death notices...',
-                                    style: TextStyle(
-                                      color: kPrimary,
-                                      fontWeight: FontWeight.w700,
-                                      fontSize: 16,
-                                      fontFamily: 'Montserrat',
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
+                        ? const DayungPageSkeleton(
+                            layout: DayungSkeletonLayout.list,
+                            itemCount: 5,
                           )
                         : TabBarView(
                             children: [

@@ -1,4 +1,5 @@
 import 'package:capstone_app/pages/submit_claim.dart';
+import 'package:capstone_app/ui/loading/page_skeleton.dart';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -27,13 +28,12 @@ class _TreasurerClaimsPageState extends State<TreasurerClaimsPage> {
   final sb = Supabase.instance.client;
   bool _loading = true;
 
-  // Unit-level
-  List<Map<String, dynamic>> _claims = [];
-  int _pending = 0, _approved = 0, _rejected = 0, _claimed = 0;
-
   // My claims
   List<Map<String, dynamic>> _myClaims = [];
   int _myPending = 0;
+  int _myApproved = 0;
+  int _myRejected = 0;
+  int _myClaimed = 0;
 
   @override
   void initState() {
@@ -46,72 +46,54 @@ class _TreasurerClaimsPageState extends State<TreasurerClaimsPage> {
     try {
       final uid = sb.auth.currentUser?.id;
 
-      final unitRes = await sb
-          .from('claims')
-          .select(
-            'id, title, description, status, date_submitted, user_id, beneficiary_id, dayung_unit_id',
-          )
-          .eq('dayung_unit_id', widget.dayungUnitId)
-          .order('date_submitted', ascending: false);
-
-      final unitRows = List<Map<String, dynamic>>.from(unitRes);
-      int p = 0, a = 0, r = 0, c = 0;
-      for (final cl in unitRows) {
-        switch ((cl['status'] ?? '').toString().toLowerCase()) {
-          case 'pending':
-            p++;
-            break;
-          case 'approved':
-            a++;
-            break;
-          case 'rejected':
-            r++;
-            break;
-          case 'claimed':
-            c++;
-            break;
-        }
-      }
-
       List<Map<String, dynamic>> myRows = [];
       int myPending = 0;
+      int myApproved = 0;
+      int myRejected = 0;
+      int myClaimed = 0;
       if (uid != null) {
         final myRes = await sb
             .from('claims')
             .select(
-              'id, title, description, status, date_submitted, user_id, dayung_unit_id',
+              'id, title, description, status, date_submitted, user_id, beneficiary_id, dayung_unit_id',
             )
             .eq('dayung_unit_id', widget.dayungUnitId)
             .eq('user_id', uid as Object)
             .order('date_submitted', ascending: false);
         myRows = List<Map<String, dynamic>>.from(myRes);
-        myPending = myRows
-            .where(
-              (c) => (c['status'] ?? '').toString().toLowerCase() == 'pending',
-            )
-            .length;
+        for (final claim in myRows) {
+          switch ((claim['status'] ?? '').toString().toLowerCase()) {
+            case 'pending':
+              myPending++;
+              break;
+            case 'approved':
+              myApproved++;
+              break;
+            case 'rejected':
+              myRejected++;
+              break;
+            case 'claimed':
+              myClaimed++;
+              break;
+          }
+        }
       }
 
       setState(() {
-        _claims = unitRows;
-        _pending = p;
-        _approved = a;
-        _rejected = r;
-        _claimed = c;
-
         _myClaims = myRows;
         _myPending = myPending;
+        _myApproved = myApproved;
+        _myRejected = myRejected;
+        _myClaimed = myClaimed;
         _loading = false;
       });
     } catch (_) {
       setState(() {
-        _claims = [];
-        _pending = 0;
-        _approved = 0;
-        _rejected = 0;
-        _claimed = 0;
         _myClaims = [];
         _myPending = 0;
+        _myApproved = 0;
+        _myRejected = 0;
+        _myClaimed = 0;
         _loading = false;
       });
     }
@@ -160,7 +142,10 @@ class _TreasurerClaimsPageState extends State<TreasurerClaimsPage> {
       ),
       floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
       body: _loading
-          ? const Center(child: CircularProgressIndicator(color: kPrimary))
+          ? const DayungPageSkeleton(
+              layout: DayungSkeletonLayout.dashboard,
+              itemCount: 4,
+            )
           : RefreshIndicator(
               color: kPrimary,
               onRefresh: _load,
@@ -170,56 +155,39 @@ class _TreasurerClaimsPageState extends State<TreasurerClaimsPage> {
                 ),
                 padding: const EdgeInsets.fromLTRB(16, 12, 16, 120),
                 children: [
-                  // Unit summary chips
+                  const Text(
+                    'My Claims',
+                    style: TextStyle(
+                      color: kPrimaryDark,
+                      fontWeight: FontWeight.w900,
+                      fontSize: 24,
+                    ),
+                  ),
+                  const Text(
+                    'Only your own claims are shown here.',
+                    style: TextStyle(
+                      color: kSubtleText,
+                      fontWeight: FontWeight.w600,
+                      fontSize: 14,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
                   Wrap(
                     spacing: 8,
                     runSpacing: 8,
                     children: [
-                      _chip('Pending', _pending, kWarn),
-                      _chip('Approved', _approved, kAccent),
-                      _chip('Rejected', _rejected, kDanger),
-                      _chip('Claimed', _claimed, kAccent),
+                      _chip('Pending', _myPending, kWarn),
+                      _chip('Approved', _myApproved, kAccent),
+                      _chip('Rejected', _myRejected, kDanger),
+                      _chip('Claimed', _myClaimed, kAccent),
+                      _chip('Total', _myClaims.length, kPrimary),
                     ],
                   ),
-                  const SizedBox(height: 14),
-
-                  // My summary chips (optional but useful)
-                  if (_myClaims.isNotEmpty)
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
-                      children: [
-                        _chip('My Pending', _myPending, kWarn),
-                        _chip('My Total', _myClaims.length, kPrimary),
-                      ],
-                    ),
-                  if (_myClaims.isNotEmpty) const SizedBox(height: 18),
-
-                  if (_myClaims.isNotEmpty)
-                    const Text(
-                      'My Claims',
-                      style: TextStyle(
-                        color: kText,
-                        fontWeight: FontWeight.w700,
-                        fontSize: 16,
-                      ),
-                    ),
-                  if (_myClaims.isNotEmpty) const SizedBox(height: 8),
-                  ..._myClaims.map(_claimCard),
-
-                  if (_myClaims.isNotEmpty) const SizedBox(height: 18),
-                  const Text(
-                    'All Unit Claims',
-                    style: TextStyle(
-                      color: kText,
-                      fontWeight: FontWeight.w700,
-                      fontSize: 16,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  if (_claims.isEmpty)
-                    _emptyState('No claims yet for this unit'),
-                  ..._claims.map(_claimCard),
+                  const SizedBox(height: 18),
+                  if (_myClaims.isEmpty)
+                    _emptyState('You have not submitted any claims yet')
+                  else
+                    ..._myClaims.map(_claimCard),
                 ],
               ),
             ),

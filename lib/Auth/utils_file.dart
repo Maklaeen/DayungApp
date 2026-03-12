@@ -5,42 +5,50 @@ import 'package:capstone_app/Secretary/dashboard.dart';
 import 'package:capstone_app/Treasurer/dashboard.dart';
 import 'package:capstone_app/Collector/dashboard.dart';
 import 'package:capstone_app/Members/dashboard.dart';
-import 'dart:convert';
-import 'package:crypto/crypto.dart';
 
 final _sb = Supabase.instance.client;
-
-String hashPassword(String password) {
-  final bytes = utf8.encode(password);
-  final digest = sha256.convert(bytes);
-  return digest.toString();
-}
 
 Future<bool> isPresident() async {
   final uid = _sb.auth.currentUser?.id;
   if (uid == null) return false;
-  final rows = await _sb.from('dayung_units').select('id').eq('president_id', uid).limit(1);
+  final rows = await _sb
+      .from('dayung_units')
+      .select('id')
+      .eq('president_id', uid)
+      .limit(1);
   return (rows as List).isNotEmpty;
 }
 
 Future<bool> isSecretary() async {
   final uid = _sb.auth.currentUser?.id;
   if (uid == null) return false;
-  final rows = await _sb.from('dayung_units').select('id').eq('secretary_id', uid).limit(1);
+  final rows = await _sb
+      .from('dayung_units')
+      .select('id')
+      .eq('secretary_id', uid)
+      .limit(1);
   return (rows as List).isNotEmpty;
 }
 
 Future<bool> isTreasurer() async {
   final uid = _sb.auth.currentUser?.id;
   if (uid == null) return false;
-  final rows = await _sb.from('dayung_units').select('id').eq('treasurer_id', uid).limit(1);
+  final rows = await _sb
+      .from('dayung_units')
+      .select('id')
+      .eq('treasurer_id', uid)
+      .limit(1);
   return (rows as List).isNotEmpty;
 }
 
 Future<bool> isCollector() async {
   final uid = _sb.auth.currentUser?.id;
   if (uid == null) return false;
-  final rows = await _sb.from('dayung_collectors').select('dayung_unit_id').eq('user_id', uid).limit(1);
+  final rows = await _sb
+      .from('dayung_collectors')
+      .select('dayung_unit_id')
+      .eq('user_id', uid)
+      .limit(1);
   return (rows as List).isNotEmpty;
 }
 

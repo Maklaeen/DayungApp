@@ -2,6 +2,7 @@ import 'dart:ui';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:capstone_app/profile/dayung_profile.dart';
+import 'package:capstone_app/utils/supabase_storage.dart';
 import 'package:photo_view/photo_view.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -26,7 +27,7 @@ class _ProfSettingsPageState extends State<ProfSettingsPage> {
   final supabase = Supabase.instance.client;
   String? birthCertificateUrl;
   String? marriageCertificateUrl;
-  String? proofOfResidencyUrl; 
+  String? proofOfResidencyUrl;
   String? valididUrl;
 
   bool loading = true;
@@ -145,7 +146,9 @@ class _ProfSettingsPageState extends State<ProfSettingsPage> {
     if (userId == null) return;
     final response = await supabase
         .from('users')
-        .select('birth_certificate_url, marriage_certificate_url, proof_of_residency_url, valid_id' )
+        .select(
+          'birth_certificate_url, marriage_certificate_url, proof_of_residency_url, valid_id',
+        )
         .eq('id', userId)
         .maybeSingle();
     if (!mounted) return;
@@ -184,7 +187,7 @@ class _ProfSettingsPageState extends State<ProfSettingsPage> {
         bucket = 'marriage_certificates';
       } else if (type == 'proof_of_residency') {
         bucket = 'proof_of_residency';
-      }else if (type == 'valid_id') {
+      } else if (type == 'valid_id') {
         bucket = 'valid_ids';
       } else {
         throw Exception('Unknown certificate type');
@@ -198,15 +201,16 @@ class _ProfSettingsPageState extends State<ProfSettingsPage> {
             fileOptions: const FileOptions(upsert: true),
           );
 
-      final publicUrl = supabase.storage.from(bucket).getPublicUrl(fileName);
+      final storageRef = buildStorageRef(bucket, fileName);
 
       await supabase
           .from('users')
           .update({
-            if (type == 'birth') 'birth_certificate_url': publicUrl,
-            if (type == 'marriage') 'marriage_certificate_url': publicUrl,
-            if (type == 'proof_of_residency') 'proof_of_residency_url': publicUrl,
-            if (type == 'valid_id') 'valid_id': publicUrl,
+            if (type == 'birth') 'birth_certificate_url': storageRef,
+            if (type == 'marriage') 'marriage_certificate_url': storageRef,
+            if (type == 'proof_of_residency')
+              'proof_of_residency_url': storageRef,
+            if (type == 'valid_id') 'valid_id': storageRef,
           })
           .eq('id', userId)
           .select()
@@ -214,10 +218,10 @@ class _ProfSettingsPageState extends State<ProfSettingsPage> {
 
       if (!mounted) return;
       setState(() {
-        if (type == 'birth') birthCertificateUrl = publicUrl;
-        if (type == 'marriage') marriageCertificateUrl = publicUrl;
-        if (type == 'proof_of_residency') proofOfResidencyUrl = publicUrl;
-        if (type == 'valid_id') valididUrl = publicUrl;
+        if (type == 'birth') birthCertificateUrl = storageRef;
+        if (type == 'marriage') marriageCertificateUrl = storageRef;
+        if (type == 'proof_of_residency') proofOfResidencyUrl = storageRef;
+        if (type == 'valid_id') valididUrl = storageRef;
         _uploadingImage = false;
       });
       _showTopPopup(
@@ -237,15 +241,20 @@ class _ProfSettingsPageState extends State<ProfSettingsPage> {
     await _fetchCertificates();
   }
 
-  void _openCertificate(String? url) {
+  Future<void> _openCertificate(String? url) async {
     if (url == null || url.isEmpty) return;
 
-       String displayUrl = url;
-    if (!url.endsWith('.pdf')) {
-      displayUrl = '$url?cb=${DateTime.now().millisecondsSinceEpoch}';
+    final resolved = await resolveSupabaseStorageUrl(url, client: supabase);
+    if (resolved == null) return;
+
+    String displayUrl = resolved;
+    if (!storageLooksLikePdf(resolved)) {
+      final separator = resolved.contains('?') ? '&' : '?';
+      displayUrl =
+          '$resolved${separator}cb=${DateTime.now().millisecondsSinceEpoch}';
     }
 
-    if (displayUrl.endsWith('.pdf')) {
+    if (storageLooksLikePdf(resolved)) {
       launchUrl(Uri.parse(displayUrl), mode: LaunchMode.externalApplication);
       return;
     }
@@ -365,7 +374,7 @@ class _ProfSettingsPageState extends State<ProfSettingsPage> {
                       onView: () => _openCertificate(birthCertificateUrl),
                       labelColor: themeText,
                     ),
-                    
+
                     const SizedBox(height: 8),
                     _certificateRow(
                       label: 'Marriage Certificate',
@@ -378,7 +387,8 @@ class _ProfSettingsPageState extends State<ProfSettingsPage> {
                     _certificateRow(
                       label: 'Proof of Residency',
                       url: proofOfResidencyUrl,
-                      onUpload: () => _uploadCertificate(type: 'proof_of_residency'),
+                      onUpload: () =>
+                          _uploadCertificate(type: 'proof_of_residency'),
                       onView: () => _openCertificate(proofOfResidencyUrl),
                       labelColor: themeText,
                     ),
@@ -477,65 +487,65 @@ class _ProfSettingsPageState extends State<ProfSettingsPage> {
   }
 
   Widget _certificateRow({
-  required String label,
-  required String? url,
-  required VoidCallback onUpload,
-  required VoidCallback onView,
-  required Color labelColor,
-}) {
-  return Row(
-    children: [
-      Icon(
-        url != null && url.isNotEmpty
-            ? Icons.check_circle
-            : Icons.warning_amber_rounded,
-        color: url != null && url.isNotEmpty ? kSuccess : kWarn,
-      ),
-      const SizedBox(width: 8),
-      Expanded(
-        child: Text(
-          label,
-          style: TextStyle(
-            fontSize: 15,
-            fontWeight: FontWeight.w600,
-            color: labelColor,
-          ),
+    required String label,
+    required String? url,
+    required VoidCallback onUpload,
+    required VoidCallback onView,
+    required Color labelColor,
+  }) {
+    return Row(
+      children: [
+        Icon(
+          url != null && url.isNotEmpty
+              ? Icons.check_circle
+              : Icons.warning_amber_rounded,
+          color: url != null && url.isNotEmpty ? kSuccess : kWarn,
         ),
-      ),
-      if (url != null && url.isNotEmpty) ...[
-        IconButton(
-          icon: const Icon(Icons.open_in_new, color: kSuccess),
-          tooltip: 'View',
-          onPressed: onView,
-        ),
-        ElevatedButton.icon(
-          icon: const Icon(Icons.upload_file),
-          label: const Text('Update'),
-          style: ElevatedButton.styleFrom(
-            backgroundColor: kAccent,
-            foregroundColor: Colors.white,
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(10),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Text(
+            label,
+            style: TextStyle(
+              fontSize: 15,
+              fontWeight: FontWeight.w600,
+              color: labelColor,
             ),
           ),
-          onPressed: onUpload,
         ),
-      ] else
-        ElevatedButton.icon(
-          icon: const Icon(Icons.upload_file),
-          label: const Text('Add'),
-          style: ElevatedButton.styleFrom(
-            backgroundColor: kSuccess,
-            foregroundColor: Colors.white,
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(10),
-            ),
+        if (url != null && url.isNotEmpty) ...[
+          IconButton(
+            icon: const Icon(Icons.open_in_new, color: kSuccess),
+            tooltip: 'View',
+            onPressed: onView,
           ),
-          onPressed: onUpload,
-        ),
-    ],
-  );
-}
+          ElevatedButton.icon(
+            icon: const Icon(Icons.upload_file),
+            label: const Text('Update'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: kAccent,
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
+            ),
+            onPressed: onUpload,
+          ),
+        ] else
+          ElevatedButton.icon(
+            icon: const Icon(Icons.upload_file),
+            label: const Text('Add'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: kSuccess,
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
+            ),
+            onPressed: onUpload,
+          ),
+      ],
+    );
+  }
 }

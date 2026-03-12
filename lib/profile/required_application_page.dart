@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:capstone_app/utils/input_safety.dart';
 
 // Color palette
 const kBg = Color(0xFFFAFAF7);
@@ -56,9 +57,32 @@ class _RequiredApplicationsPageState extends State<RequiredApplicationsPage> {
   }
 
   Future<void> _addOrUpdateApplication() async {
-    final title = _titleController.text.trim();
-    final description = _descController.text.trim();
-    if (title.isEmpty || description.isEmpty) return;
+    final title = AppInputSecurity.sanitizePlainText(
+      _titleController.text,
+      maxLength: 120,
+    );
+    final description = AppInputSecurity.sanitizePlainText(
+      _descController.text,
+      allowNewLines: true,
+      maxLength: 500,
+    );
+    if (AppInputSecurity.validateSafeText(
+              title,
+              fieldName: 'Title',
+              minLength: 2,
+              maxLength: 120,
+            ) !=
+            null ||
+        AppInputSecurity.validateSafeText(
+              description,
+              fieldName: 'Description',
+              minLength: 8,
+              maxLength: 500,
+              allowNewLines: true,
+            ) !=
+            null) {
+      return;
+    }
 
     setState(() => _loading = true);
 
@@ -189,8 +213,8 @@ class _RequiredApplicationsPageState extends State<RequiredApplicationsPage> {
                               _application == null
                                   ? 'Add your required application'
                                   : _editing
-                                      ? 'Update your application'
-                                      : 'Your application',
+                                  ? 'Update your application'
+                                  : 'Your application',
                               style: const TextStyle(
                                 fontWeight: FontWeight.bold,
                                 fontSize: 30,
@@ -202,6 +226,10 @@ class _RequiredApplicationsPageState extends State<RequiredApplicationsPage> {
                             TextField(
                               controller: _titleController,
                               enabled: _application == null || _editing,
+                              inputFormatters:
+                                  AppInputSecurity.singleLineFormatters(
+                                    maxLength: 120,
+                                  ),
                               decoration: InputDecoration(
                                 labelText: 'Title',
                                 border: OutlineInputBorder(
@@ -215,6 +243,10 @@ class _RequiredApplicationsPageState extends State<RequiredApplicationsPage> {
                             TextField(
                               controller: _descController,
                               enabled: _application == null || _editing,
+                              inputFormatters:
+                                  AppInputSecurity.multiLineFormatters(
+                                    maxLength: 500,
+                                  ),
                               decoration: InputDecoration(
                                 labelText: 'Description',
                                 alignLabelWithHint: true,
@@ -234,40 +266,42 @@ class _RequiredApplicationsPageState extends State<RequiredApplicationsPage> {
                                 _loading
                                     ? const CircularProgressIndicator()
                                     : (_application == null || _editing)
-                                        ? ElevatedButton.icon(
-                                            icon: Icon(
-                                              _application == null
-                                                  ? Icons.send
-                                                  : Icons.save,
+                                    ? ElevatedButton.icon(
+                                        icon: Icon(
+                                          _application == null
+                                              ? Icons.send
+                                              : Icons.save,
+                                        ),
+                                        label: Text(
+                                          _application == null
+                                              ? 'Add'
+                                              : 'Update',
+                                        ),
+                                        style: ElevatedButton.styleFrom(
+                                          backgroundColor: kSuccess,
+                                          foregroundColor: Colors.white,
+                                          shape: RoundedRectangleBorder(
+                                            borderRadius: BorderRadius.circular(
+                                              10,
                                             ),
-                                            label: Text(
-                                              _application == null
-                                                  ? 'Add'
-                                                  : 'Update',
-                                            ),
-                                            style: ElevatedButton.styleFrom(
-                                              backgroundColor: kSuccess,
-                                              foregroundColor: Colors.white,
-                                              shape: RoundedRectangleBorder(
-                                                borderRadius:
-                                                    BorderRadius.circular(10),
-                                              ),
-                                            ),
-                                            onPressed: _addOrUpdateApplication,
-                                          )
-                                        : ElevatedButton.icon(
-                                            icon: const Icon(Icons.edit),
-                                            label: const Text('Edit'),
-                                            style: ElevatedButton.styleFrom(
-                                              backgroundColor: kAccent,
-                                              foregroundColor: Colors.white,
-                                              shape: RoundedRectangleBorder(
-                                                borderRadius:
-                                                    BorderRadius.circular(10),
-                                              ),
-                                            ),
-                                            onPressed: _startEdit,
                                           ),
+                                        ),
+                                        onPressed: _addOrUpdateApplication,
+                                      )
+                                    : ElevatedButton.icon(
+                                        icon: const Icon(Icons.edit),
+                                        label: const Text('Edit'),
+                                        style: ElevatedButton.styleFrom(
+                                          backgroundColor: kAccent,
+                                          foregroundColor: Colors.white,
+                                          shape: RoundedRectangleBorder(
+                                            borderRadius: BorderRadius.circular(
+                                              10,
+                                            ),
+                                          ),
+                                        ),
+                                        onPressed: _startEdit,
+                                      ),
                                 if (_editing)
                                   TextButton(
                                     onPressed: () {
@@ -314,7 +348,8 @@ class _RequiredApplicationsPageState extends State<RequiredApplicationsPage> {
                               // Make description scrollable if too long
                               LayoutBuilder(
                                 builder: (context, constraints) {
-                                  final desc = _application?['description'] ?? '';
+                                  final desc =
+                                      _application?['description'] ?? '';
                                   if (desc.length > 1000) {
                                     return SizedBox(
                                       height: 200,
@@ -353,4 +388,5 @@ class _RequiredApplicationsPageState extends State<RequiredApplicationsPage> {
         ),
       ),
     );
-  }}
+  }
+}

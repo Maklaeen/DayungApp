@@ -33,6 +33,19 @@ migrate_working_dir/
 .pub/
 /build/
 
+# Environment files
+.env
+.env.*
+!.env.example
+backend/.env
+backend/.env.*
+!backend/.env.example
+ios/Flutter/Secrets.xcconfig
+!ios/Flutter/Secrets.xcconfig.example
+
+# npm
+npm-debug.log*
+
 # Symbolication related
 app.*.symbols
 
