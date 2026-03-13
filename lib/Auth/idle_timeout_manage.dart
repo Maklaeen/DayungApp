@@ -1,9 +1,10 @@
 import 'dart:async';
 import 'package:capstone_app/Auth/login.dart';
+import 'package:capstone_app/SuperAdmin/superadmin_support.dart';
+import 'package:capstone_app/main.dart' show globalNavigatorKey;
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:capstone_app/main.dart' show globalNavigatorKey;
 
 class IdleTimeoutManager {
   static final IdleTimeoutManager _instance = IdleTimeoutManager._internal();
@@ -11,10 +12,8 @@ class IdleTimeoutManager {
   IdleTimeoutManager._internal();
 
   Timer? _timer;
-  BuildContext? _context;
 
   void start(BuildContext context) {
-    _context = context;
     _reset();
   }
 
@@ -28,7 +27,12 @@ class IdleTimeoutManager {
   }
 
   Future<void> _onTimeout() async {
+    await logAuditEvent(
+      'USER_ACTIVITY_SESSION_TIMEOUT',
+      fields: {'source': 'idle_timeout_manager'},
+    );
     await Supabase.instance.client.auth.signOut();
+
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove('selectedDayungUnit');
     await prefs.remove('selectedDayungUnitData');
@@ -40,24 +44,27 @@ class IdleTimeoutManager {
     Widget? currentWidget;
     navigator?.popUntil((route) {
       currentRoute = route.settings.name;
-      // Try to get the widget type for fallback
-      if (route is MaterialPageRoute) {
+      if (route is MaterialPageRoute && context != null) {
         try {
-          currentWidget = route.builder(context!);
+          currentWidget = route.builder(context);
         } catch (_) {}
       }
       return true;
     });
 
-    // Check by route name or widget type
     final isLogin = currentRoute == '/login' || currentWidget is Login;
     final isRegister = currentRoute == '/register';
     final isSplash =
         currentRoute == '/' ||
         (currentWidget?.runtimeType.toString() == 'SplashScreen');
 
-    if (context != null && !isLogin && !isRegister && !isSplash) {
+    if (context != null &&
+        navigator != null &&
+        !isLogin &&
+        !isRegister &&
+        !isSplash) {
       try {
+        if (!context.mounted) return;
         await showDialog(
           context: context,
           barrierDismissible: false,
@@ -75,7 +82,7 @@ class IdleTimeoutManager {
                   Container(
                     padding: const EdgeInsets.all(18),
                     decoration: BoxDecoration(
-                      color: const Color(0xFF3B82F6).withOpacity(0.12),
+                      color: const Color(0xFF3B82F6).withValues(alpha: 0.12),
                       shape: BoxShape.circle,
                     ),
                     child: const Icon(
@@ -141,8 +148,8 @@ class IdleTimeoutManager {
         );
       } catch (_) {}
 
-      // After dialog, navigate to login (with route name)
-      navigator!.pushAndRemoveUntil(
+      if (!navigator.mounted) return;
+      navigator.pushAndRemoveUntil(
         MaterialPageRoute(
           builder: (_) => const Login(),
           settings: const RouteSettings(name: '/login'),
@@ -155,6 +162,5 @@ class IdleTimeoutManager {
   void dispose() {
     _timer?.cancel();
     _timer = null;
-    _context = null;
   }
 }

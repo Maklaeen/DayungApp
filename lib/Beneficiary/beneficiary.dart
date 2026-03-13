@@ -111,7 +111,7 @@ class _BeneficiaryPageState extends State<BeneficiaryPage>
               Row(
                 children: [
                   CircleAvatar(
-                    backgroundColor: kAccent.withOpacity(0.1),
+                    backgroundColor: kAccent.withValues(alpha: 0.1),
                     child: const Icon(Icons.person_rounded, color: kAccent),
                   ),
                   const SizedBox(width: 12),
@@ -207,6 +207,7 @@ class _BeneficiaryPageState extends State<BeneficiaryPage>
                 return;
               }
 
+              if (!context.mounted) return;
               showDialog(
                 context: context,
                 builder: (context) => Dialog(
@@ -329,7 +330,7 @@ class _BeneficiaryPageState extends State<BeneficiaryPage>
           child: ListTile(
             onTap: () => _showBeneficiaryDetails(item),
             leading: CircleAvatar(
-              backgroundColor: kAccent.withOpacity(0.1),
+              backgroundColor: kAccent.withValues(alpha: 0.1),
               child: const Icon(Icons.person_rounded, color: kAccent),
             ),
             title: Text(
@@ -358,10 +359,10 @@ class _BeneficiaryPageState extends State<BeneficiaryPage>
                       ),
                       decoration: BoxDecoration(
                         color: item['status'] == 'Approved'
-                            ? kSuccess.withOpacity(0.12)
+                            ? kSuccess.withValues(alpha: 0.12)
                             : item['status'] == 'Rejected'
-                            ? kDanger.withOpacity(0.12)
-                            : kWarn.withOpacity(0.12),
+                            ? kDanger.withValues(alpha: 0.12)
+                            : kWarn.withValues(alpha: 0.12),
                         borderRadius: BorderRadius.circular(6),
                       ),
                       child: Text(
@@ -393,9 +394,6 @@ class _BeneficiaryPageState extends State<BeneficiaryPage>
 
   @override
   Widget build(BuildContext context) {
-    final width = MediaQuery.of(context).size.width;
-    final bool isMobile = width < 600;
-
     return Scaffold(
       backgroundColor: kBg,
       body: SafeArea(
@@ -549,7 +547,9 @@ class _NavTab extends StatelessWidget {
         duration: const Duration(milliseconds: 200),
         padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
         decoration: BoxDecoration(
-          color: selected ? kAccent.withOpacity(0.12) : Colors.transparent,
+          color: selected
+              ? kAccent.withValues(alpha: 0.12)
+              : Colors.transparent,
           borderRadius: BorderRadius.circular(18),
         ),
         child: Row(

@@ -169,12 +169,17 @@ class SetAmountsTab extends StatelessWidget {
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(16),
                       side: BorderSide(
-                        color: const Color(0xFF0D47A1).withOpacity(0.10),
+                        color: const Color(0xFF0D47A1).withValues(alpha: 0.10),
                       ),
                     ),
                     onTap: isPaid
                         ? null
                         : () async {
+                            final messenger = ScaffoldMessenger.of(context);
+                            final rootNavigator = Navigator.of(
+                              context,
+                              rootNavigator: true,
+                            );
                             // Debug print for user_id and userdeceased
                             debugPrint(
                               'Tapped member: user_id=${selectedMember?['id']}, userdeceased=${item['userdeceased']}',
@@ -256,6 +261,7 @@ class SetAmountsTab extends StatelessWidget {
                                 );
                               },
                             );
+                            if (!context.mounted) return;
 
                             if (amount != null) {
                               final uuidRegExp = RegExp(
@@ -279,21 +285,14 @@ class SetAmountsTab extends StatelessWidget {
 
                                 try {
                                   onSetAmount(i, amount, item['id'].toString());
-
-                                  if (!context.mounted) return;
                                 } catch (e) {
-                                  if (context.mounted) {
-                                    Navigator.of(
-                                      context,
-                                      rootNavigator: true,
-                                    ).pop();
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      SnackBar(content: Text('Error: $e')),
-                                    );
-                                  }
+                                  rootNavigator.pop();
+                                  messenger.showSnackBar(
+                                    SnackBar(content: Text('Error: $e')),
+                                  );
                                 }
                               } else {
-                                ScaffoldMessenger.of(context).showSnackBar(
+                                messenger.showSnackBar(
                                   const SnackBar(
                                     content: Text(
                                       'Invalid user ID. Cannot save payment.',

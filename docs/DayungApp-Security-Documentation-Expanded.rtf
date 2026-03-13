@@ -1,0 +1,161 @@
+{\rtf1\ansi\deff0
+{\fonttbl{\f0 Times New Roman;}{\f1 Arial;}}
+\paperw12240\paperh15840\margl1440\margr1440\margt1440\margb1440
+\fs24
+\pard\qc\b\fs40 DAYUNGAPP SECURITY DOCUMENTATION\par
+\pard\qc\fs26 Expanded Formal Report\par
+\pard\qc\fs24 A Security Review of the Flutter Client, Supabase Services, and Administrative Controls Used by the System\par
+\pard\qc\par
+\pard\qc\fs24 Prepared for Academic Documentation and System Security Reporting\par
+\pard\qc\par
+\pard\qc\par
+\pard\qc Submitted by: ______________________________\par
+\pard\qc Subject/Section: __________________________\par
+\pard\qc Instructor: _______________________________\par
+\pard\qc Date: March 13, 2026\par
+\pard\qc\par
+\page
+\pard\qc\b\fs32 Table of Contents\par
+\pard\sa120\b0 1. Introduction\tab 3\par
+\pard\sa120 1.1 Project Overview\tab 3\par
+\pard\sa120 1.2 Purpose of the System\tab 3\par
+\pard\sa120 1.3 Intended Users\tab 3\par
+\pard\sa120 1.4 Platform and Technology Used\tab 4\par
+\pard\sa120 2. Security Objectives and Requirements\tab 4\par
+\pard\sa120 3. Authentication and Account Security\tab 5\par
+\pard\sa120 4. Authorization and Access Control\tab 6\par
+\pard\sa120 5. Data Protection and Privacy Controls\tab 8\par
+\pard\sa120 6. Secure Coding and Input Validation\tab 9\par
+\pard\sa120 7. Audit Logging and Monitoring\tab 10\par
+\pard\sa120 8. Infrastructure, Secrets, and Operational Security\tab 11\par
+\pard\sa120 9. Backup, Recovery, and Incident Response\tab 12\par
+\pard\sa120 10. Security Testing and Assessment\tab 13\par
+\pard\sa120 11. Summary and Conclusion\tab 14\par
+\pard\sa120 12. Recommendations\tab 15\par
+\pard\sa120 Appendix A. Suggested Screenshot Evidence\tab 16\par
+\pard\par
+\page
+\pard\qc\b\fs28 1. Introduction\par
+\pard\sa180\b0\fs24 This document presents the security documentation for DayungApp, a Flutter-based application supported by Supabase services for authentication, database management, storage, and protected server-side actions. The report is written to describe how the system currently protects user accounts, application data, administrative functions, and operational processes. It also identifies areas where security controls are already present and areas that still require additional hardening before the system can be considered mature from an enterprise security perspective.\par
+
+\pard\b 1.1 Project Overview\par
+\pard\sa180\b0 DayungApp is a digital management system designed around role-based workflows for Dayung units and organization members. The project contains a Flutter client under the main application codebase, a legacy Node.js backend kept for reference and possible SMS restoration, and Supabase-backed services that now handle most modern server responsibilities. Based on the codebase and documentation, the system supports several operational roles including superadmin, president, secretary, treasurer, collector, and member. These roles interact with system modules such as login, registration, membership applications, contribution and payment flows, claims, audit logs, system settings, and day-to-day notifications.\par
+
+\pard\b 1.2 Purpose of the System\par
+\pard\sa180\b0 The purpose of DayungApp is to centralize account management, membership processing, role-based administration, contribution tracking, claim-related workflows, and communication between organization officers and members. Because the application processes personally identifiable information, payment-related records, account credentials, uploaded documents, and administrative settings, security is a core requirement rather than an optional enhancement. The system must protect confidentiality, maintain data integrity, preserve service availability, and ensure that only authorized users can access privileged functions.\par
+
+\pard\b 1.3 Intended Users\par
+\pard\sa180\b0 The intended users of the system are grouped according to role. Superadmins manage global configuration, reports, user lifecycle actions, and protected system administration functions. Presidents, secretaries, treasurers, and collectors work within assigned Dayung units and perform operational tasks based on their respective responsibilities. Members use the system for account access, viewing records, submitting application or claim-related information, and monitoring organization transactions that apply to them. Since not all users should see the same records or perform the same actions, the system depends heavily on role separation and authorization controls.\par
+
+\pard\b 1.4 Platform and Technology Used\par
+\pard\sa180\b0 DayungApp uses Flutter as the main client framework, which allows the same codebase to support mobile and desktop targets. For backend capabilities, the project relies on Supabase Auth for authentication, Supabase PostgreSQL for application data, Supabase Storage for uploaded files, and Supabase Edge Functions for sensitive server-side operations. The repository also shows a legacy Express backend retained mainly for reference and possible SMS work, but privileged SuperAdmin functionality has been moved toward Supabase-native server execution. In addition, the codebase uses helper libraries and internal utilities for input sanitization, secure storage, connectivity handling, HTTP communication, and UI state management.\par
+
+\pard\qc\b\fs28 2. Security Objectives and Requirements\par
+\pard\sa180\b0 The primary security objective of DayungApp is to ensure that every user accesses only the data and features appropriate to their role. This means that the system must authenticate users before granting access, verify their authorization before allowing sensitive actions, and protect data both while it is being transmitted and while it is stored. Another important objective is traceability. Administrative actions such as account creation, password reset, disabling a user, login attempts, and major profile or system events should be logged so that misuse can be investigated.\par
+
+\pard\sa180 The repository's security policy files define several concrete requirements. Passwords must be at least eight characters long and should contain uppercase, lowercase, numeric, and special characters. All users must authenticate through Supabase Auth. Privileged backend actions must verify an authenticated bearer token and confirm that the actor has proper role ownership. Logging must capture significant login and profile events, and production code should avoid ad hoc debugging output during sensitive operations. Operationally, secrets must stay out of source control, and backup, retention, and recovery procedures must be managed outside the mobile application itself.\par
+
+\pard\qc\b\fs28 3. Authentication and Account Security\par
+\pard\sa180\b0 Authentication in DayungApp is centered on Supabase Auth. This is the primary identity provider used by the application when users sign in. The current code also shows that the application contains bcrypt-based password hashing and verification logic in account-related flows, which indicates that password-related data handling has been implemented with stronger cryptographic practices than legacy custom hashing helpers. The documented policy explicitly states that legacy SHA-256 password helpers must not be used, which is an important corrective measure for reducing weak or inconsistent credential handling.\par
+
+\pard\sa180 The login flow performs more than a simple username and password check. Based on the repository, it also checks runtime system conditions such as maintenance mode, records audit events, refreshes role-related information, and routes the user according to role after successful authentication. Password recovery and forced password change flows are also present in the project, which is a positive control because temporary or reset credentials should not remain unchanged indefinitely. In the current architecture, newly created or reset accounts can be flagged to require a password change, helping reduce the risk of long-lived temporary credentials.\par
+
+\pard\sa180 From a security standpoint, these controls improve account protection in several ways. First, users are authenticated through a managed provider instead of through insecure client-only checks. Second, password reset and first-login change requirements reduce the exposure of default credentials. Third, audit logging for authentication-related events improves traceability. However, the system still depends on correct policy enforcement and proper deployment configuration, so strong authentication alone does not solve every access control issue.\par
+
+\pard\qc\b\fs28 4. Authorization and Access Control\par
+\pard\sa180\b0 Authorization in DayungApp is implemented through role-based access control. The roles used in the system include superadmin, president, secretary, treasurer, collector, and member. These roles are reflected both in application behavior and in backend expectations. Superadmins hold the highest privilege level and can perform protected administrative actions such as user lifecycle management, reporting, and system settings control. Operational officers are expected to act within their assigned Dayung units, while members should generally see only their own or unit-appropriate data.\par
+
+\pard\sa180 The application documentation correctly states that client-side visibility rules are not a substitute for backend or database authorization. This is an important principle because simply hiding a button in the Flutter interface does not prevent a determined user from attempting an unauthorized request. To address this, the project uses Supabase Row Level Security and role-aware policies, and it also introduces Supabase Edge Functions for privileged functions that cannot safely run from the client. In particular, the superadmin-admin function is intended to handle actions such as creating users, resetting another user's password, disabling accounts, and reading disabled-aware reports. This design is stronger than performing those tasks directly from the client because it keeps highly privileged operations on the server side.\par
+
+\pard\sa180 At the same time, the repository's RLS review shows that authorization is only partially hardened at present. The review notes that several permissive policies still use conditions equivalent to broad allow rules, which can reopen access that stricter policies were meant to restrict. Sensitive areas identified in the review include users, payments, claims, beneficiaries, audit logs, service checklist data, and storage objects. Therefore, while role segregation exists in the design and in many code paths, the current deployed policy posture should be described as partially implemented rather than fully complete.\par
+
+\pard\b Access Control Matrix\par
+\trowd\trgaph108\trleft0
+\cellx2600\cellx5400\cellx8400\cellx11000
+\intbl\b Role\cell Primary Access\cell Security Responsibility\cell Risk if Misconfigured\cell\row
+\trowd\trgaph108\trleft0
+\cellx2600\cellx5400\cellx8400\cellx11000
+\intbl\b0 Superadmin\cell Global settings, user lifecycle, reports, audit review\cell Highest-privilege operations must remain server-side\cell Full platform compromise\cell\row
+\trowd\trgaph108\trleft0
+\cellx2600\cellx5400\cellx8400\cellx11000
+\intbl President\cell Unit leadership and announcements\cell Must be limited to assigned unit data\cell Cross-unit access or unauthorized broadcasts\cell\row
+\trowd\trgaph108\trleft0
+\cellx2600\cellx5400\cellx8400\cellx11000
+\intbl Secretary\cell Claims, records, unit administration support\cell Needs scoped read and update rights\cell Exposure or alteration of member records\cell\row
+\trowd\trgaph108\trleft0
+\cellx2600\cellx5400\cellx8400\cellx11000
+\intbl Treasurer\cell Financial oversight\cell Must be limited to relevant payment and contribution data\cell Payment leakage or tampering\cell\row
+\trowd\trgaph108\trleft0
+\cellx2600\cellx5400\cellx8400\cellx11000
+\intbl Collector\cell Collection and payment-related workflows\cell Needs unit-scoped operational access only\cell Unauthorized updates to payment records\cell\row
+\trowd\trgaph108\trleft0
+\cellx2600\cellx5400\cellx8400\cellx11000
+\intbl Member\cell Personal profile, applications, claims, notifications\cell Should be restricted to own records and approved views\cell Unauthorized access to other members' data\cell\row
+
+\pard\qc\b\fs28 5. Data Protection and Privacy Controls\par
+\pard\sa180\b0 DayungApp processes several categories of sensitive information, including personal profile data, contact information, role assignments, membership records, payment-related data, claim-related data, and uploaded identity or civil-document files. The security posture for these data types depends on both database restrictions and storage restrictions. Data in transit is expected to move through HTTPS and TLS-protected channels because Supabase-hosted services and authenticated API calls rely on secure transport. This reduces the risk of interception during sign-in, data synchronization, and server communication.\par
+
+\pard\sa180 For stored data, the system separates responsibilities across Supabase database tables and storage buckets. This is a common and practical architecture, but it also means protection must be consistent in both layers. The repository review indicates that many storage buckets are currently configured as public, including buckets used for document-like records such as birth certificates, death certificates, marriage certificates, proof of residency, valid IDs, and QR-related uploads. From a privacy perspective, that is a serious concern because such materials should normally be private and served only through signed URLs or tightly scoped policies. The repository already includes storage-hardening and RLS-cleanup SQL documents, which shows that the development direction is toward stronger protection, but those changes should be applied and verified before claiming full sensitive-data protection.\par
+
+\pard\sa180 The codebase also includes utilities that help move away from unsafe public file access patterns. Repository notes mention the addition of a helper for resolving signed URLs or legacy public URLs. That is a positive technical step because it supports a migration path from public file exposure toward controlled access. In a final secured deployment, sensitive document buckets should not be globally readable, and the application should depend on signed or owner-scoped access whenever users retrieve private uploads.\par
+
+\pard\qc\b\fs28 6. Secure Coding and Input Validation\par
+\pard\sa180\b0 Secure coding practices are visible in multiple parts of the DayungApp codebase. One of the clearest examples is the use of an internal input safety utility that sanitizes plain text, email addresses, phone numbers, search strings, and other user-controlled inputs. Input sanitization reduces the risk that unsafe or malformed data reaches business logic, database writes, or log outputs. This is especially important for registration, profile updates, administrative forms, and search features because those areas frequently handle direct user input.\par
+
+\pard\sa180 Additional secure coding patterns appear in the handling of asynchronous UI flows, navigation safety, and audit logging. Recent repository work removed problematic patterns such as unsafe context use across asynchronous gaps and casual debugging output in sensitive sections. Although these changes are not the same as classic cybersecurity controls, they still improve reliability and reduce the chance that sensitive processes fail unpredictably or expose information through uncontrolled runtime behavior. The documented logging policy also discourages ad hoc print debugging for sensitive operations, which is a sound practice because noisy or unstructured logs can expose information unintentionally.\par
+
+\pard\sa180 Secure coding in this project should continue to focus on minimizing trust in client inputs, validating role-sensitive actions server-side, removing deprecated or legacy credential logic, and making sure that every data access path is consistent with the intended least-privilege model. The project already has a reasonable base for this, but enforcement must remain consistent across the full application.\par
+
+\pard\qc\b\fs28 7. Audit Logging and Monitoring\par
+\pard\sa180\b0 Auditability is one of the stronger design goals visible in the current DayungApp implementation. The system includes an audit_logs table and code paths for logging user activity, access violations, login events, password-related actions, and system errors. There is also a dedicated audit-ingest Supabase Edge Function intended to capture server-side audit records, including failed login attempts that occur before a full user session exists. This is an important improvement because pre-authentication failure events are easy to lose if logging depends entirely on client-side database inserts.\par
+
+\pard\sa180 The presence of dedicated audit logging functions provides several benefits. It creates a more reliable history of sensitive events, supports later investigation, helps detect operational misuse, and improves accountability for privileged actions. The repository also contains a SuperAdmin audit logs page, which suggests that these records are meant to be reviewed through the application instead of being left entirely inaccessible. In an ideal security posture, this kind of monitoring allows administrators to detect unusual patterns such as repeated failed logins, unauthorized access attempts, mass changes to user accounts, or repeated administrative resets.\par
+
+\pard\sa180 However, the RLS review shows that audit log confidentiality and integrity are not yet fully hardened. It specifically notes that current policies around audit_logs are too open, which weakens both privacy and trustworthiness of the records. Security logging is only effective if normal users cannot freely read or manipulate audit entries. Therefore, audit logging in DayungApp is functionally present and architecturally valuable, but it still requires stricter policy enforcement to meet a stronger security standard.\par
+
+\pard\qc\b\fs28 8. Infrastructure, Secrets, and Operational Security\par
+\pard\sa180\b0 DayungApp's documented operational model emphasizes that secrets should not be committed to source control. The README states that real environment files and iOS secret configuration files must not be committed. This is a fundamental security practice because exposed service keys or API tokens can lead directly to backend compromise. The Supabase Edge Function deployment model also assumes the use of environment-provided values such as SUPABASE_URL, SUPABASE_ANON_KEY, and SUPABASE_SERVICE_ROLE_KEY. These should remain in secure deployment environments rather than in application code.\par
+
+\pard\sa180 Moving privileged SuperAdmin actions away from the client and into Supabase Edge Functions is another strong operational improvement. Tasks such as creating users, resetting other users' passwords, disabling accounts, and performing server-side audit inserts should not rely on untrusted clients. By placing these operations behind authenticated server functions, the system reduces exposure of privileged logic and avoids distributing service-role power to the client application.\par
+
+\pard\sa180 The project still maintains a legacy backend folder for reference, particularly around SMS-related work. From a security management perspective, this means the team should be careful not to leave obsolete endpoints or environment files active in deployment if they are no longer part of the main architecture. Operational security is not just about how the intended system works, but also about avoiding forgotten components that might remain reachable without strong controls.\par
+
+\pard\qc\b\fs28 9. Backup, Recovery, and Incident Response\par
+\pard\sa180\b0 The repository's security policies clearly state that backups for database content and storage buckets must be managed outside the mobile application codebase. This is the correct approach because application code should not serve as the backup mechanism for operational data. Backup frequency, retention, and restoration procedures need to be handled in deployment operations or platform administration. In practice, this means the organization operating DayungApp should maintain scheduled backups for the Supabase database and storage content, document restore procedures, and periodically verify that restoration can be performed successfully.\par
+
+\pard\sa180 The documented incident response plan is concise but appropriate. If keys or tokens are exposed, they must be rotated immediately. Audit logs and provider dashboards should be reviewed for suspicious usage. Affected backend endpoints or credentials should be disabled until rotation is complete. Finally, the incident should be documented, including impact, remediation, and follow-up hardening actions. These steps align with standard security response practice and are particularly important for a system that relies on cloud credentials and storage access rules.\par
+
+\pard\sa180 Recovery planning should also consider account compromise, accidental data deletion, and policy misconfiguration. Since the system already depends on role-based records and document uploads, a tested recovery plan is essential. If permissive policies or public buckets expose data, the response process should include rapid containment, policy correction, file access review, and communication to affected stakeholders if required by institutional policy.\par
+
+\pard\qc\b\fs28 10. Security Testing and Assessment\par
+\pard\sa180\b0 The current repository provides several built-in quality and security checking steps. For the Flutter client, the documented commands are flutter analyze and flutter test. For the backend folder, npm run lint and npm run audit:deps are listed. These checks help identify code issues, dependency risks, and static analysis problems before release. They are useful, but they should be considered baseline controls rather than complete security validation.\par
+
+\pard\sa180 The most important assessment insight in the repository comes from the Supabase RLS review. That review concludes that Row Level Security exists across many tables and objects, but least-privilege is not yet complete because several permissive policies remain. It also confirms that multiple storage buckets are public, including buckets associated with sensitive uploaded documents. Based on that review, access control, sensitive data protection, least privilege, and auditability should currently be rated as partially implemented rather than fully complete.\par
+
+\pard\sa180 For a stronger security assessment, DayungApp should complete the following actions: apply the existing RLS cleanup script, apply the storage hardening plan, re-export and verify policies after cleanup, confirm that RLS is enabled on each sensitive table, and replace any remaining application flows that depend on public file URLs or overly broad table reads. Once these steps are finished, the system can better justify stronger claims about confidentiality, authorization, and audit trustworthiness.\par
+
+\pard\qc\b\fs28 11. Summary and Conclusion\par
+\pard\sa180\b0 DayungApp already contains a meaningful set of security controls. The system uses Supabase Auth for authenticated access, implements role-based workflows, supports password reset and forced password change flows, sanitizes user input, records audit events, and moves privileged administrative operations into Supabase Edge Functions. The repository also contains written security policies covering password rules, access expectations, logging, backups, and incident response. These are all indicators that security has been treated as part of the system design.\par
+
+\pard\sa180 At the same time, the security posture is not yet fully hardened. The strongest remaining issues identified in the repository are permissive Row Level Security policies and public storage buckets that expose sensitive document categories beyond a least-privilege model. Because of those findings, the most accurate conclusion is that DayungApp demonstrates a solid security foundation with real implementation effort already visible, but it is still in the process of moving from partially implemented protection to a more complete and defensible production-grade security posture. The next phase of work should focus on policy cleanup, private storage enforcement, signed URL use, and post-hardening verification.\par
+
+\pard\qc\b\fs28 12. Recommendations\par
+\pard\sa180\b0 Based on the current codebase and security documentation, the first recommendation is to finalize Row Level Security hardening across all sensitive tables. Policies that still behave as broad allow rules should be removed or replaced so that role-aware restrictions are not bypassed by permissive conditions. This should be treated as a high-priority activity because database policy mistakes can silently weaken otherwise well-designed application logic.\par
+
+\pard\sa180 The second recommendation is to harden storage access immediately for uploaded documents. Buckets containing valid IDs, civil records, proof of residency, and payment-related uploads should be private, and the application should retrieve those files through signed URLs or owner-scoped access logic. This will significantly improve confidentiality for some of the most sensitive materials processed by the system.\par
+
+\pard\sa180 The third recommendation is to continue strengthening audit protections and administrative isolation. Audit logs should be readable only by authorized administrative roles, and their insert paths should remain server-side for sensitive or pre-authentication events. Privileged administrative actions should continue to move behind Edge Functions or other protected server execution paths so that the mobile client never carries excessive authority.\par
+
+\pard\sa180 The fourth recommendation is procedural. Before final deployment or final defense of the system's security posture, the team should perform a post-hardening verification cycle consisting of policy export review, storage-bucket privacy review, account workflow testing, and evidence capture through screenshots and command output. This will help ensure that the written documentation accurately matches the system that is actually deployed.\par
+
+\pard\qc\b\fs28 Appendix A. Suggested Screenshot Evidence\par
+\pard\sa180\b0 The following screenshots may be inserted in the final academic document to support the discussion above:\par
+\pard\fi360 1. Login screen showing authenticated sign-in entry point.\par
+\pard\fi360 2. Password recovery or forced password change screen.\par
+\pard\fi360 3. SuperAdmin audit logs page.\par
+\pard\fi360 4. SuperAdmin settings page showing maintenance mode and password-change controls.\par
+\pard\fi360 5. Code or configuration evidence of Supabase Edge Functions deployment.\par
+\pard\fi360 6. Security policy document excerpt for password, access, logging, backup, and incident response rules.\par
+\pard\fi360 7. RLS review or SQL cleanup file excerpt showing the hardening process.\par
+\pard\par
+}

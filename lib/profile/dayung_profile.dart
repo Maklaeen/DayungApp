@@ -4,11 +4,11 @@ import 'package:capstone_app/screens/dayung_suggestions.dart'
     hide kPrimary, kAccent, kWarn;
 import 'package:capstone_app/screens/dayung_map_page.dart' as map;
 import 'package:capstone_app/ui/theme/branding.dart';
-import 'package:capstone_app/settings/profsettings.dart' hide kPrimary, kAccent, kWarn;
+import 'package:capstone_app/settings/profsettings.dart'
+    hide kPrimary, kAccent, kWarn;
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-
 
 // Additional colors for manage dayung styling
 const kText = Color(0xFF111827);
@@ -29,7 +29,6 @@ class DayungProfile extends StatefulWidget {
 
 class _DayungProfileState extends State<DayungProfile> with RouteAware {
   RouteObserver<PageRoute>? _routeObserver;
-  int? _currentDayungId;
   String? _currentDayungName;
   Map<String, dynamic>? _currentDayungData;
   bool _loadingDayung = false;
@@ -65,9 +64,6 @@ class _DayungProfileState extends State<DayungProfile> with RouteAware {
   bool _loadingApplied = false;
   List<Map<String, dynamic>> _appliedDayungs = [];
   String? _appliedDebug;
-
-  String _digits(String? s) => (s ?? '').replaceAll(RegExp(r'[^\d]'), '');
-  String _trimLower(String? s) => (s ?? '').trim().toLowerCase();
 
   // ---- Matching helpers (ported from dayungquestion.dart) ----
   List<double> _generatePreferenceVector() {
@@ -835,7 +831,6 @@ class _DayungProfileState extends State<DayungProfile> with RouteAware {
     final obj = provider.dayungUnitObj;
     final name = provider.dayungUnit;
     setState(() {
-      _currentDayungId = obj?['id'] as int?;
       _currentDayungName = name;
       _currentDayungData = obj;
       _loadingDayung = false;
@@ -853,7 +848,8 @@ class _DayungProfileState extends State<DayungProfile> with RouteAware {
 
   // Show requirements sheet for an applied Dayung
   void _showRequirementsSheet(String dayungName, {List<String>? requirements}) {
-    final reqs = requirements ??
+    final reqs =
+        requirements ??
         const [
           'Birth Certificate',
           'Valid Government ID',
@@ -879,7 +875,7 @@ class _DayungProfileState extends State<DayungProfile> with RouteAware {
                   height: 4,
                   margin: const EdgeInsets.only(bottom: 12),
                   decoration: BoxDecoration(
-                    color: kSubText.withOpacity(0.2),
+                    color: kSubText.withValues(alpha: 0.2),
                     borderRadius: BorderRadius.circular(4),
                   ),
                 ),
@@ -922,7 +918,6 @@ class _DayungProfileState extends State<DayungProfile> with RouteAware {
                               context,
                               MaterialPageRoute(
                                 builder: (_) => const ProfSettingsPage(),
-                                
                               ),
                             );
                           },
@@ -1067,7 +1062,7 @@ class _DayungProfileState extends State<DayungProfile> with RouteAware {
                                 Container(
                                   padding: const EdgeInsets.all(8),
                                   decoration: BoxDecoration(
-                                    color: kPrimary.withOpacity(0.08),
+                                    color: kPrimary.withValues(alpha: 0.08),
                                     borderRadius: BorderRadius.circular(8),
                                   ),
                                   child: const Icon(
@@ -1179,26 +1174,27 @@ class _DayungProfileState extends State<DayungProfile> with RouteAware {
                           elevation: 2,
                           padding: const EdgeInsets.symmetric(vertical: 14),
                         ),
-                      onPressed: () async {
-  final selectedDayung = await Navigator.push(
-    context,
-    MaterialPageRoute(
-      builder: (_) => const DayungSuggestionsPage(),
-    ),
-  );
-  if (selectedDayung != null &&
-      selectedDayung is Map<String, dynamic>) {
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          'Application for ${selectedDayung['name']} sent!',
-        ),
-      ),
-    );
-    await _loadCurrentDayung();
-    await _loadAppliedDayungs();
-  }
+                        onPressed: () async {
+                          final messenger = ScaffoldMessenger.of(context);
+                          final selectedDayung = await Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => const DayungSuggestionsPage(),
+                            ),
+                          );
+                          if (!mounted) return;
+                          if (selectedDayung != null &&
+                              selectedDayung is Map<String, dynamic>) {
+                            messenger.showSnackBar(
+                              SnackBar(
+                                content: Text(
+                                  'Application for ${selectedDayung['name']} sent!',
+                                ),
+                              ),
+                            );
+                            await _loadCurrentDayung();
+                            await _loadAppliedDayungs();
+                          }
                         },
                       ),
                     ),
@@ -1255,7 +1251,7 @@ class _DayungProfileState extends State<DayungProfile> with RouteAware {
                                       height: 4,
                                       margin: const EdgeInsets.only(bottom: 12),
                                       decoration: BoxDecoration(
-                                        color: kSubText.withOpacity(0.2),
+                                        color: kSubText.withValues(alpha: 0.2),
                                         borderRadius: BorderRadius.circular(4),
                                       ),
                                     ),
@@ -1337,7 +1333,9 @@ class _DayungProfileState extends State<DayungProfile> with RouteAware {
                                 Container(
                                   padding: const EdgeInsets.all(8),
                                   decoration: BoxDecoration(
-                                    color: kPrimaryLight.withOpacity(0.08),
+                                    color: kPrimaryLight.withValues(
+                                      alpha: 0.08,
+                                    ),
                                     borderRadius: BorderRadius.circular(8),
                                   ),
                                   child: const Icon(
@@ -1396,8 +1394,8 @@ class _DayungProfileState extends State<DayungProfile> with RouteAware {
                                                   bottom: 12,
                                                 ),
                                                 decoration: BoxDecoration(
-                                                  color: kSubText.withOpacity(
-                                                    0.2,
+                                                  color: kSubText.withValues(
+                                                    alpha: 0.2,
                                                   ),
                                                   borderRadius:
                                                       BorderRadius.circular(4),
@@ -1473,7 +1471,9 @@ class _DayungProfileState extends State<DayungProfile> with RouteAware {
                                       ),
                                       margin: const EdgeInsets.only(bottom: 6),
                                       decoration: BoxDecoration(
-                                        color: kPrimaryLight.withOpacity(0.04),
+                                        color: kPrimaryLight.withValues(
+                                          alpha: 0.04,
+                                        ),
                                         borderRadius: BorderRadius.circular(8),
                                       ),
                                       child: Row(
@@ -1527,7 +1527,7 @@ class _DayungProfileState extends State<DayungProfile> with RouteAware {
                                 Container(
                                   padding: const EdgeInsets.all(8),
                                   decoration: BoxDecoration(
-                                    color: kAccent.withOpacity(0.08),
+                                    color: kAccent.withValues(alpha: 0.08),
                                     borderRadius: BorderRadius.circular(8),
                                   ),
                                   child: const Icon(
@@ -1591,8 +1591,8 @@ class _DayungProfileState extends State<DayungProfile> with RouteAware {
                                         fontFamily: 'Montserrat',
                                       ),
                                     ),
-                                    backgroundColor: kAccentDark.withOpacity(
-                                      0.08,
+                                    backgroundColor: kAccentDark.withValues(
+                                      alpha: 0.08,
                                     ),
                                     shape: RoundedRectangleBorder(
                                       borderRadius: BorderRadius.circular(16),
@@ -1624,7 +1624,7 @@ class _DayungProfileState extends State<DayungProfile> with RouteAware {
                                 Container(
                                   padding: const EdgeInsets.all(8),
                                   decoration: BoxDecoration(
-                                    color: kPrimary.withOpacity(0.08),
+                                    color: kPrimary.withValues(alpha: 0.08),
                                     borderRadius: BorderRadius.circular(8),
                                   ),
                                   child: const Icon(
@@ -1672,32 +1672,43 @@ class _DayungProfileState extends State<DayungProfile> with RouteAware {
                               Column(
                                 children: _recommendedUnits.map((d) {
                                   return GestureDetector(
-                        onTap: () async {
-  final result = await Navigator.push(
-    context,
-    MaterialPageRoute(
-      builder: (_) => map.DayungMapPage(
-        dayung: d,
-        isApplied: false,
-        isMember: false,
-      ),
-    ),
-  );
-  if (result != null && mounted) {
-    if (result is Map && result['applied'] == true) {
-      await _loadAppliedDayungs();
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Application for ${d['name']} sent!')),
-      );
-    }
-    await _loadCurrentDayung();
-  }
+                                    onTap: () async {
+                                      final messenger = ScaffoldMessenger.of(
+                                        context,
+                                      );
+                                      final result = await Navigator.push(
+                                        context,
+                                        MaterialPageRoute(
+                                          builder: (_) => map.DayungMapPage(
+                                            dayung: d,
+                                            isApplied: false,
+                                            isMember: false,
+                                          ),
+                                        ),
+                                      );
+                                      if (!mounted) return;
+                                      if (result != null) {
+                                        if (result is Map &&
+                                            result['applied'] == true) {
+                                          await _loadAppliedDayungs();
+                                          messenger.showSnackBar(
+                                            SnackBar(
+                                              content: Text(
+                                                'Application for ${d['name']} sent!',
+                                              ),
+                                            ),
+                                          );
+                                        }
+                                        await _loadCurrentDayung();
+                                      }
                                     },
                                     child: Container(
                                       margin: const EdgeInsets.only(bottom: 8),
                                       padding: const EdgeInsets.all(12),
                                       decoration: BoxDecoration(
-                                        color: kPrimaryLight.withOpacity(0.04),
+                                        color: kPrimaryLight.withValues(
+                                          alpha: 0.04,
+                                        ),
                                         borderRadius: BorderRadius.circular(8),
                                       ),
                                       child: Column(
@@ -1799,7 +1810,7 @@ class _DayungProfileState extends State<DayungProfile> with RouteAware {
           borderRadius: BorderRadius.circular(28),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.08),
+              color: Colors.black.withValues(alpha: 0.08),
               blurRadius: 16,
               offset: const Offset(0, 6),
             ),
@@ -1811,7 +1822,7 @@ class _DayungProfileState extends State<DayungProfile> with RouteAware {
             // Avatar with icon
             Container(
               decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.18),
+                color: Colors.white.withValues(alpha: 0.18),
                 shape: BoxShape.circle,
               ),
               padding: EdgeInsets.all(isWide ? 18 : 12),
@@ -1845,7 +1856,7 @@ class _DayungProfileState extends State<DayungProfile> with RouteAware {
                         ? _address(_currentDayungData!)
                         : 'No address set',
                     style: TextStyle(
-                      color: Colors.white.withOpacity(0.92),
+                      color: Colors.white.withValues(alpha: 0.92),
                       fontSize: isWide ? 16 : 13,
                       fontFamily: 'OpenSans',
                     ),

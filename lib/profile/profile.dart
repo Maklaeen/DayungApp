@@ -10,6 +10,7 @@ import 'package:capstone_app/Providers/dayung_provider.dart';
 import 'package:capstone_app/Providers/dayung_role_provider.dart';
 import 'package:capstone_app/profile/required_application_page.dart'
     hide kAccent;
+import 'package:capstone_app/SuperAdmin/superadmin_support.dart';
 import 'package:capstone_app/ui/loading/page_skeleton.dart';
 import 'package:capstone_app/ui/theme/branding.dart';
 import 'package:capstone_app/utils/input_safety.dart';
@@ -78,7 +79,6 @@ class _ProfilePageState extends State<ProfilePage> {
   bool _obscureCur = true;
   bool _obscureNew = true;
   bool _obscureConf = true;
-  bool _loggingOut = false;
   bool isLoading = true;
   bool _editing = false;
   bool _saving = false;
@@ -114,13 +114,11 @@ class _ProfilePageState extends State<ProfilePage> {
     super.dispose();
   }
 
-  Future<void> _logAudit(String action) async {
-    final user = supabase.auth.currentUser;
-    if (user == null) return;
-    await supabase.from('audit_logs').insert({
-      'action': action,
-      'user_id': user.id,
-    });
+  Future<void> _logAudit(
+    String eventName, {
+    Map<String, dynamic>? fields,
+  }) async {
+    await logAuditEvent(eventName, fields: fields);
   }
 
   Future<void> _loadUnitAtEntry() async {
@@ -180,7 +178,7 @@ class _ProfilePageState extends State<ProfilePage> {
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(14),
           borderSide: BorderSide(
-            color: error ? kWarn : kBorderColor.withOpacity(0.7),
+            color: error ? kWarn : kBorderColor.withValues(alpha: 0.7),
           ),
         ),
         focusedBorder: OutlineInputBorder(
@@ -214,7 +212,7 @@ class _ProfilePageState extends State<ProfilePage> {
     await showGeneralDialog<void>(
       context: context,
       barrierDismissible: !saving,
-      barrierColor: Colors.black.withOpacity(0.35),
+      barrierColor: Colors.black.withValues(alpha: 0.35),
       barrierLabel: 'Change Password',
       transitionDuration: const Duration(milliseconds: 220),
       pageBuilder: (_, __, ___) => const SizedBox.shrink(),
@@ -250,7 +248,7 @@ class _ProfilePageState extends State<ProfilePage> {
                         borderRadius: BorderRadius.circular(22),
                         boxShadow: [
                           BoxShadow(
-                            color: Colors.black.withOpacity(0.10),
+                            color: Colors.black.withValues(alpha: 0.10),
                             blurRadius: 24,
                             offset: const Offset(0, 12),
                           ),
@@ -269,7 +267,9 @@ class _ProfilePageState extends State<ProfilePage> {
                               children: [
                                 Container(
                                   decoration: BoxDecoration(
-                                    color: kPrimaryLight.withOpacity(0.12),
+                                    color: kPrimaryLight.withValues(
+                                      alpha: 0.12,
+                                    ),
                                     borderRadius: BorderRadius.circular(12),
                                   ),
                                   padding: const EdgeInsets.all(8),
@@ -407,9 +407,153 @@ class _ProfilePageState extends State<ProfilePage> {
                                     onPressed: saving
                                         ? null
                                         : () async {
+                                            final currentPassword =
+                                                _currentPwController.text;
+                                            final newPassword =
+                                                _newPwController.text;
+                                            final confirmPassword =
+                                                _confirmPwController.text;
+
+                                            setD(() {
+                                              curErr = null;
+                                              newErr = null;
+                                              confErr = null;
+                                              genErr = null;
+                                            });
+
+                                            if (currentPassword
+                                                .trim()
+                                                .isEmpty) {
+                                              setD(
+                                                () => curErr =
+                                                    'Current password is required.',
+                                              );
+                                              return;
+                                            }
+
+                                            if (AppInputSecurity.hasBlockedPayload(
+                                              currentPassword,
+                                            )) {
+                                              setD(
+                                                () => curErr =
+                                                    'Current password contains invalid content.',
+                                              );
+                                              return;
+                                            }
+
+                                            if (newPassword.length < 8) {
+                                              setD(
+                                                () => newErr =
+                                                    'New password must be at least 8 characters.',
+                                              );
+                                              return;
+                                            }
+
+                                            if (newPassword.length > 72) {
+                                              setD(
+                                                () => newErr =
+                                                    'New password must be 72 characters or less.',
+                                              );
+                                              return;
+                                            }
+
+                                            if (AppInputSecurity.hasBlockedPayload(
+                                              newPassword,
+                                            )) {
+                                              setD(
+                                                () => newErr =
+                                                    'New password contains invalid content.',
+                                              );
+                                              return;
+                                            }
+
+                                            if (newPassword ==
+                                                currentPassword) {
+                                              setD(
+                                                () => newErr =
+                                                    'New password must be different from the current password.',
+                                              );
+                                              return;
+                                            }
+
+                                            if (confirmPassword !=
+                                                newPassword) {
+                                              setD(
+                                                () => confErr =
+                                                    'Confirmation does not match the new password.',
+                                              );
+                                              return;
+                                            }
+
+                                            final currentUser =
+                                                supabase.auth.currentUser;
+                                            final currentEmail =
+                                                currentUser?.email ??
+                                                email.trim();
+                                            if (currentUser == null ||
+                                                currentEmail.isEmpty) {
+                                              setD(
+                                                () => genErr =
+                                                    'Your session expired. Please sign in again.',
+                                              );
+                                              return;
+                                            }
+
                                             setD(() => saving = true);
-                                            // Add your password change logic here, including validation and error handling.
-                                            // Set curErr, newErr, confErr, genErr as needed, and setD(() => saving = false) when done.
+
+                                            try {
+                                              await supabase.auth
+                                                  .signInWithPassword(
+                                                    email: currentEmail,
+                                                    password: currentPassword,
+                                                  );
+
+                                              await supabase.auth.updateUser(
+                                                UserAttributes(
+                                                  password: newPassword,
+                                                ),
+                                              );
+
+                                              await _logAudit(
+                                                'USER_ACTIVITY_PASSWORD_CHANGED',
+                                                fields: {
+                                                  'source': 'profile_page',
+                                                },
+                                              );
+
+                                              if (!ctx.mounted) return;
+                                              Navigator.pop(ctx);
+                                              _showTopPopup(
+                                                'Password updated successfully',
+                                              );
+                                            } on AuthException catch (error) {
+                                              final message = error.message
+                                                  .toLowerCase();
+                                              if (message.contains(
+                                                    'invalid login credentials',
+                                                  ) ||
+                                                  message.contains(
+                                                    'invalid credentials',
+                                                  )) {
+                                                setD(
+                                                  () => curErr =
+                                                      'Current password is incorrect.',
+                                                );
+                                              } else {
+                                                setD(
+                                                  () => genErr = error.message,
+                                                );
+                                              }
+                                            } catch (_) {
+                                              setD(
+                                                () => genErr =
+                                                    'Unable to change password right now. Please try again.',
+                                              );
+                                            } finally {
+                                              if (ctx.mounted) {
+                                                setD(() => saving = false);
+                                              }
+                                            }
                                           },
                                   ),
                                 ),
@@ -421,158 +565,6 @@ class _ProfilePageState extends State<ProfilePage> {
                     ),
                   );
                 },
-              ),
-            ),
-          ),
-        );
-      },
-    );
-  }
-
-  Future<bool?> _showLogoutConfirmDialog() {
-    return showGeneralDialog<bool>(
-      context: context,
-      barrierLabel: 'Logout',
-      barrierDismissible: true,
-      barrierColor: Colors.black.withOpacity(0.35),
-      transitionDuration: const Duration(milliseconds: 220),
-      pageBuilder: (_, __, ___) => const SizedBox.shrink(),
-      transitionBuilder: (ctx, anim, __, ___) {
-        final curved = CurvedAnimation(
-          parent: anim,
-          curve: Curves.easeOutCubic,
-          reverseCurve: Curves.easeInCubic,
-        );
-        return FadeTransition(
-          opacity: curved,
-          child: ScaleTransition(
-            scale: Tween<double>(begin: 0.96, end: 1.0).animate(curved),
-            child: Center(
-              child: Material(
-                color: Colors.transparent,
-                child: ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 520),
-                  child: Container(
-                    margin: const EdgeInsets.symmetric(horizontal: 24),
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 20,
-                      vertical: 18,
-                    ),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(18),
-                      border: Border.all(color: kWarn.withOpacity(0.35)),
-                      boxShadow: const [
-                        BoxShadow(
-                          color: Colors.black26,
-                          blurRadius: 18,
-                          offset: Offset(0, 12),
-                        ),
-                      ],
-                    ),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Container(
-                              width: 40,
-                              height: 40,
-                              decoration: BoxDecoration(
-                                color: kWarn.withOpacity(0.12),
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              child: const Icon(Icons.logout, color: kWarn),
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: const [
-                                  Text(
-                                    'Log out?',
-                                    style: TextStyle(
-                                      color: kText,
-                                      fontSize: 18,
-                                      fontWeight: FontWeight.w800,
-                                    ),
-                                  ),
-                                  SizedBox(height: 6),
-                                  Text(
-                                    'You will be logged out of your account on this device. You can sign in again anytime.',
-                                    style: TextStyle(
-                                      color: kSubText,
-                                      fontSize: 16,
-                                      height: 1.35,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            IconButton(
-                              onPressed: () => Navigator.of(ctx).pop(false),
-                              icon: const Icon(Icons.close, color: kSubText),
-                              tooltip: 'Close',
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 16),
-                        Row(
-                          children: [
-                            Expanded(
-                              child: SizedBox(
-                                height: 48,
-                                child: OutlinedButton(
-                                  onPressed: () => Navigator.of(ctx).pop(false),
-                                  style: OutlinedButton.styleFrom(
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(12),
-                                    ),
-                                    side: const BorderSide(
-                                      color: kAccent,
-                                      width: 1.5,
-                                    ),
-                                    foregroundColor: kAccent,
-                                  ),
-                                  child: const Text(
-                                    'Stay logged in',
-                                    style: TextStyle(
-                                      fontWeight: FontWeight.w700,
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: SizedBox(
-                                height: 48,
-                                child: ElevatedButton(
-                                  onPressed: () => Navigator.of(ctx).pop(true),
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: kWarn,
-                                    foregroundColor: Colors.white,
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(12),
-                                    ),
-                                    elevation: 0,
-                                  ),
-                                  child: const Text(
-                                    'Log out',
-                                    style: TextStyle(
-                                      fontWeight: FontWeight.w700,
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
               ),
             ),
           ),
@@ -718,6 +710,7 @@ class _ProfilePageState extends State<ProfilePage> {
     if (crop == null) return;
 
     final croppedBytes = await File(crop.path).readAsBytes();
+    if (!mounted) return;
 
     final ok = await showDialog<bool>(
       context: context,
@@ -979,15 +972,15 @@ class _ProfilePageState extends State<ProfilePage> {
                     vertical: 14,
                   ),
                   decoration: BoxDecoration(
-                    color: color.withOpacity(0.38),
+                    color: color.withValues(alpha: 0.38),
                     borderRadius: BorderRadius.circular(18),
                     border: Border.all(
-                      color: Colors.white.withOpacity(0.18),
+                      color: Colors.white.withValues(alpha: 0.18),
                       width: 1.2,
                     ),
                     boxShadow: [
                       BoxShadow(
-                        color: color.withOpacity(0.18),
+                        color: color.withValues(alpha: 0.18),
                         blurRadius: 12,
                         offset: const Offset(0, 4),
                       ),
@@ -1051,7 +1044,6 @@ class _ProfilePageState extends State<ProfilePage> {
         if (fileName != null && fileName.isNotEmpty) {
           await supabase.storage.from('avatars').remove([fileName]);
         }
-        await _logAudit('Updated profile picture');
       }
 
       // 2. Upload new image
@@ -1084,12 +1076,15 @@ class _ProfilePageState extends State<ProfilePage> {
         profileUrl = publicUrl;
         _uploadingImage = false;
       });
-      ScaffoldMessenger.of(context);
+      await _logAudit(
+        'USER_ACTIVITY_PROFILE_PICTURE_UPDATED',
+        fields: {'source': 'profile_page'},
+      );
+      if (!mounted) return;
       _showTopPopup('Profile photo updated');
     } catch (e) {
       if (!mounted) return;
       setState(() => _uploadingImage = false);
-      ScaffoldMessenger.of(context);
       _showTopPopup(
         'Upload error: $e',
         color: kWarn,
@@ -1198,6 +1193,10 @@ class _ProfilePageState extends State<ProfilePage> {
           profileUrl = (row['profile_url'] ?? profileUrl)?.toString();
           _editing = false;
         });
+        await _logAudit(
+          'USER_ACTIVITY_PROFILE_UPDATED',
+          fields: {'source': 'profile_page'},
+        );
         _showTopPopup('Profile updated successfully');
       }
     } catch (e) {
@@ -1210,33 +1209,15 @@ class _ProfilePageState extends State<ProfilePage> {
     } finally {
       if (mounted) setState(() => _saving = false);
     }
-    await _logAudit('Updated profile information');
-  }
-
-  Future<void> _confirmLogout() async {
-    final ok = await _showLogoutConfirmDialog();
-    if (ok == true) {
-      await Supabase.instance.client.auth.signOut();
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.remove('selectedDayungUnit');
-      await prefs.remove('selectedDayungUnitData');
-
-      try {
-        if (mounted) {
-          context.read<DayungUnitProvider>().clear();
-        }
-      } catch (_) {}
-
-      if (!mounted) return;
-      Navigator.of(context).pushAndRemoveUntil(
-        MaterialPageRoute(builder: (_) => const Login()),
-        (route) => false,
-      );
-    }
   }
 
   Future<void> handleLogout(BuildContext context) async {
-    setState(() => _loggingOut = true);
+    final dayungUnitProvider = context.read<DayungUnitProvider>();
+    final dayungRoleProvider = context.read<DayungRoleProvider>();
+    await logAuditEvent(
+      'USER_ACTIVITY_SIGN_OUT',
+      fields: {'source': 'profile_page'},
+    );
     try {
       await Supabase.instance.client.auth.signOut();
     } catch (_) {}
@@ -1245,18 +1226,19 @@ class _ProfilePageState extends State<ProfilePage> {
     await prefs.remove('selectedDayungUnit');
     await prefs.remove('selectedDayungUnitData');
 
+    if (!context.mounted) return;
+
     try {
-      context.read<DayungUnitProvider>().clear();
+      dayungUnitProvider.clear();
     } catch (_) {}
     try {
-      await context.read<DayungRoleProvider>().refreshRoles(null);
+      await dayungRoleProvider.refreshRoles(null);
     } catch (_) {}
 
     if (!context.mounted) return;
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!context.mounted) return;
-      setState(() => _loggingOut = false);
       Navigator.of(context).pushAndRemoveUntil(
         MaterialPageRoute(builder: (_) => const Login()),
         (route) => false,
@@ -1316,7 +1298,7 @@ class _ProfilePageState extends State<ProfilePage> {
                     ),
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.black.withOpacity(0.05),
+                        color: Colors.black.withValues(alpha: 0.05),
                         blurRadius: 18,
                         offset: const Offset(0, -4),
                       ),
@@ -1347,11 +1329,13 @@ class _ProfilePageState extends State<ProfilePage> {
                                   color: themeCard,
                                   borderRadius: BorderRadius.circular(24),
                                   border: Border.all(
-                                    color: kBorderColor.withOpacity(0.75),
+                                    color: kBorderColor.withValues(alpha: 0.75),
                                   ),
                                   boxShadow: [
                                     BoxShadow(
-                                      color: Colors.black.withOpacity(0.04),
+                                      color: Colors.black.withValues(
+                                        alpha: 0.04,
+                                      ),
                                       blurRadius: 14,
                                       offset: const Offset(0, 4),
                                     ),
@@ -1498,10 +1482,10 @@ class _ProfilePageState extends State<ProfilePage> {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(22),
-        border: Border.all(color: kBorderColor.withOpacity(0.9)),
+        border: Border.all(color: kBorderColor.withValues(alpha: 0.9)),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.04),
+            color: Colors.black.withValues(alpha: 0.04),
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),
@@ -1519,7 +1503,7 @@ class _ProfilePageState extends State<ProfilePage> {
                   borderRadius: BorderRadius.circular(44),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withOpacity(0.08),
+                      color: Colors.black.withValues(alpha: 0.08),
                       blurRadius: 12,
                       offset: const Offset(0, 4),
                     ),
@@ -1637,7 +1621,7 @@ class _ProfilePageState extends State<ProfilePage> {
       decoration: BoxDecoration(
         color: const Color(0xFFF8FAFC),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: kBorderColor.withOpacity(0.9)),
+        border: Border.all(color: kBorderColor.withValues(alpha: 0.9)),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1645,7 +1629,7 @@ class _ProfilePageState extends State<ProfilePage> {
           Container(
             padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
-              color: kPrimary.withOpacity(0.08),
+              color: kPrimary.withValues(alpha: 0.08),
               borderRadius: BorderRadius.circular(12),
             ),
             child: Icon(icon, size: 18, color: kPrimary),
@@ -1701,7 +1685,7 @@ class _ProfilePageState extends State<ProfilePage> {
           borderRadius: BorderRadius.circular(28),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.08),
+              color: Colors.black.withValues(alpha: 0.08),
               blurRadius: 16,
               offset: const Offset(0, 6),
             ),
@@ -1714,7 +1698,7 @@ class _ProfilePageState extends State<ProfilePage> {
               children: [
                 Container(
                   decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.18),
+                    color: Colors.white.withValues(alpha: 0.18),
                     borderRadius: BorderRadius.circular(14),
                   ),
                   // child: IconButton(
@@ -1743,7 +1727,7 @@ class _ProfilePageState extends State<ProfilePage> {
                       Text(
                         'Simple account details in one place.',
                         style: TextStyle(
-                          color: Colors.white.withOpacity(0.88),
+                          color: Colors.white.withValues(alpha: 0.88),
                           fontSize: isWide ? 14 : 12,
                           height: 1.4,
                           fontFamily: 'OpenSans',
@@ -1787,9 +1771,9 @@ class _ProfilePageState extends State<ProfilePage> {
               width: double.infinity,
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
               decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.14),
+                color: Colors.white.withValues(alpha: 0.14),
                 borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: Colors.white.withOpacity(0.12)),
+                border: Border.all(color: Colors.white.withValues(alpha: 0.12)),
               ),
               child: Row(
                 children: [
@@ -1805,7 +1789,7 @@ class _ProfilePageState extends State<ProfilePage> {
                           ? 'You can now update your details. Tap your photo if you want to change it.'
                           : 'Review your profile details below.',
                       style: TextStyle(
-                        color: Colors.white.withOpacity(0.94),
+                        color: Colors.white.withValues(alpha: 0.94),
                         fontSize: 12,
                         height: 1.4,
                         fontFamily: 'OpenSans',
@@ -2046,14 +2030,14 @@ class _ProfilePageState extends State<ProfilePage> {
         borderRadius: BorderRadius.circular(18),
         border: Border.all(
           color: _editing
-              ? kPrimaryLight.withOpacity(0.18)
-              : kBorderColor.withOpacity(0.7),
+              ? kPrimaryLight.withValues(alpha: 0.18)
+              : kBorderColor.withValues(alpha: 0.7),
           width: 1,
         ),
         boxShadow: [
           if (!_editing)
             BoxShadow(
-              color: Colors.black.withOpacity(0.03),
+              color: Colors.black.withValues(alpha: 0.03),
               blurRadius: 6,
               offset: const Offset(0, 2),
             ),
@@ -2069,7 +2053,7 @@ class _ProfilePageState extends State<ProfilePage> {
                 Container(
                   padding: const EdgeInsets.all(6),
                   decoration: BoxDecoration(
-                    color: kPrimary.withOpacity(0.08),
+                    color: kPrimary.withValues(alpha: 0.08),
                     borderRadius: BorderRadius.circular(6),
                   ),
                   child: Icon(icon, size: 16, color: kPrimary),

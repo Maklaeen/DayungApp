@@ -138,7 +138,10 @@ class _ManageRulesPagePresState extends State<ManageRulesPagePres> {
               children: const [
                 Icon(Icons.check_circle, color: Colors.white),
                 SizedBox(width: 12),
-                Text('Rules saved', style: TextStyle(fontWeight: FontWeight.bold)),
+                Text(
+                  'Rules saved',
+                  style: TextStyle(fontWeight: FontWeight.bold),
+                ),
               ],
             ),
             backgroundColor: kAccent,
@@ -228,12 +231,12 @@ class _ManageRulesPagePresState extends State<ManageRulesPagePres> {
                           color: kCardBg,
                           borderRadius: BorderRadius.circular(20),
                           border: Border.all(
-                            color: kBorderColor.withOpacity(0.3),
+                            color: kBorderColor.withValues(alpha: 0.3),
                             width: 1,
                           ),
                           boxShadow: [
                             BoxShadow(
-                              color: Colors.black.withOpacity(0.05),
+                              color: Colors.black.withValues(alpha: 0.05),
                               blurRadius: 15,
                               offset: const Offset(0, 6),
                             ),
@@ -370,10 +373,13 @@ class _ManageRulesPagePresState extends State<ManageRulesPagePres> {
       decoration: BoxDecoration(
         color: kCardBg,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: kBorderColor.withOpacity(0.3), width: 1),
+        border: Border.all(
+          color: kBorderColor.withValues(alpha: 0.3),
+          width: 1,
+        ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
+            color: Colors.black.withValues(alpha: 0.05),
             blurRadius: 15,
             offset: const Offset(0, 6),
           ),
@@ -384,7 +390,7 @@ class _ManageRulesPagePresState extends State<ManageRulesPagePres> {
           Container(
             padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
-              color: kPrimary.withOpacity(0.1),
+              color: kPrimary.withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(12),
             ),
             child: const Icon(
@@ -524,21 +530,17 @@ class _ManageRulesPagePresState extends State<ManageRulesPagePres> {
             ),
           ),
           const SizedBox(width: 16),
-          Row(
-            children: [
-              Radio<bool>(
-                value: true,
-                groupValue: _openForAll,
-                onChanged: (v) => setState(() => _openForAll = v ?? false),
-              ),
-              const Text('Yes'),
-              Radio<bool>(
-                value: false,
-                groupValue: _openForAll,
-                onChanged: (v) => setState(() => _openForAll = v ?? false),
-              ),
-              const Text('No'),
-            ],
+          RadioGroup<bool>(
+            groupValue: _openForAll,
+            onChanged: (value) => setState(() => _openForAll = value ?? false),
+            child: Row(
+              children: const [
+                Radio<bool>(value: true),
+                Text('Yes'),
+                Radio<bool>(value: false),
+                Text('No'),
+              ],
+            ),
           ),
         ],
       ),
@@ -560,21 +562,17 @@ class _ManageRulesPagePresState extends State<ManageRulesPagePres> {
             ),
           ),
           const SizedBox(width: 16),
-          Row(
-            children: [
-              Radio<bool>(
-                value: true,
-                groupValue: _hasService,
-                onChanged: (v) => setState(() => _hasService = v ?? false),
-              ),
-              const Text('Yes'),
-              Radio<bool>(
-                value: false,
-                groupValue: _hasService,
-                onChanged: (v) => setState(() => _hasService = v ?? false),
-              ),
-              const Text('No'),
-            ],
+          RadioGroup<bool>(
+            groupValue: _hasService,
+            onChanged: (value) => setState(() => _hasService = value ?? false),
+            child: Row(
+              children: const [
+                Radio<bool>(value: true),
+                Text('Yes'),
+                Radio<bool>(value: false),
+                Text('No'),
+              ],
+            ),
           ),
         ],
       ),

@@ -771,7 +771,6 @@ class _SecretaryApplicationsPageState extends State<SecretaryApplicationsPage> {
                   return {'user': user, 'docs': docs};
                 }(),
                 builder: (context, snap) {
-                  final loading = snap.connectionState != ConnectionState.done;
                   final user = snap.data != null
                       ? (snap.data!['user'] as Map<String, dynamic>? ?? {})
                       : {};
@@ -865,8 +864,8 @@ class _SecretaryApplicationsPageState extends State<SecretaryApplicationsPage> {
                                 children: [
                                   CircleAvatar(
                                     radius: 32,
-                                    backgroundColor: kPrimaryLight.withOpacity(
-                                      0.15,
+                                    backgroundColor: kPrimaryLight.withValues(
+                                      alpha: 0.15,
                                     ),
                                     child: Icon(
                                       Icons.person,
@@ -1145,7 +1144,7 @@ class _SecretaryApplicationsPageState extends State<SecretaryApplicationsPage> {
                   ),
                   boxShadow: [
                     BoxShadow(
-                      color: kPrimaryDark.withOpacity(0.3),
+                      color: kPrimaryDark.withValues(alpha: 0.3),
                       blurRadius: 20,
                       offset: const Offset(0, 8),
                     ),
@@ -1238,7 +1237,10 @@ class _SecretaryApplicationsPageState extends State<SecretaryApplicationsPage> {
               // Add search bar for Pending filter
               if (_filter == 'pending')
                 Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 20,
+                    vertical: 4,
+                  ),
                   child: TextField(
                     decoration: InputDecoration(
                       hintText: 'Search member...',
@@ -1267,12 +1269,12 @@ class _SecretaryApplicationsPageState extends State<SecretaryApplicationsPage> {
                               color: kCardBg,
                               borderRadius: BorderRadius.circular(20),
                               border: Border.all(
-                                color: kBorderColor.withOpacity(0.3),
+                                color: kBorderColor.withValues(alpha: 0.3),
                                 width: 1,
                               ),
                               boxShadow: [
                                 BoxShadow(
-                                  color: Colors.black.withOpacity(0.05),
+                                  color: Colors.black.withValues(alpha: 0.05),
                                   blurRadius: 15,
                                   offset: const Offset(0, 6),
                                 ),
@@ -1308,12 +1310,12 @@ class _SecretaryApplicationsPageState extends State<SecretaryApplicationsPage> {
                               color: kCardBg,
                               borderRadius: BorderRadius.circular(20),
                               border: Border.all(
-                                color: kBorderColor.withOpacity(0.3),
+                                color: kBorderColor.withValues(alpha: 0.3),
                                 width: 1,
                               ),
                               boxShadow: [
                                 BoxShadow(
-                                  color: Colors.black.withOpacity(0.05),
+                                  color: Colors.black.withValues(alpha: 0.05),
                                   blurRadius: 15,
                                   offset: const Offset(0, 6),
                                 ),
@@ -1356,21 +1358,30 @@ class _SecretaryApplicationsPageState extends State<SecretaryApplicationsPage> {
                           child: ListView.separated(
                             physics: const AlwaysScrollableScrollPhysics(),
                             itemCount: _filter == 'pending'
-                              ? _apps.where((app) {
-                                  final user = app['users'] as Map<String, dynamic>?;
-                                  final name = (user?['full_name'] ?? '').toString().toLowerCase();
-                                  return _searchQuery.isEmpty || name.contains(_searchQuery);
-                                }).length
-                              : _apps.length,
-                            separatorBuilder: (_, __) => const SizedBox(height: 12),
+                                ? _apps.where((app) {
+                                    final user =
+                                        app['users'] as Map<String, dynamic>?;
+                                    final name = (user?['full_name'] ?? '')
+                                        .toString()
+                                        .toLowerCase();
+                                    return _searchQuery.isEmpty ||
+                                        name.contains(_searchQuery);
+                                  }).length
+                                : _apps.length,
+                            separatorBuilder: (_, __) =>
+                                const SizedBox(height: 12),
                             itemBuilder: (context, i) {
                               final filteredApps = _filter == 'pending'
-                                ? _apps.where((app) {
-                                    final user = app['users'] as Map<String, dynamic>?;
-                                    final name = (user?['full_name'] ?? '').toString().toLowerCase();
-                                    return _searchQuery.isEmpty || name.contains(_searchQuery);
-                                  }).toList()
-                                : _apps;
+                                  ? _apps.where((app) {
+                                      final user =
+                                          app['users'] as Map<String, dynamic>?;
+                                      final name = (user?['full_name'] ?? '')
+                                          .toString()
+                                          .toLowerCase();
+                                      return _searchQuery.isEmpty ||
+                                          name.contains(_searchQuery);
+                                    }).toList()
+                                  : _apps;
                               final app = filteredApps[i];
                               final user =
                                   app['users'] as Map<String, dynamic>?;
@@ -1389,12 +1400,14 @@ class _SecretaryApplicationsPageState extends State<SecretaryApplicationsPage> {
                                   color: kCardBg,
                                   borderRadius: BorderRadius.circular(16),
                                   border: Border.all(
-                                    color: kBorderColor.withOpacity(0.3),
+                                    color: kBorderColor.withValues(alpha: 0.3),
                                     width: 1,
                                   ),
                                   boxShadow: [
                                     BoxShadow(
-                                      color: Colors.black.withOpacity(0.05),
+                                      color: Colors.black.withValues(
+                                        alpha: 0.05,
+                                      ),
                                       blurRadius: 10,
                                       offset: const Offset(0, 4),
                                     ),
@@ -1406,7 +1419,7 @@ class _SecretaryApplicationsPageState extends State<SecretaryApplicationsPage> {
                                     Container(
                                       padding: const EdgeInsets.all(12),
                                       decoration: BoxDecoration(
-                                        color: kPrimary.withOpacity(0.1),
+                                        color: kPrimary.withValues(alpha: 0.1),
                                         borderRadius: BorderRadius.circular(12),
                                       ),
                                       child: Text(

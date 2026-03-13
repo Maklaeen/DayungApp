@@ -1,9 +1,11 @@
 import 'dart:convert';
 import 'package:bcrypt/bcrypt.dart';
+import 'package:capstone_app/Auth/force_password_change_page.dart';
 import 'package:capstone_app/Providers/role_router.dart';
 import 'package:capstone_app/ui/theme/branding.dart';
 import 'package:capstone_app/Providers/dayung_provider.dart';
 import 'package:capstone_app/Providers/dayung_role_provider.dart';
+import 'package:capstone_app/SuperAdmin/superadmin_support.dart';
 import 'package:capstone_app/screens/selectdayung.dart'
     hide kAccent, kPrimary, kBg;
 import 'package:capstone_app/utils/input_safety.dart';
@@ -41,162 +43,13 @@ class _LoginState extends State<Login> {
   bool _obscurePassword = true;
 
   Future<void> _forgotPassword() async {
-    final forgotEmailController = TextEditingController(
-      text:
-          _looksLikeEmail(AppInputSecurity.sanitizeEmail(emailController.text))
-          ? AppInputSecurity.sanitizeEmail(emailController.text)
-          : '',
+    await _showErrorDialog(
+      'Forgot Password Unavailable',
+      'Forgot password is under maintenance, please contact admin for assistance.',
+      color: kWarn,
+      icon: Icons.build_circle_outlined,
+      actionLabel: 'OK',
     );
-    final forgotFormKey = GlobalKey<FormState>();
-    bool submitting = false;
-
-    await showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      showDragHandle: true,
-      backgroundColor: Colors.transparent,
-      builder: (sheetContext) {
-        return StatefulBuilder(
-          builder: (sheetContext, setSheetState) {
-            Future<void> submitReset() async {
-              if (!forgotFormKey.currentState!.validate()) return;
-
-              setSheetState(() => submitting = true);
-              final email = AppInputSecurity.sanitizeEmail(
-                forgotEmailController.text,
-              );
-
-              try {
-                await Supabase.instance.client.auth.resetPasswordForEmail(
-                  email,
-                );
-                if (sheetContext.mounted) {
-                  Navigator.of(sheetContext).pop();
-                }
-                await _showErrorDialog(
-                  'Check Your Email',
-                  'We sent a password reset link to $email.',
-                  color: kAccent,
-                  icon: Icons.mark_email_read_outlined,
-                  actionLabel: 'OK',
-                );
-              } catch (_) {
-                if (sheetContext.mounted) {
-                  setSheetState(() => submitting = false);
-                }
-                await _showErrorDialog(
-                  'Reset Failed',
-                  'Could not send reset link. Please check the email and try again.',
-                );
-              }
-            }
-
-            final bottomInset = MediaQuery.of(sheetContext).viewInsets.bottom;
-            return Padding(
-              padding: EdgeInsets.only(bottom: bottomInset),
-              child: SafeArea(
-                top: false,
-                child: Container(
-                  decoration: const BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.vertical(
-                      top: Radius.circular(28),
-                    ),
-                  ),
-                  child: Padding(
-                    padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
-                    child: Form(
-                      key: forgotFormKey,
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text(
-                            'Forgot Password',
-                            style: TextStyle(
-                              fontSize: 22,
-                              fontWeight: FontWeight.w800,
-                              color: kNeutralText,
-                              fontFamily: 'Montserrat',
-                            ),
-                          ),
-                          const SizedBox(height: 8),
-                          const Text(
-                            'Enter the email connected to your account. We will send the reset link there.',
-                            style: TextStyle(
-                              fontSize: 14,
-                              height: 1.45,
-                              color: kSubtleText,
-                              fontFamily: 'OpenSans',
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                          const SizedBox(height: 18),
-                          TextFormField(
-                            controller: forgotEmailController,
-                            keyboardType: TextInputType.emailAddress,
-                            textInputAction: TextInputAction.done,
-                            inputFormatters:
-                                AppInputSecurity.singleLineFormatters(
-                                  maxLength: 120,
-                                ),
-                            decoration: _inputDecoration(
-                              'Email address',
-                              icon: Icons.alternate_email_rounded,
-                            ),
-                            validator: AppInputSecurity.validateEmail,
-                            onFieldSubmitted: (_) =>
-                                submitting ? null : submitReset(),
-                          ),
-                          const SizedBox(height: 18),
-                          SizedBox(
-                            width: double.infinity,
-                            height: 54,
-                            child: ElevatedButton.icon(
-                              onPressed: submitting ? null : submitReset,
-                              icon: submitting
-                                  ? const SizedBox(
-                                      width: 20,
-                                      height: 20,
-                                      child: CircularProgressIndicator(
-                                        color: Colors.white,
-                                        strokeWidth: 2.4,
-                                      ),
-                                    )
-                                  : const Icon(
-                                      Icons.mail_outline_rounded,
-                                      color: Colors.white,
-                                    ),
-                              label: Text(
-                                submitting ? 'Sending...' : 'Send Reset Link',
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontWeight: FontWeight.w700,
-                                  fontSize: 16,
-                                ),
-                              ),
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: kPrimary,
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(16),
-                                ),
-                                elevation: 0,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            );
-          },
-        );
-      },
-    );
-
-    forgotEmailController.dispose();
   }
 
   Future<void> _showErrorDialog(
@@ -211,7 +64,7 @@ class _LoginState extends State<Login> {
       context: context,
       barrierDismissible: true,
       barrierLabel: 'Dialog',
-      barrierColor: Colors.black.withOpacity(0.35),
+      barrierColor: Colors.black.withValues(alpha: 0.35),
       transitionDuration: const Duration(milliseconds: 220),
       pageBuilder: (ctx, a1, a2) => const SizedBox.shrink(),
       transitionBuilder: (ctx, anim, _, __) {
@@ -237,14 +90,14 @@ class _LoginState extends State<Login> {
                     ),
                     decoration: BoxDecoration(
                       gradient: LinearGradient(
-                        colors: [color, color.withOpacity(0.9)],
+                        colors: [color, color.withValues(alpha: 0.9)],
                         begin: Alignment.topLeft,
                         end: Alignment.bottomRight,
                       ),
                       borderRadius: BorderRadius.circular(16),
                       boxShadow: [
                         BoxShadow(
-                          color: color.withOpacity(0.3),
+                          color: color.withValues(alpha: 0.3),
                           blurRadius: 20,
                           offset: const Offset(0, 8),
                         ),
@@ -264,7 +117,7 @@ class _LoginState extends State<Login> {
                             Container(
                               padding: const EdgeInsets.all(8),
                               decoration: BoxDecoration(
-                                color: Colors.white.withOpacity(0.2),
+                                color: Colors.white.withValues(alpha: 0.2),
                                 borderRadius: BorderRadius.circular(8),
                               ),
                               child: Icon(icon, color: Colors.white, size: 24),
@@ -514,6 +367,51 @@ class _LoginState extends State<Login> {
     return _emailForPhone(trimmed);
   }
 
+  String _auditInputKind(String input) {
+    return _looksLikeEmail(input) ? 'email' : 'phone';
+  }
+
+  String _normalizeLoginFailureReason(AuthException error) {
+    final message = error.message.toLowerCase();
+    if (message.contains('invalid login credentials') ||
+        message.contains('invalid credentials')) {
+      return 'invalid_credentials';
+    }
+    if (message.contains('email not confirmed')) {
+      return 'email_not_confirmed';
+    }
+    if (message.contains('too many requests')) {
+      return 'too_many_requests';
+    }
+    if (message.contains('user not found')) {
+      return 'user_not_found';
+    }
+    if (message.contains('banned') || message.contains('disabled')) {
+      return 'account_disabled';
+    }
+    return 'auth_exception';
+  }
+
+  String _maskAuditTarget(String input) {
+    final trimmed = input.trim();
+    if (trimmed.isEmpty) return 'unknown';
+
+    if (_looksLikeEmail(trimmed)) {
+      final parts = trimmed.split('@');
+      if (parts.length != 2) return 'hidden';
+      final local = parts.first;
+      final domain = parts.last;
+      final visible = local.length <= 2
+          ? '${local[0]}*'
+          : '${local[0]}${'*' * (local.length - 2)}${local[local.length - 1]}';
+      return '$visible@$domain';
+    }
+
+    final digits = trimmed.replaceAll(RegExp(r'\D'), '');
+    if (digits.length <= 4) return 'hidden';
+    return '${'*' * (digits.length - 4)}${digits.substring(digits.length - 4)}';
+  }
+
   Future<void> _handleLogin() async {
     if (!_formKey.currentState!.validate()) return;
 
@@ -522,12 +420,27 @@ class _LoginState extends State<Login> {
     final inputRaw = emailController.text.trim();
     final password = passwordController.text.trim();
     String? resolvedEmail;
+    final maskedTarget = _maskAuditTarget(inputRaw);
+    final inputKind = _auditInputKind(inputRaw);
 
     try {
+      await logAuditEvent(
+        'LOGIN_ATTEMPT_STARTED',
+        fields: {'input_kind': inputKind, 'target': maskedTarget},
+      );
+
       resolvedEmail = await _resolveLoginEmail(inputRaw);
 
       if (resolvedEmail == null || resolvedEmail.isEmpty) {
         setState(() => _isLoading = false);
+        await logAuditEvent(
+          'LOGIN_ATTEMPT_FAILED',
+          fields: {
+            'input_kind': inputKind,
+            'target': maskedTarget,
+            'reason': 'account_not_found',
+          },
+        );
         await _showErrorDialog(
           'Sign-in Failed',
           _looksLikeEmail(inputRaw)
@@ -547,15 +460,35 @@ class _LoginState extends State<Login> {
       setState(() => _isLoading = false);
 
       if (res.user == null) {
+        await logAuditEvent(
+          'LOGIN_ATTEMPT_FAILED',
+          fields: {
+            'input_kind': inputKind,
+            'target': maskedTarget,
+            'reason': 'empty_auth_response',
+          },
+        );
         await _showErrorDialog('Sign-in Failed', 'Invalid credentials.');
         return;
       }
 
-      await Supabase.instance.client.from('audit_logs').insert({
-        'action': 'Signed in successfully',
-        'created_at': DateTime.now().toIso8601String(),
-        'user_id': res.user!.id,
-      });
+      await logAuditEvent(
+        'LOGIN_ATTEMPT_SUCCEEDED',
+        userId: res.user!.id,
+        fields: {'input_kind': inputKind, 'target': maskedTarget},
+      );
+
+      if (res.user!.userMetadata?['force_password_change'] == true) {
+        if (!mounted) return;
+        final changed = await Navigator.push<bool>(
+          context,
+          MaterialPageRoute(builder: (_) => const ForcePasswordChangePage()),
+        );
+
+        if (changed != true) {
+          return;
+        }
+      }
 
       await _routeAfterLogin({'id': res.user!.id});
     } on AuthException catch (e) {
@@ -575,6 +508,17 @@ class _LoginState extends State<Login> {
         return;
       }
 
+      await logAuditEvent(
+        'LOGIN_ATTEMPT_FAILED',
+        fields: {
+          'input_kind': inputKind,
+          'target': maskedTarget,
+          'reason': _normalizeLoginFailureReason(e),
+          'message': e.message,
+          'stage': 'sign_in',
+        },
+      );
+
       try {
         final row = await Supabase.instance.client
             .from('users')
@@ -591,7 +535,13 @@ class _LoginState extends State<Login> {
         }
       } catch (_) {}
 
-      await _showErrorDialog('Sign-in Failed', e.message);
+      final failureReason = _normalizeLoginFailureReason(e);
+      await _showErrorDialog(
+        'Sign-in Failed',
+        failureReason == 'account_disabled'
+            ? 'This account is disabled, please contact the administrator for assistance.'
+            : e.message,
+      );
     } catch (e) {
       setState(() => _isLoading = false);
       debugPrint('Generic login error: $e');
@@ -600,6 +550,25 @@ class _LoginState extends State<Login> {
         await NetworkMonitor().checkNow();
         return;
       }
+
+      await logSystemError(
+        'login_handle',
+        e,
+        fields: {
+          'input_kind': inputKind,
+          'target': maskedTarget,
+          'stage': 'sign_in',
+        },
+      );
+      await logAuditEvent(
+        'LOGIN_ATTEMPT_FAILED',
+        fields: {
+          'input_kind': inputKind,
+          'target': maskedTarget,
+          'reason': 'unexpected_error',
+          'stage': 'sign_in',
+        },
+      );
 
       await _showErrorDialog(
         'Sign-in Failed',
@@ -629,7 +598,7 @@ class _LoginState extends State<Login> {
               margin: const EdgeInsets.all(12),
               padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
-                color: kPrimary.withOpacity(0.1),
+                color: kPrimary.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(8),
               ),
               child: Icon(icon, color: kPrimary, size: 20),
@@ -665,6 +634,8 @@ class _LoginState extends State<Login> {
   Future<void> _routeAfterLogin(PostgrestMap userRow) async {
     final sb = Supabase.instance.client;
     final uid = sb.auth.currentUser?.id;
+    final roleProvider = context.read<DayungRoleProvider>();
+    final dayungUnitProvider = context.read<DayungUnitProvider>();
 
     // 1. Check if user is SuperAdmin
     final userRowRole = await sb
@@ -672,8 +643,44 @@ class _LoginState extends State<Login> {
         .select('role')
         .eq('id', uid as Object)
         .maybeSingle();
+
+    try {
+      final runtime = await publicBackendGetJson('/system/runtime');
+      final maintenanceMode = runtime['maintenance_mode'] == true;
+      if (maintenanceMode && userRowRole?['role'] != 'superadmin') {
+        await logAuditEvent(
+          'LOGIN_ATTEMPT_BLOCKED',
+          userId: uid,
+          fields: {
+            'reason': 'maintenance_mode',
+            'role': userRowRole?['role'] ?? 'member',
+          },
+        );
+        await logAuditEvent(
+          'USER_ACTIVITY_SIGN_OUT',
+          userId: uid,
+          fields: {'source': 'maintenance_mode_gate'},
+        );
+        await sb.auth.signOut();
+        if (!mounted) return;
+        await _showErrorDialog(
+          'Maintenance Mode',
+          (runtime['maintenance_message']?.toString().trim().isNotEmpty ??
+                  false)
+              ? runtime['maintenance_message'].toString()
+              : 'Dayung is temporarily unavailable. Please try again later.',
+          color: kWarn,
+          icon: Icons.construction_rounded,
+          actionLabel: 'OK',
+        );
+        return;
+      }
+    } catch (error) {
+      await logSystemError('login_runtime_check', error, userId: uid);
+    }
+
     if (userRowRole?['role'] == 'superadmin') {
-      await context.read<DayungRoleProvider>().refreshRoles(null);
+      await roleProvider.refreshRoles(null);
       if (!mounted) return;
       Navigator.pushReplacement(
         context,
@@ -681,6 +688,10 @@ class _LoginState extends State<Login> {
       );
       return;
     }
+
+    // Clear any stale SuperAdmin/officer flags from a previous session before
+    // deriving the logged-in user's actual unit-scoped roles.
+    await roleProvider.refreshRoles(null);
 
     // 2. Proceed with your existing logic for officers/members
     final approvedApps = await sb
@@ -738,6 +749,7 @@ class _LoginState extends State<Login> {
 
     if (allIds.length > 1 && !hasValidSaved) {
       // Need user to pick one
+      if (!mounted) return;
       final picked = await Navigator.push<Map<String, dynamic>?>(
         context,
         MaterialPageRoute(builder: (_) => const SelectDayungPage()),
@@ -771,8 +783,7 @@ class _LoginState extends State<Login> {
 
     if (selected['id'] == null && allIds.isEmpty) {
       // attempt officer fallback
-      final fallbackOfficerUnit = await context
-          .read<DayungRoleProvider>()
+      final fallbackOfficerUnit = await roleProvider
           .ensureOfficerUnitSelection();
       if (fallbackOfficerUnit != null) {
         selected['id'] = fallbackOfficerUnit;
@@ -783,22 +794,17 @@ class _LoginState extends State<Login> {
         ? selected['id'] as int
         : int.tryParse('${selected['id']}');
     if (unitId != null && mounted) {
-      context.read<DayungUnitProvider>().setDayungUnit(
+      dayungUnitProvider.setDayungUnit(
         '${selected['name'] ?? 'Dayung'}',
         obj: selected,
       );
-      await context.read<DayungRoleProvider>().refreshRoles(unitId);
+      await roleProvider.refreshRoles(unitId);
     } else {
       // Last resort: officer fallback
-      final officerUnit = await context
-          .read<DayungRoleProvider>()
-          .ensureOfficerUnitSelection();
+      final officerUnit = await roleProvider.ensureOfficerUnitSelection();
       if (mounted && officerUnit != null) {
-        context.read<DayungUnitProvider>().setDayungUnit(
-          'Dayung',
-          obj: {'id': officerUnit},
-        );
-        await context.read<DayungRoleProvider>().refreshRoles(officerUnit);
+        dayungUnitProvider.setDayungUnit('Dayung', obj: {'id': officerUnit});
+        await roleProvider.refreshRoles(officerUnit);
       }
     }
 
@@ -1074,7 +1080,7 @@ class _LoginState extends State<Login> {
                                   borderRadius: BorderRadius.circular(kEdge),
                                   boxShadow: [
                                     BoxShadow(
-                                      color: kPrimary.withOpacity(0.3),
+                                      color: kPrimary.withValues(alpha: 0.3),
                                       blurRadius: 12,
                                       offset: const Offset(0, 6),
                                     ),
@@ -1166,10 +1172,10 @@ class _LoginState extends State<Login> {
                         vertical: 12,
                       ),
                       decoration: BoxDecoration(
-                        color: kSuccess.withOpacity(0.1),
+                        color: kSuccess.withValues(alpha: 0.1),
                         borderRadius: BorderRadius.circular(12),
                         border: Border.all(
-                          color: kSuccess.withOpacity(0.2),
+                          color: kSuccess.withValues(alpha: 0.2),
                           width: 1,
                         ),
                       ),

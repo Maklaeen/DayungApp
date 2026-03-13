@@ -31,7 +31,7 @@ class ReceiptsPage extends StatelessWidget {
                   children: [
                     Container(
                       decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.18),
+                        color: Colors.white.withValues(alpha: 0.18),
                         borderRadius: BorderRadius.circular(14),
                       ),
                       child: IconButton(
@@ -78,11 +78,13 @@ class ReceiptsPage extends StatelessWidget {
                             color: const Color(0xFFFFFBEB),
                             borderRadius: BorderRadius.circular(24),
                             border: Border.all(
-                              color: const Color(0xFFF59E0B).withOpacity(0.25),
+                              color: const Color(
+                                0xFFF59E0B,
+                              ).withValues(alpha: 0.25),
                             ),
                             boxShadow: [
                               BoxShadow(
-                                color: Colors.black.withOpacity(0.04),
+                                color: Colors.black.withValues(alpha: 0.04),
                                 blurRadius: 16,
                                 offset: const Offset(0, 6),
                               ),

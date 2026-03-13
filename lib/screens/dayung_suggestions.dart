@@ -113,7 +113,7 @@ class _DayungSuggestionsPageState extends State<DayungSuggestionsPage> {
           borderRadius: BorderRadius.circular(28),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.08),
+              color: Colors.black.withValues(alpha: 0.08),
               blurRadius: 16,
               offset: const Offset(0, 6),
             ),
@@ -135,7 +135,7 @@ class _DayungSuggestionsPageState extends State<DayungSuggestionsPage> {
               },
               child: Container(
                 decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.15),
+                  color: Colors.white.withValues(alpha: 0.15),
                   shape: BoxShape.circle,
                 ),
                 padding: EdgeInsets.all(isWide ? 18 : 12),
@@ -219,7 +219,7 @@ class _DayungSuggestionsPageState extends State<DayungSuggestionsPage> {
                             Text(
                               'Browse and search for Dayung units near you.',
                               style: TextStyle(
-                                color: Colors.white.withOpacity(0.85),
+                                color: Colors.white.withValues(alpha: 0.85),
                                 fontSize: isWide ? 17 : 15,
                                 fontFamily: 'OpenSans',
                               ),
@@ -373,7 +373,7 @@ class _DayungSuggestionsPageState extends State<DayungSuggestionsPage> {
               Icon(
                 Icons.search_off,
                 size: 64,
-                color: kSubText.withOpacity(0.25),
+                color: kSubText.withValues(alpha: 0.25),
               ),
               const SizedBox(height: 18),
               Text(
@@ -388,7 +388,7 @@ class _DayungSuggestionsPageState extends State<DayungSuggestionsPage> {
               Text(
                 'Try adjusting your search or check back later.',
                 style: TextStyle(
-                  color: kSubText.withOpacity(0.7),
+                  color: kSubText.withValues(alpha: 0.7),
                   fontSize: 14,
                 ),
               ),
@@ -422,7 +422,7 @@ class _DayungSuggestionsPageState extends State<DayungSuggestionsPage> {
                     children: [
                       CircleAvatar(
                         radius: 28,
-                        backgroundColor: kPrimary.withOpacity(0.10),
+                        backgroundColor: kPrimary.withValues(alpha: 0.10),
                         child: const Icon(
                           Icons.home,
                           color: kPrimary,
@@ -478,7 +478,9 @@ class _DayungSuggestionsPageState extends State<DayungSuggestionsPage> {
                             borderRadius: BorderRadius.circular(12),
                           ),
                           side: alreadyApplied
-                              ? BorderSide(color: kSubText.withOpacity(0.3))
+                              ? BorderSide(
+                                  color: kSubText.withValues(alpha: 0.3),
+                                )
                               : BorderSide.none,
                         ),
                         onPressed: alreadyApplied
@@ -501,6 +503,7 @@ class _DayungSuggestionsPageState extends State<DayungSuggestionsPage> {
                                   return;
                                 }
 
+                                final navigator = Navigator.of(context);
                                 final result = await Navigator.push(
                                   context,
                                   MaterialPageRoute(
@@ -511,8 +514,9 @@ class _DayungSuggestionsPageState extends State<DayungSuggestionsPage> {
                                     ),
                                   ),
                                 );
-                                if (result != null && mounted) {
-                                  Navigator.pop(context, result);
+                                if (!mounted) return;
+                                if (result != null) {
+                                  navigator.pop(result);
                                 }
                               },
                       ),

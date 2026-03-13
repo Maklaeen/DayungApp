@@ -40,6 +40,7 @@ class _RequiredApplicationsPageState extends State<RequiredApplicationsPage> {
           .select('id, title, description')
           .eq('user_id', userId)
           .maybeSingle();
+      if (!mounted) return;
       setState(() {
         _application = data;
         if (_application != null) {
@@ -48,11 +49,12 @@ class _RequiredApplicationsPageState extends State<RequiredApplicationsPage> {
         }
       });
     } catch (e) {
+      if (!mounted) return;
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text('Failed to load: $e')));
     } finally {
-      setState(() => _loading = false);
+      if (mounted) setState(() => _loading = false);
     }
   }
 
@@ -101,6 +103,7 @@ class _RequiredApplicationsPageState extends State<RequiredApplicationsPage> {
             })
             .select()
             .single();
+        if (!mounted) return;
         setState(() {
           _application = inserted;
         });
@@ -111,6 +114,7 @@ class _RequiredApplicationsPageState extends State<RequiredApplicationsPage> {
             .from('required_applications')
             .update({'title': title, 'description': description})
             .eq('id', id);
+        if (!mounted) return;
         setState(() {
           _application = {
             ..._application!,
@@ -121,11 +125,12 @@ class _RequiredApplicationsPageState extends State<RequiredApplicationsPage> {
       }
       _editing = false;
     } catch (e) {
+      if (!mounted) return;
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text('Failed to save: $e')));
     } finally {
-      setState(() => _loading = false);
+      if (mounted) setState(() => _loading = false);
     }
   }
 

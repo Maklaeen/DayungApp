@@ -18,6 +18,106 @@ class _SplashScreenState extends State<SplashScreen> {
     IdleTimeoutManager().start(context);
   }
 
+  void _goToLogin() {
+    Navigator.pushReplacementNamed(context, '/login');
+  }
+
+  Widget _buildBackdropOrb({
+    required double size,
+    required Alignment alignment,
+    required List<Color> colors,
+  }) {
+    return Align(
+      alignment: alignment,
+      child: IgnorePointer(
+        child: Container(
+          width: size,
+          height: size,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            gradient: RadialGradient(colors: colors),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildHeroAnimation(double size) {
+    return Container(
+          width: size,
+          height: size,
+          padding: const EdgeInsets.all(18),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(36),
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                Colors.white.withValues(alpha: 0.9),
+                Colors.white.withValues(alpha: 0.72),
+              ],
+            ),
+            border: Border.all(
+              color: Colors.white.withValues(alpha: 0.75),
+              width: 1.4,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: kPrimary.withValues(alpha: 0.12),
+                blurRadius: 48,
+                offset: const Offset(0, 24),
+              ),
+              BoxShadow(
+                color: Colors.white.withValues(alpha: 0.55),
+                blurRadius: 16,
+                offset: const Offset(-8, -8),
+              ),
+            ],
+          ),
+          child: Stack(
+            alignment: Alignment.center,
+            children: [
+              Container(
+                width: size * 0.74,
+                height: size * 0.74,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  gradient: RadialGradient(
+                    colors: [
+                      kPrimary.withValues(alpha: 0.14),
+                      kPrimary.withValues(alpha: 0.02),
+                    ],
+                  ),
+                ),
+              ),
+              Lottie.asset(
+                'assets/animation/hands.json',
+                fit: BoxFit.contain,
+                repeat: false,
+                animate: true,
+              ),
+            ],
+          ),
+        )
+        .animate()
+        .fadeIn(duration: 900.ms, delay: 150.ms)
+        .slideY(
+          begin: -0.06,
+          end: 0,
+          duration: 900.ms,
+          curve: Curves.easeOutCubic,
+        )
+        .scale(
+          begin: const Offset(0.94, 0.94),
+          end: const Offset(1, 1),
+          duration: 900.ms,
+        )
+        .shimmer(
+          duration: 2200.ms,
+          color: Colors.white.withValues(alpha: 0.22),
+        );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -27,171 +127,190 @@ class _SplashScreenState extends State<SplashScreen> {
           gradient: LinearGradient(
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
-            colors: [Color(0xFFF0F4F8), Color(0xFFE2E8F0), Color(0xFFCBD5E1)],
-            stops: [0.0, 0.5, 1.0],
+            colors: [Color(0xFFF7FAFC), Color(0xFFE9EEF7), Color(0xFFDCE6F2)],
+            stops: [0.0, 0.45, 1.0],
           ),
         ),
-        child: Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Expanded(
-                flex: 5,
-                child: LayoutBuilder(
-                  builder: (context, constraints) {
-                    double screenWidth = constraints.maxWidth;
-                    double screenHeight = constraints.maxHeight;
-                    double maxSize = screenWidth < screenHeight
-                        ? screenWidth
-                        : screenHeight;
-                    double animationSize = maxSize * 0.5;
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final screenWidth = constraints.maxWidth;
+            final screenHeight = constraints.maxHeight;
+            final compact = screenHeight < 760;
+            final heroSize =
+                screenWidth.clamp(280.0, 380.0) * (compact ? 0.78 : 0.86);
+            final contentWidth = screenWidth > 460 ? 420.0 : screenWidth - 40;
 
-                    return Center(
-                      child:
-                          SizedBox(
-                                width: animationSize,
-                                height: animationSize,
-                                child: Lottie.asset(
-                                  'assets/animation/Handshake animation.json',
-                                  fit: BoxFit.contain,
-                                  repeat: true,
-                                  animate: true,
-                                ),
-                              )
-                              .animate()
-                              .fadeIn(duration: 1.2.seconds, delay: 300.ms)
-                              .scale(
-                                begin: const Offset(1.0, 1.0),
-                                end: const Offset(1.2, 1.2),
-                                duration: 1.seconds,
-                                delay: 3.seconds,
-                                curve: Curves.easeInOut,
-                              ),
-                    );
-                  },
-                ),
-              ),
-              Expanded(
-                flex: 2,
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    const SizedBox(height: 30),
-                    Text(
-                          'Dayung',
-                          style: TextStyle(
-                            fontSize: 24,
-                            fontWeight: FontWeight.w700,
-                            color: kPrimary,
-                            letterSpacing: 1.2,
-                            fontFamily: 'Montserrat',
-                          ),
-                          textAlign: TextAlign.center,
-                        )
-                        .animate(delay: 1.5.seconds)
-                        .fadeIn(duration: 1.seconds)
-                        .slideY(
-                          begin: 0.2,
-                          end: 0,
-                          duration: 800.ms,
-                          curve: Curves.easeOut,
-                        ),
-                    const SizedBox(height: 8),
-                    Text(
-                          'Tabang sa kalisud, Sa isa ka Tap',
-                          style: TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w500,
-                            color: kNeutralText.withValues(alpha: 0.8),
-                            letterSpacing: 0.5,
-                            fontFamily: 'OpenSans',
-                          ),
-                          textAlign: TextAlign.center,
-                        )
-                        .animate(delay: 1.8.seconds)
-                        .fadeIn(duration: 800.ms)
-                        .slideY(
-                          begin: 0.2,
-                          end: 0,
-                          duration: 600.ms,
-                          curve: Curves.easeOut,
-                        ),
-                    const SizedBox(height: 30),
-                    ElevatedButton(
-                          onPressed: () {
-                            Navigator.pushReplacementNamed(context, '/login');
-                          },
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: kPrimary,
-                            foregroundColor: Colors.white,
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 40,
-                              vertical: 16,
-                            ),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(30),
-                            ),
-                            elevation: 8,
-                            shadowColor: kPrimary.withValues(alpha: 0.3),
-                          ),
-                          child: const Text(
-                            'Get Started',
-                            style: TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.w600,
-                              letterSpacing: 1.0,
-                              fontFamily: 'Montserrat',
-                            ),
-                          ),
-                        )
-                        .animate(delay: 2.seconds)
-                        .fadeIn(duration: 1.seconds)
-                        .slideY(
-                          begin: 0.3,
-                          end: 0,
-                          duration: 1.seconds,
-                          curve: Curves.easeOutBack,
-                        )
-                        .scale(
-                          begin: const Offset(0.8, 0.8),
-                          end: const Offset(1.0, 1.0),
-                          duration: 800.ms,
-                          curve: Curves.elasticOut,
-                        )
-                        .then()
-                        .scale(
-                          begin: const Offset(1.0, 1.0),
-                          end: const Offset(1.05, 1.05),
-                          duration: 1.2.seconds,
-                          delay: 3.seconds,
-                          curve: Curves.easeInOut,
-                        )
-                        .then()
-                        .scale(
-                          begin: const Offset(1.05, 1.05),
-                          end: const Offset(1.0, 1.0),
-                          duration: 1.2.seconds,
-                          curve: Curves.easeInOut,
-                        )
-                        .then()
-                        .scale(
-                          begin: const Offset(1.0, 1.0),
-                          end: const Offset(1.05, 1.05),
-                          duration: 1.2.seconds,
-                          curve: Curves.easeInOut,
-                        )
-                        .then()
-                        .scale(
-                          begin: const Offset(1.05, 1.05),
-                          end: const Offset(1.0, 1.0),
-                          duration: 1.2.seconds,
-                          curve: Curves.easeInOut,
-                        ),
+            return Stack(
+              children: [
+                _buildBackdropOrb(
+                  size: screenWidth * 0.72,
+                  alignment: const Alignment(-1.15, -0.92),
+                  colors: [
+                    kPrimary.withValues(alpha: 0.16),
+                    kPrimary.withValues(alpha: 0.02),
+                    Colors.transparent,
                   ],
                 ),
-              ),
-            ],
-          ),
+                _buildBackdropOrb(
+                  size: screenWidth * 0.9,
+                  alignment: const Alignment(1.12, -0.28),
+                  colors: [
+                    Colors.white.withValues(alpha: 0.48),
+                    Colors.white.withValues(alpha: 0.02),
+                    Colors.transparent,
+                  ],
+                ),
+                _buildBackdropOrb(
+                  size: screenWidth * 0.8,
+                  alignment: const Alignment(0.0, 1.18),
+                  colors: [
+                    kAccent.withValues(alpha: 0.1),
+                    kAccent.withValues(alpha: 0.02),
+                    Colors.transparent,
+                  ],
+                ),
+                SafeArea(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 20,
+                      vertical: 18,
+                    ),
+                    child: Center(
+                      child: ConstrainedBox(
+                        constraints: BoxConstraints(maxWidth: contentWidth),
+                        child: Column(
+                          children: [
+                            const Spacer(flex: 3),
+                            Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 14,
+                                    vertical: 8,
+                                  ),
+                                  // decoration: BoxDecoration(
+                                  //   color: Colors.white.withValues(alpha: 0.62),
+                                  //   borderRadius: BorderRadius.circular(999),
+                                  //   border: Border.all(
+                                  //     color: Colors.white.withValues(
+                                  //       alpha: 0.85,
+                                  //     ),
+                                  //   ),
+                                  // ),
+                                  // child: Text(
+                                  //   'Community assistance, simplified',
+                                  //   style: TextStyle(
+                                  //     color: kPrimaryDark.withValues(
+                                  //       alpha: 0.9,
+                                  //     ),
+                                  //     fontSize: 12,
+                                  //     fontWeight: FontWeight.w700,
+                                  //     letterSpacing: 0.6,
+                                  //     fontFamily: 'OpenSans',
+                                  //   ),
+                                  // ),
+                                )
+                                .animate()
+                                .fadeIn(duration: 600.ms)
+                                .slideY(begin: -0.25, end: 0, duration: 700.ms),
+                            SizedBox(height: compact ? 18 : 26),
+                            _buildHeroAnimation(heroSize),
+                            SizedBox(height: compact ? 24 : 34),
+                            Text(
+                                  'Dayung',
+                                  style: TextStyle(
+                                    fontSize: compact ? 40 : 46,
+                                    fontWeight: FontWeight.w800,
+                                    color: kPrimary,
+                                    letterSpacing: 0.4,
+                                    fontFamily: 'Montserrat',
+                                    height: 0.95,
+                                  ),
+                                  textAlign: TextAlign.center,
+                                )
+                                .animate(delay: 250.ms)
+                                .fadeIn(duration: 700.ms)
+                                .slideY(begin: 0.16, end: 0, duration: 700.ms),
+                            const SizedBox(height: 10),
+                            ConstrainedBox(
+                              constraints: const BoxConstraints(maxWidth: 320),
+                              child:
+                                  Text(
+                                        'Tabang sa kalisud, sa isa ka tap.',
+                                        style: TextStyle(
+                                          fontSize: compact ? 15 : 16,
+                                          fontWeight: FontWeight.w600,
+                                          color: kNeutralText.withValues(
+                                            alpha: 0.7,
+                                          ),
+                                          letterSpacing: 0.1,
+                                          fontFamily: 'OpenSans',
+                                          height: 1.45,
+                                        ),
+                                        textAlign: TextAlign.center,
+                                      )
+                                      .animate(delay: 420.ms)
+                                      .fadeIn(duration: 700.ms)
+                                      .slideY(
+                                        begin: 0.18,
+                                        end: 0,
+                                        duration: 700.ms,
+                                      ),
+                            ),
+                            const Spacer(flex: 2),
+                            SizedBox(
+                                  width: double.infinity,
+                                  child: ElevatedButton(
+                                    onPressed: _goToLogin,
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: kPrimary,
+                                      foregroundColor: Colors.white,
+                                      padding: const EdgeInsets.symmetric(
+                                        vertical: 20,
+                                      ),
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(24),
+                                      ),
+                                      elevation: 0,
+                                      shadowColor: Colors.transparent,
+                                    ),
+                                    child: const Text(
+                                      'Get Started',
+                                      style: TextStyle(
+                                        fontSize: 20,
+                                        fontWeight: FontWeight.w700,
+                                        letterSpacing: 0.4,
+                                        fontFamily: 'Montserrat',
+                                      ),
+                                    ),
+                                  ),
+                                )
+                                .animate(delay: 650.ms)
+                                .fadeIn(duration: 700.ms)
+                                .slideY(begin: 0.24, end: 0, duration: 700.ms)
+                                .scale(
+                                  begin: const Offset(0.96, 0.96),
+                                  end: const Offset(1, 1),
+                                  duration: 700.ms,
+                                ),
+                            const SizedBox(height: 14),
+                            // Text(
+                            //   'Secure barangay assistance workflow',
+                            //   style: TextStyle(
+                            //     fontSize: 12,
+                            //     fontWeight: FontWeight.w600,
+                            //     color: kSubtleText.withValues(alpha: 0.7),
+                            //     letterSpacing: 0.25,
+                            //     fontFamily: 'OpenSans',
+                            //   ),
+                            // ).animate(delay: 800.ms).fadeIn(duration: 600.ms),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            );
+          },
         ),
       ),
     );

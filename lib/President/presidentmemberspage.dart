@@ -988,7 +988,7 @@ class _PresidentMembersPageState extends State<PresidentMembersPage>
                           ),
                           boxShadow: [
                             BoxShadow(
-                              color: Colors.black.withOpacity(0.05),
+                              color: Colors.black.withValues(alpha: 0.05),
                               blurRadius: 15,
                               offset: const Offset(0, 6),
                             ),
@@ -1029,7 +1029,7 @@ class _PresidentMembersPageState extends State<PresidentMembersPage>
                           ),
                           boxShadow: [
                             BoxShadow(
-                              color: Colors.black.withOpacity(0.05),
+                              color: Colors.black.withValues(alpha: 0.05),
                               blurRadius: 15,
                               offset: const Offset(0, 6),
                             ),
@@ -1229,7 +1229,7 @@ class _PresidentMembersPageState extends State<PresidentMembersPage>
         trailing: Container(
           padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
           decoration: BoxDecoration(
-            color: chipColor.withOpacity(.15),
+            color: chipColor.withValues(alpha: .15),
             borderRadius: BorderRadius.circular(12),
             border: Border.all(color: chipColor),
           ),

@@ -1,5 +1,4 @@
 import 'package:capstone_app/Providers/dayung_provider.dart';
-import 'package:capstone_app/screens/dayung_suggestions.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:provider/provider.dart';
@@ -45,7 +44,7 @@ class _MembersContributionHistoryState
   int _unreadNotifCount = 0;
   int? _dayungId;
   // ignore: unused_field
-  bool _loading = false;
+  final bool _loading = false;
   List<Map<String, dynamic>> _paidContributions = [];
   bool _loadingPaid = true;
 
@@ -125,15 +124,6 @@ class _MembersContributionHistoryState
     );
   }
 
-  Future<void> _goApplyDayung() async {
-    if (!mounted) return;
-    await Navigator.of(
-      context,
-    ).push(MaterialPageRoute(builder: (_) => const DayungSuggestionsPage()));
-    await _loadDayungUnit();
-    await _fetchPaidContributions();
-  }
-
   Future<void> _fetchUnreadNotifCount() async {
     final sb = Supabase.instance.client;
     final uid = sb.auth.currentUser?.id;
@@ -208,16 +198,6 @@ class _MembersContributionHistoryState
     if (!mounted) return;
     await _fetchPaidContributions();
     await _fetchUnreadNotifCount(); // NEW: compute badge after unit is set
-  }
-
-  Future<void> _refresh() async {
-    _setStateSafe(() => _loading = true);
-    await Future.wait([
-      _loadDayungUnit(),
-      _loadProfileImage(),
-      _fetchPaidContributions(),
-    ]);
-    _setStateSafe(() => _loading = false);
   }
 
   Future<void> _loadProfileImage() async {
@@ -344,14 +324,6 @@ class _MembersContributionHistoryState
     }
   }
 
-  String _address(Map<String, dynamic> d) {
-    final parts = <String>[
-      if ((d['barangay'] ?? '').toString().isNotEmpty) d['barangay'],
-      if ((d['city'] ?? '').toString().isNotEmpty) d['city'],
-    ];
-    return parts.join(', ');
-  }
-
   String _fmtDate(String iso) {
     // Simple yyyy-MM-dd from ISO string
     if (iso.isEmpty) return '';
@@ -402,7 +374,7 @@ class _MembersContributionHistoryState
                     border: Border.all(color: Colors.grey.shade300, width: 1),
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.black.withOpacity(0.05),
+                        color: Colors.black.withValues(alpha: 0.05),
                         blurRadius: 15,
                         offset: const Offset(0, 6),
                       ),
@@ -434,7 +406,7 @@ class _MembersContributionHistoryState
                   Icon(
                     Icons.receipt_long,
                     size: 60,
-                    color: kSubtleText.withOpacity(.35),
+                    color: kSubtleText.withValues(alpha: .35),
                   ),
                   const SizedBox(height: 18),
                   const Center(
@@ -454,7 +426,7 @@ class _MembersContributionHistoryState
                       'Your paid contributions will appear here.',
                       style: TextStyle(
                         fontSize: 14,
-                        color: kSubText.withOpacity(.75),
+                        color: kSubText.withValues(alpha: .75),
                         fontFamily: 'OpenSans',
                       ),
                     ),
@@ -512,7 +484,7 @@ class _MembersContributionHistoryState
                                   vertical: 4,
                                 ),
                                 decoration: BoxDecoration(
-                                  color: kAccent.withOpacity(0.1),
+                                  color: kAccent.withValues(alpha: 0.1),
                                   borderRadius: BorderRadius.circular(12),
                                 ),
                                 child: Text(

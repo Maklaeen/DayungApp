@@ -347,7 +347,7 @@ class _ManageFundPageState extends State<ManageFundPage> {
             ),
             boxShadow: [
               BoxShadow(
-                color: const Color(0xFF1E40AF).withOpacity(0.3),
+                color: const Color(0xFF1E40AF).withValues(alpha: 0.3),
                 blurRadius: 20,
                 offset: const Offset(0, 8),
               ),
@@ -750,8 +750,8 @@ class _ManageFundPageState extends State<ManageFundPage> {
                         ),
                         decoration: BoxDecoration(
                           color: completed
-                              ? Colors.teal.withOpacity(.12)
-                              : Colors.orange.withOpacity(.12),
+                              ? Colors.teal.withValues(alpha: .12)
+                              : Colors.orange.withValues(alpha: .12),
                           border: Border.all(
                             color: completed ? Colors.teal : Colors.orange,
                           ),
@@ -922,9 +922,9 @@ class _ManageFundPageState extends State<ManageFundPage> {
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 12),
         decoration: BoxDecoration(
-          color: color.withOpacity(.06),
+          color: color.withValues(alpha: .06),
           borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: color.withOpacity(.25)),
+          border: Border.all(color: color.withValues(alpha: .25)),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -933,7 +933,7 @@ class _ManageFundPageState extends State<ManageFundPage> {
               Text(
                 '$_approvedMemberCount active members',
                 style: TextStyle(
-                  color: color.withOpacity(.7),
+                  color: color.withValues(alpha: .7),
                   fontWeight: FontWeight.w600,
                   fontSize: 12,
                 ),
@@ -943,7 +943,7 @@ class _ManageFundPageState extends State<ManageFundPage> {
             Text(
               label,
               style: TextStyle(
-                color: color.withOpacity(.9),
+                color: color.withValues(alpha: .9),
                 fontWeight: FontWeight.w700,
               ),
             ),
@@ -966,6 +966,7 @@ class _ManageFundPageState extends State<ManageFundPage> {
     int deathNoticeId,
     int dayungUnitId,
   ) async {
+    final messenger = ScaffoldMessenger.of(context);
     final createdAt = DateTime.now().toUtc().toIso8601String();
 
     // Fetch notice meta (always contains the member/parent user_id snapshot)
@@ -1033,7 +1034,7 @@ class _ManageFundPageState extends State<ManageFundPage> {
     }
 
     if (rows.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
+      messenger.showSnackBar(
         const SnackBar(content: Text('No new payments to create.')),
       );
       await _fetchAll();
@@ -1042,18 +1043,18 @@ class _ManageFundPageState extends State<ManageFundPage> {
 
     try {
       await sb.from('payments').insert(rows);
-      ScaffoldMessenger.of(context).showSnackBar(
+      messenger.showSnackBar(
         SnackBar(content: Text('Created ${rows.length} payment(s).')),
       );
     } on PostgrestException catch (e) {
       if (e.code == '23505') {
-        ScaffoldMessenger.of(context).showSnackBar(
+        messenger.showSnackBar(
           const SnackBar(
             content: Text('Some payments already existed. New ones added.'),
           ),
         );
       } else {
-        ScaffoldMessenger.of(context).showSnackBar(
+        messenger.showSnackBar(
           SnackBar(content: Text('Failed to create payments: ${e.message}')),
         );
       }
@@ -1300,9 +1301,9 @@ class _ManageFundPageState extends State<ManageFundPage> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
-        color: color.withOpacity(.06),
+        color: color.withValues(alpha: .06),
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: color.withOpacity(.25)),
+        border: Border.all(color: color.withValues(alpha: .25)),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -1312,7 +1313,7 @@ class _ManageFundPageState extends State<ManageFundPage> {
           Text(
             label,
             style: TextStyle(
-              color: color.withOpacity(.95),
+              color: color.withValues(alpha: .95),
               fontWeight: FontWeight.w800,
             ),
           ),
@@ -1332,7 +1333,7 @@ class _ManageFundPageState extends State<ManageFundPage> {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: color.withOpacity(0.2)),
+        border: Border.all(color: color.withValues(alpha: 0.2)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1412,14 +1413,14 @@ class _ManageFundPageState extends State<ManageFundPage> {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: accent.withOpacity(0.18)),
+        border: Border.all(color: accent.withValues(alpha: 0.18)),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           CircleAvatar(
             radius: 24,
-            backgroundColor: accent.withOpacity(0.12),
+            backgroundColor: accent.withValues(alpha: 0.12),
             child: Icon(
               isPaid
                   ? Icons.check_circle_rounded
@@ -1474,7 +1475,7 @@ class _ManageFundPageState extends State<ManageFundPage> {
                   vertical: 6,
                 ),
                 decoration: BoxDecoration(
-                  color: accent.withOpacity(0.12),
+                  color: accent.withValues(alpha: 0.12),
                   borderRadius: BorderRadius.circular(999),
                 ),
                 child: Text(
@@ -1581,7 +1582,7 @@ class _WavePainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final paint = Paint()
-      ..color = Colors.white.withOpacity(0.14)
+      ..color = Colors.white.withValues(alpha: 0.14)
       ..style = PaintingStyle.fill;
 
     final path = Path();

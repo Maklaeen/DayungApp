@@ -170,7 +170,7 @@ class _ReportsPageState extends State<ReportsPage> {
                   ),
                   boxShadow: [
                     BoxShadow(
-                      color: kPrimary.withOpacity(0.3),
+                      color: kPrimary.withValues(alpha: 0.3),
                       blurRadius: 20,
                       offset: const Offset(0, 8),
                     ),
@@ -252,15 +252,16 @@ class _ReportsPageState extends State<ReportsPage> {
                                             10,
                                           ),
                                           border: Border.all(
-                                            color: kBorderColor.withOpacity(
-                                              0.2,
+                                            color: kBorderColor.withValues(
+                                              alpha: 0.2,
                                             ),
                                           ),
                                         ),
                                         child: ListTile(
                                           leading: CircleAvatar(
-                                            backgroundColor: kAccent
-                                                .withOpacity(0.12),
+                                            backgroundColor: kAccent.withValues(
+                                              alpha: 0.12,
+                                            ),
                                             child: Icon(
                                               Icons.person,
                                               color: kAccent,
@@ -330,15 +331,15 @@ class _ReportsPageState extends State<ReportsPage> {
                                             10,
                                           ),
                                           border: Border.all(
-                                            color: kBorderColor.withOpacity(
-                                              0.2,
+                                            color: kBorderColor.withValues(
+                                              alpha: 0.2,
                                             ),
                                           ),
                                         ),
                                         child: ListTile(
                                           leading: CircleAvatar(
                                             backgroundColor: kPrimary
-                                                .withOpacity(0.12),
+                                                .withValues(alpha: 0.12),
                                             child: Icon(
                                               Icons.person,
                                               color: kPrimary,
@@ -393,10 +394,13 @@ class _ReportsPageState extends State<ReportsPage> {
       decoration: BoxDecoration(
         color: kCardBg,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: kBorderColor.withOpacity(0.3), width: 1),
+        border: Border.all(
+          color: kBorderColor.withValues(alpha: 0.3),
+          width: 1,
+        ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
+            color: Colors.black.withValues(alpha: 0.05),
             blurRadius: 15,
             offset: const Offset(0, 6),
           ),
@@ -410,7 +414,7 @@ class _ReportsPageState extends State<ReportsPage> {
               Container(
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  color: kPrimary.withOpacity(0.1),
+                  color: kPrimary.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Icon(icon, color: kPrimary, size: 20),

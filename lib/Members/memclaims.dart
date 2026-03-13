@@ -1,5 +1,3 @@
-import 'package:capstone_app/screens/dayung_suggestions.dart'
-    hide kBg, kPrimary, kPrimaryDark, kAccent, kDanger, kWarn;
 import 'package:capstone_app/pages/submit_claim.dart'
     hide kSubtleText, kNeutralText, kPrimaryDark, kPrimary;
 import 'package:flutter/material.dart';
@@ -38,7 +36,6 @@ class _MembersClaimsPageState extends State<MembersClaimsPage>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
   RealtimeChannel? _notifChannel;
-  bool _loading = true;
   bool _submittingModalOpen = false;
   bool _bottomRefreshing = false;
   bool _navBarVisible = true;
@@ -50,21 +47,6 @@ class _MembersClaimsPageState extends State<MembersClaimsPage>
 
   String _search = '';
   final _searchCtrl = TextEditingController();
-
-  String? _profileUrl;
-  final String _dayungName = 'Dayung';
-  String? _barangay;
-  String? _city;
-  int _unreadNotifCount = 0;
-
-  Future<void> _goApplyDayung() async {
-    if (!mounted) return;
-    await Navigator.of(
-      context,
-    ).push(MaterialPageRoute(builder: (_) => const DayungSuggestionsPage()));
-    //await _loadDayungUnit();
-    await _fetchClaims();
-  }
 
   void _safeSetState(VoidCallback fn) {
     if (!mounted) return;
@@ -151,21 +133,13 @@ class _MembersClaimsPageState extends State<MembersClaimsPage>
   }
 
   Future<void> _init() async {
-    _safeSetState(() => _loading = true);
     // await _loadDayungUnit();
-    await _loadProfileImage();
     await _fetchClaims();
-    if (!mounted) return;
-    _safeSetState(() => _loading = false);
   }
 
   Future<void> _refresh() async {
-    _safeSetState(() => _loading = true);
     // await _loadDayungUnit();
     await _fetchClaims();
-    await _loadProfileImage();
-    if (!mounted) return;
-    _safeSetState(() => _loading = false);
   }
 
   Future<void> _triggerBottomRefresh() async {
@@ -206,49 +180,6 @@ class _MembersClaimsPageState extends State<MembersClaimsPage>
   //     });
   //   }
   // }
-
-  Future<void> _fetchUnreadNotifCount() async {
-    // NEW
-    final sb = Supabase.instance.client;
-    final uid = sb.auth.currentUser?.id;
-    final unitId = widget.dayungUnitId;
-    if (uid == null) {
-      if (mounted) setState(() => _unreadNotifCount = 0);
-      return;
-    }
-    try {
-      final notifRows = await sb
-          .from('notifications')
-          .select('id')
-          .eq('recipient_id', uid)
-          .eq('dayung_unit_id', unitId)
-          .isFilter('read_at', null);
-      final notifCount = (notifRows as List).length;
-
-      final annRows = await sb
-          .from('announcements')
-          .select('id')
-          .eq('dayung_unit_id', unitId);
-      final annIds = (annRows as List).map((r) => (r as Map)['id']).toList();
-
-      int annCount = 0;
-      if (annIds.isNotEmpty) {
-        final reads = await sb
-            .from('announcement_reads')
-            .select('announcement_id')
-            .eq('user_id', uid)
-            .inFilter('announcement_id', annIds);
-        final readIds = Set.from(
-          (reads as List).map((r) => (r as Map)['announcement_id']),
-        );
-        annCount = annIds.where((id) => !readIds.contains(id)).length;
-      }
-
-      if (mounted) setState(() => _unreadNotifCount = notifCount + annCount);
-    } catch (_) {
-      if (mounted) setState(() => _unreadNotifCount = 0);
-    }
-  }
 
   Future<Map<String, dynamic>> getDeceasedInfo(
     Map<String, dynamic> claim,
@@ -307,24 +238,7 @@ class _MembersClaimsPageState extends State<MembersClaimsPage>
     return hadBirthday ? age : age - 1;
   }
 
-  Future<void> _loadProfileImage() async {
-    final supabase = Supabase.instance.client;
-    final currentUser = supabase.auth.currentUser;
-    if (currentUser == null) return;
-    try {
-      final row = await supabase
-          .from('users')
-          .select('profile_url')
-          .eq('id', currentUser.id)
-          .maybeSingle();
-      _safeSetState(() {
-        _profileUrl = (row?['profile_url'] ?? '').toString().trim();
-      });
-    } catch (_) {}
-  }
-
   Future<void> _fetchClaims() async {
-    _safeSetState(() => _loading = true);
     try {
       final user = Supabase.instance.client.auth.currentUser;
       if (user == null) {
@@ -332,7 +246,6 @@ class _MembersClaimsPageState extends State<MembersClaimsPage>
           _allClaims = [];
           _pending = [];
           _history = [];
-          _loading = false;
         });
         return;
       }
@@ -385,14 +298,12 @@ class _MembersClaimsPageState extends State<MembersClaimsPage>
         _allClaims = claims;
         _pending = pending;
         _history = history;
-        _loading = false;
       });
     } catch (_) {
       _safeSetState(() {
         _allClaims = [];
         _pending = [];
         _history = [];
-        _loading = false;
       });
     }
   }
@@ -439,7 +350,7 @@ class _MembersClaimsPageState extends State<MembersClaimsPage>
       if (low == 'approved' || low == 'claimed') return kAccent;
       if (low == 'rejected') return kDanger;
     }
-    return kSubtleText.withOpacity(.3);
+    return kSubtleText.withValues(alpha: .3);
   }
 
   IconData trackingStepIcon(String status, int currentIndex, int stepIndex) {
@@ -536,6 +447,7 @@ class _MembersClaimsPageState extends State<MembersClaimsPage>
     final deceasedDod = deceasedInfo['date_of_death'] ?? '';
     final deceasedType = deceasedInfo['type'] ?? '';
     final deceasedAge = _computeAge(deceasedDob, deceasedDod);
+    if (!mounted) return;
 
     showModalBottomSheet(
       context: context,
@@ -549,9 +461,9 @@ class _MembersClaimsPageState extends State<MembersClaimsPage>
                 return Container(
                   padding: const EdgeInsets.all(14),
                   decoration: BoxDecoration(
-                    color: kDanger.withOpacity(.08),
+                    color: kDanger.withValues(alpha: .08),
                     borderRadius: BorderRadius.circular(14),
-                    border: Border.all(color: kDanger.withOpacity(.4)),
+                    border: Border.all(color: kDanger.withValues(alpha: .4)),
                   ),
                   child: Row(
                     children: const [
@@ -602,14 +514,14 @@ class _MembersClaimsPageState extends State<MembersClaimsPage>
                                     status,
                                     tracking.currentIndex,
                                     i,
-                                  ).withOpacity(.12),
+                                  ).withValues(alpha: .12),
                                   borderRadius: BorderRadius.circular(40),
                                   border: Border.all(
                                     color: trackingStepColor(
                                       status,
                                       tracking.currentIndex,
                                       i,
-                                    ).withOpacity(.5),
+                                    ).withValues(alpha: .5),
                                     width: 1,
                                   ),
                                 ),
@@ -688,7 +600,7 @@ class _MembersClaimsPageState extends State<MembersClaimsPage>
                         fontFamily: 'OpenSans',
                         fontWeight: FontWeight.w600,
                         color: status.toLowerCase() == 'pending'
-                            ? kWarn.withOpacity(.9)
+                            ? kWarn.withValues(alpha: .9)
                             : kAccent,
                       ),
                     ),
@@ -710,7 +622,7 @@ class _MembersClaimsPageState extends State<MembersClaimsPage>
                             vertical: 6,
                           ),
                           decoration: BoxDecoration(
-                            color: color.withOpacity(.12),
+                            color: color.withValues(alpha: .12),
                             borderRadius: BorderRadius.circular(40),
                           ),
                           child: Row(
@@ -737,7 +649,7 @@ class _MembersClaimsPageState extends State<MembersClaimsPage>
                             fontSize: 12,
                             fontWeight: FontWeight.w600,
                             fontFamily: 'OpenSans',
-                            color: kSubtleText.withOpacity(.8),
+                            color: kSubtleText.withValues(alpha: .8),
                           ),
                         ),
                       ],
@@ -782,7 +694,9 @@ class _MembersClaimsPageState extends State<MembersClaimsPage>
                       decoration: BoxDecoration(
                         color: kBg,
                         borderRadius: BorderRadius.circular(14),
-                        border: Border.all(color: kAccent.withOpacity(.12)),
+                        border: Border.all(
+                          color: kAccent.withValues(alpha: .12),
+                        ),
                       ),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -889,7 +803,7 @@ class _MembersClaimsPageState extends State<MembersClaimsPage>
                           fontSize: 13.2,
                           fontFamily: 'OpenSans',
                           fontStyle: FontStyle.italic,
-                          color: kSubtleText.withOpacity(.8),
+                          color: kSubtleText.withValues(alpha: .8),
                         ),
                       ),
                     const SizedBox(height: 18),
@@ -1070,31 +984,19 @@ class _MembersClaimsPageState extends State<MembersClaimsPage>
   Widget _searchField() {
     return TextField(
       controller: _searchCtrl,
-      onChanged: (v) => setState(() => _search = v),
-      decoration: InputDecoration(
-        hintText: 'Search claims...',
-        prefixIcon: const Icon(Icons.search),
-        suffixIcon: _search.isEmpty
-            ? null
-            : IconButton(
-                icon: const Icon(Icons.close),
-                onPressed: () {
-                  _searchCtrl.clear();
-                  setState(() => _search = '');
-                },
-              ),
+      onChanged: (value) {
+        setState(() => _search = value.trim().toLowerCase());
+      },
+      decoration: const InputDecoration(
+        hintText: 'Search claims',
+        prefixIcon: Icon(Icons.search),
         filled: true,
-        fillColor: Colors.grey.shade100,
-        contentPadding: const EdgeInsets.symmetric(vertical: 14),
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(14),
-          borderSide: BorderSide(color: Colors.grey.shade300),
-        ),
+        fillColor: Colors.white,
         enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(14),
-          borderSide: BorderSide(color: Colors.grey.shade300),
+          borderRadius: BorderRadius.all(Radius.circular(14)),
+          borderSide: BorderSide(color: Color(0xFFE5E7EB)),
         ),
-        focusedBorder: const OutlineInputBorder(
+        focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.all(Radius.circular(14)),
           borderSide: BorderSide(color: kPrimaryDark, width: 1.6),
         ),
@@ -1129,7 +1031,7 @@ class _MembersClaimsPageState extends State<MembersClaimsPage>
             Icon(
               Icons.track_changes,
               size: 60,
-              color: kSubtleText.withOpacity(.35),
+              color: kSubtleText.withValues(alpha: .35),
             ),
             const SizedBox(height: 18),
             const Center(
@@ -1150,7 +1052,7 @@ class _MembersClaimsPageState extends State<MembersClaimsPage>
                 style: TextStyle(
                   fontSize: 13,
                   fontFamily: 'OpenSans',
-                  color: kSubtleText.withOpacity(.75),
+                  color: kSubtleText.withValues(alpha: .75),
                 ),
               ),
             ),
@@ -1210,7 +1112,7 @@ class _MembersClaimsPageState extends State<MembersClaimsPage>
                   Container(
                     padding: EdgeInsets.symmetric(horizontal: 12, vertical: 4),
                     decoration: BoxDecoration(
-                      color: color.withOpacity(0.1),
+                      color: color.withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: Text(
@@ -1253,38 +1155,6 @@ class _MembersClaimsPageState extends State<MembersClaimsPage>
             ],
           ),
         ),
-      ),
-    );
-  }
-
-  Widget _skeletonCard() {
-    Widget bar(double w, double h) => Container(
-      width: w,
-      height: h,
-      decoration: BoxDecoration(
-        color: Colors.grey.shade200,
-        borderRadius: BorderRadius.circular(6),
-      ),
-    );
-    return Container(
-      margin: const EdgeInsets.only(bottom: 14),
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 14),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(kCardRadius),
-        border: Border.all(color: Colors.grey.shade200),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          bar(110, 20),
-          const SizedBox(height: 12),
-          bar(200, 14),
-          const SizedBox(height: 6),
-          bar(180, 12),
-          const SizedBox(height: 14),
-          bar(140, 10),
-        ],
       ),
     );
   }

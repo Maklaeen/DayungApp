@@ -457,12 +457,12 @@ class _SecretaryClaimsPageState extends State<SecretaryClaimsPage>
                             color: kCardBg,
                             borderRadius: BorderRadius.circular(20),
                             border: Border.all(
-                              color: kBorderColor.withOpacity(0.3),
+                              color: kBorderColor.withValues(alpha: 0.3),
                               width: 1,
                             ),
                             boxShadow: [
                               BoxShadow(
-                                color: Colors.black.withOpacity(0.05),
+                                color: Colors.black.withValues(alpha: 0.05),
                                 blurRadius: 15,
                                 offset: const Offset(0, 6),
                               ),
@@ -498,12 +498,14 @@ class _SecretaryClaimsPageState extends State<SecretaryClaimsPage>
                                   color: kCardBg,
                                   borderRadius: BorderRadius.circular(20),
                                   border: Border.all(
-                                    color: kBorderColor.withOpacity(0.3),
+                                    color: kBorderColor.withValues(alpha: 0.3),
                                     width: 1,
                                   ),
                                   boxShadow: [
                                     BoxShadow(
-                                      color: Colors.black.withOpacity(0.05),
+                                      color: Colors.black.withValues(
+                                        alpha: 0.05,
+                                      ),
                                       blurRadius: 15,
                                       offset: const Offset(0, 6),
                                     ),
@@ -517,7 +519,7 @@ class _SecretaryClaimsPageState extends State<SecretaryClaimsPage>
                                       size: 48,
                                       color: _statusColor(
                                         currentStatus,
-                                      ).withOpacity(0.6),
+                                      ).withValues(alpha: 0.6),
                                     ),
                                     const SizedBox(height: 16),
                                     const Text(
@@ -572,7 +574,7 @@ class _SecretaryClaimsPageState extends State<SecretaryClaimsPage>
                     borderRadius: BorderRadius.circular(30),
                     boxShadow: [
                       BoxShadow(
-                        color: kPrimary.withOpacity(0.3),
+                        color: kPrimary.withValues(alpha: 0.3),
                         blurRadius: 12,
                         offset: const Offset(0, 4),
                       ),
@@ -667,10 +669,10 @@ class _SecretaryClaimsPageState extends State<SecretaryClaimsPage>
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: color.withOpacity(.2), width: 1),
+          border: Border.all(color: color.withValues(alpha: .2), width: 1),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(.03),
+              color: Colors.black.withValues(alpha: .03),
               blurRadius: 8,
               offset: const Offset(0, 2),
             ),
@@ -688,9 +690,9 @@ class _SecretaryClaimsPageState extends State<SecretaryClaimsPage>
                     vertical: 4,
                   ),
                   decoration: BoxDecoration(
-                    color: color.withOpacity(.1),
+                    color: color.withValues(alpha: .1),
                     borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: color.withOpacity(.3)),
+                    border: Border.all(color: color.withValues(alpha: .3)),
                   ),
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
@@ -718,11 +720,13 @@ class _SecretaryClaimsPageState extends State<SecretaryClaimsPage>
                       vertical: 4,
                     ),
                     decoration: BoxDecoration(
-                      color: (claimed ? kAccent : Colors.grey).withOpacity(.1),
+                      color: (claimed ? kAccent : Colors.grey).withValues(
+                        alpha: .1,
+                      ),
                       borderRadius: BorderRadius.circular(16),
                       border: Border.all(
-                        color: (claimed ? kAccent : Colors.grey).withOpacity(
-                          .3,
+                        color: (claimed ? kAccent : Colors.grey).withValues(
+                          alpha: .3,
                         ),
                       ),
                     ),
@@ -755,7 +759,7 @@ class _SecretaryClaimsPageState extends State<SecretaryClaimsPage>
                     fontSize: 9,
                     fontFamily: 'OpenSans',
                     fontWeight: FontWeight.w500,
-                    color: kSubtleText.withOpacity(.7),
+                    color: kSubtleText.withValues(alpha: .7),
                   ),
                 ),
               ],
@@ -884,7 +888,7 @@ class _SecretaryClaimsPageState extends State<SecretaryClaimsPage>
                     Container(
                       padding: const EdgeInsets.all(12),
                       decoration: BoxDecoration(
-                        color: color.withOpacity(0.1),
+                        color: color.withValues(alpha: 0.1),
                         borderRadius: BorderRadius.circular(16),
                       ),
                       child: Icon(_statusIcon(status), size: 28, color: color),
@@ -919,9 +923,9 @@ class _SecretaryClaimsPageState extends State<SecretaryClaimsPage>
                         vertical: 8,
                       ),
                       decoration: BoxDecoration(
-                        color: color.withOpacity(0.1),
+                        color: color.withValues(alpha: 0.1),
                         borderRadius: BorderRadius.circular(20),
-                        border: Border.all(color: color.withOpacity(0.3)),
+                        border: Border.all(color: color.withValues(alpha: 0.3)),
                       ),
                       child: Text(
                         status,
@@ -1051,15 +1055,16 @@ class _SecretaryClaimsPageState extends State<SecretaryClaimsPage>
                               ),
                             ),
                             onPressed: () async {
+                              final messenger = ScaffoldMessenger.of(context);
                               final raw = claim['death_certificate_url']
                                   .toString();
                               final url = await resolveSupabaseStorageUrl(
                                 raw,
                                 client: supabase,
                               );
+                              if (!mounted) return;
                               if (url == null) {
-                                if (!mounted) return;
-                                ScaffoldMessenger.of(context).showSnackBar(
+                                messenger.showSnackBar(
                                   const SnackBar(
                                     content: Text('Could not open file.'),
                                   ),
@@ -1089,18 +1094,21 @@ class _SecretaryClaimsPageState extends State<SecretaryClaimsPage>
                                   ),
                                 );
                               } else if (isPdf) {
+                                final fileUri = Uri.parse(url);
                                 await launchUrl(
-                                  Uri.parse(url),
+                                  fileUri,
                                   mode: LaunchMode.externalApplication,
                                 );
                               } else {
-                                if (await canLaunchUrl(Uri.parse(url))) {
+                                final fileUri = Uri.parse(url);
+                                if (await canLaunchUrl(fileUri)) {
                                   await launchUrl(
-                                    Uri.parse(url),
+                                    fileUri,
                                     mode: LaunchMode.externalApplication,
                                   );
                                 } else {
-                                  ScaffoldMessenger.of(context).showSnackBar(
+                                  if (!mounted) return;
+                                  messenger.showSnackBar(
                                     const SnackBar(
                                       content: Text('Could not open file.'),
                                     ),
@@ -1130,14 +1138,15 @@ class _SecretaryClaimsPageState extends State<SecretaryClaimsPage>
                                 ),
                               ),
                               onPressed: () async {
+                                final messenger = ScaffoldMessenger.of(context);
                                 final raw = claim['valid_ids_url'].toString();
                                 final url = await resolveSupabaseStorageUrl(
                                   raw,
                                   client: supabase,
                                 );
+                                if (!mounted) return;
                                 if (url == null) {
-                                  if (!mounted) return;
-                                  ScaffoldMessenger.of(context).showSnackBar(
+                                  messenger.showSnackBar(
                                     const SnackBar(
                                       content: Text('Could not open file.'),
                                     ),
@@ -1168,18 +1177,21 @@ class _SecretaryClaimsPageState extends State<SecretaryClaimsPage>
                                     ),
                                   );
                                 } else if (isPdf) {
+                                  final fileUri = Uri.parse(url);
                                   await launchUrl(
-                                    Uri.parse(url),
+                                    fileUri,
                                     mode: LaunchMode.externalApplication,
                                   );
                                 } else {
-                                  if (await canLaunchUrl(Uri.parse(url))) {
+                                  final fileUri = Uri.parse(url);
+                                  if (await canLaunchUrl(fileUri)) {
                                     await launchUrl(
-                                      Uri.parse(url),
+                                      fileUri,
                                       mode: LaunchMode.externalApplication,
                                     );
                                   } else {
-                                    ScaffoldMessenger.of(context).showSnackBar(
+                                    if (!mounted) return;
+                                    messenger.showSnackBar(
                                       const SnackBar(
                                         content: Text('Could not open file.'),
                                       ),
@@ -1199,6 +1211,7 @@ class _SecretaryClaimsPageState extends State<SecretaryClaimsPage>
                               onPressed: _updating
                                   ? null
                                   : () async {
+                                      final navigator = Navigator.of(context);
                                       final confirm = await showDialog<bool>(
                                         context: context,
                                         builder: (ctx) => AlertDialog(
@@ -1232,7 +1245,7 @@ class _SecretaryClaimsPageState extends State<SecretaryClaimsPage>
                                           !claimed,
                                           claim['claimedmoney'],
                                         );
-                                        Navigator.pop(context);
+                                        navigator.pop();
                                       }
                                     },
                               icon: Icon(
@@ -1321,7 +1334,6 @@ class _SecretaryClaimsPageState extends State<SecretaryClaimsPage>
   Widget _bottomSheetActions(String status, Map<String, dynamic> claim) {
     final sLower = status.toLowerCase();
     final id = claim['id'].toString();
-    final claimed = _isClaimed(claim['claimedmoney']); // <— existing
 
     if (sLower == 'pending') {
       // Only Approve/Reject in Pending
@@ -1335,7 +1347,12 @@ class _SecretaryClaimsPageState extends State<SecretaryClaimsPage>
                       // Prompt for amount before approving
                       final TextEditingController amountController =
                           TextEditingController();
-                      final parentContext = context;
+                      final messenger = ScaffoldMessenger.of(context);
+                      final rootNavigator = Navigator.of(
+                        context,
+                        rootNavigator: true,
+                      );
+                      final sheetNavigator = Navigator.of(context);
                       final fullName =
                           _userMap[claim['user_id']
                               ?.toString()]?['full_name'] ??
@@ -1348,9 +1365,10 @@ class _SecretaryClaimsPageState extends State<SecretaryClaimsPage>
                           .eq('id', claim['dayung_unit_id'])
                           .maybeSingle();
                       final secretaryId = unit?['secretary_id'];
+                      if (!mounted) return;
 
                       final result = await showDialog<double>(
-                        context: parentContext,
+                        context: context,
                         builder: (dialogContext) => AlertDialog(
                           title: Text('Contribution Amount for $fullName'),
                           content: TextField(
@@ -1393,9 +1411,7 @@ class _SecretaryClaimsPageState extends State<SecretaryClaimsPage>
                                   ).replaceAll(',', ''),
                                 );
                                 if (amount == null) {
-                                  ScaffoldMessenger.of(
-                                    parentContext,
-                                  ).showSnackBar(
+                                  messenger.showSnackBar(
                                     const SnackBar(
                                       content: Text(
                                         'Please enter a valid amount.',
@@ -1413,8 +1429,9 @@ class _SecretaryClaimsPageState extends State<SecretaryClaimsPage>
                       );
 
                       if (result != null) {
+                        if (!mounted) return;
                         showDialog(
-                          context: parentContext,
+                          context: context,
                           barrierDismissible: false,
                           builder: (_) =>
                               const Center(child: CircularProgressIndicator()),
@@ -1468,8 +1485,9 @@ class _SecretaryClaimsPageState extends State<SecretaryClaimsPage>
                             if (b == null || d == null) return null;
                             var age = d.year - b.year;
                             if (d.month < b.month ||
-                                (d.month == b.month && d.day < b.day))
+                                (d.month == b.month && d.day < b.day)) {
                               age--;
+                            }
                             return age;
                           })();
 
@@ -1540,19 +1558,13 @@ class _SecretaryClaimsPageState extends State<SecretaryClaimsPage>
                           }
                           // --- END BLOCK ---
 
-                          Navigator.of(
-                            parentContext,
-                            rootNavigator: true,
-                          ).pop(); // Close loading
+                          rootNavigator.pop();
                           // Now approve the claim
                           _updateStatus(id, 'Approved');
-                          Navigator.pop(context);
+                          sheetNavigator.pop();
                         } catch (e) {
-                          Navigator.of(
-                            parentContext,
-                            rootNavigator: true,
-                          ).pop(); // Close loading
-                          ScaffoldMessenger.of(parentContext).showSnackBar(
+                          rootNavigator.pop();
+                          messenger.showSnackBar(
                             SnackBar(
                               content: Text('Failed to save amount: $e'),
                             ),
@@ -1578,6 +1590,7 @@ class _SecretaryClaimsPageState extends State<SecretaryClaimsPage>
               onPressed: _updating
                   ? null
                   : () async {
+                      final navigator = Navigator.of(context);
                       final confirm = await showDialog<bool>(
                         context: context,
                         builder: (ctx) => AlertDialog(
@@ -1599,7 +1612,7 @@ class _SecretaryClaimsPageState extends State<SecretaryClaimsPage>
                       );
                       if (confirm == true) {
                         _updateStatus(id, 'Rejected');
-                        Navigator.pop(context);
+                        navigator.pop();
                       }
                     },
               icon: const Icon(Icons.cancel, size: 20),

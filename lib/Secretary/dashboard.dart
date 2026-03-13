@@ -677,7 +677,7 @@ class _SecretaryDashboardPageState extends State<SecretaryDashboardPage> {
               children: [
                 CircleAvatar(
                   radius: 32,
-                  backgroundColor: kAccent.withOpacity(0.15),
+                  backgroundColor: kAccent.withValues(alpha: 0.15),
                   child: Icon(Icons.person, size: 36, color: kAccent),
                 ),
                 const SizedBox(height: 16),
@@ -694,7 +694,7 @@ class _SecretaryDashboardPageState extends State<SecretaryDashboardPage> {
                 Text(
                   _selectedDayungUnit,
                   style: TextStyle(
-                    color: Colors.white.withOpacity(0.85),
+                    color: Colors.white.withValues(alpha: 0.85),
                     fontSize: 15,
                     fontFamily: 'OpenSans',
                   ),
@@ -776,7 +776,7 @@ class _SecretaryDashboardPageState extends State<SecretaryDashboardPage> {
             child: Text(
               'v1.0.0',
               style: TextStyle(
-                color: kSubText.withOpacity(0.7),
+                color: kSubText.withValues(alpha: 0.7),
                 fontSize: 13,
                 fontFamily: 'OpenSans',
               ),
@@ -922,7 +922,7 @@ class _SecretaryDashboardPageState extends State<SecretaryDashboardPage> {
       decoration: BoxDecoration(
         color: bgColor,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: color.withOpacity(0.2)),
+        border: Border.all(color: color.withValues(alpha: 0.2)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.center,
@@ -930,7 +930,7 @@ class _SecretaryDashboardPageState extends State<SecretaryDashboardPage> {
           Container(
             padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
-              color: color.withOpacity(0.1),
+              color: color.withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(12),
             ),
             child: Icon(icon, color: color, size: 20),
@@ -942,7 +942,7 @@ class _SecretaryDashboardPageState extends State<SecretaryDashboardPage> {
             style: TextStyle(
               fontSize: 12,
               fontWeight: FontWeight.w600,
-              color: color.withOpacity(0.8),
+              color: color.withValues(alpha: 0.8),
             ),
           ),
           const SizedBox(height: 4),
@@ -970,7 +970,9 @@ class _SecretaryDashboardPageState extends State<SecretaryDashboardPage> {
       decoration: BoxDecoration(
         color: const Color(0xFFFDF2F8),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFEC4899).withOpacity(0.2)),
+        border: Border.all(
+          color: const Color(0xFFEC4899).withValues(alpha: 0.2),
+        ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.center,
@@ -978,7 +980,7 @@ class _SecretaryDashboardPageState extends State<SecretaryDashboardPage> {
           Container(
             padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
-              color: const Color(0xFFEC4899).withOpacity(0.1),
+              color: const Color(0xFFEC4899).withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(12),
             ),
             child: const Icon(
@@ -1048,7 +1050,7 @@ class _SecretaryDashboardPageState extends State<SecretaryDashboardPage> {
         borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
+            color: Colors.black.withValues(alpha: 0.05),
             blurRadius: 15,
             offset: const Offset(0, 5),
           ),
@@ -1784,7 +1786,7 @@ class _ModernDrawerTileState extends State<_ModernDrawerTile> {
 
   @override
   Widget build(BuildContext context) {
-    final hoverColor = kPrimary.withOpacity(0.08);
+    final hoverColor = kPrimary.withValues(alpha: 0.08);
     return MouseRegion(
       onEnter: (_) => setState(() => _hovering = true),
       onExit: (_) => setState(() => _hovering = false),

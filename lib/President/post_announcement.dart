@@ -5,6 +5,11 @@ import 'package:capstone_app/utils/input_safety.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 
+const _kAnnouncementServerBaseUrl = String.fromEnvironment(
+  'SUPERADMIN_BACKEND_URL',
+  defaultValue: '',
+);
+
 // Additional colors for post announcement specific styling
 const kText = Color(0xFF111827);
 const kSubText = Color(0xFF6B7280);
@@ -65,8 +70,14 @@ class _PostAnnouncementPageState extends State<PostAnnouncementPage> {
       throw StateError('Your session has expired. Please sign in again.');
     }
 
+    if (_kAnnouncementServerBaseUrl.trim().isEmpty) {
+      throw StateError(
+        'Announcement SMS is not configured. Point SUPERADMIN_BACKEND_URL to your Supabase Edge Function or server endpoint.',
+      );
+    }
+
     final url = Uri.parse(
-      'https://dayungapp.onrender.com/send-announcement-sms',
+      '${_kAnnouncementServerBaseUrl.trim()}/send-announcement-sms',
     );
 
     final resp = await http.post(
@@ -113,6 +124,9 @@ class _PostAnnouncementPageState extends State<PostAnnouncementPage> {
     }
     if (text.contains('rejected')) {
       return 'The server rejected the announcement. Please review the form and try again.';
+    }
+    if (text.contains('not configured')) {
+      return 'Announcement SMS is not configured yet.';
     }
     return 'Failed to post announcement. Please try again.';
   }
@@ -186,7 +200,7 @@ class _PostAnnouncementPageState extends State<PostAnnouncementPage> {
             children: [
               Container(
                 decoration: BoxDecoration(
-                  color: kSuccess.withOpacity(0.1),
+                  color: kSuccess.withValues(alpha: 0.1),
                   shape: BoxShape.circle,
                 ),
                 padding: const EdgeInsets.all(16),
@@ -285,7 +299,7 @@ class _PostAnnouncementPageState extends State<PostAnnouncementPage> {
                   ),
                   boxShadow: [
                     BoxShadow(
-                      color: kPrimary.withOpacity(0.3),
+                      color: kPrimary.withValues(alpha: 0.3),
                       blurRadius: 20,
                       offset: const Offset(0, 8),
                     ),
@@ -339,12 +353,14 @@ class _PostAnnouncementPageState extends State<PostAnnouncementPage> {
                                   color: kCardBg,
                                   borderRadius: BorderRadius.circular(20),
                                   border: Border.all(
-                                    color: kBorderColor.withOpacity(0.3),
+                                    color: kBorderColor.withValues(alpha: 0.3),
                                     width: 1,
                                   ),
                                   boxShadow: [
                                     BoxShadow(
-                                      color: Colors.black.withOpacity(0.05),
+                                      color: Colors.black.withValues(
+                                        alpha: 0.05,
+                                      ),
                                       blurRadius: 15,
                                       offset: const Offset(0, 6),
                                     ),
@@ -358,7 +374,9 @@ class _PostAnnouncementPageState extends State<PostAnnouncementPage> {
                                         Container(
                                           padding: const EdgeInsets.all(8),
                                           decoration: BoxDecoration(
-                                            color: kPrimary.withOpacity(0.1),
+                                            color: kPrimary.withValues(
+                                              alpha: 0.1,
+                                            ),
                                             borderRadius: BorderRadius.circular(
                                               12,
                                             ),
@@ -446,12 +464,14 @@ class _PostAnnouncementPageState extends State<PostAnnouncementPage> {
                                   color: kCardBg,
                                   borderRadius: BorderRadius.circular(20),
                                   border: Border.all(
-                                    color: kBorderColor.withOpacity(0.3),
+                                    color: kBorderColor.withValues(alpha: 0.3),
                                     width: 1,
                                   ),
                                   boxShadow: [
                                     BoxShadow(
-                                      color: Colors.black.withOpacity(0.05),
+                                      color: Colors.black.withValues(
+                                        alpha: 0.05,
+                                      ),
                                       blurRadius: 15,
                                       offset: const Offset(0, 6),
                                     ),
@@ -465,7 +485,9 @@ class _PostAnnouncementPageState extends State<PostAnnouncementPage> {
                                         Container(
                                           padding: const EdgeInsets.all(8),
                                           decoration: BoxDecoration(
-                                            color: kPrimary.withOpacity(0.1),
+                                            color: kPrimary.withValues(
+                                              alpha: 0.1,
+                                            ),
                                             borderRadius: BorderRadius.circular(
                                               12,
                                             ),
@@ -548,12 +570,14 @@ class _PostAnnouncementPageState extends State<PostAnnouncementPage> {
                                   color: kCardBg,
                                   borderRadius: BorderRadius.circular(20),
                                   border: Border.all(
-                                    color: kBorderColor.withOpacity(0.3),
+                                    color: kBorderColor.withValues(alpha: 0.3),
                                     width: 1,
                                   ),
                                   boxShadow: [
                                     BoxShadow(
-                                      color: Colors.black.withOpacity(0.05),
+                                      color: Colors.black.withValues(
+                                        alpha: 0.05,
+                                      ),
                                       blurRadius: 15,
                                       offset: const Offset(0, 6),
                                     ),
@@ -567,7 +591,9 @@ class _PostAnnouncementPageState extends State<PostAnnouncementPage> {
                                         Container(
                                           padding: const EdgeInsets.all(8),
                                           decoration: BoxDecoration(
-                                            color: kPrimary.withOpacity(0.1),
+                                            color: kPrimary.withValues(
+                                              alpha: 0.1,
+                                            ),
                                             borderRadius: BorderRadius.circular(
                                               12,
                                             ),
@@ -674,7 +700,9 @@ class _PostAnnouncementPageState extends State<PostAnnouncementPage> {
                                     shape: RoundedRectangleBorder(
                                       borderRadius: BorderRadius.circular(16),
                                     ),
-                                    shadowColor: kPrimary.withOpacity(0.3),
+                                    shadowColor: kPrimary.withValues(
+                                      alpha: 0.3,
+                                    ),
                                   ),
                                 ),
                               ),

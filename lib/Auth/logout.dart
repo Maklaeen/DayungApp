@@ -2,13 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:capstone_app/Auth/login.dart';
+import 'package:capstone_app/SuperAdmin/superadmin_support.dart';
 
 Future<void> showLogoutDialog(BuildContext context) async {
   final ok = await showGeneralDialog<bool>(
     context: context,
     barrierLabel: 'Logout',
     barrierDismissible: true,
-    barrierColor: Colors.black.withOpacity(0.35),
+    barrierColor: Colors.black.withValues(alpha: 0.35),
     transitionDuration: const Duration(milliseconds: 220),
     pageBuilder: (_, __, ___) => const SizedBox.shrink(),
     transitionBuilder: (ctx, anim, __, ___) {
@@ -32,7 +33,7 @@ Future<void> showLogoutDialog(BuildContext context) async {
                   borderRadius: BorderRadius.circular(22),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withOpacity(0.10),
+                      color: Colors.black.withValues(alpha: 0.10),
                       blurRadius: 24,
                       offset: const Offset(0, 12),
                     ),
@@ -54,7 +55,7 @@ Future<void> showLogoutDialog(BuildContext context) async {
                               width: 56,
                               height: 56,
                               decoration: BoxDecoration(
-                                color: Colors.red.withOpacity(0.12),
+                                color: Colors.red.withValues(alpha: 0.12),
                                 borderRadius: BorderRadius.circular(16),
                               ),
                               child: const Icon(
@@ -165,6 +166,10 @@ Future<void> showLogoutDialog(BuildContext context) async {
   );
 
   if (ok == true) {
+    await logAuditEvent(
+      'USER_ACTIVITY_SIGN_OUT',
+      fields: {'source': 'manual_logout_dialog'},
+    );
     await Supabase.instance.client.auth.signOut();
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove('selectedDayungUnit');

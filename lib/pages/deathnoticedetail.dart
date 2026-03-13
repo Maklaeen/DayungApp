@@ -24,16 +24,15 @@ class DeathNoticeDetail extends StatefulWidget {
 
   const DeathNoticeDetail({
     super.key,
-    required String name,
-    required String date,
+    required this.name,
+    required this.date,
     this.birthDate,
     this.latitude,
     this.longitude,
     this.barangay,
   }) : noticeId = null,
        dayungUnitId = null,
-       name = name,
-       date = date;
+       super();
 
   const DeathNoticeDetail.byNoticeId({
     super.key,
@@ -70,68 +69,25 @@ class _DeathNoticeDetailState extends State<DeathNoticeDetail> {
   bool _locPermissionDenied = false;
 
   String? _locationName;
-  ml.MaplibreMapController? _mapController;
+  ml.MapLibreMapController? _mapController;
   bool _styleLoaded = false;
   ml.Circle? _vigilCircle;
   ml.Circle? _userCircle;
   ml.Line? _routeLine;
 
   StreamSubscription<Position>? _posSub;
-  bool _autoFollow = true;
+  final bool _autoFollow = true;
   double? _initialDistance;
   static const double _fadeRemoveThreshold = 40;
-  static const Duration _posInterval = Duration(seconds: 2);
 
   bool _loading = false;
   String? _error;
-  bool _membersLoading = false;
-  List<Map<String, dynamic>> _paidMembers = [];
-  List<Map<String, dynamic>> _unpaidMembers = [];
-
-  Future<void> _updateRouteLine() async {
-    if (!_styleLoaded || _mapController == null) return;
-    final hasBoth =
-        _userLat != null && _userLng != null && _fLat != null && _fLng != null;
-    if (!hasBoth) {
-      if (_routeLine != null) {
-        try {
-          await _mapController!.removeLine(_routeLine!);
-        } catch (_) {}
-        _routeLine = null;
-      }
-      return;
-    }
-    final coords = <ml.LatLng>[
-      ml.LatLng(_userLat!, _userLng!),
-      ml.LatLng(_fLat!, _fLng!),
-    ];
-    if (_routeLine == null) {
-      try {
-        _routeLine = await _mapController!.addLine(
-          ml.LineOptions(
-            geometry: coords,
-            lineColor: "#0D47A1",
-            lineWidth: 4.0,
-            lineOpacity: 0.75,
-          ),
-        );
-      } catch (_) {}
-    } else {
-      try {
-        await _mapController!.updateLine(
-          _routeLine!,
-          ml.LineOptions(geometry: coords),
-        );
-      } catch (_) {}
-    }
-  }
 
   @override
   void initState() {
     super.initState();
     _hydrateFromPassedProps();
     _loadIfNeeded();
-    _fetchMembersForNotice();
     _fetchUserLocation();
   }
 
@@ -139,6 +95,15 @@ class _DeathNoticeDetailState extends State<DeathNoticeDetail> {
   void dispose() {
     _posSub?.cancel();
     super.dispose();
+  }
+
+  void _hydrateFromPassedProps() {
+    _fName = widget.name;
+    _fDateOfDeath = widget.date;
+    _fBirthDate = widget.birthDate;
+    _fLat = widget.latitude;
+    _fLng = widget.longitude;
+    _fBarangay = widget.barangay;
   }
 
   Future<void> _fetchUserLocation() async {
@@ -159,8 +124,10 @@ class _DeathNoticeDetailState extends State<DeathNoticeDetail> {
       }
 
       final pos = await Geolocator.getCurrentPosition(
-        desiredAccuracy: LocationAccuracy.high,
-        timeLimit: const Duration(seconds: 10),
+        locationSettings: const LocationSettings(
+          accuracy: LocationAccuracy.high,
+          timeLimit: Duration(seconds: 10),
+        ),
       );
       _userLat = pos.latitude;
       _userLng = pos.longitude;
@@ -239,11 +206,6 @@ class _DeathNoticeDetailState extends State<DeathNoticeDetail> {
     } catch (_) {}
   }
 
-  void _toggleFollow() {
-    setState(() => _autoFollow = !_autoFollow);
-    if (_autoFollow) _centerOnUser();
-  }
-
   Future<void> _fetchRoadRoute() async {
     if (_fLat == null ||
         _fLng == null ||
@@ -310,7 +272,7 @@ class _DeathNoticeDetailState extends State<DeathNoticeDetail> {
     );
   }
 
-  Future<void> _onMapCreated(ml.MaplibreMapController c) async {
+  Future<void> _onMapCreated(ml.MapLibreMapController c) async {
     _mapController = c;
   }
 
@@ -393,9 +355,9 @@ class _DeathNoticeDetailState extends State<DeathNoticeDetail> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
       decoration: BoxDecoration(
-        color: color.withOpacity(.12),
+        color: color.withValues(alpha: .12),
         borderRadius: BorderRadius.circular(30),
-        border: Border.all(color: color.withOpacity(.55), width: 1.2),
+        border: Border.all(color: color.withValues(alpha: .55), width: 1.2),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -422,128 +384,6 @@ class _DeathNoticeDetailState extends State<DeathNoticeDetail> {
         : '${m.toStringAsFixed(0)} m away';
   }
 
-  void _addSymbolsToMap() async {
-    if (_mapController == null || _fLat == null || _fLng == null) return;
-    try {
-      await _mapController!.clearSymbols();
-    } catch (_) {}
-    try {
-      // Vigil marker
-      await _mapController!.addSymbol(
-        ml.SymbolOptions(
-          geometry: ml.LatLng(_fLat!, _fLng!),
-          iconImage: 'marker-15',
-          iconSize: 1.6,
-          textField: _fName ?? 'Vigil',
-          textOffset: const Offset(0, 2),
-        ),
-      );
-      // User marker
-      if (_userLat != null && _userLng != null) {
-        await _mapController!.addSymbol(
-          ml.SymbolOptions(
-            geometry: ml.LatLng(_userLat!, _userLng!),
-            iconImage: 'marker-15',
-            iconSize: 1.2,
-            textField: 'You',
-            textOffset: const Offset(0, 2),
-          ),
-        );
-      }
-    } catch (_) {}
-  }
-
-  Future<void> _fetchMembersForNotice() async {
-    if (widget.noticeId == null || widget.dayungUnitId == null) return;
-    setState(() => _membersLoading = true);
-
-    final sb = Supabase.instance.client;
-
-    final appsRes = await sb
-        .from('applications')
-        .select('user_id')
-        .eq('dayung_unit_id', widget.dayungUnitId as Object)
-        .eq('status', 'approved');
-
-    final approvedIds = List<Map<String, dynamic>>.from(
-      appsRes,
-    ).map((e) => e['user_id'].toString()).toSet();
-
-    final notice = await sb
-        .from('death_notices')
-        .select('death_notice_id')
-        .eq('id', widget.noticeId as Object)
-        .maybeSingle();
-
-    final uuid = notice?['death_notice_id'];
-    if (uuid == null) {
-      setState(() {
-        _paidMembers = [];
-        _unpaidMembers = [];
-        _membersLoading = false;
-        _error = 'Notice UUID not found';
-      });
-      return;
-    }
-
-    final paysRes = await sb
-        .from('payments')
-        .select('user_id,status,dayung_unit_id')
-        .eq('userdeceased', uuid)
-        .eq('dayung_unit_id', widget.dayungUnitId as Object);
-
-    final pays = List<Map<String, dynamic>>.from(paysRes);
-
-    final paidIds = pays
-        .where((p) => p['status'] == 'paid')
-        .map((p) => p['user_id'].toString())
-        .where(approvedIds.contains)
-        .toSet();
-
-    final pendingIds = pays
-        .where((p) => p['status'] == 'pending')
-        .map((p) => p['user_id'].toString())
-        .where(approvedIds.contains)
-        .toSet();
-
-    Future<List<Map<String, dynamic>>> loadUsers(Set<String> ids) async {
-      if (ids.isEmpty) return [];
-      final res = await sb
-          .from('users')
-          .select('id, full_name')
-          .inFilter('id', ids.toList())
-          .order('full_name', ascending: true);
-      return List<Map<String, dynamic>>.from(res);
-    }
-
-    final paid = await loadUsers(paidIds);
-    final unpaid = await loadUsers(pendingIds);
-
-    setState(() {
-      _paidMembers = paid;
-      _unpaidMembers = unpaid;
-      _membersLoading = false;
-    });
-  }
-
-  void _hydrateFromPassedProps() {
-    _fName = widget.name;
-    _fDateOfDeath = widget.date;
-    _fBirthDate = widget.birthDate;
-    _fLat = widget.latitude;
-    _fLng = widget.longitude;
-    _fBarangay = widget.barangay;
-  }
-
-  bool _isMissingLocationColumnError(Object error) {
-    if (error is! PostgrestException) return false;
-    final message = error.message.toLowerCase();
-    return message.contains('death_notices.latitude') ||
-        message.contains('death_notices.longitude') ||
-        message.contains('column latitude does not exist') ||
-        message.contains('column longitude does not exist');
-  }
-
   Future<Map<String, dynamic>?> _fetchNoticeRecord({
     required bool includeLocationFields,
   }) {
@@ -556,6 +396,11 @@ class _DeathNoticeDetailState extends State<DeathNoticeDetail> {
         .select(fields)
         .eq('id', widget.noticeId!)
         .maybeSingle();
+  }
+
+  bool _isMissingLocationColumnError(Object error) {
+    final message = error.toString().toLowerCase();
+    return message.contains('latitude') || message.contains('longitude');
   }
 
   Future<void> _loadIfNeeded() async {
@@ -823,22 +668,6 @@ class _DeathNoticeDetailState extends State<DeathNoticeDetail> {
     return age;
   }
 
-  Future<void> _openInMaps() async {
-    if (_fLat == null || _fLng == null) return;
-    final lat = _fLat!.toStringAsFixed(6);
-    final lng = _fLng!.toStringAsFixed(6);
-    final label = Uri.encodeComponent(_fName ?? 'Vigil Location');
-    final apple = Uri.parse('http://maps.apple.com/?ll=$lat,$lng&q=$label');
-    final google = Uri.parse(
-      'https://www.google.com/maps/search/?api=1&query=$lat,$lng',
-    );
-    if (await canLaunchUrl(google)) {
-      await launchUrl(google, mode: LaunchMode.externalApplication);
-    } else if (await canLaunchUrl(apple)) {
-      await launchUrl(apple, mode: LaunchMode.externalApplication);
-    }
-  }
-
   Widget _buildLocationWarningCard() {
     return Container(
       width: double.infinity,
@@ -1091,8 +920,8 @@ class _DeathNoticeDetailState extends State<DeathNoticeDetail> {
                                             vertical: 7,
                                           ),
                                           decoration: BoxDecoration(
-                                            color: Colors.black.withOpacity(
-                                              0.65,
+                                            color: Colors.black.withValues(
+                                              alpha: 0.65,
                                             ),
                                             borderRadius: BorderRadius.circular(
                                               20,
@@ -1321,32 +1150,6 @@ class _DeathNoticeDetailState extends State<DeathNoticeDetail> {
     );
   }
 
-  Widget _distanceChip() {
-    final m = _distanceMeters!;
-    final text = m >= 1000
-        ? '${(m / 1000).toStringAsFixed(2)} km away'
-        : '${m.toStringAsFixed(0)} m away';
-    return _infoChip(text);
-  }
-
-  Widget _infoChip(String text) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-      decoration: BoxDecoration(
-        color: Colors.black.withOpacity(0.55),
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Text(
-        text,
-        style: const TextStyle(
-          color: Colors.white,
-          fontSize: 12.5,
-          fontWeight: FontWeight.w600,
-        ),
-      ),
-    );
-  }
-
   void _openRouteInMaps() async {
     if (_fLat == null || _fLng == null) return;
     final destLat = _fLat!.toStringAsFixed(6);
@@ -1410,39 +1213,9 @@ class _DeathNoticeDetailState extends State<DeathNoticeDetail> {
                   color: Colors.grey.shade700,
                 ),
               ),
-              const Spacer(),
-              if (showMapButton)
-                GestureDetector(
-                  onTap: _openInMaps,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 6,
-                    ),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF0D47A1),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: const Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(Icons.directions, color: Colors.white, size: 16),
-                        SizedBox(width: 4),
-                        Text(
-                          'Maps',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
             ],
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 10),
           Text(
             value,
             style: const TextStyle(
@@ -1459,44 +1232,6 @@ class _DeathNoticeDetailState extends State<DeathNoticeDetail> {
             ),
           ],
         ],
-      ),
-    );
-  }
-}
-
-class _CenterBtn extends StatelessWidget {
-  final String tooltip;
-  final IconData icon;
-  final bool enabled;
-  final VoidCallback onTap;
-  const _CenterBtn({
-    required this.tooltip,
-    required this.icon,
-    required this.enabled,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: enabled ? Colors.white : Colors.grey.shade200,
-      shape: const CircleBorder(),
-      elevation: enabled ? 2 : 0,
-      child: InkWell(
-        onTap: enabled ? onTap : null,
-        customBorder: const CircleBorder(),
-        child: SizedBox(
-          width: 44,
-          height: 44,
-          child: Tooltip(
-            message: tooltip,
-            child: Icon(
-              icon,
-              size: 22,
-              color: enabled ? const Color(0xFF0D47A1) : Colors.grey.shade400,
-            ),
-          ),
-        ),
       ),
     );
   }

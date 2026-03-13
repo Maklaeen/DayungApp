@@ -96,6 +96,7 @@ class _CreateDeathNoticePageState extends State<CreateDeathNoticePage> {
 
   Future<void> _fetchApprovedClaims() async {
     setState(() => _loading = true);
+    final messenger = ScaffoldMessenger.of(context);
     try {
       // 1) Fetch Approved claims for this unit via RPC (RLS-safe)
       final res = await supabase.rpc(
@@ -178,22 +179,18 @@ class _CreateDeathNoticePageState extends State<CreateDeathNoticePage> {
         }
       }
 
+      if (!mounted) return;
       setState(() {
         _approvedClaims = out;
         _loading = false;
       });
     } catch (e) {
+      if (!mounted) return;
       setState(() => _loading = false);
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Failed to load claims: $e')));
+      messenger.showSnackBar(
+        SnackBar(content: Text('Failed to load claims: $e')),
+      );
     }
-  }
-
-  void _filter(String q) {
-    setState(() {
-      _search = q;
-    });
   }
 
   @override
@@ -225,7 +222,7 @@ class _CreateDeathNoticePageState extends State<CreateDeathNoticePage> {
                 ),
                 boxShadow: [
                   BoxShadow(
-                    color: kPrimaryDark.withOpacity(0.3),
+                    color: kPrimaryDark.withValues(alpha: 0.3),
                     blurRadius: 20,
                     offset: const Offset(0, 8),
                   ),
@@ -380,7 +377,9 @@ class _CreateDeathNoticePageState extends State<CreateDeathNoticePage> {
                                             CircleAvatar(
                                               backgroundColor: isBeneficiary
                                                   ? Colors.purple.shade100
-                                                  : kPrimary.withOpacity(0.18),
+                                                  : kPrimary.withValues(
+                                                      alpha: 0.18,
+                                                    ),
                                               child: Icon(
                                                 Icons.person,
                                                 color: isBeneficiary
@@ -408,8 +407,8 @@ class _CreateDeathNoticePageState extends State<CreateDeathNoticePage> {
                                               decoration: BoxDecoration(
                                                 color: isBeneficiary
                                                     ? Colors.purple.shade50
-                                                    : kPrimary.withOpacity(
-                                                        0.08,
+                                                    : kPrimary.withValues(
+                                                        alpha: 0.08,
                                                       ),
                                                 borderRadius:
                                                     BorderRadius.circular(8),
@@ -452,16 +451,18 @@ class _CreateDeathNoticePageState extends State<CreateDeathNoticePage> {
                                               label:
                                                   const SizedBox.shrink(), // No label text
                                               onPressed: () async {
+                                                final messenger =
+                                                    ScaffoldMessenger.of(
+                                                      context,
+                                                    );
                                                 final url =
                                                     await resolveSupabaseStorageUrl(
                                                       deathCert.toString(),
                                                       client: supabase,
                                                     );
+                                                if (!mounted) return;
                                                 if (url == null) {
-                                                  if (!mounted) return;
-                                                  ScaffoldMessenger.of(
-                                                    context,
-                                                  ).showSnackBar(
+                                                  messenger.showSnackBar(
                                                     const SnackBar(
                                                       content: Text(
                                                         'Could not open file.',
@@ -470,18 +471,18 @@ class _CreateDeathNoticePageState extends State<CreateDeathNoticePage> {
                                                   );
                                                   return;
                                                 }
+                                                final fileUri = Uri.parse(url);
                                                 if (await canLaunchUrl(
-                                                  Uri.parse(url),
+                                                  fileUri,
                                                 )) {
                                                   await launchUrl(
-                                                    Uri.parse(url),
+                                                    fileUri,
                                                     mode: LaunchMode
                                                         .externalApplication,
                                                   );
                                                 } else {
-                                                  ScaffoldMessenger.of(
-                                                    context,
-                                                  ).showSnackBar(
+                                                  if (!mounted) return;
+                                                  messenger.showSnackBar(
                                                     const SnackBar(
                                                       content: Text(
                                                         'Could not open file.',
@@ -584,6 +585,7 @@ class _CreateDeathNoticePageState extends State<CreateDeathNoticePage> {
   }
 
   Future<void> _setDeceased(Map<String, dynamic> claim) async {
+    final messenger = ScaffoldMessenger.of(context);
     final isBeneficiary = claim['beneficiary_id'] != null;
     final dod = claim['date_of_death'];
     final deathCert = claim['death_certificate_url'];
@@ -602,7 +604,7 @@ class _CreateDeathNoticePageState extends State<CreateDeathNoticePage> {
     final int? computedAge = _ageFromDobDod(dob, dod);
 
     if (name.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
+      messenger.showSnackBar(
         const SnackBar(
           content: Text('Missing full name. Please check the record.'),
         ),
@@ -667,16 +669,16 @@ class _CreateDeathNoticePageState extends State<CreateDeathNoticePage> {
             .eq('id', (claim['id'] ?? '').toString());
       } catch (_) {}
 
-      ScaffoldMessenger.of(context).showSnackBar(
+      if (!mounted) return;
+      messenger.showSnackBar(
         const SnackBar(
           content: Text('Deceased status set and death notice created.'),
         ),
       );
       _fetchApprovedClaims();
     } catch (e) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Error: $e')));
+      if (!mounted) return;
+      messenger.showSnackBar(SnackBar(content: Text('Error: $e')));
     }
   }
 
@@ -684,6 +686,8 @@ class _CreateDeathNoticePageState extends State<CreateDeathNoticePage> {
     Map<String, dynamic> claim,
   ) async {
     final TextEditingController amountController = TextEditingController();
+    final messenger = ScaffoldMessenger.of(context);
+    final rootNavigator = Navigator.of(context, rootNavigator: true);
     final isBeneficiary = claim['beneficiary_id'] != null;
     final userId = isBeneficiary
         ? (claim['beneficiaries']?['user_id'] ?? claim['user_id'])
@@ -693,8 +697,6 @@ class _CreateDeathNoticePageState extends State<CreateDeathNoticePage> {
         ? (claim['beneficiaries']?['full_name'] ?? '')
         : (claim['users']?['full_name'] ?? '');
 
-    final parentContext = context;
-
     // Fetch secretary_id before showing the dialog
     final unit = await supabase
         .from('dayung_units')
@@ -702,9 +704,10 @@ class _CreateDeathNoticePageState extends State<CreateDeathNoticePage> {
         .eq('id', widget.dayungUnitId)
         .maybeSingle();
     final secretaryId = unit?['secretary_id'];
+    if (!mounted) return;
 
     final result = await showDialog<double>(
-      context: parentContext,
+      context: context,
       builder: (dialogContext) => AlertDialog(
         title: Text('Set Amount for $fullName'),
         content: TextField(
@@ -733,7 +736,7 @@ class _CreateDeathNoticePageState extends State<CreateDeathNoticePage> {
                 ).replaceAll(',', ''),
               );
               if (amount == null) {
-                ScaffoldMessenger.of(parentContext).showSnackBar(
+                messenger.showSnackBar(
                   const SnackBar(content: Text('Please enter a valid amount.')),
                 );
                 return;
@@ -747,8 +750,9 @@ class _CreateDeathNoticePageState extends State<CreateDeathNoticePage> {
     );
 
     if (result != null) {
+      if (!mounted) return;
       showDialog(
-        context: parentContext,
+        context: context,
         barrierDismissible: false,
         builder: (_) => const Center(child: CircularProgressIndicator()),
       );
@@ -802,13 +806,13 @@ class _CreateDeathNoticePageState extends State<CreateDeathNoticePage> {
           });
         }
 
-        Navigator.of(parentContext, rootNavigator: true).pop(); // Close loading
+        rootNavigator.pop();
         await _setDeceased(claim);
       } catch (e) {
-        Navigator.of(parentContext, rootNavigator: true).pop(); // Close loading
-        ScaffoldMessenger.of(
-          parentContext,
-        ).showSnackBar(SnackBar(content: Text('Failed to save amount: $e')));
+        rootNavigator.pop();
+        messenger.showSnackBar(
+          SnackBar(content: Text('Failed to save amount: $e')),
+        );
       }
     }
   }

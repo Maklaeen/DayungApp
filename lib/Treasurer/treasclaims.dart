@@ -199,9 +199,9 @@ class _TreasurerClaimsPageState extends State<TreasurerClaimsPage> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.1),
+        color: color.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: color.withOpacity(0.25)),
+        border: Border.all(color: color.withValues(alpha: 0.25)),
       ),
       child: Text(
         '$label: $count',
@@ -252,10 +252,10 @@ class _TreasurerClaimsPageState extends State<TreasurerClaimsPage> {
                       vertical: 6,
                     ),
                     decoration: BoxDecoration(
-                      color: _statusColor(status).withOpacity(0.08),
+                      color: _statusColor(status).withValues(alpha: 0.08),
                       borderRadius: BorderRadius.circular(16),
                       border: Border.all(
-                        color: _statusColor(status).withOpacity(.2),
+                        color: _statusColor(status).withValues(alpha: .2),
                       ),
                     ),
                     child: Row(

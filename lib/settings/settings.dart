@@ -19,11 +19,9 @@ class DayungSettingsPage extends StatefulWidget {
 }
 
 class _DayungSettingsPageState extends State<DayungSettingsPage> {
-  int? _currentDayungId;
   String? _currentDayungName;
   Map<String, dynamic>? _currentDayungData;
   bool _loadingDayung = false;
-  bool _isPresident = false;
 
   final List<String> selectedFilters = const [
     '100',
@@ -57,7 +55,6 @@ class _DayungSettingsPageState extends State<DayungSettingsPage> {
 
       if (raw == null) {
         setState(() {
-          _currentDayungId = null;
           _currentDayungName = null;
           _currentDayungData = null;
           _loadingDayung = false;
@@ -67,7 +64,6 @@ class _DayungSettingsPageState extends State<DayungSettingsPage> {
 
       final obj = Map<String, dynamic>.from(jsonDecode(raw) as Map);
       setState(() {
-        _currentDayungId = obj['id'] as int?;
         _currentDayungName = (obj['name'] ?? 'Dayung').toString();
         _currentDayungData = obj;
         _loadingDayung = false;
@@ -77,31 +73,10 @@ class _DayungSettingsPageState extends State<DayungSettingsPage> {
       // Role refresh only when user explicitly changes Dayung.
     } catch (_) {
       setState(() {
-        _currentDayungId = null;
         _currentDayungName = null;
         _currentDayungData = null;
         _loadingDayung = false;
       });
-    }
-  }
-
-  Future<void> _checkPresident() async {
-    final sb = Supabase.instance.client;
-    final uid = sb.auth.currentUser?.id;
-    if (uid == null) {
-      if (mounted) setState(() => _isPresident = false);
-      return;
-    }
-    try {
-      final rows = await sb
-          .from('dayung_units')
-          .select('id')
-          .eq('president_id', uid)
-          .limit(1);
-      final isPres = (rows as List).isNotEmpty;
-      if (mounted) setState(() => _isPresident = isPres);
-    } catch (_) {
-      if (mounted) setState(() => _isPresident = false);
     }
   }
 
@@ -242,6 +217,11 @@ class _DayungSettingsPageState extends State<DayungSettingsPage> {
                               icon: const Icon(Icons.swap_horiz),
                               label: const Text('Change'),
                               onPressed: () async {
+                                final messenger = ScaffoldMessenger.of(context);
+                                final roleProvider = context
+                                    .read<DayungRoleProvider>();
+                                final unitProvider = context
+                                    .read<DayungUnitProvider>();
                                 final selected = await Navigator.push(
                                   context,
                                   MaterialPageRoute(
@@ -282,24 +262,21 @@ class _DayungSettingsPageState extends State<DayungSettingsPage> {
 
                                       // Refresh role + broadcast name/object so headers/pages rebuild consistently
                                       final id = selected['id'] as int?;
-                                      if (mounted) {
-                                        await context.read<DayungRoleProvider>().refreshRoles(id);
-                                        context.read<DayungUnitProvider>().setDayungUnit(
-                                          '${selected['name'] ?? 'Dayung'}',
-                                          obj: {
-                                            'id': selected['id'],
-                                            'name': selected['name'],
-                                            'barangay': selected['barangay'],
-                                            'city': selected['city'],
-                                            'province': selected['province'],
-                                          },
-                                        );
-                                      }
+                                      if (!mounted) return;
+                                      await roleProvider.refreshRoles(id);
+                                      unitProvider.setDayungUnit(
+                                        '${selected['name'] ?? 'Dayung'}',
+                                        obj: {
+                                          'id': selected['id'],
+                                          'name': selected['name'],
+                                          'barangay': selected['barangay'],
+                                          'city': selected['city'],
+                                          'province': selected['province'],
+                                        },
+                                      );
 
                                       if (!mounted) return;
-                                      ScaffoldMessenger.of(
-                                        context,
-                                      ).showSnackBar(
+                                      messenger.showSnackBar(
                                         SnackBar(
                                           content: Text(
                                             'Current Dayung updated to ${selected['name']}',
@@ -308,9 +285,7 @@ class _DayungSettingsPageState extends State<DayungSettingsPage> {
                                       );
                                     } on PostgrestException catch (e) {
                                       if (!mounted) return;
-                                      ScaffoldMessenger.of(
-                                        context,
-                                      ).showSnackBar(
+                                      messenger.showSnackBar(
                                         SnackBar(
                                           content: Text(
                                             'Failed to set Dayung: ${e.message}',
@@ -352,17 +327,18 @@ class _DayungSettingsPageState extends State<DayungSettingsPage> {
                   icon: const Icon(Icons.add),
                   label: const Text('Apply a Dayung'),
                   onPressed: () async {
+                    final messenger = ScaffoldMessenger.of(context);
                     final selectedDayung = await Navigator.push(
                       context,
                       MaterialPageRoute(
                         builder: (_) => const DayungSuggestionsPage(),
                       ),
                     );
+                    if (!mounted) return;
                     if (selectedDayung != null &&
                         selectedDayung is Map<String, dynamic>) {
                       // Application was sent via RPC in DayungSuggestionsPage
-                      if (!mounted) return;
-                      ScaffoldMessenger.of(context).showSnackBar(
+                      messenger.showSnackBar(
                         SnackBar(
                           content: Text(
                             'Application sent to ${selectedDayung['name']}!',
@@ -498,6 +474,7 @@ class _DayungSettingsPageState extends State<DayungSettingsPage> {
 
                     return GestureDetector(
                       onTap: () async {
+                        final messenger = ScaffoldMessenger.of(context);
                         final result = await Navigator.push(
                           context,
                           MaterialPageRoute(
@@ -508,9 +485,10 @@ class _DayungSettingsPageState extends State<DayungSettingsPage> {
                             ),
                           ),
                         );
-                        if (result != null && mounted) {
+                        if (!mounted) return;
+                        if (result != null) {
                           // Optional: handle result (e.g., show snackbar)
-                          ScaffoldMessenger.of(context).showSnackBar(
+                          messenger.showSnackBar(
                             SnackBar(
                               content: Text(
                                 'Application sent to ${result['name']}!',

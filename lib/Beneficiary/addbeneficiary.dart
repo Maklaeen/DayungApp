@@ -4,10 +4,10 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:capstone_app/utils/input_safety.dart';
 import 'package:cupertino_calendar_picker/cupertino_calendar_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:capstone_app/utils/supabase_storage.dart';
-import 'package:capstone_app/utils/input_safety.dart';
 import 'dart:convert';
 
 // Modern palette
@@ -116,15 +116,15 @@ class _AddBeneficiaryPageState extends State<AddBeneficiaryPage> {
                     vertical: 14,
                   ),
                   decoration: BoxDecoration(
-                    color: color.withOpacity(0.38),
+                    color: color.withValues(alpha: 0.38),
                     borderRadius: BorderRadius.circular(18),
                     border: Border.all(
-                      color: Colors.white.withOpacity(0.18),
+                      color: Colors.white.withValues(alpha: 0.18),
                       width: 1.2,
                     ),
                     boxShadow: [
                       BoxShadow(
-                        color: color.withOpacity(0.18),
+                        color: color.withValues(alpha: 0.18),
                         blurRadius: 12,
                         offset: const Offset(0, 4),
                       ),
@@ -429,6 +429,7 @@ class _AddBeneficiaryPageState extends State<AddBeneficiaryPage> {
 
   Future<void> _submitBeneficiary() async {
     if (!_formKey.currentState!.validate()) return;
+    final navigator = Navigator.of(context);
     if (user == null) {
       _showTopPopup(
         'You must be logged in',
@@ -496,6 +497,7 @@ class _AddBeneficiaryPageState extends State<AddBeneficiaryPage> {
           .select()
           .single();
 
+      if (!mounted) return;
       if (response['id'] == null) {
         _showTopPopup(
           'Failed to add beneficiary',
@@ -516,9 +518,10 @@ class _AddBeneficiaryPageState extends State<AddBeneficiaryPage> {
           birthCertificateFile = null;
           validIdFile = null;
         });
-        Navigator.pop(context);
+        navigator.pop();
       }
     } catch (e) {
+      if (!mounted) return;
       _showTopPopup('Error: $e', color: kWarn, icon: Icons.error_outline);
     } finally {
       if (mounted) setState(() => _isSubmitting = false);
@@ -622,7 +625,7 @@ class _AddBeneficiaryPageState extends State<AddBeneficiaryPage> {
                                   margin: const EdgeInsets.only(bottom: 20),
                                   padding: const EdgeInsets.all(16),
                                   decoration: BoxDecoration(
-                                    color: kAccent.withOpacity(0.08),
+                                    color: kAccent.withValues(alpha: 0.08),
                                     borderRadius: BorderRadius.circular(12),
                                   ),
                                   child: const LinearProgressIndicator(

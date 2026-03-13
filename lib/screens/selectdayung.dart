@@ -67,6 +67,8 @@ class _SelectDayungPageState extends State<SelectDayungPage> {
   Future<Map<String, dynamic>> _persistSelectionAndNotify(
     Map<String, dynamic> d,
   ) async {
+    final roleProvider = context.read<DayungRoleProvider>();
+    final unitProvider = context.read<DayungUnitProvider>();
     final prefs = await SharedPreferences.getInstance();
     final normalized = _normalizeDayung(d);
     await prefs.setString('selectedDayungUnit', jsonEncode(normalized));
@@ -78,8 +80,8 @@ class _SelectDayungPageState extends State<SelectDayungPage> {
         : int.tryParse('${normalized['id']}');
 
     // Refresh roles and unit provider
-    await context.read<DayungRoleProvider>().refreshRoles(id);
-    context.read<DayungUnitProvider>().setDayungUnit(
+    await roleProvider.refreshRoles(id);
+    unitProvider.setDayungUnit(
       '${normalized['name'] ?? 'Dayung'}',
       obj: normalized,
     );
@@ -328,13 +330,15 @@ class _SelectDayungPageState extends State<SelectDayungPage> {
     if (_joined.isEmpty) {
       return _EmptyState(
         onFind: () async {
+          final messenger = ScaffoldMessenger.of(context);
           final selected = await Navigator.push(
             context,
             MaterialPageRoute(builder: (_) => const DayungSuggestionsPage()),
           );
           await _fetchJoinedDayung();
+          if (!mounted) return;
           if (selected != null) {
-            ScaffoldMessenger.of(context).showSnackBar(
+            messenger.showSnackBar(
               const SnackBar(
                 content: Text('Application submitted. Awaiting approval.'),
               ),
@@ -371,7 +375,7 @@ class _SelectDayungPageState extends State<SelectDayungPage> {
                   Row(
                     children: [
                       CircleAvatar(
-                        backgroundColor: kPrimary.withOpacity(0.2),
+                        backgroundColor: kPrimary.withValues(alpha: 0.2),
                         child: Icon(Icons.home, color: kPrimary),
                       ),
                       const SizedBox(width: 12),
@@ -416,10 +420,11 @@ class _SelectDayungPageState extends State<SelectDayungPage> {
                           onPressed: isCurrent
                               ? null
                               : () async {
+                                  final navigator = Navigator.of(context);
                                   final normalized =
                                       await _persistSelectionAndNotify(d);
                                   if (!mounted) return;
-                                  Navigator.pop(context, normalized);
+                                  navigator.pop(normalized);
                                 },
                         ),
                       ),
@@ -470,7 +475,7 @@ class _EmptyState extends StatelessWidget {
             Container(
               padding: const EdgeInsets.all(24),
               decoration: BoxDecoration(
-                color: kPrimary.withOpacity(0.08),
+                color: kPrimary.withValues(alpha: 0.08),
                 borderRadius: BorderRadius.circular(20),
               ),
               child: Icon(Icons.home, color: kPrimary, size: 48),

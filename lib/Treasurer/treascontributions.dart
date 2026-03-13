@@ -218,7 +218,7 @@ class _TreasurerContributionsPageState
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: color.withOpacity(0.18)),
+        border: Border.all(color: color.withValues(alpha: 0.18)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -349,9 +349,11 @@ class _TreasurerContributionsPageState
                     vertical: 6,
                   ),
                   decoration: BoxDecoration(
-                    color: statusColor.withOpacity(0.1),
+                    color: statusColor.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(999),
-                    border: Border.all(color: statusColor.withOpacity(0.2)),
+                    border: Border.all(
+                      color: statusColor.withValues(alpha: 0.2),
+                    ),
                   ),
                   child: Text(
                     status.isEmpty

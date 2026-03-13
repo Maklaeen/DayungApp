@@ -68,8 +68,9 @@ class _GcashQrPageState extends State<GcashQrPage> {
   }
 
   Future<void> _loadLatestSavedQr() async {
+    final messenger = ScaffoldMessenger.of(context);
     try {
-      print('Loading latest saved QR...');
+      debugPrint('Loading latest saved QR...');
       final response = await Supabase.instance.client
           .from('gcash_qr_uploads')
           .select('qr_image_url, name, gcash_number')
@@ -77,7 +78,8 @@ class _GcashQrPageState extends State<GcashQrPage> {
           .order('created_at', ascending: false)
           .limit(1);
 
-      print('Response: $response');
+      debugPrint('Response: $response');
+      if (!mounted) return;
       if (response.isNotEmpty) {
         setState(() {
           _savedQrImageUrl = response[0]['qr_image_url'];
@@ -94,10 +96,9 @@ class _GcashQrPageState extends State<GcashQrPage> {
         });
       }
     } catch (e) {
-      print('Error loading QR: $e');
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Error loading QR: $e')));
+      debugPrint('Error loading QR: $e');
+      if (!mounted) return;
+      messenger.showSnackBar(SnackBar(content: Text('Error loading QR: $e')));
       setState(() {
         _hasQrForUnit = false;
         _nameController.clear();
@@ -107,6 +108,7 @@ class _GcashQrPageState extends State<GcashQrPage> {
   }
 
   void _saveQrCode() async {
+    final messenger = ScaffoldMessenger.of(context);
     final name = AppInputSecurity.sanitizePlainText(
       _nameController.text,
       maxLength: 120,
@@ -200,7 +202,8 @@ class _GcashQrPageState extends State<GcashQrPage> {
       } else {
         // Insert new QR
         if (name.isEmpty || gcashNumber.isEmpty || imageUrl == null) {
-          ScaffoldMessenger.of(context).showSnackBar(
+          if (!mounted) return;
+          messenger.showSnackBar(
             const SnackBar(
               content: Text(
                 'Please enter a name, GCash number, and select a QR image.',
@@ -217,12 +220,14 @@ class _GcashQrPageState extends State<GcashQrPage> {
           'uploaded_by': currentUser?.id,
           'dayung_unit_id': widget.dayungUnitId,
         });
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text('GCash QR saved!')));
+        if (!mounted) return;
+        messenger.showSnackBar(
+          const SnackBar(content: Text('GCash QR saved!')),
+        );
       }
 
       // Clear form and reload latest QR from database
+      if (!mounted) return;
       setState(() {
         _nameController.clear();
         _gcashNumberController.clear(); // <-- Clear controller
@@ -230,13 +235,14 @@ class _GcashQrPageState extends State<GcashQrPage> {
       });
       await _loadLatestSavedQr();
     } catch (e) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Error saving: $e')));
+      if (!mounted) return;
+      messenger.showSnackBar(SnackBar(content: Text('Error saving: $e')));
     } finally {
-      setState(() {
-        _isLoading = false; // <-- Stop loading
-      });
+      if (mounted) {
+        setState(() {
+          _isLoading = false; // <-- Stop loading
+        });
+      }
     }
   }
 
@@ -1237,15 +1243,16 @@ class _GcashQrPageState extends State<GcashQrPage> {
                                       'death_notice_id': row['death_notice_id'],
                                     };
 
+                                    final navigator = Navigator.of(context);
+                                    final messenger = ScaffoldMessenger.of(
+                                      context,
+                                    );
                                     try {
                                       await Supabase.instance.client
                                           .from('payments')
                                           .insert(paymentData);
-                                      if (!mounted) return;
-                                      Navigator.of(context).pop();
-                                      ScaffoldMessenger.of(
-                                        context,
-                                      ).showSnackBar(
+                                      navigator.pop();
+                                      messenger.showSnackBar(
                                         SnackBar(
                                           content: Text(
                                             'Payment saved: ₱$amount',
@@ -1253,11 +1260,8 @@ class _GcashQrPageState extends State<GcashQrPage> {
                                         ),
                                       );
                                     } catch (e) {
-                                      if (!mounted) return;
-                                      Navigator.of(context).pop();
-                                      ScaffoldMessenger.of(
-                                        context,
-                                      ).showSnackBar(
+                                      navigator.pop();
+                                      messenger.showSnackBar(
                                         SnackBar(
                                           content: Text(
                                             'Error saving payment: $e',
@@ -1285,7 +1289,7 @@ class UploadQrScreen extends StatefulWidget {
   const UploadQrScreen({super.key});
 
   @override
-  _UploadQrScreenState createState() => _UploadQrScreenState();
+  State<UploadQrScreen> createState() => _UploadQrScreenState();
 }
 
 class _UploadQrScreenState extends State<UploadQrScreen> {

@@ -77,7 +77,8 @@ class DayungRoleProvider extends ChangeNotifier {
 
       // If superadmin, skip the rest
       if (isSuperAdmin) {
-        isPresident = isSecretary = isTreasurer = isCollector = isMember = false;
+        isPresident = isSecretary = isTreasurer = isCollector = isMember =
+            false;
         loading = false;
         notifyListeners();
         return;
@@ -136,12 +137,13 @@ class DayungRoleProvider extends ChangeNotifier {
       }
     } catch (e) {
       _reset();
-      print('[ROLES] error: $e');
+      debugPrint('[ROLES] error: $e');
     } finally {
-      if (req != _reqCounter) return; // stale
-      loading = false;
-      notifyListeners();
-      debugPrint('[ROLES] refreshRoles finished for unit=$unitId');
+      if (req == _reqCounter) {
+        loading = false;
+        notifyListeners();
+        debugPrint('[ROLES] refreshRoles finished for unit=$unitId');
+      }
     }
   }
 

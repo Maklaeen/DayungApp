@@ -280,6 +280,7 @@ class _SubmitClaimFormState extends State<SubmitClaimForm> {
       ),
     );
 
+    if (!mounted) return;
     if (result == null || result.rawText.trim().isEmpty) return;
 
     final geocoded = await _geocodeVigilAddress(
@@ -323,6 +324,7 @@ class _SubmitClaimFormState extends State<SubmitClaimForm> {
       }
       if (perm == LocationPermission.denied ||
           perm == LocationPermission.deniedForever) {
+        if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Location permission denied.')),
         );
@@ -330,7 +332,9 @@ class _SubmitClaimFormState extends State<SubmitClaimForm> {
       }
 
       final pos = await Geolocator.getCurrentPosition(
-        desiredAccuracy: LocationAccuracy.high,
+        locationSettings: const LocationSettings(
+          accuracy: LocationAccuracy.high,
+        ),
       );
 
       String? composed;
@@ -378,6 +382,7 @@ class _SubmitClaimFormState extends State<SubmitClaimForm> {
         }
       }
 
+      if (!mounted) return;
       setState(() {
         _vigilLat = pos.latitude;
         _vigilLng = pos.longitude;
@@ -391,6 +396,7 @@ class _SubmitClaimFormState extends State<SubmitClaimForm> {
             : _vigilBarangay;
       });
     } catch (e) {
+      if (!mounted) return;
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text('Failed to get location: $e')));
@@ -426,7 +432,7 @@ class _SubmitClaimFormState extends State<SubmitClaimForm> {
         'claims/$claimId/death_cert_${DateTime.now().millisecondsSinceEpoch}.$ext';
 
     try {
-      print(
+      debugPrint(
         '[UPLOAD] bucket=$bucket fileName=$fileName size=${bytes.length} mime=$mime',
       );
 
@@ -438,14 +444,14 @@ class _SubmitClaimFormState extends State<SubmitClaimForm> {
             fileOptions: FileOptions(contentType: mime, upsert: false),
           );
 
-      print('[UPLOAD] stored path: $storedPath');
+      debugPrint('[UPLOAD] stored path: $storedPath');
 
       return buildStorageRef(bucket, fileName);
     } on StorageException catch (e, st) {
-      print('[UPLOAD][StorageException] ${e.message}\n$st');
+      debugPrint('[UPLOAD][StorageException] ${e.message}\n$st');
       rethrow;
     } catch (e, st) {
-      print('[UPLOAD][GenericError] $e\n$st');
+      debugPrint('[UPLOAD][GenericError] $e\n$st');
       rethrow;
     }
   }
@@ -484,37 +490,32 @@ class _SubmitClaimFormState extends State<SubmitClaimForm> {
             fileOptions: FileOptions(contentType: mime, upsert: false),
           );
       return buildStorageRef(bucket, fileName);
-    } on StorageException catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Valid ID storage error: ${e.message}')),
-      );
-      return null;
-    } catch (e) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Valid ID upload failed: $e')));
-      return null;
+    } on StorageException catch (e, st) {
+      debugPrint('[VALID_ID][StorageException] ${e.message}\n$st');
+      rethrow;
+    } catch (e, st) {
+      debugPrint('[VALID_ID][GenericError] $e\n$st');
+      rethrow;
     }
   }
 
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
+    final messenger = ScaffoldMessenger.of(context);
     final sb = Supabase.instance.client;
     final user = sb.auth.currentUser;
     if (user == null) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Not logged in.')));
+      messenger.showSnackBar(const SnackBar(content: Text('Not logged in.')));
       return;
     }
     if (_selectedDeceasedType == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
+      messenger.showSnackBar(
         const SnackBar(content: Text('Please select who passed away.')),
       );
       return;
     }
     if (_dateOfDeath == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
+      messenger.showSnackBar(
         const SnackBar(content: Text('Please select date of death.')),
       );
       return;
@@ -537,9 +538,10 @@ class _SubmitClaimFormState extends State<SubmitClaimForm> {
     final int? effectiveUnitId = unitFromPrefs ?? widget.dayungUnitId;
 
     if (effectiveUnitId == null) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('No Dayung selected.')));
+      if (!mounted) return;
+      messenger.showSnackBar(
+        const SnackBar(content: Text('No Dayung selected.')),
+      );
       return;
     }
 
@@ -551,8 +553,9 @@ class _SubmitClaimFormState extends State<SubmitClaimForm> {
         .eq('dayung_unit_id', effectiveUnitId)
         .eq('status', 'approved')
         .limit(1);
+    if (!mounted) return;
     if ((apps as List).isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
+      messenger.showSnackBar(
         const SnackBar(content: Text('You are not a member of this Dayung.')),
       );
       return;
@@ -567,8 +570,9 @@ class _SubmitClaimFormState extends State<SubmitClaimForm> {
           .eq('dayung_unit_id', effectiveUnitId)
           .eq('status', 'approved')
           .limit(1);
+      if (!mounted) return;
       if ((apps as List).isEmpty) {
-        ScaffoldMessenger.of(context).showSnackBar(
+        messenger.showSnackBar(
           const SnackBar(content: Text('You are not a member of this Dayung.')),
         );
         return;
@@ -628,7 +632,8 @@ class _SubmitClaimFormState extends State<SubmitClaimForm> {
             updateFields['death_certificate_url'] = fileUrl;
           }
         } catch (e) {
-          ScaffoldMessenger.of(context).showSnackBar(
+          if (!mounted) return;
+          messenger.showSnackBar(
             SnackBar(content: Text('Certificate upload failed: $e')),
           );
         }
@@ -642,9 +647,10 @@ class _SubmitClaimFormState extends State<SubmitClaimForm> {
             updateFields['valid_ids_url'] = validUrl;
           }
         } catch (e) {
-          ScaffoldMessenger.of(
-            context,
-          ).showSnackBar(SnackBar(content: Text('Valid ID upload failed: $e')));
+          if (!mounted) return;
+          messenger.showSnackBar(
+            SnackBar(content: Text('Valid ID upload failed: $e')),
+          );
         }
       }
 
@@ -653,16 +659,12 @@ class _SubmitClaimFormState extends State<SubmitClaimForm> {
       }
 
       if (!mounted) return;
-      Navigator.pop(context);
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Claim submitted.')));
+      Navigator.of(context).pop();
+      messenger.showSnackBar(const SnackBar(content: Text('Claim submitted.')));
     } catch (e, st) {
-      print('CLAIM SUBMIT ERROR: $e\n$st');
+      debugPrint('CLAIM SUBMIT ERROR: $e\n$st');
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Submit failed: $e')));
+      messenger.showSnackBar(SnackBar(content: Text('Submit failed: $e')));
     } finally {
       if (mounted) setState(() => _submitting = false);
     }
@@ -771,6 +773,7 @@ class _SubmitClaimFormState extends State<SubmitClaimForm> {
                   firstDate: DateTime(1900),
                   lastDate: DateTime.now(),
                 );
+                if (!mounted) return;
                 if (picked != null) {
                   setState(() => _dateOfDeath = picked);
                 }
@@ -1007,7 +1010,7 @@ class _SubmitClaimFormState extends State<SubmitClaimForm> {
         borderRadius: BorderRadius.circular(12),
         boxShadow: [
           BoxShadow(
-            color: kPrimaryDark.withOpacity(0.3),
+            color: kPrimaryDark.withValues(alpha: 0.3),
             blurRadius: 8,
             offset: const Offset(0, 4),
           ),
@@ -1076,7 +1079,7 @@ class _SubmitClaimFormState extends State<SubmitClaimForm> {
                 Container(
                   padding: const EdgeInsets.all(8),
                   decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.2),
+                    color: Colors.white.withValues(alpha: 0.2),
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: const Icon(
@@ -1100,7 +1103,7 @@ class _SubmitClaimFormState extends State<SubmitClaimForm> {
                 ),
                 Container(
                   decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.2),
+                    color: Colors.white.withValues(alpha: 0.2),
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: IconButton(
@@ -1532,35 +1535,40 @@ class _ClaimAddressPickerSheetState extends State<_ClaimAddressPickerSheet> {
                         },
                       ),
                       const SizedBox(height: 12),
-                      ..._barangaysInCity
-                          .where(
-                            (name) => name.toLowerCase().contains(
-                              _barangaySearch.toLowerCase(),
+                      RadioGroup<String>(
+                        groupValue: _barangay,
+                        onChanged: (value) {
+                          if (value == null) return;
+                          setState(() => _barangay = value);
+                          Navigator.pop(
+                            context,
+                            _ClaimAddressPickResult(
+                              rawText: _composeAddress(),
+                              region: _region,
+                              province: _province,
+                              city: _city,
+                              barangay: value,
                             ),
-                          )
-                          .map((name) {
-                            return RadioListTile<String>(
-                              contentPadding: EdgeInsets.zero,
-                              value: name,
-                              groupValue: _barangay,
-                              title: Text(name),
-                              activeColor: kPrimary,
-                              onChanged: (value) {
-                                if (value == null) return;
-                                setState(() => _barangay = value);
-                                Navigator.pop(
-                                  context,
-                                  _ClaimAddressPickResult(
-                                    rawText: _composeAddress(),
-                                    region: _region,
-                                    province: _province,
-                                    city: _city,
-                                    barangay: value,
-                                  ),
-                                );
-                              },
-                            );
-                          }),
+                          );
+                        },
+                        child: Column(
+                          children: _barangaysInCity
+                              .where(
+                                (name) => name.toLowerCase().contains(
+                                  _barangaySearch.toLowerCase(),
+                                ),
+                              )
+                              .map(
+                                (name) => RadioListTile<String>(
+                                  contentPadding: EdgeInsets.zero,
+                                  value: name,
+                                  title: Text(name),
+                                  activeColor: kPrimary,
+                                ),
+                              )
+                              .toList(),
+                        ),
+                      ),
                     ],
                   ],
                 ),

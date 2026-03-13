@@ -181,7 +181,7 @@ class _ManageRolesPageState extends State<ManageRolesPagePres> {
                   ),
                   boxShadow: [
                     BoxShadow(
-                      color: kPrimary.withOpacity(0.3),
+                      color: kPrimary.withValues(alpha: 0.3),
                       blurRadius: 20,
                       offset: const Offset(0, 8),
                     ),
@@ -231,12 +231,12 @@ class _ManageRolesPageState extends State<ManageRolesPagePres> {
                             color: kCardBg,
                             borderRadius: BorderRadius.circular(20),
                             border: Border.all(
-                              color: kBorderColor.withOpacity(0.3),
+                              color: kBorderColor.withValues(alpha: 0.3),
                               width: 1,
                             ),
                             boxShadow: [
                               BoxShadow(
-                                color: Colors.black.withOpacity(0.05),
+                                color: Colors.black.withValues(alpha: 0.05),
                                 blurRadius: 15,
                                 offset: const Offset(0, 6),
                               ),
@@ -442,10 +442,13 @@ class _ManageRolesPageState extends State<ManageRolesPagePres> {
       decoration: BoxDecoration(
         color: kCardBg,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: kBorderColor.withOpacity(0.3), width: 1),
+        border: Border.all(
+          color: kBorderColor.withValues(alpha: 0.3),
+          width: 1,
+        ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
+            color: Colors.black.withValues(alpha: 0.05),
             blurRadius: 15,
             offset: const Offset(0, 6),
           ),
@@ -459,7 +462,7 @@ class _ManageRolesPageState extends State<ManageRolesPagePres> {
               Container(
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  color: kPrimary.withOpacity(0.1),
+                  color: kPrimary.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Icon(
@@ -493,10 +496,10 @@ class _ManageRolesPageState extends State<ManageRolesPagePres> {
                     vertical: 12,
                   ),
                   decoration: BoxDecoration(
-                    color: kBorderColor.withOpacity(0.1),
+                    color: kBorderColor.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(12),
                     border: Border.all(
-                      color: kBorderColor.withOpacity(0.3),
+                      color: kBorderColor.withValues(alpha: 0.3),
                       width: 1,
                     ),
                   ),
@@ -585,10 +588,13 @@ class _ManageRolesPageState extends State<ManageRolesPagePres> {
       decoration: BoxDecoration(
         color: kCardBg,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: kBorderColor.withOpacity(0.3), width: 1),
+        border: Border.all(
+          color: kBorderColor.withValues(alpha: 0.3),
+          width: 1,
+        ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
+            color: Colors.black.withValues(alpha: 0.05),
             blurRadius: 15,
             offset: const Offset(0, 6),
           ),
@@ -602,7 +608,7 @@ class _ManageRolesPageState extends State<ManageRolesPagePres> {
               Container(
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  color: kPrimary.withOpacity(0.1),
+                  color: kPrimary.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: const Icon(
@@ -636,10 +642,10 @@ class _ManageRolesPageState extends State<ManageRolesPagePres> {
                         vertical: 12,
                       ),
                       decoration: BoxDecoration(
-                        color: kBorderColor.withOpacity(0.1),
+                        color: kBorderColor.withValues(alpha: 0.1),
                         borderRadius: BorderRadius.circular(12),
                         border: Border.all(
-                          color: kBorderColor.withOpacity(0.3),
+                          color: kBorderColor.withValues(alpha: 0.3),
                           width: 1,
                         ),
                       ),
@@ -669,10 +675,10 @@ class _ManageRolesPageState extends State<ManageRolesPagePres> {
                         vertical: 8,
                       ),
                       decoration: BoxDecoration(
-                        color: kPrimary.withOpacity(0.1),
+                        color: kPrimary.withValues(alpha: 0.1),
                         borderRadius: BorderRadius.circular(12),
                         border: Border.all(
-                          color: kPrimary.withOpacity(0.3),
+                          color: kPrimary.withValues(alpha: 0.3),
                           width: 1,
                         ),
                       ),
@@ -700,7 +706,7 @@ class _ManageRolesPageState extends State<ManageRolesPagePres> {
                             child: Container(
                               padding: const EdgeInsets.all(2),
                               decoration: BoxDecoration(
-                                color: kDanger.withOpacity(0.1),
+                                color: kDanger.withValues(alpha: 0.1),
                                 borderRadius: BorderRadius.circular(6),
                               ),
                               child: const Icon(
@@ -813,10 +819,10 @@ class _ManageRolesPageState extends State<ManageRolesPagePres> {
                           vertical: 4,
                         ),
                         decoration: BoxDecoration(
-                          color: kBorderColor.withOpacity(0.1),
+                          color: kBorderColor.withValues(alpha: 0.1),
                           borderRadius: BorderRadius.circular(12),
                           border: Border.all(
-                            color: kBorderColor.withOpacity(0.3),
+                            color: kBorderColor.withValues(alpha: 0.3),
                             width: 1,
                           ),
                         ),
@@ -876,10 +882,14 @@ class _ManageRolesPageState extends State<ManageRolesPagePres> {
                                   return Container(
                                     padding: const EdgeInsets.all(16),
                                     decoration: BoxDecoration(
-                                      color: kBorderColor.withOpacity(0.05),
+                                      color: kBorderColor.withValues(
+                                        alpha: 0.05,
+                                      ),
                                       borderRadius: BorderRadius.circular(12),
                                       border: Border.all(
-                                        color: kBorderColor.withOpacity(0.2),
+                                        color: kBorderColor.withValues(
+                                          alpha: 0.2,
+                                        ),
                                         width: 1,
                                       ),
                                     ),
@@ -888,7 +898,9 @@ class _ManageRolesPageState extends State<ManageRolesPagePres> {
                                       leading: Container(
                                         padding: const EdgeInsets.all(8),
                                         decoration: BoxDecoration(
-                                          color: kPrimary.withOpacity(0.1),
+                                          color: kPrimary.withValues(
+                                            alpha: 0.1,
+                                          ),
                                           borderRadius: BorderRadius.circular(
                                             12,
                                           ),

@@ -4,471 +4,503 @@ import 'package:capstone_app/SuperAdmin/broadcast_page.dart';
 import 'package:capstone_app/SuperAdmin/manage_beneficiaries_page.dart';
 import 'package:capstone_app/SuperAdmin/reports_page.dart';
 import 'package:capstone_app/SuperAdmin/settings_page.dart';
+import 'package:capstone_app/SuperAdmin/superadmin_support.dart';
 import 'package:capstone_app/SuperAdmin/users_page.dart';
+import 'package:capstone_app/Auth/logout.dart';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-
-const kPrimary = Color(0xFF1E40AF);
-const kAccent = Color(0xFF059669);
-const kCardBg = Color(0xFFFFFFFF);
-const kBorderColor = Color(0xFFE5E7EB);
-const kText = Color(0xFF111827);
-const kSubText = Color(0xFF6B7280);
 
 class SuperAdminDashboardPage extends StatelessWidget {
   const SuperAdminDashboardPage({super.key});
 
   Future<int> _fetchUserCount() async {
-    final sb = Supabase.instance.client;
-    final res = await sb.from('users').select('id');
+    final res = await Supabase.instance.client.from('users').select('id');
     return res.length;
   }
 
   Future<int> _fetchAuditLogsCount() async {
-    final sb = Supabase.instance.client;
-    final res = await sb.from('audit_logs').select('id');
+    final res = await Supabase.instance.client.from('audit_logs').select('id');
     return res.length;
   }
 
   Future<int> _fetchAdminCount() async {
     final sb = Supabase.instance.client;
-
-    // Fetch all admin user IDs from dayung_units
     final units = await sb
         .from('dayung_units')
         .select('president_id, secretary_id, treasurer_id');
-    final Set<String> adminIds = {};
-
-    for (final unit in units) {
-      if (unit['president_id'] != null) adminIds.add(unit['president_id']);
-      if (unit['secretary_id'] != null) adminIds.add(unit['secretary_id']);
-      if (unit['treasurer_id'] != null) adminIds.add(unit['treasurer_id']);
-    }
-
-    // Fetch all collector user IDs from dayung_collectors
     final collectors = await sb.from('dayung_collectors').select('user_id');
-    for (final c in collectors) {
-      if (c['user_id'] != null) adminIds.add(c['user_id']);
-    }
 
+    final adminIds = <String>{};
+    for (final unit in units) {
+      if (unit['president_id'] != null) {
+        adminIds.add(unit['president_id'].toString());
+      }
+      if (unit['secretary_id'] != null) {
+        adminIds.add(unit['secretary_id'].toString());
+      }
+      if (unit['treasurer_id'] != null) {
+        adminIds.add(unit['treasurer_id'].toString());
+      }
+    }
+    for (final collector in collectors) {
+      if (collector['user_id'] != null) {
+        adminIds.add(collector['user_id'].toString());
+      }
+    }
     return adminIds.length;
   }
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final themeBg = isDark ? const Color(0xFF18181B) : const Color(0xFFF8FAFC);
-
-    return Scaffold(
-      backgroundColor: themeBg,
-      body: SafeArea(
-        child: Column(
-          children: [
-            _buildModernHeader(),
-            Expanded(
-              child: SingleChildScrollView(
-                child: Container(
-                  decoration: const BoxDecoration(
-                    color: kCardBg,
-                    borderRadius: BorderRadius.only(
-                      topLeft: Radius.circular(24),
-                      topRight: Radius.circular(24),
-                    ),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Color(0x1A000000),
-                        blurRadius: 20,
-                        offset: Offset(0, -4),
-                      ),
-                    ],
-                  ),
-                  padding: const EdgeInsets.fromLTRB(24, 24, 24, 24),
-                  child: LayoutBuilder(
-                    builder: (context, constraints) {
-                      final isWide = constraints.maxWidth > 600;
-                      return Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          _buildOverviewCards(context, isWide: isWide),
-                          const SizedBox(height: 24),
-                          _buildQuickActions(context, isWide: isWide),
-                        ],
-                      );
-                    },
-                  ),
+    return SuperAdminAccessGuard(
+      title: 'SuperAdmin Dashboard',
+      child: Scaffold(
+        backgroundColor: superAdminBackground(context),
+        body: SafeArea(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.fromLTRB(20, 20, 20, 32),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _DashboardHero(
+                  onLogout: () async {
+                    await showLogoutDialog(context);
+                  },
                 ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
+                const SizedBox(height: 18),
+                _buildStatsSection(),
+                const SizedBox(height: 18),
+                const _SectionHeader(
+                  title: 'Quick Actions',
+                  subtitle:
+                      'Everything important is grouped into larger cards with a quieter, more consistent visual style.',
+                ),
+                const SizedBox(height: 14),
+                LayoutBuilder(
+                  builder: (context, constraints) {
+                    final wide = constraints.maxWidth >= 820;
+                    final actions = _buildActions(context);
+                    if (!wide) {
+                      return Column(
+                        children: actions
+                            .map(
+                              (action) => Padding(
+                                padding: const EdgeInsets.only(bottom: 12),
+                                child: action,
+                              ),
+                            )
+                            .toList(),
+                      );
+                    }
 
-  Widget _buildModernHeader() {
-    return Container(
-      constraints: const BoxConstraints(minHeight: 120),
-      padding: const EdgeInsets.fromLTRB(20, 20, 20, 32),
-      decoration: const BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [Color(0xFF1E40AF), Color(0xFF3B82F6), Color(0xFFF8FAFC)],
-          stops: [0.0, 0.65, 0.85],
-        ),
-      ),
-      child: Row(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: kPrimary.withOpacity(0.8),
-              borderRadius: BorderRadius.circular(16),
-              boxShadow: [
-                BoxShadow(
-                  color: kPrimary.withOpacity(0.3),
-                  blurRadius: 8,
-                  offset: const Offset(0, 2),
+                    return Wrap(
+                      spacing: 12,
+                      runSpacing: 12,
+                      children: actions
+                          .map((action) => SizedBox(width: 360, child: action))
+                          .toList(),
+                    );
+                  },
                 ),
               ],
             ),
-            child: const Icon(Icons.security, color: Colors.white, size: 28),
           ),
-          const SizedBox(width: 16),
-          const Expanded(
-            child: Text(
-              'SuperAdmin Dashboard',
-              style: TextStyle(
-                fontFamily: 'Montserrat',
-                fontSize: 26,
-                fontWeight: FontWeight.w900,
-                color: Colors.white,
-                letterSpacing: 0.5,
-              ),
-            ),
-          ),
-        ],
+        ),
       ),
     );
   }
 
-  Widget _buildOverviewCards(BuildContext context, {required bool isWide}) {
-    return FutureBuilder<int>(
-      future: _fetchUserCount(),
-      builder: (context, snapshot) {
-        final totalUsers = snapshot.hasData ? snapshot.data.toString() : '...';
-        final stats = [
-          _modernStatCard(
-            icon: Icons.people,
-            title: 'Total Users',
-            value: totalUsers,
-            color: kPrimary,
-            bgColor: const Color(0xFFEFF6FF),
-          ),
-          FutureBuilder<int>(
-            future: _fetchAdminCount(),
-            builder: (context, snapshot) {
-              final value = snapshot.hasData ? snapshot.data.toString() : '...';
-              return _modernStatCard(
-                icon: Icons.admin_panel_settings,
-                title: 'Admins',
-                value: value,
-                color: Colors.deepPurple,
-                bgColor: const Color(0xFFEDE9FE),
-              );
-            },
-          ),
-          _modernStatCard(
-            icon: Icons.analytics,
-            title: 'Reports',
-            value: '8', // TODO: Replace with real value
-            color: Colors.orange,
-            bgColor: const Color(0xFFFFF7ED),
-          ),
-          FutureBuilder<int>(
-            future: _fetchAuditLogsCount(),
-            builder: (context, snapshot) {
-              final value = snapshot.hasData ? snapshot.data.toString() : '...';
-              return _modernStatCard(
-                icon: Icons.list_alt,
-                title: 'Audit Logs',
-                value: value,
-                color: Colors.teal,
-                bgColor: const Color(0xFFE0F2F1),
-              );
-            },
-          ),
-        ];
-
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              'System Overview',
-              style: TextStyle(
-                fontSize: 20,
-                fontWeight: FontWeight.w800,
-                color: kPrimary,
-                fontFamily: 'Montserrat',
-              ),
-            ),
-            const SizedBox(height: 16),
-            isWide
-                ? Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: stats
-                        .map(
-                          (card) => Flexible(
-                            fit: FlexFit.loose,
-                            child: Padding(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 6,
-                              ),
-                              child: card,
-                            ),
-                          ),
-                        )
-                        .toList(),
-                  )
-                : Wrap(
-                    spacing: 12,
-                    runSpacing: 12,
-                    children: stats
-                        .map(
-                          (card) => SizedBox(
-                            width:
-                                (MediaQuery.of(context).size.width -
-                                    24 * 2 -
-                                    12) /
-                                2,
-                            child: card,
-                          ),
-                        )
-                        .toList(),
-                  ),
-          ],
-        );
-      },
-    );
-  }
-
-  Widget _modernStatCard({
-    required IconData icon,
-    required String title,
-    required String value,
-    required Color color,
-    required Color bgColor,
-  }) {
-    return Container(
-      constraints: const BoxConstraints(minHeight: 150), // <-- Add this line!
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: bgColor,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: color.withOpacity(0.2)),
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.center,
-        children: [
-          Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: color.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Icon(icon, color: color, size: 24),
-          ),
-          const SizedBox(height: 12),
-          Text(
-            title,
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              fontSize: 13,
-              fontWeight: FontWeight.w600,
-              color: color.withOpacity(0.8),
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            value,
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              fontSize: 20,
-              fontWeight: FontWeight.w800,
-              color: color,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildQuickActions(BuildContext context, {required bool isWide}) {
-    final actions = [
-      _modernActionCard(
-        icon: Icons.admin_panel_settings,
-        title: 'Manage Admins',
-        color: Colors.deepPurple,
-        onTap: () => Navigator.push(
-          context,
-          MaterialPageRoute(builder: (_) => const SuperAdminAdminsPage()),
-        ),
-      ),
-      _modernActionCard(
-        icon: Icons.people,
-        title: 'Manage Users',
-        color: kPrimary,
-        onTap: () => Navigator.push(
-          context,
-          MaterialPageRoute(builder: (_) => const SuperAdminUsersPage()),
-        ),
-      ),
-      _modernActionCard(
-        icon: Icons.family_restroom,
-        title: 'Manage Beneficiaries',
-        color: Colors.purple,
-        onTap: () => Navigator.push(
-          context,
-          MaterialPageRoute(builder: (_) => const ManageBeneficiariesPage()),
-        ),
-      ),
-      _modernActionCard(
-        icon: Icons.settings,
-        title: 'System Settings',
-        color: Colors.green,
-        onTap: () => Navigator.push(
-          context,
-          MaterialPageRoute(builder: (_) => const SuperAdminSettingsPage()),
-        ),
-      ),
-      _modernActionCard(
-        icon: Icons.analytics,
-        title: 'View Reports',
-        color: Colors.orange,
-        onTap: () => Navigator.push(
-          context,
-          MaterialPageRoute(builder: (_) => const SuperAdminReportsPage()),
-        ),
-      ),
-      _modernActionCard(
-        icon: Icons.list_alt,
-        title: 'Audit Logs',
-        color: Colors.teal,
-        onTap: () => Navigator.push(
-          context,
-          MaterialPageRoute(builder: (_) => const SuperAdminAuditLogsPage()),
-        ),
-      ),
-      _modernActionCard(
-        icon: Icons.campaign,
-        title: 'Broadcast Announcement',
-        color: Colors.red,
-        onTap: () => Navigator.push(
-          context,
-          MaterialPageRoute(builder: (_) => const SuperAdminBroadcastPage()),
-        ),
-      ),
-    ];
-
+  Widget _buildStatsSection() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text(
-          'Quick Actions',
-          style: TextStyle(
-            fontSize: 18,
-            fontWeight: FontWeight.w800,
-            color: kPrimary,
-            fontFamily: 'Montserrat',
-          ),
-        ),
-        const SizedBox(height: 12),
-        isWide
-            ? Wrap(
-                spacing: 16,
-                runSpacing: 16,
-                children: actions
-                    .map((a) => SizedBox(width: 260, child: a))
-                    .toList(),
-              )
-            : Column(
-                children: actions
-                    .map(
-                      (a) => Padding(
-                        padding: const EdgeInsets.only(bottom: 12),
-                        child: a,
-                      ),
-                    )
-                    .toList(),
+        const _SectionHeader(title: 'System Overview', subtitle: ''),
+        const SizedBox(height: 14),
+        LayoutBuilder(
+          builder: (context, constraints) {
+            const spacing = 12.0;
+            final width = constraints.maxWidth;
+            final columns = width >= 1080
+                ? 3
+                : width >= 700
+                ? 2
+                : 1;
+            final tileWidth =
+                (width - (spacing * (columns - 1))).clamp(0, double.infinity) /
+                columns;
+            final tiles = [
+              FutureBuilder<int>(
+                future: _fetchUserCount(),
+                builder: (context, snapshot) => _StatTile(
+                  label: 'Total users',
+                  value: snapshot.hasData ? '${snapshot.data}' : '...',
+                  hint: 'Public user accounts',
+                  icon: Icons.groups_rounded,
+                ),
               ),
-        const SizedBox(height: 32),
-        ElevatedButton.icon(
-          icon: const Icon(Icons.logout_rounded),
-          label: const Text('Logout'),
-          style: ElevatedButton.styleFrom(
-            backgroundColor: Colors.red,
-            foregroundColor: Colors.white,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
-            ),
-            minimumSize: const Size.fromHeight(48),
-          ),
-          onPressed: () async {
-            Navigator.of(
-              context,
-            ).pushNamedAndRemoveUntil('/login', (r) => false);
+              FutureBuilder<int>(
+                future: _fetchAdminCount(),
+                builder: (context, snapshot) => _StatTile(
+                  label: 'Assigned officers',
+                  value: snapshot.hasData ? '${snapshot.data}' : '...',
+                  hint: 'Presidents, secretaries, treasurers, collectors',
+                  icon: Icons.admin_panel_settings_rounded,
+                ),
+              ),
+              FutureBuilder<int>(
+                future: _fetchAuditLogsCount(),
+                builder: (context, snapshot) => _StatTile(
+                  label: 'Audit entries',
+                  value: snapshot.hasData ? '${snapshot.data}' : '...',
+                  hint: 'Recorded administrative actions',
+                  icon: Icons.history_rounded,
+                ),
+              ),
+            ];
+
+            return Wrap(
+              spacing: spacing,
+              runSpacing: spacing,
+              children: tiles
+                  .map(
+                    (tile) => SizedBox(
+                      width: columns == 1 ? width : tileWidth,
+                      child: tile,
+                    ),
+                  )
+                  .toList(),
+            );
           },
         ),
       ],
     );
   }
 
-  Widget _modernActionCard({
-    required IconData icon,
-    required String title,
-    required Color color,
-    required VoidCallback onTap,
-  }) {
+  List<Widget> _buildActions(BuildContext context) {
+    return [
+      _ActionTile(
+        icon: Icons.people_alt_rounded,
+        title: 'Manage Users',
+        description:
+            'Create accounts, reset passwords, and activate or deactivate access.',
+        onTap: () => Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => const SuperAdminUsersPage()),
+        ),
+      ),
+      _ActionTile(
+        icon: Icons.badge_rounded,
+        title: 'Manage Admins',
+        description:
+            'Assign officers and collectors to each Dayung unit with guided controls.',
+        onTap: () => Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => const SuperAdminAdminsPage()),
+        ),
+      ),
+      _ActionTile(
+        icon: Icons.family_restroom_rounded,
+        title: 'Manage Beneficiaries',
+        description:
+            'Review beneficiary records and verify eligibility details quickly.',
+        onTap: () => Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => const ManageBeneficiariesPage()),
+        ),
+      ),
+      _ActionTile(
+        icon: Icons.campaign_rounded,
+        title: 'Broadcast Announcement',
+        description:
+            'Send announcements to users, members, officers, or inactive accounts.',
+        onTap: () => Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => const SuperAdminBroadcastPage()),
+        ),
+      ),
+      _ActionTile(
+        icon: Icons.bar_chart_rounded,
+        title: 'View Reports',
+        description:
+            'Open the system report dashboard for growth, activity, and revenue trends.',
+        onTap: () => Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => const SuperAdminReportsPage()),
+        ),
+      ),
+      _ActionTile(
+        icon: Icons.history_edu_rounded,
+        title: 'Audit Logs',
+        description:
+            'Trace sensitive actions and review the latest administrative events.',
+        onTap: () => Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => const SuperAdminAuditLogsPage()),
+        ),
+      ),
+      _ActionTile(
+        icon: Icons.tune_rounded,
+        title: 'System Settings',
+        description:
+            'Control maintenance mode, password policies, and broadcast delivery rules.',
+        onTap: () => Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => const SuperAdminSettingsPage()),
+        ),
+      ),
+    ];
+  }
+}
+
+class _DashboardHero extends StatelessWidget {
+  final Future<void> Function() onLogout;
+
+  const _DashboardHero({required this.onLogout});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [Color(0xFF17326B), Color(0xFF2756A4), Color(0xFF0F9D7A)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(30),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: Colors.white24,
+                  borderRadius: BorderRadius.circular(18),
+                ),
+                child: const Icon(
+                  Icons.verified_user_rounded,
+                  color: Colors.white,
+                  size: 30,
+                ),
+              ),
+              const SizedBox(width: 14),
+              const Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'SuperAdmin Dashboard',
+                      style: TextStyle(
+                        fontSize: 28,
+                        fontWeight: FontWeight.w800,
+                        color: Colors.white,
+                        fontFamily: 'Montserrat',
+                      ),
+                    ),
+                    SizedBox(height: 10),
+                    // Text(
+                    //   'A calmer control center for senior-friendly supervision of users, units, reports, and system-wide actions.',
+                    //   style: TextStyle(
+                    //     color: Colors.white,
+                    //     fontSize: 15,
+                    //     height: 1.5,
+                    //   ),
+                    // ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 18),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: OutlinedButton.icon(
+              onPressed: onLogout,
+              icon: const Icon(Icons.logout_rounded),
+              label: const Text('Logout'),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: Colors.white,
+                side: const BorderSide(color: Colors.white38),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 14,
+                ),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(18),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SectionHeader extends StatelessWidget {
+  final String title;
+  final String subtitle;
+
+  const _SectionHeader({required this.title, required this.subtitle});
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          title,
+          style: const TextStyle(
+            fontSize: 22,
+            fontWeight: FontWeight.w800,
+            color: kSuperAdminText,
+            fontFamily: 'Montserrat',
+          ),
+        ),
+        const SizedBox(height: 6),
+        Text(
+          subtitle,
+          style: const TextStyle(color: kSuperAdminMuted, height: 1.5),
+        ),
+      ],
+    );
+  }
+}
+
+class _StatTile extends StatelessWidget {
+  final String label;
+  final String value;
+  final String hint;
+  final IconData icon;
+
+  const _StatTile({
+    required this.label,
+    required this.value,
+    required this.hint,
+    required this.icon,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      constraints: const BoxConstraints(minHeight: 190),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: kSuperAdminBorder),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: kSuperAdminPrimary.withValues(alpha: 0.08),
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Icon(icon, color: kSuperAdminPrimary),
+          ),
+          const SizedBox(height: 16),
+          Text(
+            value,
+            style: const TextStyle(
+              fontSize: 30,
+              fontWeight: FontWeight.w900,
+              color: kSuperAdminText,
+              fontFamily: 'Montserrat',
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            label,
+            style: const TextStyle(
+              fontWeight: FontWeight.w800,
+              color: kSuperAdminText,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            hint,
+            style: const TextStyle(color: kSuperAdminMuted, height: 1.4),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ActionTile extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final String description;
+  final VoidCallback onTap;
+
+  const _ActionTile({
+    required this.icon,
+    required this.title,
+    required this.description,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
     return Material(
-      color: color.withOpacity(0.08),
-      borderRadius: BorderRadius.circular(16),
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(24),
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(24),
         child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 18, horizontal: 18),
+          padding: const EdgeInsets.all(20),
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: color.withOpacity(0.18)),
+            borderRadius: BorderRadius.circular(24),
+            border: Border.all(color: kSuperAdminBorder),
           ),
           child: Row(
             children: [
               Container(
-                padding: const EdgeInsets.all(10),
+                padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: color.withOpacity(0.15),
-                  borderRadius: BorderRadius.circular(12),
+                  color: kSuperAdminPrimary.withValues(alpha: 0.08),
+                  borderRadius: BorderRadius.circular(18),
                 ),
-                child: Icon(icon, color: color, size: 26),
+                child: Icon(icon, color: kSuperAdminPrimary, size: 28),
               ),
-              const SizedBox(width: 18),
+              const SizedBox(width: 16),
               Expanded(
-                child: Text(
-                  title,
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w700,
-                    color: color,
-                    fontFamily: 'Montserrat',
-                  ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: const TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w800,
+                        color: kSuperAdminText,
+                        fontFamily: 'Montserrat',
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      description,
+                      style: const TextStyle(
+                        color: kSuperAdminMuted,
+                        height: 1.5,
+                      ),
+                    ),
+                  ],
                 ),
               ),
+              const SizedBox(width: 12),
               const Icon(
                 Icons.arrow_forward_ios_rounded,
                 size: 18,
-                color: kSubText,
+                color: kSuperAdminMuted,
               ),
             ],
           ),

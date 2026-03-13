@@ -53,12 +53,14 @@ class _GCashPaymentPageState extends State<GCashPaymentPage> {
     setState(() => _isUploading = true);
 
     try {
+      final messenger = ScaffoldMessenger.of(context);
       final user = Supabase.instance.client.auth.currentUser;
       if (user == null) throw Exception("User not logged in");
 
       final paid = await isPaid(setAmountId, userdeceased);
+      if (!mounted) return;
       if (paid) {
-        ScaffoldMessenger.of(context).showSnackBar(
+        messenger.showSnackBar(
           const SnackBar(
             content: Text(
               'Payment already marked as paid. No need to upload receipt.',
@@ -74,6 +76,7 @@ class _GCashPaymentPageState extends State<GCashPaymentPage> {
       if (pickedFile == null) return;
 
       final imageBytes = await pickedFile.readAsBytes();
+      if (!mounted) return;
 
       // Show confirmation dialog before uploading
       final confirm = await showDialog<bool>(
@@ -115,9 +118,8 @@ class _GCashPaymentPageState extends State<GCashPaymentPage> {
           .uploadBinary(fileName, bytes);
 
       if (storageResponse.isEmpty) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text('Upload failed.')));
+        if (!mounted) return;
+        messenger.showSnackBar(const SnackBar(content: Text('Upload failed.')));
         return;
       }
 
@@ -137,7 +139,8 @@ class _GCashPaymentPageState extends State<GCashPaymentPage> {
         'death_notice_id': deathNoticeId,
       });
 
-      ScaffoldMessenger.of(context).showSnackBar(
+      if (!mounted) return;
+      messenger.showSnackBar(
         const SnackBar(content: Text('Image uploaded successfully!')),
       );
 
@@ -169,11 +172,14 @@ class _GCashPaymentPageState extends State<GCashPaymentPage> {
         );
       }
     } catch (e) {
+      if (!mounted) return;
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text('Error: $e')));
     } finally {
-      setState(() => _isUploading = false);
+      if (mounted) {
+        setState(() => _isUploading = false);
+      }
     }
   }
 
@@ -441,6 +447,9 @@ class _GCashPaymentPageState extends State<GCashPaymentPage> {
                                                     debugPrint(
                                                       'DEBUG: All QR uploads: $qrList',
                                                     );
+                                                    if (!context.mounted) {
+                                                      return;
+                                                    }
                                                     ScaffoldMessenger.of(
                                                       context,
                                                     ).showSnackBar(
@@ -455,6 +464,9 @@ class _GCashPaymentPageState extends State<GCashPaymentPage> {
 
                                                   // 2. Show QR code dialog
                                                   // ...existing code...
+                                                  if (!context.mounted) {
+                                                    return;
+                                                  }
                                                   final proceed = await showDialog<bool>(
                                                     context: context,
                                                     builder: (context) => LayoutBuilder(
@@ -758,6 +770,9 @@ class _GCashPaymentPageState extends State<GCashPaymentPage> {
                                                           data['death_notice_id'] ??
                                                           0,
                                                     );
+                                                    if (!context.mounted) {
+                                                      return;
+                                                    }
                                                     setState(() {});
                                                   }
                                                 },

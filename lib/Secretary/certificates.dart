@@ -198,7 +198,7 @@ class _CertificatesPageState extends State<CertificatesPage>
                   Row(
                     children: [
                       CircleAvatar(
-                        backgroundColor: kPrimary.withOpacity(0.15),
+                        backgroundColor: kPrimary.withValues(alpha: 0.15),
                         child: const Icon(
                           Icons.description,
                           color: kPrimaryDark,

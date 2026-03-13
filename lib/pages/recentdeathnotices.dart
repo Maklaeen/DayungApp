@@ -43,6 +43,7 @@ class _RecentDeathNoticesState extends State<RecentDeathNotices> {
     if (widget.dayungUnitId == null) {
       WidgetsBinding.instance.addPostFrameCallback((_) async {
         if (!mounted) return;
+        final navigator = Navigator.of(context);
         final roleProv = context.read<DayungRoleProvider>();
         final unitProv = context.read<DayungUnitProvider>();
         int? fallback = roleProv.unitId ?? unitProv.currentUnitId;
@@ -52,9 +53,9 @@ class _RecentDeathNoticesState extends State<RecentDeathNotices> {
             unitProv.setDayungUnit('Dayung', obj: {'id': fallback});
           }
         }
+        if (!mounted) return;
         if (fallback != null) {
-          Navigator.pushReplacement(
-            context,
+          navigator.pushReplacement(
             MaterialPageRoute(
               builder: (_) => RecentDeathNotices(dayungUnitId: fallback),
             ),
@@ -142,7 +143,7 @@ class _RecentDeathNoticesState extends State<RecentDeathNotices> {
   Widget build(BuildContext context) {
     final width = MediaQuery.of(context).size.width;
     final isWide = width > 700;
-    final textScale = MediaQuery.of(context).textScaleFactor.clamp(1.0, 1.3);
+    final textScale = MediaQuery.textScalerOf(context).scale(1).clamp(1.0, 1.3);
 
     // Modern "No Dayung" UI
     if (widget.dayungUnitId == null) {
@@ -176,12 +177,14 @@ class _RecentDeathNoticesState extends State<RecentDeathNotices> {
                           borderRadius: BorderRadius.circular(16),
                           boxShadow: [
                             BoxShadow(
-                              color: Colors.white.withOpacity(0.4),
+                              color: Colors.white.withValues(alpha: 0.4),
                               blurRadius: 20,
                               offset: const Offset(0, 8),
                             ),
                             BoxShadow(
-                              color: const Color(0xFF1E40AF).withOpacity(0.2),
+                              color: const Color(
+                                0xFF1E40AF,
+                              ).withValues(alpha: 0.2),
                               blurRadius: 12,
                               offset: const Offset(0, 4),
                             ),
@@ -250,12 +253,12 @@ class _RecentDeathNoticesState extends State<RecentDeathNotices> {
                               ),
                               borderRadius: BorderRadius.circular(24),
                               border: Border.all(
-                                color: kBorderColor.withOpacity(0.3),
+                                color: kBorderColor.withValues(alpha: 0.3),
                                 width: 1,
                               ),
                               boxShadow: [
                                 BoxShadow(
-                                  color: Colors.black.withOpacity(0.08),
+                                  color: Colors.black.withValues(alpha: 0.08),
                                   blurRadius: 20,
                                   offset: const Offset(0, 8),
                                 ),
@@ -268,13 +271,13 @@ class _RecentDeathNoticesState extends State<RecentDeathNotices> {
                                   decoration: BoxDecoration(
                                     gradient: LinearGradient(
                                       colors: [
-                                        kPrimary.withOpacity(0.1),
-                                        kPrimary.withOpacity(0.05),
+                                        kPrimary.withValues(alpha: 0.1),
+                                        kPrimary.withValues(alpha: 0.05),
                                       ],
                                     ),
                                     borderRadius: BorderRadius.circular(20),
                                     border: Border.all(
-                                      color: kPrimary.withOpacity(0.2),
+                                      color: kPrimary.withValues(alpha: 0.2),
                                       width: 1,
                                     ),
                                   ),
@@ -318,7 +321,7 @@ class _RecentDeathNoticesState extends State<RecentDeathNotices> {
                                     borderRadius: BorderRadius.circular(16),
                                     boxShadow: [
                                       BoxShadow(
-                                        color: kPrimary.withOpacity(0.3),
+                                        color: kPrimary.withValues(alpha: 0.3),
                                         blurRadius: 12,
                                         offset: const Offset(0, 6),
                                       ),
@@ -409,12 +412,14 @@ class _RecentDeathNoticesState extends State<RecentDeathNotices> {
                           borderRadius: BorderRadius.circular(16),
                           boxShadow: [
                             BoxShadow(
-                              color: Colors.white.withOpacity(0.4),
+                              color: Colors.white.withValues(alpha: 0.4),
                               blurRadius: 20,
                               offset: const Offset(0, 8),
                             ),
                             BoxShadow(
-                              color: const Color(0xFF1E40AF).withOpacity(0.2),
+                              color: const Color(
+                                0xFF1E40AF,
+                              ).withValues(alpha: 0.2),
                               blurRadius: 12,
                               offset: const Offset(0, 4),
                             ),
@@ -524,10 +529,13 @@ class _RecentDeathNoticesState extends State<RecentDeathNotices> {
               end: Alignment.bottomRight,
             ),
             borderRadius: BorderRadius.circular(24),
-            border: Border.all(color: kBorderColor.withOpacity(0.3), width: 1),
+            border: Border.all(
+              color: kBorderColor.withValues(alpha: 0.3),
+              width: 1,
+            ),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.08),
+                color: Colors.black.withValues(alpha: 0.08),
                 blurRadius: 20,
                 offset: const Offset(0, 8),
               ),
@@ -541,13 +549,13 @@ class _RecentDeathNoticesState extends State<RecentDeathNotices> {
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
                     colors: [
-                      kSubText.withOpacity(0.1),
-                      kSubText.withOpacity(0.05),
+                      kSubText.withValues(alpha: 0.1),
+                      kSubText.withValues(alpha: 0.05),
                     ],
                   ),
                   borderRadius: BorderRadius.circular(20),
                   border: Border.all(
-                    color: kSubText.withOpacity(0.2),
+                    color: kSubText.withValues(alpha: 0.2),
                     width: 1,
                   ),
                 ),
@@ -600,12 +608,12 @@ class _RecentDeathNoticesState extends State<RecentDeathNotices> {
               ),
               borderRadius: BorderRadius.circular(20),
               border: Border.all(
-                color: kBorderColor.withOpacity(0.3),
+                color: kBorderColor.withValues(alpha: 0.3),
                 width: 1,
               ),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.08),
+                  color: Colors.black.withValues(alpha: 0.08),
                   blurRadius: 15,
                   offset: const Offset(0, 6),
                 ),
@@ -644,7 +652,7 @@ class _RecentDeathNoticesState extends State<RecentDeathNotices> {
                           borderRadius: BorderRadius.circular(16),
                           boxShadow: [
                             BoxShadow(
-                              color: kPrimary.withOpacity(0.3),
+                              color: kPrimary.withValues(alpha: 0.3),
                               blurRadius: 8,
                               offset: const Offset(0, 4),
                             ),
@@ -686,7 +694,7 @@ class _RecentDeathNoticesState extends State<RecentDeathNotices> {
                       Container(
                         padding: const EdgeInsets.all(8),
                         decoration: BoxDecoration(
-                          color: kSubText.withOpacity(0.1),
+                          color: kSubText.withValues(alpha: 0.1),
                           borderRadius: BorderRadius.circular(12),
                         ),
                         child: Icon(

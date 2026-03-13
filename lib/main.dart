@@ -1,4 +1,8 @@
+import 'dart:async';
+
+import 'package:capstone_app/Auth/auth_redirects.dart';
 import 'package:capstone_app/Auth/idle_timeout_manage.dart';
+import 'package:capstone_app/Auth/password_recovery_page.dart';
 import 'package:capstone_app/Collector/dashboard.dart';
 import 'package:capstone_app/Members/dashboard.dart';
 import 'package:capstone_app/President/dashboard.dart';
@@ -49,9 +53,57 @@ void main() async {
   runApp(ProviderScope(child: MyApp(appTheme: appTheme)));
 }
 
-class MyApp extends StatelessWidget {
+class MyApp extends StatefulWidget {
   final AppTheme appTheme;
   const MyApp({super.key, required this.appTheme});
+
+  @override
+  State<MyApp> createState() => _MyAppState();
+}
+
+class _MyAppState extends State<MyApp> {
+  late final StreamSubscription<AuthState> _authSubscription;
+  bool _passwordRecoveryOpen = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _authSubscription = Supabase.instance.client.auth.onAuthStateChange.listen((
+      data,
+    ) {
+      if (data.event == AuthChangeEvent.passwordRecovery) {
+        _openPasswordRecoveryPage();
+      }
+    });
+  }
+
+  void _openPasswordRecoveryPage() {
+    if (_passwordRecoveryOpen) {
+      return;
+    }
+
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      final navigator = globalNavigatorKey.currentState;
+      if (!mounted || navigator == null) {
+        return;
+      }
+
+      _passwordRecoveryOpen = true;
+      await navigator.pushNamedAndRemoveUntil(
+        kPasswordRecoveryRoute,
+        (route) => false,
+      );
+      if (mounted) {
+        _passwordRecoveryOpen = false;
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _authSubscription.cancel();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -62,7 +114,7 @@ class MyApp extends StatelessWidget {
       onPointerUp: (_) => IdleTimeoutManager().reset(),
       child: MultiProvider(
         providers: [
-          ChangeNotifierProvider.value(value: appTheme),
+          ChangeNotifierProvider.value(value: widget.appTheme),
           ChangeNotifierProvider(create: (_) => UserProvider()),
           ChangeNotifierProvider(
             create: (_) => DayungUnitProvider()..loadDayungUnit(),
@@ -120,6 +172,8 @@ class MyApp extends StatelessWidget {
                 '/': (context) => SplashScreen(),
                 '/login': (context) => Login(),
                 '/register': (context) => Register(),
+                kPasswordRecoveryRoute: (context) =>
+                    const PasswordRecoveryPage(),
                 '/reapply': (context) => Reapply(),
                 '/dashboard': (context) => MemberDashboardPage(),
                 '/president-dashboard': (context) => PresidentDashboardPage(),

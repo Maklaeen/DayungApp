@@ -208,7 +208,7 @@ class _SecretaryContributionsPageState
                         borderRadius: BorderRadius.circular(12),
                         boxShadow: [
                           BoxShadow(
-                            color: Colors.black.withOpacity(0.08),
+                            color: Colors.black.withValues(alpha: 0.08),
                             blurRadius: 8,
                             offset: const Offset(0, 2),
                           ),
@@ -219,7 +219,7 @@ class _SecretaryContributionsPageState
                           Container(
                             padding: const EdgeInsets.all(6),
                             decoration: BoxDecoration(
-                              color: kSuccess.withOpacity(0.1),
+                              color: kSuccess.withValues(alpha: 0.1),
                               borderRadius: BorderRadius.circular(8),
                             ),
                             child: const Icon(
@@ -261,7 +261,7 @@ class _SecretaryContributionsPageState
                         borderRadius: BorderRadius.circular(12),
                         boxShadow: [
                           BoxShadow(
-                            color: Colors.black.withOpacity(0.08),
+                            color: Colors.black.withValues(alpha: 0.08),
                             blurRadius: 8,
                             offset: const Offset(0, 2),
                           ),
@@ -272,7 +272,7 @@ class _SecretaryContributionsPageState
                           Container(
                             padding: const EdgeInsets.all(6),
                             decoration: BoxDecoration(
-                              color: kPending.withOpacity(0.1),
+                              color: kPending.withValues(alpha: 0.1),
                               borderRadius: BorderRadius.circular(8),
                             ),
                             child: const Icon(
@@ -320,7 +320,7 @@ class _SecretaryContributionsPageState
                           border: Border.all(color: kBorderColor, width: 1),
                           boxShadow: [
                             BoxShadow(
-                              color: Colors.black.withOpacity(0.05),
+                              color: Colors.black.withValues(alpha: 0.05),
                               blurRadius: 15,
                               offset: const Offset(0, 6),
                             ),
@@ -361,7 +361,7 @@ class _SecretaryContributionsPageState
                                 ),
                                 boxShadow: [
                                   BoxShadow(
-                                    color: Colors.black.withOpacity(0.05),
+                                    color: Colors.black.withValues(alpha: 0.05),
                                     blurRadius: 15,
                                     offset: const Offset(0, 6),
                                   ),
@@ -450,7 +450,9 @@ class _SecretaryContributionsPageState
                                       ),
                                       boxShadow: [
                                         BoxShadow(
-                                          color: Colors.black.withOpacity(0.03),
+                                          color: Colors.black.withValues(
+                                            alpha: 0.03,
+                                          ),
                                           blurRadius: 8,
                                           offset: const Offset(0, 2),
                                         ),
@@ -464,8 +466,12 @@ class _SecretaryContributionsPageState
                                               padding: const EdgeInsets.all(8),
                                               decoration: BoxDecoration(
                                                 color: paid
-                                                    ? kPaid.withOpacity(0.1)
-                                                    : kPending.withOpacity(0.1),
+                                                    ? kPaid.withValues(
+                                                        alpha: 0.1,
+                                                      )
+                                                    : kPending.withValues(
+                                                        alpha: 0.1,
+                                                      ),
                                                 borderRadius:
                                                     BorderRadius.circular(10),
                                               ),
@@ -536,8 +542,12 @@ class _SecretaryContributionsPageState
                                                   ),
                                               decoration: BoxDecoration(
                                                 color: paid
-                                                    ? kPaid.withOpacity(0.1)
-                                                    : kPending.withOpacity(0.1),
+                                                    ? kPaid.withValues(
+                                                        alpha: 0.1,
+                                                      )
+                                                    : kPending.withValues(
+                                                        alpha: 0.1,
+                                                      ),
                                                 borderRadius:
                                                     BorderRadius.circular(8),
                                                 border: Border.all(

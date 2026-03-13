@@ -39,15 +39,18 @@ class NotificationPage extends StatefulWidget {
         decoration: BoxDecoration(
           color: kCardBg,
           borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: kBorderColor.withOpacity(0.3), width: 1),
+          border: Border.all(
+            color: kBorderColor.withValues(alpha: 0.3),
+            width: 1,
+          ),
           boxShadow: [
             BoxShadow(
-              color: kPrimary.withOpacity(0.08),
+              color: kPrimary.withValues(alpha: 0.08),
               blurRadius: 20,
               offset: const Offset(0, 8),
             ),
             BoxShadow(
-              color: Colors.black.withOpacity(0.03),
+              color: Colors.black.withValues(alpha: 0.03),
               blurRadius: 10,
               offset: const Offset(0, 2),
             ),
@@ -59,7 +62,7 @@ class NotificationPage extends StatefulWidget {
             Container(
               padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(
-                color: kPrimary.withOpacity(0.1),
+                color: kPrimary.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(20),
               ),
               child: Icon(
@@ -117,18 +120,18 @@ class NotificationPage extends StatefulWidget {
           borderRadius: BorderRadius.circular(20),
           border: Border.all(
             color: isUnread
-                ? accentColor.withOpacity(0.28)
-                : kBorderColor.withOpacity(0.45),
+                ? accentColor.withValues(alpha: 0.28)
+                : kBorderColor.withValues(alpha: 0.45),
             width: 1.2,
           ),
           boxShadow: [
             BoxShadow(
-              color: accentColor.withOpacity(isUnread ? 0.10 : 0.05),
+              color: accentColor.withValues(alpha: isUnread ? 0.10 : 0.05),
               blurRadius: 18,
               offset: const Offset(0, 8),
             ),
             BoxShadow(
-              color: Colors.black.withOpacity(0.03),
+              color: Colors.black.withValues(alpha: 0.03),
               blurRadius: 10,
               offset: const Offset(0, 2),
             ),
@@ -341,7 +344,7 @@ class _NotificationPageState extends State<NotificationPage> {
                       children: [
                         Container(
                           decoration: BoxDecoration(
-                            color: iconColor.withOpacity(0.12),
+                            color: iconColor.withValues(alpha: 0.12),
                             borderRadius: BorderRadius.circular(14),
                           ),
                           padding: const EdgeInsets.all(12),
@@ -408,7 +411,7 @@ class _NotificationPageState extends State<NotificationPage> {
                               vertical: 4,
                             ),
                             decoration: BoxDecoration(
-                              color: iconColor.withOpacity(0.10),
+                              color: iconColor.withValues(alpha: 0.10),
                               borderRadius: BorderRadius.circular(8),
                             ),
                             child: Text(
@@ -728,7 +731,7 @@ class _NotificationPageState extends State<NotificationPage> {
       decoration: BoxDecoration(
         color: background,
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: color.withOpacity(0.16)),
+        border: Border.all(color: color.withValues(alpha: 0.16)),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -738,7 +741,7 @@ class _NotificationPageState extends State<NotificationPage> {
             height: 24,
             alignment: Alignment.center,
             decoration: BoxDecoration(
-              color: color.withOpacity(0.12),
+              color: color.withValues(alpha: 0.12),
               borderRadius: BorderRadius.circular(999),
             ),
             child: Text(
@@ -944,10 +947,12 @@ class _NotificationPageState extends State<NotificationPage> {
                 decoration: BoxDecoration(
                   color: Colors.white,
                   borderRadius: BorderRadius.circular(18),
-                  border: Border.all(color: kBorderColor.withOpacity(0.45)),
+                  border: Border.all(
+                    color: kBorderColor.withValues(alpha: 0.45),
+                  ),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withOpacity(0.04),
+                      color: Colors.black.withValues(alpha: 0.04),
                       blurRadius: 14,
                       offset: const Offset(0, 6),
                     ),
@@ -958,7 +963,7 @@ class _NotificationPageState extends State<NotificationPage> {
                     Container(
                       padding: const EdgeInsets.all(10),
                       decoration: BoxDecoration(
-                        color: kPrimary.withOpacity(0.10),
+                        color: kPrimary.withValues(alpha: 0.10),
                         borderRadius: BorderRadius.circular(14),
                       ),
                       child: const Icon(
@@ -1070,6 +1075,7 @@ class _NotificationPageState extends State<NotificationPage> {
                                   });
                                 }
 
+                                final messenger = ScaffoldMessenger.of(context);
                                 bool ok = true;
                                 try {
                                   if (isApplication && isUnread) {
@@ -1118,7 +1124,7 @@ class _NotificationPageState extends State<NotificationPage> {
                                 _fetchAll(unitId: _currentUnitId);
 
                                 if (!ok && mounted) {
-                                  ScaffoldMessenger.of(context).showSnackBar(
+                                  messenger.showSnackBar(
                                     const SnackBar(
                                       content: Text(
                                         'Could not update the notification status.',
@@ -1135,7 +1141,7 @@ class _NotificationPageState extends State<NotificationPage> {
                                 icon: _itemIcon(n),
                                 accentColor: iconColor,
                                 surfaceColor: _itemSurface(n),
-                                iconBg: iconColor.withOpacity(0.12),
+                                iconBg: iconColor.withValues(alpha: 0.12),
                                 iconColor: iconColor,
                                 isWide: isWide,
                                 isUnread: isUnread,

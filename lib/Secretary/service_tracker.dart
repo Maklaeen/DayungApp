@@ -57,11 +57,10 @@ class ServiceChecklistNotifier
 
 class ServiceTrackerPage extends StatefulWidget {
   final int dayungUnitId;
-  const ServiceTrackerPage({Key? key, required this.dayungUnitId})
-    : super(key: key);
+  const ServiceTrackerPage({super.key, required this.dayungUnitId});
 
   @override
-  _ServiceTrackerPageState createState() => _ServiceTrackerPageState();
+  State<ServiceTrackerPage> createState() => _ServiceTrackerPageState();
 }
 
 class _ServiceTrackerPageState extends State<ServiceTrackerPage> {
@@ -113,7 +112,7 @@ class _ServiceTrackerPageState extends State<ServiceTrackerPage> {
   }
 
   void _showAddServiceDialog(Map<String, dynamic> notice) {
-    final _formKey = GlobalKey<FormState>();
+    final formKey = GlobalKey<FormState>();
     String serviceName = '';
     DateTime? timeService;
     String notes = '';
@@ -136,7 +135,7 @@ class _ServiceTrackerPageState extends State<ServiceTrackerPage> {
                 style: TextStyle(fontWeight: FontWeight.bold),
               ),
               content: Form(
-                key: _formKey,
+                key: formKey,
                 child: SingleChildScrollView(
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
@@ -200,10 +199,12 @@ class _ServiceTrackerPageState extends State<ServiceTrackerPage> {
                                 lastDate: DateTime(2100),
                               );
                               if (date != null) {
+                                if (!context.mounted) return;
                                 final time = await showTimePicker(
                                   context: context,
                                   initialTime: TimeOfDay.now(),
                                 );
+                                if (!context.mounted) return;
                                 if (time != null) {
                                   setState(() {
                                     timeService = DateTime(
@@ -245,7 +246,7 @@ class _ServiceTrackerPageState extends State<ServiceTrackerPage> {
 
                       // Required
                       DropdownButtonFormField<String>(
-                        value: required,
+                        initialValue: required,
                         decoration: InputDecoration(
                           labelText: 'Required',
                           border: OutlineInputBorder(
@@ -294,8 +295,10 @@ class _ServiceTrackerPageState extends State<ServiceTrackerPage> {
                 ElevatedButton(
                   child: const Text('Save'),
                   onPressed: () async {
+                    final navigator = Navigator.of(context);
+                    final messenger = ScaffoldMessenger.of(context);
                     debugPrint('Save button pressed');
-                    if (_formKey.currentState!.validate() &&
+                    if (formKey.currentState!.validate() &&
                         timeService != null) {
                       debugPrint('Form validated. Preparing to insert...');
                       try {
@@ -325,25 +328,25 @@ class _ServiceTrackerPageState extends State<ServiceTrackerPage> {
                             .insert(insertData)
                             .select();
                         debugPrint('Insert response: $response');
-                        Navigator.pop(context);
+                        navigator.pop();
                       } on PostgrestException catch (e) {
                         debugPrint(
                           'PostgrestException: ${e.message}, code: ${e.code}, details: ${e.details}, hint: ${e.hint}',
                         );
-                        ScaffoldMessenger.of(context).showSnackBar(
+                        messenger.showSnackBar(
                           SnackBar(content: Text('Error: ${e.message}')),
                         );
                       } catch (e, stack) {
                         debugPrint('Error inserting service: $e');
                         debugPrint('Stack trace: $stack');
-                        ScaffoldMessenger.of(
-                          context,
-                        ).showSnackBar(SnackBar(content: Text('Error: $e')));
+                        messenger.showSnackBar(
+                          SnackBar(content: Text('Error: $e')),
+                        );
                       }
                     } else {
                       debugPrint('Form not valid or timeService is null');
                       if (timeService == null) {
-                        ScaffoldMessenger.of(context).showSnackBar(
+                        messenger.showSnackBar(
                           const SnackBar(
                             content: Text('Please select a start time'),
                           ),
@@ -378,7 +381,7 @@ class _ServiceTrackerPageState extends State<ServiceTrackerPage> {
                 ),
                 boxShadow: [
                   BoxShadow(
-                    color: kPrimary.withOpacity(0.3),
+                    color: kPrimary.withValues(alpha: 0.3),
                     blurRadius: 20,
                     offset: const Offset(0, 8),
                   ),

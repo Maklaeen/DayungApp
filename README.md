@@ -1,13 +1,14 @@
 # DayungApp
 
-DayungApp is a Flutter client with a small Node.js backend for announcement SMS delivery.
+DayungApp is a Flutter client backed by Supabase. Privileged SuperAdmin actions now run through a Supabase Edge Function instead of Render.
 
 ## Workspace Structure
 
 - `lib/`: Flutter mobile and desktop client code
-- `backend/`: Express backend used for protected SMS announcement delivery
+- `backend/`: legacy Express backend kept only as a reference for SMS-related work
 - `assets/`: Images, fonts, and animations
 - `docs/`: Security and operational policy documents
+- `supabase/functions/`: Supabase Edge Functions for privileged server-side actions
 
 ## Setup
 
@@ -25,7 +26,21 @@ For iOS, create `ios/Flutter/Secrets.xcconfig` from `ios/Flutter/Secrets.xcconfi
 
 Then run the Flutter app normally.
 
-### Backend
+### Supabase Edge Function
+
+Deploy the bundled Supabase function for privileged SuperAdmin actions:
+
+```bash
+supabase login
+supabase link
+supabase functions deploy superadmin-admin
+```
+
+More detail is in `docs/supabase-edge-functions.md`.
+
+### Legacy SMS backend
+
+The `backend/` folder remains available only if you later restore SMS delivery.
 
 Create `backend/.env` using `backend/.env.example` and set:
 
@@ -36,39 +51,12 @@ Create `backend/.env` using `backend/.env.example` and set:
 - `TWILIO_FROM`
 - `PORT`
 
-Install backend dependencies and start the server:
-
-```bash
-cd backend
-npm install
-npm start
-```
-
-### Render deployment
-
-You can deploy the backend folder as a Render Web Service.
-
-- Root Directory: `backend`
-- Build Command: `npm install`
-- Start Command: `npm start`
-
-Set these environment variables in Render:
-
-- `SUPABASE_URL`
-- `SUPABASE_SERVICE_ROLE_KEY`
-- `TWILIO_ACCOUNT_SID`
-- `TWILIO_AUTH_TOKEN`
-- `TWILIO_FROM`
-
-After deployment, verify this endpoint:
-
-- `GET /health`
-
 ## Security Notes
 
 - Do not commit real `.env` files.
 - Do not commit `ios/Flutter/Secrets.xcconfig`.
-- The backend route `/send-announcement-sms` is intended to be authenticated and president-scoped.
+- The Edge Function `superadmin-admin` is intended to be authenticated and superadmin-scoped.
+- The backend route `/send-announcement-sms` remains intended to be authenticated and president-scoped if SMS is restored later.
 - Sensitive document buckets should use private access policies and signed URLs at the infrastructure level.
 
 ## Audit and Quality Checks

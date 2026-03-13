@@ -210,14 +210,14 @@ class _RegisterState extends State<Register> {
                 ),
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
-                    colors: [kDanger, kDanger.withOpacity(0.9)],
+                    colors: [kDanger, kDanger.withValues(alpha: 0.9)],
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
                   ),
                   borderRadius: BorderRadius.circular(16),
                   boxShadow: [
                     BoxShadow(
-                      color: kDanger.withOpacity(0.3),
+                      color: kDanger.withValues(alpha: 0.3),
                       blurRadius: 20,
                       offset: const Offset(0, 8),
                     ),
@@ -234,7 +234,7 @@ class _RegisterState extends State<Register> {
                     Container(
                       padding: const EdgeInsets.all(8),
                       decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.2),
+                        color: Colors.white.withValues(alpha: 0.2),
                         borderRadius: BorderRadius.circular(8),
                       ),
                       child: const Icon(
@@ -293,11 +293,10 @@ class _RegisterState extends State<Register> {
       ),
       builder: (ctx) => AddressPickerSheet(
         onUseMyLocation: () async {
+          final navigator = Navigator.of(ctx);
           await _useMyLocation();
-          Navigator.pop(
-            ctx,
-            _AddressPickResult(rawText: addressController.text),
-          );
+          if (!mounted) return;
+          navigator.pop(_AddressPickResult(rawText: addressController.text));
         },
         initialRegion: _pickedRegion,
         initialProvince: _pickedProvince,
@@ -305,6 +304,7 @@ class _RegisterState extends State<Register> {
         initialBarangay: _pickedBarangay,
       ),
     );
+    if (!mounted) return;
 
     if (result != null) {
       setState(() {
@@ -387,6 +387,7 @@ class _RegisterState extends State<Register> {
           _latitude = null;
           _longitude = null;
         });
+        if (!mounted) return;
         _showTopErrorDialog(
           context,
           'Geocoding failed: Could not find any result for the supplied address or coordinates.\nAddresses tried:\n$triedAddresses',
@@ -398,6 +399,7 @@ class _RegisterState extends State<Register> {
   Future<void> _useMyLocation() async {
     try {
       final perm = await Geolocator.requestPermission();
+      if (!mounted) return;
       if (perm == LocationPermission.denied ||
           perm == LocationPermission.deniedForever) {
         _showTopErrorDialog(context, 'Location permission denied.');
@@ -405,7 +407,9 @@ class _RegisterState extends State<Register> {
       }
 
       final pos = await Geolocator.getCurrentPosition(
-        desiredAccuracy: LocationAccuracy.high,
+        locationSettings: const LocationSettings(
+          accuracy: LocationAccuracy.high,
+        ),
       );
 
       String? composed;
@@ -462,6 +466,8 @@ class _RegisterState extends State<Register> {
           }
         }
       }
+
+      if (!mounted) return;
 
       if (composed == null || composed.isEmpty) {
         if (neededInternetLookup) {
@@ -688,6 +694,7 @@ class _RegisterState extends State<Register> {
 
       final user = res.user;
       if (user == null) {
+        if (!mounted) return;
         setState(() => _isSubmitting = false);
         _showTopErrorDialog(context, 'Failed to register user.');
         return;
@@ -718,9 +725,8 @@ class _RegisterState extends State<Register> {
           .update({'password_hash': hashed})
           .eq('id', user.id);
 
-      setState(() => _isSubmitting = false);
-
       if (!mounted) return;
+      setState(() => _isSubmitting = false);
       Navigator.of(context).pushReplacement(
         MaterialPageRoute(
           builder: (_) => QuestionnaireScreen(userId: user.id, role: role),
@@ -825,7 +831,7 @@ class _RegisterState extends State<Register> {
               margin: const EdgeInsets.all(12),
               padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
-                color: kPrimary.withOpacity(0.1),
+                color: kPrimary.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(8),
               ),
               child: Icon(icon, color: kPrimary, size: 20),
@@ -896,7 +902,7 @@ class _RegisterState extends State<Register> {
                                 borderRadius: BorderRadius.circular(20),
                                 boxShadow: [
                                   BoxShadow(
-                                    color: kPrimary.withOpacity(0.1),
+                                    color: kPrimary.withValues(alpha: 0.1),
                                     blurRadius: 20,
                                     offset: const Offset(0, 8),
                                   ),
@@ -931,7 +937,7 @@ class _RegisterState extends State<Register> {
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(24),
                           side: BorderSide(
-                            color: kBorderColor.withOpacity(0.5),
+                            color: kBorderColor.withValues(alpha: 0.5),
                             width: 1,
                           ),
                         ),
@@ -948,7 +954,7 @@ class _RegisterState extends State<Register> {
                                     ),
                                     padding: const EdgeInsets.all(16),
                                     decoration: BoxDecoration(
-                                      color: kPrimary.withOpacity(0.1),
+                                      color: kPrimary.withValues(alpha: 0.1),
                                       borderRadius: BorderRadius.circular(12),
                                     ),
                                     child: Row(
@@ -976,10 +982,10 @@ class _RegisterState extends State<Register> {
                                 Container(
                                   padding: const EdgeInsets.all(16),
                                   decoration: BoxDecoration(
-                                    color: kPrimary.withOpacity(0.05),
+                                    color: kPrimary.withValues(alpha: 0.05),
                                     borderRadius: BorderRadius.circular(12),
                                     border: Border.all(
-                                      color: kPrimary.withOpacity(0.1),
+                                      color: kPrimary.withValues(alpha: 0.1),
                                       width: 1,
                                     ),
                                   ),
@@ -1169,10 +1175,10 @@ class _RegisterState extends State<Register> {
                                 Container(
                                   padding: const EdgeInsets.all(16),
                                   decoration: BoxDecoration(
-                                    color: kAccent.withOpacity(0.05),
+                                    color: kAccent.withValues(alpha: 0.05),
                                     borderRadius: BorderRadius.circular(12),
                                     border: Border.all(
-                                      color: kAccent.withOpacity(0.1),
+                                      color: kAccent.withValues(alpha: 0.1),
                                       width: 1,
                                     ),
                                   ),
@@ -1355,7 +1361,7 @@ class _RegisterState extends State<Register> {
                                     borderRadius: BorderRadius.circular(kEdge),
                                     boxShadow: [
                                       BoxShadow(
-                                        color: kPrimary.withOpacity(0.3),
+                                        color: kPrimary.withValues(alpha: 0.3),
                                         blurRadius: 12,
                                         offset: const Offset(0, 6),
                                       ),
@@ -1461,10 +1467,10 @@ class _RegisterState extends State<Register> {
                           vertical: 12,
                         ),
                         decoration: BoxDecoration(
-                          color: kSuccess.withOpacity(0.1),
+                          color: kSuccess.withValues(alpha: 0.1),
                           borderRadius: BorderRadius.circular(12),
                           border: Border.all(
-                            color: kSuccess.withOpacity(0.2),
+                            color: kSuccess.withValues(alpha: 0.2),
                             width: 1,
                           ),
                         ),
@@ -1906,12 +1912,9 @@ class _AddressPickerSheetState extends State<AddressPickerSheet> {
                         names.sort(
                           (a, b) => a.toLowerCase().compareTo(b.toLowerCase()),
                         );
-                        return names.map((name) {
-                          return RadioListTile<String>(
-                            value: name,
+                        return [
+                          RadioGroup<String>(
                             groupValue: _barangay,
-                            title: Text(name),
-                            activeColor: kPrimary,
                             onChanged: (val) {
                               if (val == null) return;
                               setState(() => _barangay = val);
@@ -1926,8 +1929,17 @@ class _AddressPickerSheetState extends State<AddressPickerSheet> {
                                 ),
                               );
                             },
-                          );
-                        }).toList();
+                            child: Column(
+                              children: names.map((name) {
+                                return RadioListTile<String>(
+                                  value: name,
+                                  title: Text(name),
+                                  activeColor: kPrimary,
+                                );
+                              }).toList(),
+                            ),
+                          ),
+                        ];
                       })(),
                     ],
                   ],

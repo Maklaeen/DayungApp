@@ -94,9 +94,6 @@ class _MembersPageState extends State<MembersPage>
 
   @override
   Widget build(BuildContext context) {
-    final width = MediaQuery.of(context).size.width;
-    final bool isMobile = width < 600;
-
     return Scaffold(
       backgroundColor: kBg,
       body: SafeArea(

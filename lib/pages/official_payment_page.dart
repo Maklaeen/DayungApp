@@ -366,7 +366,7 @@ class _OfficialPaymentPageState extends State<OfficialPaymentPage> {
                       color: Colors.white,
                       borderRadius: BorderRadius.circular(18),
                       border: Border.all(
-                        color: kOfficialPaymentPrimary.withOpacity(0.12),
+                        color: kOfficialPaymentPrimary.withValues(alpha: 0.12),
                       ),
                     ),
                     child: const Column(
@@ -450,6 +450,7 @@ class _OfficialPaymentPageState extends State<OfficialPaymentPage> {
                           referenceCtrl.text,
                           maxLength: 120,
                         ).trim();
+                        final navigator = Navigator.of(context);
 
                         if (!hasSentPayment) {
                           ScaffoldMessenger.of(context).showSnackBar(
@@ -496,8 +497,9 @@ class _OfficialPaymentPageState extends State<OfficialPaymentPage> {
                         );
 
                         if (confirm != true) return;
+                        if (!mounted) return;
 
-                        Navigator.of(context).pop();
+                        navigator.pop();
                         await _markPaymentAsGCashPending(
                           paymentRow['id'],
                           reference,
@@ -579,7 +581,7 @@ class _OfficialPaymentPageState extends State<OfficialPaymentPage> {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: color.withOpacity(0.14)),
+        border: Border.all(color: color.withValues(alpha: 0.14)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -627,7 +629,7 @@ class _OfficialPaymentPageState extends State<OfficialPaymentPage> {
         borderRadius: BorderRadius.circular(22),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.04),
+            color: Colors.black.withValues(alpha: 0.04),
             blurRadius: 14,
             offset: const Offset(0, 8),
           ),
@@ -644,7 +646,7 @@ class _OfficialPaymentPageState extends State<OfficialPaymentPage> {
                   width: 48,
                   height: 48,
                   decoration: BoxDecoration(
-                    color: kOfficialPaymentPrimary.withOpacity(0.1),
+                    color: kOfficialPaymentPrimary.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(14),
                   ),
                   child: const Icon(
@@ -948,7 +950,7 @@ class _ProofStepRow extends StatelessWidget {
           height: 24,
           alignment: Alignment.center,
           decoration: BoxDecoration(
-            color: kOfficialPaymentPrimary.withOpacity(0.1),
+            color: kOfficialPaymentPrimary.withValues(alpha: 0.1),
             borderRadius: BorderRadius.circular(999),
           ),
           child: Text(

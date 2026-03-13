@@ -111,18 +111,6 @@ class _SecretaryBeneficiariesTabState extends State<SecretaryBeneficiariesTab> {
           .inFilter('status', ['Approved', 'Pending'])
           .order('full_name', ascending: true);
 
-      final ids = {
-        for (final b in (beneficiariesData as List))
-          (b as Map)['user_id'].toString(),
-      }.where((id) => id.isNotEmpty).toList();
-
-      final usersData = ids.isEmpty
-          ? []
-          : await supabase
-                .from('users')
-                .select('id, full_name')
-                .inFilter('id', ids);
-
       // Group beneficiaries by user and status
       final pendingByUser = <String, List<dynamic>>{};
       final activeByUser = <String, List<dynamic>>{};
@@ -245,7 +233,7 @@ class _SecretaryBeneficiariesTabState extends State<SecretaryBeneficiariesTab> {
               child: Row(
                 children: [
                   CircleAvatar(
-                    backgroundColor: kAccent.withOpacity(0.1),
+                    backgroundColor: kAccent.withValues(alpha: 0.1),
                     child: const Icon(Icons.person_rounded, color: kAccent),
                   ),
                   const SizedBox(width: 12),
@@ -283,7 +271,7 @@ class _SecretaryBeneficiariesTabState extends State<SecretaryBeneficiariesTab> {
       child: ListTile(
         onTap: () => _showBeneficiaryDetails(b),
         leading: CircleAvatar(
-          backgroundColor: kAccent.withOpacity(0.1),
+          backgroundColor: kAccent.withValues(alpha: 0.1),
           child: const Icon(Icons.person_rounded, color: kAccent),
         ),
         title: Text(
@@ -317,10 +305,10 @@ class _SecretaryBeneficiariesTabState extends State<SecretaryBeneficiariesTab> {
                   ),
                   decoration: BoxDecoration(
                     color: b['status'] == 'Approved'
-                        ? kSuccess.withOpacity(0.12)
+                        ? kSuccess.withValues(alpha: 0.12)
                         : b['status'] == 'Rejected'
-                        ? kDanger.withOpacity(0.12)
-                        : kWarn.withOpacity(0.12),
+                        ? kDanger.withValues(alpha: 0.12)
+                        : kWarn.withValues(alpha: 0.12),
                     borderRadius: BorderRadius.circular(6),
                   ),
                   child: Text(
@@ -385,7 +373,7 @@ class _SecretaryBeneficiariesTabState extends State<SecretaryBeneficiariesTab> {
               // Avatar and Name
               CircleAvatar(
                 radius: 36,
-                backgroundColor: kAccent.withOpacity(0.12),
+                backgroundColor: kAccent.withValues(alpha: 0.12),
                 child: const Icon(
                   Icons.person_rounded,
                   color: kAccent,
@@ -555,6 +543,7 @@ class _SecretaryBeneficiariesTabState extends State<SecretaryBeneficiariesTab> {
                 return;
               }
 
+              if (!context.mounted) return;
               showDialog(
                 context: context,
                 builder: (context) => Dialog(
@@ -624,9 +613,6 @@ class _SecretaryBeneficiariesTabState extends State<SecretaryBeneficiariesTab> {
 
   @override
   Widget build(BuildContext context) {
-    final width = MediaQuery.of(context).size.width;
-    final bool isMobile = width < 600;
-
     return Scaffold(
       backgroundColor: kBg,
       body: SafeArea(
@@ -783,7 +769,9 @@ class _NavTab extends StatelessWidget {
         duration: const Duration(milliseconds: 200),
         padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
         decoration: BoxDecoration(
-          color: selected ? kAccent.withOpacity(0.12) : Colors.transparent,
+          color: selected
+              ? kAccent.withValues(alpha: 0.12)
+              : Colors.transparent,
           borderRadius: BorderRadius.circular(18),
         ),
         child: Row(

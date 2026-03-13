@@ -28,7 +28,7 @@ class UserProvider extends ChangeNotifier {
 
       if (response != null) {
         _user = currentUser;
-        _fullName = '${_getTitle(response['sex'])} ' + response['full_name'];
+        _fullName = '${_getTitle(response['sex'])} ${response['full_name']}';
         _mobileNumber = response['mobile_number'] ?? 'Not Available';
         _userAddress = response['address'] ?? 'Not Provided';
         _profileUrl = response['profile_url']; // <-- Add this

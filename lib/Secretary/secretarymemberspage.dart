@@ -43,7 +43,6 @@ class _SecretaryMembersPageState extends State<SecretaryMembersPage>
 
   List<Map<String, dynamic>> _rows = [];
   final Map<int, String> _dayungNames = {};
-  List<int> _managedDayungIds = [];
 
   @override
   void initState() {
@@ -65,7 +64,6 @@ class _SecretaryMembersPageState extends State<SecretaryMembersPage>
           _loading = false;
           _infoMsg = 'Please log in.';
           _rows = [];
-          _managedDayungIds = [];
           _dayungNames.clear();
         });
         return;
@@ -123,7 +121,6 @@ class _SecretaryMembersPageState extends State<SecretaryMembersPage>
 
       if (!mounted) return;
       setState(() {
-        _managedDayungIds = [dayungId];
         _rows = byKey.values.toList()
           ..sort((a, b) {
             final sa = (a['status'] ?? '').toString();
@@ -209,7 +206,7 @@ class _SecretaryMembersPageState extends State<SecretaryMembersPage>
                   ),
                   boxShadow: [
                     BoxShadow(
-                      color: kPrimaryDark.withOpacity(0.3),
+                      color: kPrimaryDark.withValues(alpha: 0.3),
                       blurRadius: 20,
                       offset: const Offset(0, 8),
                     ),
@@ -320,7 +317,7 @@ class _SecretaryMembersPageState extends State<SecretaryMembersPage>
                                 selected: _tabController.index == 0,
                                 onTap: () => _tabController.animateTo(0),
                               ),
-                           
+
                               _NavTab(
                                 label: 'Deceased',
                                 icon: Icons.person_off_rounded,
@@ -351,7 +348,7 @@ class _SecretaryMembersPageState extends State<SecretaryMembersPage>
                             ),
                             boxShadow: [
                               BoxShadow(
-                                color: Colors.black.withOpacity(0.05),
+                                color: Colors.black.withValues(alpha: 0.05),
                                 blurRadius: 15,
                                 offset: const Offset(0, 6),
                               ),
@@ -392,7 +389,7 @@ class _SecretaryMembersPageState extends State<SecretaryMembersPage>
                             ),
                             boxShadow: [
                               BoxShadow(
-                                color: Colors.black.withOpacity(0.05),
+                                color: Colors.black.withValues(alpha: 0.05),
                                 blurRadius: 15,
                                 offset: const Offset(0, 6),
                               ),

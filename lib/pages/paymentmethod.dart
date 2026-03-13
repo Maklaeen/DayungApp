@@ -26,7 +26,6 @@ class _PaymentMethodPageState extends State<PaymentMethodPage> {
   bool _loading = true;
   String? _error;
 
-  double _totalPending = 0;
   List<Map<String, dynamic>> _pendingRows = [];
   List<Map<String, dynamic>> _collectors = [];
   String? _selectedCollectorId;
@@ -62,13 +61,6 @@ class _PaymentMethodPageState extends State<PaymentMethodPage> {
           .eq('status', 'pending');
 
       final rows = List<Map<String, dynamic>>.from(res);
-      final total = rows.fold<double>(
-        0,
-        (sum, r) =>
-            sum +
-            ((r['amount'] is num) ? (r['amount'] as num).toDouble() : 0.0),
-      );
-
       // 2) Collectors for this dayung (via dayung_collectors, not users.role)
       List<Map<String, dynamic>> collectors = [];
       try {
@@ -133,7 +125,6 @@ class _PaymentMethodPageState extends State<PaymentMethodPage> {
 
       setState(() {
         _pendingRows = rows;
-        _totalPending = total;
         _collectors = collectors;
         _selectedCollectorId = collectors.isNotEmpty
             ? (collectors.first['id']?.toString())

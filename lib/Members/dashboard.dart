@@ -1,5 +1,4 @@
 import 'dart:convert';
-import 'dart:ui';
 import 'package:capstone_app/Auth/logout.dart';
 import 'package:capstone_app/Beneficiary/beneficiary.dart';
 import 'package:capstone_app/Members/gcash_payment_page.dart';
@@ -10,17 +9,12 @@ import 'package:capstone_app/Providers/dayung_provider.dart';
 import 'package:capstone_app/pages/notification.dart';
 import 'package:capstone_app/pages/recentdeathnotices.dart';
 import 'package:capstone_app/profile/profile.dart';
-import 'package:capstone_app/screens/selectdayung.dart';
 import 'package:capstone_app/Auth/login.dart';
 import 'package:capstone_app/settings/profsettings.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:capstone_app/Members/top_notification.dart';
-import 'package:capstone_app/utils/supabase_storage.dart';
-import 'package:url_launcher/url_launcher.dart';
-import 'package:file_picker/file_picker.dart';
 
 // Color palette
 const kBg = Color(0xFFFAFAF7);
@@ -52,46 +46,27 @@ class _MemberDashboardPageState extends State<MemberDashboardPage>
     WidgetsBinding.instance.addPostFrameCallback((_) => fn());
   }
 
-  User? _user;
-
   Map<String, dynamic>? _selectedDayungUnitObj;
 
   String _fullName = 'Member';
-  String? _profileUrl;
   String _selectedDayungUnit = 'Dayung Unit';
-  String? _unitBarangay;
-  String? _unitCity;
   String? birthCertificateUrl;
   String? marriageCertificateUrl;
 
-  bool _loadingUnit = true;
-  bool _loadingUser = true;
   bool _loadingActiveMembers = true;
-  bool _loadingCertificates = true;
-  final bool _pendingUnitChange = false;
   bool _handlingOverlay = false;
   bool _loadingPending = true;
-  bool _loadingActivity = true;
-  bool _uploadingImage = false;
-  bool _loading = true;
 
   List<Map<String, dynamic>> _recentCertificates = [];
   final List<Map<String, dynamic>> _pendingPaymentsByDeathNotice = [];
-  List<Map<String, dynamic>> _latestActivities = [];
 
   List<String> _pendingPaymentMessages = [];
 
   double _pendingPaymentsAmount = 0;
 
-  final int _pendingPaymentCount = 0;
   int _unreadNotifCount = 0;
-  int? _lastHandledUnitId; // ADD
-  int? _lastProviderUnitId;
   int _activeMembersCount = 0;
   int? _asInt(dynamic v) => v == null ? null : int.tryParse(v.toString());
-  List<int> _managedUnitIds = [];
-  int? get _primaryUnitId =>
-      _managedUnitIds.isNotEmpty ? _managedUnitIds.first : null;
   int? _lastRoleUnitId;
   int _currentIndex = 0;
   bool _showNavBar = true;
@@ -157,40 +132,18 @@ class _MemberDashboardPageState extends State<MemberDashboardPage>
   }
 
   Future<void> _load() async {
-    setState(() {
-      _loading = true;
-    });
     try {
       final ids = await _managedDayungIds();
-      _managedUnitIds = ids;
       if (ids.isEmpty) {
-        // No units to manage, stop loading and show placeholder
-        if (mounted) {
-          setState(() {
-            _loading = false;
-          });
-        }
         return;
       }
       await Future.wait([
         _fetchActiveMembers(),
         _fetchRecentDeaths(),
         _fetchPendingPayments(),
-        _fetchRecentActivity(),
       ]);
     } catch (e) {
-      // Always set loading to false on erroro
-      if (mounted) {
-        setState(() {
-          _loading = false;
-        });
-      }
-    } finally {
-      if (mounted) {
-        setState(() {
-          _loading = false;
-        });
-      }
+      debugPrint('Failed to load member dashboard data: $e');
     }
   }
 
@@ -200,7 +153,6 @@ class _MemberDashboardPageState extends State<MemberDashboardPage>
       _fetchActiveMembers(),
       _fetchRecentDeaths(),
       _fetchPendingPayments(),
-      _fetchRecentActivity(),
     ]);
   }
 
@@ -211,16 +163,14 @@ class _MemberDashboardPageState extends State<MemberDashboardPage>
   //   await _fetchUnreadNotifCount();
   //   await _fetchAllStats();
   //   _subscribeNotificationsRealtime();
-  //   await _subscribeAnnouncementsRealtime();
-  // }
 
   Future<void> _fetchUnreadNotifCount() async {
     final sb = Supabase.instance.client;
     final uid = sb.auth.currentUser?.id;
-    final unitId = _asInt(_selectedDayungUnitObj?['id']);
-
-    if (uid == null || unitId == null) {
-      if (mounted) setState(() => _unreadNotifCount = 0);
+    final unitId = _dayungUnitId;
+    if (uid == null) {
+      if (!mounted) return;
+      setState(() => _unreadNotifCount = 0);
       return;
     }
 
@@ -229,32 +179,29 @@ class _MemberDashboardPageState extends State<MemberDashboardPage>
           .from('notifications')
           .select('id')
           .eq('recipient_id', uid)
-          .eq('dayung_unit_id', unitId)
           .isFilter('read_at', null);
       final notifCount = (notifRows as List).length;
 
-      final annRows = await sb
-          .from('announcements')
-          .select('id')
-          .eq('dayung_unit_id', unitId);
-
-      final annIds = (annRows as List)
-          .map((r) => (r as Map)['id'])
-          .where((v) => v != null)
-          .toList();
-
       int annCount = 0;
-      if (annIds.isNotEmpty) {
-        final reads = await sb
-            .from('announcement_reads')
-            .select('announcement_id')
-            .eq('user_id', uid)
-            .inFilter('announcement_id', annIds);
+      if (unitId != null) {
+        final annRows = await sb
+            .from('announcements')
+            .select('id')
+            .eq('dayung_unit_id', unitId);
+        final annIds = (annRows as List).map((r) => (r as Map)['id']).toList();
 
-        final readIds = Set.from(
-          (reads as List).map((r) => (r as Map)['announcement_id']),
-        );
-        annCount = annIds.where((id) => !readIds.contains(id)).length;
+        if (annIds.isNotEmpty) {
+          final reads = await sb
+              .from('announcement_reads')
+              .select('announcement_id')
+              .eq('user_id', uid)
+              .inFilter('announcement_id', annIds);
+
+          final readIds = Set.from(
+            (reads as List).map((r) => (r as Map)['announcement_id']),
+          );
+          annCount = annIds.where((id) => !readIds.contains(id)).length;
+        }
       }
 
       if (!mounted) return;
@@ -263,239 +210,6 @@ class _MemberDashboardPageState extends State<MemberDashboardPage>
       if (!mounted) return;
       setState(() => _unreadNotifCount = 0);
     }
-  }
-
-  Future<bool> _isApprovedForUnit(int unitId) async {
-    final uid = supabase.auth.currentUser?.id;
-    if (uid == null) return false;
-    try {
-      final rows = await supabase
-          .from('applications')
-          .select('id')
-          .eq('user_id', uid)
-          .eq('dayung_unit_id', unitId)
-          .eq('status', 'approved')
-          .limit(1);
-      return (rows as List).isNotEmpty;
-    } catch (_) {
-      return false;
-    }
-  }
-
-  Future<void> _checkUnreadNotifications() async {
-    final sb = Supabase.instance.client;
-    final uid = sb.auth.currentUser?.id;
-    if (uid == null) return;
-    final data = await sb
-        .from('notifications')
-        .select('id, title, body, type, created_at')
-        .eq('recipient_id', uid)
-        .isFilter('read_at', null)
-        .order('created_at', ascending: false)
-        .limit(1);
-    final list = List<Map<String, dynamic>>.from(data);
-    if (list.isNotEmpty) {
-      final notif = list.first;
-      if (notif['type'] == 'membership_approved' ||
-          notif['type'] == 'announcement') {
-        _showAnnouncementDialog(notif);
-      }
-    }
-  }
-
-  Future<void> _uploadCertificate({required String type}) async {
-    final result = await FilePicker.platform.pickFiles(
-      type: FileType.custom,
-      allowedExtensions: ['pdf', 'png', 'jpg', 'jpeg'],
-      allowMultiple: false,
-      withData: true,
-    );
-    if (result == null) return;
-
-    final file = result.files.first;
-    final bytes = file.bytes;
-    final ext = file.extension ?? 'pdf';
-    if (bytes == null) return;
-
-    setState(() => _uploadingImage = true);
-    try {
-      final userId = supabase.auth.currentUser!.id;
-      final fileName = '$userId-${type}_certificate.${ext.toLowerCase()}';
-
-      final bucket = type == 'birth'
-          ? 'birth_certificates'
-          : 'marriage_certificates';
-
-      await supabase.storage
-          .from(bucket)
-          .uploadBinary(
-            fileName,
-            bytes,
-            fileOptions: const FileOptions(upsert: true),
-          );
-
-      final storageRef = buildStorageRef(bucket, fileName);
-
-      await supabase
-          .from('users')
-          .update({
-            if (type == 'birth') 'birth_certificate_url': storageRef,
-            if (type == 'marriage') 'marriage_certificate_url': storageRef,
-          })
-          .eq('id', userId)
-          .select()
-          .maybeSingle();
-
-      if (!mounted) return;
-      setState(() {
-        if (type == 'birth') birthCertificateUrl = storageRef;
-        if (type == 'marriage') marriageCertificateUrl = storageRef;
-        _uploadingImage = false;
-      });
-      _showTopPopup(
-        '${type[0].toUpperCase()}${type.substring(1)} certificate uploaded!',
-        color: kAccent,
-        icon: Icons.check_circle,
-      );
-    } catch (e) {
-      if (!mounted) return;
-      setState(() => _uploadingImage = false);
-      _showTopPopup(
-        'Upload error: $e',
-        color: kWarn,
-        icon: Icons.error_outline,
-      );
-    }
-  }
-
-  Future<void> _openCertificate(String? url) async {
-    if (url == null || url.isEmpty) return;
-    final resolved = await resolveSupabaseStorageUrl(url, client: supabase);
-    if (resolved == null) return;
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Certificate'),
-        content: storageLooksLikePdf(resolved)
-            ? const Text('Open this PDF in browser?')
-            : Image.network(resolved, fit: BoxFit.contain, height: 300),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Close'),
-          ),
-          if (storageLooksLikePdf(resolved))
-            TextButton(
-              onPressed: () {
-                Navigator.pop(ctx);
-                launchUrl(Uri.parse(resolved));
-              },
-              child: const Text('Open PDF'),
-            ),
-        ],
-      ),
-    );
-  }
-
-  void _showTopPopup(
-    String message, {
-    Color color = kAccent,
-    IconData icon = Icons.check_circle,
-  }) {
-    final overlay = Overlay.of(context);
-
-    late OverlayEntry entry;
-    final animationController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 350),
-    );
-    final curved = CurvedAnimation(
-      parent: animationController,
-      curve: Curves.easeOutCubic,
-      reverseCurve: Curves.easeInCubic,
-    );
-
-    entry = OverlayEntry(
-      builder: (context) => Positioned(
-        top: MediaQuery.of(context).padding.top + 16,
-        left: 24,
-        right: 24,
-        child: AnimatedBuilder(
-          animation: curved,
-          builder: (context, child) {
-            return Opacity(
-              opacity: curved.value,
-              child: Transform.translate(
-                offset: Offset(0, -40 * (1 - curved.value)),
-                child: child,
-              ),
-            );
-          },
-          child: Material(
-            color: Colors.transparent,
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(18),
-              child: BackdropFilter(
-                filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 18,
-                    vertical: 14,
-                  ),
-                  decoration: BoxDecoration(
-                    color: color.withOpacity(0.38),
-                    borderRadius: BorderRadius.circular(18),
-                    border: Border.all(
-                      color: Colors.white.withOpacity(0.18),
-                      width: 1.2,
-                    ),
-                    boxShadow: [
-                      BoxShadow(
-                        color: color.withOpacity(0.18),
-                        blurRadius: 12,
-                        offset: const Offset(0, 4),
-                      ),
-                    ],
-                  ),
-                  child: Row(
-                    children: [
-                      Icon(icon, color: Colors.white, size: 22),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: Text(
-                          message,
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.w600,
-                            fontSize: 15,
-                            shadows: [
-                              Shadow(
-                                color: Colors.black26,
-                                blurRadius: 8,
-                                offset: Offset(0, 2),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-
-    overlay.insert(entry);
-    animationController.forward();
-
-    Future.delayed(const Duration(seconds: 5), () async {
-      await animationController.reverse();
-      entry.remove();
-      animationController.dispose();
-    });
   }
 
   void _showAnnouncementDialog(Map<String, dynamic> notif) {
@@ -588,7 +302,6 @@ class _MemberDashboardPageState extends State<MemberDashboardPage>
 
   Future<void> _reloadDayungFromPrefs() async {
     try {
-      setState(() => _loadingUnit = true);
       final prefs = await SharedPreferences.getInstance();
       final unitJson = prefs.getString('selectedDayungUnit');
       if (unitJson == null) {
@@ -608,8 +321,6 @@ class _MemberDashboardPageState extends State<MemberDashboardPage>
       }
     } catch (e) {
       debugPrint('Failed to reload Dayung from prefs: $e');
-    } finally {
-      if (mounted) setState(() => _loadingUnit = false);
     }
   }
 
@@ -705,7 +416,6 @@ class _MemberDashboardPageState extends State<MemberDashboardPage>
       _fetchActiveMembers(),
       _fetchRecentDeaths(),
       _fetchPendingPayments(),
-      _fetchRecentActivity(),
     ]);
   }
 
@@ -715,7 +425,7 @@ class _MemberDashboardPageState extends State<MemberDashboardPage>
     if (uid == null) return;
 
     _notifChannel?.unsubscribe();
-    _notifChannel = sb.channel('member_notifications_$uid');
+    _notifChannel = sb.channel('member_dashboard_notifications_$uid');
 
     _notifChannel!
         .onPostgresChanges(
@@ -727,307 +437,44 @@ class _MemberDashboardPageState extends State<MemberDashboardPage>
             column: 'recipient_id',
             value: uid,
           ),
-          callback: (payload) async {
-            final row = payload.newRecord;
-            final type = (row['type'] ?? '').toString();
-            if (type == 'membership_approved' || type == 'announcement') {
-              _afterFrame(() {
-                if (!mounted) return;
-                TopNotificationBanner.show(
-                  context,
-                  title: row['title']?.toString() ?? 'Notification',
-                  message: row['body']?.toString() ?? '',
-                  icon: type == 'announcement'
-                      ? Icons.campaign
-                      : Icons.notifications_active_rounded,
-                  onTap: () async {
-                    try {
-                      await sb
-                          .from('notifications')
-                          .update({'read_at': DateTime.now().toIso8601String()})
-                          .eq('id', row['id']);
-                    } catch (_) {}
-                    await _fetchUnreadNotifCount();
-                  },
-                );
-              });
-              await _fetchUnreadNotifCount();
+          callback: (payload) {
+            final notif = payload.newRecord;
+            if (notif['type'] == 'membership_approved' ||
+                notif['type'] == 'announcement') {
+              _showAnnouncementDialog(Map<String, dynamic>.from(notif));
             }
+            _fetchUnreadNotifCount();
           },
         )
         .subscribe();
-
-    _checkUnreadNotifications();
   }
 
   Future<void> _subscribeAnnouncementsRealtime() async {
-    final sb = Supabase.instance.client;
-    final uid = sb.auth.currentUser?.id;
-    if (uid == null) return;
-
     for (final ch in _announcementChannels) {
       ch.unsubscribe();
     }
     _announcementChannels.clear();
 
-    final apps = await sb
-        .from('applications')
-        .select('dayung_unit_id')
-        .eq('user_id', uid)
-        .eq('status', 'approved');
+    final unitId = _dayungUnitId;
+    if (unitId == null) return;
 
-    if (!mounted) return;
-    final unitIds = <int>{
-      for (final r in (apps as List))
-        if ((r as Map)['dayung_unit_id'] != null)
-          int.parse(r['dayung_unit_id'].toString()),
-    }.toList();
-
-    for (final id in unitIds) {
-      final ch = sb.channel('announcements_unit_$id');
-      ch
-          .onPostgresChanges(
-            event: PostgresChangeEvent.insert,
-            schema: 'public',
-            table: 'announcements',
-            filter: PostgresChangeFilter(
-              type: PostgresChangeFilterType.eq,
-              column: 'dayung_unit_id',
-              value: id,
-            ),
-            callback: (payload) async {
-              final row = payload.newRecord;
-              _afterFrame(() {
-                if (!mounted) return;
-                showDialog(
-                  context: context,
-                  barrierDismissible: false,
-                  builder: (_) {
-                    return Dialog(
-                      backgroundColor: const Color(0xFF8CA6C7),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(28),
-                      ),
-                      child: Padding(
-                        padding: const EdgeInsets.all(32),
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            const Text(
-                              'Announcement',
-                              style: TextStyle(
-                                fontFamily: 'Montserrat',
-                                fontWeight: FontWeight.w800,
-                                fontSize: 28,
-                                color: Colors.white,
-                              ),
-                            ),
-                            const SizedBox(height: 16),
-                            const Icon(
-                              Icons.campaign,
-                              color: Colors.amber,
-                              size: 64,
-                            ),
-                            const SizedBox(height: 16),
-                            Text(
-                              (row['body'] ?? '').toString(),
-                              textAlign: TextAlign.center,
-                              style: const TextStyle(
-                                fontFamily: 'Montserrat',
-                                fontWeight: FontWeight.w800,
-                                fontSize: 24,
-                                color: Colors.white,
-                              ),
-                            ),
-                            const SizedBox(height: 24),
-                            TextButton(
-                              onPressed: () async {
-                                try {
-                                  await sb.from('announcement_reads').upsert([
-                                    {
-                                      'announcement_id': row['id'],
-                                      'user_id': uid,
-                                      'read_at': DateTime.now()
-                                          .toIso8601String(),
-                                    },
-                                  ], onConflict: 'announcement_id,user_id');
-                                } catch (_) {}
-                                if (!mounted) return;
-                                Navigator.of(context).pop();
-                                await _fetchUnreadNotifCount();
-                              },
-                              child: const Text(
-                                'Continue',
-                                style: TextStyle(
-                                  fontFamily: 'Montserrat',
-                                  fontWeight: FontWeight.w800,
-                                  fontSize: 22,
-                                  color: Color(0xFFDDE3EA),
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    );
-                  },
-                );
-              });
-              await _fetchUnreadNotifCount();
-            },
-          )
-          .subscribe();
-      _announcementChannels.add(ch);
-    }
-  }
-
-  Future<void> _fetchRecentActivity() async {
-    if (!mounted) return;
-    setState(() => _loadingActivity = true);
-    try {
-      final supabase = Supabase.instance.client;
-      final uid = supabase.auth.currentUser?.id;
-      final dayungId = _asInt(_selectedDayungUnitObj?['id']);
-
-      if (uid == null || dayungId == null) {
-        if (!mounted) return;
-        setState(() {
-          _latestActivities = [];
-          _loadingActivity = false;
-        });
-        return;
-      }
-
-      // 1. Get most recent paid contribution
-      final contribResult = await supabase
-          .from('payments')
-          .select('amount, created_at, death_notice_id')
-          .eq('user_id', uid)
-          .eq('status', 'paid')
-          .order('created_at', ascending: false)
-          .limit(1);
-
-      final recentContributions = contribResult as List? ?? [];
-
-      // 2. Get most recent claim update
-      final claimResult = await supabase
-          .from('claims')
-          .select('status, title, date_submitted')
-          .eq('user_id', uid)
-          .order('date_submitted', ascending: false)
-          .limit(1);
-
-      final recentClaims = claimResult as List? ?? [];
-
-      List<Map<String, dynamic>> activities = [];
-
-      // Always add today's date
-      activities.add({
-        'icon': Icons.calendar_today,
-        'color': kPrimary,
-        'text': _formatTodayDate(),
-        'date': DateTime.now().toIso8601String(),
-        'type': 'date',
-      });
-
-      // ignore: unnecessary_type_check
-      if (recentContributions.isNotEmpty && recentContributions is List) {
-        final contrib = recentContributions[0];
-        final amount = (contrib['amount'] is num)
-            ? (contrib['amount'] as num).toDouble()
-            : double.tryParse('${contrib['amount']}') ?? 0.0;
-
-        activities.add({
-          'icon': Icons.attach_money,
-          'color': kAccent,
-          'text': 'Paid ₱${amount.toStringAsFixed(0)} contribution',
-          'date': contrib['created_at'],
-          'type': 'payment',
-        });
-      }
-
-      // ignore: unnecessary_type_check
-      if (recentClaims.isNotEmpty && recentClaims is List) {
-        final claim = recentClaims[0];
-        final status = (claim['status'] ?? '').toString();
-
-        String statusText = 'Claim ';
-        IconData icon = Icons.circle;
-        Color color = kAccent;
-
-        switch (status.toLowerCase()) {
-          case 'approved':
-            statusText += 'approved';
-            icon = Icons.check_circle;
-            color = kAccent;
-            break;
-          case 'rejected':
-            statusText += 'rejected';
-            icon = Icons.cancel_outlined;
-            color = Colors.red;
-            break;
-          case 'pending':
-            statusText += 'pending';
-            icon = Icons.pending_actions;
-            color = Colors.orange;
-            break;
-          default:
-            statusText += status;
-        }
-
-        activities.add({
-          'icon': icon,
-          'color': color,
-          'text': statusText,
-          'date': claim['date_submitted'],
-          'type': 'claim',
-        });
-      }
-
-      // Sort by date (most recent first)
-      activities.sort((a, b) {
-        final aDate =
-            DateTime.tryParse(a['date']?.toString() ?? '') ?? DateTime.now();
-        final bDate =
-            DateTime.tryParse(b['date']?.toString() ?? '') ?? DateTime.now();
-        return bDate.compareTo(aDate);
-      });
-
-      // Limit to 3 most recent activities
-      activities = activities.take(3).toList();
-
-      if (!mounted) return;
-      setState(() {
-        _latestActivities = activities;
-        _loadingActivity = false;
-      });
-    } catch (_) {
-      if (!mounted) return;
-      setState(() {
-        _latestActivities = [];
-        _loadingActivity = false;
-      });
-    }
-  }
-
-  // Helper to format today's date
-  String _formatTodayDate() {
-    final now = DateTime.now();
-    const months = [
-      'Jan',
-      'Feb',
-      'Mar',
-      'Apr',
-      'May',
-      'Jun',
-      'Jul',
-      'Aug',
-      'Sep',
-      'Oct',
-      'Nov',
-      'Dec',
-    ];
-    return '${months[now.month - 1]} ${now.day}, ${now.year}';
+    final ch = supabase.channel('member_dashboard_announcements_$unitId');
+    ch
+        .onPostgresChanges(
+          event: PostgresChangeEvent.insert,
+          schema: 'public',
+          table: 'announcements',
+          filter: PostgresChangeFilter(
+            type: PostgresChangeFilterType.eq,
+            column: 'dayung_unit_id',
+            value: unitId,
+          ),
+          callback: (_) {
+            _fetchUnreadNotifCount();
+          },
+        )
+        .subscribe();
+    _announcementChannels.add(ch);
   }
 
   Future<void> _loadUserData() async {
@@ -1054,15 +501,11 @@ class _MemberDashboardPageState extends State<MemberDashboardPage>
       final full = (response?['full_name'] as String?)?.trim();
       final sex = response?['sex'];
       setState(() {
-        _user = currentUser;
         _fullName = '${_getTitle(sex)} ${full ?? 'Member'}'.trim();
-        _profileUrl = (response?['profile_url'] as String?)?.trim();
-        _loadingUser = false;
       });
     } catch (_) {
       if (!mounted) return;
       setState(() {
-        _loadingUser = false;
         _fullName = 'Member';
       });
     }
@@ -1073,40 +516,6 @@ class _MemberDashboardPageState extends State<MemberDashboardPage>
     if (s == 'male') return 'Mr.';
     if (s == 'female') return 'Mrs.';
     return '';
-  }
-
-  Future<void> _navigateAndPickUnit() async {
-    final result = await Navigator.push(
-      context,
-      MaterialPageRoute(builder: (_) => const SelectDayungPage()),
-    );
-    if (!mounted) return;
-
-    if (result != null && result is Map) {
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setString('selectedDayungUnit', jsonEncode(result));
-      if (!mounted) return;
-      setState(() {
-        _selectedDayungUnit = (result['name'] ?? 'Dayung Unit').toString();
-        _selectedDayungUnitObj = Map<String, dynamic>.from(result);
-        _unitBarangay = (result['barangay'] ?? '').toString().trim().isEmpty
-            ? null
-            : result['barangay'].toString();
-        _unitCity = (result['city'] ?? '').toString().trim().isEmpty
-            ? null
-            : result['city'].toString();
-        _dayungUnitId = _asInt(result['id']);
-      });
-
-      // IMPORTANT: notify unit provider with the full object (includes id)
-      try {
-        context.read<DayungUnitProvider>().setDayungUnit(
-          (result['name'] ?? 'Dayung').toString(),
-          obj: Map<String, dynamic>.from(result),
-        );
-      } catch (_) {}
-      // Do not navigate here; reload will be handled by provider change.
-    }
   }
 
   Future<void> _fetchActiveMembers() async {
@@ -1128,14 +537,13 @@ class _MemberDashboardPageState extends State<MemberDashboardPage>
     } catch (_) {
       _activeMembersCount = 0;
     } finally {
-      if (!mounted) return;
-      setState(() => _loadingActiveMembers = false);
+      if (mounted) {
+        setState(() => _loadingActiveMembers = false);
+      }
     }
   }
 
   Future<void> _fetchRecentDeaths() async {
-    if (!mounted) return;
-    setState(() => _loadingCertificates = true);
     try {
       final unitId = _asInt(_selectedDayungUnitObj?['id']);
       if (unitId == null) {
@@ -1160,9 +568,6 @@ class _MemberDashboardPageState extends State<MemberDashboardPage>
       }
     } catch (_) {
       _recentCertificates = [];
-    } finally {
-      if (!mounted) return;
-      setState(() => _loadingCertificates = false);
     }
   }
 
@@ -1224,8 +629,9 @@ class _MemberDashboardPageState extends State<MemberDashboardPage>
       _pendingPaymentsAmount = 0;
       _pendingPaymentMessages = [];
     } finally {
-      if (!mounted) return;
-      setState(() => _loadingPending = false);
+      if (mounted) {
+        setState(() => _loadingPending = false);
+      }
     }
   }
 
@@ -1293,9 +699,12 @@ class _MemberDashboardPageState extends State<MemberDashboardPage>
           width: 44,
           height: 44,
           decoration: BoxDecoration(
-            color: Colors.white.withOpacity(0.2),
+            color: Colors.white.withValues(alpha: 0.2),
             borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: Colors.white.withOpacity(0.3), width: 1),
+            border: Border.all(
+              color: Colors.white.withValues(alpha: 0.3),
+              width: 1,
+            ),
           ),
           child: Material(
             color: Colors.transparent,
@@ -1321,7 +730,7 @@ class _MemberDashboardPageState extends State<MemberDashboardPage>
                 borderRadius: BorderRadius.circular(10),
                 boxShadow: [
                   BoxShadow(
-                    color: const Color(0xFFEF4444).withOpacity(0.3),
+                    color: const Color(0xFFEF4444).withValues(alpha: 0.3),
                     blurRadius: 8,
                     offset: const Offset(0, 2),
                   ),
@@ -1380,11 +789,11 @@ class _MemberDashboardPageState extends State<MemberDashboardPage>
                 builder: (context) => Container(
                   padding: const EdgeInsets.all(1),
                   decoration: BoxDecoration(
-                    color: kPrimary.withOpacity(0.8),
+                    color: kPrimary.withValues(alpha: 0.8),
                     borderRadius: BorderRadius.circular(15),
                     boxShadow: [
                       BoxShadow(
-                        color: kPrimary.withOpacity(0.3),
+                        color: kPrimary.withValues(alpha: 0.3),
                         blurRadius: 8,
                         offset: const Offset(0, 2),
                       ),
@@ -1489,7 +898,7 @@ class _MemberDashboardPageState extends State<MemberDashboardPage>
         borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
+            color: Colors.black.withValues(alpha: 0.05),
             blurRadius: 15,
             offset: const Offset(0, 5),
           ),
@@ -1587,7 +996,7 @@ class _MemberDashboardPageState extends State<MemberDashboardPage>
       decoration: BoxDecoration(
         color: bgColor,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: color.withOpacity(0.2)),
+        border: Border.all(color: color.withValues(alpha: 0.2)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.center,
@@ -1595,7 +1004,7 @@ class _MemberDashboardPageState extends State<MemberDashboardPage>
           Container(
             padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
-              color: color.withOpacity(0.1),
+              color: color.withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(12),
             ),
             child: Icon(icon, color: color, size: 20),
@@ -1607,7 +1016,7 @@ class _MemberDashboardPageState extends State<MemberDashboardPage>
             style: TextStyle(
               fontSize: 12,
               fontWeight: FontWeight.w600,
-              color: color.withOpacity(0.8),
+              color: color.withValues(alpha: 0.8),
             ),
           ),
           const SizedBox(height: 4),
@@ -1639,7 +1048,9 @@ class _MemberDashboardPageState extends State<MemberDashboardPage>
       decoration: BoxDecoration(
         color: const Color(0xFFFDF2F8),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFEC4899).withOpacity(0.2)),
+        border: Border.all(
+          color: const Color(0xFFEC4899).withValues(alpha: 0.2),
+        ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.center,
@@ -1647,7 +1058,7 @@ class _MemberDashboardPageState extends State<MemberDashboardPage>
           Container(
             padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
-              color: const Color(0xFFEC4899).withOpacity(0.1),
+              color: const Color(0xFFEC4899).withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(12),
             ),
             child: const Icon(
@@ -1736,11 +1147,11 @@ class _MemberDashboardPageState extends State<MemberDashboardPage>
             final user = Supabase.instance.client.auth.currentUser;
             if (user != null) {
               // Print user info to debug console
-              print(
+              debugPrint(
                 'Pay via GCash clicked by user: ${user.id} (${user.email})',
               );
             } else {
-              print('Pay via GCash clicked by unknown user');
+              debugPrint('Pay via GCash clicked by unknown user');
             }
             Navigator.push(
               context,
@@ -1768,10 +1179,10 @@ class _MemberDashboardPageState extends State<MemberDashboardPage>
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: color.withOpacity(0.2)),
+        border: Border.all(color: color.withValues(alpha: 0.2)),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.03),
+            color: Colors.black.withValues(alpha: 0.03),
             blurRadius: 8,
             offset: const Offset(0, 2),
           ),
@@ -1789,7 +1200,7 @@ class _MemberDashboardPageState extends State<MemberDashboardPage>
                 Container(
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
-                    color: color.withOpacity(0.1),
+                    color: color.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: Icon(icon, color: color, size: 24),
@@ -1821,7 +1232,7 @@ class _MemberDashboardPageState extends State<MemberDashboardPage>
                 ),
                 Icon(
                   Icons.arrow_forward_ios_rounded,
-                  color: color.withOpacity(0.6),
+                  color: color.withValues(alpha: 0.6),
                   size: 16,
                 ),
               ],
@@ -1854,7 +1265,7 @@ class _MemberDashboardPageState extends State<MemberDashboardPage>
             borderRadius: BorderRadius.circular(16),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.05),
+                color: Colors.black.withValues(alpha: 0.05),
                 blurRadius: 10,
                 offset: const Offset(0, 4),
               ),
@@ -1935,43 +1346,6 @@ class _MemberDashboardPageState extends State<MemberDashboardPage>
   //     ],
   //   );
   // }
-
-  Widget _modernQuickActionCard({
-    required IconData icon,
-    required String title,
-    required Color color,
-    VoidCallback? onTap,
-  }) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(12),
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: color.withOpacity(0.1),
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: color.withOpacity(0.2)),
-        ),
-        child: Row(
-          children: [
-            Icon(icon, color: color, size: 20),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Text(
-                title,
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                  color: color,
-                  fontFamily: 'Montserrat',
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
 
   List<Widget> get _pages => [
     _buildHomePage(context),
@@ -2057,7 +1431,7 @@ class _MemberDashboardPageState extends State<MemberDashboardPage>
                 border: Border.all(color: const Color(0xFFE5E7EB)),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withOpacity(0.08),
+                    color: Colors.black.withValues(alpha: 0.08),
                     blurRadius: 20,
                     offset: const Offset(0, 8),
                   ),
@@ -2079,7 +1453,6 @@ class _MemberDashboardPageState extends State<MemberDashboardPage>
   }
 
   Widget _buildSideDrawer(BuildContext context) {
-    final isDarkMode = Theme.of(context).brightness == Brightness.dark;
     return Drawer(
       backgroundColor: kBg,
       child: Column(
@@ -2101,7 +1474,7 @@ class _MemberDashboardPageState extends State<MemberDashboardPage>
               children: [
                 CircleAvatar(
                   radius: 32,
-                  backgroundColor: kAccent.withOpacity(0.15),
+                  backgroundColor: kAccent.withValues(alpha: 0.15),
                   child: Icon(Icons.person, size: 36, color: kAccent),
                 ),
                 const SizedBox(height: 16),
@@ -2118,7 +1491,7 @@ class _MemberDashboardPageState extends State<MemberDashboardPage>
                 Text(
                   _selectedDayungUnit,
                   style: TextStyle(
-                    color: Colors.white.withOpacity(0.85),
+                    color: Colors.white.withValues(alpha: 0.85),
                     fontSize: 15,
                     fontFamily: 'OpenSans',
                   ),
@@ -2200,7 +1573,7 @@ class _MemberDashboardPageState extends State<MemberDashboardPage>
             child: Text(
               'v1.0.0',
               style: TextStyle(
-                color: kSubText.withOpacity(0.7),
+                color: kSubText.withValues(alpha: 0.7),
                 fontSize: 13,
                 fontFamily: 'OpenSans',
               ),
@@ -2219,7 +1592,7 @@ class _MemberDashboardPageState extends State<MemberDashboardPage>
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
         decoration: BoxDecoration(
           color: selected
-              ? const Color(0xFF1E40AF).withOpacity(0.1)
+              ? const Color(0xFF1E40AF).withValues(alpha: 0.1)
               : Colors.transparent,
           borderRadius: BorderRadius.circular(16),
         ),
@@ -2266,9 +1639,9 @@ class _MemberDashboardPageState extends State<MemberDashboardPage>
       padding: EdgeInsets.all(isWide ? 32 : 24),
       margin: const EdgeInsets.symmetric(vertical: 8),
       decoration: BoxDecoration(
-        color: kPrimary.withOpacity(.05),
+        color: kPrimary.withValues(alpha: .05),
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: kPrimary.withOpacity(.25), width: 1.6),
+        border: Border.all(color: kPrimary.withValues(alpha: .25), width: 1.6),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -2350,7 +1723,7 @@ class _MemberDashboardPageState extends State<MemberDashboardPage>
           Text(
             dueDate,
             style: TextStyle(
-              color: kSubtleText.withOpacity(.9),
+              color: kSubtleText.withValues(alpha: .9),
               fontSize: 14.5,
               fontFamily: 'OpenSans',
               fontWeight: FontWeight.w600,
@@ -2411,36 +1784,6 @@ class _MemberDashboardPageState extends State<MemberDashboardPage>
   }
 }
 
-class _ActivityRow extends StatelessWidget {
-  final IconData icon;
-  final Color color;
-  final String text;
-  const _ActivityRow({
-    required this.icon,
-    required this.color,
-    required this.text,
-  });
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Icon(icon, color: color),
-        const SizedBox(width: 12),
-        Expanded(
-          child: Text(
-            text,
-            style: const TextStyle(
-              fontSize: 15,
-              fontWeight: FontWeight.w600,
-              fontFamily: 'OpenSans',
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-}
-
 class _ModernDrawerTile extends StatefulWidget {
   final IconData icon;
   final String label;
@@ -2461,7 +1804,7 @@ class _ModernDrawerTileState extends State<_ModernDrawerTile> {
 
   @override
   Widget build(BuildContext context) {
-    final hoverColor = kPrimary.withOpacity(0.08);
+    final hoverColor = kPrimary.withValues(alpha: 0.08);
     return MouseRegion(
       onEnter: (_) => setState(() => _hovering = true),
       onExit: (_) => setState(() => _hovering = false),

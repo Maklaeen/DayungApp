@@ -145,7 +145,6 @@ class _DayungMapPageState extends State<DayungMapPage> {
   StreamSubscription<CompassEvent>? compassStream;
   bool _applied = false;
   bool _submitting = false;
-  bool _loadingRoute = false;
   int? _etaMinutes;
   int _lastCompassUpdateMs = 0;
   NavMode? _selectedMode;
@@ -195,17 +194,6 @@ class _DayungMapPageState extends State<DayungMapPage> {
     _loadSavedMode();
     _initLocation();
     _checkExistingApplication();
-  }
-
-  void _onCompass(CompassEvent event) {
-    final heading = event.heading;
-    if (!mounted || heading == null || heading.isNaN) return;
-    final now = DateTime.now().millisecondsSinceEpoch;
-    if (now - _lastCompassUpdateMs > 300 &&
-        (_compassHeading == null || (heading - _compassHeading!).abs() > 6)) {
-      _lastCompassUpdateMs = now;
-      setState(() => _compassHeading = heading);
-    }
   }
 
   Future<void> _checkExistingApplication() async {
@@ -494,21 +482,8 @@ class _DayungMapPageState extends State<DayungMapPage> {
     );
   }
 
-  Future<void> _getDirectionsAndFit() async {
-    if (_selectedMode == null) return;
-    if (_pos == null) {
-      await _initLocation();
-      if (_pos == null) return;
-    }
-    final profile = _orsProfileFor(_selectedMode!);
-    await _fetchRoute(mode: profile);
-    await _updateRouteOnMap();
-    WidgetsBinding.instance.addPostFrameCallback((_) => _fitToRoute());
-  }
-
   Future<void> _fetchRoute({String mode = 'foot-walking'}) async {
     if (_pos == null || dayungLat == null || dayungLng == null) return;
-    setState(() => _loadingRoute = true);
 
     final apiKey = dotenv.env['OPENROUTESERVICE_API_KEY'];
     if (apiKey == null || apiKey.isEmpty) {
@@ -519,7 +494,6 @@ class _DayungMapPageState extends State<DayungMapPage> {
           ),
         );
       }
-      setState(() => _loadingRoute = false);
       return;
     }
 
@@ -530,11 +504,11 @@ class _DayungMapPageState extends State<DayungMapPage> {
 
     final url =
         'https://api.openrouteservice.org/v2/directions/$mode?api_key=$apiKey&start=$startLng,$startLat&end=$endLng,$endLat';
-    print('ORS GET $url');
+    debugPrint('ORS GET $url');
 
     try {
       final response = await http.get(Uri.parse(url));
-      print('ORS status: ${response.statusCode}');
+      debugPrint('ORS status: ${response.statusCode}');
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
         final coords = data['features'][0]['geometry']['coordinates'];
@@ -556,7 +530,7 @@ class _DayungMapPageState extends State<DayungMapPage> {
           _etaMinutes = (durationSeconds / 60).round();
         });
       } else {
-        print('ORS error body: ${response.body}');
+        debugPrint('ORS error body: ${response.body}');
         if (mounted) {
           setState(() {
             _routePoints = [];
@@ -568,9 +542,7 @@ class _DayungMapPageState extends State<DayungMapPage> {
         }
       }
     } catch (e) {
-      print('ORS fetch error: $e');
-    } finally {
-      if (mounted) setState(() => _loadingRoute = false);
+      debugPrint('ORS fetch error: $e');
     }
   }
 
@@ -749,16 +721,16 @@ class _DayungMapPageState extends State<DayungMapPage> {
   }
 
   Future<void> _initLocation() async {
-    print('Requesting location permission...');
+    debugPrint('Requesting location permission...');
     final ok = await LocationService.ensurePermission();
-    print('Permission result: $ok');
+    debugPrint('Permission result: $ok');
     if (!ok) {
       if (!mounted) return;
       setState(() {
         _permissionDenied = true;
         _loadingLoc = false;
       });
-      print('Permission denied');
+      debugPrint('Permission denied');
       return;
     }
 
@@ -767,9 +739,9 @@ class _DayungMapPageState extends State<DayungMapPage> {
       p = await LocationService.currentPosition(
         timeout: const Duration(seconds: 8),
       );
-      print('Current position: $p');
+      debugPrint('Current position: $p');
     } catch (e) {
-      print('Location fetch error: $e');
+      debugPrint('Location fetch error: $e');
     } finally {
       if (!mounted) return;
       setState(() {
@@ -1589,29 +1561,6 @@ class _DayungMapPageState extends State<DayungMapPage> {
         minMaxZoomPreference: const ml.MinMaxZoomPreference(12, 20),
         attributionButtonMargins: const Point(6, 6),
         logoViewMargins: const Point(6, 6),
-      ),
-    );
-  }
-}
-
-class _MapIconBtn extends StatelessWidget {
-  final IconData icon;
-  final VoidCallback onTap;
-  const _MapIconBtn({required this.icon, required this.onTap});
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: Colors.white,
-      shape: const CircleBorder(),
-      elevation: 2,
-      child: InkWell(
-        onTap: onTap,
-        customBorder: const CircleBorder(),
-        child: SizedBox(
-          width: 38,
-          height: 38,
-          child: Icon(icon, size: 20, color: Colors.black87),
-        ),
       ),
     );
   }

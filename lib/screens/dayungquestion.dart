@@ -54,9 +54,6 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
 
   double? selectedDistanceKm; // <-- Add this for distance filter
 
-  String _digits(String? s) => (s ?? '').replaceAll(RegExp(r'[^\d]'), '');
-  String _trimLower(String? s) => (s ?? '').trim().toLowerCase();
-
   Future<void> applyToDayungUnit(String userId, int dayungUnitId) async {
     await Supabase.instance.client.from('applications').insert({
       'user_id': userId,
@@ -157,83 +154,6 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
     const eps = 1e-10;
     if (magU < eps || magD < eps) return 0.0;
     return dot / (sqrt(magU) * sqrt(magD));
-  }
-
-  // Kini nga function nag-convert sa usa ka Dayung unit row ngadto sa binary vector.
-  // Kini nga vector ikumpara sa user vector gamit ang cosine similarity.
-  List<double> _buildUnitVectorFromRow(Map<String, dynamic> m) {
-    String norm(String? s) => (s ?? '').trim().toLowerCase();
-    String clean(String? s) => norm(s).replaceAll(RegExp(r'[^a-z0-9]+'), ' ');
-
-    final meetKey = clean(m['meeting_frequency']?.toString());
-    final payKey = clean(m['payment_method']?.toString());
-    final regKey = clean(m['contribution_amount']?.toString());
-    final memKey = clean(m['membership_payment']?.toString());
-    final penKey = clean(m['penalty_payment']?.toString());
-
-    // open_for_all can be bool, string, or number
-    final openRaw = m['open_for_all'];
-    bool open = false;
-    if (openRaw is bool) {
-      open = openRaw;
-    } else if (openRaw is num) {
-      open = openRaw != 0;
-    } else if (openRaw is String) {
-      final s = norm(openRaw);
-      open = s == 'yes' || s == 'true' || s == '1' || s == 'y';
-    }
-
-    // Meeting Frequency
-    double meetW = 0, meetM = 0, meetN = 0;
-    if (meetKey.contains('week')) meetW = 1;
-    if (meetKey.contains('month')) meetM = 1;
-    if (meetKey.contains('need')) meetN = 1;
-    if (meetW + meetM + meetN == 0) meetW = meetM = meetN = 1;
-
-    // Payment Method
-    double payCash = 0, payGcash = 0, payBoth = 0;
-    if (payKey.contains('both')) payBoth = payCash = payGcash = 1;
-    if (payKey.contains('cash')) payCash = 1;
-    if (payKey.contains('gcash')) payGcash = 1;
-    if (payCash + payGcash + payBoth == 0) payCash = payGcash = payBoth = 1;
-
-    // Helper for fee buckets
-    List<String> feeRanges = [
-      '50-100',
-      '100-150',
-      '150-200',
-      '200-250',
-      '250-300',
-      '300-350',
-      '400 plus',
-    ];
-    List<double> bucket(String key) {
-      List<double> out = List.filled(feeRanges.length, 0.0);
-      for (int i = 0; i < feeRanges.length; i++) {
-        if (key.contains(feeRanges[i].replaceAll(' ', ''))) out[i] = 1.0;
-      }
-      if (out.every((v) => v == 0.0)) out = List.filled(feeRanges.length, 1.0);
-      return out;
-    }
-
-    final regFee = bucket(regKey);
-    final memFee = bucket(memKey);
-    final penFee = bucket(penKey);
-
-    final openAll = open ? 1.0 : 0.0;
-
-    return [
-      meetW,
-      meetM,
-      meetN,
-      payCash,
-      payGcash,
-      payBoth,
-      ...regFee,
-      ...memFee,
-      ...penFee,
-      openAll,
-    ];
   }
 
   // Helper function para maghimo og vector gikan sa dayung_rules row.
@@ -360,6 +280,7 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
       setState(() => suggestedUnits = rules);
     } catch (e) {
       debugPrint('DEBUG: Local fetch error: $e');
+      if (!mounted) return;
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text('Local similarity error: $e')));
@@ -399,33 +320,6 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
           .eq('user_id', widget.userId);
     } else {
       await Supabase.instance.client.from('user_preferences').insert(payload);
-    }
-  }
-
-  Future<void> _completeRegistration({int? selectedUnitId}) async {
-    setState(() => isSubmitting = true);
-    try {
-      await _savePreferences(selectedUnitId: selectedUnitId);
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Preferences saved'),
-            behavior: SnackBarBehavior.floating,
-            duration: Duration(seconds: 1),
-            backgroundColor: Colors.blue,
-          ),
-        );
-        Navigator.of(context).pushReplacement(
-          MaterialPageRoute(builder: (_) => const MemberDashboardPage()),
-        );
-      }
-    } catch (e) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Error: $e')));
-    } finally {
-      setState(() => isSubmitting = false);
     }
   }
 
@@ -593,7 +487,7 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
                   Text(
                     'Set your preferences to get the best Dayung unit suggestions.',
                     style: TextStyle(
-                      color: Colors.white.withOpacity(0.85),
+                      color: Colors.white.withValues(alpha: 0.85),
                       fontSize: 15,
                       fontFamily: 'OpenSans',
                     ),
@@ -853,7 +747,7 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
                       children: [
                         CircleAvatar(
                           radius: 28,
-                          backgroundColor: kAccent.withOpacity(0.10),
+                          backgroundColor: kAccent.withValues(alpha: 0.10),
                           child: const Icon(
                             Icons.home,
                             color: kAccent,
@@ -960,7 +854,7 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
                   Icon(
                     Icons.search_off,
                     size: 64,
-                    color: kSubText.withOpacity(0.25),
+                    color: kSubText.withValues(alpha: 0.25),
                   ),
                   const SizedBox(height: 18),
                   Text(
@@ -976,7 +870,7 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
                   Text(
                     'Try adjusting your preferences or distance filter.',
                     style: TextStyle(
-                      color: kSubText.withOpacity(0.7),
+                      color: kSubText.withValues(alpha: 0.7),
                       fontSize: 14,
                     ),
                     textAlign: TextAlign.center,
@@ -1009,9 +903,10 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
                 elevation: 2,
               ),
               onPressed: () async {
+                final navigator = Navigator.of(context);
                 await _savePreferences();
                 if (!mounted) return;
-                Navigator.of(context).pushReplacement(
+                navigator.pushReplacement(
                   MaterialPageRoute(
                     builder: (_) => const MemberDashboardPage(),
                   ),

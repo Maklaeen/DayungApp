@@ -373,7 +373,7 @@ class _PresidentDashboardPageState extends State<PresidentDashboardPage> {
               children: [
                 CircleAvatar(
                   radius: 32,
-                  backgroundColor: kAccent.withOpacity(0.15),
+                  backgroundColor: kAccent.withValues(alpha: 0.15),
                   child: Icon(Icons.person, size: 36, color: kAccent),
                 ),
                 const SizedBox(height: 16),
@@ -390,7 +390,7 @@ class _PresidentDashboardPageState extends State<PresidentDashboardPage> {
                 Text(
                   _selectedDayungUnit,
                   style: TextStyle(
-                    color: Colors.white.withOpacity(0.85),
+                    color: Colors.white.withValues(alpha: 0.85),
                     fontSize: 15,
                     fontFamily: 'OpenSans',
                   ),
@@ -472,7 +472,7 @@ class _PresidentDashboardPageState extends State<PresidentDashboardPage> {
             child: Text(
               'v1.0.0',
               style: TextStyle(
-                color: kSubText.withOpacity(0.7),
+                color: kSubText.withValues(alpha: 0.7),
                 fontSize: 13,
                 fontFamily: 'OpenSans',
               ),
@@ -494,11 +494,11 @@ class _PresidentDashboardPageState extends State<PresidentDashboardPage> {
                 builder: (context) => Container(
                   padding: const EdgeInsets.all(1),
                   decoration: BoxDecoration(
-                    color: const Color(0xFF1E40AF).withOpacity(0.8),
+                    color: const Color(0xFF1E40AF).withValues(alpha: 0.8),
                     borderRadius: BorderRadius.circular(16),
                     boxShadow: [
                       BoxShadow(
-                        color: const Color(0xFF1E40AF).withOpacity(0.3),
+                        color: const Color(0xFF1E40AF).withValues(alpha: 0.3),
                         blurRadius: 8,
                         offset: const Offset(0, 2),
                       ),
@@ -662,7 +662,7 @@ class _PresidentDashboardPageState extends State<PresidentDashboardPage> {
                 border: Border.all(color: const Color(0xFFE5E7EB)),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withOpacity(0.08),
+                    color: Colors.black.withValues(alpha: 0.08),
                     blurRadius: 20,
                     offset: const Offset(0, 8),
                   ),
@@ -695,9 +695,12 @@ class _PresidentDashboardPageState extends State<PresidentDashboardPage> {
           width: 44,
           height: 44,
           decoration: BoxDecoration(
-            color: Colors.white.withOpacity(0.2),
+            color: Colors.white.withValues(alpha: 0.2),
             borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: Colors.white.withOpacity(0.3), width: 1),
+            border: Border.all(
+              color: Colors.white.withValues(alpha: 0.3),
+              width: 1,
+            ),
           ),
           child: Material(
             color: Colors.transparent,
@@ -723,7 +726,7 @@ class _PresidentDashboardPageState extends State<PresidentDashboardPage> {
                 borderRadius: BorderRadius.circular(10),
                 boxShadow: [
                   BoxShadow(
-                    color: const Color(0xFFEF4444).withOpacity(0.3),
+                    color: const Color(0xFFEF4444).withValues(alpha: 0.3),
                     blurRadius: 8,
                     offset: const Offset(0, 2),
                   ),
@@ -752,7 +755,7 @@ class _PresidentDashboardPageState extends State<PresidentDashboardPage> {
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
         decoration: BoxDecoration(
           color: selected
-              ? const Color(0xFF1E40AF).withOpacity(0.1)
+              ? const Color(0xFF1E40AF).withValues(alpha: 0.1)
               : Colors.transparent,
           borderRadius: BorderRadius.circular(16),
         ),
@@ -814,7 +817,7 @@ class _PresidentDashboardPageState extends State<PresidentDashboardPage> {
         borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
+            color: Colors.black.withValues(alpha: 0.05),
             blurRadius: 15,
             offset: const Offset(0, 5),
           ),
@@ -896,7 +899,9 @@ class _PresidentDashboardPageState extends State<PresidentDashboardPage> {
         decoration: BoxDecoration(
           color: const Color(0xFFFDF2F8),
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: const Color(0xFFEC4899).withOpacity(0.2)),
+          border: Border.all(
+            color: const Color(0xFFEC4899).withValues(alpha: 0.2),
+          ),
         ),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center, // Center vertically
@@ -905,7 +910,7 @@ class _PresidentDashboardPageState extends State<PresidentDashboardPage> {
             Container(
               padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
-                color: const Color(0xFFEC4899).withOpacity(0.1),
+                color: const Color(0xFFEC4899).withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(12),
               ),
               child: const Icon(
@@ -956,7 +961,9 @@ class _PresidentDashboardPageState extends State<PresidentDashboardPage> {
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: const Color(0xFF3B82F6).withOpacity(0.2)),
+          border: Border.all(
+            color: const Color(0xFF3B82F6).withValues(alpha: 0.2),
+          ),
         ),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center, // Center vertically
@@ -965,7 +972,7 @@ class _PresidentDashboardPageState extends State<PresidentDashboardPage> {
             Container(
               padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(
-                color: const Color(0xFF3B82F6).withOpacity(0.1),
+                color: const Color(0xFF3B82F6).withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(12),
               ),
               child: const Icon(
@@ -991,7 +998,7 @@ class _PresidentDashboardPageState extends State<PresidentDashboardPage> {
             Icon(
               Icons.arrow_forward_ios_rounded,
               size: 16,
-              color: Color(0xFF3B82F6).withOpacity(0.7),
+              color: Color(0xFF3B82F6).withValues(alpha: 0.7),
             ),
           ],
         ),
@@ -1034,10 +1041,11 @@ class _PresidentDashboardPageState extends State<PresidentDashboardPage> {
       elevation: 0,
       child: InkWell(
         onTap: () async {
+          final navigator = Navigator.of(context);
           final ids = await _managedDayungIds();
           if (ids.isEmpty) return;
-          Navigator.push(
-            context,
+          if (!mounted) return;
+          navigator.push(
             MaterialPageRoute(
               builder: (context) =>
                   PresidentPaymentPage(dayungUnitId: ids.first),
@@ -1057,7 +1065,7 @@ class _PresidentDashboardPageState extends State<PresidentDashboardPage> {
             borderRadius: BorderRadius.circular(20),
             boxShadow: [
               BoxShadow(
-                color: kPrimary.withOpacity(0.4),
+                color: kPrimary.withValues(alpha: 0.4),
                 blurRadius: 15,
                 offset: const Offset(0, 6),
               ),
@@ -1103,7 +1111,7 @@ class _PresidentDashboardPageState extends State<PresidentDashboardPage> {
         decoration: BoxDecoration(
           color: bgColor,
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: color.withOpacity(0.2)),
+          border: Border.all(color: color.withValues(alpha: 0.2)),
         ),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -1113,7 +1121,7 @@ class _PresidentDashboardPageState extends State<PresidentDashboardPage> {
             Container(
               padding: const EdgeInsets.all(6),
               decoration: BoxDecoration(
-                color: color.withOpacity(0.1),
+                color: color.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(12),
               ),
               child: Icon(icon, color: color, size: 18),
@@ -1125,7 +1133,7 @@ class _PresidentDashboardPageState extends State<PresidentDashboardPage> {
               style: TextStyle(
                 fontSize: 11,
                 fontWeight: FontWeight.w600,
-                color: color.withOpacity(0.8),
+                color: color.withValues(alpha: 0.8),
               ),
             ),
             const SizedBox(height: 2),
@@ -1146,7 +1154,7 @@ class _PresidentDashboardPageState extends State<PresidentDashboardPage> {
                 style: TextStyle(
                   fontSize: 9,
                   fontWeight: FontWeight.w500,
-                  color: color.withOpacity(0.6),
+                  color: color.withValues(alpha: 0.6),
                 ),
               ),
             ],
@@ -1188,7 +1196,7 @@ class _PostAnnouncementButton extends StatelessWidget {
             borderRadius: BorderRadius.circular(20),
             boxShadow: [
               BoxShadow(
-                color: kPrimary.withOpacity(0.4),
+                color: kPrimary.withValues(alpha: 0.4),
                 blurRadius: 15,
                 offset: const Offset(0, 6),
               ),
@@ -1294,10 +1302,13 @@ class _ContributionBarChartCardState extends State<_ContributionBarChartCard> {
       decoration: BoxDecoration(
         color: kCardBg,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: kBorderColor.withOpacity(0.3), width: 1),
+        border: Border.all(
+          color: kBorderColor.withValues(alpha: 0.3),
+          width: 1,
+        ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
+            color: Colors.black.withValues(alpha: 0.05),
             blurRadius: 15,
             offset: const Offset(0, 6),
           ),
@@ -1313,7 +1324,7 @@ class _ContributionBarChartCardState extends State<_ContributionBarChartCard> {
                 Container(
                   padding: const EdgeInsets.all(8),
                   decoration: BoxDecoration(
-                    color: kPrimary.withOpacity(0.1),
+                    color: kPrimary.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: const Icon(
@@ -1488,10 +1499,13 @@ class _UpcomingAnnouncementCard extends StatelessWidget {
         decoration: BoxDecoration(
           color: kCardBg,
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: kBorderColor.withOpacity(0.3), width: 1),
+          border: Border.all(
+            color: kBorderColor.withValues(alpha: 0.3),
+            width: 1,
+          ),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.05),
+              color: Colors.black.withValues(alpha: 0.05),
               blurRadius: 10,
               offset: const Offset(0, 4),
             ),
@@ -1502,7 +1516,7 @@ class _UpcomingAnnouncementCard extends StatelessWidget {
             Container(
               padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
-                color: kPrimary.withOpacity(0.1),
+                color: kPrimary.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(12),
               ),
               child: const Icon(Icons.event_rounded, color: kPrimary, size: 20),
@@ -1542,10 +1556,13 @@ class _UpcomingAnnouncementCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: kCardBg,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: kBorderColor.withOpacity(0.3), width: 1),
+        border: Border.all(
+          color: kBorderColor.withValues(alpha: 0.3),
+          width: 1,
+        ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
+            color: Colors.black.withValues(alpha: 0.05),
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),
@@ -1556,7 +1573,7 @@ class _UpcomingAnnouncementCard extends StatelessWidget {
           Container(
             padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
-              color: kPrimary.withOpacity(0.1),
+              color: kPrimary.withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(12),
             ),
             child: const Icon(Icons.event_rounded, color: kPrimary, size: 20),
@@ -1615,7 +1632,7 @@ class _ModernDrawerTileState extends State<_ModernDrawerTile> {
 
   @override
   Widget build(BuildContext context) {
-    final hoverColor = kPrimary.withOpacity(0.08);
+    final hoverColor = kPrimary.withValues(alpha: 0.08);
     return MouseRegion(
       onEnter: (_) => setState(() => _hovering = true),
       onExit: (_) => setState(() => _hovering = false),

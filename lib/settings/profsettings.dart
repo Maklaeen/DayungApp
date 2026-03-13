@@ -85,15 +85,15 @@ class _ProfSettingsPageState extends State<ProfSettingsPage> {
                     vertical: 14,
                   ),
                   decoration: BoxDecoration(
-                    color: color.withOpacity(0.38),
+                    color: color.withValues(alpha: 0.38),
                     borderRadius: BorderRadius.circular(18),
                     border: Border.all(
-                      color: Colors.white.withOpacity(0.18),
+                      color: Colors.white.withValues(alpha: 0.18),
                       width: 1.2,
                     ),
                     boxShadow: [
                       BoxShadow(
-                        color: color.withOpacity(0.18),
+                        color: color.withValues(alpha: 0.18),
                         blurRadius: 12,
                         offset: const Offset(0, 4),
                       ),
@@ -246,6 +246,7 @@ class _ProfSettingsPageState extends State<ProfSettingsPage> {
 
     final resolved = await resolveSupabaseStorageUrl(url, client: supabase);
     if (resolved == null) return;
+    if (!mounted) return;
 
     String displayUrl = resolved;
     if (!storageLooksLikePdf(resolved)) {
@@ -435,7 +436,7 @@ class _ProfSettingsPageState extends State<ProfSettingsPage> {
                       Container(
                         padding: const EdgeInsets.all(8),
                         decoration: BoxDecoration(
-                          color: kAccent.withOpacity(0.08),
+                          color: kAccent.withValues(alpha: 0.08),
                           borderRadius: BorderRadius.circular(6),
                         ),
                         child: const Icon(
@@ -462,7 +463,7 @@ class _ProfSettingsPageState extends State<ProfSettingsPage> {
                             Text(
                               'View current Dayung, apply or change',
                               style: TextStyle(
-                                color: themeText.withOpacity(0.7),
+                                color: themeText.withValues(alpha: 0.7),
                                 fontSize: 12,
                                 fontFamily: 'OpenSans',
                               ),

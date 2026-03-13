@@ -63,10 +63,12 @@ class _AddServiceDialogState extends State<AddServiceDialog> {
                     lastDate: DateTime(2100),
                   );
                   if (date != null) {
+                    if (!context.mounted) return;
                     final time = await showTimePicker(
                       context: context,
                       initialTime: TimeOfDay.now(),
                     );
+                    if (!context.mounted) return;
                     if (time != null) {
                       setState(() {
                         _timeService = DateTime(
@@ -133,9 +135,11 @@ class _AddServiceDialogState extends State<AddServiceDialog> {
         ),
         ElevatedButton(
           onPressed: () async {
+            final navigator = Navigator.of(context);
             if (_formKey.currentState?.validate() != true ||
-                _timeService == null)
+                _timeService == null) {
               return;
+            }
             final sb = Supabase.instance.client;
             await sb.from('service_checklist').insert({
               'service_name': AppInputSecurity.sanitizePlainText(
@@ -155,7 +159,8 @@ class _AddServiceDialogState extends State<AddServiceDialog> {
               'is_removed': false,
             });
             widget.onServiceAdded();
-            Navigator.pop(context);
+            if (!mounted) return;
+            navigator.pop();
           },
           child: const Text('Save'),
         ),

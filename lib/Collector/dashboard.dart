@@ -78,7 +78,6 @@ class _CollectorDashboardPageState extends State<CollectorDashboardPage> {
     if (newUnitId == null || newUnitId == _lastRoleUnitId) return;
     _lastRoleUnitId = newUnitId;
     setState(() => _dayungUnitId = newUnitId);
-    // also refresh label from prefs (SelectDayung writes it)
     _loadDayungFromPrefs();
     _fetchAll();
   }
@@ -351,11 +350,11 @@ class _CollectorDashboardPageState extends State<CollectorDashboardPage> {
                 builder: (context) => Container(
                   padding: const EdgeInsets.all(1),
                   decoration: BoxDecoration(
-                    color: kPrimary.withOpacity(0.8),
+                    color: kPrimary.withValues(alpha: 0.8),
                     borderRadius: BorderRadius.circular(15),
                     boxShadow: [
                       BoxShadow(
-                        color: kPrimary.withOpacity(0.3),
+                        color: kPrimary.withValues(alpha: 0.3),
                         blurRadius: 8,
                         offset: const Offset(0, 2),
                       ),
@@ -564,9 +563,12 @@ class _CollectorDashboardPageState extends State<CollectorDashboardPage> {
           width: 44,
           height: 44,
           decoration: BoxDecoration(
-            color: Colors.white.withOpacity(0.2),
+            color: Colors.white.withValues(alpha: 0.2),
             borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: Colors.white.withOpacity(0.3), width: 1),
+            border: Border.all(
+              color: Colors.white.withValues(alpha: 0.3),
+              width: 1,
+            ),
           ),
           child: Material(
             color: Colors.transparent,
@@ -592,7 +594,7 @@ class _CollectorDashboardPageState extends State<CollectorDashboardPage> {
                 borderRadius: BorderRadius.circular(10),
                 boxShadow: [
                   BoxShadow(
-                    color: const Color(0xFFEF4444).withOpacity(0.3),
+                    color: const Color(0xFFEF4444).withValues(alpha: 0.3),
                     blurRadius: 8,
                     offset: const Offset(0, 2),
                   ),
@@ -726,7 +728,7 @@ class _CollectorDashboardPageState extends State<CollectorDashboardPage> {
         borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
+            color: Colors.black.withValues(alpha: 0.05),
             blurRadius: 15,
             offset: const Offset(0, 5),
           ),
@@ -824,7 +826,7 @@ class _CollectorDashboardPageState extends State<CollectorDashboardPage> {
       decoration: BoxDecoration(
         color: bgColor,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: color.withOpacity(0.2)),
+        border: Border.all(color: color.withValues(alpha: 0.2)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.center,
@@ -832,7 +834,7 @@ class _CollectorDashboardPageState extends State<CollectorDashboardPage> {
           Container(
             padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
-              color: color.withOpacity(0.1),
+              color: color.withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(12),
             ),
             child: Icon(icon, color: color, size: 20),
@@ -844,7 +846,7 @@ class _CollectorDashboardPageState extends State<CollectorDashboardPage> {
             style: TextStyle(
               fontSize: 12,
               fontWeight: FontWeight.w600,
-              color: color.withOpacity(0.8),
+              color: color.withValues(alpha: 0.8),
             ),
           ),
           const SizedBox(height: 4),
@@ -872,7 +874,9 @@ class _CollectorDashboardPageState extends State<CollectorDashboardPage> {
       decoration: BoxDecoration(
         color: const Color(0xFFFDF2F8),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFEC4899).withOpacity(0.2)),
+        border: Border.all(
+          color: const Color(0xFFEC4899).withValues(alpha: 0.2),
+        ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.center,
@@ -880,7 +884,7 @@ class _CollectorDashboardPageState extends State<CollectorDashboardPage> {
           Container(
             padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
-              color: const Color(0xFFEC4899).withOpacity(0.1),
+              color: const Color(0xFFEC4899).withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(12),
             ),
             child: const Icon(
@@ -1017,10 +1021,10 @@ class _CollectorDashboardPageState extends State<CollectorDashboardPage> {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: color.withOpacity(0.2)),
+        border: Border.all(color: color.withValues(alpha: 0.2)),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.03),
+            color: Colors.black.withValues(alpha: 0.03),
             blurRadius: 8,
             offset: const Offset(0, 2),
           ),
@@ -1038,7 +1042,7 @@ class _CollectorDashboardPageState extends State<CollectorDashboardPage> {
                 Container(
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
-                    color: color.withOpacity(0.1),
+                    color: color.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: Icon(icon, color: color, size: 24),
@@ -1070,7 +1074,7 @@ class _CollectorDashboardPageState extends State<CollectorDashboardPage> {
                 ),
                 Icon(
                   Icons.arrow_forward_ios_rounded,
-                  color: color.withOpacity(0.6),
+                  color: color.withValues(alpha: 0.6),
                   size: 16,
                 ),
               ],
@@ -1206,7 +1210,7 @@ class _CollectorDashboardPageState extends State<CollectorDashboardPage> {
               children: [
                 CircleAvatar(
                   radius: 32,
-                  backgroundColor: kAccent.withOpacity(0.15),
+                  backgroundColor: kAccent.withValues(alpha: 0.15),
                   child: Icon(Icons.person, size: 36, color: kAccent),
                 ),
                 const SizedBox(height: 16),
@@ -1305,7 +1309,7 @@ class _CollectorDashboardPageState extends State<CollectorDashboardPage> {
             child: Text(
               'v1.0.0',
               style: TextStyle(
-                color: kSubText.withOpacity(0.7),
+                color: kSubText.withValues(alpha: 0.7),
                 fontSize: 13,
                 fontFamily: 'OpenSans',
               ),
@@ -1399,7 +1403,7 @@ class _ModernDrawerTileState extends State<_ModernDrawerTile> {
 
   @override
   Widget build(BuildContext context) {
-    final hoverColor = kPrimary.withOpacity(0.08);
+    final hoverColor = kPrimary.withValues(alpha: 0.08);
     return MouseRegion(
       onEnter: (_) => setState(() => _hovering = true),
       onExit: (_) => setState(() => _hovering = false),

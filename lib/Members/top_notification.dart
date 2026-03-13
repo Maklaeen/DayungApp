@@ -22,7 +22,8 @@ class TopNotificationModal extends StatefulWidget {
   State<TopNotificationModal> createState() => _TopNotificationModalState();
 }
 
-class _TopNotificationModalState extends State<TopNotificationModal> with SingleTickerProviderStateMixin {
+class _TopNotificationModalState extends State<TopNotificationModal>
+    with SingleTickerProviderStateMixin {
   late AnimationController _controller;
   late Animation<Offset> _offsetAnimation;
 
@@ -36,10 +37,7 @@ class _TopNotificationModalState extends State<TopNotificationModal> with Single
     _offsetAnimation = Tween<Offset>(
       begin: const Offset(0, -1.2),
       end: Offset.zero,
-    ).animate(CurvedAnimation(
-      parent: _controller,
-      curve: Curves.easeOut,
-    ));
+    ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeOut));
     _controller.forward();
   }
 
@@ -66,7 +64,7 @@ class _TopNotificationModalState extends State<TopNotificationModal> with Single
               borderRadius: BorderRadius.circular(18),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withOpacity(.12),
+                  color: Colors.black.withValues(alpha: .12),
                   blurRadius: 16,
                   offset: const Offset(0, 6),
                 ),
@@ -91,10 +89,7 @@ class _TopNotificationModalState extends State<TopNotificationModal> with Single
                       const SizedBox(height: 4),
                       Text(
                         widget.message,
-                        style: TextStyle(
-                          fontSize: 16,
-                          color: widget.textColor,
-                        ),
+                        style: TextStyle(fontSize: 16, color: widget.textColor),
                       ),
                     ],
                   ),
