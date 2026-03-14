@@ -7,10 +7,10 @@ import 'package:capstone_app/utils/input_safety.dart';
 // Color palette
 const kBg = Color(0xFFFAFAF7);
 const kText = Color(0xFF1F2937);
-const kSubText = Color(0xFF4B5563);
-const kAccent = Color(0xFF0D47A1);
-const kPrimary = Color(0xFF0D47A1);
-const kWarn = Color(0xFFF57C00);
+const kSubText = Color(0xFF6B7280);
+const kAccent = Color(0xFF3B82F6);
+const kPrimary = Color(0xFF1E40AF);
+const kWarn = Color(0xFFF59E0B);
 
 class GcashQrPage extends StatefulWidget {
   final dynamic dayungUnitId; // Accept dayungUnitId
@@ -22,12 +22,18 @@ class GcashQrPage extends StatefulWidget {
 }
 
 class _GcashQrPageState extends State<GcashQrPage> {
+  static const int _initialQrFetchLimit = 20;
+  static const Duration _queryTimeout = Duration(seconds: 8);
+
   Uint8List? _qrImageBytes;
   final TextEditingController _nameController = TextEditingController();
   final TextEditingController _gcashNumberController =
       TextEditingController(); // <-- Add this
   final TextEditingController _searchController = TextEditingController();
   String _searchQuery = '';
+  List<Map<String, dynamic>> _qrRows = const [];
+  bool _qrRowsLoading = false;
+  String? _qrRowsError;
 
   // State variables for displaying saved QR image and name
   String? _savedQrImageUrl;
@@ -37,22 +43,19 @@ class _GcashQrPageState extends State<GcashQrPage> {
   bool _showNoChanges = false; // <-- Add this
   bool _isLoading = false; // <-- Add this
 
-  Future<bool> _hasPaid(Map<String, dynamic> row) async {
-    var query = Supabase.instance.client
-        .from('payments')
-        .select('id')
-        .eq('user_id', row['uploaded_by'])
-        .eq('status', 'paid');
+  String _paymentKey({
+    dynamic userId,
+    dynamic deathNoticeId,
+    dynamic deceasedId,
+  }) {
+    final normalizedUserId = (userId ?? '').toString();
+    final normalizedNoticeId = (deathNoticeId ?? '').toString();
+    final normalizedDeceasedId = (deceasedId ?? '').toString();
+    return '$normalizedUserId|$normalizedNoticeId|$normalizedDeceasedId';
+  }
 
-    final deathNoticeId = row['death_notice_id'];
-    if (deathNoticeId != null) {
-      query = query.eq('death_notice_id', deathNoticeId);
-    } else if (row['userdeceased'] != null) {
-      query = query.eq('userdeceased', row['userdeceased']);
-    }
-
-    final payment = await query.maybeSingle();
-    return payment != null;
+  void _refreshQrData() {
+    _loadQrRows();
   }
 
   Future<void> _pickQrImage() async {
@@ -70,15 +73,14 @@ class _GcashQrPageState extends State<GcashQrPage> {
   Future<void> _loadLatestSavedQr() async {
     final messenger = ScaffoldMessenger.of(context);
     try {
-      debugPrint('Loading latest saved QR...');
       final response = await Supabase.instance.client
           .from('gcash_qr_uploads')
           .select('qr_image_url, name, gcash_number')
           .eq('dayung_unit_id', widget.dayungUnitId)
           .order('created_at', ascending: false)
-          .limit(1);
+          .limit(1)
+          .timeout(_queryTimeout);
 
-      debugPrint('Response: $response');
       if (!mounted) return;
       if (response.isNotEmpty) {
         setState(() {
@@ -105,6 +107,10 @@ class _GcashQrPageState extends State<GcashQrPage> {
         _gcashNumberController.clear();
       });
     }
+  }
+
+  Future<void> _initializePageData() async {
+    await Future.wait([_loadLatestSavedQr(), _loadQrRows()]);
   }
 
   void _saveQrCode() async {
@@ -234,6 +240,7 @@ class _GcashQrPageState extends State<GcashQrPage> {
         _qrImageBytes = null;
       });
       await _loadLatestSavedQr();
+      _refreshQrData();
     } catch (e) {
       if (!mounted) return;
       messenger.showSnackBar(SnackBar(content: Text('Error saving: $e')));
@@ -247,53 +254,155 @@ class _GcashQrPageState extends State<GcashQrPage> {
   }
 
   Future<List<Map<String, dynamic>>> _fetchQrCodes() async {
-    final response = await Supabase.instance.client
+    final sb = Supabase.instance.client;
+    final response = await sb
         .from('gcash_qr_codes')
         .select(
-          'image_url, uploaded_by, created_at, userdeceased, dayung_unit_id, amount, death_notice_id',
-        ) // <-- add death_notice_id here
+          'image_url, uploaded_by, created_at, userdeceased, dayung_unit_id, amount, death_notice_id, refno',
+        )
         .eq('dayung_unit_id', widget.dayungUnitId)
-        .order('created_at', ascending: false);
+        .order('created_at', ascending: false)
+        .limit(_initialQrFetchLimit)
+        .timeout(_queryTimeout);
 
     final List<Map<String, dynamic>> data = List<Map<String, dynamic>>.from(
       response,
     );
 
-    // Fetch names for uploaded_by and userdeceased
+    if (data.isEmpty) return data;
+
+    final userIds = <String>{};
     for (final row in data) {
-      // Fetch uploaded_by name
-      if (row['uploaded_by'] != null) {
-        final user = await Supabase.instance.client
-            .from('users')
-            .select('full_name')
-            .eq('id', row['uploaded_by'])
-            .maybeSingle();
-        row['uploaded_by_name'] = user != null ? user['full_name'] : '';
-      } else {
-        row['uploaded_by_name'] = '';
+      final uploadedBy = row['uploaded_by']?.toString();
+      final userDeceased = row['userdeceased']?.toString();
+      if (uploadedBy != null && uploadedBy.isNotEmpty) userIds.add(uploadedBy);
+      if (userDeceased != null && userDeceased.isNotEmpty) {
+        userIds.add(userDeceased);
       }
-      // Fetch userdeceased name
-      if (row['userdeceased'] != null) {
-        final deceased = await Supabase.instance.client
-            .from('users')
-            .select('full_name')
-            .eq('id', row['userdeceased'])
-            .maybeSingle();
-        row['userdeceased_name'] = deceased != null
-            ? deceased['full_name']
-            : '';
-      } else {
-        row['userdeceased_name'] = '';
+    }
+
+    final userNameMap = <String, String>{};
+    if (userIds.isNotEmpty) {
+      final users = await sb
+          .from('users')
+          .select('id, full_name')
+          .inFilter('id', userIds.toList())
+          .timeout(_queryTimeout);
+      for (final user in List<Map<String, dynamic>>.from(users)) {
+        final userId = (user['id'] ?? '').toString();
+        if (userId.isEmpty) continue;
+        userNameMap[userId] = (user['full_name'] ?? '').toString();
       }
+    }
+
+    final paidKeys = <String>{};
+
+    final noticeIds = data
+        .map((row) => row['death_notice_id'])
+        .where((value) => value != null)
+        .map((value) => value.toString())
+        .where((value) => value.isNotEmpty)
+        .toSet()
+        .toList();
+
+    if (noticeIds.isNotEmpty) {
+      final paymentsByNotice = await sb
+          .from('payments')
+          .select('user_id, death_notice_id, userdeceased')
+          .eq('dayung_unit_id', widget.dayungUnitId)
+          .eq('status', 'paid')
+          .inFilter('death_notice_id', noticeIds)
+          .timeout(_queryTimeout);
+
+      for (final payment in List<Map<String, dynamic>>.from(paymentsByNotice)) {
+        paidKeys.add(
+          _paymentKey(
+            userId: payment['user_id'],
+            deathNoticeId: payment['death_notice_id'],
+            deceasedId: payment['userdeceased'],
+          ),
+        );
+      }
+    }
+
+    final deceasedIds = data
+        .map((row) => row['userdeceased'])
+        .where((value) => value != null)
+        .map((value) => value.toString())
+        .where((value) => value.isNotEmpty)
+        .toSet()
+        .toList();
+
+    if (deceasedIds.isNotEmpty) {
+      final paymentsByDeceased = await sb
+          .from('payments')
+          .select('user_id, death_notice_id, userdeceased')
+          .eq('dayung_unit_id', widget.dayungUnitId)
+          .eq('status', 'paid')
+          .isFilter('death_notice_id', null)
+          .inFilter('userdeceased', deceasedIds)
+          .timeout(_queryTimeout);
+
+      for (final payment in List<Map<String, dynamic>>.from(
+        paymentsByDeceased,
+      )) {
+        paidKeys.add(
+          _paymentKey(
+            userId: payment['user_id'],
+            deathNoticeId: payment['death_notice_id'],
+            deceasedId: payment['userdeceased'],
+          ),
+        );
+      }
+    }
+
+    for (final row in data) {
+      final uploadedBy = row['uploaded_by']?.toString() ?? '';
+      final deceasedId = row['userdeceased']?.toString() ?? '';
+      row['uploaded_by_name'] = userNameMap[uploadedBy] ?? '';
+      row['userdeceased_name'] = userNameMap[deceasedId] ?? '';
+      row['already_paid'] = paidKeys.contains(
+        _paymentKey(
+          userId: row['uploaded_by'],
+          deathNoticeId: row['death_notice_id'],
+          deceasedId: row['userdeceased'],
+        ),
+      );
     }
 
     return data;
   }
 
+  Future<void> _loadQrRows() async {
+    if (!mounted) return;
+    setState(() {
+      _qrRowsLoading = true;
+      _qrRowsError = null;
+    });
+
+    try {
+      final rows = await _fetchQrCodes();
+      if (!mounted) return;
+      setState(() {
+        _qrRows = rows;
+        _qrRowsLoading = false;
+      });
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _qrRowsLoading = false;
+        _qrRowsError = error.toString();
+      });
+    }
+  }
+
   @override
   void initState() {
     super.initState();
-    _loadLatestSavedQr();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _initializePageData();
+    });
   }
 
   @override
@@ -317,43 +426,57 @@ class _GcashQrPageState extends State<GcashQrPage> {
           children: [
             // Curved Header
             Container(
-              padding: const EdgeInsets.fromLTRB(20, 36, 20, 28),
+              width: double.infinity,
+              padding: const EdgeInsets.fromLTRB(20, 20, 20, 30),
               decoration: const BoxDecoration(
-                color: kAccent,
-                borderRadius: BorderRadius.only(
-                  bottomLeft: Radius.circular(28),
-                  bottomRight: Radius.circular(28),
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [
+                    Color(0xFF1E40AF),
+                    Color(0xFF3B82F6),
+                    Color(0xFF60A5FA),
+                  ],
                 ),
-                boxShadow: [
-                  BoxShadow(
-                    color: kAccent,
-                    blurRadius: 18,
-                    offset: Offset(0, 8),
-                  ),
-                ],
               ),
-              child: Row(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   IconButton(
-                    icon: const Icon(
-                      Icons.chevron_left,
-                      color: Colors.white,
-                      size: 24,
-                    ),
                     onPressed: () => Navigator.pop(context),
-                  ),
-                  const Icon(Icons.qr_code, color: Colors.white, size: 24),
-                  const SizedBox(width: 16),
-                  const Expanded(
-                    child: Text(
-                      'GCash QR Management',
-                      style: TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.w800,
-                        color: Colors.white,
-                        fontFamily: 'Montserrat',
-                        letterSpacing: 0.3,
+                    icon: Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.16),
+                        borderRadius: BorderRadius.circular(14),
                       ),
+                      child: const Icon(
+                        Icons.arrow_back_ios_new_rounded,
+                        color: Colors.white,
+                        size: 18,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  const Text(
+                    'GCash QR Management',
+                    style: TextStyle(
+                      fontSize: 28,
+                      fontWeight: FontWeight.w800,
+                      color: Colors.white,
+                      fontFamily: 'Montserrat',
+                      letterSpacing: 0.3,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Manage the active QR code for your unit and review uploaded payment proofs in one consistent workspace.',
+                    style: TextStyle(
+                      fontSize: isMobile ? 14 : 15,
+                      color: Colors.white.withValues(alpha: 0.88),
+                      fontWeight: FontWeight.w600,
+                      fontFamily: 'OpenSans',
+                      height: 1.45,
                     ),
                   ),
                 ],
@@ -362,16 +485,28 @@ class _GcashQrPageState extends State<GcashQrPage> {
 
             // Content
             Expanded(
-              child: Padding(
-                padding: const EdgeInsets.all(16),
+              child: Container(
+                width: double.infinity,
+                decoration: const BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.vertical(top: Radius.circular(30)),
+                ),
                 child: ListView(
+                  padding: const EdgeInsets.all(16),
                   children: [
                     // Add QR Card
-                    Card(
-                      elevation: 3,
-                      color: Colors.white,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(16),
+                    Container(
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(22),
+                        border: Border.all(color: const Color(0xFFE5E7EB)),
+                        boxShadow: const [
+                          BoxShadow(
+                            color: Color(0x12000000),
+                            blurRadius: 14,
+                            offset: Offset(0, 6),
+                          ),
+                        ],
                       ),
                       child: Padding(
                         padding: const EdgeInsets.symmetric(
@@ -389,9 +524,20 @@ class _GcashQrPageState extends State<GcashQrPage> {
                                       const Text(
                                         'Add New GCash QR',
                                         style: TextStyle(
-                                          fontWeight: FontWeight.bold,
-                                          fontSize: 16,
+                                          fontWeight: FontWeight.w800,
+                                          fontSize: 18,
                                           color: kText,
+                                          fontFamily: 'Montserrat',
+                                        ),
+                                      ),
+                                      const SizedBox(height: 6),
+                                      const Text(
+                                        'Upload the official QR and assign the correct GCash owner details.',
+                                        style: TextStyle(
+                                          color: kSubText,
+                                          fontSize: 13,
+                                          fontWeight: FontWeight.w600,
+                                          fontFamily: 'OpenSans',
                                         ),
                                       ),
                                       const SizedBox(height: 12),
@@ -403,7 +549,13 @@ class _GcashQrPageState extends State<GcashQrPage> {
                                             ),
                                         decoration: const InputDecoration(
                                           labelText: 'GCash Name',
-                                          border: OutlineInputBorder(),
+                                          filled: true,
+                                          fillColor: Color(0xFFF8FAFC),
+                                          border: OutlineInputBorder(
+                                            borderRadius: BorderRadius.all(
+                                              Radius.circular(16),
+                                            ),
+                                          ),
                                         ),
                                       ),
                                       const SizedBox(height: 12),
@@ -417,7 +569,13 @@ class _GcashQrPageState extends State<GcashQrPage> {
                                         maxLength: 11,
                                         decoration: const InputDecoration(
                                           labelText: 'GCash Number',
-                                          border: OutlineInputBorder(),
+                                          filled: true,
+                                          fillColor: Color(0xFFF8FAFC),
+                                          border: OutlineInputBorder(
+                                            borderRadius: BorderRadius.all(
+                                              Radius.circular(16),
+                                            ),
+                                          ),
                                           counterText: '',
                                         ),
                                       ),
@@ -464,11 +622,14 @@ class _GcashQrPageState extends State<GcashQrPage> {
                                                 : 'Save QR',
                                           ),
                                           style: ElevatedButton.styleFrom(
-                                            backgroundColor: kAccent,
+                                            backgroundColor: kPrimary,
                                             foregroundColor: Colors.white,
                                             shape: RoundedRectangleBorder(
                                               borderRadius:
-                                                  BorderRadius.circular(8),
+                                                  BorderRadius.circular(14),
+                                            ),
+                                            padding: const EdgeInsets.symmetric(
+                                              vertical: 14,
                                             ),
                                           ),
                                           onPressed: _isLoading
@@ -541,45 +702,14 @@ class _GcashQrPageState extends State<GcashQrPage> {
                                           const SizedBox(height: 8),
                                           GestureDetector(
                                             onTap: () {
-                                              showDialog(
-                                                context: context,
-                                                builder: (_) => Dialog(
-                                                  child: InteractiveViewer(
-                                                    child: Image.network(
-                                                      _savedQrImageUrl!,
-                                                      fit: BoxFit.contain,
-                                                      errorBuilder:
-                                                          (
-                                                            context,
-                                                            error,
-                                                            stackTrace,
-                                                          ) => const Icon(
-                                                            Icons.broken_image,
-                                                            size: 100,
-                                                          ),
-                                                    ),
-                                                  ),
-                                                ),
+                                              _showImagePreview(
+                                                _savedQrImageUrl!,
                                               );
                                             },
-                                            child: ClipRRect(
-                                              borderRadius:
-                                                  BorderRadius.circular(12),
-                                              child: Image.network(
-                                                _savedQrImageUrl!,
-                                                width: 120,
-                                                height: 120,
-                                                fit: BoxFit.cover,
-                                                errorBuilder:
-                                                    (
-                                                      context,
-                                                      error,
-                                                      stackTrace,
-                                                    ) => const Icon(
-                                                      Icons.broken_image,
-                                                      size: 80,
-                                                    ),
-                                              ),
+                                            child: _buildThumbImage(
+                                              _savedQrImageUrl!,
+                                              width: 120,
+                                              height: 120,
                                             ),
                                           ),
                                         ],
@@ -600,9 +730,20 @@ class _GcashQrPageState extends State<GcashQrPage> {
                                         const Text(
                                           'Add New GCash QR',
                                           style: TextStyle(
-                                            fontWeight: FontWeight.bold,
-                                            fontSize: 16,
+                                            fontWeight: FontWeight.w800,
+                                            fontSize: 18,
                                             color: kText,
+                                            fontFamily: 'Montserrat',
+                                          ),
+                                        ),
+                                        const SizedBox(height: 6),
+                                        const Text(
+                                          'Keep your unit payment QR updated and searchable for collectors.',
+                                          style: TextStyle(
+                                            color: kSubText,
+                                            fontSize: 13,
+                                            fontWeight: FontWeight.w600,
+                                            fontFamily: 'OpenSans',
                                           ),
                                         ),
                                         const SizedBox(height: 12),
@@ -619,8 +760,18 @@ class _GcashQrPageState extends State<GcashQrPage> {
                                                 decoration:
                                                     const InputDecoration(
                                                       labelText: 'GCash Name',
-                                                      border:
-                                                          OutlineInputBorder(),
+                                                      filled: true,
+                                                      fillColor: Color(
+                                                        0xFFF8FAFC,
+                                                      ),
+                                                      border: OutlineInputBorder(
+                                                        borderRadius:
+                                                            BorderRadius.all(
+                                                              Radius.circular(
+                                                                16,
+                                                              ),
+                                                            ),
+                                                      ),
                                                     ),
                                               ),
                                             ),
@@ -640,7 +791,14 @@ class _GcashQrPageState extends State<GcashQrPage> {
                                                     11, // <-- Limit to 11 digits
                                                 decoration: const InputDecoration(
                                                   labelText: 'GCash Number',
-                                                  border: OutlineInputBorder(),
+                                                  filled: true,
+                                                  fillColor: Color(0xFFF8FAFC),
+                                                  border: OutlineInputBorder(
+                                                    borderRadius:
+                                                        BorderRadius.all(
+                                                          Radius.circular(16),
+                                                        ),
+                                                  ),
                                                   counterText:
                                                       '', // Hide character counter if you want
                                                 ),
@@ -689,11 +847,15 @@ class _GcashQrPageState extends State<GcashQrPage> {
                                                 : 'Save QR',
                                           ),
                                           style: ElevatedButton.styleFrom(
-                                            backgroundColor: kAccent,
+                                            backgroundColor: kPrimary,
                                             foregroundColor: Colors.white,
                                             shape: RoundedRectangleBorder(
                                               borderRadius:
-                                                  BorderRadius.circular(8),
+                                                  BorderRadius.circular(14),
+                                            ),
+                                            padding: const EdgeInsets.symmetric(
+                                              horizontal: 18,
+                                              vertical: 14,
                                             ),
                                           ),
                                           onPressed: _isLoading
@@ -766,38 +928,14 @@ class _GcashQrPageState extends State<GcashQrPage> {
                                         const SizedBox(height: 8),
                                         GestureDetector(
                                           onTap: () {
-                                            showDialog(
-                                              context: context,
-                                              builder: (_) => Dialog(
-                                                child: InteractiveViewer(
-                                                  child: Image.network(
-                                                    _savedQrImageUrl!,
-                                                    fit: BoxFit.contain,
-                                                    errorBuilder:
-                                                        (
-                                                          context,
-                                                          error,
-                                                          stackTrace,
-                                                        ) => const Icon(
-                                                          Icons.broken_image,
-                                                          size: 100,
-                                                        ),
-                                                  ),
-                                                ),
-                                              ),
+                                            _showImagePreview(
+                                              _savedQrImageUrl!,
                                             );
                                           },
-                                          child: Image.network(
+                                          child: _buildThumbImage(
                                             _savedQrImageUrl!,
                                             width: 80,
                                             height: 80,
-                                            fit: BoxFit.cover,
-                                            errorBuilder:
-                                                (context, error, stackTrace) =>
-                                                    const Icon(
-                                                      Icons.broken_image,
-                                                      size: 80,
-                                                    ),
                                           ),
                                         ),
                                       ],
@@ -812,8 +950,30 @@ class _GcashQrPageState extends State<GcashQrPage> {
                     const Text(
                       'Payments collected via GCash',
                       style: TextStyle(
-                        fontWeight: FontWeight.bold,
+                        fontWeight: FontWeight.w800,
                         fontSize: 18,
+                        color: kText,
+                        fontFamily: 'Montserrat',
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    const Text(
+                      'Search uploaded proofs, review payer details, and confirm paid records.',
+                      style: TextStyle(
+                        color: kSubText,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        fontFamily: 'OpenSans',
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Text(
+                      'Showing the latest $_initialQrFetchLimit uploads first to keep this page fast.',
+                      style: const TextStyle(
+                        color: kSubText,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        fontFamily: 'OpenSans',
                       ),
                     ),
                     const SizedBox(height: 12),
@@ -823,10 +983,22 @@ class _GcashQrPageState extends State<GcashQrPage> {
                       inputFormatters: AppInputSecurity.singleLineFormatters(
                         maxLength: 80,
                       ),
-                      decoration: const InputDecoration(
-                        labelText: 'Search by name',
-                        prefixIcon: Icon(Icons.search),
-                        border: OutlineInputBorder(),
+                      decoration: InputDecoration(
+                        labelText: 'Search by name or reference number',
+                        prefixIcon: const Icon(Icons.search_rounded),
+                        filled: true,
+                        fillColor: const Color(0xFFF8FAFC),
+                        border: const OutlineInputBorder(
+                          borderRadius: BorderRadius.all(Radius.circular(18)),
+                        ),
+                        enabledBorder: const OutlineInputBorder(
+                          borderRadius: BorderRadius.all(Radius.circular(18)),
+                          borderSide: BorderSide(color: Color(0xFFE5E7EB)),
+                        ),
+                        focusedBorder: const OutlineInputBorder(
+                          borderRadius: BorderRadius.all(Radius.circular(18)),
+                          borderSide: BorderSide(color: kPrimary, width: 1.5),
+                        ),
                       ),
                       onChanged: (value) {
                         setState(() {
@@ -837,308 +1009,376 @@ class _GcashQrPageState extends State<GcashQrPage> {
                       },
                     ),
                     const SizedBox(height: 12),
-                    FutureBuilder<List<Map<String, dynamic>>>(
-                      future: _fetchQrCodes(),
-                      builder: (context, snapshot) {
-                        if (snapshot.connectionState ==
-                            ConnectionState.waiting) {
-                          return const Center(
-                            child: CircularProgressIndicator(color: kAccent),
-                          );
-                        }
-                        if (snapshot.hasError) {
-                          return Text('Error: ${snapshot.error}');
-                        }
-                        final data = snapshot.data ?? [];
-                        // --- Filter data by search query ---
-                        final filteredData = _searchQuery.isEmpty
-                            ? data
-                            : data.where((row) {
-                                // You may want to cache user names for better performance
-                                final uploadedByName =
-                                    row['uploaded_by_name']
-                                        ?.toString()
-                                        .toLowerCase() ??
-                                    '';
-                                final deceasedName =
-                                    row['userdeceased_name']
-                                        ?.toString()
-                                        .toLowerCase() ??
-                                    '';
-                                return uploadedByName.contains(_searchQuery) ||
-                                    deceasedName.contains(_searchQuery);
-                              }).toList();
-
-                        if (filteredData.isEmpty) {
-                          return const Text('No QR codes found.');
-                        }
-                        return ListView.builder(
-                          shrinkWrap: true,
-                          physics: const NeverScrollableScrollPhysics(),
-                          itemCount: filteredData.length,
-                          itemBuilder: (context, i) {
-                            final row = filteredData[i];
-                            return Card(
-                              margin: const EdgeInsets.symmetric(vertical: 8),
-                              elevation: 2,
-                              color: Colors.white,
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(14),
+                    if (_qrRowsLoading)
+                      const Padding(
+                        padding: EdgeInsets.symmetric(vertical: 24),
+                        child: Center(
+                          child: CircularProgressIndicator(color: kAccent),
+                        ),
+                      )
+                    else if (_qrRowsError != null)
+                      Container(
+                        padding: const EdgeInsets.all(18),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFFFF7ED),
+                          borderRadius: BorderRadius.circular(18),
+                          border: Border.all(color: const Color(0xFFFED7AA)),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              'Unable to load QR uploads right now.',
+                              style: TextStyle(
+                                fontSize: 15,
+                                fontWeight: FontWeight.w800,
+                                color: kText,
+                                fontFamily: 'Montserrat',
                               ),
-                              child: Padding(
-                                padding: const EdgeInsets.symmetric(
-                                  vertical: 14,
-                                  horizontal: 16,
+                            ),
+                            const SizedBox(height: 6),
+                            Text(
+                              _qrRowsError!,
+                              style: const TextStyle(
+                                fontSize: 12,
+                                color: kSubText,
+                                fontFamily: 'OpenSans',
+                              ),
+                            ),
+                            const SizedBox(height: 12),
+                            OutlinedButton.icon(
+                              onPressed: _refreshQrData,
+                              icon: const Icon(Icons.refresh_rounded),
+                              label: const Text('Retry'),
+                            ),
+                          ],
+                        ),
+                      )
+                    else ...[
+                      Builder(
+                        builder: (context) {
+                          final filteredData = _searchQuery.isEmpty
+                              ? _qrRows
+                              : _qrRows.where((row) {
+                                  final uploadedByName =
+                                      row['uploaded_by_name']
+                                          ?.toString()
+                                          .toLowerCase() ??
+                                      '';
+                                  final deceasedName =
+                                      row['userdeceased_name']
+                                          ?.toString()
+                                          .toLowerCase() ??
+                                      '';
+                                  final refNo =
+                                      row['refno']?.toString().toLowerCase() ??
+                                      '';
+                                  return uploadedByName.contains(
+                                        _searchQuery,
+                                      ) ||
+                                      deceasedName.contains(_searchQuery) ||
+                                      refNo.contains(_searchQuery);
+                                }).toList();
+
+                          if (filteredData.isEmpty) {
+                            return Container(
+                              padding: const EdgeInsets.all(24),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFF8FAFC),
+                                borderRadius: BorderRadius.circular(20),
+                                border: Border.all(
+                                  color: const Color(0xFFE5E7EB),
                                 ),
-                                child: isMobile
-                                    ? Column(
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.start,
-                                        children: [
-                                          row['image_url'] != null
-                                              ? GestureDetector(
-                                                  onTap: () {
-                                                    showDialog(
-                                                      context: context,
-                                                      builder: (_) => Dialog(
-                                                        child: InteractiveViewer(
-                                                          child: Image.network(
-                                                            row['image_url'],
-                                                            fit: BoxFit.contain,
-                                                            errorBuilder:
-                                                                (
-                                                                  context,
-                                                                  error,
-                                                                  stackTrace,
-                                                                ) => const Icon(
-                                                                  Icons
-                                                                      .broken_image,
-                                                                  size: 100,
-                                                                ),
-                                                          ),
-                                                        ),
-                                                      ),
-                                                    );
-                                                  },
-                                                  child: ClipRRect(
-                                                    borderRadius:
-                                                        BorderRadius.circular(
-                                                          12,
-                                                        ),
-                                                    child: Image.network(
-                                                      row['image_url'],
-                                                      width: double.infinity,
-                                                      height: 180,
-                                                      fit: BoxFit.cover,
-                                                      errorBuilder:
-                                                          (
-                                                            context,
-                                                            error,
-                                                            stackTrace,
-                                                          ) => const Icon(
-                                                            Icons.broken_image,
-                                                          ),
-                                                    ),
-                                                  ),
-                                                )
-                                              : const Text('No Image'),
-                                          const SizedBox(height: 12),
-                                          Text(
-                                            row['uploaded_by_name']
-                                                        ?.toString()
-                                                        .trim()
-                                                        .isNotEmpty ==
-                                                    true
-                                                ? row['uploaded_by_name']
-                                                      .toString()
-                                                : 'Unknown uploader',
-                                            style: const TextStyle(
-                                              fontWeight: FontWeight.bold,
-                                              color: kText,
-                                            ),
-                                          ),
-                                          const SizedBox(height: 4),
-                                          Text(
-                                            'Date Uploaded: ${row['created_at']?.toString() ?? ''}',
-                                            style: const TextStyle(
-                                              fontSize: 13,
-                                              color: kSubText,
-                                            ),
-                                          ),
-                                          const SizedBox(height: 4),
-                                          Text(
-                                            'Deceased: ${(row['userdeceased_name']?.toString().trim().isNotEmpty == true) ? row['userdeceased_name'].toString() : 'Unknown'}',
-                                            style: const TextStyle(
-                                              fontSize: 13,
-                                              color: kSubText,
-                                            ),
-                                          ),
-                                          const SizedBox(height: 12),
-                                          FutureBuilder<bool>(
-                                            future: _hasPaid(row),
-                                            builder: (context, paymentSnapshot) {
-                                              if (paymentSnapshot
-                                                      .connectionState ==
-                                                  ConnectionState.waiting) {
-                                                return const SizedBox(
-                                                  width: double.infinity,
-                                                  child: Center(
-                                                    child:
-                                                        CircularProgressIndicator(
-                                                          strokeWidth: 2,
-                                                        ),
-                                                  ),
-                                                );
-                                              }
-                                              final alreadyPaid =
-                                                  paymentSnapshot.data == true;
-                                              if (alreadyPaid) {
-                                                return const Chip(
-                                                  label: Text(
-                                                    'Paid',
-                                                    style: TextStyle(
-                                                      color: Colors.white,
-                                                    ),
-                                                  ),
-                                                  backgroundColor: Colors.green,
-                                                );
-                                              }
-                                              return _buildMarkPaidButton(row);
-                                            },
-                                          ),
-                                        ],
-                                      )
-                                    : Row(
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.start,
-                                        children: [
-                                          // QR Image
-                                          row['image_url'] != null
-                                              ? GestureDetector(
-                                                  onTap: () {
-                                                    showDialog(
-                                                      context: context,
-                                                      builder: (_) => Dialog(
-                                                        child: InteractiveViewer(
-                                                          child: Image.network(
-                                                            row['image_url'],
-                                                            fit: BoxFit.contain,
-                                                            errorBuilder:
-                                                                (
-                                                                  context,
-                                                                  error,
-                                                                  stackTrace,
-                                                                ) => const Icon(
-                                                                  Icons
-                                                                      .broken_image,
-                                                                  size: 100,
-                                                                ),
-                                                          ),
-                                                        ),
-                                                      ),
-                                                    );
-                                                  },
-                                                  child: Image.network(
-                                                    row['image_url'],
-                                                    width: 60,
-                                                    height: 60,
-                                                    errorBuilder:
-                                                        (
-                                                          context,
-                                                          error,
-                                                          stackTrace,
-                                                        ) => const Icon(
-                                                          Icons.broken_image,
-                                                        ),
-                                                  ),
-                                                )
-                                              : const Text('No Image'),
-                                          const SizedBox(width: 16),
-                                          // Details
-                                          Expanded(
-                                            child: Column(
-                                              crossAxisAlignment:
-                                                  CrossAxisAlignment.start,
-                                              children: [
-                                                Text(
-                                                  row['uploaded_by_name']
-                                                              ?.toString()
-                                                              .trim()
-                                                              .isNotEmpty ==
-                                                          true
-                                                      ? row['uploaded_by_name']
-                                                            .toString()
-                                                      : 'Unknown uploader',
-                                                  style: const TextStyle(
-                                                    fontWeight: FontWeight.bold,
-                                                    color: kText,
-                                                  ),
-                                                ),
-                                                const SizedBox(height: 4),
-                                                Text(
-                                                  'Date Uploaded: ${row['created_at']?.toString() ?? ''}',
-                                                  style: const TextStyle(
-                                                    fontSize: 13,
-                                                    color: kSubText,
-                                                  ),
-                                                ),
-                                                const SizedBox(height: 4),
-                                                Text(
-                                                  'Deceased: ${(row['userdeceased_name']?.toString().trim().isNotEmpty == true) ? row['userdeceased_name'].toString() : 'Unknown'}',
-                                                  style: const TextStyle(
-                                                    fontSize: 13,
-                                                    color: kSubText,
-                                                  ),
-                                                ),
-                                              ],
-                                            ),
-                                          ),
-                                          // Action
-                                          FutureBuilder<bool>(
-                                            future: _hasPaid(row),
-                                            builder: (context, paymentSnapshot) {
-                                              if (paymentSnapshot
-                                                      .connectionState ==
-                                                  ConnectionState.waiting) {
-                                                return const SizedBox(
-                                                  width: 80,
-                                                  child: Center(
-                                                    child:
-                                                        CircularProgressIndicator(
-                                                          strokeWidth: 2,
-                                                        ),
-                                                  ),
-                                                );
-                                              }
-                                              final alreadyPaid =
-                                                  paymentSnapshot.data == true;
-                                              if (alreadyPaid) {
-                                                return const Chip(
-                                                  label: Text(
-                                                    'Paid',
-                                                    style: TextStyle(
-                                                      color: Colors.white,
-                                                    ),
-                                                  ),
-                                                  backgroundColor: Colors.green,
-                                                );
-                                              }
-                                              return _buildMarkPaidButton(row);
-                                            },
-                                          ),
-                                        ],
-                                      ),
+                              ),
+                              child: const Column(
+                                children: [
+                                  Icon(
+                                    Icons.qr_code_2_rounded,
+                                    size: 42,
+                                    color: kSubText,
+                                  ),
+                                  SizedBox(height: 12),
+                                  Text(
+                                    'No QR codes found',
+                                    style: TextStyle(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.w800,
+                                      color: kText,
+                                      fontFamily: 'Montserrat',
+                                    ),
+                                  ),
+                                  SizedBox(height: 6),
+                                  Text(
+                                    'Try a different search term or wait for new uploads.',
+                                    textAlign: TextAlign.center,
+                                    style: TextStyle(
+                                      fontSize: 13,
+                                      color: kSubText,
+                                      fontFamily: 'OpenSans',
+                                    ),
+                                  ),
+                                ],
                               ),
                             );
-                          },
-                        );
-                      },
-                    ),
+                          }
+
+                          return ListView.builder(
+                            shrinkWrap: true,
+                            physics: const NeverScrollableScrollPhysics(),
+                            itemCount: filteredData.length,
+                            itemBuilder: (context, i) {
+                              final row = filteredData[i];
+                              return Container(
+                                margin: const EdgeInsets.symmetric(vertical: 8),
+                                decoration: BoxDecoration(
+                                  color: Colors.white,
+                                  borderRadius: BorderRadius.circular(18),
+                                  border: Border.all(
+                                    color: const Color(0xFFE5E7EB),
+                                  ),
+                                  boxShadow: const [
+                                    BoxShadow(
+                                      color: Color(0x10000000),
+                                      blurRadius: 12,
+                                      offset: Offset(0, 4),
+                                    ),
+                                  ],
+                                ),
+                                child: Padding(
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: 14,
+                                    horizontal: 16,
+                                  ),
+                                  child: isMobile
+                                      ? Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          children: [
+                                            row['image_url'] != null
+                                                ? GestureDetector(
+                                                    onTap: () {
+                                                      _showImagePreview(
+                                                        row['image_url']
+                                                            .toString(),
+                                                      );
+                                                    },
+                                                    child: _buildThumbImage(
+                                                      row['image_url']
+                                                          .toString(),
+                                                      width: double.infinity,
+                                                      height: 180,
+                                                    ),
+                                                  )
+                                                : const Text('No Image'),
+                                            const SizedBox(height: 12),
+                                            Text(
+                                              row['uploaded_by_name']
+                                                          ?.toString()
+                                                          .trim()
+                                                          .isNotEmpty ==
+                                                      true
+                                                  ? row['uploaded_by_name']
+                                                        .toString()
+                                                  : 'Unknown uploader',
+                                              style: const TextStyle(
+                                                fontWeight: FontWeight.w800,
+                                                color: kText,
+                                                fontFamily: 'Montserrat',
+                                              ),
+                                            ),
+                                            const SizedBox(height: 4),
+                                            Text(
+                                              'Date Uploaded: ${row['created_at']?.toString() ?? ''}',
+                                              style: const TextStyle(
+                                                fontSize: 13,
+                                                color: kSubText,
+                                              ),
+                                            ),
+                                            const SizedBox(height: 4),
+                                            Text(
+                                              'Deceased: ${(row['userdeceased_name']?.toString().trim().isNotEmpty == true) ? row['userdeceased_name'].toString() : 'Unknown'}',
+                                              style: const TextStyle(
+                                                fontSize: 13,
+                                                color: kSubText,
+                                              ),
+                                            ),
+                                            const SizedBox(height: 4),
+                                            Text(
+                                              'Ref No: ${row['refno']?.toString().trim().isNotEmpty == true ? row['refno'].toString() : 'N/A'}',
+                                              style: const TextStyle(
+                                                fontSize: 13,
+                                                color: kSubText,
+                                              ),
+                                            ),
+                                            const SizedBox(height: 12),
+                                            if (row['already_paid'] == true)
+                                              const Chip(
+                                                label: Text(
+                                                  'Paid',
+                                                  style: TextStyle(
+                                                    color: Colors.white,
+                                                  ),
+                                                ),
+                                                backgroundColor: Colors.green,
+                                              )
+                                            else
+                                              _buildMarkPaidButton(row),
+                                          ],
+                                        )
+                                      : Row(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          children: [
+                                            // QR Image
+                                            row['image_url'] != null
+                                                ? GestureDetector(
+                                                    onTap: () {
+                                                      _showImagePreview(
+                                                        row['image_url']
+                                                            .toString(),
+                                                      );
+                                                    },
+                                                    child: _buildThumbImage(
+                                                      row['image_url']
+                                                          .toString(),
+                                                      width: 60,
+                                                      height: 60,
+                                                    ),
+                                                  )
+                                                : const Text('No Image'),
+                                            const SizedBox(width: 16),
+                                            // Details
+                                            Expanded(
+                                              child: Column(
+                                                crossAxisAlignment:
+                                                    CrossAxisAlignment.start,
+                                                children: [
+                                                  Text(
+                                                    row['uploaded_by_name']
+                                                                ?.toString()
+                                                                .trim()
+                                                                .isNotEmpty ==
+                                                            true
+                                                        ? row['uploaded_by_name']
+                                                              .toString()
+                                                        : 'Unknown uploader',
+                                                    style: const TextStyle(
+                                                      fontWeight:
+                                                          FontWeight.w800,
+                                                      color: kText,
+                                                      fontFamily: 'Montserrat',
+                                                    ),
+                                                  ),
+                                                  const SizedBox(height: 4),
+                                                  Text(
+                                                    'Date Uploaded: ${row['created_at']?.toString() ?? ''}',
+                                                    style: const TextStyle(
+                                                      fontSize: 13,
+                                                      color: kSubText,
+                                                    ),
+                                                  ),
+                                                  const SizedBox(height: 4),
+                                                  Text(
+                                                    'Deceased: ${(row['userdeceased_name']?.toString().trim().isNotEmpty == true) ? row['userdeceased_name'].toString() : 'Unknown'}',
+                                                    style: const TextStyle(
+                                                      fontSize: 13,
+                                                      color: kSubText,
+                                                    ),
+                                                  ),
+                                                  const SizedBox(height: 4),
+                                                  Text(
+                                                    'Ref No: ${row['refno']?.toString().trim().isNotEmpty == true ? row['refno'].toString() : 'N/A'}',
+                                                    style: const TextStyle(
+                                                      fontSize: 13,
+                                                      color: kSubText,
+                                                    ),
+                                                  ),
+                                                ],
+                                              ),
+                                            ),
+                                            // Action
+                                            if (row['already_paid'] == true)
+                                              const Chip(
+                                                label: Text(
+                                                  'Paid',
+                                                  style: TextStyle(
+                                                    color: Colors.white,
+                                                  ),
+                                                ),
+                                                backgroundColor: Colors.green,
+                                              )
+                                            else
+                                              _buildMarkPaidButton(row),
+                                          ],
+                                        ),
+                                ),
+                              );
+                            },
+                          );
+                        },
+                      ),
+                    ],
                   ],
                 ),
               ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildThumbImage(
+    String imageUrl, {
+    required double width,
+    required double height,
+  }) {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(12),
+      child: Image.network(
+        imageUrl,
+        width: width,
+        height: height,
+        fit: BoxFit.cover,
+        filterQuality: FilterQuality.low,
+        cacheWidth: width.isFinite ? (width * 2).round() : null,
+        errorBuilder: (context, error, stackTrace) => Container(
+          width: width,
+          height: height,
+          color: const Color(0xFFF3F4F6),
+          alignment: Alignment.center,
+          child: const Icon(Icons.broken_image, color: kSubText),
+        ),
+        loadingBuilder: (context, child, loadingProgress) {
+          if (loadingProgress == null) return child;
+          return Container(
+            width: width,
+            height: height,
+            color: const Color(0xFFF8FAFC),
+            alignment: Alignment.center,
+            child: const SizedBox(
+              width: 22,
+              height: 22,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  void _showImagePreview(String imageUrl) {
+    showDialog(
+      context: context,
+      builder: (_) => Dialog(
+        child: InteractiveViewer(
+          child: Image.network(
+            imageUrl,
+            fit: BoxFit.contain,
+            filterQuality: FilterQuality.low,
+            errorBuilder: (context, error, stackTrace) =>
+                const Icon(Icons.broken_image, size: 100),
+          ),
         ),
       ),
     );
@@ -1251,6 +1491,12 @@ class _GcashQrPageState extends State<GcashQrPage> {
                                       await Supabase.instance.client
                                           .from('payments')
                                           .insert(paymentData);
+                                      if (mounted) {
+                                        this.setState(() {
+                                          row['already_paid'] = true;
+                                        });
+                                        _refreshQrData();
+                                      }
                                       navigator.pop();
                                       messenger.showSnackBar(
                                         SnackBar(
@@ -1283,51 +1529,4 @@ class _GcashQrPageState extends State<GcashQrPage> {
       child: const Text('Mark as Paid'),
     );
   }
-}
-
-class UploadQrScreen extends StatefulWidget {
-  const UploadQrScreen({super.key});
-
-  @override
-  State<UploadQrScreen> createState() => _UploadQrScreenState();
-}
-
-class _UploadQrScreenState extends State<UploadQrScreen> {
-  bool isQrUploaded = false; // Flag to track if QR is uploaded
-
-  void uploadQrCode() {
-    if (isQrUploaded) {
-      // Show a message if the QR code has already been uploaded
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('QR code has already been uploaded!')),
-      );
-      return;
-    }
-
-    // Simulate QR code upload
-    setState(() {
-      isQrUploaded = true; // Mark as uploaded
-    });
-
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(SnackBar(content: Text('QR code uploaded successfully!')));
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: Text('Upload QR Code')),
-      body: Center(
-        child: ElevatedButton(
-          onPressed: uploadQrCode,
-          child: Text(isQrUploaded ? 'QR Uploaded' : 'Upload QR Code'),
-        ),
-      ),
-    );
-  }
-}
-
-void main() {
-  runApp(MaterialApp(home: UploadQrScreen()));
 }

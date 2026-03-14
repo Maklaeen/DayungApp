@@ -1408,7 +1408,7 @@ class _SecretaryDashboardPageState extends State<SecretaryDashboardPage> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         const Text(
-          "Recent Activity",
+          'Recent Activity',
           style: TextStyle(
             fontSize: 18,
             fontWeight: FontWeight.w800,
@@ -1422,6 +1422,9 @@ class _SecretaryDashboardPageState extends State<SecretaryDashboardPage> {
           decoration: BoxDecoration(
             color: Colors.white,
             borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: branding.kPrimary.withValues(alpha: 0.12),
+            ),
             boxShadow: [
               BoxShadow(
                 color: Colors.black.withValues(alpha: 0.05),
@@ -1479,6 +1482,40 @@ class _SecretaryDashboardPageState extends State<SecretaryDashboardPage> {
                   ),
                 ],
               ),
+              const SizedBox(height: 10),
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 10,
+                ),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFEFF6FF),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(
+                      Icons.task_alt_rounded,
+                      size: 16,
+                      color: branding.kPrimary,
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        _recentCertificates.isEmpty
+                            ? 'Inbox is clear at the moment.'
+                            : '${_recentCertificates.length} certificate item(s) ready for review.',
+                        style: const TextStyle(
+                          fontSize: 13,
+                          color: branding.kNeutralText,
+                          fontFamily: 'OpenSans',
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
               if (_recentCertificates.isNotEmpty) ...[
                 const SizedBox(height: 16),
                 ..._recentCertificates
@@ -1534,7 +1571,7 @@ class _SecretaryDashboardPageState extends State<SecretaryDashboardPage> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         const Text(
-          "Quick Access",
+          'Quick Access',
           style: TextStyle(
             fontSize: 18,
             fontWeight: FontWeight.w800,
@@ -1543,13 +1580,20 @@ class _SecretaryDashboardPageState extends State<SecretaryDashboardPage> {
           ),
         ),
         const SizedBox(height: 16),
-        Row(
+        Wrap(
+          spacing: 12,
+          runSpacing: 12,
           children: [
-            Expanded(
-              child: _modernQuickActionCard(
+            SizedBox(
+              width: MediaQuery.of(context).size.width > 720
+                  ? (MediaQuery.of(context).size.width - 64) / 2
+                  : double.infinity,
+              child: _modernActionCard(
                 icon: Icons.bar_chart_rounded,
-                title: "Reports",
+                title: 'Reports',
+                subtitle: 'Open analytics and summary reports for your unit',
                 color: branding.kPrimary,
+                height: 110,
                 onTap: () {
                   if (_dayungUnitId == null) {
                     ScaffoldMessenger.of(context).showSnackBar(
@@ -1566,48 +1610,28 @@ class _SecretaryDashboardPageState extends State<SecretaryDashboardPage> {
                 },
               ),
             ),
-            const SizedBox(width: 12),
-            const Expanded(child: SizedBox.shrink()),
-          ],
-        ),
-      ],
-    );
-  }
-
-  Widget _modernQuickActionCard({
-    required IconData icon,
-    required String title,
-    required Color color,
-    VoidCallback? onTap,
-  }) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(12),
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: color.withValues(alpha: 0.1),
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: color.withValues(alpha: 0.2)),
-        ),
-        child: Row(
-          children: [
-            Icon(icon, color: color, size: 20),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Text(
-                title,
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                  color: color,
-                  fontFamily: 'Montserrat',
-                ),
+            SizedBox(
+              width: MediaQuery.of(context).size.width > 720
+                  ? (MediaQuery.of(context).size.width - 64) / 2
+                  : double.infinity,
+              child: _modernActionCard(
+                icon: Icons.folder_copy_rounded,
+                title: 'Certificates',
+                subtitle:
+                    'Go straight to the certificate inbox and review queue',
+                color: const Color(0xFF10B981),
+                height: 110,
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const CertificatesPage()),
+                  );
+                },
               ),
             ),
           ],
         ),
-      ),
+      ],
     );
   }
 

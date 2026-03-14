@@ -4,10 +4,13 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:math';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:flutter_map/flutter_map.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:http/http.dart' as http;
+import 'package:latlong2/latlong.dart' as ll;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter_compass/flutter_compass.dart';
@@ -15,13 +18,13 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:maplibre_gl/maplibre_gl.dart' as ml;
 
 // color palette
-const Color kPrimary = Color(0xFF0D47A1);
-const Color kPrimaryDark = Color(0xFF083366);
-const Color kAccent = Color(0xFF2E7D32);
-const Color kWarn = Color(0xFFF57C00);
-const Color kDanger = Color(0xFFC62828);
+const Color kPrimary = Color(0xFF3B82F6);
+const Color kPrimaryDark = Color(0xFF1E40AF);
+const Color kAccent = Color(0xFF10B981);
+const Color kWarn = Color(0xFFF59E0B);
+const Color kDanger = Color(0xFFEF4444);
 const Color kNeutralText = Color(0xFF1F2937);
-const Color kSubtleText = Color(0xFF4B5563);
+const Color kSubtleText = Color(0xFF6B7280);
 const Color kPanelBg = Colors.white;
 
 enum NavMode { driving, motorcycle, transit, walking }
@@ -124,6 +127,7 @@ class DayungMapPage extends StatefulWidget {
 
 class _DayungMapPageState extends State<DayungMapPage> {
   ml.MapLibreMapController? _mlController;
+  final MapController _webMapController = MapController();
   bool _styleLoaded = false;
   ml.Symbol? _dayungSymbol;
   ml.Symbol? _userSymbol;
@@ -174,6 +178,10 @@ class _DayungMapPageState extends State<DayungMapPage> {
     if (v is String) return double.tryParse(v);
     return null;
   }
+
+  List<ll.LatLng> get _routeLatLngs => _routePoints
+      .map((point) => ll.LatLng(point.latitude, point.longitude))
+      .toList();
 
   @override
   void initState() {
@@ -460,7 +468,19 @@ class _DayungMapPageState extends State<DayungMapPage> {
   }
 
   void _fitToRoute() {
-    if (_routePoints.length < 2 || _mlController == null) return;
+    if (_routePoints.length < 2) return;
+    if (kIsWeb) {
+      final points = _routeLatLngs;
+      if (points.length < 2) return;
+      _webMapController.fitCamera(
+        CameraFit.bounds(
+          bounds: LatLngBounds.fromPoints(points),
+          padding: const EdgeInsets.all(40),
+        ),
+      );
+      return;
+    }
+    if (_mlController == null) return;
     final lats = _routePoints.map((p) => p.latitude).toList();
     final lngs = _routePoints.map((p) => p.longitude).toList();
     final sw = ml.LatLng(
@@ -786,9 +806,29 @@ class _DayungMapPageState extends State<DayungMapPage> {
 
   void _centerOnDayung() {
     final lat = dayungLat, lng = dayungLng;
-    if (lat == null || lng == null || _mlController == null) return;
+    if (lat == null || lng == null) return;
+    if (kIsWeb) {
+      _webMapController.move(ll.LatLng(lat, lng), 15);
+      return;
+    }
+    if (_mlController == null) return;
     _mlController!.animateCamera(
       ml.CameraUpdate.newLatLngZoom(ml.LatLng(lat, lng), 15),
+    );
+  }
+
+  void _centerOnUser() {
+    if (_pos == null) return;
+    if (kIsWeb) {
+      _webMapController.move(ll.LatLng(_pos!.latitude, _pos!.longitude), 15);
+      return;
+    }
+    if (_mlController == null) return;
+    _mlController!.animateCamera(
+      ml.CameraUpdate.newLatLngZoom(
+        ml.LatLng(_pos!.latitude, _pos!.longitude),
+        15,
+      ),
     );
   }
 
@@ -804,27 +844,6 @@ class _DayungMapPageState extends State<DayungMapPage> {
 
     return Scaffold(
       backgroundColor: const Color(0xFFFAFAF7),
-      extendBodyBehindAppBar: true,
-      appBar: AppBar(
-        elevation: 0,
-        backgroundColor: Colors.transparent,
-        foregroundColor: Colors.white,
-        title: Text(
-          (widget.dayung['name'] ?? 'Dayung Location').toString(),
-          style: const TextStyle(
-            fontWeight: FontWeight.w800,
-            fontFamily: 'Montserrat',
-          ),
-          overflow: TextOverflow.ellipsis,
-        ),
-      ),
-      // floatingActionButton: FloatingActionButton.extended(
-      //   heroTag: 'directionsFab',
-      //   backgroundColor: const Color.fromARGB(255, 239, 239, 239),
-      //   icon: const Icon(Icons.directions),
-      //   label: const Text('Open Maps'),
-      //   onPressed: _showDirectionModeSheet,
-      // ),
       body: Stack(
         children: [
           Positioned.fill(
@@ -860,9 +879,15 @@ class _DayungMapPageState extends State<DayungMapPage> {
                             gradient: LinearGradient(
                               begin: Alignment.topCenter,
                               end: Alignment.bottomCenter,
-                              colors: [Color(0xCC0D47A1), Color(0x000D47A1)],
+                              colors: [Color(0xD91E40AF), Color(0x003B82F6)],
                             ),
                           ),
+                        ),
+                        Positioned(
+                          top: MediaQuery.of(context).padding.top + 12,
+                          left: 16,
+                          right: 16,
+                          child: _buildTopOverlay(),
                         ),
                         Positioned(
                           left: 16,
@@ -960,22 +985,97 @@ class _DayungMapPageState extends State<DayungMapPage> {
                   _fabIcon(icon: Icons.flag_outlined, onTap: _centerOnDayung),
                   const SizedBox(height: 12),
                   if (_pos != null)
-                    _fabIcon(
-                      icon: Icons.my_location,
-                      onTap: () {
-                        if (_pos != null) {
-                          _mlController!.animateCamera(
-                            ml.CameraUpdate.newLatLngZoom(
-                              ml.LatLng(_pos!.latitude, _pos!.longitude),
-                              15,
-                            ),
-                          );
-                        }
-                      },
-                    ),
+                    _fabIcon(icon: Icons.my_location, onTap: _centerOnUser),
                 ],
               ),
             ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTopOverlay() {
+    final title = (widget.dayung['name'] ?? 'Dayung Location').toString();
+    final address = _address(widget.dayung);
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.14),
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.18)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.12),
+            blurRadius: 18,
+            offset: const Offset(0, 6),
+          ),
+        ],
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          IconButton(
+            onPressed: () => Navigator.of(context).maybePop(),
+            icon: Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.18),
+                borderRadius: BorderRadius.circular(14),
+              ),
+              child: const Icon(
+                Icons.arrow_back_ios_new_rounded,
+                color: Colors.white,
+                size: 18,
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Dayung Map',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    fontFamily: 'Montserrat',
+                    letterSpacing: 0.25,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  title,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 20,
+                    fontWeight: FontWeight.w800,
+                    fontFamily: 'Montserrat',
+                    height: 1.15,
+                  ),
+                ),
+                if (address.isNotEmpty) ...[
+                  const SizedBox(height: 6),
+                  Text(
+                    address,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: Colors.white.withValues(alpha: 0.86),
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      fontFamily: 'OpenSans',
+                      height: 1.35,
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
         ],
       ),
     );
@@ -994,9 +1094,9 @@ class _DayungMapPageState extends State<DayungMapPage> {
         borderRadius: BorderRadius.vertical(top: Radius.circular(38)),
         boxShadow: [
           BoxShadow(
-            color: Colors.black12,
+            color: Color(0x14000000),
             blurRadius: 22,
-            offset: Offset(0, -4),
+            offset: Offset(0, -6),
           ),
         ],
       ),
@@ -1057,6 +1157,32 @@ class _DayungMapPageState extends State<DayungMapPage> {
                         ],
                       ),
                     ],
+                    const SizedBox(height: 14),
+                    Wrap(
+                      spacing: 10,
+                      runSpacing: 10,
+                      children: [
+                        if (dist != null)
+                          _infoChip(
+                            icon: Icons.route_rounded,
+                            label: _formatDistance(dist),
+                            color: kPrimaryDark,
+                            background: const Color(0xFFEFF6FF),
+                          ),
+                        _infoChip(
+                          icon: widget.isMember
+                              ? Icons.verified_rounded
+                              : Icons.explore_rounded,
+                          label: widget.isMember
+                              ? 'Your registered Dayung'
+                              : 'Explore this location',
+                          color: widget.isMember ? kAccent : kWarn,
+                          background: widget.isMember
+                              ? const Color(0xFFECFDF5)
+                              : const Color(0xFFFFF7E8),
+                        ),
+                      ],
+                    ),
                     const SizedBox(height: 16),
                     if (widget.allDayungs != null &&
                         widget.allDayungs!.isNotEmpty)
@@ -1076,6 +1202,37 @@ class _DayungMapPageState extends State<DayungMapPage> {
             ),
           );
         },
+      ),
+    );
+  }
+
+  Widget _infoChip({
+    required IconData icon,
+    required String label,
+    required Color color,
+    required Color background,
+  }) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: background,
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 16, color: color),
+          const SizedBox(width: 8),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 13,
+              color: color,
+              fontWeight: FontWeight.w700,
+              fontFamily: 'OpenSans',
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -1519,18 +1676,111 @@ class _DayungMapPageState extends State<DayungMapPage> {
 
   Widget _fabIcon({required IconData icon, required VoidCallback onTap}) {
     return Material(
-      color: kPrimary,
-      shape: const CircleBorder(),
-      elevation: 6,
+      color: Colors.transparent,
       child: InkWell(
-        customBorder: const CircleBorder(),
+        borderRadius: BorderRadius.circular(18),
         onTap: onTap,
         child: SizedBox(
-          width: 50,
-          height: 50,
-          child: Icon(icon, color: Colors.white),
+          width: 56,
+          height: 56,
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(color: const Color(0xFFE2E8F0)),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.10),
+                  blurRadius: 16,
+                  offset: const Offset(0, 8),
+                ),
+              ],
+            ),
+            child: Icon(icon, color: kPrimaryDark),
+          ),
         ),
       ),
+    );
+  }
+
+  Widget _buildFlutterMap(double lat, double lng) {
+    return FlutterMap(
+      mapController: _webMapController,
+      options: MapOptions(
+        initialCenter: ll.LatLng(lat, lng),
+        initialZoom: 15,
+        minZoom: 12,
+        maxZoom: 20,
+        interactionOptions: const InteractionOptions(
+          flags: InteractiveFlag.all & ~InteractiveFlag.rotate,
+        ),
+      ),
+      children: [
+        TileLayer(
+          urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+          userAgentPackageName: 'capstone_app',
+        ),
+        CircleLayer(
+          circles: [
+            CircleMarker(
+              point: ll.LatLng(lat, lng),
+              radius: 26,
+              color: kAccent.withValues(alpha: 0.20),
+              borderColor: kAccent,
+              borderStrokeWidth: 2,
+            ),
+            if (_pos != null)
+              CircleMarker(
+                point: ll.LatLng(_pos!.latitude, _pos!.longitude),
+                radius: 10,
+                color: kPrimary,
+                borderColor: Colors.white,
+                borderStrokeWidth: 2,
+              ),
+          ],
+        ),
+        if (_routeLatLngs.length >= 2)
+          PolylineLayer(
+            polylines: [
+              Polyline(points: _routeLatLngs, color: kPrimary, strokeWidth: 4),
+            ],
+          ),
+        MarkerLayer(
+          markers: [
+            Marker(
+              point: ll.LatLng(lat, lng),
+              width: 52,
+              height: 52,
+              child: const Icon(
+                Icons.location_on_rounded,
+                color: kAccent,
+                size: 42,
+              ),
+            ),
+            if (_pos != null)
+              Marker(
+                point: ll.LatLng(_pos!.latitude, _pos!.longitude),
+                width: 34,
+                height: 34,
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    shape: BoxShape.circle,
+                    border: Border.all(color: Colors.white, width: 2),
+                  ),
+                  child: const Icon(
+                    Icons.my_location_rounded,
+                    color: kPrimary,
+                    size: 20,
+                  ),
+                ),
+              ),
+          ],
+        ),
+        const RichAttributionWidget(
+          attributions: [TextSourceAttribution('OpenStreetMap contributors')],
+        ),
+      ],
     );
   }
 
@@ -1538,6 +1788,13 @@ class _DayungMapPageState extends State<DayungMapPage> {
     final lat = dayungLat, lng = dayungLng;
     if (lat == null || lng == null) {
       return const Center(child: Text('No location data.'));
+    }
+    if (kIsWeb) {
+      return SizedBox(
+        width: double.infinity,
+        height: 350,
+        child: _buildFlutterMap(lat, lng),
+      );
     }
     return SizedBox(
       width: double.infinity,

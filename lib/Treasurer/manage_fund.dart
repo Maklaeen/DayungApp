@@ -9,6 +9,8 @@ const Color kPrimaryDark = Color(0xFF083366);
 const Color kNeutralText = Color(0xFF111827);
 const Color kSubtleText = Color(0xFF6B7280);
 const Color kCard = Colors.white;
+const Color kBorder = Color(0xFFE5E7EB);
+const Color kSurface = Color(0xFFF8FAFC);
 
 class ManageFundPage extends StatefulWidget {
   final int dayungUnitId;
@@ -19,6 +21,8 @@ class ManageFundPage extends StatefulWidget {
 }
 
 class _ManageFundPageState extends State<ManageFundPage> {
+  static const Duration _queryTimeout = Duration(seconds: 10);
+
   final sb = Supabase.instance.client;
 
   bool _loading = true;
@@ -34,6 +38,12 @@ class _ManageFundPageState extends State<ManageFundPage> {
   double _totalPaid = 0.0;
   double _totalGoal = 0.0;
   int _approvedMemberCount = 0;
+
+  bool get _hasActiveFilters {
+    return _search.isNotEmpty ||
+        _statusFilter != 'all' ||
+        _typeFilter != 'members';
+  }
 
   double _asDouble(dynamic value, {double fallback = 0.0}) {
     if (value is num) return value.toDouble();
@@ -53,26 +63,38 @@ class _ManageFundPageState extends State<ManageFundPage> {
     });
 
     try {
-      final approvedRes = await sb
+      final approvedResFuture = sb
           .from('applications')
           .select('user_id')
           .eq('dayung_unit_id', widget.dayungUnitId)
-          .eq('status', 'approved');
+          .eq('status', 'approved')
+          .timeout(_queryTimeout);
+      final noticeResFuture = sb
+          .from('death_notices')
+          .select('id, name, date_of_death, deceased_type, user_id')
+          .eq('dayung_unit_id', widget.dayungUnitId)
+          .order('date_of_death', ascending: false)
+          .timeout(_queryTimeout);
+      final paymentResFuture = sb
+          .from('payments')
+          .select('death_notice_id, amount, status, paid_at, user_id')
+          .eq('dayung_unit_id', widget.dayungUnitId)
+          .timeout(_queryTimeout);
+
+      final results = await Future.wait([
+        approvedResFuture,
+        noticeResFuture,
+        paymentResFuture,
+      ]);
+
+      final approvedRes = results[0];
       final approvedUserIds = {
         for (final row in List<Map<String, dynamic>>.from(approvedRes))
           (row['user_id'] ?? '').toString(),
       }..remove('');
 
-      final noticeRes = await sb
-          .from('death_notices')
-          .select('id, name, date_of_death, deceased_type, user_id')
-          .eq('dayung_unit_id', widget.dayungUnitId)
-          .order('date_of_death', ascending: false);
-
-      final paymentRes = await sb
-          .from('payments')
-          .select('death_notice_id, amount, status, paid_at, user_id')
-          .eq('dayung_unit_id', widget.dayungUnitId);
+      final noticeRes = results[1];
+      final paymentRes = results[2];
 
       final rows = List<Map<String, dynamic>>.from(paymentRes);
 
@@ -193,24 +215,25 @@ class _ManageFundPageState extends State<ManageFundPage> {
       });
 
       // --- ADVANCE FUND LOGIC ---
-      if (list.isEmpty) {
-        final advanceRes = await sb
-            .from('payments')
-            .select('amount, status')
-            .eq('dayung_unit_id', widget.dayungUnitId)
-            .filter('death_notice_id', 'is', null);
+      final advanceRes = await sb
+          .from('payments')
+          .select('amount, status')
+          .eq('dayung_unit_id', widget.dayungUnitId)
+          .filter('death_notice_id', 'is', null)
+          .timeout(_queryTimeout);
 
-        double advancePaid = 0.0;
-        double advanceGoal = 0.0;
-        for (final r in List<Map<String, dynamic>>.from(advanceRes)) {
-          final amt = (r['amount'] is num)
-              ? (r['amount'] as num).toDouble()
-              : double.tryParse('${r['amount']}') ?? 0.0;
-          final status = (r['status'] ?? '').toString().toLowerCase();
-          advanceGoal += amt;
-          if (status == 'paid') advancePaid += amt;
-        }
+      double advancePaid = 0.0;
+      double advanceGoal = 0.0;
+      for (final r in List<Map<String, dynamic>>.from(advanceRes)) {
+        final amt = (r['amount'] is num)
+            ? (r['amount'] as num).toDouble()
+            : double.tryParse('${r['amount']}') ?? 0.0;
+        final status = (r['status'] ?? '').toString().toLowerCase();
+        advanceGoal += amt;
+        if (status == 'paid') advancePaid += amt;
+      }
 
+      if (advanceGoal > 0 || advancePaid > 0) {
         list.add({
           'id': 0,
           'name': 'Advance Fund',
@@ -224,6 +247,9 @@ class _ManageFundPageState extends State<ManageFundPage> {
               ? 0.0
               : (advancePaid / advanceGoal).clamp(0.0, 1.0),
           'type': 'member', // default bucket
+          'expectedMembers': approvedUserIds.length,
+          'recordedMembers': 0,
+          'missingMembers': 0,
         });
       }
       // --- END ADVANCE FUND LOGIC ---
@@ -267,6 +293,14 @@ class _ManageFundPageState extends State<ManageFundPage> {
   }
 
   Future<void> _onRefresh() => _load();
+
+  void _resetFilters() {
+    setState(() {
+      _search = '';
+      _statusFilter = 'all';
+      _typeFilter = 'members';
+    });
+  }
 
   List<Map<String, dynamic>> get _visibleFunds {
     List<Map<String, dynamic>> list = _funds;
@@ -333,108 +367,314 @@ class _ManageFundPageState extends State<ManageFundPage> {
 
   @override
   Widget build(BuildContext context) {
+    final width = MediaQuery.of(context).size.width;
+    final isWide = width > 700;
     return Scaffold(
       backgroundColor: kBg,
-      appBar: PreferredSize(
-        preferredSize: const Size.fromHeight(90),
-        child: Container(
-          padding: const EdgeInsets.fromLTRB(20, 50, 20, 20),
-          decoration: BoxDecoration(
-            color: const Color(0xFF1E40AF),
-            borderRadius: const BorderRadius.only(
-              bottomLeft: Radius.circular(24),
-              bottomRight: Radius.circular(24),
+      body: SafeArea(
+        child: Column(
+          children: [
+            _buildPageHeader(isWide),
+            Expanded(
+              child: Container(
+                decoration: const BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.only(
+                    topLeft: Radius.circular(24),
+                    topRight: Radius.circular(24),
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Color(0x1A000000),
+                      blurRadius: 20,
+                      offset: Offset(0, -4),
+                    ),
+                  ],
+                ),
+                child: ClipRRect(
+                  borderRadius: const BorderRadius.only(
+                    topLeft: Radius.circular(24),
+                    topRight: Radius.circular(24),
+                  ),
+                  child: _loading
+                      ? const DayungPageSkeleton(
+                          layout: DayungSkeletonLayout.dashboard,
+                          itemCount: 4,
+                        )
+                      : _error != null
+                      ? _buildErrorState()
+                      : RefreshIndicator(
+                          onRefresh: _onRefresh,
+                          child: ListView(
+                            physics: const AlwaysScrollableScrollPhysics(),
+                            padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
+                            children: [
+                              _summaryHeader(),
+                              const SizedBox(height: 12),
+                              _filtersBar(),
+                              const SizedBox(height: 10),
+                              if (_visibleFunds.isEmpty)
+                                _buildEmptyState()
+                              else
+                                ...List.generate(
+                                  _visibleFunds.length,
+                                  (i) => Padding(
+                                    padding: const EdgeInsets.symmetric(
+                                      vertical: 8,
+                                    ),
+                                    child: _fundCard(_visibleFunds[i]),
+                                  ),
+                                ),
+                            ],
+                          ),
+                        ),
+                ),
+              ),
             ),
-            boxShadow: [
-              BoxShadow(
-                color: const Color(0xFF1E40AF).withValues(alpha: 0.3),
-                blurRadius: 20,
-                offset: const Offset(0, 8),
-              ),
-            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPageHeader(bool isWide) {
+    return Container(
+      padding: EdgeInsets.fromLTRB(
+        12,
+        isWide ? 36 : 28,
+        isWide ? 24 : 16,
+        isWide ? 32 : 24,
+      ),
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          colors: [Color(0xFF083366), Color(0xFF0D47A1)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.only(
+          bottomLeft: Radius.circular(28),
+          bottomRight: Radius.circular(28),
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Color(0x22083366),
+            blurRadius: 18,
+            offset: Offset(0, 8),
           ),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
+        ],
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          IconButton(
+            icon: const Icon(
+              Icons.chevron_left_rounded,
+              color: Colors.white,
+              size: 28,
+            ),
+            onPressed: () => Navigator.pop(context),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Manage Funds',
+                  style: TextStyle(
+                    fontSize: isWide ? 24 : 21,
+                    fontWeight: FontWeight.w900,
+                    color: Colors.white,
+                    fontFamily: 'Montserrat',
+                    letterSpacing: 0.2,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                // Text(
+                //   'Track collection progress, missing fund rows, and member payment status.',
+                //   style: TextStyle(
+                //     fontSize: isWide ? 14 : 13,
+                //     height: 1.35,
+                //     fontWeight: FontWeight.w600,
+                //     color: Colors.white70,
+                //     fontFamily: 'OpenSans',
+                //   ),
+                // ),
+                const SizedBox(height: 14),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    _headerPill(
+                      icon: Icons.groups_rounded,
+                      label: '$_approvedMemberCount active members',
+                    ),
+                    _headerPill(
+                      icon: Icons.receipt_long_rounded,
+                      label: '${_visibleFunds.length} visible funds',
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _headerPill({required IconData icon, required String label}) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.14),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.16)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 15, color: Colors.white),
+          const SizedBox(width: 6),
+          Text(
+            label,
+            style: const TextStyle(
+              color: Colors.white,
+              fontWeight: FontWeight.w700,
+              fontSize: 12,
+              fontFamily: 'Montserrat',
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildErrorState() {
+    return ListView(
+      physics: const AlwaysScrollableScrollPhysics(),
+      padding: const EdgeInsets.fromLTRB(16, 24, 16, 24),
+      children: [
+        Container(
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            color: const Color(0xFFFFF7ED),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: const Color(0xFFFED7AA)),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Back
-              GestureDetector(
-                onTap: () => Navigator.pop(context),
-                child: const Icon(
-                  Icons.chevron_left,
-                  color: Colors.white,
-                  size: 24,
+              const Row(
+                children: [
+                  Icon(Icons.error_outline_rounded, color: Color(0xFFB45309)),
+                  SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      'Could not load fund records',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w800,
+                        color: kNeutralText,
+                        fontFamily: 'Montserrat',
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 10),
+              Text(
+                _error ?? 'Unknown error',
+                style: const TextStyle(
+                  color: kSubtleText,
+                  fontWeight: FontWeight.w600,
+                  fontFamily: 'OpenSans',
                 ),
               ),
-              const SizedBox(width: 8),
-              const Icon(Icons.track_changes, color: Colors.white, size: 24),
-              const SizedBox(width: 10),
-              const Text(
-                'Manage Funds',
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w900,
-                  color: Colors.white,
-                  fontFamily: 'Montserrat',
-                  letterSpacing: 0.3,
+              const SizedBox(height: 16),
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton.icon(
+                  onPressed: _onRefresh,
+                  icon: const Icon(Icons.refresh_rounded),
+                  label: const Text('Retry fetch'),
+                  style: OutlinedButton.styleFrom(
+                    minimumSize: const Size.fromHeight(48),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                  ),
                 ),
               ),
-              const Spacer(),
             ],
           ),
         ),
+      ],
+    );
+  }
+
+  Widget _buildEmptyState() {
+    return Container(
+      margin: const EdgeInsets.only(top: 28),
+      padding: const EdgeInsets.all(28),
+      decoration: BoxDecoration(
+        color: kSurface,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: kBorder),
       ),
-      body: _loading
-          ? const DayungPageSkeleton(
-              layout: DayungSkeletonLayout.dashboard,
-              itemCount: 4,
-            )
-          : _error != null
-          ? Center(
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Text(
-                  _error!,
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(color: Colors.red),
+      child: Column(
+        children: [
+          Container(
+            width: 64,
+            height: 64,
+            decoration: BoxDecoration(
+              color: kPrimary.withValues(alpha: 0.08),
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: const Icon(
+              Icons.account_balance_wallet_outlined,
+              size: 32,
+              color: kPrimary,
+            ),
+          ),
+          const SizedBox(height: 16),
+          const Text(
+            'No matching funds found',
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.w800,
+              color: kNeutralText,
+              fontFamily: 'Montserrat',
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            _hasActiveFilters
+                ? 'Try a different search term or reset the current filters.'
+                : 'No fund records are available for this unit yet.',
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              color: kSubtleText,
+              fontWeight: FontWeight.w600,
+              fontFamily: 'OpenSans',
+            ),
+          ),
+          if (_hasActiveFilters) ...[
+            const SizedBox(height: 18),
+            OutlinedButton.icon(
+              onPressed: _resetFilters,
+              icon: const Icon(Icons.filter_alt_off_rounded),
+              label: const Text('Reset filters'),
+              style: OutlinedButton.styleFrom(
+                minimumSize: const Size.fromHeight(46),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(14),
                 ),
               ),
-            )
-          : RefreshIndicator(
-              onRefresh: _onRefresh,
-              child: ListView(
-                physics: const AlwaysScrollableScrollPhysics(),
-                padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
-                children: [
-                  _summaryHeader(),
-                  const SizedBox(height: 12),
-                  _filtersBar(),
-                  const SizedBox(height: 8),
-                  if (_visibleFunds.isEmpty)
-                    Padding(
-                      padding: const EdgeInsets.only(top: 80),
-                      child: Column(
-                        children: const [
-                          Icon(
-                            Icons.inbox_outlined,
-                            size: 48,
-                            color: Colors.grey,
-                          ),
-                          SizedBox(height: 10),
-                          Text('No matching funds. Try a different filter.'),
-                        ],
-                      ),
-                    )
-                  else
-                    ...List.generate(
-                      _visibleFunds.length,
-                      (i) => Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 8),
-                        child: _fundCard(_visibleFunds[i]),
-                      ),
-                    ),
-                ],
-              ),
             ),
+          ],
+        ],
+      ),
     );
   }
 
@@ -458,25 +698,43 @@ class _ManageFundPageState extends State<ManageFundPage> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const Text(
-            'Overview',
+            'Fund Overview',
             style: TextStyle(
-              fontSize: 22,
+              fontSize: 20,
               fontWeight: FontWeight.w800,
-              color: kSubtleText,
+              color: kNeutralText,
               fontFamily: 'Montserrat',
             ),
           ),
-          // const SizedBox(height: 6),
-          // const Text(
-          //   'Review all active death notices, check missing funds, and create payment rows for members who still do not have one.',
-          //   style: TextStyle(
-          //     fontSize: 15,
-          //     height: 1.45,
-          //     color: kSubtleText,
-          //     fontWeight: FontWeight.w600,
-          //   ),
-          // ),
-          // const SizedBox(height: 12),
+          const SizedBox(height: 6),
+          const Text(
+            'Review all active death notices, check missing funds, and generate any pending member fund rows that still need to be created.',
+            style: TextStyle(
+              fontSize: 13,
+              height: 1.4,
+              color: kSubtleText,
+              fontWeight: FontWeight.w600,
+              fontFamily: 'OpenSans',
+            ),
+          ),
+          const SizedBox(height: 14),
+          Wrap(
+            spacing: 10,
+            runSpacing: 10,
+            children: [
+              _infoBadge(
+                icon: Icons.groups_rounded,
+                label: '$_approvedMemberCount approved members',
+                color: const Color(0xFF1E40AF),
+              ),
+              _infoBadge(
+                icon: Icons.rule_folder_rounded,
+                label: '${_funds.length} total fund buckets',
+                color: const Color(0xFF0F766E),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
           LayoutBuilder(
             builder: (context, constraints) {
               final compact = constraints.maxWidth < 520;
@@ -530,63 +788,73 @@ class _ManageFundPageState extends State<ManageFundPage> {
   }
 
   Widget _filtersBar() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        // Search
-        TextField(
-          decoration: InputDecoration(
-            hintText: 'Search deceased name',
-            hintStyle: const TextStyle(fontWeight: FontWeight.w500),
-            prefixIcon: const Icon(Icons.search),
-            filled: true,
-            fillColor: Colors.white,
-            contentPadding: const EdgeInsets.symmetric(
-              vertical: 12,
-              horizontal: 14,
-            ),
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(14),
-              borderSide: BorderSide(color: Colors.grey.shade300),
-            ),
-            focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(14),
-              borderSide: const BorderSide(color: Color(0xFF1E40AF)),
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: kBorder),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x0F000000),
+            blurRadius: 12,
+            offset: Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Filters',
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.w800,
+              color: kNeutralText,
+              fontFamily: 'Montserrat',
             ),
           ),
-          onChanged: (v) => setState(() => _search = v.trim()),
-        ),
-        const SizedBox(height: 8),
-        // Container(
-        //   width: double.infinity,
-        //   padding: const EdgeInsets.all(14),
-        //   decoration: BoxDecoration(
-        //     color: Colors.white,
-        //     borderRadius: BorderRadius.circular(16),
-        //     border: Border.all(color: const Color(0xFFE2E8F0)),
-        //   ),
-        //   child: const Text(
-        //     'Tip: Tap View Members to check who already has a fund. Tap Create Missing Funds to add pending rows for members still missing one.',
-        //     style: TextStyle(
-        //       fontSize: 14,
-        //       height: 1.45,
-        //       color: kSubtleText,
-        //       fontWeight: FontWeight.w600,
-        //     ),
-        //   ),
-        // ),
-        const SizedBox(height: 10),
-        // Status segmented (All | Collecting | Completed)
-        Center(
-          child: Container(
-            padding: const EdgeInsets.all(2),
-            decoration: BoxDecoration(
-              color: const Color(0xFFF3F4F6),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: const Color(0xFFE5E7EB)),
+          const SizedBox(height: 6),
+          const Text(
+            'Search by deceased name or narrow the list by collection status and notice type.',
+            style: TextStyle(
+              fontSize: 13,
+              color: kSubtleText,
+              fontWeight: FontWeight.w600,
+              fontFamily: 'OpenSans',
             ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
+          ),
+          const SizedBox(height: 14),
+          TextField(
+            decoration: InputDecoration(
+              hintText: 'Search deceased name',
+              hintStyle: const TextStyle(fontWeight: FontWeight.w500),
+              prefixIcon: const Icon(Icons.search),
+              filled: true,
+              fillColor: kSurface,
+              contentPadding: const EdgeInsets.symmetric(
+                vertical: 12,
+                horizontal: 14,
+              ),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(14),
+                borderSide: const BorderSide(color: kBorder),
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(14),
+                borderSide: const BorderSide(color: kBorder),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(14),
+                borderSide: const BorderSide(color: Color(0xFF1E40AF)),
+              ),
+            ),
+            onChanged: (v) => setState(() => _search = v.trim()),
+          ),
+          const SizedBox(height: 10),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: _segmentedGroup(
               children: [
                 _segChip('All', 'all'),
                 _segChip('Collecting', 'collecting'),
@@ -594,27 +862,60 @@ class _ManageFundPageState extends State<ManageFundPage> {
               ],
             ),
           ),
-        ),
-        const SizedBox(height: 10),
-        // Type segmented (Members | Beneficiaries)
-        Center(
-          child: Container(
-            padding: const EdgeInsets.all(2),
-            decoration: BoxDecoration(
-              color: const Color(0xFFF3F4F6),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: const Color(0xFFE5E7EB)),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
+          const SizedBox(height: 10),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: _segmentedGroup(
               children: [
                 _segChipType('Members', 'members'),
                 _segChipType('Beneficiaries', 'beneficiaries'),
               ],
             ),
           ),
-        ),
-      ],
+        ],
+      ),
+    );
+  }
+
+  Widget _segmentedGroup({required List<Widget> children}) {
+    return Container(
+      padding: const EdgeInsets.all(2),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF3F4F6),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFFE5E7EB)),
+      ),
+      child: Wrap(spacing: 2, runSpacing: 2, children: children),
+    );
+  }
+
+  Widget _infoBadge({
+    required IconData icon,
+    required String label,
+    required Color color,
+  }) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: color.withValues(alpha: 0.18)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 16, color: color),
+          const SizedBox(width: 8),
+          Text(
+            label,
+            style: TextStyle(
+              color: color,
+              fontWeight: FontWeight.w700,
+              fontFamily: 'Montserrat',
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -976,7 +1277,8 @@ class _ManageFundPageState extends State<ManageFundPage> {
           .from('death_notices')
           .select('id,deceased_type,user_id,beneficiary_id')
           .eq('id', deathNoticeId)
-          .single();
+          .single()
+          .timeout(_queryTimeout);
       dn = Map<String, dynamic>.from(res);
     } catch (_) {}
 
@@ -1002,7 +1304,8 @@ class _ManageFundPageState extends State<ManageFundPage> {
         .from('applications')
         .select('user_id')
         .eq('dayung_unit_id', dayungUnitId)
-        .eq('status', 'approved');
+        .eq('status', 'approved')
+        .timeout(_queryTimeout);
     final members = List<Map<String, dynamic>>.from(appsRes);
 
     // Already generated payments for this notice/dayung
@@ -1010,7 +1313,8 @@ class _ManageFundPageState extends State<ManageFundPage> {
         .from('payments')
         .select('user_id')
         .eq('death_notice_id', deathNoticeId)
-        .eq('dayung_unit_id', dayungUnitId);
+        .eq('dayung_unit_id', dayungUnitId)
+        .timeout(_queryTimeout);
     final existingIds = {
       for (final r in List<Map<String, dynamic>>.from(existingRes))
         (r['user_id'] ?? '').toString(),
@@ -1081,24 +1385,27 @@ class _ManageFundPageState extends State<ManageFundPage> {
           .from('death_notices')
           .select('id, name, user_id')
           .eq('id', deathNoticeId)
-          .maybeSingle();
+          .maybeSingle()
+          .timeout(_queryTimeout);
       final excludedUserId = (noticeRes?['user_id'] ?? '').toString();
 
       final approvedRes = await sb
           .from('applications')
           .select('user_id, user:users!applications_user_id_fkey(full_name)')
           .eq('dayung_unit_id', dayungUnitId)
-          .eq('status', 'approved');
+          .eq('status', 'approved')
+          .timeout(_queryTimeout);
 
       final rows = await sb
           .from('payments')
           .select(
-            'id, amount, status, paid_at, collected_by, '
+            'id, user_id, amount, status, paid_at, collected_by, '
             'user:users!payments_user_id_fkey(full_name), '
             'collector:users!payments_collected_by_fkey(full_name)',
           )
           .eq('death_notice_id', deathNoticeId)
-          .eq('dayung_unit_id', dayungUnitId);
+          .eq('dayung_unit_id', dayungUnitId)
+          .timeout(_queryTimeout);
 
       final items = List<Map<String, dynamic>>.from(rows);
       final existingUserIds = {
@@ -1139,7 +1446,8 @@ class _ManageFundPageState extends State<ManageFundPage> {
           final u = await sb
               .from('users')
               .select('id, full_name')
-              .inFilter('id', missingCollectorIds);
+              .inFilter('id', missingCollectorIds)
+              .timeout(_queryTimeout);
           for (final m in List<Map<String, dynamic>>.from(u)) {
             collectorLookup[(m['id'] ?? '').toString()] =
                 (m['full_name'] ?? 'Collector').toString();

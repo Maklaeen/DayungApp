@@ -20,6 +20,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'Auth/login.dart';
@@ -71,10 +72,34 @@ class _MyAppState extends State<MyApp> {
     _authSubscription = Supabase.instance.client.auth.onAuthStateChange.listen((
       data,
     ) {
+      if (data.event == AuthChangeEvent.signedOut) {
+        unawaited(_clearSessionScopedDayungState());
+      }
       if (data.event == AuthChangeEvent.passwordRecovery) {
         _openPasswordRecoveryPage();
       }
     });
+  }
+
+  Future<void> _clearSessionScopedDayungState() async {
+    final currentContext = globalNavigatorKey.currentContext;
+    final dayungUnitProvider = currentContext?.read<DayungUnitProvider>();
+    final dayungRoleProvider = currentContext?.read<DayungRoleProvider>();
+
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove('selectedDayungUnit');
+    await prefs.remove('selectedDayungUnitData');
+    await prefs.remove('selectedDayungUnitOwnerId');
+    if (!mounted) {
+      return;
+    }
+
+    if (dayungUnitProvider == null || dayungRoleProvider == null) {
+      return;
+    }
+
+    await dayungUnitProvider.clear();
+    dayungRoleProvider.clear();
   }
 
   void _openPasswordRecoveryPage() {

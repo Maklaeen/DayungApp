@@ -81,14 +81,45 @@ class _PresidentMembersPageState extends State<PresidentMembersPage>
       final apps = await _sb
           .from('applications')
           .select(
-            'user_id, status, dayung_unit_id, approved_at, '
-            'user:users(id, full_name, email, profile_url, is_deceased, date_of_death)',
+            'user_id, status, name, dayung_unit_id, approved_at, applied_at, '
+            'user:users(id, full_name, email, profile_url)',
           )
           .inFilter('dayung_unit_id', dayungIds)
           .inFilter('status', ['approved', 'pending'])
           .order('approved_at', ascending: false);
 
       final list = List<Map<String, dynamic>>.from(apps);
+      final userIds = list
+          .map((row) => (row['user_id'] ?? '').toString())
+          .where((id) => id.isNotEmpty)
+          .toSet()
+          .toList();
+
+      final deathRows = userIds.isEmpty
+          ? <Map<String, dynamic>>[]
+          : List<Map<String, dynamic>>.from(
+              await _sb
+                  .from('death_notices')
+                  .select('user_id, date_of_death, deceased_type')
+                  .inFilter('user_id', userIds)
+                  .or('deceased_type.is.null,deceased_type.eq.member'),
+            );
+
+      final deathInfo = <String, Map<String, dynamic>>{};
+      for (final row in deathRows) {
+        final userId = (row['user_id'] ?? '').toString();
+        if (userId.isEmpty) continue;
+        final previous = deathInfo[userId];
+        final currentDate = DateTime.tryParse('${row['date_of_death'] ?? ''}');
+        final previousDate = previous == null
+            ? null
+            : DateTime.tryParse('${previous['date_of_death'] ?? ''}');
+        if (previous == null ||
+            (currentDate != null &&
+                (previousDate == null || currentDate.isAfter(previousDate)))) {
+          deathInfo[userId] = row;
+        }
+      }
 
       final byKey = <String, Map<String, dynamic>>{};
       for (final r in list) {
@@ -96,8 +127,18 @@ class _PresidentMembersPageState extends State<PresidentMembersPage>
         final userId = (u?['id'] ?? r['user_id']).toString();
         final dayungId = r['dayung_unit_id'] as int;
         final key = '$userId-$dayungId';
+        final memberName = ((u?['full_name'] ?? r['name']) ?? '')
+            .toString()
+            .trim();
+        final normalized = {
+          ...r,
+          'member_name': memberName,
+          'profile_url': (u?['profile_url'] ?? '').toString().trim(),
+          'is_deceased': deathInfo.containsKey(userId),
+          'date_of_death': deathInfo[userId]?['date_of_death'],
+        };
         if (!byKey.containsKey(key)) {
-          byKey[key] = r;
+          byKey[key] = normalized;
         } else {
           final prev = byKey[key]!;
           final prevAt = prev['approved_at']?.toString();
@@ -108,7 +149,7 @@ class _PresidentMembersPageState extends State<PresidentMembersPage>
                         currAt,
                       )?.isAfter(DateTime.tryParse(prevAt) ?? DateTime(0)) ==
                       true)) {
-            byKey[key] = r;
+            byKey[key] = normalized;
           }
         }
       }
@@ -140,21 +181,18 @@ class _PresidentMembersPageState extends State<PresidentMembersPage>
 
   List<Map<String, dynamic>> get _approved => _rows.where((r) {
     final status = (r['status'] ?? '').toString();
-    final u = r['user'] as Map<String, dynamic>?;
-    final deceased = (u?['is_deceased'] == true);
+    final deceased = r['is_deceased'] == true;
     return status == 'approved' && !deceased;
   }).toList();
 
   List<Map<String, dynamic>> get _pending => _rows.where((r) {
     final status = (r['status'] ?? '').toString();
-    final u = r['user'] as Map<String, dynamic>?;
-    final deceased = (u?['is_deceased'] == true);
+    final deceased = r['is_deceased'] == true;
     return status == 'pending' && !deceased;
   }).toList();
 
   List<Map<String, dynamic>> get _deceased => _rows.where((r) {
-    final u = r['user'] as Map<String, dynamic>?;
-    return (u?['is_deceased'] == true);
+    return r['is_deceased'] == true;
   }).toList();
 
   @override
@@ -1099,8 +1137,7 @@ class _PresidentMembersPageState extends State<PresidentMembersPage>
     List<Map<String, dynamic>> filtered = list;
     if (_searchQuery.isNotEmpty) {
       filtered = list.where((r) {
-        final u = r['user'] as Map<String, dynamic>?;
-        final name = (u?['full_name'] ?? '').toString().toLowerCase();
+        final name = _memberNameOf(r).toLowerCase();
         return name.contains(_searchQuery);
       }).toList();
     }
@@ -1154,7 +1191,7 @@ class _PresidentMembersPageState extends State<PresidentMembersPage>
 
   Widget _memberTileCard(Map<String, dynamic> r, {required String mode}) {
     final u = r['user'] as Map<String, dynamic>?;
-    final profileUrl = (u?['profile_url'] as String?)?.trim();
+    final profileUrl = (r['profile_url'] as String?)?.trim();
     final dayungId = r['dayung_unit_id'] as int?;
     final dayungName = dayungId != null
         ? (_dayungNames[dayungId] ?? 'Dayung')
@@ -1175,9 +1212,7 @@ class _PresidentMembersPageState extends State<PresidentMembersPage>
           : Colors.grey;
     }
 
-    final title = (u?['full_name'] as String?)?.trim().isNotEmpty == true
-        ? (u?['full_name'] as String).trim()
-        : 'Member';
+    final title = _memberNameOf(r);
 
     return Container(
       decoration: BoxDecoration(
@@ -1196,7 +1231,7 @@ class _PresidentMembersPageState extends State<PresidentMembersPage>
           radius: 16,
           child: (profileUrl == null || profileUrl.isEmpty)
               ? Text(
-                  _initialOf(u?['full_name']),
+                  _initialOf(title),
                   style: const TextStyle(
                     fontWeight: FontWeight.bold,
                     fontSize: 12,
@@ -1247,10 +1282,18 @@ class _PresidentMembersPageState extends State<PresidentMembersPage>
           final uuid = (u?['id'] as String?)?.trim().isNotEmpty == true
               ? (u?['id'] as String).trim()
               : (r['user_id']?.toString().trim());
-          _showBeneficiariesModal(context, uuid, u?['full_name']);
+          _showBeneficiariesModal(context, uuid, title);
         },
       ),
     );
+  }
+
+  String _memberNameOf(Map<String, dynamic> row) {
+    final name = (row['member_name'] ?? '').toString().trim();
+    if (name.isNotEmpty) return name;
+    final fallback = (row['name'] ?? '').toString().trim();
+    if (fallback.isNotEmpty) return fallback;
+    return 'Member';
   }
 
   String _initialOf(dynamic name) {

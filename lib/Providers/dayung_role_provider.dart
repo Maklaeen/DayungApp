@@ -147,6 +147,14 @@ class DayungRoleProvider extends ChangeNotifier {
     }
   }
 
+  void clear() {
+    unitId = null;
+    loading = false;
+    _reqCounter++;
+    _reset();
+    notifyListeners();
+  }
+
   void _reset() {
     isSuperAdmin = false;
     isPresident = isSecretary = isTreasurer = isCollector = isMember = false;

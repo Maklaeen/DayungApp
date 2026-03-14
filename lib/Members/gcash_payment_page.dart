@@ -78,36 +78,92 @@ class _GCashPaymentPageState extends State<GCashPaymentPage> {
       final imageBytes = await pickedFile.readAsBytes();
       if (!mounted) return;
 
-      // Show confirmation dialog before uploading
-      final confirm = await showDialog<bool>(
+      final refNoController = TextEditingController();
+
+      bool isValidRefNo(String refNo) {
+        final cleaned = refNo.replaceAll(' ', '');
+        return cleaned.length >= 9 &&
+            cleaned.length <= 13 &&
+            RegExp(r'^\d+$').hasMatch(cleaned);
+      }
+
+      final confirm = await showDialog<Map<String, dynamic>>(
         context: context,
-        builder: (context) => AlertDialog(
-          title: const Text('Confirm Upload'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Text('Are you sure you want to upload this receipt?'),
-              const SizedBox(height: 16),
-              Image.memory(imageBytes, height: 180),
-            ],
-          ),
-          actions: [
-            TextButton(
-              child: const Text('Cancel'),
-              onPressed: () => Navigator.of(context).pop(false),
+        builder: (context) {
+          return StatefulBuilder(
+            builder: (context, setDialogState) => AlertDialog(
+              title: const Text('Confirm Upload'),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Text('Are you sure you want to upload this receipt?'),
+                  const SizedBox(height: 16),
+                  Image.memory(imageBytes, height: 180),
+                  const SizedBox(height: 16),
+                  TextField(
+                    controller: refNoController,
+                    keyboardType: TextInputType.number,
+                    inputFormatters: [
+                      FilteringTextInputFormatter.allow(RegExp(r'[0-9 ]')),
+                      LengthLimitingTextInputFormatter(15),
+                    ],
+                    decoration: const InputDecoration(
+                      labelText: 'Reference No.',
+                      border: OutlineInputBorder(),
+                      helperText: 'Enter 9 to 13 digits',
+                    ),
+                    onChanged: (value) {
+                      String digits = value.replaceAll(RegExp(r'\D'), '');
+                      if (digits.length > 13) {
+                        digits = digits.substring(0, 13);
+                      }
+                      String formatted = digits;
+                      if (digits.length > 4 && digits.length <= 7) {
+                        formatted =
+                            '${digits.substring(0, 4)} ${digits.substring(4)}';
+                      } else if (digits.length > 7) {
+                        formatted =
+                            '${digits.substring(0, 4)} ${digits.substring(4, 7)} ${digits.substring(7)}';
+                      }
+                      if (formatted != value) {
+                        refNoController.value = TextEditingValue(
+                          text: formatted,
+                          selection: TextSelection.collapsed(
+                            offset: formatted.length,
+                          ),
+                        );
+                      }
+                      setDialogState(() {});
+                    },
+                  ),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  child: const Text('Cancel'),
+                  onPressed: () => Navigator.of(context).pop(null),
+                ),
+                ElevatedButton(
+                  onPressed: isValidRefNo(refNoController.text)
+                      ? () => Navigator.of(context).pop({
+                          'confirm': true,
+                          'refNo': refNoController.text.replaceAll(' ', ''),
+                        })
+                      : null,
+                  child: const Text('Upload'),
+                ),
+              ],
             ),
-            ElevatedButton(
-              child: const Text('Upload'),
-              onPressed: () => Navigator.of(context).pop(true),
-            ),
-          ],
-        ),
+          );
+        },
       );
 
-      if (confirm != true) {
+      if (confirm == null || confirm['confirm'] != true) {
         setState(() => _isUploading = false);
         return;
       }
+
+      final refNo = (confirm['refNo'] ?? '').toString();
 
       final fileName =
           '${DateTime.now().millisecondsSinceEpoch}_${pickedFile.name}';
@@ -137,6 +193,7 @@ class _GCashPaymentPageState extends State<GCashPaymentPage> {
         'created_at': DateTime.now().toIso8601String().substring(0, 19),
         'dayung_unit_id': widget.dayungUnitId,
         'death_notice_id': deathNoticeId,
+        'refno': refNo,
       });
 
       if (!mounted) return;

@@ -1,8 +1,11 @@
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 // NEW: geolocation
 import 'package:geolocator/geolocator.dart';
+
+const _selectedDayungUnitOwnerIdKey = 'selectedDayungUnitOwnerId';
 
 class DayungUnitProvider extends ChangeNotifier {
   int? _currentUnitId;
@@ -69,6 +72,7 @@ class DayungUnitProvider extends ChangeNotifier {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove('selectedDayungUnit');
     await prefs.remove('selectedDayungUnitData');
+    await prefs.remove(_selectedDayungUnitOwnerIdKey);
     notifyListeners();
   }
 
@@ -92,6 +96,8 @@ class DayungUnitProvider extends ChangeNotifier {
     final unitJson =
         prefs.getString('selectedDayungUnitData') ??
         prefs.getString('selectedDayungUnit');
+    final ownerId = prefs.getString(_selectedDayungUnitOwnerIdKey);
+    final currentUserId = Supabase.instance.client.auth.currentUser?.id;
     if (unitJson == null) {
       _dayungUnit = null;
       _dayungUnitObj = null;
@@ -101,6 +107,18 @@ class DayungUnitProvider extends ChangeNotifier {
       _currentName = null;
       _currentObj = null;
 
+      notifyListeners();
+      return;
+    }
+    if (currentUserId == null || ownerId == null || ownerId != currentUserId) {
+      _dayungUnit = null;
+      _dayungUnitObj = null;
+      _currentUnitId = null;
+      _currentName = null;
+      _currentObj = null;
+      await prefs.remove('selectedDayungUnit');
+      await prefs.remove('selectedDayungUnitData');
+      await prefs.remove(_selectedDayungUnitOwnerIdKey);
       notifyListeners();
       return;
     }
@@ -124,6 +142,7 @@ class DayungUnitProvider extends ChangeNotifier {
       debugPrint('[DEBUG] loadDayungUnit error: $e');
       await prefs.remove('selectedDayungUnit');
       await prefs.remove('selectedDayungUnitData');
+      await prefs.remove(_selectedDayungUnitOwnerIdKey);
     }
     notifyListeners();
   }
@@ -149,6 +168,12 @@ class DayungUnitProvider extends ChangeNotifier {
     final json = jsonEncode(_dayungUnitObj);
     await prefs.setString('selectedDayungUnit', json);
     await prefs.setString('selectedDayungUnitData', json);
+    final currentUserId = Supabase.instance.client.auth.currentUser?.id;
+    if (currentUserId == null) {
+      await prefs.remove(_selectedDayungUnitOwnerIdKey);
+    } else {
+      await prefs.setString(_selectedDayungUnitOwnerIdKey, currentUserId);
+    }
     notifyListeners();
   }
 
@@ -172,10 +197,17 @@ class DayungUnitProvider extends ChangeNotifier {
     if (_dayungUnitObj == null) {
       await prefs.remove('selectedDayungUnit');
       await prefs.remove('selectedDayungUnitData');
+      await prefs.remove(_selectedDayungUnitOwnerIdKey);
     } else {
       final json = jsonEncode(_dayungUnitObj);
       await prefs.setString('selectedDayungUnit', json);
       await prefs.setString('selectedDayungUnitData', json);
+      final currentUserId = Supabase.instance.client.auth.currentUser?.id;
+      if (currentUserId == null) {
+        await prefs.remove(_selectedDayungUnitOwnerIdKey);
+      } else {
+        await prefs.setString(_selectedDayungUnitOwnerIdKey, currentUserId);
+      }
     }
     notifyListeners();
   }

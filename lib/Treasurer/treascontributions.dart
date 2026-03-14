@@ -504,14 +504,14 @@ class _TreasurerContributionsPageState
                     ),
                   ),
                   const SizedBox(height: 6),
-                  const Text(
-                    'Your payments are separated from other members so you can review both clearly.',
-                    style: TextStyle(
-                      fontSize: 14,
-                      color: kSubText,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
+                  // const Text(
+                  //   'Your payments are separated from other members so you can review both clearly.',
+                  //   style: TextStyle(
+                  //     fontSize: 14,
+                  //     color: kSubText,
+                  //     fontWeight: FontWeight.w600,
+                  //   ),
+                  // ),
                   const SizedBox(height: 16),
                   _paymentShortcutCard(),
                   const SizedBox(height: 16),

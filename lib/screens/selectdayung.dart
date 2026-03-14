@@ -1,6 +1,5 @@
 import 'dart:convert';
 
-import 'package:capstone_app/Auth/login.dart';
 import 'package:capstone_app/Providers/dayung_provider.dart';
 import 'package:capstone_app/Providers/dayung_role_provider.dart';
 import 'package:capstone_app/screens/dayung_map_page.dart';
@@ -20,9 +19,13 @@ const Color kBg = Color(0xFFF8FAFC);
 const Color kCardBg = Color(0xFFFFFFFF);
 const Color kSubText = Color(0xFF6B7280);
 const Color kText = Color(0xFF111827);
+const Color kBorderColor = Color(0xFFE5E7EB);
+const String _selectedDayungUnitOwnerIdKey = 'selectedDayungUnitOwnerId';
 
 class SelectDayungPage extends StatefulWidget {
-  const SelectDayungPage({super.key});
+  const SelectDayungPage({super.key, this.requireSelection = false});
+
+  final bool requireSelection;
 
   @override
   State<SelectDayungPage> createState() => _SelectDayungPageState();
@@ -51,8 +54,13 @@ class _SelectDayungPageState extends State<SelectDayungPage> {
   }
 
   Future<void> _loadCurrentSelectedId() async {
-    // <-- add
     final prefs = await SharedPreferences.getInstance();
+    final currentUserId = _sb.auth.currentUser?.id;
+    final ownerId = prefs.getString(_selectedDayungUnitOwnerIdKey);
+    if (currentUserId == null || ownerId == null || ownerId != currentUserId) {
+      if (mounted) setState(() => _prefsSelectedId = null);
+      return;
+    }
     final raw = prefs.getString('selectedDayungUnit');
     if (raw != null) {
       try {
@@ -73,6 +81,10 @@ class _SelectDayungPageState extends State<SelectDayungPage> {
     final normalized = _normalizeDayung(d);
     await prefs.setString('selectedDayungUnit', jsonEncode(normalized));
     await prefs.setString('selectedDayungUnitData', jsonEncode(normalized));
+    final currentUserId = _sb.auth.currentUser?.id;
+    if (currentUserId != null) {
+      await prefs.setString(_selectedDayungUnitOwnerIdKey, currentUserId);
+    }
     if (!mounted) return normalized;
 
     final id = normalized['id'] is int
@@ -232,84 +244,403 @@ class _SelectDayungPageState extends State<SelectDayungPage> {
     return parts.join(', ');
   }
 
+  Future<bool> _confirmRequiredExit() async {
+    if (!widget.requireSelection) return true;
+
+    final shouldLeave = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
+          title: const Text('Leave selection?'),
+          content: const Text(
+            'You need to choose a Dayung unit to continue. If you go back now, you will return to login.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, false),
+              child: const Text('Stay here'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(dialogContext, true),
+              child: const Text('Back to login'),
+            ),
+          ],
+        );
+      },
+    );
+
+    return shouldLeave == true;
+  }
+
+  Widget _buildIntroCard(bool isWide) {
+    final unitCount = _joined.length;
+    final headline = widget.requireSelection
+        ? 'Choose the Dayung unit for this session'
+        : 'Switch to the Dayung unit you want to use';
+    final supporting = widget.requireSelection
+        ? 'This account has $unitCount available ${unitCount == 1 ? 'unit' : 'units'}. Pick one before entering the dashboard.'
+        : 'Your active unit controls the dashboard data, notifications, and scoped actions you see.';
+
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: kBorderColor),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x110F172A),
+            blurRadius: 18,
+            offset: Offset(0, 8),
+          ),
+        ],
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: isWide ? 56 : 48,
+            height: isWide ? 56 : 48,
+            decoration: BoxDecoration(
+              color: kPrimary.withValues(alpha: 0.10),
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: const Icon(Icons.apartment_rounded, color: kPrimary),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  headline,
+                  style: TextStyle(
+                    fontSize: isWide ? 18 : 16,
+                    fontWeight: FontWeight.w800,
+                    color: kText,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  supporting,
+                  style: const TextStyle(color: kSubText, height: 1.45),
+                ),
+                const SizedBox(height: 12),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 6,
+                      ),
+                      decoration: BoxDecoration(
+                        color: kPrimary.withValues(alpha: 0.08),
+                        borderRadius: BorderRadius.circular(999),
+                      ),
+                      child: Text(
+                        '$unitCount ${unitCount == 1 ? 'unit' : 'units'} available',
+                        style: const TextStyle(
+                          color: kPrimaryDark,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                    if (widget.requireSelection)
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 6,
+                        ),
+                        decoration: BoxDecoration(
+                          color: kWarn.withValues(alpha: 0.14),
+                          borderRadius: BorderRadius.circular(999),
+                        ),
+                        child: const Text(
+                          'Selection required',
+                          style: TextStyle(
+                            color: Color(0xFF92400E),
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDayungCard(
+    BuildContext context,
+    Map<String, dynamic> d,
+    bool isWide,
+    int? currentId,
+  ) {
+    final did = d['id'] is int ? d['id'] as int : int.tryParse('${d['id']}');
+    final isCurrent = currentId != null && did != null && currentId == did;
+
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 180),
+      curve: Curves.easeOutCubic,
+      margin: const EdgeInsets.only(bottom: 14),
+      decoration: BoxDecoration(
+        color: kCardBg,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: isCurrent ? kPrimary : kBorderColor,
+          width: isCurrent ? 1.6 : 1,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: isCurrent
+                ? kPrimary.withValues(alpha: 0.12)
+                : Colors.black.withValues(alpha: 0.04),
+            blurRadius: isCurrent ? 24 : 16,
+            offset: const Offset(0, 10),
+          ),
+        ],
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  width: 48,
+                  height: 48,
+                  decoration: BoxDecoration(
+                    color: isCurrent
+                        ? kPrimary.withValues(alpha: 0.14)
+                        : kPrimary.withValues(alpha: 0.08),
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: Icon(
+                    isCurrent ? Icons.check_circle_rounded : Icons.home_rounded,
+                    color: isCurrent ? kPrimaryDark : kPrimary,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        d['name'] ?? 'Dayung',
+                        style: const TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w800,
+                          color: kText,
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        _address(d),
+                        style: const TextStyle(color: kSubText, height: 1.4),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 6,
+                  ),
+                  decoration: BoxDecoration(
+                    color: isCurrent ? kAccent.withValues(alpha: 0.12) : kBg,
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                  child: Text(
+                    isCurrent ? 'Active now' : 'Available',
+                    style: TextStyle(
+                      color: isCurrent ? const Color(0xFF047857) : kSubText,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton.icon(
+                    icon: Icon(
+                      isCurrent
+                          ? Icons.check_circle
+                          : Icons.radio_button_unchecked_rounded,
+                      size: isWide ? 18 : 15,
+                    ),
+                    label: Text(
+                      isCurrent ? 'Already using this unit' : 'Use this Dayung',
+                      style: TextStyle(fontSize: isWide ? 15 : 13),
+                    ),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: isCurrent ? kSubText : kPrimary,
+                      side: BorderSide(
+                        color: isCurrent ? kBorderColor : kPrimary,
+                      ),
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                    ),
+                    onPressed: isCurrent
+                        ? null
+                        : () async {
+                            final navigator = Navigator.of(context);
+                            final normalized = await _persistSelectionAndNotify(
+                              d,
+                            );
+                            if (!mounted) return;
+                            navigator.pop(normalized);
+                          },
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: TextButton.icon(
+                    icon: const Icon(Icons.map_outlined),
+                    label: const Text('View on Map'),
+                    style: TextButton.styleFrom(
+                      foregroundColor: kAccent,
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                    ),
+                    onPressed: () {
+                      final normalized = _normalizeDayung(d);
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => DayungMapPage(
+                            dayung: normalized,
+                            isMember: (d['is_member'] == true),
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final width = MediaQuery.of(context).size.width;
     final isWide = width > 700;
+    final navigator = Navigator.of(context);
 
-    return Scaffold(
-      backgroundColor: kBg,
-      body: Container(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [kPrimaryDark, kPrimary, kBg],
-            stops: [0.0, 0.15, 0.15],
+    return PopScope<Object?>(
+      canPop: !widget.requireSelection,
+      onPopInvokedWithResult: (didPop, result) async {
+        if (didPop || !widget.requireSelection) return;
+        final canLeave = await _confirmRequiredExit();
+        if (!mounted || !canLeave) return;
+        navigator.pop(null);
+      },
+      child: Scaffold(
+        backgroundColor: kBg,
+        body: Container(
+          decoration: const BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: [kPrimaryDark, kPrimary, kBg],
+              stops: [0.0, 0.18, 0.18],
+            ),
           ),
-        ),
-        child: SafeArea(
-          child: Column(
-            children: [
-              // Modern Header
-              Container(
-                padding: const EdgeInsets.fromLTRB(16, 12, 16, 20),
-                child: Row(
-                  children: [
-                    IconButton(
-                      icon: const Icon(
-                        Icons.arrow_back_rounded,
-                        color: Colors.white,
-                        size: 20,
-                      ),
-                      onPressed: () => Navigator.pop(context, null),
-                      padding: EdgeInsets.zero,
-                      constraints: const BoxConstraints(),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Text(
-                        'Select Your Dayung',
-                        style: TextStyle(
-                          fontSize: isWide ? 24 : 20,
-                          fontWeight: FontWeight.w800,
+          child: SafeArea(
+            child: Column(
+              children: [
+                Container(
+                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 20),
+                  child: Row(
+                    children: [
+                      IconButton(
+                        icon: const Icon(
+                          Icons.arrow_back_rounded,
                           color: Colors.white,
-                          fontFamily: 'Montserrat',
-                          letterSpacing: 0.3,
-                          shadows: [
-                            const Shadow(
-                              color: Colors.black26,
-                              offset: Offset(0, 1),
-                              blurRadius: 2,
+                          size: 20,
+                        ),
+                        onPressed: () async {
+                          final canLeave = await _confirmRequiredExit();
+                          if (!mounted || !canLeave) return;
+                          navigator.pop(null);
+                        },
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Select Your Dayung',
+                              style: TextStyle(
+                                fontSize: isWide ? 24 : 20,
+                                fontWeight: FontWeight.w800,
+                                color: Colors.white,
+                                fontFamily: 'Montserrat',
+                                letterSpacing: 0.3,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              widget.requireSelection
+                                  ? 'Choose one unit to continue'
+                                  : 'Review and switch your active unit',
+                              style: const TextStyle(
+                                color: Color(0xDBEFF6FF),
+                                fontSize: 13,
+                                fontWeight: FontWeight.w500,
+                              ),
                             ),
                           ],
                         ),
                       ),
-                    ),
-                  ],
-                ),
-              ),
-              // Curved container for content
-              Expanded(
-                child: Container(
-                  decoration: const BoxDecoration(
-                    color: kBg,
-                    borderRadius: BorderRadius.only(
-                      topLeft: Radius.circular(32),
-                      topRight: Radius.circular(32),
-                    ),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black12,
-                        blurRadius: 20,
-                        offset: Offset(0, -5),
-                      ),
                     ],
                   ),
-                  child: _buildBody(context, isWide),
                 ),
-              ),
-            ],
+                Expanded(
+                  child: Container(
+                    decoration: const BoxDecoration(
+                      color: kBg,
+                      borderRadius: BorderRadius.only(
+                        topLeft: Radius.circular(32),
+                        topRight: Radius.circular(32),
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black12,
+                          blurRadius: 20,
+                          offset: Offset(0, -5),
+                        ),
+                      ],
+                    ),
+                    child: _buildBody(context, isWide),
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -349,112 +680,15 @@ class _SelectDayungPageState extends State<SelectDayungPage> {
     }
     return RefreshIndicator(
       onRefresh: _fetchJoinedDayung,
-      child: ListView.builder(
-        padding: const EdgeInsets.all(16),
-        itemCount: _joined.length,
-        itemBuilder: (ctx, i) {
-          final d = _joined[i];
-          final did = d['id'] is int
-              ? d['id'] as int
-              : int.tryParse('${d['id']}');
-          final isCurrent =
-              currentId != null && did != null && currentId == did; // <-- fixed
-
-          return Card(
-            elevation: 2,
-            color: kCardBg,
-            margin: const EdgeInsets.only(bottom: 12),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      CircleAvatar(
-                        backgroundColor: kPrimary.withValues(alpha: 0.2),
-                        child: Icon(Icons.home, color: kPrimary),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Text(
-                          d['name'] ?? 'Dayung',
-                          style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.w700,
-                            color: kPrimaryDark,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-                  Text(_address(d), style: TextStyle(color: kSubText)),
-                  const SizedBox(height: 12),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: OutlinedButton.icon(
-                          icon: Icon(
-                            isCurrent
-                                ? Icons.check_circle
-                                : Icons.check_circle_outlined,
-                            size: isWide ? 16 : 12,
-                          ),
-                          label: Text(
-                            isCurrent ? 'Already using' : 'Use this Dayung',
-                            style: TextStyle(fontSize: isWide ? 16 : 11),
-                          ),
-                          style: OutlinedButton.styleFrom(
-                            foregroundColor: isCurrent ? kSubText : kPrimary,
-                            side: BorderSide(
-                              color: isCurrent ? kBorderColor : kPrimary,
-                            ),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                          ),
-                          onPressed: isCurrent
-                              ? null
-                              : () async {
-                                  final navigator = Navigator.of(context);
-                                  final normalized =
-                                      await _persistSelectionAndNotify(d);
-                                  if (!mounted) return;
-                                  navigator.pop(normalized);
-                                },
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: TextButton.icon(
-                          icon: const Icon(Icons.map),
-                          label: const Text('View on Map'),
-                          style: TextButton.styleFrom(foregroundColor: kAccent),
-                          onPressed: () {
-                            final normalized = _normalizeDayung(d);
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (_) => DayungMapPage(
-                                  dayung: normalized,
-                                  isMember: (d['is_member'] == true),
-                                ),
-                              ),
-                            );
-                          },
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-          );
-        },
+      child: ListView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
+        children: [
+          _buildIntroCard(isWide),
+          const SizedBox(height: 16),
+          for (final d in _joined)
+            _buildDayungCard(context, d, isWide, currentId),
+        ],
       ),
     );
   }

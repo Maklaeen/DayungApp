@@ -1,4 +1,5 @@
 import 'package:capstone_app/Providers/dayung_provider.dart';
+import 'package:capstone_app/Providers/dayung_role_provider.dart';
 import 'package:capstone_app/ui/loading/page_skeleton.dart';
 import 'package:capstone_app/ui/theme/branding.dart';
 import 'package:flutter/material.dart';
@@ -269,11 +270,17 @@ class _NotificationPageState extends State<NotificationPage> {
   bool _markingAllRead = false;
   int? _currentUnitId;
 
+  int? _resolveScopedUnitId(BuildContext context) {
+    final memberScopedId = context.read<DayungUnitProvider>().currentUnitId;
+    final roleScopedId = context.read<DayungRoleProvider>().unitId;
+    return memberScopedId ?? roleScopedId;
+  }
+
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      final unitId = context.read<DayungUnitProvider>().currentUnitId;
+      final unitId = _resolveScopedUnitId(context);
       _currentUnitId = unitId;
       _fetchAll(unitId: _currentUnitId);
     });
@@ -282,7 +289,9 @@ class _NotificationPageState extends State<NotificationPage> {
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    final newId = context.watch<DayungUnitProvider>().currentUnitId;
+    final memberScopedId = context.watch<DayungUnitProvider>().currentUnitId;
+    final roleScopedId = context.watch<DayungRoleProvider>().unitId;
+    final newId = memberScopedId ?? roleScopedId;
     if (newId != _currentUnitId) {
       _currentUnitId = newId;
       if (mounted) {
@@ -462,6 +471,20 @@ class _NotificationPageState extends State<NotificationPage> {
     }
 
     try {
+      bool isPresidentForUnit = false;
+      bool isSecretaryForUnit = false;
+      bool isTreasurerForUnit = false;
+      if (scopedUnitId != null) {
+        final unit = await sb
+            .from('dayung_units')
+            .select('president_id, secretary_id, treasurer_id')
+            .eq('id', scopedUnitId)
+            .maybeSingle();
+        isPresidentForUnit = (unit?['president_id'] ?? '').toString() == uid;
+        isSecretaryForUnit = (unit?['secretary_id'] ?? '').toString() == uid;
+        isTreasurerForUnit = (unit?['treasurer_id'] ?? '').toString() == uid;
+      }
+
       // 1) Personal notifications for this user across the account.
       final notifData = List<Map<String, dynamic>>.from(
         await sb
@@ -524,14 +547,18 @@ class _NotificationPageState extends State<NotificationPage> {
 
       List<Map<String, dynamic>> appNotifs = [];
       if (scopedUnitId != null) {
-        final raw = await sb
+        dynamic query = sb
             .from('dayung_application_notifications')
             .select(
               'id, application_id, dayung_unit_id, created_at, seen, applications(name,status,user_id)',
             )
-            .eq('secretary_id', uid)
-            .eq('dayung_unit_id', scopedUnitId)
-            .order('created_at', ascending: false);
+            .eq('dayung_unit_id', scopedUnitId);
+
+        if (isSecretaryForUnit && !isPresidentForUnit) {
+          query = query.eq('secretary_id', uid);
+        }
+
+        final raw = await query.order('created_at', ascending: false);
         appNotifs = List<Map<String, dynamic>>.from(raw)
             .map(
               (r) => {
@@ -551,12 +578,81 @@ class _NotificationPageState extends State<NotificationPage> {
             .toList();
       }
 
+      List<Map<String, dynamic>> treasurerUnitUpdates = [];
+      if (scopedUnitId != null && isTreasurerForUnit) {
+        final notices = await sb
+            .from('death_notices')
+            .select(
+              'id, name, created_at, date_of_death, unpaid_count, total_payment_amount, total_paid_amount',
+            )
+            .eq('dayung_unit_id', scopedUnitId)
+            .order('created_at', ascending: false)
+            .limit(12);
+
+        final deathNoticeRows = List<Map<String, dynamic>>.from(notices);
+        final recentDeathItems = deathNoticeRows.map<Map<String, dynamic>>((r) {
+          final noticeId = r['id'];
+          final name = (r['name'] ?? 'Death Notice').toString();
+          final createdAt = r['created_at'] ?? r['date_of_death'];
+          return {
+            'id': 'death_notice_$noticeId',
+            'type': 'recent_death_notice',
+            'title': 'Recent Death Notice',
+            'body': '$name was added to your unit death notice queue.',
+            'created_at': createdAt,
+            'read_at': createdAt,
+            'is_read': true,
+            'dayung_unit_id': scopedUnitId,
+          };
+        });
+
+        final pendingItems = deathNoticeRows
+            .where((r) {
+              final unpaidCount =
+                  int.tryParse('${r['unpaid_count'] ?? ''}') ?? 0;
+              final totalAmount =
+                  double.tryParse('${r['total_payment_amount'] ?? ''}') ?? 0;
+              final paidAmount =
+                  double.tryParse('${r['total_paid_amount'] ?? ''}') ?? 0;
+              return unpaidCount > 0 || paidAmount < totalAmount;
+            })
+            .map<Map<String, dynamic>>((r) {
+              final noticeId = r['id'];
+              final name = (r['name'] ?? 'Death Notice').toString();
+              final unpaidCount =
+                  int.tryParse('${r['unpaid_count'] ?? ''}') ?? 0;
+              final totalAmount =
+                  double.tryParse('${r['total_payment_amount'] ?? ''}') ?? 0;
+              final paidAmount =
+                  double.tryParse('${r['total_paid_amount'] ?? ''}') ?? 0;
+              final remainingAmount = (totalAmount - paidAmount).clamp(
+                0,
+                double.infinity,
+              );
+              return {
+                'id': 'pending_collection_$noticeId',
+                'type': 'pending_payment_summary',
+                'title': 'Pending Payment Collection',
+                'body': unpaidCount > 0
+                    ? '$unpaidCount member${unpaidCount == 1 ? '' : 's'} still need to pay for $name. Remaining: PHP ${remainingAmount.toStringAsFixed(2)}.'
+                    : 'Collection for $name is still incomplete. Remaining: PHP ${remainingAmount.toStringAsFixed(2)}.',
+                'created_at': r['created_at'] ?? r['date_of_death'],
+                'read_at': r['created_at'] ?? r['date_of_death'],
+                'is_read': true,
+                'dayung_unit_id': scopedUnitId,
+              };
+            });
+
+        treasurerUnitUpdates = [...recentDeathItems, ...pendingItems];
+      }
+
       // 5) Merge and sort by created_at desc
       final merged =
           <Map<String, dynamic>>[
             ...notifData,
             ...mappedAnnouncements,
             ...appNotifs,
+            ...treasurerUnitUpdates,
           ]..sort((a, b) {
             final ta = DateTime.tryParse('${a['created_at']}') ?? DateTime(0);
             final tb = DateTime.tryParse('${b['created_at']}') ?? DateTime(0);

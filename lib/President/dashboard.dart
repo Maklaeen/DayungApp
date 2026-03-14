@@ -5,8 +5,8 @@ import 'package:capstone_app/Beneficiary/beneficiary.dart' hide kPrimary;
 import 'package:capstone_app/President/manage_roles.dart';
 import 'package:capstone_app/President/president_payment_page.dart';
 import 'package:capstone_app/President/post_announcement.dart';
-import 'package:capstone_app/President/presclaims.dart';
-import 'package:capstone_app/President/prescontribution.dart';
+import 'package:capstone_app/President/presclaims.dart' hide kPrimary;
+import 'package:capstone_app/President/prescontribution.dart' hide kPrimary;
 import 'package:capstone_app/President/presidentmemberspage.dart'
     hide kPrimary, kNeutralText;
 import 'package:capstone_app/Providers/dayung_provider.dart';
@@ -53,6 +53,7 @@ class _PresidentDashboardPageState extends State<PresidentDashboardPage> {
   List<String> _recentDeaths = [];
   int _pendingMembers = 0;
   num _pendingAmount = 0;
+  int _unreadNotifCount = 0;
   Map<String, dynamic>? _latestAnnouncement;
   bool _loadingAnnouncement = true;
   int _currentIndex = 0;
@@ -99,6 +100,7 @@ class _PresidentDashboardPageState extends State<PresidentDashboardPage> {
       _fetchActiveMembersCount(_managedUnitIds),
       _fetchRecentDeaths(_managedUnitIds),
       _fetchPendingPayments(_managedUnitIds),
+      _fetchUnreadNotifCount(_managedUnitIds),
       _fetchLatestAnnouncement(_managedUnitIds),
     ]);
   }
@@ -161,6 +163,7 @@ class _PresidentDashboardPageState extends State<PresidentDashboardPage> {
         _fetchActiveMembersCount(ids),
         _fetchRecentDeaths(ids),
         _fetchPendingPayments(ids),
+        _fetchUnreadNotifCount(ids),
         _fetchLatestAnnouncement(ids),
       ]);
     } catch (e) {
@@ -206,9 +209,12 @@ class _PresidentDashboardPageState extends State<PresidentDashboardPage> {
         .eq('president_id', uid)
         .order('id');
 
-    return List<Map<String, dynamic>>.from(
+    final ids = List<Map<String, dynamic>>.from(
       rows,
     ).map((e) => e['id'] as int).toList();
+    if (ids.isNotEmpty) return ids;
+    if (_dayungUnitId != null) return [_dayungUnitId!];
+    return <int>[];
   }
 
   // No filepath: utility snippet
@@ -268,15 +274,19 @@ class _PresidentDashboardPageState extends State<PresidentDashboardPage> {
       _activeMembersCount = 0;
       return;
     }
-    final users = await _sb
-        .from('users')
-        .select('id,is_deceased')
-        .inFilter('id', userIds.toList());
-    final alive = List<Map<String, dynamic>>.from(users)
-        .where((u) => (u['is_deceased'] ?? false) == false)
-        .map((u) => u['id'].toString())
-        .toSet();
-    _activeMembersCount = alive.length;
+    final deaths = await _sb
+        .from('death_notices')
+        .select('user_id, deceased_type')
+        .inFilter('user_id', userIds.toList())
+        .or('deceased_type.is.null,deceased_type.eq.member');
+    final deceasedIds = <String>{
+      for (final row in List<Map<String, dynamic>>.from(deaths))
+        if ((row['user_id'] ?? '').toString().isNotEmpty)
+          row['user_id'].toString(),
+    };
+    _activeMembersCount = userIds
+        .where((id) => !deceasedIds.contains(id))
+        .length;
   }
 
   Future<void> _fetchRecentDeaths(List<int> ids) async {
@@ -298,6 +308,86 @@ class _PresidentDashboardPageState extends State<PresidentDashboardPage> {
   Future<void> _fetchPendingPayments(List<int> ids) async {
     _pendingMembers = 0;
     _pendingAmount = 0;
+
+    if (ids.isEmpty) return;
+
+    final rows = await _sb
+        .from('payments')
+        .select('user_id, amount, status')
+        .inFilter('dayung_unit_id', ids);
+
+    final memberIds = <String>{};
+    double total = 0;
+    for (final row in List<Map<String, dynamic>>.from(rows)) {
+      final status = (row['status'] ?? '').toString().toLowerCase();
+      if (status == 'paid') continue;
+
+      final userId = (row['user_id'] ?? '').toString();
+      if (userId.isNotEmpty) memberIds.add(userId);
+
+      final amount = row['amount'];
+      if (amount is num) {
+        total += amount.toDouble();
+      } else {
+        total += double.tryParse('$amount') ?? 0;
+      }
+    }
+
+    _pendingMembers = memberIds.length;
+    _pendingAmount = total;
+  }
+
+  Future<void> _fetchUnreadNotifCount(List<int> ids) async {
+    final uid = _sb.auth.currentUser?.id;
+    if (uid == null) {
+      _unreadNotifCount = 0;
+      return;
+    }
+
+    try {
+      final notifRows = await _sb
+          .from('notifications')
+          .select('id')
+          .eq('recipient_id', uid)
+          .isFilter('read_at', null);
+      int unread = (notifRows as List).length;
+
+      if (ids.isNotEmpty) {
+        final annRows = await _sb
+            .from('announcements')
+            .select('id')
+            .inFilter('dayung_unit_id', ids);
+        final annIds = (annRows as List)
+            .map((row) => (row as Map)['id'])
+            .whereType<int>()
+            .toList();
+
+        if (annIds.isNotEmpty) {
+          final reads = await _sb
+              .from('announcement_reads')
+              .select('announcement_id')
+              .eq('user_id', uid)
+              .inFilter('announcement_id', annIds);
+          final readIds = Set<int>.from(
+            (reads as List).map(
+              (row) => (row as Map)['announcement_id'] as int,
+            ),
+          );
+          unread += annIds.where((id) => !readIds.contains(id)).length;
+        }
+
+        final appRows = await _sb
+            .from('dayung_application_notifications')
+            .select('id')
+            .inFilter('dayung_unit_id', ids)
+            .eq('seen', false);
+        unread += (appRows as List).length;
+      }
+
+      _unreadNotifCount = unread;
+    } catch (_) {
+      _unreadNotifCount = 0;
+    }
   }
 
   List<Widget> get _pages => [
@@ -533,8 +623,8 @@ class _PresidentDashboardPageState extends State<PresidentDashboardPage> {
                 onTap: () => Navigator.push(
                   context,
                   MaterialPageRoute(builder: (_) => const NotificationPage()),
-                ),
-                badge: '1',
+                ).then((_) => _load()),
+                badge: _unreadNotifCount > 0 ? '$_unreadNotifCount' : null,
               ),
             ],
           ),
@@ -1023,13 +1113,13 @@ class _PresidentDashboardPageState extends State<PresidentDashboardPage> {
         const _PostAnnouncementButton(),
         const SizedBox(height: 18),
         _payContributionButton(context),
-        const SizedBox(height: 12),
+        const SizedBox(height: 18),
         _UpcomingAnnouncementCard(
           loading: _loadingAnnouncement,
           announcement: _latestAnnouncement,
         ),
-        const SizedBox(height: 12),
-        const _ContributionBarChartCard(),
+        const SizedBox(height: 18),
+        _ContributionBarChartCard(dayungUnitIds: _managedUnitIds),
       ],
     );
   }
@@ -1229,7 +1319,9 @@ class _PostAnnouncementButton extends StatelessWidget {
 /* ------------------------- SIMPLE BAR CHART CARD ------------------------ */
 
 class _ContributionBarChartCard extends StatefulWidget {
-  const _ContributionBarChartCard();
+  final List<int> dayungUnitIds;
+
+  const _ContributionBarChartCard({required this.dayungUnitIds});
 
   @override
   State<_ContributionBarChartCard> createState() =>
@@ -1239,6 +1331,8 @@ class _ContributionBarChartCard extends StatefulWidget {
 class _ContributionBarChartCardState extends State<_ContributionBarChartCard> {
   Map<String, double> _yearTotals = {};
   bool _loading = true;
+  double _totalAmount = 0;
+  int _recordCount = 0;
 
   @override
   void initState() {
@@ -1246,41 +1340,64 @@ class _ContributionBarChartCardState extends State<_ContributionBarChartCard> {
     _loadData();
   }
 
+  @override
+  void didUpdateWidget(covariant _ContributionBarChartCard oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!_sameIds(oldWidget.dayungUnitIds, widget.dayungUnitIds)) {
+      _loadData();
+    }
+  }
+
+  bool _sameIds(List<int> a, List<int> b) {
+    if (a.length != b.length) return false;
+    for (var index = 0; index < a.length; index++) {
+      if (a[index] != b[index]) return false;
+    }
+    return true;
+  }
+
   Future<Map<String, double>> fetchYearlyContributions({
     List<int>? unitIds,
   }) async {
     final sb = Supabase.instance.client;
 
-    // Build query: only paid payments, optionally filter by unit
-    var query = sb
-        .from('payments')
-        .select('paid_at, amount')
-        .eq('status', 'paid');
-
-    if (unitIds != null && unitIds.isNotEmpty) {
-      query = query.inFilter('dayung_unit_id', unitIds);
+    if (unitIds == null || unitIds.isEmpty) {
+      _recordCount = 0;
+      _totalAmount = 0;
+      return <String, double>{};
     }
 
-    final rows = await query;
+    final rows = await sb
+        .from('payments')
+        .select('paid_at, created_at, amount, dayung_unit_id, status')
+        .inFilter('dayung_unit_id', unitIds)
+        .eq('status', 'paid');
 
-    // Aggregate by year
     final Map<String, double> yearTotals = {};
+    var totalAmount = 0.0;
+    var recordCount = 0;
+
     for (final row in List<Map<String, dynamic>>.from(rows)) {
       final paidAtStr = row['paid_at'] ?? row['created_at'];
       final paidAt = DateTime.tryParse(paidAtStr?.toString() ?? '');
+      final amount = double.tryParse(row['amount'].toString()) ?? 0.0;
       if (paidAt != null) {
         final year = paidAt.year.toString();
-        final amount = double.tryParse(row['amount'].toString()) ?? 0.0;
         yearTotals[year] = (yearTotals[year] ?? 0) + amount;
+        totalAmount += amount;
+        recordCount++;
       }
     }
+
+    _totalAmount = totalAmount;
+    _recordCount = recordCount;
 
     return yearTotals;
   }
 
   Future<void> _loadData() async {
-    // Optionally pass unitIds if you want to filter
-    final data = await fetchYearlyContributions();
+    setState(() => _loading = true);
+    final data = await fetchYearlyContributions(unitIds: widget.dayungUnitIds);
     if (mounted) {
       setState(() {
         _yearTotals = data;
@@ -1296,12 +1413,12 @@ class _ContributionBarChartCardState extends State<_ContributionBarChartCard> {
     final maxY = barValues.isNotEmpty
         ? (barValues.reduce((a, b) => a > b ? a : b) * 1.2)
         : 25.0;
+    final hasUnits = widget.dayungUnitIds.isNotEmpty;
 
     return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 20),
       decoration: BoxDecoration(
         color: kCardBg,
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(22),
         border: Border.all(
           color: kBorderColor.withValues(alpha: 0.3),
           width: 1,
@@ -1346,13 +1463,56 @@ class _ContributionBarChartCardState extends State<_ContributionBarChartCard> {
                 ),
               ],
             ),
+            const SizedBox(height: 8),
+            Text(
+              hasUnits
+                  ? 'Paid contributions across your managed Dayung members and officers.'
+                  : 'No managed Dayung units available yet.',
+              style: const TextStyle(
+                fontFamily: 'OpenSans',
+                fontSize: 13,
+                color: kSubText,
+                height: 1.4,
+              ),
+            ),
+            const SizedBox(height: 16),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF8FAFC),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: kBorderColor.withValues(alpha: 0.9)),
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: _ChartStat(
+                      label: 'Records',
+                      value: _recordCount.toString(),
+                    ),
+                  ),
+                  Container(width: 1, height: 36, color: kBorderColor),
+                  Expanded(
+                    child: _ChartStat(
+                      label: 'Total Paid',
+                      value: '₱${_totalAmount.toStringAsFixed(0)}',
+                    ),
+                  ),
+                ],
+              ),
+            ),
             const SizedBox(height: 16),
             SizedBox(
               height: 180,
               child: _loading
                   ? const Center(child: CircularProgressIndicator())
+                  : !hasUnits
+                  ? const Center(child: Text('No managed Dayung units found.'))
                   : barLabels.isEmpty
-                  ? const Center(child: Text('No data'))
+                  ? const Center(
+                      child: Text('No paid contributions found yet.'),
+                    )
                   : BarChart(
                       BarChartData(
                         alignment: BarChartAlignment.spaceAround,
@@ -1474,6 +1634,41 @@ class _MiniLegendRow extends StatelessWidget {
   );
 }
 
+class _ChartStat extends StatelessWidget {
+  final String label;
+  final String value;
+
+  const _ChartStat({required this.label, required this.value});
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        Text(
+          value,
+          style: const TextStyle(
+            fontFamily: 'Montserrat',
+            fontSize: 18,
+            fontWeight: FontWeight.w800,
+            color: kNeutralText,
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          label,
+          style: const TextStyle(
+            fontFamily: 'OpenSans',
+            fontSize: 12,
+            color: kSubText,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
 class _UpcomingAnnouncementCard extends StatelessWidget {
   final bool loading;
   final Map<String, dynamic>? announcement;
@@ -1487,18 +1682,16 @@ class _UpcomingAnnouncementCard extends StatelessWidget {
   Widget build(BuildContext context) {
     if (loading) {
       return Container(
-        margin: const EdgeInsets.symmetric(horizontal: 20),
         padding: const EdgeInsets.symmetric(vertical: 24),
         child: const Center(child: CircularProgressIndicator()),
       );
     }
     if (announcement == null) {
       return Container(
-        margin: const EdgeInsets.symmetric(horizontal: 20),
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
         decoration: BoxDecoration(
           color: kCardBg,
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(22),
           border: Border.all(
             color: kBorderColor.withValues(alpha: 0.3),
             width: 1,
@@ -1511,28 +1704,47 @@ class _UpcomingAnnouncementCard extends StatelessWidget {
             ),
           ],
         ),
-        child: Row(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: kPrimary.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: const Icon(Icons.event_rounded, color: kPrimary, size: 20),
-            ),
-            const SizedBox(width: 12),
-            const Expanded(
-              child: Text(
-                'No upcoming announcements.',
-                style: TextStyle(
-                  fontFamily: 'Montserrat',
-                  fontSize: 16,
-                  height: 1.3,
-                  color: kNeutralText,
-                  fontWeight: FontWeight.w700,
-                  letterSpacing: 0.2,
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: kPrimary.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: const Icon(
+                    Icons.campaign_rounded,
+                    color: kPrimary,
+                    size: 20,
+                  ),
                 ),
+                const SizedBox(width: 12),
+                const Expanded(
+                  child: Text(
+                    'Latest Announcement',
+                    style: TextStyle(
+                      fontFamily: 'Montserrat',
+                      fontSize: 18,
+                      height: 1.3,
+                      color: kNeutralText,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 0.2,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            const Text(
+              'No announcements posted yet for your managed Dayung units.',
+              style: TextStyle(
+                fontFamily: 'OpenSans',
+                fontSize: 13,
+                height: 1.5,
+                color: kSubText,
               ),
             ),
           ],
@@ -1541,6 +1753,7 @@ class _UpcomingAnnouncementCard extends StatelessWidget {
     }
 
     final title = (announcement!['title'] ?? '').toString();
+    final body = (announcement!['body'] ?? '').toString().trim();
     final createdAt = announcement!['created_at']?.toString();
     String dateStr = '';
     if (createdAt != null && createdAt.isNotEmpty) {
@@ -1551,11 +1764,10 @@ class _UpcomingAnnouncementCard extends StatelessWidget {
     }
 
     return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 20),
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
       decoration: BoxDecoration(
         color: kCardBg,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(22),
         border: Border.all(
           color: kBorderColor.withValues(alpha: 0.3),
           width: 1,
@@ -1568,44 +1780,92 @@ class _UpcomingAnnouncementCard extends StatelessWidget {
           ),
         ],
       ),
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: kPrimary.withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: const Icon(Icons.event_rounded, color: kPrimary, size: 20),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: const TextStyle(
-                    fontFamily: 'Montserrat',
-                    fontSize: 16,
-                    height: 1.3,
-                    color: kNeutralText,
-                    fontWeight: FontWeight.w700,
-                    letterSpacing: 0.2,
-                  ),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: kPrimary.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(12),
                 ),
-                if (dateStr.isNotEmpty)
-                  Text(
-                    dateStr,
-                    style: const TextStyle(
-                      fontSize: 12,
-                      color: kSubText,
-                      fontWeight: FontWeight.w500,
+                child: const Icon(
+                  Icons.campaign_rounded,
+                  color: kPrimary,
+                  size: 20,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Latest Announcement',
+                      style: TextStyle(
+                        fontFamily: 'Montserrat',
+                        fontSize: 18,
+                        height: 1.3,
+                        color: kNeutralText,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 0.2,
+                      ),
                     ),
-                  ),
-              ],
+                    if (dateStr.isNotEmpty) ...[
+                      const SizedBox(height: 4),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 6,
+                        ),
+                        decoration: BoxDecoration(
+                          color: kPrimary.withValues(alpha: 0.08),
+                          borderRadius: BorderRadius.circular(999),
+                        ),
+                        child: Text(
+                          dateStr,
+                          style: const TextStyle(
+                            fontSize: 12,
+                            color: kPrimary,
+                            fontWeight: FontWeight.w700,
+                            fontFamily: 'Montserrat',
+                          ),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          Text(
+            title.isEmpty ? 'Untitled announcement' : title,
+            style: const TextStyle(
+              fontFamily: 'Montserrat',
+              fontSize: 16,
+              height: 1.35,
+              color: kNeutralText,
+              fontWeight: FontWeight.w700,
             ),
           ),
+          if (body.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            Text(
+              body,
+              maxLines: 3,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                fontFamily: 'OpenSans',
+                fontSize: 13,
+                height: 1.5,
+                color: kSubText,
+              ),
+            ),
+          ],
         ],
       ),
     );

@@ -11,6 +11,7 @@ import 'package:capstone_app/pages/recentdeathnotices.dart';
 import 'package:capstone_app/profile/profile.dart';
 import 'package:capstone_app/Auth/login.dart';
 import 'package:capstone_app/settings/profsettings.dart';
+// import 'package:capstone_app/profile/dayung_profile.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -210,6 +211,14 @@ class _MemberDashboardPageState extends State<MemberDashboardPage>
       if (!mounted) return;
       setState(() => _unreadNotifCount = 0);
     }
+  }
+
+  Future<void> _openNotifications() async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const NotificationPage()),
+    );
+    await _fetchUnreadNotifCount();
   }
 
   void _showAnnouncementDialog(Map<String, dynamic> notif) {
@@ -770,7 +779,7 @@ class _MemberDashboardPageState extends State<MemberDashboardPage>
             const SizedBox(height: 24),
             _modernRecentActivity(),
             const SizedBox(height: 24),
-            // _modernQuickActions(),
+            _modernQuickActions(),
             const SizedBox(height: 100), // Space for bottom nav
           ],
         ),
@@ -828,10 +837,7 @@ class _MemberDashboardPageState extends State<MemberDashboardPage>
                 icon: Icons.notifications_active_rounded,
                 color: kWarn,
                 tooltip: 'Notifications',
-                onTap: () => Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (_) => const NotificationPage()),
-                ),
+                onTap: _openNotifications,
                 badge: _unreadNotifCount > 0 ? '$_unreadNotifCount' : null,
               ),
             ],
@@ -1249,7 +1255,7 @@ class _MemberDashboardPageState extends State<MemberDashboardPage>
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         const Text(
-          "Recent Activity",
+          'Recent Activity',
           style: TextStyle(
             fontSize: 18,
             fontWeight: FontWeight.w800,
@@ -1263,6 +1269,7 @@ class _MemberDashboardPageState extends State<MemberDashboardPage>
           decoration: BoxDecoration(
             color: Colors.white,
             borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: const Color(0xFFDDE7F5)),
             boxShadow: [
               BoxShadow(
                 color: Colors.black.withValues(alpha: 0.05),
@@ -1271,57 +1278,157 @@ class _MemberDashboardPageState extends State<MemberDashboardPage>
               ),
             ],
           ),
-          child: _pendingPaymentMessages.isEmpty
-              ? const Center(child: Text('No Recent Activity'))
-              : Column(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 10,
+                ),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFEFF6FF),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Row(
                   children: [
-                    for (final msg in _pendingPaymentMessages)
-                      Row(
-                        children: [
-                          const Icon(
-                            Icons.info_outline,
-                            color: Colors.redAccent,
-                            size: 25,
-                          ),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: Text(
-                              msg,
-                              style: const TextStyle(
-                                color: Colors.redAccent,
-                                fontWeight: FontWeight.w600,
-                                fontSize: 20,
-                              ),
-                            ),
-                          ),
-                        ],
+                    const Icon(
+                      Icons.notifications_active_rounded,
+                      color: kPrimaryDark,
+                      size: 18,
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        _pendingPaymentMessages.isEmpty
+                            ? 'No payment reminders right now.'
+                            : '${_pendingPaymentMessages.length} reminder(s) need your attention.',
+                        style: const TextStyle(
+                          color: kText,
+                          fontWeight: FontWeight.w600,
+                          fontSize: 13,
+                          fontFamily: 'OpenSans',
+                        ),
                       ),
+                    ),
                   ],
                 ),
+              ),
+              const SizedBox(height: 14),
+              if (_pendingPaymentMessages.isEmpty)
+                const Text(
+                  'No recent activity',
+                  style: TextStyle(
+                    color: kSubText,
+                    fontWeight: FontWeight.w600,
+                    fontSize: 14,
+                    fontFamily: 'OpenSans',
+                  ),
+                )
+              else
+                ..._pendingPaymentMessages
+                    .take(3)
+                    .map(
+                      (msg) => Padding(
+                        padding: const EdgeInsets.only(bottom: 10),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Container(
+                              width: 8,
+                              height: 8,
+                              margin: const EdgeInsets.only(top: 6),
+                              decoration: const BoxDecoration(
+                                color: Color(0xFFEF4444),
+                                shape: BoxShape.circle,
+                              ),
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Text(
+                                msg,
+                                style: const TextStyle(
+                                  color: kText,
+                                  fontWeight: FontWeight.w600,
+                                  fontSize: 14,
+                                  fontFamily: 'OpenSans',
+                                  height: 1.35,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+            ],
+          ),
         ),
       ],
     );
   }
 
-  // // Quick Access
-  // Widget _modernQuickActions() {
-  //   return Column(
-  //     crossAxisAlignment: CrossAxisAlignment.start,
-  //     children: [
-  //       const Text(
-  //         "Quick Access",
-  //         style: TextStyle(
-  //           fontSize: 18,
-  //           fontWeight: FontWeight.w800,
-  //           color: Color(0xFF111827),
-  //           fontFamily: 'Montserrat',
-  //         ),
-  //       ),
-  //       const SizedBox(height: 16),
-  //       Row(
-  //         children: [
-  //           Expanded(
-  //             child: _modernQuickActionCard(
+  Widget _modernQuickActions() {
+    final id = _asInt(_selectedDayungUnitObj?['id']);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'Quick Access',
+          style: TextStyle(
+            fontSize: 18,
+            fontWeight: FontWeight.w800,
+            color: Color(0xFF111827),
+            fontFamily: 'Montserrat',
+          ),
+        ),
+        const SizedBox(height: 16),
+        _modernActionCard(
+          icon: Icons.receipt_long_rounded,
+          title: 'Receipts',
+          subtitle: 'Open your payment history and official receipts',
+          color: const Color(0xFF10B981),
+          onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const ReceiptsPage()),
+            );
+          },
+        ),
+        const SizedBox(height: 8),
+        _modernActionCard(
+          icon: Icons.qr_code_rounded,
+          title: 'GCash Payment',
+          subtitle: 'Continue payment using the unit QR page',
+          color: const Color(0xFF3B82F6),
+          onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => GCashPaymentPage(dayungUnitId: id),
+              ),
+            );
+          },
+        ),
+        const SizedBox(height: 8),
+        _modernActionCard(
+          icon: Icons.family_restroom_rounded,
+          title: 'Recent Death Notices',
+          subtitle: 'Check the latest notices that affect contributions',
+          color: const Color(0xFFF59E0B),
+          onTap: () {
+            if (id == null) return;
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => RecentDeathNotices(dayungUnitId: id),
+              ),
+            );
+          },
+        ),
+      ],
+    );
+  }
   //               icon: Icons.info_outline_rounded,
   //               title: "Contribution Tips",
   //               color: const Color(0xFF3B82F6),
@@ -1532,14 +1639,9 @@ class _MemberDashboardPageState extends State<MemberDashboardPage>
                 _ModernDrawerTile(
                   icon: Icons.notifications,
                   label: 'Notifications',
-                  onTap: () {
+                  onTap: () async {
                     Navigator.pop(context);
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => const NotificationPage(),
-                      ),
-                    );
+                    await _openNotifications();
                   },
                 ),
                 _ModernDrawerTile(
@@ -1555,6 +1657,19 @@ class _MemberDashboardPageState extends State<MemberDashboardPage>
                     );
                   },
                 ),
+                // _ModernDrawerTile(
+                //   icon: Icons.swap_horiz_rounded,
+                //   label: 'Change Dayung',
+                //   onTap: () {
+                //     Navigator.pop(context);
+                //     Navigator.push(
+                //       context,
+                //       MaterialPageRoute(
+                //         builder: (_) => const DayungSettingsPage(),
+                //       ),
+                //     );
+                //   },
+                // ),
                 const Divider(height: 32, thickness: 1, color: kSubText),
                 _ModernDrawerTile(
                   icon: Icons.logout,

@@ -26,6 +26,7 @@ const Color kCardBg = Color(0xFFFFFFFF);
 const Color kBorderColor = Color(0xFFE5E7EB);
 const Color kSuccess = Color(0xFF10B981);
 const double kEdge = 16;
+const String kSelectedDayungUnitOwnerIdKey = 'selectedDayungUnitOwnerId';
 
 class Login extends StatefulWidget {
   const Login({super.key});
@@ -634,6 +635,7 @@ class _LoginState extends State<Login> {
   Future<void> _routeAfterLogin(PostgrestMap userRow) async {
     final sb = Supabase.instance.client;
     final uid = sb.auth.currentUser?.id;
+    if (uid == null) return;
     final roleProvider = context.read<DayungRoleProvider>();
     final dayungUnitProvider = context.read<DayungUnitProvider>();
 
@@ -733,6 +735,7 @@ class _LoginState extends State<Login> {
     // Try previously saved selection
     Map<String, dynamic>? saved;
     final rawSaved = prefs.getString('selectedDayungUnit');
+    final savedOwnerId = prefs.getString(kSelectedDayungUnitOwnerIdKey);
     int? savedId;
     if (rawSaved != null) {
       try {
@@ -745,16 +748,23 @@ class _LoginState extends State<Login> {
 
     Map<String, dynamic>? selected;
 
-    final hasValidSaved = savedId != null && allIds.contains(savedId);
+    final hasValidSaved =
+        savedOwnerId == uid && savedId != null && allIds.contains(savedId);
 
     if (allIds.length > 1 && !hasValidSaved) {
       // Need user to pick one
       if (!mounted) return;
       final picked = await Navigator.push<Map<String, dynamic>?>(
         context,
-        MaterialPageRoute(builder: (_) => const SelectDayungPage()),
+        MaterialPageRoute(
+          builder: (_) => const SelectDayungPage(requireSelection: true),
+        ),
       );
       if (!mounted) return;
+      if (picked == null) {
+        await sb.auth.signOut();
+        return;
+      }
       selected = picked;
     } else if (hasValidSaved) {
       // Reuse previous
@@ -780,6 +790,7 @@ class _LoginState extends State<Login> {
 
     await prefs.setString('selectedDayungUnit', jsonEncode(selected));
     await prefs.setString('selectedDayungUnitData', jsonEncode(selected));
+    await prefs.setString(kSelectedDayungUnitOwnerIdKey, uid);
 
     if (selected['id'] == null && allIds.isEmpty) {
       // attempt officer fallback

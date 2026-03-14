@@ -140,14 +140,14 @@ class _SecretaryContributionsPageState
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            'Need to settle your own contribution?',
-            style: TextStyle(
-              color: Colors.white,
-              fontSize: 17,
-              fontWeight: FontWeight.w800,
-            ),
-          ),
+          // const Text(
+          //   'Need to settle your own contribution?',
+          //   style: TextStyle(
+          //     color: Colors.white,
+          //     fontSize: 17,
+          //     fontWeight: FontWeight.w800,
+          //   ),
+          // ),
           const SizedBox(height: 8),
           const Text(
             'Open your payment page to review your pending records and choose cash or GCash.',

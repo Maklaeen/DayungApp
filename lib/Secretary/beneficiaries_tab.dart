@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:capstone_app/Secretary/secretary_ui.dart';
 import 'package:capstone_app/utils/supabase_storage.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -29,6 +30,7 @@ class _SecretaryBeneficiariesTabState extends State<SecretaryBeneficiariesTab> {
   Map<String, List<dynamic>> _pendingByUser = {};
   Map<String, List<dynamic>> _activeByUser = {};
   bool _loading = true;
+  String _searchQuery = '';
 
   @override
   void initState() {
@@ -107,7 +109,7 @@ class _SecretaryBeneficiariesTabState extends State<SecretaryBeneficiariesTab> {
           .select(
             'id, user_id, full_name, relationship, dob, status, birth_certificate, marital_status, valid_id',
           )
-          .eq('dayung_unit_id', widget.dayungUnitId.toString())
+          .eq('dayung_unit_id', widget.dayungUnitId)
           .inFilter('status', ['Approved', 'Pending'])
           .order('full_name', ascending: true);
 
@@ -162,52 +164,224 @@ class _SecretaryBeneficiariesTabState extends State<SecretaryBeneficiariesTab> {
     }
   }
 
+  Map<String, List<dynamic>> _filteredGrouped(
+    Map<String, List<dynamic>> grouped,
+  ) {
+    final query = _searchQuery.trim().toLowerCase();
+    if (query.isEmpty) return grouped;
+
+    final filtered = <String, List<dynamic>>{};
+    for (final entry in grouped.entries) {
+      final userName = (_users[entry.key] ?? '').toString().toLowerCase();
+      final items = entry.value.where((raw) {
+        final item = Map<String, dynamic>.from(raw as Map);
+        final fullName = (item['full_name'] ?? '').toString().toLowerCase();
+        final relationship = (item['relationship'] ?? '')
+            .toString()
+            .toLowerCase();
+        final maritalStatus = (item['marital_status'] ?? '')
+            .toString()
+            .toLowerCase();
+        return userName.contains(query) ||
+            fullName.contains(query) ||
+            relationship.contains(query) ||
+            maritalStatus.contains(query);
+      }).toList();
+
+      if (items.isNotEmpty) {
+        filtered[entry.key] = items;
+      }
+    }
+    return filtered;
+  }
+
+  int get _activeCount =>
+      _activeByUser.values.fold(0, (sum, items) => sum + items.length);
+
+  int get _pendingCount =>
+      _pendingByUser.values.fold(0, (sum, items) => sum + items.length);
+
+  Widget _overviewStat({
+    required IconData icon,
+    required String label,
+    required String value,
+    required Color tone,
+  }) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: tone.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: tone.withValues(alpha: 0.15)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, color: tone, size: 16),
+          const SizedBox(width: 8),
+          Text(
+            value,
+            style: const TextStyle(
+              fontSize: 15,
+              fontWeight: FontWeight.w900,
+              color: kText,
+              fontFamily: 'Montserrat',
+            ),
+          ),
+          const SizedBox(width: 6),
+          Text(
+            label,
+            style: const TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+              color: kSubText,
+              fontFamily: 'Montserrat',
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildToolbarCard() {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: const Color(0xFFE5E7EB)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              _overviewStat(
+                icon: Icons.check_circle_rounded,
+                label: 'Active',
+                value: '$_activeCount',
+                tone: kSuccess,
+              ),
+              _overviewStat(
+                icon: Icons.schedule_rounded,
+                label: 'Pending',
+                value: '$_pendingCount',
+                tone: kWarn,
+              ),
+              _overviewStat(
+                icon: Icons.people_alt_rounded,
+                label: 'Members',
+                value: '${_users.length}',
+                tone: kAccent,
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          TextField(
+            decoration: InputDecoration(
+              hintText: 'Search member, beneficiary, relationship, or status',
+              prefixIcon: const Icon(Icons.search_rounded),
+              filled: true,
+              fillColor: kBg,
+              isDense: true,
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: 14,
+                vertical: 12,
+              ),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(14),
+                borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(14),
+                borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(14),
+                borderSide: const BorderSide(color: kAccent),
+              ),
+            ),
+            onChanged: (value) => setState(() => _searchQuery = value),
+          ),
+          if (_searchQuery.trim().isNotEmpty) ...[
+            const SizedBox(height: 10),
+            TextButton.icon(
+              onPressed: () => setState(() => _searchQuery = ''),
+              icon: const Icon(Icons.filter_alt_off_rounded),
+              label: const Text('Reset search'),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
   Widget _groupedList(
     Map<String, List<dynamic>> grouped, {
     bool isPending = false,
   }) {
     if (grouped.isEmpty) {
-      return Center(
-        child: Card(
-          margin: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
-          elevation: 2,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(18),
-          ),
-          child: Padding(
-            padding: const EdgeInsets.all(32),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(Icons.inbox_outlined, size: 48, color: kSubText),
-                const SizedBox(height: 16),
-                Text(
-                  isPending
-                      ? 'No pending beneficiaries found'
-                      : 'No active beneficiaries found',
-                  style: const TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w700,
-                    color: kText,
-                    fontFamily: 'Montserrat',
+      final hasSearch = _searchQuery.trim().isNotEmpty;
+      return ListView(
+        padding: const EdgeInsets.fromLTRB(12, 12, 12, 20),
+        children: [
+          _buildToolbarCard(),
+          Card(
+            margin: const EdgeInsets.fromLTRB(8, 16, 8, 12),
+            elevation: 2,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(18),
+            ),
+            child: Padding(
+              padding: const EdgeInsets.all(32),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.inbox_outlined, size: 48, color: kSubText),
+                  const SizedBox(height: 16),
+                  Text(
+                    hasSearch
+                        ? 'No matching beneficiaries found'
+                        : isPending
+                        ? 'No pending beneficiaries found'
+                        : 'No active beneficiaries found',
+                    style: const TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w700,
+                      color: kText,
+                      fontFamily: 'Montserrat',
+                    ),
+                    textAlign: TextAlign.center,
                   ),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  isPending
-                      ? 'No pending beneficiaries have been recorded yet'
-                      : 'No active beneficiaries have been recorded yet',
-                  style: const TextStyle(
-                    fontSize: 14,
-                    color: kSubText,
-                    fontFamily: 'OpenSans',
+                  const SizedBox(height: 8),
+                  Text(
+                    hasSearch
+                        ? 'Try a different search keyword or clear the active filter.'
+                        : isPending
+                        ? 'No pending beneficiaries have been recorded yet'
+                        : 'No active beneficiaries have been recorded yet',
+                    style: const TextStyle(
+                      fontSize: 14,
+                      color: kSubText,
+                      fontFamily: 'OpenSans',
+                    ),
+                    textAlign: TextAlign.center,
                   ),
-                  textAlign: TextAlign.center,
-                ),
-              ],
+                  if (hasSearch) ...[
+                    const SizedBox(height: 14),
+                    OutlinedButton.icon(
+                      onPressed: () => setState(() => _searchQuery = ''),
+                      icon: const Icon(Icons.filter_alt_off_rounded),
+                      label: const Text('Reset search'),
+                    ),
+                  ],
+                ],
+              ),
             ),
           ),
-        ),
+        ],
       );
     }
 
@@ -219,10 +393,14 @@ class _SecretaryBeneficiariesTabState extends State<SecretaryBeneficiariesTab> {
       );
 
     return ListView.builder(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      itemCount: sortedUserIds.length,
+      padding: const EdgeInsets.fromLTRB(12, 12, 12, 20),
+      itemCount: sortedUserIds.length + 1,
       itemBuilder: (context, idx) {
-        final userId = sortedUserIds[idx];
+        if (idx == 0) {
+          return _buildToolbarCard();
+        }
+
+        final userId = sortedUserIds[idx - 1];
         final userName = _users[userId] ?? 'Unknown User';
         final beneficiaries = grouped[userId]!;
         return Column(
@@ -345,161 +523,125 @@ class _SecretaryBeneficiariesTabState extends State<SecretaryBeneficiariesTab> {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      backgroundColor: kCardBg,
+      backgroundColor: Colors.transparent,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
       ),
-      builder: (context) => Padding(
-        padding: EdgeInsets.only(
-          left: 0,
-          right: 0,
-          top: 0,
-          bottom: MediaQuery.of(context).viewInsets.bottom,
-        ),
-        child: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              // Drag handle
-              Container(
-                width: 48,
-                height: 6,
-                margin: const EdgeInsets.only(top: 12, bottom: 16),
-                decoration: BoxDecoration(
-                  color: Colors.grey[300],
-                  borderRadius: BorderRadius.circular(3),
+      builder: (context) {
+        final bottomInset = MediaQuery.of(context).viewInsets.bottom;
+        return Padding(
+          padding: EdgeInsets.only(bottom: bottomInset),
+          child: Container(
+            decoration: const BoxDecoration(
+              color: kCardBg,
+              borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                SecretarySheetHeader(
+                  title: item['full_name'] ?? 'Beneficiary Details',
+                  subtitle:
+                      (item['relationship'] ?? 'Review beneficiary information')
+                          .toString(),
+                  onClose: () => Navigator.pop(context),
                 ),
-              ),
-              // Avatar and Name
-              CircleAvatar(
-                radius: 36,
-                backgroundColor: kAccent.withValues(alpha: 0.12),
-                child: const Icon(
-                  Icons.person_rounded,
-                  color: kAccent,
-                  size: 40,
-                ),
-              ),
-              const SizedBox(height: 14),
-              Text(
-                item['full_name'] ?? 'Beneficiary Details',
-                style: const TextStyle(
-                  fontFamily: 'Montserrat',
-                  fontWeight: FontWeight.bold,
-                  fontSize: 22,
-                  color: kText,
-                ),
-                textAlign: TextAlign.center,
-                maxLines: 2,
-              ),
-              const SizedBox(height: 8),
-              if (item['relationship'] != null)
-                Text(
-                  item['relationship'],
-                  style: const TextStyle(
-                    color: kSubText,
-                    fontSize: 15,
-                    fontWeight: FontWeight.w500,
-                    fontFamily: 'OpenSans',
+                Flexible(
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.all(18),
+                          decoration: BoxDecoration(
+                            color: kBg,
+                            borderRadius: BorderRadius.circular(18),
+                            border: Border.all(
+                              color: kAccent.withValues(alpha: 0.12),
+                            ),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              _detailRow('Date of Birth', item['dob']),
+                              _detailRow(
+                                'Marital Status',
+                                item['marital_status'],
+                              ),
+                              _detailRow('Status', item['status']),
+                              const SizedBox(height: 10),
+                              if (item['birth_certificate'] != null &&
+                                  item['birth_certificate']
+                                      .toString()
+                                      .isNotEmpty)
+                                _fileSection(
+                                  context,
+                                  label: 'Birth Certificate',
+                                  url: item['birth_certificate'],
+                                ),
+                              if (item['valid_id'] != null &&
+                                  item['valid_id'].toString().isNotEmpty)
+                                _fileSection(
+                                  context,
+                                  label: 'Valid ID',
+                                  url: item['valid_id'],
+                                ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 20),
+                        Row(
+                          children: [
+                            if (item['status'] == 'Pending') ...[
+                              Expanded(
+                                child: FilledButton.icon(
+                                  icon: const Icon(
+                                    Icons.check_rounded,
+                                    size: 18,
+                                  ),
+                                  label: const Text('Approve'),
+                                  style: FilledButton.styleFrom(
+                                    backgroundColor: kSuccess,
+                                    foregroundColor: Colors.white,
+                                    minimumSize: const Size.fromHeight(46),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                  ),
+                                  onPressed: () {
+                                    Navigator.pop(context);
+                                    _approveBeneficiary(item['id']);
+                                  },
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                            ],
+                            Expanded(
+                              child: OutlinedButton.icon(
+                                icon: const Icon(Icons.close_rounded, size: 18),
+                                label: const Text('Close'),
+                                style: OutlinedButton.styleFrom(
+                                  minimumSize: const Size.fromHeight(46),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                ),
+                                onPressed: () => Navigator.pop(context),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
                   ),
                 ),
-              const SizedBox(height: 18),
-              // Details section
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 24,
-                  vertical: 18,
-                ),
-                decoration: BoxDecoration(
-                  color: kBg,
-                  borderRadius: BorderRadius.circular(18),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    _detailRow('Date of Birth', item['dob']),
-                    _detailRow('Marital Status', item['marital_status']),
-                    _detailRow('Status', item['status']),
-                    const SizedBox(height: 10),
-                    if (item['birth_certificate'] != null &&
-                        item['birth_certificate'].toString().isNotEmpty)
-                      _fileSection(
-                        context,
-                        label: 'Birth Certificate',
-                        url: item['birth_certificate'],
-                      ),
-                    if (item['valid_id'] != null &&
-                        item['valid_id'].toString().isNotEmpty)
-                      _fileSection(
-                        context,
-                        label: 'Valid ID',
-                        url: item['valid_id'],
-                      ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 24),
-              // Action buttons
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 24),
-                child: Row(
-                  mainAxisAlignment: item['status'] == 'Pending'
-                      ? MainAxisAlignment.spaceBetween
-                      : MainAxisAlignment.end,
-                  children: [
-                    if (item['status'] == 'Pending')
-                      ElevatedButton.icon(
-                        icon: const Icon(Icons.check, size: 18),
-                        label: const Text('Approve'),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: kSuccess,
-                          foregroundColor: Colors.white,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 20,
-                            vertical: 12,
-                          ),
-                          textStyle: const TextStyle(
-                            fontWeight: FontWeight.bold,
-                            fontSize: 16,
-                          ),
-                        ),
-                        onPressed: () {
-                          Navigator.pop(context);
-                          _approveBeneficiary(item['id']);
-                        },
-                      ),
-                    ElevatedButton.icon(
-                      icon: const Icon(Icons.close, size: 18),
-                      label: const Text('Close'),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: kAccent,
-                        foregroundColor: Colors.white,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 20,
-                          vertical: 12,
-                        ),
-                        textStyle: const TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 16,
-                        ),
-                      ),
-                      onPressed: () => Navigator.pop(context),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 24),
-            ],
+              ],
+            ),
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 
@@ -544,40 +686,55 @@ class _SecretaryBeneficiariesTabState extends State<SecretaryBeneficiariesTab> {
               }
 
               if (!context.mounted) return;
-              showDialog(
+              showModalBottomSheet(
                 context: context,
-                builder: (context) => Dialog(
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                  child: Container(
-                    padding: const EdgeInsets.all(16),
+                isScrollControlled: true,
+                backgroundColor: Colors.transparent,
+                builder: (context) {
+                  final height = MediaQuery.of(context).size.height * 0.85;
+                  return Container(
+                    height: height,
+                    decoration: const BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.vertical(
+                        top: Radius.circular(28),
+                      ),
+                    ),
                     child: Column(
-                      mainAxisSize: MainAxisSize.min,
                       children: [
-                        Image.network(
-                          resolved,
-                          fit: BoxFit.contain,
-                          errorBuilder: (context, error, stackTrace) =>
-                              const Text('Could not load image'),
+                        SecretarySheetHeader(
+                          title: label,
+                          subtitle: 'Review the uploaded document.',
+                          onClose: () => Navigator.pop(context),
                         ),
-                        const SizedBox(height: 16),
-                        ElevatedButton.icon(
-                          icon: const Icon(Icons.close, size: 18),
-                          label: const Text('Close'),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: kAccent,
-                            foregroundColor: Colors.white,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(8),
+                        Expanded(
+                          child: Padding(
+                            padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
+                            child: ClipRRect(
+                              borderRadius: BorderRadius.circular(20),
+                              child: Container(
+                                color: kBg,
+                                child: InteractiveViewer(
+                                  child: Image.network(
+                                    resolved,
+                                    fit: BoxFit.contain,
+                                    errorBuilder:
+                                        (context, error, stackTrace) =>
+                                            const Center(
+                                              child: Text(
+                                                'Could not load image',
+                                              ),
+                                            ),
+                                  ),
+                                ),
+                              ),
                             ),
                           ),
-                          onPressed: () => Navigator.pop(context),
                         ),
                       ],
                     ),
-                  ),
-                ),
+                  );
+                },
               );
             },
           ),
@@ -613,56 +770,20 @@ class _SecretaryBeneficiariesTabState extends State<SecretaryBeneficiariesTab> {
 
   @override
   Widget build(BuildContext context) {
+    final activeGrouped = _filteredGrouped(_activeByUser);
+    final pendingGrouped = _filteredGrouped(_pendingByUser);
     return Scaffold(
       backgroundColor: kBg,
       body: SafeArea(
         child: Column(
           children: [
-            // Modern Curved Header
-            Container(
-              padding: const EdgeInsets.fromLTRB(20, 36, 20, 28),
-              decoration: const BoxDecoration(
-                color: kAccent,
-                borderRadius: BorderRadius.only(
-                  bottomLeft: Radius.circular(28),
-                  bottomRight: Radius.circular(28),
-                ),
-                boxShadow: [
-                  BoxShadow(
-                    color: kAccent,
-                    blurRadius: 18,
-                    offset: Offset(0, 8),
-                  ),
-                ],
-              ),
-              child: Row(
-                children: [
-                  IconButton(
-                    icon: const Icon(
-                      Icons.chevron_left,
-                      color: Colors.white,
-                      size: 24,
-                    ),
-                    onPressed: () => Navigator.pop(context),
-                  ),
-                  const Icon(Icons.group, color: Colors.white, size: 24),
-                  const SizedBox(width: 16),
-                  const Expanded(
-                    child: Text(
-                      'Beneficiaries',
-                      style: TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.w800,
-                        color: Colors.white,
-                        fontFamily: 'Montserrat',
-                        letterSpacing: 0.3,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
+            const SecretaryPageHeader(
+              title: 'Manage Beneficiaries',
+              subtitle:
+                  'Review, verify, and approve beneficiary records for your unit.',
+              icon: Icons.family_restroom_rounded,
+              usePaymentStyle: true,
             ),
-            // Modern Tab Bar
             Expanded(
               child: Padding(
                 padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
@@ -727,11 +848,11 @@ class _SecretaryBeneficiariesTabState extends State<SecretaryBeneficiariesTab> {
                                 )
                               : (_selectedTab == 0
                                     ? _groupedList(
-                                        _activeByUser,
+                                        activeGrouped,
                                         isPending: false,
                                       )
                                     : _groupedList(
-                                        _pendingByUser,
+                                        pendingGrouped,
                                         isPending: true,
                                       )),
                         ),

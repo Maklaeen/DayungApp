@@ -1,4 +1,5 @@
 import 'package:capstone_app/ui/loading/page_skeleton.dart';
+import 'package:capstone_app/Secretary/secretary_ui.dart';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:fl_chart/fl_chart.dart';
@@ -144,241 +145,198 @@ class _ReportsPageState extends State<ReportsPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFFF8FAFC),
-      body: LayoutBuilder(
-        builder: (context, constraints) {
-          final isWide = constraints.maxWidth > 700;
-          final horizontalPadding = isWide ? constraints.maxWidth * 0.15 : 20.0;
-          final cardMaxWidth = isWide ? 600.0 : double.infinity;
-          final headerFontSize = isWide ? 28.0 : 20.0;
-          final sectionTitleFontSize = isWide ? 22.0 : 18.0;
+      body: SafeArea(
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final isWide = constraints.maxWidth > 700;
+            final horizontalPadding = isWide
+                ? constraints.maxWidth * 0.15
+                : 20.0;
+            final cardMaxWidth = isWide ? 600.0 : double.infinity;
+            final sectionTitleFontSize = isWide ? 22.0 : 18.0;
 
-          return Column(
-            children: [
-              // Responsive header
-              Container(
-                padding: EdgeInsets.fromLTRB(
-                  horizontalPadding,
-                  isWide ? 60 : 32,
-                  horizontalPadding,
-                  isWide ? 48 : 32,
-                ),
-                decoration: BoxDecoration(
-                  color: kPrimary,
-                  borderRadius: const BorderRadius.only(
-                    bottomLeft: Radius.circular(24),
-                    bottomRight: Radius.circular(24),
+            return Column(
+              children: [
+                SecretaryPageHeader(
+                  title: 'Reports',
+                  icon: Icons.bar_chart_rounded,
+                  padding: EdgeInsets.fromLTRB(
+                    horizontalPadding,
+                    isWide ? 48 : 32,
+                    horizontalPadding,
+                    isWide ? 24 : 24,
                   ),
-                  boxShadow: [
-                    BoxShadow(
-                      color: kPrimary.withValues(alpha: 0.3),
-                      blurRadius: 20,
-                      offset: const Offset(0, 8),
-                    ),
-                  ],
                 ),
-                child: Row(
-                  children: [
-                    IconButton(
-                      icon: const Icon(
-                        Icons.chevron_left_rounded,
-                        color: Colors.white,
-                        size: 28,
-                      ),
-                      onPressed: () => Navigator.pop(context),
-                    ),
-                    const Icon(
-                      Icons.bar_chart_rounded,
-                      color: Colors.white,
-                      size: 28,
-                    ),
-                    const SizedBox(width: 16),
-                    Expanded(
-                      child: Text(
-                        'Reports',
-                        style: TextStyle(
-                          fontSize: headerFontSize,
-                          fontWeight: FontWeight.w800,
-                          color: Colors.white,
-                          fontFamily: 'Montserrat',
-                          letterSpacing: 0.3,
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              // Content
-              Expanded(
-                child: loading
-                    ? const DayungPageSkeleton(
-                        layout: DayungSkeletonLayout.dashboard,
-                        itemCount: 4,
-                      )
-                    : ListView(
-                        padding: EdgeInsets.fromLTRB(
-                          horizontalPadding,
-                          isWide ? 32 : 20,
-                          horizontalPadding,
-                          isWide ? 32 : 20,
-                        ),
-                        children: [
-                          Center(
-                            child: ConstrainedBox(
-                              constraints: BoxConstraints(
-                                maxWidth: cardMaxWidth,
-                              ),
-                              child: _modernSectionCard(
-                                title:
-                                    'Money Collected Per Collector (Monthly)',
-                                icon: Icons.account_balance_rounded,
-                                titleFontSize: sectionTitleFontSize,
-                                child: Column(
-                                  children: [
-                                    _MoneyCollectedBarChart(
-                                      data: moneyCollected,
-                                      isWide: isWide,
-                                    ),
-                                    const SizedBox(height: 12),
-                                    ...moneyCollected.map(
-                                      (r) => Container(
-                                        margin: const EdgeInsets.symmetric(
-                                          vertical: 2,
-                                        ),
-                                        decoration: BoxDecoration(
-                                          color: kCardBg,
-                                          borderRadius: BorderRadius.circular(
-                                            10,
+                // Content
+                Expanded(
+                  child: loading
+                      ? const DayungPageSkeleton(
+                          layout: DayungSkeletonLayout.dashboard,
+                          itemCount: 4,
+                        )
+                      : ListView(
+                          padding: EdgeInsets.fromLTRB(
+                            horizontalPadding,
+                            isWide ? 32 : 20,
+                            horizontalPadding,
+                            isWide ? 32 : 20,
+                          ),
+                          children: [
+                            Center(
+                              child: ConstrainedBox(
+                                constraints: BoxConstraints(
+                                  maxWidth: cardMaxWidth,
+                                ),
+                                child: _modernSectionCard(
+                                  title:
+                                      'Money Collected Per Collector (Monthly)',
+                                  icon: Icons.account_balance_rounded,
+                                  titleFontSize: sectionTitleFontSize,
+                                  child: Column(
+                                    children: [
+                                      _MoneyCollectedBarChart(
+                                        data: moneyCollected,
+                                        isWide: isWide,
+                                      ),
+                                      const SizedBox(height: 12),
+                                      ...moneyCollected.map(
+                                        (r) => Container(
+                                          margin: const EdgeInsets.symmetric(
+                                            vertical: 2,
                                           ),
-                                          border: Border.all(
-                                            color: kBorderColor.withValues(
-                                              alpha: 0.2,
+                                          decoration: BoxDecoration(
+                                            color: kCardBg,
+                                            borderRadius: BorderRadius.circular(
+                                              10,
+                                            ),
+                                            border: Border.all(
+                                              color: kBorderColor.withValues(
+                                                alpha: 0.2,
+                                              ),
                                             ),
                                           ),
-                                        ),
-                                        child: ListTile(
-                                          leading: CircleAvatar(
-                                            backgroundColor: kAccent.withValues(
-                                              alpha: 0.12,
+                                          child: ListTile(
+                                            leading: CircleAvatar(
+                                              backgroundColor: kAccent
+                                                  .withValues(alpha: 0.12),
+                                              child: Icon(
+                                                Icons.person,
+                                                color: kAccent,
+                                              ),
                                             ),
-                                            child: Icon(
-                                              Icons.person,
-                                              color: kAccent,
-                                            ),
-                                          ),
-                                          title: Text(
-                                            '${r['collector_name']}',
-                                            style: const TextStyle(
-                                              fontWeight: FontWeight.w700,
-                                            ),
-                                            maxLines: 1,
-                                            overflow: TextOverflow.ellipsis,
-                                          ),
-                                          subtitle: Text(
-                                            '${r['month']}',
-                                            style: const TextStyle(
-                                              color: kSubText,
-                                            ),
-                                            maxLines: 1,
-                                            overflow: TextOverflow.ellipsis,
-                                          ),
-                                          trailing: SizedBox(
-                                            width: isWide ? 120 : 90,
-                                            child: Text(
-                                              '₱${r['total'].toStringAsFixed(2)}',
+                                            title: Text(
+                                              '${r['collector_name']}',
                                               style: const TextStyle(
-                                                fontWeight: FontWeight.w800,
+                                                fontWeight: FontWeight.w700,
                                               ),
                                               maxLines: 1,
                                               overflow: TextOverflow.ellipsis,
-                                              textAlign: TextAlign.right,
+                                            ),
+                                            subtitle: Text(
+                                              '${r['month']}',
+                                              style: const TextStyle(
+                                                color: kSubText,
+                                              ),
+                                              maxLines: 1,
+                                              overflow: TextOverflow.ellipsis,
+                                            ),
+                                            trailing: SizedBox(
+                                              width: isWide ? 120 : 90,
+                                              child: Text(
+                                                '₱${r['total'].toStringAsFixed(2)}',
+                                                style: const TextStyle(
+                                                  fontWeight: FontWeight.w800,
+                                                ),
+                                                maxLines: 1,
+                                                overflow: TextOverflow.ellipsis,
+                                                textAlign: TextAlign.right,
+                                              ),
                                             ),
                                           ),
                                         ),
                                       ),
-                                    ),
-                                  ],
+                                    ],
+                                  ),
                                 ),
                               ),
                             ),
-                          ),
-                          const SizedBox(height: 24),
-                          Center(
-                            child: ConstrainedBox(
-                              constraints: BoxConstraints(
-                                maxWidth: cardMaxWidth,
-                              ),
-                              child: _modernSectionCard(
-                                title: 'New Members Per Month',
-                                icon: Icons.person_add_alt_1_rounded,
-                                titleFontSize: sectionTitleFontSize,
-                                child: Column(
-                                  children: [
-                                    _NewMembersBarChart(
-                                      data: newMembers,
-                                      isWide: isWide,
-                                    ),
-                                    const SizedBox(height: 12),
-                                    ...newMembers.map(
-                                      (r) => Container(
-                                        margin: const EdgeInsets.symmetric(
-                                          vertical: 2,
-                                        ),
-                                        decoration: BoxDecoration(
-                                          color: kCardBg,
-                                          borderRadius: BorderRadius.circular(
-                                            10,
+                            const SizedBox(height: 24),
+                            Center(
+                              child: ConstrainedBox(
+                                constraints: BoxConstraints(
+                                  maxWidth: cardMaxWidth,
+                                ),
+                                child: _modernSectionCard(
+                                  title: 'New Members Per Month',
+                                  icon: Icons.person_add_alt_1_rounded,
+                                  titleFontSize: sectionTitleFontSize,
+                                  child: Column(
+                                    children: [
+                                      _NewMembersBarChart(
+                                        data: newMembers,
+                                        isWide: isWide,
+                                      ),
+                                      const SizedBox(height: 12),
+                                      ...newMembers.map(
+                                        (r) => Container(
+                                          margin: const EdgeInsets.symmetric(
+                                            vertical: 2,
                                           ),
-                                          border: Border.all(
-                                            color: kBorderColor.withValues(
-                                              alpha: 0.2,
+                                          decoration: BoxDecoration(
+                                            color: kCardBg,
+                                            borderRadius: BorderRadius.circular(
+                                              10,
+                                            ),
+                                            border: Border.all(
+                                              color: kBorderColor.withValues(
+                                                alpha: 0.2,
+                                              ),
                                             ),
                                           ),
-                                        ),
-                                        child: ListTile(
-                                          leading: CircleAvatar(
-                                            backgroundColor: kPrimary
-                                                .withValues(alpha: 0.12),
-                                            child: Icon(
-                                              Icons.person,
-                                              color: kPrimary,
+                                          child: ListTile(
+                                            leading: CircleAvatar(
+                                              backgroundColor: kPrimary
+                                                  .withValues(alpha: 0.12),
+                                              child: Icon(
+                                                Icons.person,
+                                                color: kPrimary,
+                                              ),
                                             ),
-                                          ),
-                                          title: Text(
-                                            _formatMonthYear(r['month']),
-                                            style: const TextStyle(
-                                              fontWeight: FontWeight.w700,
-                                            ),
-                                            maxLines: 1,
-                                            overflow: TextOverflow.ellipsis,
-                                          ),
-                                          trailing: SizedBox(
-                                            width: isWide ? 80 : 50,
-                                            child: Text(
-                                              '${r['count']}',
+                                            title: Text(
+                                              _formatMonthYear(r['month']),
                                               style: const TextStyle(
-                                                fontWeight: FontWeight.w800,
+                                                fontWeight: FontWeight.w700,
                                               ),
                                               maxLines: 1,
                                               overflow: TextOverflow.ellipsis,
-                                              textAlign: TextAlign.right,
+                                            ),
+                                            trailing: SizedBox(
+                                              width: isWide ? 80 : 50,
+                                              child: Text(
+                                                '${r['count']}',
+                                                style: const TextStyle(
+                                                  fontWeight: FontWeight.w800,
+                                                ),
+                                                maxLines: 1,
+                                                overflow: TextOverflow.ellipsis,
+                                                textAlign: TextAlign.right,
+                                              ),
                                             ),
                                           ),
                                         ),
                                       ),
-                                    ),
-                                  ],
+                                    ],
+                                  ),
                                 ),
                               ),
                             ),
-                          ),
-                        ],
-                      ),
-              ),
-            ],
-          );
-        },
+                          ],
+                        ),
+                ),
+              ],
+            );
+          },
+        ),
       ),
     );
   }

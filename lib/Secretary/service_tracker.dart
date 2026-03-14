@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:capstone_app/Secretary/add_service_dialog.dart';
+import 'package:capstone_app/Secretary/secretary_ui.dart';
 import 'package:flutter_riverpod/legacy.dart';
-import 'package:capstone_app/utils/input_safety.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:intl/intl.dart';
 
@@ -65,9 +66,10 @@ class ServiceTrackerPage extends StatefulWidget {
 
 class _ServiceTrackerPageState extends State<ServiceTrackerPage> {
   bool _loading = true;
+  String? _error;
+  String _searchQuery = '';
   List<Map<String, dynamic>> _notices = [];
-  Map<int, List<Map<String, dynamic>>> _servicesByUser =
-      {}; // user_id -> services
+  Map<String, List<Map<String, dynamic>>> _servicesByNotice = {};
 
   @override
   void initState() {
@@ -77,524 +79,804 @@ class _ServiceTrackerPageState extends State<ServiceTrackerPage> {
 
   Future<void> _fetchData() async {
     final sb = Supabase.instance.client;
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
     try {
       final response = await sb
           .from('death_notices')
           .select()
-          .eq('dayung_unit_id', widget.dayungUnitId);
+          .eq('dayung_unit_id', widget.dayungUnitId)
+          .order('date_of_death', ascending: false);
       final notices = List<Map<String, dynamic>>.from(response as List);
 
-      // Fetch services for each userdeceased (user_id)
-      Map<int, List<Map<String, dynamic>>> servicesByUser = {};
-      for (final notice in notices) {
-        final userId = notice['user_id'];
+      final servicesByNotice = <String, List<Map<String, dynamic>>>{};
+      final noticeIds = notices
+          .map((notice) => notice['id'])
+          .where((id) => id != null)
+          .toList();
+
+      if (noticeIds.isNotEmpty) {
         final services = await sb
             .from('service_checklist')
             .select()
-            .eq('userdeceased', userId)
+            .inFilter('death_notice_id', noticeIds)
             .eq('is_removed', false);
-        servicesByUser[userId] = List<Map<String, dynamic>>.from(
-          services as List,
-        );
+
+        for (final raw in List<Map<String, dynamic>>.from(services as List)) {
+          final noticeId = _noticeKey({'id': raw['death_notice_id']});
+          if (noticeId.isEmpty) continue;
+          servicesByNotice.putIfAbsent(noticeId, () => []).add(raw);
+        }
+
+        for (final entry in servicesByNotice.entries) {
+          entry.value.sort((a, b) {
+            final aDate = DateTime.tryParse('${a['time_service'] ?? ''}');
+            final bDate = DateTime.tryParse('${b['time_service'] ?? ''}');
+            if (aDate == null && bDate == null) return 0;
+            if (aDate == null) return 1;
+            if (bDate == null) return -1;
+            return aDate.compareTo(bDate);
+          });
+        }
       }
 
+      if (!mounted) return;
       setState(() {
         _notices = notices;
-        _servicesByUser = servicesByUser;
+        _servicesByNotice = servicesByNotice;
         _loading = false;
       });
     } catch (e) {
       debugPrint('Error fetching notices/services: $e');
+      if (!mounted) return;
       setState(() {
         _loading = false;
+        _error = 'Failed to load service tracker data: $e';
       });
     }
   }
 
-  void _showAddServiceDialog(Map<String, dynamic> notice) {
-    final formKey = GlobalKey<FormState>();
-    String serviceName = '';
-    DateTime? timeService;
-    String notes = '';
-    String required = 'All';
-    final requiredOptions = ['All', 'Custom'];
-    int? customRequired;
+  String _noticeKey(Map<String, dynamic> notice) => '${notice['id'] ?? ''}';
 
-    showDialog(
+  String _formatDateValue(dynamic value, {String pattern = 'MMM d, yyyy'}) {
+    if (value == null) return 'N/A';
+    final date = value is DateTime ? value : DateTime.tryParse('$value');
+    if (date == null) return '$value';
+    return DateFormat(pattern).format(date);
+  }
+
+  String _formatServiceSchedule(dynamic value) {
+    if (value == null) return 'Schedule TBD';
+    final date = value is DateTime ? value : DateTime.tryParse('$value');
+    if (date == null) return '$value';
+    return DateFormat('MMM d, yyyy • h:mm a').format(date);
+  }
+
+  String _serviceRequiredLabel(dynamic value) {
+    final text = (value ?? '').toString().trim();
+    if (text.isEmpty) return 'Flexible';
+    if (text.toLowerCase() == 'all') return 'All members';
+    return '$text person${text == '1' ? '' : 's'}';
+  }
+
+  List<Map<String, dynamic>> get _visibleNotices {
+    final query = _searchQuery.trim().toLowerCase();
+    if (query.isEmpty) return _notices;
+
+    return _notices.where((notice) {
+      final noticeId = _noticeKey(notice);
+      final services = _servicesByNotice[noticeId] ?? const [];
+      final noticeName = (notice['name'] ?? '').toString().toLowerCase();
+      final barangay = (notice['barangay'] ?? '').toString().toLowerCase();
+      final serviceNames = services
+          .map(
+            (service) =>
+                (service['service_name'] ?? '').toString().toLowerCase(),
+          )
+          .join(' ');
+      return noticeName.contains(query) ||
+          barangay.contains(query) ||
+          serviceNames.contains(query);
+    }).toList();
+  }
+
+  int get _totalServices {
+    return _servicesByNotice.values.fold<int>(
+      0,
+      (sum, items) => sum + items.length,
+    );
+  }
+
+  int get _scheduledToday {
+    final now = DateTime.now();
+    return _servicesByNotice.values.expand((items) => items).where((service) {
+      final scheduled = DateTime.tryParse(
+        '${service['time_service'] ?? ''}',
+      )?.toLocal();
+      if (scheduled == null) return false;
+      return scheduled.year == now.year &&
+          scheduled.month == now.month &&
+          scheduled.day == now.day;
+    }).length;
+  }
+
+  int get _noticesWithServices {
+    return _notices.where((notice) {
+      final noticeId = _noticeKey(notice);
+      return (_servicesByNotice[noticeId] ?? const []).isNotEmpty;
+    }).length;
+  }
+
+  Future<void> _removeService(Map<String, dynamic> service) async {
+    final messenger = ScaffoldMessenger.of(context);
+    final confirmed = await showDialog<bool>(
       context: context,
-      builder: (context) {
-        return StatefulBuilder(
-          builder: (context, setState) {
-            return AlertDialog(
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(20),
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Remove service?'),
+        content: Text(
+          'Remove ${service['service_name'] ?? 'this service'} from the tracker?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('Remove'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+
+    try {
+      await Supabase.instance.client
+          .from('service_checklist')
+          .update({'is_removed': true})
+          .eq('id', service['id']);
+      await _fetchData();
+      if (!mounted) return;
+      messenger.showSnackBar(
+        const SnackBar(content: Text('Service removed from tracker.')),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      messenger.showSnackBar(
+        SnackBar(content: Text('Failed to remove service: $e')),
+      );
+    }
+  }
+
+  void _showAddServiceDialog(Map<String, dynamic> notice) {
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) =>
+          AddServiceDialog(deathNotice: notice, onServiceAdded: _fetchData),
+    );
+  }
+
+  Widget _buildMetaChip(IconData icon, String label) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: kBorderColor.withValues(alpha: 0.7)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 15, color: kPrimary),
+          const SizedBox(width: 6),
+          Flexible(
+            child: Text(
+              label,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: kText,
               ),
-              elevation: 10,
-              title: const Text(
-                'Add Service',
-                style: TextStyle(fontWeight: FontWeight.bold),
-              ),
-              content: Form(
-                key: formKey,
-                child: SingleChildScrollView(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      // Type of Service
-                      TextFormField(
-                        inputFormatters: AppInputSecurity.singleLineFormatters(
-                          maxLength: 120,
-                        ),
-                        decoration: InputDecoration(
-                          labelText: 'Type of Service',
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          prefixIcon: const Icon(Icons.design_services),
-                        ),
-                        onChanged: (val) =>
-                            serviceName = AppInputSecurity.sanitizePlainText(
-                              val,
-                              maxLength: 120,
-                            ),
-                        validator: (val) => AppInputSecurity.validateSafeText(
-                          val,
-                          fieldName: 'Type of Service',
-                          minLength: 2,
-                          maxLength: 120,
-                        ),
-                      ),
-                      const SizedBox(height: 16),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 
-                      // Time Start
-                      Row(
-                        children: [
-                          Expanded(
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 12,
-                                vertical: 16,
-                              ),
-                              decoration: BoxDecoration(
-                                border: Border.all(color: Colors.grey.shade400),
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              child: Text(
-                                timeService == null
-                                    ? 'Select Time Start'
-                                    : DateFormat(
-                                        'yyyy-MM-dd HH:mm',
-                                      ).format(timeService!),
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          IconButton(
-                            icon: const Icon(Icons.calendar_today),
-                            onPressed: () async {
-                              final date = await showDatePicker(
-                                context: context,
-                                initialDate: DateTime.now(),
-                                firstDate: DateTime(2020),
-                                lastDate: DateTime(2100),
-                              );
-                              if (date != null) {
-                                if (!context.mounted) return;
-                                final time = await showTimePicker(
-                                  context: context,
-                                  initialTime: TimeOfDay.now(),
-                                );
-                                if (!context.mounted) return;
-                                if (time != null) {
-                                  setState(() {
-                                    timeService = DateTime(
-                                      date.year,
-                                      date.month,
-                                      date.day,
-                                      time.hour,
-                                      time.minute,
-                                    );
-                                  });
-                                }
-                              }
-                            },
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 16),
+  Widget _buildServiceTile(Map<String, dynamic> service) {
+    final notes = (service['notes'] ?? '').toString().trim();
 
-                      // Notes
-                      TextFormField(
-                        inputFormatters: AppInputSecurity.multiLineFormatters(
-                          maxLength: 300,
-                        ),
-                        decoration: InputDecoration(
-                          labelText: 'Notes',
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          prefixIcon: const Icon(Icons.note),
-                        ),
-                        onChanged: (val) =>
-                            notes = AppInputSecurity.sanitizePlainText(
-                              val,
-                              allowNewLines: true,
-                              maxLength: 300,
-                            ),
-                      ),
-                      const SizedBox(height: 16),
-
-                      // Required
-                      DropdownButtonFormField<String>(
-                        initialValue: required,
-                        decoration: InputDecoration(
-                          labelText: 'Required',
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          prefixIcon: const Icon(Icons.group),
-                        ),
-                        items: requiredOptions
-                            .map(
-                              (e) => DropdownMenuItem(value: e, child: Text(e)),
-                            )
-                            .toList(),
-                        onChanged: (val) {
-                          setState(() {
-                            required = val!;
-                          });
-                        },
-                      ),
-                      const SizedBox(height: 16),
-
-                      if (required == 'Custom')
-                        TextFormField(
-                          inputFormatters: AppInputSecurity.phoneFormatters(
-                            maxLength: 3,
-                          ),
-                          decoration: InputDecoration(
-                            labelText: 'How many persons?',
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            prefixIcon: const Icon(Icons.person),
-                          ),
-                          keyboardType: TextInputType.number,
-                          onChanged: (val) =>
-                              customRequired = int.tryParse(val),
-                        ),
-                    ],
+    return Container(
+      margin: const EdgeInsets.only(top: 10),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF8FAFC),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: kBorderColor.withValues(alpha: 0.8)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: const Color(0xFFDBEAFE),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: const Icon(Icons.event_available_rounded, color: kPrimary),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  (service['service_name'] ?? 'Service').toString(),
+                  style: const TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w800,
+                    color: kText,
                   ),
                 ),
-              ),
-              actions: [
-                TextButton(
-                  child: const Text('Cancel'),
-                  onPressed: () => Navigator.pop(context),
+                const SizedBox(height: 4),
+                Text(
+                  _formatServiceSchedule(service['time_service']),
+                  style: const TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: kPrimaryDark,
+                  ),
                 ),
-                ElevatedButton(
-                  child: const Text('Save'),
-                  onPressed: () async {
-                    final navigator = Navigator.of(context);
-                    final messenger = ScaffoldMessenger.of(context);
-                    debugPrint('Save button pressed');
-                    if (formKey.currentState!.validate() &&
-                        timeService != null) {
-                      debugPrint('Form validated. Preparing to insert...');
-                      try {
-                        final sb = Supabase.instance.client;
-                        final insertData = {
-                          'service_name': AppInputSecurity.sanitizePlainText(
-                            serviceName,
-                            maxLength: 120,
-                          ),
-                          'time_service': timeService!.toIso8601String(),
-                          'notes': AppInputSecurity.sanitizePlainText(
-                            notes,
-                            allowNewLines: true,
-                            maxLength: 300,
-                          ),
-                          'required': required == 'All'
-                              ? notice['person_needed'] ?? 'All'
-                              : customRequired ?? 1,
-                          'userdeceased': notice['user_id'],
-                          'dayung_unit_id': notice['dayung_unit_id'],
-                          'death_notice_id': notice['id'],
-                          'is_removed': false,
-                        };
-                        debugPrint('Insert data: $insertData');
-                        final response = await sb
-                            .from('service_checklist')
-                            .insert(insertData)
-                            .select();
-                        debugPrint('Insert response: $response');
-                        navigator.pop();
-                      } on PostgrestException catch (e) {
-                        debugPrint(
-                          'PostgrestException: ${e.message}, code: ${e.code}, details: ${e.details}, hint: ${e.hint}',
-                        );
-                        messenger.showSnackBar(
-                          SnackBar(content: Text('Error: ${e.message}')),
-                        );
-                      } catch (e, stack) {
-                        debugPrint('Error inserting service: $e');
-                        debugPrint('Stack trace: $stack');
-                        messenger.showSnackBar(
-                          SnackBar(content: Text('Error: $e')),
-                        );
-                      }
-                    } else {
-                      debugPrint('Form not valid or timeService is null');
-                      if (timeService == null) {
-                        messenger.showSnackBar(
-                          const SnackBar(
-                            content: Text('Please select a start time'),
-                          ),
-                        );
-                      }
-                    }
-                  },
+                const SizedBox(height: 6),
+                Text(
+                  'Required: ${_serviceRequiredLabel(service['required'])}',
+                  style: const TextStyle(
+                    fontSize: 12,
+                    color: kSubText,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
+                if (notes.isNotEmpty) ...[
+                  const SizedBox(height: 8),
+                  Text(
+                    notes,
+                    style: const TextStyle(fontSize: 13, color: kSubText),
+                  ),
+                ],
               ],
-            );
-          },
-        );
-      },
+            ),
+          ),
+          IconButton(
+            tooltip: 'Remove service',
+            onPressed: () => _removeService(service),
+            icon: const Icon(Icons.delete_outline_rounded, color: kDanger),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _overviewStat({
+    required IconData icon,
+    required String label,
+    required String value,
+    required Color tone,
+  }) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: tone.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: tone.withValues(alpha: 0.14)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, color: tone, size: 16),
+          const SizedBox(width: 8),
+          Text(
+            value,
+            style: const TextStyle(
+              fontSize: 15,
+              fontWeight: FontWeight.w900,
+              color: kText,
+            ),
+          ),
+          const SizedBox(width: 6),
+          Text(
+            label,
+            style: const TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+              color: kSubText,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildToolbarCard() {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: kBorderColor),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              _overviewStat(
+                icon: Icons.feed_rounded,
+                label: 'Notices',
+                value: '${_notices.length}',
+                tone: kPrimary,
+              ),
+              _overviewStat(
+                icon: Icons.event_available_rounded,
+                label: 'Services',
+                value: '$_totalServices',
+                tone: kAccentDark,
+              ),
+              _overviewStat(
+                icon: Icons.today_rounded,
+                label: 'Today',
+                value: '$_scheduledToday',
+                tone: const Color(0xFFF59E0B),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          TextField(
+            decoration: InputDecoration(
+              hintText: 'Search by deceased name, barangay, or service',
+              prefixIcon: const Icon(Icons.search_rounded),
+              filled: true,
+              fillColor: const Color(0xFFF8FAFC),
+              isDense: true,
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: 14,
+                vertical: 12,
+              ),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(14),
+                borderSide: const BorderSide(color: kBorderColor),
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(14),
+                borderSide: const BorderSide(color: kBorderColor),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(14),
+                borderSide: const BorderSide(color: kPrimary),
+              ),
+            ),
+            onChanged: (value) => setState(() => _searchQuery = value),
+          ),
+          const SizedBox(height: 12),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              _buildSummaryChip(
+                icon: Icons.checklist_rtl_rounded,
+                label: '$_noticesWithServices with schedules',
+              ),
+              if (_searchQuery.trim().isNotEmpty)
+                TextButton.icon(
+                  onPressed: () => setState(() => _searchQuery = ''),
+                  icon: const Icon(Icons.filter_alt_off_rounded),
+                  label: const Text('Reset search'),
+                ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSummaryChip({required IconData icon, required String label}) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: const Color(0xFFEFF6FF),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 15, color: kPrimary),
+          const SizedBox(width: 6),
+          Text(
+            label,
+            style: const TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+              color: kPrimaryDark,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildErrorState() {
+    return ListView(
+      padding: const EdgeInsets.all(24),
+      children: [
+        Container(
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            color: const Color(0xFFFFF7ED),
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(color: const Color(0xFFFED7AA)),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Row(
+                children: [
+                  Icon(Icons.error_outline_rounded, color: Color(0xFFB45309)),
+                  SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      'Could not load service tracker',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w800,
+                        color: kText,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 10),
+              Text(
+                _error ?? 'Unknown error',
+                style: const TextStyle(
+                  color: kSubText,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(height: 16),
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton.icon(
+                  onPressed: _fetchData,
+                  icon: const Icon(Icons.refresh_rounded),
+                  label: const Text('Retry fetch'),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildEmptyState({
+    required IconData icon,
+    required String title,
+    required String message,
+    Widget? action,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 24),
+      child: Center(
+        child: Column(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(22),
+              decoration: BoxDecoration(
+                color: const Color(0xFFEFF6FF),
+                borderRadius: BorderRadius.circular(24),
+              ),
+              child: Icon(icon, size: 42, color: kPrimary),
+            ),
+            const SizedBox(height: 18),
+            Text(
+              title,
+              style: const TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.w800,
+                color: kText,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              message,
+              textAlign: TextAlign.center,
+              style: const TextStyle(fontSize: 14, color: kSubText),
+            ),
+            if (action != null) ...[const SizedBox(height: 16), action],
+          ],
+        ),
+      ),
     );
   }
 
   @override
   Widget build(BuildContext context) {
+    final visibleNotices = _visibleNotices;
     return Scaffold(
       backgroundColor: kBg,
       body: SafeArea(
         child: Column(
           children: [
-            // Header
-            Container(
-              padding: const EdgeInsets.fromLTRB(20, 36, 20, 28),
-              decoration: BoxDecoration(
-                color: kPrimary,
-                borderRadius: const BorderRadius.only(
-                  bottomLeft: Radius.circular(24),
-                  bottomRight: Radius.circular(24),
-                ),
-                boxShadow: [
-                  BoxShadow(
-                    color: kPrimary.withValues(alpha: 0.3),
-                    blurRadius: 20,
-                    offset: const Offset(0, 8),
-                  ),
-                ],
-              ),
-              child: Row(
-                children: [
-                  IconButton(
-                    icon: const Icon(
-                      Icons.chevron_left_rounded,
-                      color: Colors.white,
-                      size: 28,
-                    ),
-                    onPressed: () => Navigator.pop(context),
-                  ),
-                  const Icon(
-                    Icons.track_changes_rounded,
-                    color: Colors.white,
-                    size: 28,
-                  ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: Text(
-                      'Service Tracker',
-                      style: const TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.w800,
-                        color: Colors.white,
-                        fontFamily: 'Montserrat',
-                        letterSpacing: 0.3,
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                ],
-              ),
+            const SecretaryPageHeader(
+              title: 'Service Tracker',
+              subtitle:
+                  'Monitor scheduled services and coordinate active death notices.',
+              icon: Icons.track_changes_rounded,
+              usePaymentStyle: true,
             ),
-            // Content
             _loading
                 ? const Expanded(
                     child: Center(child: CircularProgressIndicator()),
                   )
+                : _error != null
+                ? Expanded(child: _buildErrorState())
                 : Expanded(
-                    child: ListView.builder(
-                      padding: const EdgeInsets.all(16),
-                      itemCount: _notices.length,
-                      itemBuilder: (context, index) {
-                        final notice = _notices[index];
-                        final userId = notice['user_id'];
-                        final services = _servicesByUser[userId] ?? [];
-
-                        // Debug: Print services for this user
-                        debugPrint('UserID: $userId, Services: $services');
-
-                        return Card(
-                          color: kCardBg,
-                          margin: const EdgeInsets.only(bottom: 12),
-                          elevation: 3,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(
-                              vertical: 12,
-                              horizontal: 16,
-                            ),
-                            child: Column(
+                    child: RefreshIndicator(
+                      onRefresh: _fetchData,
+                      child: _notices.isEmpty
+                          ? ListView(
+                              padding: const EdgeInsets.fromLTRB(
+                                16,
+                                16,
+                                16,
+                                24,
+                              ),
                               children: [
-                                Row(
-                                  children: [
-                                    Expanded(
-                                      child: Column(
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.start,
-                                        children: [
-                                          Text(
-                                            notice['name'] ?? 'No Name',
-                                            style: const TextStyle(
-                                              fontWeight: FontWeight.bold,
-                                              fontSize: 18,
-                                              color: kText,
-                                            ),
-                                          ),
-                                          const SizedBox(height: 8),
-                                          Row(
-                                            children: [
-                                              const Icon(
-                                                Icons.calendar_today,
-                                                size: 16,
-                                                color: kSubText,
-                                              ),
-                                              const SizedBox(width: 4),
-                                              Text(
-                                                'Date of Death: ',
-                                                style: const TextStyle(
-                                                  fontWeight: FontWeight.w600,
-                                                  color: kSubText,
-                                                ),
-                                              ),
-                                              Flexible(
-                                                child: Text(
-                                                  notice['date_of_death'] ??
-                                                      'N/A',
-                                                  style: const TextStyle(
-                                                    color: kSubText,
-                                                  ),
-                                                  overflow:
-                                                      TextOverflow.ellipsis,
-                                                ),
-                                              ),
-                                            ],
-                                          ),
-                                          const SizedBox(height: 4),
-                                          Row(
-                                            children: [
-                                              const Icon(
-                                                Icons.account_tree,
-                                                size: 16,
-                                                color: kSubText,
-                                              ),
-                                              const SizedBox(width: 4),
-                                              Text(
-                                                'Dayung Unit ID: ',
-                                                style: const TextStyle(
-                                                  fontWeight: FontWeight.w600,
-                                                  color: kSubText,
-                                                ),
-                                              ),
-                                              Text(
-                                                '${notice['dayung_unit_id'] ?? 'N/A'}',
-                                                style: const TextStyle(
-                                                  color: kSubText,
-                                                ),
-                                              ),
-                                            ],
-                                          ),
-                                          const SizedBox(height: 4),
-                                          Row(
-                                            children: [
-                                              const Icon(
-                                                Icons.cake,
-                                                size: 16,
-                                                color: kSubText,
-                                              ),
-                                              const SizedBox(width: 4),
-                                              Text(
-                                                'Date of Birth: ',
-                                                style: const TextStyle(
-                                                  fontWeight: FontWeight.w600,
-                                                  color: kSubText,
-                                                ),
-                                              ),
-                                              Flexible(
-                                                child: Text(
-                                                  notice['dob'] ?? 'N/A',
-                                                  style: const TextStyle(
-                                                    color: kSubText,
-                                                  ),
-                                                  overflow:
-                                                      TextOverflow.ellipsis,
-                                                ),
-                                              ),
-                                            ],
-                                          ),
-                                          const SizedBox(height: 4),
-                                          Row(
-                                            children: [
-                                              const Icon(
-                                                Icons.accessibility_new,
-                                                size: 16,
-                                                color: kSubText,
-                                              ),
-                                              const SizedBox(width: 4),
-                                              Text(
-                                                'Deceased Age: ',
-                                                style: const TextStyle(
-                                                  fontWeight: FontWeight.w600,
-                                                  color: kSubText,
-                                                ),
-                                              ),
-                                              Text(
-                                                '${notice['deceased_age'] ?? 'N/A'} yrs',
-                                                style: const TextStyle(
-                                                  color: kSubText,
-                                                ),
-                                              ),
-                                            ],
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                    Row(
-                                      mainAxisAlignment: MainAxisAlignment.end,
-                                      children: [
-                                        TextButton.icon(
-                                          icon: const Icon(
-                                            Icons.add,
-                                            color: kPrimary,
-                                          ),
-                                          label: const Text('Add Service'),
-                                          onPressed: () =>
-                                              _showAddServiceDialog(notice),
-                                        ),
-                                      ],
-                                    ),
-                                  ],
+                                _buildToolbarCard(),
+                                _buildEmptyState(
+                                  icon: Icons.playlist_add_check_circle_rounded,
+                                  title: 'No tracked services yet',
+                                  message:
+                                      'Recent death notices will appear here so you can schedule services and assign participation.',
                                 ),
                               ],
+                            )
+                          : visibleNotices.isEmpty
+                          ? ListView(
+                              padding: const EdgeInsets.fromLTRB(
+                                16,
+                                16,
+                                16,
+                                24,
+                              ),
+                              children: [
+                                _buildToolbarCard(),
+                                _buildEmptyState(
+                                  icon: Icons.search_off_rounded,
+                                  title: 'No matching notices found',
+                                  message:
+                                      'Try a different search keyword or clear the current filter.',
+                                  action: OutlinedButton.icon(
+                                    onPressed: () =>
+                                        setState(() => _searchQuery = ''),
+                                    icon: const Icon(
+                                      Icons.filter_alt_off_rounded,
+                                    ),
+                                    label: const Text('Reset search'),
+                                  ),
+                                ),
+                              ],
+                            )
+                          : ListView.separated(
+                              padding: const EdgeInsets.fromLTRB(
+                                16,
+                                16,
+                                16,
+                                24,
+                              ),
+                              itemCount: visibleNotices.length + 1,
+                              separatorBuilder: (_, __) =>
+                                  const SizedBox(height: 14),
+                              itemBuilder: (context, index) {
+                                if (index == 0) {
+                                  return _buildToolbarCard();
+                                }
+
+                                final notice = visibleNotices[index - 1];
+                                final services =
+                                    _servicesByNotice[_noticeKey(notice)] ?? [];
+
+                                return Container(
+                                  decoration: BoxDecoration(
+                                    color: kCardBg,
+                                    borderRadius: BorderRadius.circular(20),
+                                    border: Border.all(
+                                      color: kBorderColor.withValues(
+                                        alpha: 0.75,
+                                      ),
+                                    ),
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: Colors.black.withValues(
+                                          alpha: 0.05,
+                                        ),
+                                        blurRadius: 16,
+                                        offset: const Offset(0, 8),
+                                      ),
+                                    ],
+                                  ),
+                                  child: Padding(
+                                    padding: const EdgeInsets.all(16),
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Row(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          children: [
+                                            Container(
+                                              padding: const EdgeInsets.all(12),
+                                              decoration: BoxDecoration(
+                                                color: const Color(0xFFEFF6FF),
+                                                borderRadius:
+                                                    BorderRadius.circular(16),
+                                              ),
+                                              child: const Icon(
+                                                Icons
+                                                    .volunteer_activism_rounded,
+                                                color: kPrimary,
+                                              ),
+                                            ),
+                                            const SizedBox(width: 12),
+                                            Expanded(
+                                              child: Column(
+                                                crossAxisAlignment:
+                                                    CrossAxisAlignment.start,
+                                                children: [
+                                                  Text(
+                                                    (notice['name'] ??
+                                                            'No Name')
+                                                        .toString(),
+                                                    style: const TextStyle(
+                                                      fontWeight:
+                                                          FontWeight.w800,
+                                                      fontSize: 18,
+                                                      color: kText,
+                                                    ),
+                                                  ),
+                                                  const SizedBox(height: 4),
+                                                  Text(
+                                                    services.isEmpty
+                                                        ? 'No services scheduled yet'
+                                                        : '${services.length} active service${services.length == 1 ? '' : 's'} scheduled',
+                                                    style: TextStyle(
+                                                      fontSize: 13,
+                                                      fontWeight:
+                                                          FontWeight.w600,
+                                                      color: services.isEmpty
+                                                          ? kSubText
+                                                          : kAccentDark,
+                                                    ),
+                                                  ),
+                                                ],
+                                              ),
+                                            ),
+                                            FilledButton.icon(
+                                              onPressed: () =>
+                                                  _showAddServiceDialog(notice),
+                                              style: FilledButton.styleFrom(
+                                                backgroundColor: kPrimary,
+                                                foregroundColor: Colors.white,
+                                                padding:
+                                                    const EdgeInsets.symmetric(
+                                                      horizontal: 14,
+                                                      vertical: 12,
+                                                    ),
+                                                shape: RoundedRectangleBorder(
+                                                  borderRadius:
+                                                      BorderRadius.circular(14),
+                                                ),
+                                              ),
+                                              icon: const Icon(
+                                                Icons.add_rounded,
+                                                size: 18,
+                                              ),
+                                              label: const Text('Add'),
+                                            ),
+                                          ],
+                                        ),
+                                        const SizedBox(height: 14),
+                                        Wrap(
+                                          spacing: 8,
+                                          runSpacing: 8,
+                                          children: [
+                                            _buildMetaChip(
+                                              Icons.event_busy_rounded,
+                                              'DOD: ${_formatDateValue(notice['date_of_death'])}',
+                                            ),
+                                            _buildMetaChip(
+                                              Icons.cake_rounded,
+                                              'DOB: ${_formatDateValue(notice['dob'])}',
+                                            ),
+                                            _buildMetaChip(
+                                              Icons.accessibility_new_rounded,
+                                              'Age: ${notice['deceased_age'] ?? 'N/A'}',
+                                            ),
+                                            if ((notice['barangay'] ?? '')
+                                                .toString()
+                                                .trim()
+                                                .isNotEmpty)
+                                              _buildMetaChip(
+                                                Icons.place_rounded,
+                                                '${notice['barangay']}',
+                                              ),
+                                          ],
+                                        ),
+                                        const SizedBox(height: 16),
+                                        const Text(
+                                          'Scheduled Services',
+                                          style: TextStyle(
+                                            fontSize: 14,
+                                            fontWeight: FontWeight.w800,
+                                            color: kText,
+                                          ),
+                                        ),
+                                        if (services.isEmpty)
+                                          Container(
+                                            margin: const EdgeInsets.only(
+                                              top: 10,
+                                            ),
+                                            padding: const EdgeInsets.all(14),
+                                            decoration: BoxDecoration(
+                                              color: const Color(0xFFF8FAFC),
+                                              borderRadius:
+                                                  BorderRadius.circular(16),
+                                              border: Border.all(
+                                                color: kBorderColor.withValues(
+                                                  alpha: 0.8,
+                                                ),
+                                              ),
+                                            ),
+                                            child: const Row(
+                                              children: [
+                                                Icon(
+                                                  Icons.info_outline_rounded,
+                                                  color: kSubText,
+                                                ),
+                                                SizedBox(width: 10),
+                                                Expanded(
+                                                  child: Text(
+                                                    'No services added yet for this death notice.',
+                                                    style: TextStyle(
+                                                      fontSize: 13,
+                                                      color: kSubText,
+                                                      fontWeight:
+                                                          FontWeight.w600,
+                                                    ),
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          )
+                                        else
+                                          ...services.map(_buildServiceTile),
+                                      ],
+                                    ),
+                                  ),
+                                );
+                              },
                             ),
-                          ),
-                        );
-                      },
                     ),
                   ),
           ],

@@ -57,6 +57,7 @@ class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
   int? _lastRoleUnitId;
   bool _loading = true;
   int _activeMembers = 0;
+  int _unreadNotifCount = 0;
   double _pendingAmount = 0;
   DateTime? _lastRefreshTime;
   List<String> _recentDeaths = [];
@@ -242,10 +243,67 @@ class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
         _fetchActiveMembers(selected),
         _fetchPendingPayments(selected),
         _fetchRecentDeaths(selected),
+        _fetchUnreadNotifCount(selected),
       ]);
     } finally {
       if (mounted) setState(() => _loading = false);
     }
+  }
+
+  Future<void> _fetchUnreadNotifCount(List<int> ids) async {
+    final uid = sb.auth.currentUser?.id;
+    if (uid == null) {
+      if (mounted) setState(() => _unreadNotifCount = 0);
+      return;
+    }
+
+    try {
+      final notifRows = await sb
+          .from('notifications')
+          .select('id')
+          .eq('recipient_id', uid)
+          .isFilter('read_at', null);
+      int unread = (notifRows as List).length;
+
+      if (ids.isNotEmpty) {
+        final annRows = await sb
+            .from('announcements')
+            .select('id')
+            .inFilter('dayung_unit_id', ids);
+        final annIds = (annRows as List)
+            .map((row) => (row as Map)['id'])
+            .whereType<int>()
+            .toList();
+
+        if (annIds.isNotEmpty) {
+          final reads = await sb
+              .from('announcement_reads')
+              .select('announcement_id')
+              .eq('user_id', uid)
+              .inFilter('announcement_id', annIds);
+          final readIds = Set<int>.from(
+            (reads as List).map(
+              (row) => (row as Map)['announcement_id'] as int,
+            ),
+          );
+          unread += annIds.where((id) => !readIds.contains(id)).length;
+        }
+      }
+
+      if (mounted) {
+        setState(() => _unreadNotifCount = unread);
+      }
+    } catch (_) {
+      if (mounted) setState(() => _unreadNotifCount = 0);
+    }
+  }
+
+  Future<void> _openNotifications() async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const NotificationPage()),
+    );
+    await _fetchUnreadNotifCount(await _selectedDayungIds());
   }
 
   Future<void> _fetchActiveMembers(List<int> ids) async {
@@ -567,11 +625,8 @@ class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
               ),
               _buildModernIconButton(
                 icon: Icons.notifications_active_rounded,
-                onTap: () => Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (_) => const NotificationPage()),
-                ),
-                badge: '1',
+                onTap: _openNotifications,
+                badge: _unreadNotifCount > 0 ? '$_unreadNotifCount' : null,
               ),
             ],
           ),
@@ -782,14 +837,9 @@ class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
                 _ModernDrawerTile(
                   icon: Icons.notifications,
                   label: 'Notifications',
-                  onTap: () {
+                  onTap: () async {
                     Navigator.pop(context);
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => const NotificationPage(),
-                      ),
-                    );
+                    await _openNotifications();
                   },
                 ),
                 _ModernDrawerTile(
@@ -953,6 +1003,8 @@ class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
             _buildModernStatsCards(),
             const SizedBox(height: 24),
             _buildQuickActions(),
+            const SizedBox(height: 24),
+            _buildRecentActivity(),
             const SizedBox(height: 24),
             _buildCollectedSection(),
             const SizedBox(height: 24),
@@ -1181,7 +1233,7 @@ class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         const Text(
-          'Quick Actions',
+          'Quick Access',
           style: TextStyle(
             fontSize: 18,
             fontWeight: FontWeight.w800,
@@ -1284,6 +1336,156 @@ class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
               ),
             );
           },
+        ),
+      ],
+    );
+  }
+
+  Widget _buildRecentActivity() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'Recent Activity',
+          style: TextStyle(
+            fontSize: 18,
+            fontWeight: FontWeight.w800,
+            color: Color(0xFF111827),
+            fontFamily: 'Montserrat',
+          ),
+        ),
+        const SizedBox(height: 16),
+        Container(
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: const Color(0xFFDDE7F5)),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.05),
+                blurRadius: 10,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFFDF2F8),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Icon(
+                      Icons.family_restroom_rounded,
+                      color: Color(0xFFEC4899),
+                      size: 20,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  const Expanded(
+                    child: Text(
+                      'Death Notice Queue',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
+                        color: Color(0xFF111827),
+                        fontFamily: 'Montserrat',
+                      ),
+                    ),
+                  ),
+                  TextButton(
+                    onPressed: () {
+                      if (_dayungUnitId == null) return;
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) =>
+                              RecentDeathNotices(dayungUnitId: _dayungUnitId),
+                        ),
+                      );
+                    },
+                    child: const Text(
+                      'View All',
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: Color(0xFF3B82F6),
+                        fontFamily: 'Montserrat',
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 10),
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 10,
+                ),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFEFF6FF),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Text(
+                  _loading
+                      ? 'Refreshing treasurer dashboard...'
+                      : 'Pending amount for collection: ₱${_pendingAmount.toStringAsFixed(0)}',
+                  style: const TextStyle(
+                    fontSize: 13,
+                    color: Color(0xFF111827),
+                    fontFamily: 'OpenSans',
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 14),
+              if (_recentDeaths.isEmpty)
+                const Text(
+                  'No recent activity yet.',
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: Color(0xFF6B7280),
+                    fontFamily: 'OpenSans',
+                  ),
+                )
+              else
+                ..._recentDeaths
+                    .take(3)
+                    .map(
+                      (name) => Padding(
+                        padding: const EdgeInsets.only(bottom: 10),
+                        child: Row(
+                          children: [
+                            Container(
+                              width: 6,
+                              height: 6,
+                              decoration: const BoxDecoration(
+                                color: Color(0xFF3B82F6),
+                                shape: BoxShape.circle,
+                              ),
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Text(
+                                name,
+                                style: const TextStyle(
+                                  fontSize: 14,
+                                  color: Color(0xFF111827),
+                                  fontFamily: 'OpenSans',
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+            ],
+          ),
         ),
       ],
     );

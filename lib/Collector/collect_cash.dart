@@ -1,5 +1,3 @@
-// filepath: lib/Collector/collect_cash.dart
-
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -7,9 +5,15 @@ const kBg = Color(0xFFFAFAF7);
 const kText = Color(0xFF1F2937);
 const kSubText = Color(0xFF4B5563);
 const kAccent = Color(0xFF0D47A1);
+const kAccentDark = Color(0xFF083366);
+const kBorder = Color(0xFFE5E7EB);
+const kSurface = Color(0xFFF8FAFC);
+const kSuccess = Color(0xFF10B981);
+const kWarn = Color(0xFFF59E0B);
 
 class CollectCashPage extends StatefulWidget {
   final int dayungUnitId;
+
   const CollectCashPage({super.key, required this.dayungUnitId});
 
   @override
@@ -17,120 +21,454 @@ class CollectCashPage extends StatefulWidget {
 }
 
 class _CollectCashPageState extends State<CollectCashPage> {
+  static const Duration _queryTimeout = Duration(seconds: 10);
+
   final sb = Supabase.instance.client;
+
   bool _loading = true;
+  bool _savingPayment = false;
   String? _error;
+
   List<Map<String, dynamic>> _approvedMembers = [];
-  List<Map<String, dynamic>> _setAmounts = [];
   List<Map<String, dynamic>> _payments = [];
-  List<Map<String, dynamic>> _deceasedUsers = [];
+  List<Map<String, dynamic>> _deceasedOptions = [];
+
   Map<String, dynamic>? _selectedDeceased;
   String _memberSearch = '';
   String _deceasedSearch = '';
 
+  double _asDouble(dynamic value, {double fallback = 0.0}) {
+    if (value is num) return value.toDouble();
+    return double.tryParse('${value ?? ''}') ?? fallback;
+  }
+
+  bool get _hasSelectedDeceased => _selectedDeceased != null;
+
+  List<Map<String, dynamic>> get _filteredDeceasedOptions {
+    if (_deceasedSearch.trim().isEmpty) return _deceasedOptions;
+    final query = _deceasedSearch.trim().toLowerCase();
+    return _deceasedOptions.where((option) {
+      final displayName = (option['display_name'] ?? '')
+          .toString()
+          .toLowerCase();
+      return displayName.contains(query);
+    }).toList();
+  }
+
+  List<Map<String, dynamic>> get _filteredMembers {
+    final selected = _selectedDeceased;
+    if (selected == null) return const [];
+
+    final excludedUserId = (selected['user_id'] ?? '').toString();
+    final query = _memberSearch.trim().toLowerCase();
+
+    final members = _approvedMembers.where((member) {
+      final memberId = (member['id'] ?? '').toString();
+      if (memberId.isEmpty) return false;
+      if (excludedUserId.isNotEmpty && memberId == excludedUserId) {
+        return false;
+      }
+      if (query.isEmpty) return true;
+      final fullName = (member['full_name'] ?? '').toString().toLowerCase();
+      return fullName.contains(query);
+    }).toList();
+
+    members.sort((a, b) {
+      final aPaid = _isMemberPaid((a['id'] ?? '').toString(), selected);
+      final bPaid = _isMemberPaid((b['id'] ?? '').toString(), selected);
+      if (aPaid != bPaid) return aPaid ? 1 : -1;
+      return (a['full_name'] ?? '').toString().toLowerCase().compareTo(
+        (b['full_name'] ?? '').toString().toLowerCase(),
+      );
+    });
+    return members;
+  }
+
+  int get _paidCountForSelected {
+    final selected = _selectedDeceased;
+    if (selected == null) return 0;
+    return _filteredMembers.where((member) {
+      return _isMemberPaid((member['id'] ?? '').toString(), selected);
+    }).length;
+  }
+
+  int get _pendingCountForSelected {
+    final selected = _selectedDeceased;
+    if (selected == null) return 0;
+    return _filteredMembers.where((member) {
+      return !_isMemberPaid((member['id'] ?? '').toString(), selected);
+    }).length;
+  }
+
   @override
   void initState() {
     super.initState();
-    _load();
-    _loadSetAmounts();
-    _loadPayments();
+    _loadAll();
   }
 
-  Future<void> _loadSetAmounts() async {
-    try {
-      final res = await sb
-          .from('set_amount')
-          .select('id, userdeceased, amount')
-          .eq('dayung_unit_id', widget.dayungUnitId);
-      setState(() {
-        _setAmounts = List<Map<String, dynamic>>.from(res);
-      });
-      await _loadDeceasedUsers();
-    } catch (e) {
-      debugPrint('Failed to load set amounts: $e');
-    }
-  }
-
-  Future<void> _loadDeceasedUsers() async {
-    try {
-      final ids = _setAmounts
-          .map((a) => a['userdeceased'])
-          .where((id) => id != null)
-          .toSet()
-          .toList();
-      if (ids.isEmpty) {
-        setState(() {
-          _deceasedUsers = [];
-        });
-        return;
-      }
-      final usersRes = await sb
-          .from('users')
-          .select('id, full_name')
-          .inFilter('id', ids);
-      setState(() {
-        _deceasedUsers = List<Map<String, dynamic>>.from(usersRes);
-      });
-    } catch (e) {
-      debugPrint('Failed to load deceased users: $e');
-    }
-  }
-
-  Future<void> _loadPayments() async {
-    try {
-      final res = await sb
-          .from('payments')
-          .select('*')
-          .eq('dayung_unit_id', widget.dayungUnitId);
-      setState(() {
-        _payments = List<Map<String, dynamic>>.from(res);
-      });
-    } catch (e) {
-      debugPrint('Failed to load payments: $e');
-    }
-  }
-
-  Future<void> _load() async {
+  Future<void> _loadAll() async {
     setState(() {
       _loading = true;
       _error = null;
     });
-    try {
-      final appsRes = await sb
-          .from('applications')
-          .select('user_id')
-          .eq('dayung_unit_id', widget.dayungUnitId)
-          .eq('status', 'approved');
-      final userIds = List<Map<String, dynamic>>.from(
-        appsRes,
-      ).map((a) => a['user_id']).toList();
 
-      List<Map<String, dynamic>> members = [];
-      if (userIds.isNotEmpty) {
-        final usersRes = await sb
-            .from('users')
-            .select('id, full_name')
-            .inFilter('id', userIds);
-        members = List<Map<String, dynamic>>.from(usersRes);
+    try {
+      final results = await Future.wait([
+        sb
+            .from('applications')
+            .select('user_id')
+            .eq('dayung_unit_id', widget.dayungUnitId)
+            .eq('status', 'approved')
+            .timeout(_queryTimeout),
+        sb
+            .from('set_amount')
+            .select('id, userdeceased, beneficiary_id, amount')
+            .eq('dayung_unit_id', widget.dayungUnitId)
+            .timeout(_queryTimeout),
+        sb
+            .from('payments')
+            .select(
+              'id, user_id, amount, status, paid_at, created_at, collected_by, '
+              'datepaidamount, userdeceased, beneficiary_id, death_notice_id, dayung_unit_id',
+            )
+            .eq('dayung_unit_id', widget.dayungUnitId)
+            .timeout(_queryTimeout),
+        sb
+            .from('death_notices')
+            .select(
+              'id, user_id, beneficiary_id, deceased_type, name, date_of_death',
+            )
+            .eq('dayung_unit_id', widget.dayungUnitId)
+            .order('date_of_death', ascending: false)
+            .timeout(_queryTimeout),
+        sb.from('beneficiaries').select('id, full_name').timeout(_queryTimeout),
+      ]);
+
+      final approvedApps = List<Map<String, dynamic>>.from(results[0]);
+      final setAmounts = List<Map<String, dynamic>>.from(results[1]);
+      final payments = List<Map<String, dynamic>>.from(results[2]);
+      final deathNotices = List<Map<String, dynamic>>.from(results[3]);
+      final beneficiaries = List<Map<String, dynamic>>.from(results[4]);
+
+      final memberIds = <String>{
+        for (final row in approvedApps) (row['user_id'] ?? '').toString(),
+      }..remove('');
+
+      final lookupUserIds = <String>{
+        ...memberIds,
+        for (final row in setAmounts) (row['userdeceased'] ?? '').toString(),
+        for (final row in deathNotices) (row['user_id'] ?? '').toString(),
+        for (final row in payments) (row['user_id'] ?? '').toString(),
+        for (final row in payments) (row['collected_by'] ?? '').toString(),
+      }..remove('');
+
+      final userRows = lookupUserIds.isEmpty
+          ? <Map<String, dynamic>>[]
+          : List<Map<String, dynamic>>.from(
+              await sb
+                  .from('users')
+                  .select('id, full_name')
+                  .inFilter('id', lookupUserIds.toList())
+                  .timeout(_queryTimeout),
+            );
+
+      final userMap = {
+        for (final row in userRows)
+          (row['id'] ?? '').toString(): (row['full_name'] ?? 'Member')
+              .toString(),
+      };
+
+      final approvedMembers =
+          memberIds
+              .map((id) => {'id': id, 'full_name': userMap[id] ?? 'Member'})
+              .toList()
+            ..sort((a, b) {
+              return (a['full_name'] ?? '').toString().toLowerCase().compareTo(
+                (b['full_name'] ?? '').toString().toLowerCase(),
+              );
+            });
+
+      final deceasedOptions = _buildDeceasedOptions(
+        setAmounts: setAmounts,
+        deathNotices: deathNotices,
+        beneficiaries: beneficiaries,
+        userMap: userMap,
+      );
+
+      Map<String, dynamic>? nextSelected;
+      final selectedKey = (_selectedDeceased?['key'] ?? '').toString();
+      if (selectedKey.isNotEmpty) {
+        for (final option in deceasedOptions) {
+          if ((option['key'] ?? '').toString() == selectedKey) {
+            nextSelected = option;
+            break;
+          }
+        }
       }
 
+      if (!mounted) return;
       setState(() {
-        _approvedMembers = members;
+        _approvedMembers = approvedMembers;
+        _payments = payments;
+        _deceasedOptions = deceasedOptions;
+        _selectedDeceased = nextSelected;
         _loading = false;
       });
     } catch (e) {
+      if (!mounted) return;
       setState(() {
+        _error = 'Failed to load collection data: $e';
         _loading = false;
-        _error = 'Failed to load: $e';
       });
     }
   }
 
-  Future<void> _savePayment(
-    String userId,
-    double amount,
-    String setAmountId,
-  ) async {
+  List<Map<String, dynamic>> _buildDeceasedOptions({
+    required List<Map<String, dynamic>> setAmounts,
+    required List<Map<String, dynamic>> deathNotices,
+    required List<Map<String, dynamic>> beneficiaries,
+    required Map<String, String> userMap,
+  }) {
+    final options = <Map<String, dynamic>>[];
+    final seenKeys = <String>{};
+
+    for (final notice in deathNotices) {
+      final beneficiaryId = (notice['beneficiary_id'] ?? '').toString();
+      final userId = (notice['user_id'] ?? '').toString();
+
+      Map<String, dynamic>? setAmount;
+      for (final row in setAmounts) {
+        if (beneficiaryId.isNotEmpty &&
+            (row['beneficiary_id'] ?? '').toString() == beneficiaryId) {
+          setAmount = row;
+          break;
+        }
+        if (beneficiaryId.isEmpty &&
+            userId.isNotEmpty &&
+            (row['userdeceased'] ?? '').toString() == userId) {
+          setAmount = row;
+          break;
+        }
+      }
+
+      if (setAmount == null) continue;
+
+      final key = beneficiaryId.isNotEmpty
+          ? 'beneficiary:$beneficiaryId'
+          : 'user:$userId';
+      if (!seenKeys.add(key)) continue;
+
+      final displayName = beneficiaryId.isNotEmpty
+          ? _beneficiaryLabel(beneficiaries, beneficiaryId)
+          : ((notice['name'] ?? '').toString().trim().isNotEmpty
+                ? (notice['name'] ?? '').toString()
+                : (userMap[userId] ?? 'Deceased Member'));
+
+      options.add({
+        'key': key,
+        'death_notice_id': notice['id'],
+        'user_id': userId,
+        'beneficiary_id': beneficiaryId,
+        'display_name': displayName,
+        'required_amount': _asDouble(setAmount['amount']),
+        'set_amount_id': (setAmount['id'] ?? '').toString(),
+        'deceased_type': (notice['deceased_type'] ?? 'member').toString(),
+      });
+    }
+
+    for (final setAmount in setAmounts) {
+      final beneficiaryId = (setAmount['beneficiary_id'] ?? '').toString();
+      final userId = (setAmount['userdeceased'] ?? '').toString();
+      final key = beneficiaryId.isNotEmpty
+          ? 'beneficiary:$beneficiaryId'
+          : 'user:$userId';
+      if (key == 'user:' || !seenKeys.add(key)) continue;
+
+      options.add({
+        'key': key,
+        'death_notice_id': null,
+        'user_id': userId,
+        'beneficiary_id': beneficiaryId,
+        'display_name': beneficiaryId.isNotEmpty
+            ? _beneficiaryLabel(beneficiaries, beneficiaryId)
+            : (userMap[userId] ?? 'Deceased Member'),
+        'required_amount': _asDouble(setAmount['amount']),
+        'set_amount_id': (setAmount['id'] ?? '').toString(),
+        'deceased_type': beneficiaryId.isNotEmpty ? 'beneficiary' : 'member',
+      });
+    }
+
+    options.sort((a, b) {
+      return (a['display_name'] ?? '').toString().toLowerCase().compareTo(
+        (b['display_name'] ?? '').toString().toLowerCase(),
+      );
+    });
+
+    return options;
+  }
+
+  String _beneficiaryLabel(
+    List<Map<String, dynamic>> beneficiaries,
+    String beneficiaryId,
+  ) {
+    for (final beneficiary in beneficiaries) {
+      if ((beneficiary['id'] ?? '').toString() != beneficiaryId) continue;
+      final fullName = (beneficiary['full_name'] ?? '').toString().trim();
+      if (fullName.isNotEmpty) return fullName;
+    }
+    return 'Beneficiary';
+  }
+
+  bool _paymentMatchesSelected(
+    Map<String, dynamic> payment,
+    Map<String, dynamic>? selected,
+  ) {
+    if (selected == null) return false;
+
+    final selectedNoticeId = (selected['death_notice_id'] ?? '').toString();
+    final selectedBeneficiaryId = (selected['beneficiary_id'] ?? '').toString();
+    final selectedUserId = (selected['user_id'] ?? '').toString();
+
+    if (selectedNoticeId.isNotEmpty) {
+      return (payment['death_notice_id'] ?? '').toString() == selectedNoticeId;
+    }
+    if (selectedBeneficiaryId.isNotEmpty) {
+      return (payment['beneficiary_id'] ?? '').toString() ==
+          selectedBeneficiaryId;
+    }
+    return (payment['userdeceased'] ?? '').toString() == selectedUserId;
+  }
+
+  bool _isMemberPaid(String memberId, Map<String, dynamic>? selected) {
+    for (final payment in _payments) {
+      if ((payment['user_id'] ?? '').toString() != memberId) continue;
+      if (!_paymentMatchesSelected(payment, selected)) continue;
+      if ((payment['status'] ?? '').toString().toLowerCase() == 'paid') {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  Map<String, dynamic>? _paymentForMember(String memberId) {
+    final selected = _selectedDeceased;
+    if (selected == null) return null;
+
+    Map<String, dynamic>? fallback;
+    for (final payment in _payments) {
+      if ((payment['user_id'] ?? '').toString() != memberId) continue;
+      if (!_paymentMatchesSelected(payment, selected)) continue;
+      final status = (payment['status'] ?? '').toString().toLowerCase();
+      if (status == 'paid') return payment;
+      fallback ??= payment;
+    }
+    return fallback;
+  }
+
+  Future<void> _showCollectDialog(Map<String, dynamic> member) async {
+    final selected = _selectedDeceased;
+    if (selected == null) return;
+
+    final amount = _asDouble(selected['required_amount']);
+    if (amount <= 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('No amount has been set for this notice yet.'),
+        ),
+      );
+      return;
+    }
+
+    final confirm = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+      ),
+      builder: (context) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Center(
+                  child: Container(
+                    width: 56,
+                    height: 6,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFCBD5E1),
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                const Text(
+                  'Confirm Cash Collection',
+                  style: TextStyle(
+                    fontSize: 22,
+                    fontWeight: FontWeight.w900,
+                    color: kAccentDark,
+                    fontFamily: 'Montserrat',
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'This will mark the payment as paid and generate a receipt-ready record for this member.',
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: kSubText.withValues(alpha: 0.9),
+                    fontWeight: FontWeight.w600,
+                    fontFamily: 'OpenSans',
+                    height: 1.4,
+                  ),
+                ),
+                const SizedBox(height: 18),
+                _detailRow(
+                  'Member',
+                  (member['full_name'] ?? 'Member').toString(),
+                ),
+                _detailRow(
+                  'For',
+                  (selected['display_name'] ?? 'Deceased').toString(),
+                ),
+                _detailRow('Amount', 'PHP ${amount.toStringAsFixed(2)}'),
+                const SizedBox(height: 20),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    onPressed: () => Navigator.pop(context, true),
+                    icon: const Icon(Icons.payments_rounded),
+                    label: const Text('Mark as Paid'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: kAccent,
+                      foregroundColor: Colors.white,
+                      minimumSize: const Size.fromHeight(52),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+
+    if (confirm == true) {
+      await _savePayment((member['id'] ?? '').toString(), amount);
+    }
+  }
+
+  Future<void> _savePayment(String userId, double amount) async {
+    final selected = _selectedDeceased;
+    if (selected == null || _savingPayment) return;
+
+    setState(() => _savingPayment = true);
+
     try {
       final messenger = ScaffoldMessenger.of(context);
       final collectorId = sb.auth.currentUser?.id;
@@ -141,45 +479,44 @@ class _CollectCashPageState extends State<CollectCashPage> {
         return;
       }
 
-      final setAmount = _setAmounts.firstWhere(
-        (a) => a['id'].toString() == setAmountId,
-        orElse: () => <String, dynamic>{},
-      );
+      dynamic paymentQuery = sb
+          .from('payments')
+          .select(
+            'id, status, amount, userdeceased, beneficiary_id, death_notice_id',
+          )
+          .eq('dayung_unit_id', widget.dayungUnitId)
+          .eq('user_id', userId);
 
-      final userDeceased = setAmount['userdeceased'].toString();
-      final now = DateTime.now().toUtc().toIso8601String();
+      final deathNoticeId = (selected['death_notice_id'] ?? '').toString();
+      final beneficiaryId = (selected['beneficiary_id'] ?? '').toString();
+      final deceasedUserId = (selected['user_id'] ?? '').toString();
 
-      // DEBUG: Print all payment records and filter values
-      debugPrint('DEBUG: userId: $userId');
-      debugPrint('DEBUG: userDeceased: $userDeceased');
-      debugPrint('DEBUG: dayungUnitId: ${widget.dayungUnitId}');
-      debugPrint('DEBUG: Payments list:');
-      debugPrint('DEBUG: setAmount: $setAmount');
-      debugPrint('DEBUG: _selectedDeceased: $_selectedDeceased');
-      for (var p in _payments) {
-        debugPrint(
-          '  id=${p['id']}, user_id=${p['user_id']}, userdeceased=${p['userdeceased']}, dayung_unit_id=${p['dayung_unit_id']}, status=${p['status']}',
+      if (deathNoticeId.isNotEmpty) {
+        paymentQuery = paymentQuery.eq(
+          'death_notice_id',
+          int.tryParse(deathNoticeId) ?? deathNoticeId,
         );
+      } else if (beneficiaryId.isNotEmpty) {
+        paymentQuery = paymentQuery.eq('beneficiary_id', beneficiaryId);
+      } else {
+        paymentQuery = paymentQuery.eq('userdeceased', deceasedUserId);
       }
 
-      // Make sure all comparisons are string-based
-      final unpaidPayments = _payments
-          .where(
-            (p) =>
-                p['user_id'].toString() == userId.toString() &&
-                p['userdeceased'].toString() == userDeceased &&
-                p['dayung_unit_id'].toString() ==
-                    widget.dayungUnitId.toString() &&
-                p['status'].toString() != 'paid',
-          )
-          .toList();
+      final paymentRows = List<Map<String, dynamic>>.from(
+        await paymentQuery
+            .order('created_at', ascending: true)
+            .timeout(_queryTimeout),
+      );
 
-      debugPrint('DEBUG: unpaidPayments found: ${unpaidPayments.length}');
-
-      final payment = unpaidPayments.isNotEmpty ? unpaidPayments.first : null;
+      Map<String, dynamic>? payment;
+      for (final row in paymentRows) {
+        if ((row['status'] ?? '').toString().toLowerCase() != 'paid') {
+          payment = row;
+          break;
+        }
+      }
 
       if (payment == null) {
-        debugPrint('DEBUG: No unpaid payment found for this member.');
         messenger.showSnackBar(
           const SnackBar(
             content: Text('No unpaid payment found for this member.'),
@@ -188,7 +525,7 @@ class _CollectCashPageState extends State<CollectCashPage> {
         return;
       }
 
-      // Update the payment record
+      final now = DateTime.now().toUtc().toIso8601String();
       await sb
           .from('payments')
           .update({
@@ -197,705 +534,1111 @@ class _CollectCashPageState extends State<CollectCashPage> {
             'collected_by': collectorId,
             'datepaidamount': now,
           })
-          .eq('id', payment['id']);
+          .eq('id', payment['id'])
+          .timeout(_queryTimeout);
 
-      await _loadPayments();
+      if (deathNoticeId.isNotEmpty) {
+        final noticePayments = List<Map<String, dynamic>>.from(
+          await sb
+              .from('payments')
+              .select('amount, status')
+              .eq('dayung_unit_id', widget.dayungUnitId)
+              .eq(
+                'death_notice_id',
+                int.tryParse(deathNoticeId) ?? deathNoticeId,
+              )
+              .timeout(_queryTimeout),
+        );
 
-      // Get the full_name of the deceased
-      final deceasedUser = _deceasedUsers.firstWhere(
-        (u) => u['id'].toString() == userDeceased,
-        orElse: () => <String, dynamic>{},
-      );
-      final deceasedName = deceasedUser['full_name'] ?? '';
+        final paidCount = noticePayments
+            .where(
+              (row) => (row['status'] ?? '').toString().toLowerCase() == 'paid',
+            )
+            .length;
+        final unpaidCount = noticePayments.length - paidCount;
+        final totalPaidAmount = noticePayments
+            .where(
+              (row) => (row['status'] ?? '').toString().toLowerCase() == 'paid',
+            )
+            .fold<double>(0.0, (sum, row) => sum + _asDouble(row['amount']));
+        final totalPaymentAmount = noticePayments.fold<double>(
+          0.0,
+          (sum, row) => sum + _asDouble(row['amount']),
+        );
 
-      // Count paid members for this deceased
-      final paidCount = _payments
-          .where(
-            (p) =>
-                p['userdeceased'].toString() == userDeceased &&
-                p['dayung_unit_id'].toString() ==
-                    widget.dayungUnitId.toString() &&
-                p['status'].toString() == 'paid',
-          )
-          .length;
+        await sb
+            .from('death_notices')
+            .update({
+              'paid_count': paidCount,
+              'unpaid_count': unpaidCount,
+              'total_paid_amount': totalPaidAmount,
+              'total_payment_amount': totalPaymentAmount,
+            })
+            .eq('id', int.tryParse(deathNoticeId) ?? deathNoticeId)
+            .timeout(_queryTimeout);
+      }
 
-      // Count unpaid members for this deceased
-      final unpaidCount = _payments
-          .where(
-            (p) =>
-                p['userdeceased'].toString() == userDeceased &&
-                p['dayung_unit_id'].toString() ==
-                    widget.dayungUnitId.toString() &&
-                p['status'].toString() != 'paid',
-          )
-          .length;
-
-      // Compute total paid amount for this deceased
-      final totalPaidAmount = _payments
-          .where(
-            (p) =>
-                p['userdeceased'].toString() == userDeceased &&
-                p['dayung_unit_id'].toString() ==
-                    widget.dayungUnitId.toString() &&
-                p['status'].toString() == 'paid',
-          )
-          .fold<double>(0.0, (sum, p) {
-            final amt = p['amount'];
-            if (amt is int) return sum + amt.toDouble();
-            if (amt is double) return sum + amt;
-            return sum + (double.tryParse(amt.toString()) ?? 0.0);
-          });
-
-      // Compute total payment amount (paid or unpaid)
-      final totalPaymentAmount = _payments
-          .where(
-            (p) =>
-                p['userdeceased'].toString() == userDeceased &&
-                p['dayung_unit_id'].toString() ==
-                    widget.dayungUnitId.toString(),
-          )
-          .fold<double>(0.0, (sum, p) {
-            final amt = p['amount'];
-            if (amt is int) return sum + amt.toDouble();
-            if (amt is double) return sum + amt;
-            return sum + (double.tryParse(amt.toString()) ?? 0.0);
-          });
-
-      // Update death_notices table with all computed values
-      await sb
-          .from('death_notices')
-          .update({
-            'paid_count': paidCount,
-            'unpaid_count': unpaidCount,
-            'total_paid_amount': totalPaidAmount,
-            'total_payment_amount': totalPaymentAmount,
-          })
-          .eq('name', deceasedName)
-          .eq('dayung_unit_id', widget.dayungUnitId);
-
+      await _loadAll();
       if (!mounted) return;
+
+      _showReceiptPreview(
+        memberName: _memberName(userId),
+        deceasedName: (selected['display_name'] ?? 'Deceased').toString(),
+        amount: amount,
+        paymentId: payment['id'],
+        paidAt: now,
+      );
+
       messenger.showSnackBar(
-        const SnackBar(content: Text('Payment updated to paid!')),
+        const SnackBar(content: Text('Cash payment marked as paid.')),
       );
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text('Failed to update payment: $e')));
+    } finally {
+      if (mounted) {
+        setState(() => _savingPayment = false);
+      }
     }
+  }
+
+  String _memberName(String userId) {
+    for (final member in _approvedMembers) {
+      if ((member['id'] ?? '').toString() == userId) {
+        return (member['full_name'] ?? 'Member').toString();
+      }
+    }
+    return 'Member';
+  }
+
+  void _showReceiptPreview({
+    required String memberName,
+    required String deceasedName,
+    required double amount,
+    required dynamic paymentId,
+    required String paidAt,
+  }) {
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+      ),
+      builder: (context) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Center(
+                  child: Container(
+                    width: 56,
+                    height: 6,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFCBD5E1),
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 18),
+                Container(
+                  padding: const EdgeInsets.all(20),
+                  decoration: BoxDecoration(
+                    gradient: const LinearGradient(
+                      colors: [Color(0xFF083366), Color(0xFF0D47A1)],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                    borderRadius: BorderRadius.circular(24),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Cash Receipt',
+                        style: TextStyle(
+                          fontSize: 22,
+                          fontWeight: FontWeight.w900,
+                          color: Colors.white,
+                          fontFamily: 'Montserrat',
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        'Receipt No. CASH-${paymentId ?? 'N/A'}',
+                        style: const TextStyle(
+                          color: Colors.white70,
+                          fontWeight: FontWeight.w700,
+                          fontFamily: 'OpenSans',
+                        ),
+                      ),
+                      const SizedBox(height: 18),
+                      _receiptLine('Member', memberName),
+                      _receiptLine('For', deceasedName),
+                      _receiptLine(
+                        'Amount',
+                        'PHP ${amount.toStringAsFixed(2)}',
+                      ),
+                      _receiptLine('Paid At', paidAt.split('T').join(' ')),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 18),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    onPressed: () => Navigator.pop(context),
+                    icon: const Icon(Icons.check_circle_rounded),
+                    label: const Text('Done'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: kAccent,
+                      foregroundColor: Colors.white,
+                      minimumSize: const Size.fromHeight(50),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
   }
 
   @override
   Widget build(BuildContext context) {
+    final width = MediaQuery.of(context).size.width;
+    final wide = width >= 860;
+
     return Scaffold(
       backgroundColor: kBg,
       body: SafeArea(
         child: Column(
           children: [
-            // Header
-            Container(
-              padding: const EdgeInsets.fromLTRB(20, 36, 20, 28),
-              decoration: const BoxDecoration(
-                color: kAccent,
-                borderRadius: BorderRadius.only(
-                  bottomLeft: Radius.circular(28),
-                  bottomRight: Radius.circular(28),
-                ),
-                boxShadow: [
-                  BoxShadow(
-                    color: kAccent,
-                    blurRadius: 18,
-                    offset: Offset(0, 8),
-                  ),
-                ],
-              ),
-              child: Row(
-                children: [
-                  IconButton(
-                    icon: const Icon(
-                      Icons.chevron_left,
-                      color: Colors.white,
-                      size: 24,
-                    ),
-                    onPressed: () {
-                      setState(() {
-                        if (_selectedDeceased != null) {
-                          _selectedDeceased = null;
-                        } else {
-                          Navigator.of(context).pop();
-                        }
-                      });
-                    },
-                  ),
-                  const Icon(
-                    Icons.payments_rounded,
-                    color: Colors.white,
-                    size: 24,
-                  ),
-                  const SizedBox(width: 16),
-                  const Expanded(
-                    child: Text(
-                      'Collect Cash Payments',
-                      style: TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.w800,
-                        color: Colors.white,
-                        fontFamily: 'Montserrat',
-                        letterSpacing: 0.3,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            // Content
+            _buildHeader(wide),
             Expanded(
-              child: _loading
-                  ? const Center(
-                      child: CircularProgressIndicator(color: kAccent),
-                    )
-                  : _error != null
-                  ? Center(
-                      child: Text(
-                        _error!,
-                        style: const TextStyle(color: Colors.red, fontSize: 18),
-                      ),
-                    )
-                  : _selectedDeceased == null
-                  // STEP 1: choose deceased
-                  ? (_deceasedUsers.isEmpty
-                        ? Center(
-                            child: Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: const [
-                                Icon(
-                                  Icons.info_outline,
-                                  color: kSubText,
-                                  size: 48,
-                                ),
-                                SizedBox(height: 16),
-                                Text(
-                                  'No set amounts created.',
-                                  style: TextStyle(
-                                    fontSize: 22,
-                                    color: kSubText,
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          )
-                        : Padding(
-                            padding: const EdgeInsets.all(18),
-                            child: ListView(
-                              children: [
-                                const Padding(
-                                  padding: EdgeInsets.only(
-                                    bottom: 12.0,
-                                    left: 4.0,
-                                  ),
-                                  child: Text(
-                                    'USER DECEASED',
-                                    style: TextStyle(
-                                      fontSize: 18,
-                                      fontWeight: FontWeight.bold,
-                                      color: kAccent,
-                                      letterSpacing: 1.2,
-                                    ),
-                                  ),
-                                ),
-                                const SizedBox(height: 10),
-                                TextField(
-                                  decoration: const InputDecoration(
-                                    hintText: 'SEARCH',
-                                    prefixIcon: Icon(Icons.search),
-                                    border: OutlineInputBorder(),
-                                    isDense: true,
-                                    contentPadding: EdgeInsets.symmetric(
-                                      vertical: 12,
-                                      horizontal: 16,
-                                    ),
-                                  ),
-                                  onChanged: (value) {
-                                    setState(() {
-                                      _deceasedSearch = value;
-                                    });
-                                  },
-                                ),
-                                const SizedBox(height: 10),
-                                Builder(
-                                  builder: (context) {
-                                    final filteredDeceased = _deceasedUsers
-                                        .where((d) {
-                                          if (_deceasedSearch.isEmpty) {
-                                            return true;
-                                          }
-                                          final name = (d['full_name'] ?? '')
-                                              .toString()
-                                              .toLowerCase();
-                                          return name.contains(
-                                            _deceasedSearch.toLowerCase(),
-                                          );
-                                        })
-                                        .toList();
-
-                                    return Column(
-                                      children: [
-                                        ...filteredDeceased.map((d) {
-                                          final sa = _setAmounts.firstWhere(
-                                            (a) => a['userdeceased'] == d['id'],
-                                            orElse: () => <String, dynamic>{},
-                                          );
-                                          return Card(
-                                            margin: const EdgeInsets.symmetric(
-                                              vertical: 8,
-                                            ),
-                                            elevation: 2,
-                                            color: Colors.white,
-                                            shape: RoundedRectangleBorder(
-                                              borderRadius:
-                                                  BorderRadius.circular(16),
-                                              side: BorderSide(
-                                                color: kAccent.withValues(
-                                                  alpha: 0.10,
-                                                ),
-                                              ),
-                                            ),
-                                            child: ListTile(
-                                              title: Row(
-                                                children: [
-                                                  Expanded(
-                                                    child: Text(
-                                                      d['full_name'] ??
-                                                          'Unknown',
-                                                      style: const TextStyle(
-                                                        fontSize: 20,
-                                                        fontWeight:
-                                                            FontWeight.w800,
-                                                        color: kText,
-                                                      ),
-                                                    ),
-                                                  ),
-                                                  Builder(
-                                                    builder: (context) {
-                                                      final totalMembers =
-                                                          _approvedMembers
-                                                              .length;
-                                                      final paidCount = _payments
-                                                          .where(
-                                                            (p) =>
-                                                                p['userdeceased'] ==
-                                                                    d['id'] &&
-                                                                p['status'] ==
-                                                                    'paid',
-                                                          )
-                                                          .length;
-                                                      if (totalMembers == 0) {
-                                                        return const SizedBox();
-                                                      }
-                                                      if (paidCount ==
-                                                          totalMembers) {
-                                                        return Container(
-                                                          padding:
-                                                              const EdgeInsets.symmetric(
-                                                                horizontal: 10,
-                                                                vertical: 4,
-                                                              ),
-                                                          decoration: BoxDecoration(
-                                                            color: Colors
-                                                                .green[100],
-                                                            borderRadius:
-                                                                BorderRadius.circular(
-                                                                  12,
-                                                                ),
-                                                          ),
-                                                          child: const Text(
-                                                            'PAID',
-                                                            style: TextStyle(
-                                                              color:
-                                                                  Colors.green,
-                                                              fontWeight:
-                                                                  FontWeight
-                                                                      .bold,
-                                                              fontSize: 14,
-                                                            ),
-                                                          ),
-                                                        );
-                                                      }
-                                                      return Container(
-                                                        padding:
-                                                            const EdgeInsets.symmetric(
-                                                              horizontal: 10,
-                                                              vertical: 4,
-                                                            ),
-                                                        decoration: BoxDecoration(
-                                                          color: kAccent
-                                                              .withValues(
-                                                                alpha: 0.08,
-                                                              ),
-                                                          borderRadius:
-                                                              BorderRadius.circular(
-                                                                12,
-                                                              ),
-                                                        ),
-                                                        child: Text(
-                                                          '$paidCount/$totalMembers',
-                                                          style:
-                                                              const TextStyle(
-                                                                color: kAccent,
-                                                                fontWeight:
-                                                                    FontWeight
-                                                                        .bold,
-                                                                fontSize: 14,
-                                                              ),
-                                                        ),
-                                                      );
-                                                    },
-                                                  ),
-                                                ],
-                                              ),
-                                              subtitle: sa.isNotEmpty
-                                                  ? Text(
-                                                      'Required: ₱${sa['amount']}',
-                                                      style: const TextStyle(
-                                                        color: kSubText,
-                                                      ),
-                                                    )
-                                                  : const Text(
-                                                      'No amount set',
-                                                      style: TextStyle(
-                                                        color: kSubText,
-                                                      ),
-                                                    ),
-                                              trailing: const Icon(
-                                                Icons.arrow_forward_ios,
-                                                color: kAccent,
-                                              ),
-                                              onTap: () {
-                                                setState(() {
-                                                  _selectedDeceased = d;
-                                                });
-                                              },
-                                            ),
-                                          );
-                                        }),
-                                      ],
-                                    );
-                                  },
-                                ),
-                              ],
-                            ),
-                          ))
-                  // STEP 2: members for selected deceased
-                  : (_approvedMembers.isEmpty
-                        ? Center(
-                            child: Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: const [
-                                Icon(
-                                  Icons.info_outline,
-                                  color: kSubText,
-                                  size: 48,
-                                ),
-                                SizedBox(height: 16),
-                                Text(
-                                  'No approved members assigned.',
-                                  style: TextStyle(
-                                    fontSize: 22,
-                                    color: kSubText,
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          )
-                        : Padding(
-                            padding: const EdgeInsets.all(18),
-                            child: Column(
-                              children: [
-                                Row(
-                                  children: [
-                                    Expanded(
-                                      child: Text(
-                                        'Deceased Member: ${_selectedDeceased?['full_name'] ?? 'Deceased'}',
-                                        style: const TextStyle(
-                                          fontSize: 18,
-                                          fontWeight: FontWeight.bold,
-                                          color: kAccent,
-                                          letterSpacing: 1.2,
-                                        ),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                                const SizedBox(height: 10),
-                                // Search
-                                TextField(
-                                  decoration: const InputDecoration(
-                                    hintText: 'SEARCH',
-                                    prefixIcon: Icon(Icons.search),
-                                    border: OutlineInputBorder(),
-                                    isDense: true,
-                                    contentPadding: EdgeInsets.symmetric(
-                                      vertical: 12,
-                                      horizontal: 16,
-                                    ),
-                                  ),
-                                  onChanged: (value) {
-                                    setState(() {
-                                      _memberSearch = value;
-                                    });
-                                  },
-                                ),
-                                const SizedBox(height: 10),
-                                Expanded(
-                                  child: ListView(
-                                    children: [
-                                      Builder(
-                                        builder: (context) {
-                                          // filter by search
-                                          final filteredMembers =
-                                              _approvedMembers
-                                                  .where(
-                                                    (member) =>
-                                                        _memberSearch.isEmpty ||
-                                                        (member['full_name'] ??
-                                                                '')
-                                                            .toLowerCase()
-                                                            .contains(
-                                                              _memberSearch
-                                                                  .toLowerCase(),
-                                                            ),
-                                                  )
-                                                  .toList();
-
-                                          // sort: unpaid first, then paid, then by name
-                                          filteredMembers.sort((a, b) {
-                                            final aPaid = _payments.any(
-                                              (p) =>
-                                                  p['user_id'] == a['id'] &&
-                                                  p['userdeceased'] ==
-                                                      _selectedDeceased?['id'] &&
-                                                  p['status'] == 'paid',
-                                            );
-                                            final bPaid = _payments.any(
-                                              (p) =>
-                                                  p['user_id'] == b['id'] &&
-                                                  p['userdeceased'] ==
-                                                      _selectedDeceased?['id'] &&
-                                                  p['status'] == 'paid',
-                                            );
-
-                                            if (aPaid != bPaid) {
-                                              // unpaid (false) first
-                                              return aPaid ? 1 : -1;
-                                            }
-                                            return (a['full_name'] ?? '')
-                                                .toString()
-                                                .toLowerCase()
-                                                .compareTo(
-                                                  (b['full_name'] ?? '')
-                                                      .toString()
-                                                      .toLowerCase(),
-                                                );
-                                          });
-
-                                          return Column(
-                                            children: [
-                                              ...filteredMembers.map((member) {
-                                                final sa = _setAmounts.firstWhere(
-                                                  (a) =>
-                                                      a['userdeceased'] ==
-                                                      _selectedDeceased?['id'],
-                                                  orElse: () =>
-                                                      <String, dynamic>{},
-                                                );
-                                                final isPaid = _payments.any(
-                                                  (p) =>
-                                                      p['user_id'] ==
-                                                          member['id'] &&
-                                                      p['userdeceased'] ==
-                                                          _selectedDeceased?['id'] &&
-                                                      p['status'] == 'paid',
-                                                );
-
-                                                return Card(
-                                                  margin:
-                                                      const EdgeInsets.symmetric(
-                                                        vertical: 8,
-                                                      ),
-                                                  elevation: 2,
-                                                  color: Colors.white,
-                                                  shape: RoundedRectangleBorder(
-                                                    borderRadius:
-                                                        BorderRadius.circular(
-                                                          16,
-                                                        ),
-                                                    side: BorderSide(
-                                                      color: kAccent.withValues(
-                                                        alpha: 0.10,
-                                                      ),
-                                                    ),
-                                                  ),
-                                                  child: ListTile(
-                                                    title: Text(
-                                                      member['full_name'] ??
-                                                          'Member',
-                                                      style: const TextStyle(
-                                                        fontSize: 20,
-                                                        fontWeight:
-                                                            FontWeight.w800,
-                                                        color: kText,
-                                                      ),
-                                                    ),
-                                                    subtitle: isPaid
-                                                        ? const Text(
-                                                            'Paid',
-                                                            style: TextStyle(
-                                                              color:
-                                                                  Colors.green,
-                                                              fontWeight:
-                                                                  FontWeight
-                                                                      .bold,
-                                                            ),
-                                                          )
-                                                        : Text(
-                                                            sa.isNotEmpty
-                                                                ? 'Required: ₱${sa['amount']}'
-                                                                : 'No amount set',
-                                                            style:
-                                                                const TextStyle(
-                                                                  color:
-                                                                      kSubText,
-                                                                ),
-                                                          ),
-                                                    onTap: isPaid || sa.isEmpty
-                                                        ? null
-                                                        : () async {
-                                                            final controller =
-                                                                TextEditingController();
-                                                            String? errorText;
-                                                            final requiredAmount =
-                                                                (sa['amount']
-                                                                    is int)
-                                                                ? (sa['amount']
-                                                                          as int)
-                                                                      .toDouble()
-                                                                : (sa['amount']
-                                                                      is double)
-                                                                ? sa['amount']
-                                                                      as double
-                                                                : double.tryParse(
-                                                                        sa['amount']
-                                                                            .toString(),
-                                                                      ) ??
-                                                                      0.0;
-
-                                                            double?
-                                                            amount = await showDialog<double>(
-                                                              context: context,
-                                                              builder: (context) {
-                                                                return StatefulBuilder(
-                                                                  builder:
-                                                                      (
-                                                                        context,
-                                                                        setState,
-                                                                      ) => AlertDialog(
-                                                                        title: Text(
-                                                                          'Set Amount for ${member['full_name']}',
-                                                                        ),
-                                                                        content: Column(
-                                                                          mainAxisSize:
-                                                                              MainAxisSize.min,
-                                                                          children: [
-                                                                            TextField(
-                                                                              controller: controller,
-                                                                              keyboardType: const TextInputType.numberWithOptions(
-                                                                                decimal: true,
-                                                                              ),
-                                                                              decoration: InputDecoration(
-                                                                                labelText: 'Amount (₱)',
-                                                                                errorText: errorText,
-                                                                              ),
-                                                                            ),
-                                                                            const SizedBox(
-                                                                              height: 8,
-                                                                            ),
-                                                                            Text(
-                                                                              'Required: ₱${sa['amount']}',
-                                                                              style: const TextStyle(
-                                                                                fontSize: 14,
-                                                                                color: Colors.grey,
-                                                                              ),
-                                                                            ),
-                                                                          ],
-                                                                        ),
-                                                                        actions: [
-                                                                          TextButton(
-                                                                            onPressed: () => Navigator.pop(
-                                                                              context,
-                                                                            ),
-                                                                            child: const Text(
-                                                                              'Cancel',
-                                                                            ),
-                                                                          ),
-                                                                          TextButton(
-                                                                            onPressed: () {
-                                                                              final value = double.tryParse(
-                                                                                controller.text,
-                                                                              );
-                                                                              if (value ==
-                                                                                  requiredAmount) {
-                                                                                Navigator.pop(
-                                                                                  context,
-                                                                                  value,
-                                                                                );
-                                                                              } else {
-                                                                                setState(
-                                                                                  () {
-                                                                                    errorText = 'Amount must be exactly ₱$requiredAmount';
-                                                                                  },
-                                                                                );
-                                                                              }
-                                                                            },
-                                                                            child: const Text(
-                                                                              'Save',
-                                                                            ),
-                                                                          ),
-                                                                        ],
-                                                                      ),
-                                                                );
-                                                              },
-                                                            );
-
-                                                            if (amount !=
-                                                                null) {
-                                                              await _savePayment(
-                                                                member['id']
-                                                                    .toString(),
-                                                                amount,
-                                                                sa['id']
-                                                                    .toString(),
-                                                              );
-                                                              setState(() {});
-                                                            }
-                                                          },
-                                                  ),
-                                                );
-                                              }),
-                                            ],
-                                          );
-                                        },
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ],
-                            ),
-                          )),
+              child: Container(
+                decoration: const BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.only(
+                    topLeft: Radius.circular(24),
+                    topRight: Radius.circular(24),
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Color(0x1A000000),
+                      blurRadius: 20,
+                      offset: Offset(0, -4),
+                    ),
+                  ],
+                ),
+                child: ClipRRect(
+                  borderRadius: const BorderRadius.only(
+                    topLeft: Radius.circular(24),
+                    topRight: Radius.circular(24),
+                  ),
+                  child: _loading
+                      ? const Center(
+                          child: CircularProgressIndicator(color: kAccent),
+                        )
+                      : _error != null
+                      ? _buildErrorState()
+                      : RefreshIndicator(
+                          color: kAccent,
+                          onRefresh: _loadAll,
+                          child: ListView(
+                            physics: const AlwaysScrollableScrollPhysics(),
+                            padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
+                            children: _hasSelectedDeceased
+                                ? _buildMemberStep()
+                                : _buildDeceasedStep(),
+                          ),
+                        ),
+                ),
+              ),
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  List<Widget> _buildDeceasedStep() {
+    return [
+      _overviewCard(
+        title: 'Collection Overview',
+        subtitle:
+            'Choose a death notice first, then record which members have already paid in cash.',
+        cards: [
+          _statCard(
+            icon: Icons.payments_rounded,
+            label: 'Paid Cash',
+            value:
+                '${_payments.where((row) => (row['status'] ?? '').toString().toLowerCase() == 'paid').length}',
+            tone: const Color(0xFF0F766E),
+          ),
+          _statCard(
+            icon: Icons.person_search_rounded,
+            label: 'Active Notices',
+            value: '${_deceasedOptions.length}',
+            tone: const Color(0xFF1E40AF),
+          ),
+          _statCard(
+            icon: Icons.groups_rounded,
+            label: 'Approved Members',
+            value: '${_approvedMembers.length}',
+            tone: const Color(0xFFB45309),
+          ),
+        ],
+      ),
+      const SizedBox(height: 18),
+      _searchCard(
+        hint: 'Search deceased member or beneficiary',
+        onChanged: (value) => setState(() => _deceasedSearch = value.trim()),
+      ),
+      const SizedBox(height: 18),
+      if (_filteredDeceasedOptions.isEmpty)
+        _emptyState(
+          title: 'No payable notices found',
+          subtitle:
+              'Set amounts need to be created first before collectors can record cash payments here.',
+        )
+      else
+        ..._filteredDeceasedOptions.map(_deceasedCard),
+    ];
+  }
+
+  List<Widget> _buildMemberStep() {
+    final selected = _selectedDeceased!;
+    return [
+      _overviewCard(
+        title: (selected['display_name'] ?? 'Deceased').toString(),
+        subtitle:
+            'Review all assigned members for this notice and mark their cash contributions once collected.',
+        cards: [
+          _statCard(
+            icon: Icons.check_circle_rounded,
+            label: 'Paid Members',
+            value: '$_paidCountForSelected',
+            tone: kSuccess,
+          ),
+          _statCard(
+            icon: Icons.pending_actions_rounded,
+            label: 'Pending Members',
+            value: '$_pendingCountForSelected',
+            tone: kWarn,
+          ),
+          _statCard(
+            icon: Icons.payments_outlined,
+            label: 'Required Amount',
+            value:
+                'PHP ${_asDouble(selected['required_amount']).toStringAsFixed(2)}',
+            tone: kAccent,
+          ),
+        ],
+      ),
+      const SizedBox(height: 18),
+      _searchCard(
+        hint: 'Search member by name',
+        onChanged: (value) => setState(() => _memberSearch = value.trim()),
+      ),
+      const SizedBox(height: 18),
+      if (_filteredMembers.isEmpty)
+        _emptyState(
+          title: 'No members matched this filter',
+          subtitle:
+              'Try a different search term or go back and choose another notice.',
+        )
+      else
+        ..._filteredMembers.map(_memberCard),
+    ];
+  }
+
+  Widget _buildHeader(bool wide) {
+    return Container(
+      padding: EdgeInsets.fromLTRB(
+        12,
+        wide ? 36 : 28,
+        wide ? 24 : 16,
+        wide ? 32 : 24,
+      ),
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          colors: [Color(0xFF083366), Color(0xFF0D47A1)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.only(
+          bottomLeft: Radius.circular(28),
+          bottomRight: Radius.circular(28),
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Color(0x22083366),
+            blurRadius: 18,
+            offset: Offset(0, 8),
+          ),
+        ],
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          IconButton(
+            icon: const Icon(
+              Icons.chevron_left_rounded,
+              color: Colors.white,
+              size: 28,
+            ),
+            onPressed: () {
+              if (_selectedDeceased != null) {
+                setState(() {
+                  _selectedDeceased = null;
+                  _memberSearch = '';
+                });
+              } else {
+                Navigator.of(context).pop();
+              }
+            },
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Collect Cash Payments',
+                  style: TextStyle(
+                    fontSize: wide ? 24 : 21,
+                    fontWeight: FontWeight.w900,
+                    color: Colors.white,
+                    fontFamily: 'Montserrat',
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  _selectedDeceased == null
+                      ? 'Select a death notice first, then record paid cash contributions member by member.'
+                      : 'You are now reviewing the members assigned to the selected notice.',
+                  style: TextStyle(
+                    fontSize: wide ? 14 : 13,
+                    height: 1.35,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.white70,
+                    fontFamily: 'OpenSans',
+                  ),
+                ),
+                const SizedBox(height: 14),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    _headerPill(
+                      icon: Icons.groups_rounded,
+                      label: '${_approvedMembers.length} members',
+                    ),
+                    _headerPill(
+                      icon: Icons.receipt_long_rounded,
+                      label: '${_deceasedOptions.length} active notices',
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _headerPill({required IconData icon, required String label}) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.14),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.16)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 15, color: Colors.white),
+          const SizedBox(width: 6),
+          Text(
+            label,
+            style: const TextStyle(
+              color: Colors.white,
+              fontWeight: FontWeight.w700,
+              fontSize: 12,
+              fontFamily: 'Montserrat',
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _overviewCard({
+    required String title,
+    required String subtitle,
+    required List<Widget> cards,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: kBorder),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x12000000),
+            blurRadius: 16,
+            offset: Offset(0, 6),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            title,
+            style: const TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.w800,
+              color: kText,
+              fontFamily: 'Montserrat',
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            subtitle,
+            style: const TextStyle(
+              fontSize: 13,
+              color: kSubText,
+              fontWeight: FontWeight.w600,
+              fontFamily: 'OpenSans',
+              height: 1.4,
+            ),
+          ),
+          const SizedBox(height: 16),
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final wide = constraints.maxWidth >= 760;
+              if (wide) {
+                return Row(
+                  children: [
+                    for (int index = 0; index < cards.length; index++) ...[
+                      Expanded(child: cards[index]),
+                      if (index != cards.length - 1) const SizedBox(width: 12),
+                    ],
+                  ],
+                );
+              }
+              return Column(
+                children: [
+                  for (int index = 0; index < cards.length; index++) ...[
+                    cards[index],
+                    if (index != cards.length - 1) const SizedBox(height: 12),
+                  ],
+                ],
+              );
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _statCard({
+    required IconData icon,
+    required String label,
+    required String value,
+    required Color tone,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: tone.withValues(alpha: 0.06),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: tone.withValues(alpha: 0.12)),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 46,
+            height: 46,
+            decoration: BoxDecoration(
+              color: tone.withValues(alpha: 0.14),
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: Icon(icon, color: tone),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    color: kSubText,
+                    fontFamily: 'Montserrat',
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  value,
+                  style: const TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w900,
+                    color: kText,
+                    fontFamily: 'Montserrat',
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _searchCard({
+    required String hint,
+    required ValueChanged<String> onChanged,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: kBorder),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x0F000000),
+            blurRadius: 12,
+            offset: Offset(0, 4),
+          ),
+        ],
+      ),
+      child: TextField(
+        decoration: InputDecoration(
+          hintText: hint,
+          prefixIcon: const Icon(Icons.search_rounded),
+          filled: true,
+          fillColor: kSurface,
+          contentPadding: const EdgeInsets.symmetric(
+            vertical: 12,
+            horizontal: 14,
+          ),
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(14),
+            borderSide: const BorderSide(color: kBorder),
+          ),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(14),
+            borderSide: const BorderSide(color: kBorder),
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(14),
+            borderSide: const BorderSide(color: kAccent),
+          ),
+        ),
+        onChanged: onChanged,
+      ),
+    );
+  }
+
+  Widget _deceasedCard(Map<String, dynamic> option) {
+    final requiredAmount = _asDouble(option['required_amount']);
+    final excludedUserId = (option['user_id'] ?? '').toString();
+    final totalMembers = _approvedMembers.where((member) {
+      final memberId = (member['id'] ?? '').toString();
+      return memberId.isNotEmpty && memberId != excludedUserId;
+    }).length;
+    final paidCount = _approvedMembers.where((member) {
+      final memberId = (member['id'] ?? '').toString();
+      if (memberId.isEmpty || memberId == excludedUserId) return false;
+      return _isMemberPaid(memberId, option);
+    }).length;
+    final isComplete = totalMembers > 0 && paidCount >= totalMembers;
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: kBorder),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x12000000),
+            blurRadius: 16,
+            offset: Offset(0, 6),
+          ),
+        ],
+      ),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(22),
+        onTap: () {
+          setState(() {
+            _selectedDeceased = option;
+            _memberSearch = '';
+          });
+        },
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    width: 52,
+                    height: 52,
+                    decoration: BoxDecoration(
+                      gradient: const LinearGradient(
+                        colors: [Color(0xFF1E40AF), Color(0xFF3B82F6)],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      ),
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    child: const Icon(
+                      Icons.account_balance_wallet_rounded,
+                      color: Colors.white,
+                    ),
+                  ),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          (option['display_name'] ?? 'Deceased').toString(),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.w900,
+                            color: kText,
+                            fontFamily: 'Montserrat',
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          'Required cash contribution: PHP ${requiredAmount.toStringAsFixed(2)}',
+                          style: const TextStyle(
+                            fontSize: 13,
+                            color: kSubText,
+                            fontWeight: FontWeight.w600,
+                            fontFamily: 'OpenSans',
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 6,
+                    ),
+                    decoration: BoxDecoration(
+                      color: isComplete
+                          ? kSuccess.withValues(alpha: 0.12)
+                          : kAccent.withValues(alpha: 0.10),
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                    child: Text(
+                      isComplete ? 'Complete' : '$paidCount/$totalMembers',
+                      style: TextStyle(
+                        color: isComplete ? kSuccess : kAccent,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  _miniChip(
+                    icon: Icons.groups_rounded,
+                    label: '$totalMembers chargeable members',
+                    color: kAccent,
+                    background: const Color(0xFFEFF6FF),
+                  ),
+                  _miniChip(
+                    icon: Icons.check_circle_rounded,
+                    label: '$paidCount paid',
+                    color: kSuccess,
+                    background: const Color(0xFFECFDF5),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _memberCard(Map<String, dynamic> member) {
+    final payment = _paymentForMember((member['id'] ?? '').toString());
+    final status = (payment?['status'] ?? 'pending').toString().toLowerCase();
+    final isPaid = status == 'paid';
+    final requiredAmount = _asDouble(_selectedDeceased?['required_amount']);
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(
+          color: isPaid ? kSuccess.withValues(alpha: 0.18) : kBorder,
+        ),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x12000000),
+            blurRadius: 16,
+            offset: Offset(0, 6),
+          ),
+        ],
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                CircleAvatar(
+                  radius: 24,
+                  backgroundColor: (isPaid ? kSuccess : kAccent).withValues(
+                    alpha: 0.12,
+                  ),
+                  child: Icon(
+                    isPaid ? Icons.check_circle_rounded : Icons.person_rounded,
+                    color: isPaid ? kSuccess : kAccent,
+                  ),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        (member['full_name'] ?? 'Member').toString(),
+                        style: const TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w900,
+                          color: kText,
+                          fontFamily: 'Montserrat',
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        isPaid
+                            ? 'Payment already marked as paid.'
+                            : 'Ready for cash collection and receipt generation.',
+                        style: const TextStyle(
+                          fontSize: 13,
+                          color: kSubText,
+                          fontWeight: FontWeight.w600,
+                          fontFamily: 'OpenSans',
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 6,
+                  ),
+                  decoration: BoxDecoration(
+                    color: (isPaid ? kSuccess : kWarn).withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                  child: Text(
+                    isPaid ? 'Paid' : 'Pending',
+                    style: TextStyle(
+                      color: isPaid ? kSuccess : kWarn,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                _miniChip(
+                  icon: Icons.payments_rounded,
+                  label: 'PHP ${requiredAmount.toStringAsFixed(2)}',
+                  color: kAccent,
+                  background: const Color(0xFFEFF6FF),
+                ),
+                if (payment != null &&
+                    (payment['paid_at'] ?? '').toString().isNotEmpty)
+                  _miniChip(
+                    icon: Icons.schedule_rounded,
+                    label: (payment['paid_at'] ?? '')
+                        .toString()
+                        .split('T')
+                        .first,
+                    color: kSuccess,
+                    background: const Color(0xFFECFDF5),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                onPressed: isPaid || _savingPayment
+                    ? null
+                    : () => _showCollectDialog(member),
+                icon: Icon(
+                  isPaid ? Icons.receipt_long_rounded : Icons.payments_rounded,
+                ),
+                label: Text(isPaid ? 'Already Paid' : 'Collect Cash'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: kAccent,
+                  foregroundColor: Colors.white,
+                  disabledBackgroundColor: const Color(0xFFE5E7EB),
+                  disabledForegroundColor: const Color(0xFF6B7280),
+                  minimumSize: const Size.fromHeight(50),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _miniChip({
+    required IconData icon,
+    required String label,
+    required Color color,
+    required Color background,
+  }) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      decoration: BoxDecoration(
+        color: background,
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 14, color: color),
+          const SizedBox(width: 6),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 11,
+              color: color,
+              fontWeight: FontWeight.w700,
+              fontFamily: 'Montserrat',
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildErrorState() {
+    return ListView(
+      physics: const AlwaysScrollableScrollPhysics(),
+      padding: const EdgeInsets.fromLTRB(20, 24, 20, 24),
+      children: [
+        Container(
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            color: const Color(0xFFFFF7ED),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: const Color(0xFFFED7AA)),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Row(
+                children: [
+                  Icon(Icons.error_outline_rounded, color: Color(0xFFB45309)),
+                  SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      'Could not load cash collection data',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w800,
+                        color: kText,
+                        fontFamily: 'Montserrat',
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 10),
+              Text(
+                _error ?? 'Unknown error',
+                style: const TextStyle(
+                  color: kSubText,
+                  fontWeight: FontWeight.w600,
+                  fontFamily: 'OpenSans',
+                ),
+              ),
+              const SizedBox(height: 16),
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton.icon(
+                  onPressed: _loadAll,
+                  icon: const Icon(Icons.refresh_rounded),
+                  label: const Text('Retry fetch'),
+                  style: OutlinedButton.styleFrom(
+                    minimumSize: const Size.fromHeight(48),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _emptyState({required String title, required String subtitle}) {
+    return Container(
+      padding: const EdgeInsets.all(28),
+      decoration: BoxDecoration(
+        color: kSurface,
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: kBorder),
+      ),
+      child: Column(
+        children: [
+          Container(
+            width: 64,
+            height: 64,
+            decoration: BoxDecoration(
+              color: kAccent.withValues(alpha: 0.08),
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: const Icon(
+              Icons.receipt_long_rounded,
+              size: 32,
+              color: kAccent,
+            ),
+          ),
+          const SizedBox(height: 16),
+          Text(
+            title,
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.w800,
+              color: kText,
+              fontFamily: 'Montserrat',
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            subtitle,
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              fontSize: 13,
+              color: kSubText,
+              fontWeight: FontWeight.w600,
+              fontFamily: 'OpenSans',
+              height: 1.4,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _detailRow(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 88,
+            child: Text(
+              label,
+              style: const TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w700,
+                color: kSubText,
+                fontFamily: 'Montserrat',
+              ),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              value,
+              style: const TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w700,
+                color: kText,
+                fontFamily: 'OpenSans',
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _receiptLine(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Row(
+        children: [
+          SizedBox(
+            width: 78,
+            child: Text(
+              label,
+              style: const TextStyle(
+                color: Colors.white70,
+                fontWeight: FontWeight.w700,
+                fontFamily: 'Montserrat',
+              ),
+            ),
+          ),
+          Expanded(
+            child: Text(
+              value,
+              style: const TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.w700,
+                fontFamily: 'OpenSans',
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

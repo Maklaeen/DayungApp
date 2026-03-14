@@ -1,5 +1,6 @@
 import 'dart:typed_data';
 import 'package:capstone_app/Providers/membership_qualification_provider.dart';
+import 'package:capstone_app/Secretary/secretary_ui.dart';
 import 'package:pdfx/pdfx.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
@@ -37,6 +38,7 @@ class _SecretaryApplicationsPageState extends State<SecretaryApplicationsPage> {
   List<Map<String, dynamic>> _apps = [];
   Set<String> _deceasedUserIds = {};
   String _searchQuery = '';
+  String? _error;
 
   RealtimeChannel? _channel;
   int? _currentUnitId;
@@ -126,6 +128,294 @@ class _SecretaryApplicationsPageState extends State<SecretaryApplicationsPage> {
     _channel!.subscribe();
   }
 
+  List<Map<String, dynamic>> get _visibleApps {
+    if (_searchQuery.trim().isEmpty) return _apps;
+
+    final query = _searchQuery.trim().toLowerCase();
+    return _apps.where((app) {
+      final user = app['users'] as Map<String, dynamic>?;
+      final name = (user?['full_name'] ?? '').toString().toLowerCase();
+      final email = (user?['email'] ?? '').toString().toLowerCase();
+      final appliedAt = (app['applied_at'] ?? '').toString().toLowerCase();
+      return name.contains(query) ||
+          email.contains(query) ||
+          appliedAt.contains(query);
+    }).toList();
+  }
+
+  int get _flaggedVisibleCount {
+    return _visibleApps.where((app) {
+      final userId = (app['user_id'] ?? '').toString();
+      return _deceasedUserIds.contains(userId);
+    }).length;
+  }
+
+  String get _filterLabel {
+    switch (_filter) {
+      case 'approved':
+        return 'Approved';
+      case 'rejected':
+        return 'Rejected';
+      default:
+        return 'Pending';
+    }
+  }
+
+  Color _statusColor(String status) {
+    switch (status) {
+      case 'approved':
+        return kSuccess;
+      case 'rejected':
+        return kDanger;
+      default:
+        return kPrimary;
+    }
+  }
+
+  IconData _statusIcon(String status) {
+    switch (status) {
+      case 'approved':
+        return Icons.verified_rounded;
+      case 'rejected':
+        return Icons.cancel_rounded;
+      default:
+        return Icons.schedule_rounded;
+    }
+  }
+
+  String _formatAppliedDate(dynamic value) {
+    final date = DateTime.tryParse('${value ?? ''}')?.toLocal();
+    if (date == null) return 'Unknown date';
+    final monthNames = [
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
+    ];
+    return '${monthNames[date.month - 1]} ${date.day}, ${date.year}';
+  }
+
+  Widget _buildOverviewCard() {
+    final statusTone = _statusColor(_filter);
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: kBorderColor),
+      ),
+      child: Wrap(
+        spacing: 10,
+        runSpacing: 10,
+        children: [
+          _overviewStat(
+            icon: _statusIcon(_filter),
+            label: _filterLabel,
+            value: '${_apps.length}',
+            tone: statusTone,
+          ),
+          _overviewStat(
+            icon: Icons.visibility_rounded,
+            label: 'Showing',
+            value: '${_visibleApps.length}',
+            tone: kPrimaryDark,
+          ),
+          _overviewStat(
+            icon: Icons.warning_amber_rounded,
+            label: 'Flagged',
+            value: '$_flaggedVisibleCount',
+            tone: const Color(0xFFF59E0B),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _overviewStat({
+    required IconData icon,
+    required String label,
+    required String value,
+    required Color tone,
+  }) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: tone.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: tone.withValues(alpha: 0.14)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, color: tone, size: 16),
+          const SizedBox(width: 8),
+          Text(
+            value,
+            style: const TextStyle(
+              fontSize: 15,
+              fontWeight: FontWeight.w900,
+              color: kText,
+              fontFamily: 'Montserrat',
+            ),
+          ),
+          const SizedBox(width: 6),
+          Text(
+            label,
+            style: const TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+              color: kSubText,
+              fontFamily: 'Montserrat',
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildToolbarCard() {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: kBorderColor),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _buildOverviewCard(),
+          const SizedBox(height: 14),
+          TextField(
+            decoration: InputDecoration(
+              hintText: 'Search member, email, or application date',
+              prefixIcon: const Icon(Icons.search_rounded),
+              filled: true,
+              fillColor: const Color(0xFFF8FAFC),
+              isDense: true,
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: 14,
+                vertical: 12,
+              ),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(14),
+                borderSide: const BorderSide(color: kBorderColor),
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(14),
+                borderSide: const BorderSide(color: kBorderColor),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(14),
+                borderSide: const BorderSide(color: kPrimary),
+              ),
+            ),
+            onChanged: (value) {
+              setState(() => _searchQuery = value.trim().toLowerCase());
+            },
+          ),
+          const SizedBox(height: 12),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 8,
+                ),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFEFF6FF),
+                  borderRadius: BorderRadius.circular(999),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(_statusIcon(_filter), size: 15, color: kPrimary),
+                    const SizedBox(width: 6),
+                    Text(
+                      '$_filterLabel applications',
+                      style: const TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                        color: kPrimaryDark,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              if (_searchQuery.isNotEmpty)
+                TextButton.icon(
+                  onPressed: () => setState(() => _searchQuery = ''),
+                  icon: const Icon(Icons.filter_alt_off_rounded),
+                  label: const Text('Reset search'),
+                ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildEmptyState({
+    required IconData icon,
+    required String title,
+    required String message,
+    Widget? action,
+  }) {
+    return Container(
+      margin: const EdgeInsets.only(top: 16),
+      padding: const EdgeInsets.all(28),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: kBorderColor),
+      ),
+      child: Column(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              color: const Color(0xFFEFF6FF),
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: Icon(icon, size: 38, color: kPrimary),
+          ),
+          const SizedBox(height: 16),
+          Text(
+            title,
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.w800,
+              color: kText,
+              fontFamily: 'Montserrat',
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            message,
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              fontSize: 14,
+              color: kSubText,
+              fontFamily: 'OpenSans',
+            ),
+          ),
+          if (action != null) ...[const SizedBox(height: 14), action],
+        ],
+      ),
+    );
+  }
+
   Future<Uri?> _resolveCertificateUri(String raw) async {
     if (raw.trim().isEmpty) return null;
 
@@ -179,103 +469,101 @@ class _SecretaryApplicationsPageState extends State<SecretaryApplicationsPage> {
     await showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      backgroundColor: Colors.white,
+      backgroundColor: Colors.transparent,
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
       ),
       builder: (ctx) {
         final height = MediaQuery.of(ctx).size.height * 0.92;
-        return SizedBox(
+        return Container(
           height: height,
+          decoration: const BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+          ),
           child: Column(
             children: [
-              // Header with Back/Close
-              Padding(
-                padding: const EdgeInsets.fromLTRB(8, 8, 8, 0),
-                child: Row(
-                  children: [
-                    IconButton(
-                      tooltip: 'Back',
-                      icon: const Icon(Icons.arrow_downward),
-                      onPressed: () => Navigator.pop(ctx),
-                    ),
-                    const SizedBox(width: 4),
-                    const Expanded(
-                      child: Text(
-                        'Death certificate',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          fontWeight: FontWeight.w700,
-                          fontSize: 16,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 48), // balance the back button space
-                  ],
-                ),
+              SecretarySheetHeader(
+                title: 'Death Certificate',
+                subtitle: 'Review the uploaded document for this application.',
+                onClose: () => Navigator.pop(ctx),
               ),
-              const Divider(height: 1),
               Expanded(
-                child: Builder(
-                  builder: (_) {
-                    if (kind == 'png' || kind == 'jpg') {
-                      // Show image with pinch-zoom
-                      return InteractiveViewer(
-                        child: Image.network(
-                          uri.toString(),
-                          fit: BoxFit.contain,
-                          errorBuilder: (_, __, ___) =>
-                              const Center(child: Text('Failed to load image')),
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
+                  child: Builder(
+                    builder: (_) {
+                      if (kind == 'png' || kind == 'jpg') {
+                        return ClipRRect(
+                          borderRadius: BorderRadius.circular(20),
+                          child: Container(
+                            color: const Color(0xFFF8FAFC),
+                            child: InteractiveViewer(
+                              child: Image.network(
+                                uri.toString(),
+                                fit: BoxFit.contain,
+                                errorBuilder: (_, __, ___) => const Center(
+                                  child: Text('Failed to load image'),
+                                ),
+                              ),
+                            ),
+                          ),
+                        );
+                      }
+                      if (kind == 'pdf') {
+                        return FutureBuilder<Uint8List>(
+                          future: () async {
+                            final resp = await http.get(uri);
+                            if (resp.statusCode != 200) {
+                              throw Exception('HTTP ${resp.statusCode}');
+                            }
+                            return resp.bodyBytes;
+                          }(),
+                          builder: (context, snap) {
+                            if (snap.connectionState != ConnectionState.done) {
+                              return const Center(
+                                child: CircularProgressIndicator(),
+                              );
+                            }
+                            if (snap.hasError || snap.data == null) {
+                              return const Center(
+                                child: Text('Failed to load PDF'),
+                              );
+                            }
+                            final bytes = snap.data!;
+                            return ClipRRect(
+                              borderRadius: BorderRadius.circular(20),
+                              child: Container(
+                                color: const Color(0xFFF8FAFC),
+                                child: _PdfViewer(bytes: bytes),
+                              ),
+                            );
+                          },
+                        );
+                      }
+                      return Center(
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Text(
+                              'Unsupported file type. Open in browser?',
+                            ),
+                            const SizedBox(height: 12),
+                            ElevatedButton.icon(
+                              icon: const Icon(Icons.open_in_new),
+                              label: const Text('Open'),
+                              onPressed: () async {
+                                await launchUrl(
+                                  uri,
+                                  mode: LaunchMode.externalApplication,
+                                );
+                              },
+                            ),
+                          ],
                         ),
                       );
-                    }
-                    if (kind == 'pdf') {
-                      // Load PDF bytes then render with Pdfx
-                      return FutureBuilder<Uint8List>(
-                        future: () async {
-                          final resp = await http.get(uri);
-                          if (resp.statusCode != 200) {
-                            throw Exception('HTTP ${resp.statusCode}');
-                          }
-                          return resp.bodyBytes;
-                        }(),
-                        builder: (context, snap) {
-                          if (snap.connectionState != ConnectionState.done) {
-                            return const Center(
-                              child: CircularProgressIndicator(),
-                            );
-                          }
-                          if (snap.hasError || snap.data == null) {
-                            return const Center(
-                              child: Text('Failed to load PDF'),
-                            );
-                          }
-                          final bytes = snap.data!;
-                          return _PdfViewer(bytes: bytes);
-                        },
-                      );
-                    }
-                    // Unknown type -> suggest external
-                    return Center(
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const Text('Unsupported file type. Open in browser?'),
-                          const SizedBox(height: 12),
-                          ElevatedButton.icon(
-                            icon: const Icon(Icons.open_in_new),
-                            label: const Text('Open'),
-                            onPressed: () async {
-                              await launchUrl(
-                                uri,
-                                mode: LaunchMode.externalApplication,
-                              );
-                            },
-                          ),
-                        ],
-                      ),
-                    );
-                  },
+                    },
+                  ),
                 ),
               ),
             ],
@@ -356,47 +644,32 @@ class _SecretaryApplicationsPageState extends State<SecretaryApplicationsPage> {
   ) {
     showModalBottomSheet(
       context: context,
-      showDragHandle: true,
       isScrollControlled: true,
-      backgroundColor: Colors.white,
+      backgroundColor: Colors.transparent,
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
       ),
       builder: (ctx) {
         final height = MediaQuery.of(ctx).size.height * 0.92;
-        return SizedBox(
+        return Container(
           height: height,
+          decoration: const BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+          ),
           child: Column(
             children: [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(8, 8, 8, 0),
-                child: Row(
-                  children: [
-                    IconButton(
-                      tooltip: 'Back',
-                      icon: const Icon(Icons.arrow_downward),
-                      onPressed: () => Navigator.pop(ctx),
-                    ),
-                    const SizedBox(width: 4),
-                    const Expanded(
-                      child: Text(
-                        'Deceased details',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          fontWeight: FontWeight.w700,
-                          fontSize: 16,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 48),
-                  ],
-                ),
+              SecretarySheetHeader(
+                title: 'Deceased Details',
+                subtitle:
+                    'Review other recorded death notices linked to this applicant.',
+                onClose: () => Navigator.pop(ctx),
               ),
-              const Divider(height: 1),
               Expanded(
                 child: ListView.separated(
+                  padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
                   itemCount: items.length,
-                  separatorBuilder: (_, __) => const Divider(),
+                  separatorBuilder: (_, __) => const SizedBox(height: 12),
                   itemBuilder: (_, i) {
                     final n = items[i];
                     final unitId = (n['dayung_unit_id'] is int)
@@ -425,36 +698,49 @@ class _SecretaryApplicationsPageState extends State<SecretaryApplicationsPage> {
                             )
                             .join(', ');
 
-                    return Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          unitName,
-                          style: const TextStyle(
-                            fontWeight: FontWeight.w700,
-                            fontSize: 16,
-                          ),
-                        ),
-
-                        const SizedBox(height: 6),
-                        if (name.isNotEmpty) Text('Name: $name'),
-                        if (type.isNotEmpty) Text('Type: $type'),
-                        if (dob != null && dob.isNotEmpty)
-                          Text('Birthday: $dob'),
-                        if (age != null && age.isNotEmpty) Text('Age: $age'),
-                        if (dod != null && dod.isNotEmpty)
-                          Text('Date of death: $dod'),
-                        if (loc.isNotEmpty) Text('Location: $loc'),
-                        if (cert.isNotEmpty)
-                          Padding(
-                            padding: const EdgeInsets.only(top: 8),
-                            child: OutlinedButton.icon(
-                              icon: const Icon(Icons.picture_as_pdf),
-                              label: const Text('Open death certificate'),
-                              onPressed: () => _openCertificateViewer(cert),
+                    return Container(
+                      padding: const EdgeInsets.all(18),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF8FAFC),
+                        borderRadius: BorderRadius.circular(18),
+                        border: Border.all(color: kBorderColor),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            unitName,
+                            style: const TextStyle(
+                              fontWeight: FontWeight.w800,
+                              fontSize: 16,
+                              color: kPrimaryDark,
+                              fontFamily: 'Montserrat',
                             ),
                           ),
-                      ],
+                          const SizedBox(height: 10),
+                          if (name.isNotEmpty)
+                            _sheetDetailRow(Icons.person_rounded, name),
+                          if (type.isNotEmpty)
+                            _sheetDetailRow(Icons.badge_rounded, type),
+                          if (dob != null && dob.isNotEmpty)
+                            _sheetDetailRow(Icons.cake_rounded, dob),
+                          if (age != null && age.isNotEmpty)
+                            _sheetDetailRow(Icons.timelapse_rounded, age),
+                          if (dod != null && dod.isNotEmpty)
+                            _sheetDetailRow(Icons.event_rounded, dod),
+                          if (loc.isNotEmpty)
+                            _sheetDetailRow(Icons.place_rounded, loc),
+                          if (cert.isNotEmpty)
+                            Padding(
+                              padding: const EdgeInsets.only(top: 8),
+                              child: OutlinedButton.icon(
+                                icon: const Icon(Icons.picture_as_pdf_rounded),
+                                label: const Text('Open death certificate'),
+                                onPressed: () => _openCertificateViewer(cert),
+                              ),
+                            ),
+                        ],
+                      ),
                     );
                   },
                 ),
@@ -482,7 +768,10 @@ class _SecretaryApplicationsPageState extends State<SecretaryApplicationsPage> {
       return;
     }
 
-    setState(() => _loading = true);
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
     try {
       final data = await _supabase
           .from('applications')
@@ -532,13 +821,19 @@ class _SecretaryApplicationsPageState extends State<SecretaryApplicationsPage> {
       });
     } on PostgrestException catch (e) {
       if (!mounted) return;
-      setState(() => _loading = false);
+      setState(() {
+        _loading = false;
+        _error = e.message;
+      });
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text('Load failed: ${e.message}')));
     } catch (_) {
       if (!mounted) return;
-      setState(() => _loading = false);
+      setState(() {
+        _loading = false;
+        _error = 'Unexpected error loading applications';
+      });
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Unexpected error loading applications')),
       );
@@ -717,397 +1012,353 @@ class _SecretaryApplicationsPageState extends State<SecretaryApplicationsPage> {
     int? applicationId,
   }) async {
     if (!mounted) return;
-    await showDialog(
+    await showModalBottomSheet(
       context: context,
-      barrierDismissible: true,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
       builder: (ctx) {
-        return Dialog(
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(20),
+        final height = MediaQuery.of(ctx).size.height * 0.92;
+        return Container(
+          height: height,
+          decoration: const BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
           ),
-          insetPadding: const EdgeInsets.symmetric(
-            horizontal: 16,
-            vertical: 32,
-          ),
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 480),
-            child: Padding(
-              padding: const EdgeInsets.all(0),
-              child: FutureBuilder<Map<String, dynamic>>(
-                future: () async {
-                  final userFuture = _supabase
-                      .from('users')
-                      .select('full_name, sex, dob, mobile_number, address')
-                      .eq('id', userId)
-                      .single()
-                      .catchError((_) => {});
-                  final docsFuture = Future.wait([
-                    _getBirthCertificateUrl(
-                      userId: userId,
-                      applicationId: applicationId,
-                    ),
-                    () async {
-                      try {
-                        final row = await _supabase
-                            .from('users')
-                            .select('valid_id')
-                            .eq('id', userId)
-                            .single();
-                        final url = (row['valid_id'] ?? '').toString().trim();
-                        if (url.isNotEmpty) return url;
-                      } catch (_) {}
-                      return await _getValidIdUrl(
-                        userId: userId,
-                        applicationId: applicationId,
-                      );
-                    }(),
-                    _getProofOfResidencyUrl(
-                      userId: userId,
-                      applicationId: applicationId,
-                    ),
-                  ]);
-                  final user = await userFuture;
-                  final docs = await docsFuture;
-                  return {'user': user, 'docs': docs};
+          child: FutureBuilder<Map<String, dynamic>>(
+            future: () async {
+              final userFuture = _supabase
+                  .from('users')
+                  .select('full_name, sex, dob, mobile_number, address')
+                  .eq('id', userId)
+                  .single()
+                  .catchError((_) => {});
+              final docsFuture = Future.wait([
+                _getBirthCertificateUrl(
+                  userId: userId,
+                  applicationId: applicationId,
+                ),
+                () async {
+                  try {
+                    final row = await _supabase
+                        .from('users')
+                        .select('valid_id')
+                        .eq('id', userId)
+                        .single();
+                    final url = (row['valid_id'] ?? '').toString().trim();
+                    if (url.isNotEmpty) return url;
+                  } catch (_) {}
+                  return await _getValidIdUrl(
+                    userId: userId,
+                    applicationId: applicationId,
+                  );
                 }(),
-                builder: (context, snap) {
-                  final user = snap.data != null
-                      ? (snap.data!['user'] as Map<String, dynamic>? ?? {})
-                      : {};
-                  final docs = snap.data != null
-                      ? (snap.data!['docs'] as List<String?>? ?? [])
-                      : [];
-                  final birthUrl = docs.isNotEmpty ? docs[0] : null;
-                  final validIdUrl = docs.length > 1 ? docs[1] : null;
-                  final residencyUrl = docs.length > 2 ? docs[2] : null;
-                  final uploadedBirth =
-                      (birthUrl != null && birthUrl.isNotEmpty);
-                  final uploadedValidId =
-                      (validIdUrl != null && validIdUrl.isNotEmpty);
-                  final uploadedResidency =
-                      (residencyUrl != null && residencyUrl.isNotEmpty);
+                _getProofOfResidencyUrl(
+                  userId: userId,
+                  applicationId: applicationId,
+                ),
+              ]);
+              final user = await userFuture;
+              final docs = await docsFuture;
+              return {'user': user, 'docs': docs};
+            }(),
+            builder: (context, snap) {
+              final user = snap.data != null
+                  ? (snap.data!['user'] as Map<String, dynamic>? ?? {})
+                  : {};
+              final docs = snap.data != null
+                  ? (snap.data!['docs'] as List<String?>? ?? [])
+                  : [];
+              final birthUrl = docs.isNotEmpty ? docs[0] : null;
+              final validIdUrl = docs.length > 1 ? docs[1] : null;
+              final residencyUrl = docs.length > 2 ? docs[2] : null;
+              final uploadedBirth = (birthUrl != null && birthUrl.isNotEmpty);
+              final uploadedValidId =
+                  (validIdUrl != null && validIdUrl.isNotEmpty);
+              final uploadedResidency =
+                  (residencyUrl != null && residencyUrl.isNotEmpty);
 
-                  int completed = 0;
-                  if (uploadedBirth) completed++;
-                  if (uploadedValidId) completed++;
-                  if (uploadedResidency) completed++;
-                  const total = 3;
-                  double progress = completed / total;
+              int completed = 0;
+              if (uploadedBirth) completed++;
+              if (uploadedValidId) completed++;
+              if (uploadedResidency) completed++;
+              const total = 3;
+              double progress = completed / total;
 
-                  final fullName = (user['full_name'] ?? userName ?? '')
-                      .toString();
-                  final sex = (user['sex'] ?? '').toString();
-                  final dob = (user['dob'] ?? '').toString();
-                  final mobile = (user['mobile_number'] ?? '').toString();
-                  final address = (user['address'] ?? '').toString();
+              final fullName = (user['full_name'] ?? userName ?? '').toString();
+              final sex = (user['sex'] ?? '').toString();
+              final dob = (user['dob'] ?? '').toString();
+              final mobile = (user['mobile_number'] ?? '').toString();
+              final address = (user['address'] ?? '').toString();
 
-                  return Container(
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(20),
+              return Column(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.fromLTRB(20, 12, 20, 18),
+                    decoration: const BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [kPrimaryDark, kPrimary],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      ),
+                      borderRadius: BorderRadius.vertical(
+                        top: Radius.circular(28),
+                      ),
                     ),
                     child: Column(
-                      mainAxisSize: MainAxisSize.min,
                       children: [
-                        // Header
                         Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 20,
-                            vertical: 18,
-                          ),
+                          width: 42,
+                          height: 5,
                           decoration: BoxDecoration(
-                            color: kPrimaryDark,
-                            borderRadius: const BorderRadius.vertical(
-                              top: Radius.circular(20),
-                            ),
-                          ),
-                          child: Row(
-                            children: [
-                              IconButton(
-                                icon: const Icon(
-                                  Icons.close,
-                                  color: Colors.white,
-                                ),
-                                onPressed: () => Navigator.pop(ctx),
-                              ),
-                              const SizedBox(width: 8),
-                              Expanded(
-                                child: Text(
-                                  'Application Progress',
-                                  textAlign: TextAlign.center,
-                                  style: const TextStyle(
-                                    color: Colors.white,
-                                    fontWeight: FontWeight.w800,
-                                    fontSize: 18,
-                                    fontFamily: 'Montserrat',
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(width: 40),
-                            ],
+                            color: Colors.white.withValues(alpha: 0.4),
+                            borderRadius: BorderRadius.circular(999),
                           ),
                         ),
-                        // User Info Card
-                        Padding(
-                          padding: const EdgeInsets.fromLTRB(24, 20, 24, 0),
-                          child: Card(
-                            elevation: 0,
-                            color: kCardBg,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(16),
-                              side: const BorderSide(color: kBorderColor),
+                        const SizedBox(height: 14),
+                        Row(
+                          children: [
+                            IconButton(
+                              icon: const Icon(
+                                Icons.close_rounded,
+                                color: Colors.white,
+                              ),
+                              onPressed: () => Navigator.pop(ctx),
                             ),
-                            child: Padding(
-                              padding: const EdgeInsets.all(18),
-                              child: Row(
+                            const SizedBox(width: 8),
+                            const Expanded(
+                              child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  CircleAvatar(
-                                    radius: 32,
-                                    backgroundColor: kPrimaryLight.withValues(
-                                      alpha: 0.15,
-                                    ),
-                                    child: Icon(
-                                      Icons.person,
-                                      color: kPrimary,
-                                      size: 36,
+                                  Text(
+                                    'Review Application',
+                                    style: TextStyle(
+                                      color: Colors.white,
+                                      fontWeight: FontWeight.w900,
+                                      fontSize: 20,
+                                      fontFamily: 'Montserrat',
                                     ),
                                   ),
-                                  const SizedBox(width: 18),
-                                  Expanded(
-                                    child: Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
-                                      children: [
-                                        Text(
-                                          fullName.isNotEmpty
-                                              ? fullName
-                                              : 'No Name',
-                                          style: const TextStyle(
-                                            fontWeight: FontWeight.w800,
-                                            fontSize: 18,
-                                            color: kPrimaryDark,
-                                            fontFamily: 'Montserrat',
-                                          ),
-                                        ),
-                                        const SizedBox(height: 6),
-                                        Row(
-                                          children: [
-                                            Icon(
-                                              Icons.phone,
-                                              size: 16,
-                                              color: kSubText,
-                                            ),
-                                            const SizedBox(width: 6),
-                                            Text(
-                                              mobile.isNotEmpty
-                                                  ? mobile
-                                                  : 'No mobile',
-                                              style: const TextStyle(
-                                                fontSize: 13,
-                                                color: kSubText,
-                                                fontFamily: 'OpenSans',
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                        const SizedBox(height: 6),
-                                        Row(
-                                          children: [
-                                            Icon(
-                                              Icons.cake,
-                                              size: 16,
-                                              color: kSubText,
-                                            ),
-                                            const SizedBox(width: 6),
-                                            Text(
-                                              dob.isNotEmpty
-                                                  ? dob
-                                                  : 'No birthday',
-                                              style: const TextStyle(
-                                                fontSize: 13,
-                                                color: kSubText,
-                                                fontFamily: 'OpenSans',
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                        const SizedBox(height: 6),
-                                        Row(
-                                          children: [
-                                            Icon(
-                                              Icons.person_outline,
-                                              size: 16,
-                                              color: kSubText,
-                                            ),
-                                            const SizedBox(width: 6),
-                                            Text(
-                                              sex.isNotEmpty ? sex : 'No sex',
-                                              style: const TextStyle(
-                                                fontSize: 13,
-                                                color: kSubText,
-                                                fontFamily: 'OpenSans',
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                        const SizedBox(height: 6),
-                                        Row(
-                                          crossAxisAlignment:
-                                              CrossAxisAlignment.start,
-                                          children: [
-                                            Icon(
-                                              Icons.home,
-                                              size: 16,
-                                              color: kSubText,
-                                            ),
-                                            const SizedBox(width: 6),
-                                            Expanded(
-                                              child: Text(
-                                                address.isNotEmpty
-                                                    ? address
-                                                    : 'No address',
-                                                style: const TextStyle(
-                                                  fontSize: 13,
-                                                  color: kSubText,
-                                                  fontFamily: 'OpenSans',
-                                                ),
-                                                maxLines: 2,
-                                                overflow: TextOverflow.ellipsis,
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                      ],
+                                  SizedBox(height: 4),
+                                  Text(
+                                    'Check applicant details and uploaded requirements before deciding.',
+                                    style: TextStyle(
+                                      color: Colors.white70,
+                                      fontWeight: FontWeight.w600,
+                                      fontSize: 13,
                                     ),
                                   ),
                                 ],
                               ),
                             ),
-                          ),
+                          ],
                         ),
-                        // Progress Bar
-                        Padding(
-                          padding: const EdgeInsets.fromLTRB(24, 18, 24, 0),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              LinearProgressIndicator(
-                                value: progress,
-                                minHeight: 8,
-                                backgroundColor: kBorderColor,
-                                color: progress == 1.0 ? kSuccess : kPrimary,
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              const SizedBox(height: 8),
-                              Text(
-                                'Progress: $completed of $total steps completed',
-                                style: TextStyle(
+                      ],
+                    ),
+                  ),
+                  Expanded(
+                    child: SingleChildScrollView(
+                      padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(18),
+                            decoration: BoxDecoration(
+                              color: kCardBg,
+                              borderRadius: BorderRadius.circular(18),
+                              border: Border.all(color: kBorderColor),
+                            ),
+                            child: Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                CircleAvatar(
+                                  radius: 30,
+                                  backgroundColor: kPrimaryLight.withValues(
+                                    alpha: 0.15,
+                                  ),
+                                  child: Icon(
+                                    Icons.person_rounded,
+                                    color: kPrimary,
+                                    size: 34,
+                                  ),
+                                ),
+                                const SizedBox(width: 16),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        fullName.isNotEmpty
+                                            ? fullName
+                                            : 'No Name',
+                                        style: const TextStyle(
+                                          fontWeight: FontWeight.w800,
+                                          fontSize: 18,
+                                          color: kPrimaryDark,
+                                          fontFamily: 'Montserrat',
+                                        ),
+                                      ),
+                                      const SizedBox(height: 10),
+                                      _sheetDetailRow(
+                                        Icons.phone_rounded,
+                                        mobile.isNotEmpty
+                                            ? mobile
+                                            : 'No mobile',
+                                      ),
+                                      _sheetDetailRow(
+                                        Icons.cake_rounded,
+                                        dob.isNotEmpty ? dob : 'No birthday',
+                                      ),
+                                      _sheetDetailRow(
+                                        Icons.person_outline_rounded,
+                                        sex.isNotEmpty ? sex : 'No sex',
+                                      ),
+                                      _sheetDetailRow(
+                                        Icons.home_rounded,
+                                        address.isNotEmpty
+                                            ? address
+                                            : 'No address',
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+                          Container(
+                            padding: const EdgeInsets.all(16),
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(18),
+                              border: Border.all(color: kBorderColor),
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Text(
+                                  'Requirements Progress',
+                                  style: TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w800,
+                                    color: kText,
+                                    fontFamily: 'Montserrat',
+                                  ),
+                                ),
+                                const SizedBox(height: 10),
+                                LinearProgressIndicator(
+                                  value: progress,
+                                  minHeight: 8,
+                                  backgroundColor: kBorderColor,
                                   color: progress == 1.0 ? kSuccess : kPrimary,
-                                  fontWeight: FontWeight.w600,
+                                  borderRadius: BorderRadius.circular(8),
                                 ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        // Steps
-                        Padding(
-                          padding: const EdgeInsets.fromLTRB(24, 18, 24, 0),
-                          child: Column(
-                            children: [
-                              _TrackingStepTile(
-                                stepNumber: 1,
-                                title: 'Birth Certificate',
-                                completed: uploadedBirth,
-                                url: birthUrl,
-                                onView: uploadedBirth
-                                    ? () => _openCertificateViewer(birthUrl)
-                                    : null,
-                              ),
-                              const SizedBox(height: 10),
-                              _TrackingStepTile(
-                                stepNumber: 2,
-                                title: 'Valid ID',
-                                completed: uploadedValidId,
-                                url: validIdUrl,
-                                onView: uploadedValidId
-                                    ? () => _openCertificateViewer(validIdUrl)
-                                    : null,
-                              ),
-                              const SizedBox(height: 10),
-                              _TrackingStepTile(
-                                stepNumber: 3,
-                                title: 'Proof of Residency',
-                                completed: uploadedResidency,
-                                url: residencyUrl,
-                                onView: uploadedResidency
-                                    ? () => _openCertificateViewer(residencyUrl)
-                                    : null,
-                              ),
-                            ],
-                          ),
-                        ),
-                        // Approve/Reject buttons
-                        Padding(
-                          padding: const EdgeInsets.fromLTRB(24, 24, 24, 18),
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.end,
-                            children: [
-                              OutlinedButton.icon(
-                                icon: const Icon(Icons.close, color: kDanger),
-                                label: const Text(
-                                  'Reject',
-                                  style: TextStyle(color: kDanger),
+                                const SizedBox(height: 8),
+                                Text(
+                                  '$completed of $total requirements available',
+                                  style: TextStyle(
+                                    color: progress == 1.0
+                                        ? kSuccess
+                                        : kPrimary,
+                                    fontWeight: FontWeight.w700,
+                                  ),
                                 ),
-                                onPressed: () {
-                                  Navigator.pop(ctx);
-                                  if (applicationId != null) {
-                                    _reject(applicationId);
-                                  }
-                                },
-                                style: OutlinedButton.styleFrom(
-                                  side: const BorderSide(color: kDanger),
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(10),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+                          _TrackingStepTile(
+                            stepNumber: 1,
+                            title: 'Birth Certificate',
+                            completed: uploadedBirth,
+                            url: birthUrl,
+                            onView: uploadedBirth
+                                ? () => _openCertificateViewer(birthUrl)
+                                : null,
+                          ),
+                          const SizedBox(height: 10),
+                          _TrackingStepTile(
+                            stepNumber: 2,
+                            title: 'Valid ID',
+                            completed: uploadedValidId,
+                            url: validIdUrl,
+                            onView: uploadedValidId
+                                ? () => _openCertificateViewer(validIdUrl)
+                                : null,
+                          ),
+                          const SizedBox(height: 10),
+                          _TrackingStepTile(
+                            stepNumber: 3,
+                            title: 'Proof of Residency',
+                            completed: uploadedResidency,
+                            url: residencyUrl,
+                            onView: uploadedResidency
+                                ? () => _openCertificateViewer(residencyUrl)
+                                : null,
+                          ),
+                          const SizedBox(height: 18),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: OutlinedButton.icon(
+                                  icon: const Icon(
+                                    Icons.close_rounded,
+                                    color: kDanger,
+                                  ),
+                                  label: const Text(
+                                    'Reject',
+                                    style: TextStyle(color: kDanger),
+                                  ),
+                                  onPressed: () {
+                                    Navigator.pop(ctx);
+                                    if (applicationId != null) {
+                                      _reject(applicationId);
+                                    }
+                                  },
+                                  style: OutlinedButton.styleFrom(
+                                    minimumSize: const Size.fromHeight(48),
+                                    side: const BorderSide(color: kDanger),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
                                   ),
                                 ),
                               ),
                               const SizedBox(width: 12),
-                              OutlinedButton.icon(
-                                icon: const Icon(
-                                  Icons.check_circle,
-                                  color: kSuccess,
-                                ),
-                                label: const Text(
-                                  'Approve',
-                                  style: TextStyle(color: kSuccess),
-                                ),
-                                onPressed: () {
-                                  Navigator.pop(ctx);
-                                  if (applicationId != null) {
-                                    _approve(
-                                      applicationId,
-                                      deceasedElsewhere: _deceasedUserIds
-                                          .contains(userId),
-                                    );
-                                  }
-                                },
-                                style: OutlinedButton.styleFrom(
-                                  side: const BorderSide(color: kSuccess),
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(10),
+                              Expanded(
+                                child: FilledButton.icon(
+                                  icon: const Icon(Icons.check_circle_rounded),
+                                  label: const Text('Approve'),
+                                  onPressed: () {
+                                    Navigator.pop(ctx);
+                                    if (applicationId != null) {
+                                      _approve(
+                                        applicationId,
+                                        deceasedElsewhere: _deceasedUserIds
+                                            .contains(userId),
+                                      );
+                                    }
+                                  },
+                                  style: FilledButton.styleFrom(
+                                    backgroundColor: kSuccess,
+                                    foregroundColor: Colors.white,
+                                    minimumSize: const Size.fromHeight(48),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
                                   ),
                                 ),
                               ),
                             ],
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
-                  );
-                },
-              ),
-            ),
+                  ),
+                ],
+              );
+            },
           ),
         );
       },
@@ -1118,502 +1369,477 @@ class _SecretaryApplicationsPageState extends State<SecretaryApplicationsPage> {
   Widget build(BuildContext context) {
     final dayungName =
         context.watch<DayungUnitProvider>().dayungUnit ?? 'Dayung';
+    final visibleApps = _visibleApps;
     return Scaffold(
       backgroundColor: kCardBg,
-      body: LayoutBuilder(
-        builder: (context, constraints) {
-          final isWide = constraints.maxWidth > 700;
-          final horizontalPadding = isWide ? constraints.maxWidth * 0.15 : 20.0;
-          final headerFontSize = isWide ? 28.0 : 20.0;
+      body: SafeArea(
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final isWide = constraints.maxWidth > 700;
+            final horizontalPadding = isWide
+                ? constraints.maxWidth * 0.15
+                : 20.0;
 
-          return Column(
-            children: [
-              // Modern Header
-              Container(
-                padding: EdgeInsets.fromLTRB(
-                  horizontalPadding,
-                  isWide ? 60 : 32,
-                  horizontalPadding,
-                  isWide ? 48 : 32,
-                ),
-                decoration: BoxDecoration(
-                  color: kPrimaryDark,
-                  borderRadius: const BorderRadius.only(
-                    bottomLeft: Radius.circular(24),
-                    bottomRight: Radius.circular(24),
+            return Column(
+              children: [
+                SecretaryPageHeader(
+                  title: 'Manage Applications',
+                  subtitle:
+                      'Review member applications and keep approvals moving for your unit.',
+                  icon: Icons.assignment_rounded,
+                  usePaymentStyle: true,
+                  padding: EdgeInsets.fromLTRB(
+                    horizontalPadding,
+                    isWide ? 28 : 28,
+                    horizontalPadding,
+                    24,
                   ),
-                  boxShadow: [
-                    BoxShadow(
-                      color: kPrimaryDark.withValues(alpha: 0.3),
-                      blurRadius: 20,
-                      offset: const Offset(0, 8),
-                    ),
-                  ],
                 ),
-                child: Row(
-                  children: [
-                    IconButton(
-                      icon: const Icon(
-                        Icons.chevron_left_rounded,
-                        color: Colors.white,
-                        size: 28,
-                      ),
-                      onPressed: () => Navigator.pop(context),
-                    ),
-                    const Icon(
-                      Icons.assignment_rounded,
-                      color: Colors.white,
-                      size: 28,
-                    ),
-                    const SizedBox(width: 16),
-                    Expanded(
-                      child: Text(
-                        'Applications',
-                        style: TextStyle(
-                          fontSize: headerFontSize,
-                          fontWeight: FontWeight.w800,
-                          color: Colors.white,
-                          fontFamily: 'Montserrat',
-                          letterSpacing: 0.3,
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              // Navigation Tabs
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 20,
-                  vertical: 16,
-                ),
-                child: Row(
-                  children: [
-                    const Icon(
-                      Icons.filter_list_rounded,
-                      color: kSubText,
-                      size: 16,
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                        children: [
-                          _NavTab(
-                            label: 'Pending',
-                            icon: Icons.schedule_rounded,
-                            selected: _filter == 'pending',
-                            onTap: () {
-                              setState(() => _filter = 'pending');
-                              _fetchApplications(forUnitId: _currentUnitId);
-                            },
-                          ),
-                          _NavTab(
-                            label: 'Approved',
-                            icon: Icons.check_circle_rounded,
-                            selected: _filter == 'approved',
-                            onTap: () {
-                              setState(() => _filter = 'approved');
-                              _fetchApplications(forUnitId: _currentUnitId);
-                            },
-                          ),
-                          _NavTab(
-                            label: 'Rejected',
-                            icon: Icons.cancel_rounded,
-                            selected: _filter == 'rejected',
-                            onTap: () {
-                              setState(() => _filter = 'rejected');
-                              _fetchApplications(forUnitId: _currentUnitId);
-                            },
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              // Add search bar for Pending filter
-              if (_filter == 'pending')
-                Padding(
+                // Navigation Tabs
+                Container(
                   padding: const EdgeInsets.symmetric(
                     horizontal: 20,
-                    vertical: 4,
+                    vertical: 12,
                   ),
-                  child: TextField(
-                    decoration: InputDecoration(
-                      hintText: 'Search member...',
-                      prefixIcon: Icon(Icons.search),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide(color: kBorderColor),
+                  child: Row(
+                    children: [
+                      const Icon(
+                        Icons.filter_list_rounded,
+                        color: kSubText,
+                        size: 16,
                       ),
-                    ),
-                    onChanged: (val) {
-                      setState(() => _searchQuery = val.trim().toLowerCase());
-                    },
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                          children: [
+                            _NavTab(
+                              label: 'Pending',
+                              icon: Icons.schedule_rounded,
+                              selected: _filter == 'pending',
+                              onTap: () {
+                                setState(() => _filter = 'pending');
+                                _fetchApplications(forUnitId: _currentUnitId);
+                              },
+                            ),
+                            _NavTab(
+                              label: 'Approved',
+                              icon: Icons.check_circle_rounded,
+                              selected: _filter == 'approved',
+                              onTap: () {
+                                setState(() => _filter = 'approved');
+                                _fetchApplications(forUnitId: _currentUnitId);
+                              },
+                            ),
+                            _NavTab(
+                              label: 'Rejected',
+                              icon: Icons.cancel_rounded,
+                              selected: _filter == 'rejected',
+                              onTap: () {
+                                setState(() => _filter = 'rejected');
+                                _fetchApplications(forUnitId: _currentUnitId);
+                              },
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-              // Content
-              Expanded(
-                child: RefreshIndicator(
-                  onRefresh: () =>
-                      _fetchApplications(forUnitId: _currentUnitId),
-                  color: kPrimary,
-                  child: _loading
-                      ? Center(
-                          child: Container(
-                            padding: const EdgeInsets.all(24),
-                            decoration: BoxDecoration(
-                              color: kCardBg,
-                              borderRadius: BorderRadius.circular(20),
-                              border: Border.all(
-                                color: kBorderColor.withValues(alpha: 0.3),
-                                width: 1,
-                              ),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: Colors.black.withValues(alpha: 0.05),
-                                  blurRadius: 15,
-                                  offset: const Offset(0, 6),
-                                ),
-                              ],
-                            ),
-                            child: Column(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                // CircularProgressIndicator(
-                                //   color: kPrimary,
-                                //   strokeWidth: 3,
-                                // ),
-                                const SizedBox(height: 16),
-                                const Text(
-                                  'Loading applications...',
-                                  style: TextStyle(
-                                    color: kSubText,
-                                    fontSize: 16,
-                                    fontFamily: 'OpenSans',
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        )
-                      : _apps.isEmpty
-                      ? Center(
-                          child: Container(
-                            margin: const EdgeInsets.all(20),
-                            padding: const EdgeInsets.all(24),
-                            decoration: BoxDecoration(
-                              color: kCardBg,
-                              borderRadius: BorderRadius.circular(20),
-                              border: Border.all(
-                                color: kBorderColor.withValues(alpha: 0.3),
-                                width: 1,
-                              ),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: Colors.black.withValues(alpha: 0.05),
-                                  blurRadius: 15,
-                                  offset: const Offset(0, 6),
-                                ),
-                              ],
-                            ),
-                            child: Column(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Icon(
-                                  Icons.inbox_rounded,
-                                  size: 48,
-                                  color: kSubText,
-                                ),
-                                const SizedBox(height: 16),
-                                const Text(
-                                  'No applications found',
-                                  style: TextStyle(
-                                    fontSize: 18,
-                                    fontWeight: FontWeight.w700,
-                                    color: kText,
-                                    fontFamily: 'Montserrat',
-                                  ),
-                                ),
-                                const SizedBox(height: 8),
-                                const Text(
-                                  'No applications match the selected filter',
-                                  style: TextStyle(
-                                    fontSize: 14,
-                                    color: kSubText,
-                                    fontFamily: 'OpenSans',
-                                  ),
-                                  textAlign: TextAlign.center,
-                                ),
-                              ],
-                            ),
-                          ),
-                        )
-                      : Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 20),
-                          child: ListView.separated(
+                // Content
+                Expanded(
+                  child: RefreshIndicator(
+                    onRefresh: () =>
+                        _fetchApplications(forUnitId: _currentUnitId),
+                    color: kPrimary,
+                    child: _loading
+                        ? ListView(
                             physics: const AlwaysScrollableScrollPhysics(),
-                            itemCount: _filter == 'pending'
-                                ? _apps.where((app) {
-                                    final user =
-                                        app['users'] as Map<String, dynamic>?;
-                                    final name = (user?['full_name'] ?? '')
-                                        .toString()
-                                        .toLowerCase();
-                                    return _searchQuery.isEmpty ||
-                                        name.contains(_searchQuery);
-                                  }).length
-                                : _apps.length,
-                            separatorBuilder: (_, __) =>
-                                const SizedBox(height: 12),
-                            itemBuilder: (context, i) {
-                              final filteredApps = _filter == 'pending'
-                                  ? _apps.where((app) {
-                                      final user =
-                                          app['users'] as Map<String, dynamic>?;
-                                      final name = (user?['full_name'] ?? '')
-                                          .toString()
-                                          .toLowerCase();
-                                      return _searchQuery.isEmpty ||
-                                          name.contains(_searchQuery);
-                                    }).toList()
-                                  : _apps;
-                              final app = filteredApps[i];
-                              final user =
-                                  app['users'] as Map<String, dynamic>?;
-                              final status = (app['status'] ?? '').toString();
-                              final appliedAt = DateTime.tryParse(
-                                app['applied_at']?.toString() ?? '',
-                              );
-                              final userIdStr = (app['user_id'] ?? '')
-                                  .toString();
-                              final deceasedElsewhere = _deceasedUserIds
-                                  .contains(userIdStr);
-
-                              return Container(
-                                padding: const EdgeInsets.all(16),
-                                decoration: BoxDecoration(
-                                  color: kCardBg,
-                                  borderRadius: BorderRadius.circular(16),
-                                  border: Border.all(
-                                    color: kBorderColor.withValues(alpha: 0.3),
-                                    width: 1,
+                            padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
+                            children: [
+                              _buildToolbarCard(),
+                              _buildEmptyState(
+                                icon: Icons.hourglass_top_rounded,
+                                title: 'Loading applications...',
+                                message:
+                                    'Pulling the latest application records for your unit.',
+                              ),
+                            ],
+                          )
+                        : _error != null
+                        ? ListView(
+                            physics: const AlwaysScrollableScrollPhysics(),
+                            padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
+                            children: [
+                              _buildToolbarCard(),
+                              _buildEmptyState(
+                                icon: Icons.error_outline_rounded,
+                                title: 'Could not load applications',
+                                message: _error!,
+                                action: OutlinedButton.icon(
+                                  onPressed: () => _fetchApplications(
+                                    forUnitId: _currentUnitId,
                                   ),
-                                  boxShadow: [
-                                    BoxShadow(
-                                      color: Colors.black.withValues(
-                                        alpha: 0.05,
-                                      ),
-                                      blurRadius: 10,
-                                      offset: const Offset(0, 4),
-                                    ),
-                                  ],
+                                  icon: const Icon(Icons.refresh_rounded),
+                                  label: const Text('Retry fetch'),
                                 ),
-                                child: Row(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Container(
-                                      padding: const EdgeInsets.all(12),
-                                      decoration: BoxDecoration(
-                                        color: kPrimary.withValues(alpha: 0.1),
-                                        borderRadius: BorderRadius.circular(12),
+                              ),
+                            ],
+                          )
+                        : _apps.isEmpty
+                        ? ListView(
+                            physics: const AlwaysScrollableScrollPhysics(),
+                            padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
+                            children: [
+                              _buildToolbarCard(),
+                              _buildEmptyState(
+                                icon: Icons.inbox_rounded,
+                                title: 'No applications found',
+                                message:
+                                    'No applications match the selected status for this dayung right now.',
+                              ),
+                            ],
+                          )
+                        : visibleApps.isEmpty
+                        ? ListView(
+                            physics: const AlwaysScrollableScrollPhysics(),
+                            padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
+                            children: [
+                              _buildToolbarCard(),
+                              _buildEmptyState(
+                                icon: Icons.search_off_rounded,
+                                title: 'No matching applications',
+                                message:
+                                    'Try a different search keyword or reset the current search.',
+                                action: OutlinedButton.icon(
+                                  onPressed: () =>
+                                      setState(() => _searchQuery = ''),
+                                  icon: const Icon(
+                                    Icons.filter_alt_off_rounded,
+                                  ),
+                                  label: const Text('Reset search'),
+                                ),
+                              ),
+                            ],
+                          )
+                        : Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 20),
+                            child: ListView.separated(
+                              physics: const AlwaysScrollableScrollPhysics(),
+                              padding: const EdgeInsets.only(bottom: 24),
+                              itemCount: visibleApps.length + 1,
+                              separatorBuilder: (_, __) =>
+                                  const SizedBox(height: 12),
+                              itemBuilder: (context, i) {
+                                if (i == 0) {
+                                  return Padding(
+                                    padding: const EdgeInsets.only(top: 8),
+                                    child: _buildToolbarCard(),
+                                  );
+                                }
+
+                                final app = visibleApps[i - 1];
+                                final user =
+                                    app['users'] as Map<String, dynamic>?;
+                                final status = (app['status'] ?? '').toString();
+                                final userIdStr = (app['user_id'] ?? '')
+                                    .toString();
+                                final deceasedElsewhere = _deceasedUserIds
+                                    .contains(userIdStr);
+                                final statusTone = _statusColor(status);
+                                final userName =
+                                    (user?['full_name'] ?? 'Member').toString();
+                                final userEmail =
+                                    (user?['email'] ?? 'No email provided')
+                                        .toString();
+                                final appId = app['id'] as int;
+
+                                return Container(
+                                  padding: const EdgeInsets.all(16),
+                                  decoration: BoxDecoration(
+                                    color: kCardBg,
+                                    borderRadius: BorderRadius.circular(16),
+                                    border: Border.all(
+                                      color: kBorderColor.withValues(
+                                        alpha: 0.3,
                                       ),
-                                      child: Text(
-                                        (user?['full_name'] ?? 'M')[0]
-                                            .toString()
-                                            .toUpperCase(),
-                                        style: const TextStyle(
-                                          color: kPrimary,
-                                          fontWeight: FontWeight.w700,
-                                          fontSize: 16,
-                                          fontFamily: 'Montserrat',
+                                      width: 1,
+                                    ),
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: Colors.black.withValues(
+                                          alpha: 0.05,
+                                        ),
+                                        blurRadius: 10,
+                                        offset: const Offset(0, 4),
+                                      ),
+                                    ],
+                                  ),
+                                  child: Row(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Container(
+                                        width: 48,
+                                        height: 48,
+                                        decoration: BoxDecoration(
+                                          color: statusTone.withValues(
+                                            alpha: 0.1,
+                                          ),
+                                          borderRadius: BorderRadius.circular(
+                                            12,
+                                          ),
+                                        ),
+                                        alignment: Alignment.center,
+                                        child: Text(
+                                          userName.isNotEmpty
+                                              ? userName[0].toUpperCase()
+                                              : 'M',
+                                          style: TextStyle(
+                                            color: statusTone,
+                                            fontWeight: FontWeight.w700,
+                                            fontSize: 16,
+                                            fontFamily: 'Montserrat',
+                                          ),
                                         ),
                                       ),
-                                    ),
-                                    const SizedBox(width: 16),
-                                    Expanded(
-                                      child: Column(
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.start,
-                                        children: [
-                                          // Replace the name Text with a clickable version for Pending
-                                          Builder(
-                                            builder: (_) {
-                                              final userName =
-                                                  (user?['full_name'] ??
-                                                          'Member')
-                                                      .toString();
-                                              final isPending =
-                                                  status == 'pending';
-                                              final appId = app['id'] as int;
-
-                                              final nameText = Text(
-                                                userName,
-                                                style: TextStyle(
-                                                  fontWeight: FontWeight.w700,
-                                                  fontSize: 16,
-                                                  color: isPending
-                                                      ? kPrimary
-                                                      : kText,
-                                                  fontFamily: 'Montserrat',
-                                                  decoration: isPending
-                                                      ? TextDecoration.underline
-                                                      : TextDecoration.none,
+                                      const SizedBox(width: 16),
+                                      Expanded(
+                                        child: Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          children: [
+                                            Row(
+                                              children: [
+                                                Expanded(
+                                                  child: Text(
+                                                    userName,
+                                                    style: const TextStyle(
+                                                      fontWeight:
+                                                          FontWeight.w700,
+                                                      fontSize: 16,
+                                                      color: kText,
+                                                      fontFamily: 'Montserrat',
+                                                    ),
+                                                  ),
                                                 ),
-                                              );
-
-                                              if (!isPending) return nameText;
-
-                                              return InkWell(
-                                                onTap: () => _openUserTracking(
-                                                  userId: userIdStr,
-                                                  userName: userName,
-                                                  applicationId: appId,
+                                                Container(
+                                                  padding:
+                                                      const EdgeInsets.symmetric(
+                                                        horizontal: 10,
+                                                        vertical: 6,
+                                                      ),
+                                                  decoration: BoxDecoration(
+                                                    color: statusTone
+                                                        .withValues(alpha: 0.1),
+                                                    borderRadius:
+                                                        BorderRadius.circular(
+                                                          999,
+                                                        ),
+                                                  ),
+                                                  child: Text(
+                                                    _filterLabel,
+                                                    style: TextStyle(
+                                                      fontSize: 11,
+                                                      fontWeight:
+                                                          FontWeight.w700,
+                                                      color: statusTone,
+                                                    ),
+                                                  ),
                                                 ),
-                                                child: nameText,
-                                              );
-                                            },
-                                          ),
-                                          const SizedBox(height: 4),
-                                          Text(
-                                            dayungName,
-                                            style: const TextStyle(
-                                              fontSize: 14,
-                                              color: kSubText,
-                                              fontFamily: 'OpenSans',
-                                              fontWeight: FontWeight.w500,
+                                              ],
                                             ),
-                                          ),
-                                          if (appliedAt != null)
+                                            const SizedBox(height: 4),
                                             Text(
-                                              'Applied: ${appliedAt.toLocal().toString().split(' ')[0]}',
+                                              userEmail,
+                                              style: const TextStyle(
+                                                fontSize: 13,
+                                                color: kSubText,
+                                                fontFamily: 'OpenSans',
+                                                fontWeight: FontWeight.w500,
+                                              ),
+                                            ),
+                                            const SizedBox(height: 4),
+                                            Text(
+                                              'Applied: ${_formatAppliedDate(app['applied_at'])}',
                                               style: const TextStyle(
                                                 fontSize: 12,
                                                 color: kSubText,
                                                 fontFamily: 'OpenSans',
                                               ),
                                             ),
-                                          // specific objectives - riverpod
-                                          Consumer(
-                                            builder: (context, ref, _) {
-                                              final userId = app['user_id']
-                                                  .toString();
-                                              final unitId =
-                                                  app['dayung_unit_id'] as int;
-                                              final qualification = ref.watch(
-                                                membershipQualificationProvider(
-                                                  {
-                                                    'userId': userId,
-                                                    'unitId': unitId,
-                                                  },
-                                                ),
-                                              );
-                                              return qualification.when(
-                                                data: (isQualified) =>
-                                                    isQualified
-                                                    ? const Text(
-                                                        'Qualified for membership',
-                                                        style: TextStyle(
-                                                          color: Colors.green,
-                                                        ),
-                                                      )
-                                                    : const Text(
-                                                        'Not qualified',
-                                                        style: TextStyle(
-                                                          color: Colors.red,
-                                                        ),
-                                                      ),
-                                                loading: () =>
-                                                    // const CircularProgressIndicator(),
-                                                    const SizedBox.shrink(),
-                                                error: (e, _) =>
-                                                    Text('Error: $e'),
-                                              );
-                                            },
-                                          ),
-                                          if (deceasedElsewhere)
-                                            Padding(
-                                              padding: const EdgeInsets.only(
-                                                top: 4,
+                                            const SizedBox(height: 4),
+                                            Text(
+                                              dayungName,
+                                              style: const TextStyle(
+                                                fontSize: 12,
+                                                color: kSubText,
+                                                fontFamily: 'OpenSans',
                                               ),
-                                              child: Row(
-                                                children: [
-                                                  const Icon(
-                                                    Icons.warning_amber_rounded,
-                                                    size: 16,
-                                                    color: Colors.red,
+                                            ),
+                                            // specific objectives - riverpod
+                                            Consumer(
+                                              builder: (context, ref, _) {
+                                                final userId = app['user_id']
+                                                    .toString();
+                                                final unitId =
+                                                    app['dayung_unit_id']
+                                                        as int;
+                                                final qualification = ref.watch(
+                                                  membershipQualificationProvider(
+                                                    {
+                                                      'userId': userId,
+                                                      'unitId': unitId,
+                                                    },
                                                   ),
-                                                  const SizedBox(width: 6),
-                                                  const Expanded(
+                                                );
+                                                return qualification.when(
+                                                  data: (isQualified) => Padding(
+                                                    padding:
+                                                        const EdgeInsets.only(
+                                                          top: 6,
+                                                        ),
                                                     child: Text(
-                                                      'This user is marked as deceased in other dayung.',
+                                                      isQualified
+                                                          ? 'Qualified for membership'
+                                                          : 'Not qualified',
                                                       style: TextStyle(
-                                                        color: Colors.red,
+                                                        color: isQualified
+                                                            ? kSuccess
+                                                            : kDanger,
                                                         fontWeight:
-                                                            FontWeight.w600,
+                                                            FontWeight.w700,
                                                       ),
                                                     ),
                                                   ),
-                                                ],
-                                              ),
+                                                  loading: () =>
+                                                      // const CircularProgressIndicator(),
+                                                      const SizedBox.shrink(),
+                                                  error: (e, _) =>
+                                                      Text('Error: $e'),
+                                                );
+                                              },
                                             ),
-                                          if (deceasedElsewhere)
-                                            Padding(
-                                              padding: const EdgeInsets.only(
-                                                top: 8,
-                                              ),
-                                              child: OutlinedButton.icon(
-                                                icon: const Icon(
-                                                  Icons.info_outline,
-                                                ),
-                                                label: const Text(
-                                                  'View deceased details',
-                                                ),
-                                                onPressed: () =>
-                                                    _openDeceasedDetails(
-                                                      userIdStr,
+                                            const SizedBox(height: 12),
+                                            Wrap(
+                                              spacing: 10,
+                                              runSpacing: 10,
+                                              children: [
+                                                FilledButton.icon(
+                                                  onPressed: () =>
+                                                      _openUserTracking(
+                                                        userId: userIdStr,
+                                                        userName: userName,
+                                                        applicationId: appId,
+                                                      ),
+                                                  icon: const Icon(
+                                                    Icons.visibility_rounded,
+                                                    size: 18,
+                                                  ),
+                                                  label: Text(
+                                                    status == 'pending'
+                                                        ? 'Review application'
+                                                        : 'View details',
+                                                  ),
+                                                  style: FilledButton.styleFrom(
+                                                    backgroundColor: kPrimary,
+                                                    foregroundColor:
+                                                        Colors.white,
+                                                    padding:
+                                                        const EdgeInsets.symmetric(
+                                                          horizontal: 14,
+                                                          vertical: 12,
+                                                        ),
+                                                    shape: RoundedRectangleBorder(
+                                                      borderRadius:
+                                                          BorderRadius.circular(
+                                                            12,
+                                                          ),
                                                     ),
-                                              ),
+                                                  ),
+                                                ),
+                                                if (deceasedElsewhere)
+                                                  OutlinedButton.icon(
+                                                    icon: const Icon(
+                                                      Icons.info_outline,
+                                                    ),
+                                                    label: const Text(
+                                                      'View deceased details',
+                                                    ),
+                                                    onPressed: () =>
+                                                        _openDeceasedDetails(
+                                                          userIdStr,
+                                                        ),
+                                                  ),
+                                              ],
                                             ),
-                                        ],
+                                            if (deceasedElsewhere)
+                                              Padding(
+                                                padding: const EdgeInsets.only(
+                                                  top: 10,
+                                                ),
+                                                child: Row(
+                                                  children: const [
+                                                    Icon(
+                                                      Icons
+                                                          .warning_amber_rounded,
+                                                      size: 16,
+                                                      color: kDanger,
+                                                    ),
+                                                    SizedBox(width: 6),
+                                                    Expanded(
+                                                      child: Text(
+                                                        'This user is marked as deceased in another dayung.',
+                                                        style: TextStyle(
+                                                          color: kDanger,
+                                                          fontWeight:
+                                                              FontWeight.w700,
+                                                        ),
+                                                      ),
+                                                    ),
+                                                  ],
+                                                ),
+                                              ),
+                                          ],
+                                        ),
                                       ),
-                                    ),
-                                    _buildActions(
-                                      status,
-                                      app['id'] as int,
-                                      deceasedElsewhere,
-                                    ),
-                                  ],
-                                ),
-                              );
-                            },
+                                    ],
+                                  ),
+                                );
+                              },
+                            ),
                           ),
-                        ),
+                  ),
                 ),
-              ),
-            ],
-          );
-        },
+              ],
+            );
+          },
+        ),
       ),
     );
   }
 
-  Widget _buildActions(
-    String status,
-    int applicationId, [
-    bool deceasedElsewhere = false,
-  ]) {
-    if (status == 'approved') {
-      return const Icon(Icons.verified, color: Colors.green);
-    }
-    if (status == 'rejected') {
-      return const Icon(Icons.cancel, color: Colors.redAccent);
-    }
-    return Text(status);
+  Widget _sheetDetailRow(IconData icon, String value) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, size: 16, color: kSubText),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              value,
+              style: const TextStyle(
+                fontSize: 13,
+                color: kSubText,
+                fontFamily: 'OpenSans',
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }
 

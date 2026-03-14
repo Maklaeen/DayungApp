@@ -5,6 +5,8 @@ import 'dart:math';
 import 'package:capstone_app/Members/dashboard.dart';
 import 'package:capstone_app/screens/dayung_map_page.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_map/flutter_map.dart';
+import 'package:latlong2/latlong.dart' as ll;
 import 'package:maplibre_gl/maplibre_gl.dart' as ml;
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
@@ -962,11 +964,40 @@ class DayungMapPreview extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (kIsWeb) {
-      return _StaticOsmTilePreview(
-        latitude: latitude,
-        longitude: longitude,
+      return SizedBox(
         height: 120,
-        zoom: 14,
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(12),
+          child: FlutterMap(
+            options: MapOptions(
+              initialCenter: ll.LatLng(latitude, longitude),
+              initialZoom: 14,
+              interactionOptions: const InteractionOptions(
+                flags: InteractiveFlag.none,
+              ),
+            ),
+            children: [
+              TileLayer(
+                urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                userAgentPackageName: 'capstone_app',
+              ),
+              MarkerLayer(
+                markers: [
+                  Marker(
+                    point: ll.LatLng(latitude, longitude),
+                    width: 36,
+                    height: 36,
+                    child: const Icon(
+                      Icons.location_on,
+                      color: Colors.redAccent,
+                      size: 28,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
       );
     }
 
@@ -1003,64 +1034,6 @@ class DayungMapPreview extends StatelessWidget {
     );
   }
 }
-
-class _StaticOsmTilePreview extends StatelessWidget {
-  final double latitude;
-  final double longitude;
-  final double height;
-  final int zoom;
-
-  const _StaticOsmTilePreview({
-    required this.latitude,
-    required this.longitude,
-    this.height = 120,
-    this.zoom = 14,
-  });
-
-  (int x, int y) _latLngToTile(double lat, double lon, int z) {
-    final n = pow(2.0, z).toDouble();
-    final xtile = ((lon + 180.0) / 360.0 * n).floor();
-    final latRad = lat * pi / 180.0;
-    final ytile = ((1.0 - (log(tan(latRad) + 1 / cos(latRad)) / pi)) / 2.0 * n)
-        .floor();
-    return (xtile, ytile);
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final (x, y) = _latLngToTile(latitude, longitude, zoom);
-    final url = 'https://tile.openstreetmap.org/$zoom/$x/$y.png';
-
-    return SizedBox(
-      height: height,
-      width: double.infinity,
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(12),
-        child: Stack(
-          fit: StackFit.expand,
-          children: [
-            Image.network(
-              url,
-              fit: BoxFit.cover,
-              filterQuality: FilterQuality.low,
-            ),
-            // Center marker overlay
-            const IgnorePointer(
-              child: Center(
-                child: Icon(
-                  Icons.location_on,
-                  color: Colors.redAccent,
-                  size: 28,
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
 
 /*
   EXPLANATION SA DEBUG OUTPUT:

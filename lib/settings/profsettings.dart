@@ -1,7 +1,7 @@
 import 'dart:ui';
+import 'package:capstone_app/profile/dayung_profile.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
-import 'package:capstone_app/profile/dayung_profile.dart';
 import 'package:capstone_app/utils/supabase_storage.dart';
 import 'package:photo_view/photo_view.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -15,6 +15,9 @@ const kAccent = Color(0xFF0D47A1);
 const kPrimary = Color(0xFF0D47A1);
 const kSuccess = Color(0xFF059669);
 const kWarn = Color(0xFFF57C00);
+const kCardBg = Color(0xFFFFFFFF);
+const kBorder = Color(0xFFE5E7EB);
+const kSoftBg = Color(0xFFF8FAFC);
 
 class ProfSettingsPage extends StatefulWidget {
   const ProfSettingsPage({super.key});
@@ -32,6 +35,21 @@ class _ProfSettingsPageState extends State<ProfSettingsPage> {
 
   bool loading = true;
   bool _uploadingImage = false;
+
+  int get _availableCertificateCount {
+    var count = 0;
+    for (final value in [
+      birthCertificateUrl,
+      marriageCertificateUrl,
+      proofOfResidencyUrl,
+      valididUrl,
+    ]) {
+      if (value != null && value.isNotEmpty) {
+        count++;
+      }
+    }
+    return count;
+  }
 
   @override
   void initState() {
@@ -293,197 +311,325 @@ class _ProfSettingsPageState extends State<ProfSettingsPage> {
 
   @override
   Widget build(BuildContext context) {
-    final themeCard = Colors.white;
-    final themeText = kText;
+    final width = MediaQuery.of(context).size.width;
+    final isWide = width > 700;
+    final titleStyle = TextStyle(
+      fontSize: isWide ? 20 : 16,
+      fontWeight: FontWeight.w700,
+      fontFamily: 'Montserrat',
+      color: kText,
+    );
+    final bodyStyle = TextStyle(
+      fontSize: isWide ? 15 : 13,
+      fontFamily: 'OpenSans',
+      color: kSubText,
+      height: 1.4,
+    );
 
     return Scaffold(
       backgroundColor: kBg,
       body: SafeArea(
-        child: Column(
-          children: [
-            // Curved Header
-            Container(
-              padding: const EdgeInsets.fromLTRB(20, 36, 20, 28),
-              decoration: const BoxDecoration(
-                color: kAccent,
-                borderRadius: BorderRadius.only(
-                  bottomLeft: Radius.circular(28),
-                  bottomRight: Radius.circular(28),
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 28),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: double.infinity,
+                padding: EdgeInsets.symmetric(
+                  horizontal: isWide ? 28 : 18,
+                  vertical: isWide ? 24 : 18,
                 ),
-                boxShadow: [
-                  BoxShadow(
-                    color: kAccent,
-                    blurRadius: 18,
-                    offset: Offset(0, 8),
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [kPrimary, kSuccess],
                   ),
-                ],
-              ),
-              child: Row(
-                children: [
-                  IconButton(
-                    icon: const Icon(
-                      Icons.arrow_back_ios_new,
-                      color: Colors.white,
-                      size: 24,
+                  borderRadius: BorderRadius.circular(28),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.08),
+                      blurRadius: 16,
+                      offset: const Offset(0, 6),
                     ),
-                    onPressed: () => Navigator.pop(context),
-                    padding: EdgeInsets.zero,
-                    constraints: const BoxConstraints(),
-                  ),
-                  const SizedBox(width: 16),
-                  const Expanded(
-                    child: Text(
-                      'Profile Settings',
-                      style: TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.w800,
-                        color: Colors.white,
-                        fontFamily: 'Montserrat',
-                        letterSpacing: 0.3,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 24),
-            // Certificates Card
-            Card(
-              elevation: 3,
-              color: themeCard,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(16),
-              ),
-              child: Padding(
-                padding: const EdgeInsets.all(18),
+                  ],
+                ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text(
-                      'Certificates',
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                        color: kText,
+                    Row(
+                      children: [
+                        Container(
+                          decoration: BoxDecoration(
+                            color: Colors.white.withValues(alpha: 0.18),
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                          child: IconButton(
+                            onPressed: () => Navigator.pop(context),
+                            icon: const Icon(
+                              Icons.arrow_back_ios_new_rounded,
+                              color: Colors.white,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 16),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Profile Settings',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.w800,
+                                  fontSize: isWide ? 28 : 22,
+                                  fontFamily: 'Montserrat',
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                'Manage certificates and update your Dayung access from one clean dashboard.',
+                                style: TextStyle(
+                                  color: Colors.white.withValues(alpha: 0.9),
+                                  fontSize: isWide ? 14 : 12,
+                                  height: 1.4,
+                                  fontFamily: 'OpenSans',
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 18),
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 12,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.14),
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(
+                          color: Colors.white.withValues(alpha: 0.12),
+                        ),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(
+                            Icons.verified_user_outlined,
+                            color: Colors.white,
+                            size: 20,
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Text(
+                              '$_availableCertificateCount of 4 profile documents are currently available.',
+                              style: TextStyle(
+                                color: Colors.white.withValues(alpha: 0.95),
+                                fontSize: 12,
+                                height: 1.4,
+                                fontFamily: 'OpenSans',
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
                     ),
-                    const SizedBox(height: 12),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 18),
+              _buildSectionCard(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: kPrimary.withValues(alpha: 0.08),
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                          child: const Icon(
+                            Icons.folder_open_rounded,
+                            color: kPrimary,
+                            size: 24,
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text('Certificates', style: titleStyle),
+                              const SizedBox(height: 4),
+                              Text(
+                                'Upload and review the documents needed for your membership profile.',
+                                style: bodyStyle,
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
                     _certificateRow(
                       label: 'Birth Certificate',
                       url: birthCertificateUrl,
                       onUpload: () => _uploadCertificate(type: 'birth'),
                       onView: () => _openCertificate(birthCertificateUrl),
-                      labelColor: themeText,
                     ),
-
-                    const SizedBox(height: 8),
+                    const SizedBox(height: 10),
                     _certificateRow(
                       label: 'Marriage Certificate',
                       url: marriageCertificateUrl,
                       onUpload: () => _uploadCertificate(type: 'marriage'),
                       onView: () => _openCertificate(marriageCertificateUrl),
-                      labelColor: themeText,
                     ),
-                    const SizedBox(height: 8),
+                    const SizedBox(height: 10),
                     _certificateRow(
                       label: 'Proof of Residency',
                       url: proofOfResidencyUrl,
                       onUpload: () =>
                           _uploadCertificate(type: 'proof_of_residency'),
                       onView: () => _openCertificate(proofOfResidencyUrl),
-                      labelColor: themeText,
                     ),
-                    const SizedBox(height: 8),
+                    const SizedBox(height: 10),
                     _certificateRow(
                       label: 'Valid ID',
                       url: valididUrl,
                       onUpload: () => _uploadCertificate(type: 'valid_id'),
                       onView: () => _openCertificate(valididUrl),
-                      labelColor: themeText,
                     ),
-                    const SizedBox(height: 8),
-                    if (_uploadingImage)
-                      const Padding(
-                        padding: EdgeInsets.only(top: 12),
-                        child: Center(
-                          child: CircularProgressIndicator(color: kAccent),
-                        ),
+                    if (_uploadingImage) ...[
+                      const SizedBox(height: 14),
+                      const ClipRRect(
+                        borderRadius: BorderRadius.all(Radius.circular(99)),
+                        child: LinearProgressIndicator(minHeight: 6),
                       ),
+                    ],
                   ],
                 ),
               ),
-            ),
-            const SizedBox(height: 24),
-            // Manage Dayung Card
-            Card(
-              elevation: 3,
-              color: themeCard,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(16),
-              ),
-              child: InkWell(
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (_) => const DayungProfile()),
-                  );
-                },
-                borderRadius: BorderRadius.circular(16),
-                child: Padding(
-                  padding: const EdgeInsets.all(18),
-                  child: Row(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.all(8),
-                        decoration: BoxDecoration(
-                          color: kAccent.withValues(alpha: 0.08),
-                          borderRadius: BorderRadius.circular(6),
+              const SizedBox(height: 18),
+              _buildSectionCard(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: kSuccess.withValues(alpha: 0.10),
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                          child: const Icon(
+                            Icons.groups_rounded,
+                            color: kSuccess,
+                            size: 24,
+                          ),
                         ),
-                        child: const Icon(
-                          Icons.home_rounded,
-                          color: kAccent,
-                          size: 18,
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'Manage Dayung',
-                              style: TextStyle(
-                                fontSize: 14,
-                                fontWeight: FontWeight.w600,
-                                color: themeText,
-                                fontFamily: 'Montserrat',
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text('Manage Dayung', style: titleStyle),
+                              const SizedBox(height: 4),
+                              Text(
+                                'Open your Dayung page to review your current unit, switch, or apply to another one.',
+                                style: bodyStyle,
                               ),
-                            ),
-                            const SizedBox(height: 4),
-                            Text(
-                              'View current Dayung, apply or change',
-                              style: TextStyle(
-                                color: themeText.withValues(alpha: 0.7),
-                                fontSize: 12,
-                                fontFamily: 'OpenSans',
-                              ),
-                            ),
-                          ],
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(14),
+                      decoration: BoxDecoration(
+                        color: kSoftBg,
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(
+                          color: kBorder.withValues(alpha: 0.9),
                         ),
                       ),
-                      const Icon(
-                        Icons.chevron_right_rounded,
-                        color: kAccent,
-                        size: 18,
+                      child: Row(
+                        children: [
+                          const Icon(Icons.swap_horiz_rounded, color: kPrimary),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Text(
+                              'This section includes Change Dayung, recommendations, and map access.',
+                              style: bodyStyle.copyWith(color: kText),
+                            ),
+                          ),
+                        ],
                       ),
-                    ],
-                  ),
+                    ),
+                    const SizedBox(height: 16),
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton.icon(
+                        onPressed: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => const DayungSettingsPage(),
+                            ),
+                          );
+                        },
+                        icon: const Icon(Icons.arrow_forward_rounded),
+                        label: const Text('Open Dayung Settings'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: kPrimary,
+                          foregroundColor: Colors.white,
+                          minimumSize: const Size.fromHeight(52),
+                          elevation: 0,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                          textStyle: const TextStyle(
+                            fontWeight: FontWeight.w700,
+                            fontFamily: 'Montserrat',
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
+    );
+  }
+
+  Widget _buildSectionCard({required Widget child}) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: kCardBg,
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: kBorder.withValues(alpha: 0.9)),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x120B1F33),
+            blurRadius: 18,
+            offset: Offset(0, 10),
+          ),
+        ],
+      ),
+      child: child,
     );
   }
 
@@ -492,61 +638,128 @@ class _ProfSettingsPageState extends State<ProfSettingsPage> {
     required String? url,
     required VoidCallback onUpload,
     required VoidCallback onView,
-    required Color labelColor,
   }) {
-    return Row(
-      children: [
-        Icon(
-          url != null && url.isNotEmpty
-              ? Icons.check_circle
-              : Icons.warning_amber_rounded,
-          color: url != null && url.isNotEmpty ? kSuccess : kWarn,
-        ),
-        const SizedBox(width: 8),
-        Expanded(
-          child: Text(
-            label,
-            style: TextStyle(
-              fontSize: 15,
-              fontWeight: FontWeight.w600,
-              color: labelColor,
-            ),
-          ),
-        ),
-        if (url != null && url.isNotEmpty) ...[
-          IconButton(
-            icon: const Icon(Icons.open_in_new, color: kSuccess),
-            tooltip: 'View',
-            onPressed: onView,
-          ),
-          ElevatedButton.icon(
-            icon: const Icon(Icons.upload_file),
-            label: const Text('Update'),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: kAccent,
-              foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(10),
+    final hasFile = url != null && url.isNotEmpty;
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: kSoftBg,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: kBorder.withValues(alpha: 0.9)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: (hasFile ? kSuccess : kWarn).withValues(alpha: 0.10),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(
+                  hasFile
+                      ? Icons.check_circle_rounded
+                      : Icons.upload_file_rounded,
+                  color: hasFile ? kSuccess : kWarn,
+                  size: 18,
+                ),
               ),
-            ),
-            onPressed: onUpload,
-          ),
-        ] else
-          ElevatedButton.icon(
-            icon: const Icon(Icons.upload_file),
-            label: const Text('Add'),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: kSuccess,
-              foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(10),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      label,
+                      style: const TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w700,
+                        color: kText,
+                        fontFamily: 'Montserrat',
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      hasFile
+                          ? 'Document available and ready to review.'
+                          : 'No document uploaded yet.',
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: kSubText,
+                        fontFamily: 'OpenSans',
+                      ),
+                    ),
+                  ],
+                ),
               ),
-            ),
-            onPressed: onUpload,
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 6,
+                ),
+                decoration: BoxDecoration(
+                  color: (hasFile ? kSuccess : kWarn).withValues(alpha: 0.10),
+                  borderRadius: BorderRadius.circular(999),
+                ),
+                child: Text(
+                  hasFile ? 'Uploaded' : 'Needed',
+                  style: TextStyle(
+                    color: hasFile ? kSuccess : kWarn,
+                    fontWeight: FontWeight.w700,
+                    fontSize: 11,
+                    fontFamily: 'Montserrat',
+                  ),
+                ),
+              ),
+            ],
           ),
-      ],
+          const SizedBox(height: 14),
+          Row(
+            children: [
+              if (hasFile)
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: onView,
+                    icon: const Icon(Icons.open_in_new_rounded),
+                    label: const Text('View'),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: kPrimary,
+                      minimumSize: const Size.fromHeight(46),
+                      side: BorderSide(color: kBorder.withValues(alpha: 0.9)),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                    ),
+                  ),
+                ),
+              if (hasFile) const SizedBox(width: 10),
+              Expanded(
+                child: ElevatedButton.icon(
+                  onPressed: onUpload,
+                  icon: const Icon(Icons.upload_file_rounded),
+                  label: Text(hasFile ? 'Update' : 'Add File'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: hasFile ? kPrimary : kSuccess,
+                    foregroundColor: Colors.white,
+                    minimumSize: const Size.fromHeight(46),
+                    elevation: 0,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    textStyle: const TextStyle(
+                      fontWeight: FontWeight.w700,
+                      fontFamily: 'Montserrat',
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
     );
   }
 }

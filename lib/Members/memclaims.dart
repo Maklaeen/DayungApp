@@ -9,14 +9,14 @@ import 'package:flutter_riverpod/flutter_riverpod.dart' as r;
 const double kCardRadius = 18;
 const kBg = Color(0xFFFAFAF7);
 const kText = Color(0xFF1F2937);
-const kSubText = Color(0xFF4B5563);
-const kAccent = Color(0xFF0D47A1);
-const kPrimary = Color(0xFF0D47A1);
-const kPrimaryDark = Color(0xFF083366);
-const kWarn = Color(0xFFF57C00);
-const kDanger = Color(0xFFC62828);
+const kSubText = Color(0xFF6B7280);
+const kAccent = Color(0xFF3B82F6);
+const kPrimary = Color(0xFF3B82F6);
+const kPrimaryDark = Color(0xFF1E40AF);
+const kWarn = Color(0xFFF59E0B);
+const kDanger = Color(0xFFEF4444);
 const kNeutralText = Color(0xFF1F2937);
-const kSubtleText = Color(0xFF4B5563);
+const kSubtleText = Color(0xFF6B7280);
 
 class MembersClaimsPage extends StatefulWidget {
   final int dayungUnitId;
@@ -844,111 +844,284 @@ class _MembersClaimsPageState extends State<MembersClaimsPage>
     final ongoingList = _filteredList(true);
     final historyList = _filteredList(false);
     final trackingList = _filteredTrackingList();
+    final width = MediaQuery.of(context).size.width;
+    final isWide = width >= 720;
 
     return Scaffold(
       backgroundColor: kBg,
-      // appBar: AppBar(
-      //   backgroundColor: kBg,
-      //   elevation: 0,
-      //   title: Text(
-      //     'Claims',
-      //     style: TextStyle(
-      //       color: kText,
-      //       fontWeight: FontWeight.bold,
-      //       fontSize: 24,
-      //       fontFamily: 'Montserrat',
-      //     ),
-      //   ),
-      //   actions: [
-      //     Padding(
-      //       padding: const EdgeInsets.only(right: 16),
-      //       child: Stack(
-      //         children: [
-      //           CircleAvatar(
-      //             backgroundColor: Colors.white,
-      //             backgroundImage:
-      //                 _profileUrl != null && _profileUrl!.isNotEmpty
-      //                 ? NetworkImage(_profileUrl!)
-      //                 : null,
-      //             radius: 20,
-      //             child: _profileUrl == null
-      //                 ? Icon(Icons.person, color: kAccent)
-      //                 : null,
-      //           ),
-      //           if (_unreadNotifCount > 0)
-      //             Positioned(
-      //               right: 0,
-      //               top: 0,
-      //               child: Container(
-      //                 padding: EdgeInsets.all(4),
-      //                 decoration: BoxDecoration(
-      //                   color: kAccent,
-      //                   shape: BoxShape.circle,
-      //                 ),
-      //                 child: Text(
-      //                   '$_unreadNotifCount',
-      //                   style: TextStyle(
-      //                     color: Colors.white,
-      //                     fontSize: 10,
-      //                     fontWeight: FontWeight.bold,
-      //                   ),
-      //                 ),
-      //               ),
-      //             ),
-      //         ],
-      //       ),
-      //     ),
-      //   ],
-      // ),
       body: SafeArea(
         child: Column(
           children: [
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              child: _searchField(),
-            ),
-            TabBar(
-              controller: _tabController,
-              labelColor: kAccent,
-              unselectedLabelColor: kSubText,
-              indicatorColor: kAccent,
-              labelStyle: TextStyle(
-                fontWeight: FontWeight.bold,
-                fontFamily: 'Montserrat',
-              ),
-              tabs: [
-                Tab(text: 'Pending'),
-                Tab(text: 'History'),
-                Tab(text: 'Tracking'),
-              ],
-            ),
+            _buildHeader(isWide),
             Expanded(
-              child: TabBarView(
-                controller: _tabController,
-                children: [
-                  _claimListView(ongoingList, true),
-                  _claimListView(historyList, false),
-                  _trackingListView(trackingList),
-                ],
+              child: Container(
+                width: double.infinity,
+                decoration: const BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.vertical(top: Radius.circular(30)),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Color(0x12000000),
+                      blurRadius: 20,
+                      offset: Offset(0, -6),
+                    ),
+                  ],
+                ),
+                child: Column(
+                  children: [
+                    Padding(
+                      padding: EdgeInsets.fromLTRB(
+                        isWide ? 24 : 16,
+                        18,
+                        isWide ? 24 : 16,
+                        0,
+                      ),
+                      child: _buildOverviewCard(
+                        pendingCount: ongoingList.length,
+                        historyCount: historyList.length,
+                        trackingCount: trackingList.length,
+                      ),
+                    ),
+                    Padding(
+                      padding: EdgeInsets.fromLTRB(
+                        isWide ? 24 : 16,
+                        16,
+                        isWide ? 24 : 16,
+                        0,
+                      ),
+                      child: _searchField(),
+                    ),
+                    Padding(
+                      padding: EdgeInsets.fromLTRB(
+                        isWide ? 24 : 16,
+                        12,
+                        isWide ? 24 : 16,
+                        12,
+                      ),
+                      child: _buildTabShell(),
+                    ),
+                    Expanded(
+                      child: TabBarView(
+                        controller: _tabController,
+                        children: [
+                          _claimListView(ongoingList, true),
+                          _claimListView(historyList, false),
+                          _trackingListView(trackingList),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
           ],
         ),
       ),
       floatingActionButton: Padding(
-        padding: const EdgeInsets.only(bottom: 60), // adjust as needed
+        padding: const EdgeInsets.only(bottom: 60),
         child: FloatingActionButton.extended(
-          backgroundColor: kAccent,
+          backgroundColor: kPrimaryDark,
           foregroundColor: Colors.white,
-          icon: Icon(Icons.add),
-          label: Text(
+          elevation: 4,
+          extendedPadding: const EdgeInsets.symmetric(
+            horizontal: 22,
+            vertical: 14,
+          ),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(18),
+          ),
+          icon: const Icon(Icons.add_circle_outline_rounded),
+          label: const Text(
             'Submit Claim',
-            style: TextStyle(fontWeight: FontWeight.bold),
+            style: TextStyle(
+              fontWeight: FontWeight.w800,
+              fontFamily: 'Montserrat',
+            ),
           ),
           onPressed: _openSubmitSheet,
         ),
       ),
       floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
+    );
+  }
+
+  Widget _buildHeader(bool isWide) {
+    return Container(
+      width: double.infinity,
+      padding: EdgeInsets.fromLTRB(
+        isWide ? 24 : 20,
+        20,
+        isWide ? 24 : 20,
+        isWide ? 36 : 30,
+      ),
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Color(0xFF1E40AF), Color(0xFF3B82F6), Color(0xFF60A5FA)],
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Container(
+          //   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+          //   decoration: BoxDecoration(
+          //     color: Colors.white.withValues(alpha: 0.16),
+          //     borderRadius: BorderRadius.circular(999),
+          //   ),
+          //   child: const Text(
+          //     'Member Claims',
+          //     style: TextStyle(
+          //       color: Colors.white,
+          //       fontSize: 12,
+          //       fontWeight: FontWeight.w700,
+          //       fontFamily: 'Montserrat',
+          //       letterSpacing: 0.2,
+          //     ),
+          //   ),
+          // ),
+          // const SizedBox(height: 14),
+          // Text(
+          //   'Track, review, and submit your claims in one place.',
+          //   style: TextStyle(
+          //     color: Colors.white,
+          //     fontSize: isWide ? 28 : 24,
+          //     fontWeight: FontWeight.w800,
+          //     fontFamily: 'Montserrat',
+          //     height: 1.15,
+          //   ),
+          // ),
+          // const SizedBox(height: 10),
+          // Text(
+          //   'Claims overview and submission portal for members.',
+          //   style: TextStyle(
+          //     color: Colors.white.withValues(alpha: 0.88),
+          //     fontSize: isWide ? 15 : 14,
+          //     fontWeight: FontWeight.w600,
+          //     fontFamily: 'OpenSans',
+          //     height: 1.4,
+          //   ),
+          // ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildOverviewCard({
+    required int pendingCount,
+    required int historyCount,
+    required int trackingCount,
+  }) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF8FBFF),
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: const Color(0xFFD8E6F8)),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x12000000),
+            blurRadius: 14,
+            offset: Offset(0, 6),
+          ),
+        ],
+      ),
+      child: Wrap(
+        spacing: 10,
+        runSpacing: 10,
+        children: [
+          _buildSummaryChip(
+            icon: Icons.pending_actions_rounded,
+            label: '$pendingCount pending',
+            color: kWarn,
+            background: const Color(0xFFFFF7E8),
+          ),
+          _buildSummaryChip(
+            icon: Icons.history_rounded,
+            label: '$historyCount in history',
+            color: kPrimaryDark,
+            background: const Color(0xFFEFF6FF),
+          ),
+          _buildSummaryChip(
+            icon: Icons.track_changes_rounded,
+            label: '$trackingCount tracking',
+            color: const Color(0xFF059669),
+            background: const Color(0xFFECFDF5),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSummaryChip({
+    required IconData icon,
+    required String label,
+    required Color color,
+    required Color background,
+  }) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: background,
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 16, color: color),
+          const SizedBox(width: 8),
+          Text(
+            label,
+            style: TextStyle(
+              color: color,
+              fontSize: 13,
+              fontWeight: FontWeight.w700,
+              fontFamily: 'OpenSans',
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTabShell() {
+    return Container(
+      decoration: BoxDecoration(
+        color: const Color(0xFFF8FAFC),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: const Color(0xFFE5E7EB)),
+      ),
+      child: TabBar(
+        controller: _tabController,
+        indicator: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(14),
+          boxShadow: const [
+            BoxShadow(
+              color: Color(0x12000000),
+              blurRadius: 10,
+              offset: Offset(0, 4),
+            ),
+          ],
+        ),
+        dividerColor: Colors.transparent,
+        indicatorSize: TabBarIndicatorSize.tab,
+        labelColor: kPrimaryDark,
+        unselectedLabelColor: kSubText,
+        padding: const EdgeInsets.all(4),
+        labelStyle: const TextStyle(
+          fontWeight: FontWeight.w800,
+          fontFamily: 'Montserrat',
+          fontSize: 12,
+        ),
+        tabs: const [
+          Tab(text: 'Pending'),
+          Tab(text: 'History'),
+          Tab(text: 'Tracking'),
+        ],
+      ),
     );
   }
 
@@ -987,31 +1160,65 @@ class _MembersClaimsPageState extends State<MembersClaimsPage>
       onChanged: (value) {
         setState(() => _search = value.trim().toLowerCase());
       },
-      decoration: const InputDecoration(
-        hintText: 'Search claims',
-        prefixIcon: Icon(Icons.search),
-        filled: true,
-        fillColor: Colors.white,
-        enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.all(Radius.circular(14)),
-          borderSide: BorderSide(color: Color(0xFFE5E7EB)),
+      style: const TextStyle(
+        color: kText,
+        fontSize: 14,
+        fontWeight: FontWeight.w600,
+        fontFamily: 'OpenSans',
+      ),
+      decoration: InputDecoration(
+        hintText: 'Search by title, description, or claim status',
+        hintStyle: TextStyle(
+          color: kSubText.withValues(alpha: 0.85),
+          fontSize: 14,
+          fontWeight: FontWeight.w600,
+          fontFamily: 'OpenSans',
         ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.all(Radius.circular(14)),
+        prefixIcon: const Icon(Icons.search_rounded, color: kPrimaryDark),
+        suffixIcon: _searchCtrl.text.isEmpty
+            ? null
+            : IconButton(
+                onPressed: () {
+                  _searchCtrl.clear();
+                  setState(() => _search = '');
+                },
+                icon: const Icon(Icons.close_rounded, color: kSubText),
+              ),
+        filled: true,
+        fillColor: const Color(0xFFF8FAFC),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: const BorderRadius.all(Radius.circular(18)),
+          borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
+        ),
+        focusedBorder: const OutlineInputBorder(
+          borderRadius: BorderRadius.all(Radius.circular(18)),
           borderSide: BorderSide(color: kPrimaryDark, width: 1.6),
+        ),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 16,
+          vertical: 16,
         ),
       ),
     );
   }
 
   Widget _claimListView(List<Map<String, dynamic>> list, bool ongoing) {
-    // Use widget.dayungUnitId instead of _dayungId
+    if (list.isEmpty) {
+      return _buildEmptyState(
+        icon: ongoing ? Icons.hourglass_top_rounded : Icons.history_rounded,
+        title: ongoing ? 'No pending claims' : 'No claim history yet',
+        message: ongoing
+            ? 'Your active requests will appear here after submission.'
+            : 'Completed or rejected claims will show up here.',
+      );
+    }
+
     return _wrapWithRefreshAndNav(
       ListView.separated(
         physics: const AlwaysScrollableScrollPhysics(
           parent: BouncingScrollPhysics(),
         ),
-        padding: const EdgeInsets.fromLTRB(16, 12, 16, 120),
+        padding: const EdgeInsets.fromLTRB(16, 4, 16, 120),
         itemCount: list.length,
         separatorBuilder: (_, __) => const SizedBox(height: 14),
         itemBuilder: (_, i) => _claimCard(list[i]),
@@ -1021,43 +1228,10 @@ class _MembersClaimsPageState extends State<MembersClaimsPage>
 
   Widget _trackingListView(List<Map<String, dynamic>> list) {
     if (list.isEmpty) {
-      return _wrapWithRefreshAndNav(
-        ListView(
-          physics: const AlwaysScrollableScrollPhysics(
-            parent: BouncingScrollPhysics(),
-          ),
-          padding: const EdgeInsets.fromLTRB(16, 60, 16, 120),
-          children: [
-            Icon(
-              Icons.track_changes,
-              size: 60,
-              color: kSubtleText.withValues(alpha: .35),
-            ),
-            const SizedBox(height: 18),
-            const Center(
-              child: Text(
-                'No claims to track',
-                style: TextStyle(
-                  fontSize: 16,
-                  fontFamily: 'OpenSans',
-                  fontWeight: FontWeight.w600,
-                  color: kSubtleText,
-                ),
-              ),
-            ),
-            const SizedBox(height: 10),
-            Center(
-              child: Text(
-                'Submit a claim to start tracking.',
-                style: TextStyle(
-                  fontSize: 13,
-                  fontFamily: 'OpenSans',
-                  color: kSubtleText.withValues(alpha: .75),
-                ),
-              ),
-            ),
-          ],
-        ),
+      return _buildEmptyState(
+        icon: Icons.track_changes_rounded,
+        title: 'No claims to track',
+        message: 'Submit a claim to start tracking its progress here.',
       );
     }
 
@@ -1081,73 +1255,118 @@ class _MembersClaimsPageState extends State<MembersClaimsPage>
     final date = _formatDate(claim['date_submitted']);
     final color = _statusColor(status);
 
-    return Card(
-      margin: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      elevation: 2,
-      color: Colors.white,
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: color.withValues(alpha: 0.16)),
+        boxShadow: [
+          BoxShadow(
+            color: color.withValues(alpha: 0.08),
+            blurRadius: 18,
+            offset: const Offset(0, 8),
+          ),
+          const BoxShadow(
+            color: Color(0x0D000000),
+            blurRadius: 8,
+            offset: Offset(0, 2),
+          ),
+        ],
+      ),
       child: InkWell(
         onTap: () => _openDetail(claim),
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(20),
         child: Padding(
           padding: const EdgeInsets.all(20),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Icon(_statusIcon(status), color: color, size: 28),
-                  SizedBox(width: 12),
+                  Container(
+                    width: 48,
+                    height: 48,
+                    decoration: BoxDecoration(
+                      color: color.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    child: Icon(_statusIcon(status), color: color, size: 24),
+                  ),
+                  const SizedBox(width: 12),
                   Expanded(
-                    child: Text(
-                      title,
-                      style: TextStyle(
-                        fontFamily: 'Montserrat',
-                        fontWeight: FontWeight.bold,
-                        fontSize: 18,
-                        color: kText,
-                      ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          title,
+                          style: const TextStyle(
+                            fontFamily: 'Montserrat',
+                            fontWeight: FontWeight.w800,
+                            fontSize: 17,
+                            color: kText,
+                            height: 1.2,
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          date,
+                          style: const TextStyle(
+                            fontFamily: 'OpenSans',
+                            fontSize: 13,
+                            color: kSubText,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
+                  const SizedBox(width: 10),
                   Container(
-                    padding: EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 6,
+                    ),
                     decoration: BoxDecoration(
                       color: color.withValues(alpha: 0.1),
-                      borderRadius: BorderRadius.circular(12),
+                      borderRadius: BorderRadius.circular(999),
                     ),
                     child: Text(
                       _displayStatus(status),
                       style: TextStyle(
                         color: color,
-                        fontWeight: FontWeight.w600,
-                        fontSize: 13,
+                        fontWeight: FontWeight.w700,
+                        fontSize: 12,
+                        fontFamily: 'Montserrat',
                       ),
                     ),
                   ),
                 ],
               ),
               if (desc.isNotEmpty) ...[
-                SizedBox(height: 8),
+                const SizedBox(height: 14),
                 Text(
                   desc,
-                  style: TextStyle(
+                  style: const TextStyle(
                     fontFamily: 'OpenSans',
                     fontSize: 15,
                     color: kSubText,
+                    height: 1.45,
                   ),
                 ),
               ],
-              SizedBox(height: 12),
+              const SizedBox(height: 14),
               Row(
                 children: [
-                  Icon(Icons.calendar_today, size: 16, color: kSubText),
-                  SizedBox(width: 6),
+                  Icon(Icons.arrow_outward_rounded, size: 16, color: color),
+                  const SizedBox(width: 6),
                   Text(
-                    date,
+                    'View details',
                     style: TextStyle(
                       fontFamily: 'OpenSans',
                       fontSize: 13,
-                      color: kSubText,
+                      color: color,
+                      fontWeight: FontWeight.w700,
                     ),
                   ),
                 ],
@@ -1155,6 +1374,73 @@ class _MembersClaimsPageState extends State<MembersClaimsPage>
             ],
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _buildEmptyState({
+    required IconData icon,
+    required String title,
+    required String message,
+  }) {
+    return _wrapWithRefreshAndNav(
+      ListView(
+        physics: const AlwaysScrollableScrollPhysics(
+          parent: BouncingScrollPhysics(),
+        ),
+        padding: const EdgeInsets.fromLTRB(16, 24, 16, 120),
+        children: [
+          Container(
+            padding: const EdgeInsets.all(24),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(22),
+              border: Border.all(color: const Color(0xFFE5E7EB)),
+              boxShadow: const [
+                BoxShadow(
+                  color: Color(0x12000000),
+                  blurRadius: 14,
+                  offset: Offset(0, 6),
+                ),
+              ],
+            ),
+            child: Column(
+              children: [
+                Container(
+                  width: 68,
+                  height: 68,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFEFF6FF),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Icon(icon, size: 34, color: kPrimaryDark),
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  title,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w800,
+                    color: kText,
+                    fontFamily: 'Montserrat',
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  message,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    fontSize: 14,
+                    color: kSubText,
+                    fontFamily: 'OpenSans',
+                    height: 1.45,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }

@@ -10,7 +10,7 @@ class SecretaryPaymentPage extends StatelessWidget {
   Widget build(BuildContext context) {
     return OfficialPaymentPage(
       dayungUnitId: dayungUnitId,
-      roleTitle: 'Secretary Payment',
+      roleTitle: 'My Payment Page',
       roleSubtitle: 'Review and settle your own pending contribution records.',
     );
   }

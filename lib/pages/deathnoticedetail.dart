@@ -4,8 +4,10 @@ import 'dart:async';
 import 'package:capstone_app/ui/loading/page_skeleton.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_map/flutter_map.dart';
 import 'package:geocoding/geocoding.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:latlong2/latlong.dart' as ll;
 import 'package:maplibre_gl/maplibre_gl.dart' as ml;
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -70,10 +72,12 @@ class _DeathNoticeDetailState extends State<DeathNoticeDetail> {
 
   String? _locationName;
   ml.MapLibreMapController? _mapController;
+  final MapController _webMapController = MapController();
   bool _styleLoaded = false;
   ml.Circle? _vigilCircle;
   ml.Circle? _userCircle;
   ml.Line? _routeLine;
+  List<ll.LatLng> _webRoutePoints = [];
 
   StreamSubscription<Position>? _posSub;
   final bool _autoFollow = true;
@@ -239,6 +243,9 @@ class _DeathNoticeDetailState extends State<DeathNoticeDetail> {
   }
 
   Future<void> _drawRouteLine(List<ml.LatLng> pts) async {
+    _webRoutePoints = pts
+        .map((point) => ll.LatLng(point.latitude, point.longitude))
+        .toList();
     if (!_styleLoaded || _mapController == null || pts.isEmpty) return;
     if (_routeLine == null) {
       _routeLine = await _mapController!.addLine(
@@ -338,17 +345,33 @@ class _DeathNoticeDetailState extends State<DeathNoticeDetail> {
   }
 
   void _centerOnVigil() {
-    if (_mapController == null || _fLat == null || _fLng == null) return;
+    if (_fLat == null || _fLng == null) return;
+    if (kIsWeb) {
+      _webMapController.move(ll.LatLng(_fLat!, _fLng!), 16);
+      return;
+    }
+    if (_mapController == null) return;
     _mapController!.animateCamera(
       ml.CameraUpdate.newLatLngZoom(ml.LatLng(_fLat!, _fLng!), 16),
     );
   }
 
   void _centerOnUser() {
-    if (_mapController == null || _userLat == null || _userLng == null) return;
+    if (_userLat == null || _userLng == null) return;
+    if (kIsWeb) {
+      _webMapController.move(ll.LatLng(_userLat!, _userLng!), 16);
+      return;
+    }
+    if (_mapController == null) return;
     _mapController!.animateCamera(
       ml.CameraUpdate.newLatLngZoom(ml.LatLng(_userLat!, _userLng!), 16),
     );
+  }
+
+  void _zoomWebMap(double delta) {
+    if (!kIsWeb) return;
+    final camera = _webMapController.camera;
+    _webMapController.move(camera.center, camera.zoom + delta);
   }
 
   Widget _pillChip(String label, IconData icon, Color color) {
@@ -1089,6 +1112,104 @@ class _DeathNoticeDetailState extends State<DeathNoticeDetail> {
   }
 
   Widget _buildModernMap(double lat, double lng) {
+    if (kIsWeb) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(18),
+          child: Stack(
+            children: [
+              SizedBox(
+                height: 240,
+                child: FlutterMap(
+                  mapController: _webMapController,
+                  options: MapOptions(
+                    initialCenter: ll.LatLng(lat, lng),
+                    initialZoom: 16,
+                    minZoom: 12,
+                    maxZoom: 20,
+                    interactionOptions: const InteractionOptions(
+                      flags: InteractiveFlag.all & ~InteractiveFlag.rotate,
+                    ),
+                  ),
+                  children: [
+                    TileLayer(
+                      urlTemplate:
+                          'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                      userAgentPackageName: 'capstone_app',
+                    ),
+                    CircleLayer(
+                      circles: [
+                        CircleMarker(
+                          point: ll.LatLng(lat, lng),
+                          radius: 10,
+                          color: const Color(0xFFFF5722),
+                          borderColor: Colors.white,
+                          borderStrokeWidth: 2,
+                        ),
+                        if (_userLat != null && _userLng != null)
+                          CircleMarker(
+                            point: ll.LatLng(_userLat!, _userLng!),
+                            radius: 9,
+                            color: const Color(0xFF0D47A1),
+                            borderColor: Colors.white,
+                            borderStrokeWidth: 2,
+                          ),
+                      ],
+                    ),
+                    if (_webRoutePoints.length >= 2)
+                      PolylineLayer(
+                        polylines: [
+                          Polyline(
+                            points: _webRoutePoints,
+                            color: const Color(0xFFFF5722),
+                            strokeWidth: 4,
+                          ),
+                        ],
+                      ),
+                    MarkerLayer(
+                      markers: [
+                        Marker(
+                          point: ll.LatLng(lat, lng),
+                          width: 38,
+                          height: 38,
+                          child: const Icon(
+                            Icons.location_on,
+                            color: Color(0xFFFF5722),
+                            size: 30,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              Positioned(
+                top: 12,
+                right: 12,
+                child: Column(
+                  children: [
+                    _MapIconBtn(
+                      icon: Icons.zoom_in,
+                      onTap: () => _zoomWebMap(1),
+                    ),
+                    const SizedBox(height: 8),
+                    _MapIconBtn(
+                      icon: Icons.zoom_out,
+                      onTap: () => _zoomWebMap(-1),
+                    ),
+                    const SizedBox(height: 8),
+                    _MapIconBtn(icon: Icons.my_location, onTap: _centerOnUser),
+                    const SizedBox(height: 8),
+                    _MapIconBtn(icon: Icons.location_on, onTap: _centerOnVigil),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       child: ClipRRect(

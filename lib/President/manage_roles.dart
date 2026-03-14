@@ -70,14 +70,6 @@ class _ManageRolesPageState extends State<ManageRolesPagePres> {
   }
 
   Future<void> _loadUnitData(int unitId) async {
-    // load members of this unit
-    final usersRes = await sb
-        .from('users')
-        .select('id, full_name, mobile_number')
-        .eq('dayung_unit_id', unitId)
-        .order('full_name', ascending: true);
-    _members = List<Map<String, dynamic>>.from(usersRes);
-
     // load secretary/treasurer
     final du = await sb
         .from('dayung_units')
@@ -99,6 +91,67 @@ class _ManageRolesPageState extends State<ManageRolesPagePres> {
             .map((e) => (e['user_id'] ?? '').toString())
             .where((s) => s.isNotEmpty),
       );
+
+    final approvedApps = await sb
+        .from('applications')
+        .select(
+          'user_id, name, status, user:users(id, full_name, mobile_number)',
+        )
+        .eq('dayung_unit_id', unitId)
+        .eq('status', 'approved')
+        .order('name', ascending: true);
+
+    final membersById = <String, Map<String, dynamic>>{};
+    for (final row in List<Map<String, dynamic>>.from(approvedApps)) {
+      final userId = (row['user_id'] ?? '').toString();
+      if (userId.isEmpty) continue;
+
+      final user = (row['user'] as Map?)?.cast<String, dynamic>();
+      final fullName = ((user?['full_name'] ?? row['name']) ?? '')
+          .toString()
+          .trim();
+      final mobileNumber = (user?['mobile_number'] ?? '').toString().trim();
+
+      membersById[userId] = {
+        'id': userId,
+        'full_name': fullName,
+        'mobile_number': mobileNumber,
+      };
+    }
+
+    final assignedIds = <String>{
+      if ((_secretaryId ?? '').isNotEmpty) _secretaryId!,
+      if ((_treasurerId ?? '').isNotEmpty) _treasurerId!,
+      ..._collectors,
+    }.where((id) => id.isNotEmpty).toList();
+
+    final missingIds = assignedIds
+        .where((id) => !membersById.containsKey(id))
+        .toList();
+    if (missingIds.isNotEmpty) {
+      final usersRes = await sb
+          .from('users')
+          .select('id, full_name, mobile_number')
+          .inFilter('id', missingIds);
+
+      for (final user in List<Map<String, dynamic>>.from(usersRes)) {
+        final userId = (user['id'] ?? '').toString();
+        if (userId.isEmpty) continue;
+        membersById[userId] = {
+          'id': userId,
+          'full_name': (user['full_name'] ?? '').toString().trim(),
+          'mobile_number': (user['mobile_number'] ?? '').toString().trim(),
+        };
+      }
+    }
+
+    _members = membersById.values.toList()
+      ..sort(
+        (a, b) => (a['full_name'] ?? '').toString().toLowerCase().compareTo(
+          (b['full_name'] ?? '').toString().toLowerCase(),
+        ),
+      );
+
     setState(() {});
   }
 
