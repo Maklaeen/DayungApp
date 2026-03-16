@@ -3,6 +3,8 @@ import 'dart:async';
 import 'package:capstone_app/main.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:http/http.dart' as http;
 
 class NetworkMonitor {
@@ -66,14 +68,93 @@ class NetworkMonitor {
   }
 
   Future<bool> _hasInternetAccess() async {
+    final hasNetworkInterface = await _hasAnyNetworkInterface();
+    final probes = <_NetworkProbe>[
+      if (kIsWeb)
+        _NetworkProbe(
+          uri: _buildWebProbeUri(),
+          acceptsStatus: (statusCode) => statusCode >= 200 && statusCode < 400,
+        ),
+      ..._buildBackendProbes(),
+      _NetworkProbe(
+        uri: Uri.parse('https://clients3.google.com/generate_204'),
+        acceptsStatus: (statusCode) => statusCode == 204,
+      ),
+      _NetworkProbe(
+        uri: Uri.parse('https://www.gstatic.com/generate_204'),
+        acceptsStatus: (statusCode) => statusCode == 204,
+      ),
+      _NetworkProbe(
+        uri: Uri.parse('https://example.com/'),
+        acceptsStatus: (statusCode) => statusCode >= 200 && statusCode < 500,
+      ),
+    ];
+
+    for (final probe in probes) {
+      try {
+        final response = await http
+            .get(probe.uri)
+            .timeout(const Duration(seconds: 5));
+        if (probe.acceptsStatus(response.statusCode)) {
+          return true;
+        }
+      } catch (_) {
+        continue;
+      }
+    }
+
+    return hasNetworkInterface &&
+        !_isExplicitOffline(connectivityFallback: hasNetworkInterface);
+  }
+
+  Future<bool> _hasAnyNetworkInterface() async {
     try {
-      final response = await http
-          .get(Uri.parse('https://clients3.google.com/generate_204'))
-          .timeout(const Duration(seconds: 5));
-      return response.statusCode == 204;
+      final connectivityResults = await Connectivity().checkConnectivity();
+      return connectivityResults.any(
+        (result) => result != ConnectivityResult.none,
+      );
     } catch (_) {
       return false;
     }
+  }
+
+  List<_NetworkProbe> _buildBackendProbes() {
+    final supabaseUrl = dotenv.env['SUPABASE_URL'];
+    if (supabaseUrl == null || supabaseUrl.isEmpty) {
+      return const [];
+    }
+
+    final baseUri = Uri.tryParse(supabaseUrl);
+    if (baseUri == null) {
+      return const [];
+    }
+
+    return [
+      _NetworkProbe(
+        uri: baseUri,
+        acceptsStatus: (statusCode) => statusCode >= 200 && statusCode < 500,
+      ),
+      _NetworkProbe(
+        uri: baseUri.resolve('/auth/v1/health'),
+        acceptsStatus: (statusCode) => statusCode >= 200 && statusCode < 500,
+      ),
+      _NetworkProbe(
+        uri: baseUri.resolve('/rest/v1/'),
+        acceptsStatus: (statusCode) => statusCode >= 200 && statusCode < 500,
+      ),
+    ];
+  }
+
+  Uri _buildWebProbeUri() {
+    final probeUri = Uri.base.resolve('manifest.json');
+    final queryParameters = Map<String, String>.from(probeUri.queryParameters)
+      ..['_networkProbe'] = DateTime.now().millisecondsSinceEpoch.toString();
+
+    return probeUri.replace(queryParameters: queryParameters, fragment: '');
+  }
+
+  bool _isExplicitOffline({required bool connectivityFallback}) {
+    return !connectivityFallback;
   }
 
   void dispose() {
@@ -288,4 +369,11 @@ class NetworkMonitor {
     _dialogVisible = false;
     _isChecking = false;
   }
+}
+
+class _NetworkProbe {
+  const _NetworkProbe({required this.uri, required this.acceptsStatus});
+
+  final Uri uri;
+  final bool Function(int statusCode) acceptsStatus;
 }

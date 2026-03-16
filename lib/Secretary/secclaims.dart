@@ -8,6 +8,7 @@ import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:photo_view/photo_view.dart';
 import 'package:flutter/services.dart';
+import 'package:capstone_app/utils/theme_surface.dart';
 
 // Old palette (kept so old logic/widgets compile)
 const Color kPrimary = Color(0xFF0D47A1);
@@ -344,7 +345,7 @@ class _SecretaryClaimsPageState extends State<SecretaryClaimsPage>
         context.watch<DayungUnitProvider>().dayungUnit ?? 'Dayung';
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF8FAFC),
+      backgroundColor: dayungPageBackground(context),
       body: Stack(
         children: [
           Column(

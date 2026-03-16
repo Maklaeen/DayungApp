@@ -13,6 +13,7 @@ import 'package:capstone_app/Collector/gcash_qr_page.dart';
 import 'package:capstone_app/pages/recentdeathnotices.dart';
 import 'package:capstone_app/profile/profile.dart';
 import 'package:capstone_app/settings/profsettings.dart';
+import 'package:capstone_app/utils/theme_surface.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -550,17 +551,10 @@ class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
     // }
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF8FAFC),
+      backgroundColor: dayungPageBackground(context),
       drawer: _buildSideDrawer(context),
       body: Container(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [Color(0xFF1E40AF), Color(0xFF3B82F6), Color(0xFFF8FAFC)],
-            stops: [0.0, 0.3, 0.3],
-          ),
-        ),
+        decoration: BoxDecoration(gradient: dayungDashboardGradient(context)),
         child: Stack(
           children: [
             SafeArea(
@@ -687,19 +681,13 @@ class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
   Widget _buildContentArea(bool wide) {
     return Expanded(
       child: Container(
-        decoration: const BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.only(
+        decoration: BoxDecoration(
+          color: dayungSurface(context),
+          borderRadius: const BorderRadius.only(
             topLeft: Radius.circular(24),
             topRight: Radius.circular(24),
           ),
-          boxShadow: [
-            BoxShadow(
-              color: Color(0x1A000000),
-              blurRadius: 20,
-              offset: Offset(0, -4),
-            ),
-          ],
+          boxShadow: [dayungTopShadow(context)],
         ),
         child: ClipRRect(
           borderRadius: const BorderRadius.only(
@@ -731,16 +719,10 @@ class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
               margin: EdgeInsets.symmetric(horizontal: wide ? 200 : 20),
               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
               decoration: BoxDecoration(
-                color: Colors.white,
+                color: dayungSurface(context),
                 borderRadius: BorderRadius.circular(40),
-                border: Border.all(color: const Color(0xFFE5E7EB)),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.08),
-                    blurRadius: 20,
-                    offset: const Offset(0, 8),
-                  ),
-                ],
+                border: Border.all(color: dayungBorder(context)),
+                boxShadow: [dayungElevatedShadow(context)],
               ),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceEvenly,
@@ -1018,17 +1000,7 @@ class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
   Widget _buildModernStatsCards() {
     return Container(
       padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.05),
-            blurRadius: 15,
-            offset: const Offset(0, 5),
-          ),
-        ],
-      ),
+      decoration: dayungSectionCardDecoration(context),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -1107,10 +1079,11 @@ class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
   }) {
     return Container(
       padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: bgColor,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: color.withValues(alpha: 0.2)),
+      decoration: dayungAccentCardDecoration(
+        context,
+        accent: color,
+        lightAlpha: 0.10,
+        darkAlpha: 0.16,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.center, // Center horizontally
@@ -1163,12 +1136,11 @@ class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
   Widget _buildRecentDeathsCard() {
     return Container(
       padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: const Color(0xFFFDF2F8),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: const Color(0xFFEC4899).withValues(alpha: 0.2),
-        ),
+      decoration: dayungAccentCardDecoration(
+        context,
+        accent: const Color(0xFFEC4899),
+        lightAlpha: 0.08,
+        darkAlpha: 0.14,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.center,
@@ -1357,18 +1329,7 @@ class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
         const SizedBox(height: 16),
         Container(
           padding: const EdgeInsets.all(20),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: const Color(0xFFDDE7F5)),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.05),
-                blurRadius: 10,
-                offset: const Offset(0, 4),
-              ),
-            ],
-          ),
+          decoration: dayungSectionCardDecoration(context, radius: 16),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -1377,7 +1338,12 @@ class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
                   Container(
                     padding: const EdgeInsets.all(8),
                     decoration: BoxDecoration(
-                      color: const Color(0xFFFDF2F8),
+                      color: dayungAccentSurface(
+                        context,
+                        const Color(0xFFEC4899),
+                        lightAlpha: 0.08,
+                        darkAlpha: 0.14,
+                      ),
                       borderRadius: BorderRadius.circular(8),
                     ),
                     child: const Icon(
@@ -1387,13 +1353,13 @@ class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
                     ),
                   ),
                   const SizedBox(width: 12),
-                  const Expanded(
+                  Expanded(
                     child: Text(
                       'Death Notice Queue',
                       style: TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.w700,
-                        color: Color(0xFF111827),
+                        color: dayungTextColor(context),
                         fontFamily: 'Montserrat',
                       ),
                     ),
@@ -1428,16 +1394,21 @@ class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
                   vertical: 10,
                 ),
                 decoration: BoxDecoration(
-                  color: const Color(0xFFEFF6FF),
+                  color: dayungAccentSurface(context, kPrimaryDark),
                   borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: kPrimaryDark.withValues(
+                      alpha: dayungIsDark(context) ? 0.34 : 0.18,
+                    ),
+                  ),
                 ),
                 child: Text(
                   _loading
                       ? 'Refreshing treasurer dashboard...'
                       : 'Pending amount for collection: ₱${_pendingAmount.toStringAsFixed(0)}',
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 13,
-                    color: Color(0xFF111827),
+                    color: dayungTextColor(context),
                     fontFamily: 'OpenSans',
                     fontWeight: FontWeight.w600,
                   ),
@@ -1501,16 +1472,10 @@ class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
     return Container(
       width: double.infinity,
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: dayungSurface(context),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: color.withValues(alpha: 0.2)),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.03),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
+        border: Border.all(color: dayungBorder(context)),
+        boxShadow: [dayungElevatedShadow(context)],
       ),
       child: Material(
         color: Colors.transparent,
@@ -2139,7 +2104,7 @@ class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      backgroundColor: const Color(0xFFF8FAFC),
+      backgroundColor: dayungSurface(context),
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
       ),
@@ -2161,7 +2126,7 @@ class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
                     width: 56,
                     height: 6,
                     decoration: BoxDecoration(
-                      color: const Color(0xFFCBD5E1),
+                      color: dayungBorder(ctx),
                       borderRadius: BorderRadius.circular(999),
                     ),
                   ),
@@ -2171,10 +2136,10 @@ class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
                   paid
                       ? 'Paid Members per Deceased'
                       : 'Unpaid Members per Deceased',
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 24,
                     fontWeight: FontWeight.w800,
-                    color: kPrimaryDark,
+                    color: dayungTextColor(ctx),
                     fontFamily: 'Montserrat',
                   ),
                 ),
@@ -2183,10 +2148,10 @@ class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
                   paid
                       ? 'Choose a deceased member to see who already paid.'
                       : 'Choose a deceased member to see who still needs to pay.',
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 15,
                     height: 1.4,
-                    color: kSubtleText,
+                    color: dayungSubtextColor(ctx),
                     fontWeight: FontWeight.w600,
                   ),
                 ),
@@ -2195,9 +2160,9 @@ class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
                   width: double.infinity,
                   padding: const EdgeInsets.all(14),
                   decoration: BoxDecoration(
-                    color: Colors.white,
+                    color: dayungSoftSurface(ctx),
                     borderRadius: BorderRadius.circular(18),
-                    border: Border.all(color: const Color(0xFFDCE7F8)),
+                    border: Border.all(color: dayungBorder(ctx)),
                   ),
                   child: Row(
                     children: [
@@ -2224,10 +2189,10 @@ class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
                       Expanded(
                         child: Text(
                           '${notices.length} deceased record${notices.length == 1 ? '' : 's'} available',
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontSize: 16,
                             fontWeight: FontWeight.w700,
-                            color: kNeutralText,
+                            color: dayungTextColor(ctx),
                           ),
                         ),
                       ),
@@ -2242,7 +2207,12 @@ class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
                 const SizedBox(height: 12),
                 Expanded(
                   child: notices.isEmpty
-                      ? const Center(child: Text('No death notices found'))
+                      ? Center(
+                          child: Text(
+                            'No death notices found',
+                            style: TextStyle(color: dayungSubtextColor(ctx)),
+                          ),
+                        )
                       : ListView.separated(
                           itemCount: notices.length,
                           separatorBuilder: (_, __) =>
@@ -2253,7 +2223,7 @@ class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
                                 .toString();
                             final date = (n['date_of_death'] ?? '').toString();
                             return Material(
-                              color: Colors.white,
+                              color: dayungSurface(ctx),
                               borderRadius: BorderRadius.circular(20),
                               child: InkWell(
                                 borderRadius: BorderRadius.circular(20),
@@ -2272,7 +2242,12 @@ class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
                                       Container(
                                         padding: const EdgeInsets.all(14),
                                         decoration: BoxDecoration(
-                                          color: const Color(0xFFFEE2E2),
+                                          color: dayungAccentSurface(
+                                            ctx,
+                                            kDanger,
+                                            lightAlpha: 0.10,
+                                            darkAlpha: 0.16,
+                                          ),
                                           borderRadius: BorderRadius.circular(
                                             16,
                                           ),
@@ -2291,10 +2266,10 @@ class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
                                           children: [
                                             Text(
                                               deceasedName,
-                                              style: const TextStyle(
+                                              style: TextStyle(
                                                 fontSize: 19,
                                                 fontWeight: FontWeight.w800,
-                                                color: kNeutralText,
+                                                color: dayungTextColor(ctx),
                                               ),
                                             ),
                                             const SizedBox(height: 6),
@@ -2302,9 +2277,9 @@ class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
                                               date.isEmpty
                                                   ? 'No date of death recorded'
                                                   : 'Date of death: $date',
-                                              style: const TextStyle(
+                                              style: TextStyle(
                                                 fontSize: 15,
-                                                color: kSubtleText,
+                                                color: dayungSubtextColor(ctx),
                                                 fontWeight: FontWeight.w600,
                                               ),
                                             ),
@@ -2317,7 +2292,10 @@ class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
                                           vertical: 10,
                                         ),
                                         decoration: BoxDecoration(
-                                          color: const Color(0xFFEFF6FF),
+                                          color: dayungAccentSurface(
+                                            ctx,
+                                            kPrimaryDark,
+                                          ),
                                           borderRadius: BorderRadius.circular(
                                             14,
                                           ),

@@ -1,5 +1,6 @@
 import 'package:capstone_app/President/president_payment_page.dart';
 import 'package:capstone_app/ui/loading/page_skeleton.dart';
+import 'package:capstone_app/utils/theme_surface.dart';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -330,7 +331,7 @@ class _PresidentContributionsPageState
   @override
   Widget build(BuildContext context) {
     return Container(
-      color: kBg,
+      color: dayungPageBackground(context),
       child: _loading
           ? const DayungPageSkeleton(
               layout: DayungSkeletonLayout.list,

@@ -17,6 +17,7 @@ import 'package:capstone_app/pages/reports.dart';
 import 'package:capstone_app/profile/profile.dart';
 import 'package:capstone_app/settings/profsettings.dart';
 import 'package:capstone_app/ui/theme/branding.dart' as branding;
+import 'package:capstone_app/utils/theme_surface.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -515,17 +516,10 @@ class _SecretaryDashboardPageState extends State<SecretaryDashboardPage> {
     }
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF8FAFC),
+      backgroundColor: dayungPageBackground(context),
       drawer: _buildSideDrawer(context),
       body: Container(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [Color(0xFF1E40AF), Color(0xFF3B82F6), Color(0xFFF8FAFC)],
-            stops: [0.0, 0.3, 0.3],
-          ),
-        ),
+        decoration: BoxDecoration(gradient: dayungDashboardGradient(context)),
         child: Stack(
           children: [
             SafeArea(
@@ -790,19 +784,13 @@ class _SecretaryDashboardPageState extends State<SecretaryDashboardPage> {
   Widget _buildContentArea(bool wide) {
     return Expanded(
       child: Container(
-        decoration: const BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.only(
+        decoration: BoxDecoration(
+          color: dayungSurface(context),
+          borderRadius: const BorderRadius.only(
             topLeft: Radius.circular(24),
             topRight: Radius.circular(24),
           ),
-          boxShadow: [
-            BoxShadow(
-              color: Color(0x1A000000),
-              blurRadius: 20,
-              offset: Offset(0, -4),
-            ),
-          ],
+          boxShadow: [dayungTopShadow(context)],
         ),
         child: ClipRRect(
           borderRadius: const BorderRadius.only(
@@ -919,10 +907,11 @@ class _SecretaryDashboardPageState extends State<SecretaryDashboardPage> {
   }) {
     return Container(
       padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: bgColor,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: color.withValues(alpha: 0.2)),
+      decoration: dayungAccentCardDecoration(
+        context,
+        accent: color,
+        lightAlpha: 0.10,
+        darkAlpha: 0.16,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.center,
@@ -967,12 +956,11 @@ class _SecretaryDashboardPageState extends State<SecretaryDashboardPage> {
 
     return Container(
       padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: const Color(0xFFFDF2F8),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: const Color(0xFFEC4899).withValues(alpha: 0.2),
-        ),
+      decoration: dayungAccentCardDecoration(
+        context,
+        accent: const Color(0xFFEC4899),
+        lightAlpha: 0.08,
+        darkAlpha: 0.14,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.center,
@@ -1045,17 +1033,7 @@ class _SecretaryDashboardPageState extends State<SecretaryDashboardPage> {
   Widget _overviewSection(double maxWidth) {
     return Container(
       padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.05),
-            blurRadius: 15,
-            offset: const Offset(0, 5),
-          ),
-        ],
-      ),
+      decoration: dayungSectionCardDecoration(context),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -1333,15 +1311,10 @@ class _SecretaryDashboardPageState extends State<SecretaryDashboardPage> {
           Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: Colors.white,
+              color: dayungSurface(context),
               borderRadius: BorderRadius.circular(16),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.05),
-                  blurRadius: 10,
-                  offset: const Offset(0, 4),
-                ),
-              ],
+              border: Border.all(color: dayungBorder(context)),
+              boxShadow: [dayungElevatedShadow(context)],
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -1419,20 +1392,7 @@ class _SecretaryDashboardPageState extends State<SecretaryDashboardPage> {
         const SizedBox(height: 16),
         Container(
           padding: const EdgeInsets.all(20),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(
-              color: branding.kPrimary.withValues(alpha: 0.12),
-            ),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.05),
-                blurRadius: 10,
-                offset: const Offset(0, 4),
-              ),
-            ],
-          ),
+          decoration: dayungSectionCardDecoration(context, radius: 16),
           child: Column(
             children: [
               Row(
@@ -1489,8 +1449,13 @@ class _SecretaryDashboardPageState extends State<SecretaryDashboardPage> {
                   vertical: 10,
                 ),
                 decoration: BoxDecoration(
-                  color: const Color(0xFFEFF6FF),
+                  color: dayungAccentSurface(context, branding.kPrimary),
                   borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: branding.kPrimary.withValues(
+                      alpha: dayungIsDark(context) ? 0.34 : 0.18,
+                    ),
+                  ),
                 ),
                 child: Row(
                   children: [
@@ -1654,21 +1619,17 @@ class _SecretaryDashboardPageState extends State<SecretaryDashboardPage> {
                     : 16,
               ),
               decoration: BoxDecoration(
-                color: Colors.white,
+                color: dayungSurface(context),
                 borderRadius: BorderRadius.circular(40),
                 boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.08),
-                    blurRadius: 20,
-                    offset: const Offset(0, 8),
-                  ),
+                  dayungElevatedShadow(context),
                   BoxShadow(
                     color: Colors.black.withValues(alpha: 0.02),
                     blurRadius: 6,
                     offset: const Offset(0, 2),
                   ),
                 ],
-                border: Border.all(color: Colors.grey.shade300, width: 1),
+                border: Border.all(color: dayungBorder(context), width: 1),
               ),
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),

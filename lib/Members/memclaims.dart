@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:capstone_app/providers/claim_tracking_provider.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart' as r;
+import 'package:capstone_app/utils/theme_surface.dart';
 
 // Collor palette
 const double kCardRadius = 18;
@@ -848,7 +849,7 @@ class _MembersClaimsPageState extends State<MembersClaimsPage>
     final isWide = width >= 720;
 
     return Scaffold(
-      backgroundColor: kBg,
+      backgroundColor: dayungPageBackground(context),
       body: SafeArea(
         child: Column(
           children: [
@@ -856,16 +857,12 @@ class _MembersClaimsPageState extends State<MembersClaimsPage>
             Expanded(
               child: Container(
                 width: double.infinity,
-                decoration: const BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.vertical(top: Radius.circular(30)),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Color(0x12000000),
-                      blurRadius: 20,
-                      offset: Offset(0, -6),
-                    ),
-                  ],
+                decoration: BoxDecoration(
+                  color: dayungSurface(context),
+                  borderRadius: const BorderRadius.vertical(
+                    top: Radius.circular(30),
+                  ),
+                  boxShadow: [dayungTopShadow(context)],
                 ),
                 child: Column(
                   children: [

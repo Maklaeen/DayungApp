@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:capstone_app/ui/theme/branding.dart';
 import 'package:capstone_app/Secretary/secretary_payment_page.dart';
+import 'package:capstone_app/utils/theme_surface.dart';
 
 // Additional colors for secretary contributions specific styling (new UI)
 const kText = Color(0xFF111827);
@@ -183,13 +184,13 @@ class _SecretaryContributionsPageState
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF8FAFC),
+      backgroundColor: dayungPageBackground(context),
       body: Container(
-        decoration: const BoxDecoration(
+        decoration: BoxDecoration(
           gradient: LinearGradient(
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
-            colors: [Color(0xFFF8FAFC), Color(0xFFF1F5F9)],
+            colors: [dayungPageBackground(context), dayungSoftSurface(context)],
           ),
         ),
         child: Column(

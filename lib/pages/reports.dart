@@ -1,5 +1,6 @@
 import 'package:capstone_app/ui/loading/page_skeleton.dart';
 import 'package:capstone_app/Secretary/secretary_ui.dart';
+import 'package:capstone_app/utils/theme_surface.dart';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:fl_chart/fl_chart.dart';
@@ -144,7 +145,7 @@ class _ReportsPageState extends State<ReportsPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF8FAFC),
+      backgroundColor: dayungPageBackground(context),
       body: SafeArea(
         child: LayoutBuilder(
           builder: (context, constraints) {

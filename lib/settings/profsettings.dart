@@ -1,9 +1,11 @@
 import 'dart:ui';
+import 'package:capstone_app/Providers/apptheme_provider.dart';
 import 'package:capstone_app/profile/dayung_profile.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:capstone_app/utils/supabase_storage.dart';
 import 'package:photo_view/photo_view.dart';
+import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -35,6 +37,20 @@ class _ProfSettingsPageState extends State<ProfSettingsPage> {
 
   bool loading = true;
   bool _uploadingImage = false;
+
+  ThemeData get _theme => Theme.of(context);
+  ColorScheme get _colors => _theme.colorScheme;
+  bool get _isDark => _theme.brightness == Brightness.dark;
+  Color get _pageBackground => _theme.scaffoldBackgroundColor;
+  Color get _cardColor => _isDark ? const Color(0xFF162033) : kCardBg;
+  Color get _softColor => _isDark ? const Color(0xFF1B2435) : kSoftBg;
+  Color get _borderColor =>
+      _isDark ? _colors.outline.withValues(alpha: 0.34) : kBorder;
+  Color get _textColor => _colors.onSurface;
+  Color get _subTextColor => _colors.onSurfaceVariant;
+  Color get _primaryColor => _colors.primary;
+  Color get _successColor => _isDark ? const Color(0xFF34D399) : kSuccess;
+  Color get _warnColor => _isDark ? const Color(0xFFFBBF24) : kWarn;
 
   int get _availableCertificateCount {
     var count = 0;
@@ -311,23 +327,24 @@ class _ProfSettingsPageState extends State<ProfSettingsPage> {
 
   @override
   Widget build(BuildContext context) {
+    final appTheme = context.watch<AppTheme>();
     final width = MediaQuery.of(context).size.width;
     final isWide = width > 700;
     final titleStyle = TextStyle(
       fontSize: isWide ? 20 : 16,
       fontWeight: FontWeight.w700,
       fontFamily: 'Montserrat',
-      color: kText,
+      color: _textColor,
     );
     final bodyStyle = TextStyle(
       fontSize: isWide ? 15 : 13,
       fontFamily: 'OpenSans',
-      color: kSubText,
+      color: _subTextColor,
       height: 1.4,
     );
 
     return Scaffold(
-      backgroundColor: kBg,
+      backgroundColor: _pageBackground,
       body: SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.fromLTRB(16, 12, 16, 28),
@@ -341,15 +358,20 @@ class _ProfSettingsPageState extends State<ProfSettingsPage> {
                   vertical: isWide ? 24 : 18,
                 ),
                 decoration: BoxDecoration(
-                  gradient: const LinearGradient(
+                  gradient: LinearGradient(
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
-                    colors: [kPrimary, kSuccess],
+                    colors: [
+                      _isDark ? const Color(0xFF1D4ED8) : kPrimary,
+                      _isDark ? const Color(0xFF0F766E) : kSuccess,
+                    ],
                   ),
                   borderRadius: BorderRadius.circular(28),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.08),
+                      color: Colors.black.withValues(
+                        alpha: _isDark ? 0.28 : 0.08,
+                      ),
                       blurRadius: 16,
                       offset: const Offset(0, 6),
                     ),
@@ -451,12 +473,104 @@ class _ProfSettingsPageState extends State<ProfSettingsPage> {
                         Container(
                           padding: const EdgeInsets.all(12),
                           decoration: BoxDecoration(
-                            color: kPrimary.withValues(alpha: 0.08),
+                            color: _primaryColor.withValues(alpha: 0.12),
                             borderRadius: BorderRadius.circular(16),
                           ),
-                          child: const Icon(
+                          child: Icon(
+                            Icons.dark_mode_rounded,
+                            color: _primaryColor,
+                            size: 24,
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text('Appearance', style: titleStyle),
+                              const SizedBox(height: 4),
+                              Text(
+                                'Choose light, dark, or follow the device theme. This applies app-wide.',
+                                style: bodyStyle,
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    SegmentedButton<ThemeMode>(
+                      showSelectedIcon: false,
+                      segments: const [
+                        ButtonSegment<ThemeMode>(
+                          value: ThemeMode.system,
+                          icon: Icon(Icons.brightness_auto_rounded),
+                          label: Text('System'),
+                        ),
+                        ButtonSegment<ThemeMode>(
+                          value: ThemeMode.light,
+                          icon: Icon(Icons.light_mode_rounded),
+                          label: Text('Light'),
+                        ),
+                        ButtonSegment<ThemeMode>(
+                          value: ThemeMode.dark,
+                          icon: Icon(Icons.dark_mode_rounded),
+                          label: Text('Dark'),
+                        ),
+                      ],
+                      selected: <ThemeMode>{appTheme.mode},
+                      onSelectionChanged: (selection) async {
+                        if (selection.isEmpty) {
+                          return;
+                        }
+                        await context.read<AppTheme>().set(selection.first);
+                      },
+                    ),
+                    const SizedBox(height: 12),
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(14),
+                      decoration: BoxDecoration(
+                        color: _softColor,
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(color: _borderColor),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(
+                            Icons.palette_outlined,
+                            color: _primaryColor,
+                            size: 20,
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Text(
+                              'Current mode: ${_themeModeDescription(appTheme.mode)}',
+                              style: bodyStyle.copyWith(color: _textColor),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 18),
+              _buildSectionCard(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: _primaryColor.withValues(alpha: 0.08),
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                          child: Icon(
                             Icons.folder_open_rounded,
-                            color: kPrimary,
+                            color: _primaryColor,
                             size: 24,
                           ),
                         ),
@@ -525,12 +639,12 @@ class _ProfSettingsPageState extends State<ProfSettingsPage> {
                         Container(
                           padding: const EdgeInsets.all(12),
                           decoration: BoxDecoration(
-                            color: kSuccess.withValues(alpha: 0.10),
+                            color: _successColor.withValues(alpha: 0.10),
                             borderRadius: BorderRadius.circular(16),
                           ),
-                          child: const Icon(
+                          child: Icon(
                             Icons.groups_rounded,
-                            color: kSuccess,
+                            color: _successColor,
                             size: 24,
                           ),
                         ),
@@ -555,20 +669,18 @@ class _ProfSettingsPageState extends State<ProfSettingsPage> {
                       width: double.infinity,
                       padding: const EdgeInsets.all(14),
                       decoration: BoxDecoration(
-                        color: kSoftBg,
+                        color: _softColor,
                         borderRadius: BorderRadius.circular(16),
-                        border: Border.all(
-                          color: kBorder.withValues(alpha: 0.9),
-                        ),
+                        border: Border.all(color: _borderColor),
                       ),
                       child: Row(
                         children: [
-                          const Icon(Icons.swap_horiz_rounded, color: kPrimary),
+                          Icon(Icons.swap_horiz_rounded, color: _primaryColor),
                           const SizedBox(width: 10),
                           Expanded(
                             child: Text(
                               'This section includes Change Dayung, recommendations, and map access.',
-                              style: bodyStyle.copyWith(color: kText),
+                              style: bodyStyle.copyWith(color: _textColor),
                             ),
                           ),
                         ],
@@ -589,7 +701,7 @@ class _ProfSettingsPageState extends State<ProfSettingsPage> {
                         icon: const Icon(Icons.arrow_forward_rounded),
                         label: const Text('Open Dayung Settings'),
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: kPrimary,
+                          backgroundColor: _primaryColor,
                           foregroundColor: Colors.white,
                           minimumSize: const Size.fromHeight(52),
                           elevation: 0,
@@ -618,12 +730,12 @@ class _ProfSettingsPageState extends State<ProfSettingsPage> {
       width: double.infinity,
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: kCardBg,
+        color: _cardColor,
         borderRadius: BorderRadius.circular(22),
-        border: Border.all(color: kBorder.withValues(alpha: 0.9)),
-        boxShadow: const [
+        border: Border.all(color: _borderColor),
+        boxShadow: [
           BoxShadow(
-            color: Color(0x120B1F33),
+            color: Colors.black.withValues(alpha: _isDark ? 0.20 : 0.07),
             blurRadius: 18,
             offset: Offset(0, 10),
           ),
@@ -644,9 +756,9 @@ class _ProfSettingsPageState extends State<ProfSettingsPage> {
       width: double.infinity,
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: kSoftBg,
+        color: _softColor,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: kBorder.withValues(alpha: 0.9)),
+        border: Border.all(color: _borderColor),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -656,14 +768,16 @@ class _ProfSettingsPageState extends State<ProfSettingsPage> {
               Container(
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  color: (hasFile ? kSuccess : kWarn).withValues(alpha: 0.10),
+                  color: (hasFile ? _successColor : _warnColor).withValues(
+                    alpha: 0.10,
+                  ),
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Icon(
                   hasFile
                       ? Icons.check_circle_rounded
                       : Icons.upload_file_rounded,
-                  color: hasFile ? kSuccess : kWarn,
+                  color: hasFile ? _successColor : _warnColor,
                   size: 18,
                 ),
               ),
@@ -674,10 +788,10 @@ class _ProfSettingsPageState extends State<ProfSettingsPage> {
                   children: [
                     Text(
                       label,
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 15,
                         fontWeight: FontWeight.w700,
-                        color: kText,
+                        color: _textColor,
                         fontFamily: 'Montserrat',
                       ),
                     ),
@@ -686,9 +800,9 @@ class _ProfSettingsPageState extends State<ProfSettingsPage> {
                       hasFile
                           ? 'Document available and ready to review.'
                           : 'No document uploaded yet.',
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 12,
-                        color: kSubText,
+                        color: _subTextColor,
                         fontFamily: 'OpenSans',
                       ),
                     ),
@@ -701,13 +815,15 @@ class _ProfSettingsPageState extends State<ProfSettingsPage> {
                   vertical: 6,
                 ),
                 decoration: BoxDecoration(
-                  color: (hasFile ? kSuccess : kWarn).withValues(alpha: 0.10),
+                  color: (hasFile ? _successColor : _warnColor).withValues(
+                    alpha: 0.10,
+                  ),
                   borderRadius: BorderRadius.circular(999),
                 ),
                 child: Text(
                   hasFile ? 'Uploaded' : 'Needed',
                   style: TextStyle(
-                    color: hasFile ? kSuccess : kWarn,
+                    color: hasFile ? _successColor : _warnColor,
                     fontWeight: FontWeight.w700,
                     fontSize: 11,
                     fontFamily: 'Montserrat',
@@ -726,9 +842,9 @@ class _ProfSettingsPageState extends State<ProfSettingsPage> {
                     icon: const Icon(Icons.open_in_new_rounded),
                     label: const Text('View'),
                     style: OutlinedButton.styleFrom(
-                      foregroundColor: kPrimary,
+                      foregroundColor: _primaryColor,
                       minimumSize: const Size.fromHeight(46),
-                      side: BorderSide(color: kBorder.withValues(alpha: 0.9)),
+                      side: BorderSide(color: _borderColor),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(14),
                       ),
@@ -742,7 +858,7 @@ class _ProfSettingsPageState extends State<ProfSettingsPage> {
                   icon: const Icon(Icons.upload_file_rounded),
                   label: Text(hasFile ? 'Update' : 'Add File'),
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: hasFile ? kPrimary : kSuccess,
+                    backgroundColor: hasFile ? _primaryColor : _successColor,
                     foregroundColor: Colors.white,
                     minimumSize: const Size.fromHeight(46),
                     elevation: 0,
@@ -761,5 +877,16 @@ class _ProfSettingsPageState extends State<ProfSettingsPage> {
         ],
       ),
     );
+  }
+
+  String _themeModeDescription(ThemeMode mode) {
+    switch (mode) {
+      case ThemeMode.system:
+        return 'System default';
+      case ThemeMode.light:
+        return 'Light mode';
+      case ThemeMode.dark:
+        return 'Dark mode';
+    }
   }
 }

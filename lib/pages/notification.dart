@@ -2,6 +2,7 @@ import 'package:capstone_app/Providers/dayung_provider.dart';
 import 'package:capstone_app/Providers/dayung_role_provider.dart';
 import 'package:capstone_app/ui/loading/page_skeleton.dart';
 import 'package:capstone_app/ui/theme/branding.dart';
+import 'package:capstone_app/utils/theme_surface.dart';
 import 'package:flutter/material.dart';
 import 'package:auto_size_text/auto_size_text.dart';
 import 'package:provider/provider.dart';
@@ -933,7 +934,7 @@ class _NotificationPageState extends State<NotificationPage> {
     final recentDeathCount = _countByKind(_NotificationKind.recentDeath);
 
     return Scaffold(
-      backgroundColor: kBg,
+      backgroundColor: dayungPageBackground(context),
       body: SafeArea(
         child: Column(
           children: [
@@ -1041,18 +1042,10 @@ class _NotificationPageState extends State<NotificationPage> {
                   vertical: isWide ? 18 : 16,
                 ),
                 decoration: BoxDecoration(
-                  color: Colors.white,
+                  color: dayungSurface(context),
                   borderRadius: BorderRadius.circular(18),
-                  border: Border.all(
-                    color: kBorderColor.withValues(alpha: 0.45),
-                  ),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.04),
-                      blurRadius: 14,
-                      offset: const Offset(0, 6),
-                    ),
-                  ],
+                  border: Border.all(color: dayungBorder(context)),
+                  boxShadow: [dayungElevatedShadow(context)],
                 ),
                 child: Row(
                   children: [

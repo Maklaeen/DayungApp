@@ -14,6 +14,7 @@ import 'package:capstone_app/Providers/dayung_role_provider.dart';
 import 'package:capstone_app/pages/recentdeathnotices.dart';
 import 'package:capstone_app/settings/profsettings.dart' hide kPrimary;
 import 'package:capstone_app/ui/theme/branding.dart';
+import 'package:capstone_app/utils/theme_surface.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -411,22 +412,13 @@ class _PresidentDashboardPageState extends State<PresidentDashboardPage> {
       });
     }
 
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final themeBg = isDark ? const Color(0xFF18181B) : const Color(0xFFF8FAFC);
     final wide = MediaQuery.of(context).size.width > 820;
 
     return Scaffold(
-      backgroundColor: themeBg,
+      backgroundColor: dayungPageBackground(context),
       drawer: _buildSideDrawer(context),
       body: Container(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [Color(0xFF1E40AF), Color(0xFF3B82F6), Color(0xFFF8FAFC)],
-            stops: [0.0, 0.3, 0.3],
-          ),
-        ),
+        decoration: BoxDecoration(gradient: dayungDashboardGradient(context)),
         child: Stack(
           children: [
             SafeArea(
@@ -695,19 +687,13 @@ class _PresidentDashboardPageState extends State<PresidentDashboardPage> {
   Widget _buildContentArea(bool wide) {
     return Expanded(
       child: Container(
-        decoration: const BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.only(
+        decoration: BoxDecoration(
+          color: dayungSurface(context),
+          borderRadius: const BorderRadius.only(
             topLeft: Radius.circular(24),
             topRight: Radius.circular(24),
           ),
-          boxShadow: [
-            BoxShadow(
-              color: Color(0x1A000000),
-              blurRadius: 20,
-              offset: Offset(0, -4),
-            ),
-          ],
+          boxShadow: [dayungTopShadow(context)],
         ),
         child: ClipRRect(
           borderRadius: const BorderRadius.only(
@@ -747,16 +733,10 @@ class _PresidentDashboardPageState extends State<PresidentDashboardPage> {
               margin: EdgeInsets.symmetric(horizontal: wide ? 200 : 20),
               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
               decoration: BoxDecoration(
-                color: Colors.white,
+                color: dayungSurface(context),
                 borderRadius: BorderRadius.circular(40),
-                border: Border.all(color: const Color(0xFFE5E7EB)),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.08),
-                    blurRadius: 20,
-                    offset: const Offset(0, 8),
-                  ),
-                ],
+                border: Border.all(color: dayungBorder(context)),
+                boxShadow: [dayungElevatedShadow(context)],
               ),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceEvenly,
@@ -902,17 +882,7 @@ class _PresidentDashboardPageState extends State<PresidentDashboardPage> {
   Widget _buildModernStatsCards() {
     return Container(
       padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.05),
-            blurRadius: 15,
-            offset: const Offset(0, 5),
-          ),
-        ],
-      ),
+      decoration: dayungSectionCardDecoration(context),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -986,12 +956,11 @@ class _PresidentDashboardPageState extends State<PresidentDashboardPage> {
       },
       child: Container(
         padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: const Color(0xFFFDF2F8),
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(
-            color: const Color(0xFFEC4899).withValues(alpha: 0.2),
-          ),
+        decoration: dayungAccentCardDecoration(
+          context,
+          accent: const Color(0xFFEC4899),
+          lightAlpha: 0.08,
+          darkAlpha: 0.14,
         ),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center, // Center vertically
@@ -1049,11 +1018,10 @@ class _PresidentDashboardPageState extends State<PresidentDashboardPage> {
       child: Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: dayungSurface(context),
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(
-            color: const Color(0xFF3B82F6).withValues(alpha: 0.2),
-          ),
+          border: Border.all(color: dayungBorder(context)),
+          boxShadow: [dayungElevatedShadow(context)],
         ),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center, // Center vertically
@@ -1198,10 +1166,11 @@ class _PresidentDashboardPageState extends State<PresidentDashboardPage> {
       onTap: onTap,
       child: Container(
         padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: bgColor,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: color.withValues(alpha: 0.2)),
+        decoration: dayungAccentCardDecoration(
+          context,
+          accent: color,
+          lightAlpha: 0.10,
+          darkAlpha: 0.16,
         ),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -1416,21 +1385,7 @@ class _ContributionBarChartCardState extends State<_ContributionBarChartCard> {
     final hasUnits = widget.dayungUnitIds.isNotEmpty;
 
     return Container(
-      decoration: BoxDecoration(
-        color: kCardBg,
-        borderRadius: BorderRadius.circular(22),
-        border: Border.all(
-          color: kBorderColor.withValues(alpha: 0.3),
-          width: 1,
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.05),
-            blurRadius: 15,
-            offset: const Offset(0, 6),
-          ),
-        ],
-      ),
+      decoration: dayungSectionCardDecoration(context, radius: 22),
       child: Padding(
         padding: const EdgeInsets.fromLTRB(20, 18, 20, 20),
         child: Column(
@@ -1480,9 +1435,9 @@ class _ContributionBarChartCardState extends State<_ContributionBarChartCard> {
               width: double.infinity,
               padding: const EdgeInsets.all(14),
               decoration: BoxDecoration(
-                color: const Color(0xFFF8FAFC),
+                color: dayungSoftSurface(context),
                 borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: kBorderColor.withValues(alpha: 0.9)),
+                border: Border.all(color: dayungBorder(context)),
               ),
               child: Row(
                 children: [
@@ -1689,21 +1644,7 @@ class _UpcomingAnnouncementCard extends StatelessWidget {
     if (announcement == null) {
       return Container(
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
-        decoration: BoxDecoration(
-          color: kCardBg,
-          borderRadius: BorderRadius.circular(22),
-          border: Border.all(
-            color: kBorderColor.withValues(alpha: 0.3),
-            width: 1,
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.05),
-              blurRadius: 10,
-              offset: const Offset(0, 4),
-            ),
-          ],
-        ),
+        decoration: dayungSectionCardDecoration(context, radius: 22),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -1765,21 +1706,7 @@ class _UpcomingAnnouncementCard extends StatelessWidget {
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
-      decoration: BoxDecoration(
-        color: kCardBg,
-        borderRadius: BorderRadius.circular(22),
-        border: Border.all(
-          color: kBorderColor.withValues(alpha: 0.3),
-          width: 1,
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.05),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
+      decoration: dayungSectionCardDecoration(context, radius: 22),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [

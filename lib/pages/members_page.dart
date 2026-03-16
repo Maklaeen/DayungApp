@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:capstone_app/utils/theme_surface.dart';
 
 const kBg = Color(0xFFFAFAF7);
 const kText = Color(0xFF1F2937);
@@ -198,26 +199,20 @@ class _MembersPageState extends State<MembersPage> {
     final wide = width >= 860;
 
     return Scaffold(
-      backgroundColor: kBg,
+      backgroundColor: dayungPageBackground(context),
       body: SafeArea(
         child: Column(
           children: [
             _buildHeader(wide),
             Expanded(
               child: Container(
-                decoration: const BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.only(
+                decoration: BoxDecoration(
+                  color: dayungSurface(context),
+                  borderRadius: const BorderRadius.only(
                     topLeft: Radius.circular(24),
                     topRight: Radius.circular(24),
                   ),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Color(0x1A000000),
-                      blurRadius: 20,
-                      offset: Offset(0, -4),
-                    ),
-                  ],
+                  boxShadow: [dayungTopShadow(context)],
                 ),
                 child: ClipRRect(
                   borderRadius: const BorderRadius.only(

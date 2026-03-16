@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:capstone_app/utils/theme_surface.dart';
 
 const kBg = Color(0xFFF8FAFC);
 const kText = Color(0xFF111827);
@@ -745,7 +746,7 @@ class _PresidentClaimsPageState extends State<PresidentClaimsPage> {
   @override
   Widget build(BuildContext context) {
     return Container(
-      color: kBg,
+      color: dayungPageBackground(context),
       child: _loading
           ? const DayungPageSkeleton(
               layout: DayungSkeletonLayout.list,

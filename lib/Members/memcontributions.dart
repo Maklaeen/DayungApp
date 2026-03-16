@@ -4,6 +4,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'dart:convert';
+import 'package:capstone_app/utils/theme_surface.dart';
 
 // Color palette
 
@@ -334,7 +335,7 @@ class _MembersContributionHistoryState
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: kBg,
+      backgroundColor: dayungPageBackground(context),
       // appBar: AppBar(
       //   backgroundColor: kBg,
       //   elevation: 0,

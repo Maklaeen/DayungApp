@@ -11,6 +11,7 @@ import 'package:capstone_app/pages/recentdeathnotices.dart';
 import 'package:capstone_app/profile/profile.dart';
 import 'package:capstone_app/Auth/login.dart';
 import 'package:capstone_app/settings/profsettings.dart';
+import 'package:capstone_app/utils/theme_surface.dart';
 // import 'package:capstone_app/profile/dayung_profile.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -658,19 +659,13 @@ class _MemberDashboardPageState extends State<MemberDashboardPage>
   Widget _buildContentArea(bool wide) {
     return Expanded(
       child: Container(
-        decoration: const BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.only(
+        decoration: BoxDecoration(
+          color: dayungSurface(context),
+          borderRadius: const BorderRadius.only(
             topLeft: Radius.circular(24),
             topRight: Radius.circular(24),
           ),
-          boxShadow: [
-            BoxShadow(
-              color: Color(0x1A000000),
-              blurRadius: 20,
-              offset: Offset(0, -4),
-            ),
-          ],
+          boxShadow: [dayungTopShadow(context)],
         ),
         child: ClipRRect(
           borderRadius: const BorderRadius.only(
@@ -899,23 +894,13 @@ class _MemberDashboardPageState extends State<MemberDashboardPage>
   Widget _overviewSection() {
     return Container(
       padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.05),
-            blurRadius: 15,
-            offset: const Offset(0, 5),
-          ),
-        ],
-      ),
+      decoration: dayungSectionCardDecoration(context),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
+          Text(
             'Overview',
-            style: TextStyle(
+            style: const TextStyle(
               fontSize: 20,
               fontWeight: FontWeight.w800,
               color: Color(0xFF1E40AF),
@@ -999,10 +984,11 @@ class _MemberDashboardPageState extends State<MemberDashboardPage>
   }) {
     return Container(
       padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: bgColor,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: color.withValues(alpha: 0.2)),
+      decoration: dayungAccentCardDecoration(
+        context,
+        accent: color,
+        lightAlpha: 0.10,
+        darkAlpha: 0.16,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.center,
@@ -1051,12 +1037,11 @@ class _MemberDashboardPageState extends State<MemberDashboardPage>
 
     return Container(
       padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: const Color(0xFFFDF2F8),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: const Color(0xFFEC4899).withValues(alpha: 0.2),
-        ),
+      decoration: dayungAccentCardDecoration(
+        context,
+        accent: const Color(0xFFEC4899),
+        lightAlpha: 0.08,
+        darkAlpha: 0.14,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.center,
@@ -1183,16 +1168,10 @@ class _MemberDashboardPageState extends State<MemberDashboardPage>
     return Container(
       width: double.infinity,
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: dayungSurface(context),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: color.withValues(alpha: 0.2)),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.03),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
+        border: Border.all(color: dayungBorder(context)),
+        boxShadow: [dayungElevatedShadow(context)],
       ),
       child: Material(
         color: Colors.transparent,
@@ -1218,18 +1197,18 @@ class _MemberDashboardPageState extends State<MemberDashboardPage>
                     children: [
                       Text(
                         title,
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.w700,
-                          color: Color(0xFF1F2937),
+                          color: dayungTextColor(context),
                         ),
                       ),
                       const SizedBox(height: 2),
                       Text(
                         subtitle,
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 12,
-                          color: Color(0xFF6B7280),
+                          color: dayungSubtextColor(context),
                           fontWeight: FontWeight.w500,
                         ),
                       ),
@@ -1266,18 +1245,7 @@ class _MemberDashboardPageState extends State<MemberDashboardPage>
         const SizedBox(height: 16),
         Container(
           padding: const EdgeInsets.all(20),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: const Color(0xFFDDE7F5)),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.05),
-                blurRadius: 10,
-                offset: const Offset(0, 4),
-              ),
-            ],
-          ),
+          decoration: dayungSectionCardDecoration(context, radius: 16),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -1287,8 +1255,13 @@ class _MemberDashboardPageState extends State<MemberDashboardPage>
                   vertical: 10,
                 ),
                 decoration: BoxDecoration(
-                  color: const Color(0xFFEFF6FF),
+                  color: dayungAccentSurface(context, kPrimaryDark),
                   borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: kPrimaryDark.withValues(
+                      alpha: dayungIsDark(context) ? 0.34 : 0.18,
+                    ),
+                  ),
                 ),
                 child: Row(
                   children: [
@@ -1491,17 +1464,10 @@ class _MemberDashboardPageState extends State<MemberDashboardPage>
     final bool wide = width > 820;
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF8FAFC),
+      backgroundColor: dayungPageBackground(context),
       drawer: _buildSideDrawer(context),
       body: Container(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [Color(0xFF1E40AF), Color(0xFF3B82F6), Color(0xFFF8FAFC)],
-            stops: [0.0, 0.29, 0.39],
-          ),
-        ),
+        decoration: BoxDecoration(gradient: dayungDashboardGradient(context)),
         child: Stack(
           children: [
             SafeArea(
@@ -1533,16 +1499,10 @@ class _MemberDashboardPageState extends State<MemberDashboardPage>
               margin: EdgeInsets.symmetric(horizontal: wide ? 200 : 20),
               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
               decoration: BoxDecoration(
-                color: Colors.white,
+                color: dayungSurface(context),
                 borderRadius: BorderRadius.circular(40),
-                border: Border.all(color: const Color(0xFFE5E7EB)),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.08),
-                    blurRadius: 20,
-                    offset: const Offset(0, 8),
-                  ),
-                ],
+                border: Border.all(color: dayungBorder(context)),
+                boxShadow: [dayungElevatedShadow(context)],
               ),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceEvenly,
@@ -1754,19 +1714,30 @@ class _MemberDashboardPageState extends State<MemberDashboardPage>
       padding: EdgeInsets.all(isWide ? 32 : 24),
       margin: const EdgeInsets.symmetric(vertical: 8),
       decoration: BoxDecoration(
-        color: kPrimary.withValues(alpha: .05),
+        color: dayungAccentSurface(
+          context,
+          kPrimary,
+          lightAlpha: 0.08,
+          darkAlpha: 0.14,
+        ),
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: kPrimary.withValues(alpha: .25), width: 1.6),
+        border: Border.all(
+          color: kPrimary.withValues(
+            alpha: dayungIsDark(context) ? 0.36 : 0.25,
+          ),
+          width: 1.6,
+        ),
+        boxShadow: [dayungElevatedShadow(context)],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
+          Text(
             'Next Payment Due:',
             style: TextStyle(
               fontWeight: FontWeight.w800,
               fontSize: 20,
-              color: kPrimaryDark,
+              color: dayungTextColor(context),
               fontFamily: 'Montserrat',
               height: 1.1,
             ),
@@ -1777,10 +1748,10 @@ class _MemberDashboardPageState extends State<MemberDashboardPage>
             children: [
               Text(
                 amount,
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 40,
                   fontWeight: FontWeight.w800,
-                  color: kPrimaryDark,
+                  color: dayungTextColor(context),
                   fontFamily: 'Montserrat',
                   letterSpacing: .5,
                 ),
@@ -1805,10 +1776,10 @@ class _MemberDashboardPageState extends State<MemberDashboardPage>
                             Flexible(
                               child: Text(
                                 '₱${amt.toStringAsFixed(0)} for $name',
-                                style: const TextStyle(
+                                style: TextStyle(
                                   fontSize: 15,
                                   fontWeight: FontWeight.w600,
-                                  color: kPrimaryDark,
+                                  color: dayungTextColor(context),
                                   fontFamily: 'Montserrat',
                                 ),
                                 overflow: TextOverflow.ellipsis,
@@ -1819,9 +1790,9 @@ class _MemberDashboardPageState extends State<MemberDashboardPage>
                               const SizedBox(width: 6),
                               Text(
                                 '($dod)',
-                                style: const TextStyle(
+                                style: TextStyle(
                                   fontSize: 13,
-                                  color: kSubtleText,
+                                  color: dayungSubtextColor(context),
                                   fontFamily: 'OpenSans',
                                 ),
                               ),
@@ -1838,7 +1809,7 @@ class _MemberDashboardPageState extends State<MemberDashboardPage>
           Text(
             dueDate,
             style: TextStyle(
-              color: kSubtleText.withValues(alpha: .9),
+              color: dayungSubtextColor(context),
               fontSize: 14.5,
               fontFamily: 'OpenSans',
               fontWeight: FontWeight.w600,

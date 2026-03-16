@@ -1,5 +1,6 @@
 import 'package:capstone_app/Collector/collector_payment_page.dart';
 import 'package:capstone_app/ui/loading/page_skeleton.dart';
+import 'package:capstone_app/utils/theme_surface.dart';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -260,6 +261,7 @@ class _CollectorContributionsPageState
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: dayungPageBackground(context),
       body: _loading
           ? const DayungPageSkeleton(
               layout: DayungSkeletonLayout.dashboard,
