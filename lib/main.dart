@@ -14,15 +14,14 @@ import 'package:capstone_app/Providers/user_provider.dart';
 import 'package:capstone_app/Secretary/dashboard.dart';
 import 'package:capstone_app/SuperAdmin/dashboard.dart';
 import 'package:capstone_app/Treasurer/dashboard.dart';
+import 'package:capstone_app/config/app_config.dart';
 import 'package:capstone_app/settings/custom_scroll_behavior.dart';
 import 'package:capstone_app/utils/network_error_dialog.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-
 import 'Auth/login.dart';
 import 'Auth/reapply.dart';
 import 'Auth/register.dart';
@@ -202,24 +201,191 @@ ThemeData _buildAppTheme(Brightness brightness) {
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  await dotenv.load(fileName: '.env');
-
-  final supabaseUrl = dotenv.env['SUPABASE_URL'];
-  final supabaseAnonKey = dotenv.env['SUPABASE_ANON_KEY'];
-
-  if (supabaseUrl == null ||
-      supabaseUrl.isEmpty ||
-      supabaseAnonKey == null ||
-      supabaseAnonKey.isEmpty) {
-    throw StateError('Missing SUPABASE_URL or SUPABASE_ANON_KEY');
-  }
+  await AppConfig.load();
 
   final appTheme = AppTheme();
   await appTheme.load();
 
+  final missingConfig = AppConfig.missingRequiredKeys();
+  if (missingConfig.isNotEmpty) {
+    runApp(
+      ProviderScope(
+        child: AppSetupRequiredApp(
+          appTheme: appTheme,
+          missingKeys: missingConfig,
+        ),
+      ),
+    );
+    return;
+  }
+
+  final supabaseUrl = AppConfig.requireValue(
+    'SUPABASE_URL',
+    AppConfig.supabaseUrl,
+  );
+  final supabaseAnonKey = AppConfig.requireValue(
+    'SUPABASE_ANON_KEY',
+    AppConfig.supabaseAnonKey,
+  );
+
   await Supabase.initialize(url: supabaseUrl, anonKey: supabaseAnonKey);
 
   runApp(ProviderScope(child: MyApp(appTheme: appTheme)));
+}
+
+class AppSetupRequiredApp extends StatelessWidget {
+  final AppTheme appTheme;
+  final List<String> missingKeys;
+
+  const AppSetupRequiredApp({
+    super.key,
+    required this.appTheme,
+    required this.missingKeys,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return ChangeNotifierProvider.value(
+      value: appTheme,
+      child: Builder(
+        builder: (context) {
+          final mode = context.watch<AppTheme>().mode;
+          return MaterialApp(
+            debugShowCheckedModeBanner: false,
+            title: 'Dayung Setup Required',
+            theme: _buildAppTheme(Brightness.light),
+            darkTheme: _buildAppTheme(Brightness.dark),
+            themeMode: mode,
+            home: _SetupRequiredScreen(missingKeys: missingKeys),
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _SetupRequiredScreen extends StatelessWidget {
+  final List<String> missingKeys;
+
+  const _SetupRequiredScreen({required this.missingKeys});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
+    return Scaffold(
+      body: Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: isDark
+                ? const [
+                    Color(0xFF0F172A),
+                    Color(0xFF111827),
+                    Color(0xFF1E293B),
+                  ]
+                : const [
+                    Color(0xFFEFF6FF),
+                    Color(0xFFF8FAFC),
+                    Color(0xFFDBEAFE),
+                  ],
+          ),
+        ),
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 760),
+            child: Padding(
+              padding: const EdgeInsets.all(24),
+              child: Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(28),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Setup required before Dayung can connect',
+                        style: theme.textTheme.headlineSmall?.copyWith(
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      Text(
+                        'The app started correctly, but this machine is missing the config values needed to connect to Supabase.',
+                        style: theme.textTheme.bodyLarge?.copyWith(
+                          color: theme.colorScheme.onSurfaceVariant,
+                          height: 1.5,
+                        ),
+                      ),
+                      const SizedBox(height: 20),
+                      Text(
+                        'Missing values:',
+                        style: theme.textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      Wrap(
+                        spacing: 10,
+                        runSpacing: 10,
+                        children: missingKeys
+                            .map(
+                              (key) => Chip(
+                                label: Text(key),
+                                avatar: const Icon(Icons.key_rounded, size: 18),
+                              ),
+                            )
+                            .toList(),
+                      ),
+                      const SizedBox(height: 24),
+                      Text(
+                        'Option 1: create a local .env file in the project root',
+                        style: theme.textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      SelectableText(
+                        'SUPABASE_URL=https://your-project.supabase.co\nSUPABASE_ANON_KEY=your_supabase_anon_key\nOPENROUTESERVICE_API_KEY=your_openrouteservice_api_key',
+                        style: theme.textTheme.bodyMedium?.copyWith(
+                          fontFamily: 'monospace',
+                          height: 1.6,
+                        ),
+                      ),
+                      const SizedBox(height: 20),
+                      Text(
+                        'Option 2: run with --dart-define values',
+                        style: theme.textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      SelectableText(
+                        'flutter run --dart-define=SUPABASE_URL=https://your-project.supabase.co --dart-define=SUPABASE_ANON_KEY=your_supabase_anon_key --dart-define=OPENROUTESERVICE_API_KEY=your_openrouteservice_api_key',
+                        style: theme.textTheme.bodyMedium?.copyWith(
+                          fontFamily: 'monospace',
+                          height: 1.6,
+                        ),
+                      ),
+                      const SizedBox(height: 20),
+                      Text(
+                        'After adding the values, stop the current run and launch the app again.',
+                        style: theme.textTheme.bodyMedium?.copyWith(
+                          color: theme.colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 class MyApp extends StatefulWidget {
