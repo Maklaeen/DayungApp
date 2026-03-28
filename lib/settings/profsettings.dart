@@ -1,14 +1,16 @@
 import 'dart:ui';
+import 'dart:typed_data';
+import 'package:encrypt/encrypt.dart' as encrypt;
 import 'package:capstone_app/Providers/apptheme_provider.dart';
 import 'package:capstone_app/profile/dayung_profile.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:capstone_app/utils/supabase_storage.dart';
 import 'package:photo_view/photo_view.dart';
+import 'package:http/http.dart' as http;
 import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
-
 // Color palette
 const kBg = Color(0xFFFAFAF7);
 const kText = Color(0xFF1F2937);
@@ -209,6 +211,13 @@ class _ProfSettingsPageState extends State<ProfSettingsPage> {
     final ext = file.extension ?? 'pdf';
     if (bytes == null) return;
 
+    
+    final key = encrypt.Key.fromUtf8('capstonedayungappjjm'.padRight(32).substring(0, 32));
+    final iv = encrypt.IV.fromLength(16); 
+    final encrypter = encrypt.Encrypter(encrypt.AES(key));
+    final encrypted = encrypter.encryptBytes(bytes, iv: iv);
+    Uint8List encryptedBytes = Uint8List.fromList(iv.bytes + encrypted.bytes); 
+
     setState(() => _uploadingImage = true);
     try {
       final userId = supabase.auth.currentUser!.id;
@@ -231,7 +240,7 @@ class _ProfSettingsPageState extends State<ProfSettingsPage> {
           .from(bucket)
           .uploadBinary(
             fileName,
-            bytes,
+            encryptedBytes,
             fileOptions: const FileOptions(upsert: true),
           );
 
@@ -294,35 +303,63 @@ class _ProfSettingsPageState extends State<ProfSettingsPage> {
       return;
     }
 
-    showDialog(
-      context: context,
-      builder: (ctx) => Dialog(
-        backgroundColor: Colors.black,
-        insetPadding: const EdgeInsets.all(16),
-        child: SizedBox(
-          width: double.infinity,
-          height: 400,
-          child: Stack(
-            children: [
-              PhotoView(
-                imageProvider: NetworkImage(displayUrl),
-                backgroundDecoration: const BoxDecoration(color: Colors.black),
-                minScale: PhotoViewComputedScale.contained,
-                maxScale: PhotoViewComputedScale.covered * 3,
-              ),
-              Positioned(
-                top: 8,
-                right: 8,
-                child: IconButton(
-                  icon: const Icon(Icons.close, color: Colors.white),
-                  onPressed: () => Navigator.of(ctx).pop(),
-                ),
-              ),
-            ],
+    // Download and decrypt the image before displaying
+    try {
+      final response = await http.get(Uri.parse(displayUrl));
+      if (response.statusCode != 200) {
+        _showTopPopup('Failed to load image', color: kWarn, icon: Icons.error_outline);
+        return;
+      }
+      final encryptedBytes = response.bodyBytes;
+      if (encryptedBytes.length < 16) {
+        _showTopPopup('Invalid encrypted image', color: kWarn, icon: Icons.error_outline);
+        return;
+      }
+      // Extract IV and ciphertext
+      final ivBytes = encryptedBytes.sublist(0, 16);
+      final cipherBytes = encryptedBytes.sublist(16);
+      final key = encrypt.Key.fromUtf8('capstonedayungappjjm'.padRight(32).substring(0, 32));
+      final iv = encrypt.IV(ivBytes);
+      final encrypter = encrypt.Encrypter(encrypt.AES(key));
+      final decryptedBytes = encrypter.decryptBytes(
+        encrypt.Encrypted(cipherBytes),
+        iv: iv,
+      );
+
+      showDialog(
+  context: context,
+  builder: (ctx) => Dialog(
+    backgroundColor: Colors.black,
+    insetPadding: const EdgeInsets.symmetric(horizontal: 32, vertical: 64), // More padding
+    child: AspectRatio(
+      aspectRatio: 4 / 5, // Or use LayoutBuilder for more control
+      child: Stack(
+        children: [
+          Positioned.fill(
+            child: PhotoView(
+              imageProvider: MemoryImage(Uint8List.fromList(decryptedBytes)),
+              backgroundDecoration: const BoxDecoration(color: Colors.black),
+              minScale: PhotoViewComputedScale.contained,
+              maxScale: PhotoViewComputedScale.covered * 3,
+            ),
           ),
-        ),
+          Positioned(
+            top: 8,
+            right: 8,
+            child: IconButton(
+              icon: const Icon(Icons.close, color: Colors.white, size: 32),
+              onPressed: () => Navigator.of(ctx).pop(),
+              tooltip: 'Close',
+           ),
+          ),
+        ],
       ),
-    );
+    ),
+  ),
+);
+    } catch (e) {
+      _showTopPopup('Error displaying image: $e', color: kWarn, icon: Icons.error_outline);
+    }
   }
 
   @override

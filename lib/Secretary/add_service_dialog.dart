@@ -96,8 +96,11 @@ class _AddServiceDialogState extends State<AddServiceDialog> {
                               ),
                               const SizedBox(height: 2),
                               Text(
-                                widget.deathNotice['name']?.toString() ??
-                                    'Service schedule',
+                                (widget.deathNotice['deceased_full_name']?.toString()?.isNotEmpty ?? false)
+                                    ? widget.deathNotice['deceased_full_name']!.toString()
+                                    : (widget.deathNotice['name']?.toString()?.isNotEmpty ?? false)
+                                        ? widget.deathNotice['name']!.toString()
+                                        : 'Service schedule',
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
                                 style: const TextStyle(
@@ -370,8 +373,7 @@ class _AddServiceDialogState extends State<AddServiceDialog> {
                                             widget.deathNotice['user_id'],
                                         'dayung_unit_id': widget
                                             .deathNotice['dayung_unit_id'],
-                                        'death_notice_id':
-                                            widget.deathNotice['id'],
+                                     
                                         'is_removed': false,
                                       });
                                       widget.onServiceAdded();

@@ -32,6 +32,7 @@ class _CollectCashPageState extends State<CollectCashPage> {
   List<Map<String, dynamic>> _approvedMembers = [];
   List<Map<String, dynamic>> _payments = [];
   List<Map<String, dynamic>> _deceasedOptions = [];
+  List<Map<String, dynamic>> _claims = [];
 
   Map<String, dynamic>? _selectedDeceased;
   String _memberSearch = '';
@@ -55,6 +56,15 @@ class _CollectCashPageState extends State<CollectCashPage> {
     }).toList();
   }
 
+double get _totalCollectedForSelected {
+  final selected = _selectedDeceased;
+  if (selected == null) return 0.0;
+  return _payments
+      .where((payment) =>
+          (payment['status'] ?? '').toString().toLowerCase() == 'paid' &&
+          _paymentMatchesSelected(payment, selected))
+      .fold<double>(0.0, (sum, payment) => sum + _asDouble(payment['amount']));
+}
   List<Map<String, dynamic>> get _filteredMembers {
     final selected = _selectedDeceased;
     if (selected == null) return const [];
@@ -103,7 +113,9 @@ class _CollectCashPageState extends State<CollectCashPage> {
   @override
   void initState() {
     super.initState();
-    _loadAll();
+    _loadAll().then((_) {
+   
+    });
   }
 
   Future<void> _loadAll() async {
@@ -120,35 +132,27 @@ class _CollectCashPageState extends State<CollectCashPage> {
             .eq('dayung_unit_id', widget.dayungUnitId)
             .eq('status', 'approved')
             .timeout(_queryTimeout),
-        sb
-            .from('set_amount')
-            .select('id, userdeceased, beneficiary_id, amount')
-            .eq('dayung_unit_id', widget.dayungUnitId)
-            .timeout(_queryTimeout),
-        sb
-            .from('payments')
-            .select(
-              'id, user_id, amount, status, paid_at, created_at, collected_by, '
-              'datepaidamount, userdeceased, beneficiary_id, death_notice_id, dayung_unit_id',
-            )
-            .eq('dayung_unit_id', widget.dayungUnitId)
-            .timeout(_queryTimeout),
-        sb
-            .from('death_notices')
-            .select(
-              'id, user_id, beneficiary_id, deceased_type, name, date_of_death',
-            )
-            .eq('dayung_unit_id', widget.dayungUnitId)
-            .order('date_of_death', ascending: false)
-            .timeout(_queryTimeout),
+  
+      sb
+  .from('payments')
+  .select(
+    'id, user_id, amount, status, paid_at, created_at, collected_by, '
+    'datepaidamount, userdeceased, dayung_unit_id',
+  )
+  .eq('dayung_unit_id', widget.dayungUnitId)
+  .timeout(_queryTimeout),
+      
         sb.from('beneficiaries').select('id, full_name').timeout(_queryTimeout),
+   sb.from('claims').select('id, status, user_id, beneficiary_id, amount, PassedAway').timeout(_queryTimeout)
       ]);
 
-      final approvedApps = List<Map<String, dynamic>>.from(results[0]);
-      final setAmounts = List<Map<String, dynamic>>.from(results[1]);
-      final payments = List<Map<String, dynamic>>.from(results[2]);
-      final deathNotices = List<Map<String, dynamic>>.from(results[3]);
-      final beneficiaries = List<Map<String, dynamic>>.from(results[4]);
+ final approvedApps = List<Map<String, dynamic>>.from(results[0]);
+
+final payments = List<Map<String, dynamic>>.from(results[1]);
+  
+    final beneficiaries = List<Map<String, dynamic>>.from(results[2]);
+final claims = List<Map<String, dynamic>>.from(results[3]);
+
 
       final memberIds = <String>{
         for (final row in approvedApps) (row['user_id'] ?? '').toString(),
@@ -156,8 +160,7 @@ class _CollectCashPageState extends State<CollectCashPage> {
 
       final lookupUserIds = <String>{
         ...memberIds,
-        for (final row in setAmounts) (row['userdeceased'] ?? '').toString(),
-        for (final row in deathNotices) (row['user_id'] ?? '').toString(),
+  
         for (final row in payments) (row['user_id'] ?? '').toString(),
         for (final row in payments) (row['collected_by'] ?? '').toString(),
       }..remove('');
@@ -189,10 +192,9 @@ class _CollectCashPageState extends State<CollectCashPage> {
             });
 
       final deceasedOptions = _buildDeceasedOptions(
-        setAmounts: setAmounts,
-        deathNotices: deathNotices,
+        setAmounts: claims,   
         beneficiaries: beneficiaries,
-        userMap: userMap,
+        userMap: userMap, deathNotices: [],
       );
 
       Map<String, dynamic>? nextSelected;
@@ -211,6 +213,7 @@ class _CollectCashPageState extends State<CollectCashPage> {
         _approvedMembers = approvedMembers;
         _payments = payments;
         _deceasedOptions = deceasedOptions;
+        _claims = claims;
         _selectedDeceased = nextSelected;
         _loading = false;
       });
@@ -271,7 +274,7 @@ class _CollectCashPageState extends State<CollectCashPage> {
         'beneficiary_id': beneficiaryId,
         'display_name': displayName,
         'required_amount': _asDouble(setAmount['amount']),
-        'set_amount_id': (setAmount['id'] ?? '').toString(),
+
         'deceased_type': (notice['deceased_type'] ?? 'member').toString(),
       });
     }
@@ -293,7 +296,7 @@ class _CollectCashPageState extends State<CollectCashPage> {
             ? _beneficiaryLabel(beneficiaries, beneficiaryId)
             : (userMap[userId] ?? 'Deceased Member'),
         'required_amount': _asDouble(setAmount['amount']),
-        'set_amount_id': (setAmount['id'] ?? '').toString(),
+ 
         'deceased_type': beneficiaryId.isNotEmpty ? 'beneficiary' : 'member',
       });
     }
@@ -318,37 +321,26 @@ class _CollectCashPageState extends State<CollectCashPage> {
     }
     return 'Beneficiary';
   }
-
-  bool _paymentMatchesSelected(
-    Map<String, dynamic> payment,
-    Map<String, dynamic>? selected,
-  ) {
-    if (selected == null) return false;
-
-    final selectedNoticeId = (selected['death_notice_id'] ?? '').toString();
-    final selectedBeneficiaryId = (selected['beneficiary_id'] ?? '').toString();
-    final selectedUserId = (selected['user_id'] ?? '').toString();
-
-    if (selectedNoticeId.isNotEmpty) {
-      return (payment['death_notice_id'] ?? '').toString() == selectedNoticeId;
-    }
-    if (selectedBeneficiaryId.isNotEmpty) {
-      return (payment['beneficiary_id'] ?? '').toString() ==
-          selectedBeneficiaryId;
-    }
-    return (payment['userdeceased'] ?? '').toString() == selectedUserId;
+bool _paymentMatchesSelected(
+  Map<String, dynamic> payment,
+  Map<String, dynamic>? selected,
+) {
+  if (selected == null) return false;
+  final selectedUserId = (selected['user_id'] ?? '').toString();
+  return (payment['userdeceased'] ?? '').toString() == selectedUserId;
+}
+bool _isMemberPaid(String memberId, Map<String, dynamic>? selected) {
+  for (final payment in _payments) {
+   
+    if ((payment['user_id'] ?? '').toString() != memberId) continue;
+    if (!_paymentMatchesSelected(payment, selected)) continue;
+    final status = (payment['status'] ?? '').toString().toLowerCase();
+   
+    if (status == 'paid') return true;
   }
 
-  bool _isMemberPaid(String memberId, Map<String, dynamic>? selected) {
-    for (final payment in _payments) {
-      if ((payment['user_id'] ?? '').toString() != memberId) continue;
-      if (!_paymentMatchesSelected(payment, selected)) continue;
-      if ((payment['status'] ?? '').toString().toLowerCase() == 'paid') {
-        return true;
-      }
-    }
-    return false;
-  }
+  return false;
+}
 
   Map<String, dynamic>? _paymentForMember(String memberId) {
     final selected = _selectedDeceased;
@@ -369,7 +361,7 @@ class _CollectCashPageState extends State<CollectCashPage> {
     final selected = _selectedDeceased;
     if (selected == null) return;
 
-    final amount = _asDouble(selected['required_amount']);
+    final amount = _asDouble(selected['amount']);
     if (amount <= 0) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -468,7 +460,6 @@ class _CollectCashPageState extends State<CollectCashPage> {
     if (selected == null || _savingPayment) return;
 
     setState(() => _savingPayment = true);
-
     try {
       final messenger = ScaffoldMessenger.of(context);
       final collectorId = sb.auth.currentUser?.id;
@@ -478,104 +469,108 @@ class _CollectCashPageState extends State<CollectCashPage> {
         );
         return;
       }
-
-      dynamic paymentQuery = sb
-          .from('payments')
-          .select(
-            'id, status, amount, userdeceased, beneficiary_id, death_notice_id',
-          )
-          .eq('dayung_unit_id', widget.dayungUnitId)
-          .eq('user_id', userId);
-
-      final deathNoticeId = (selected['death_notice_id'] ?? '').toString();
-      final beneficiaryId = (selected['beneficiary_id'] ?? '').toString();
       final deceasedUserId = (selected['user_id'] ?? '').toString();
 
-      if (deathNoticeId.isNotEmpty) {
-        paymentQuery = paymentQuery.eq(
-          'death_notice_id',
-          int.tryParse(deathNoticeId) ?? deathNoticeId,
-        );
-      } else if (beneficiaryId.isNotEmpty) {
-        paymentQuery = paymentQuery.eq('beneficiary_id', beneficiaryId);
-      } else {
-        paymentQuery = paymentQuery.eq('userdeceased', deceasedUserId);
-      }
 
+      // Find the latest payment row for this user and deceased
       final paymentRows = List<Map<String, dynamic>>.from(
-        await paymentQuery
-            .order('created_at', ascending: true)
+        await sb
+            .from('payments')
+            .select('id, status, amount, userdeceased')
+            .eq('dayung_unit_id', widget.dayungUnitId)
+            .eq('user_id', userId)
+            .eq('userdeceased', deceasedUserId)
+            .order('created_at', ascending: false)
+            .limit(1)
             .timeout(_queryTimeout),
       );
-
-      Map<String, dynamic>? payment;
-      for (final row in paymentRows) {
-        if ((row['status'] ?? '').toString().toLowerCase() != 'paid') {
-          payment = row;
-          break;
-        }
-      }
+      Map<String, dynamic>? payment = paymentRows.isNotEmpty ? paymentRows.first : null;
 
       if (payment == null) {
-        messenger.showSnackBar(
-          const SnackBar(
-            content: Text('No unpaid payment found for this member.'),
-          ),
-        );
-        return;
+        // Insert new payment as PAID
+        final now = DateTime.now().toUtc().toIso8601String();
+        final newPayment = await sb.from('payments').insert({
+          'user_id': userId,
+          'userdeceased': deceasedUserId,
+          'amount': amount,
+          'status': 'paid',
+          'dayung_unit_id': widget.dayungUnitId,
+          'collected_by': collectorId,
+          'created_at': now,
+          'paid_at': now,
+          'datepaidamount': now,
+        }).select().single();
+        payment = newPayment;
+      } else {
+        // Update existing payment to PAID
+        final now = DateTime.now().toUtc().toIso8601String();
+        await sb
+            .from('payments')
+            .update({
+              'status': 'paid',
+              'paid_at': now,
+              'collected_by': collectorId,
+              'datepaidamount': now,
+            })
+            .eq('id', payment['id'])
+            .timeout(_queryTimeout);
+        payment['status'] = 'paid';
+        payment['paid_at'] = now;
       }
 
-      final now = DateTime.now().toUtc().toIso8601String();
-      await sb
-          .from('payments')
-          .update({
-            'status': 'paid',
-            'paid_at': now,
-            'collected_by': collectorId,
-            'datepaidamount': now,
-          })
-          .eq('id', payment['id'])
-          .timeout(_queryTimeout);
 
-      if (deathNoticeId.isNotEmpty) {
-        final noticePayments = List<Map<String, dynamic>>.from(
+ 
+      final claimId = selected['id'];
+
+      if (claimId != null) {
+    
+        final now = DateTime.now().toIso8601String();
+        await sb
+            .from('payments')
+            .update({'status': 'paid', 'paid_at': now})
+            .eq('userdeceased', deceasedUserId)
+            .eq('dayung_unit_id', widget.dayungUnitId)
+            .eq('status', 'unpaid')
+            .neq('id', payment['id'])
+            .timeout(_queryTimeout);
+
+        final allPayments = List<Map<String, dynamic>>.from(
           await sb
               .from('payments')
-              .select('amount, status')
+              .select('user_id, amount, status')
+              .eq('userdeceased', deceasedUserId)
               .eq('dayung_unit_id', widget.dayungUnitId)
-              .eq(
-                'death_notice_id',
-                int.tryParse(deathNoticeId) ?? deathNoticeId,
-              )
               .timeout(_queryTimeout),
         );
 
-        final paidCount = noticePayments
-            .where(
-              (row) => (row['status'] ?? '').toString().toLowerCase() == 'paid',
-            )
-            .length;
-        final unpaidCount = noticePayments.length - paidCount;
-        final totalPaidAmount = noticePayments
-            .where(
-              (row) => (row['status'] ?? '').toString().toLowerCase() == 'paid',
-            )
-            .fold<double>(0.0, (sum, row) => sum + _asDouble(row['amount']));
-        final totalPaymentAmount = noticePayments.fold<double>(
-          0.0,
-          (sum, row) => sum + _asDouble(row['amount']),
-        );
-
-        await sb
-            .from('death_notices')
-            .update({
-              'paid_count': paidCount,
-              'unpaid_count': unpaidCount,
-              'total_paid_amount': totalPaidAmount,
-              'total_payment_amount': totalPaymentAmount,
-            })
-            .eq('id', int.tryParse(deathNoticeId) ?? deathNoticeId)
-            .timeout(_queryTimeout);
+        int paidCount = 0;
+        int unpaidCount = 0;
+        double totalPaidAmount = 0.0;
+        double totalPaymentAmount = 0.0;
+        for (final p in allPayments) {
+          final status = (p['status'] ?? '').toString().toLowerCase();
+          final amt = _asDouble(p['amount']);
+          totalPaymentAmount += amt;
+          if (status == 'paid') {
+            paidCount++;
+            totalPaidAmount += amt;
+          } else {
+            unpaidCount++;
+          }
+        }
+       
+   final updateResult = await sb
+    .from('claims')
+    .update({
+      'paid_count': paidCount,
+      'unpaid_count': unpaidCount,
+      'total_paid_amount': totalPaidAmount,
+      'total_payment_amount': totalPaymentAmount,
+    })
+    .eq('id', claimId)
+    .timeout(_queryTimeout);
+        debugPrint('[DEBUG] _savePayment: claims update result: '
+            '${updateResult is List ? updateResult : updateResult.toString()}');
       }
 
       await _loadAll();
@@ -586,12 +581,11 @@ class _CollectCashPageState extends State<CollectCashPage> {
         deceasedName: (selected['display_name'] ?? 'Deceased').toString(),
         amount: amount,
         paymentId: payment['id'],
-        paidAt: now,
+        paidAt: payment['paid_at'] ?? '',
       );
 
-      messenger.showSnackBar(
-        const SnackBar(content: Text('Cash payment marked as paid.')),
-      );
+   
+
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(
@@ -667,15 +661,8 @@ class _CollectCashPageState extends State<CollectCashPage> {
                           fontFamily: 'Montserrat',
                         ),
                       ),
-                      const SizedBox(height: 8),
-                      Text(
-                        'Receipt No. CASH-${paymentId ?? 'N/A'}',
-                        style: const TextStyle(
-                          color: Colors.white70,
-                          fontWeight: FontWeight.w700,
-                          fontFamily: 'OpenSans',
-                        ),
-                      ),
+                   
+                    
                       const SizedBox(height: 18),
                       _receiptLine('Member', memberName),
                       _receiptLine('For', deceasedName),
@@ -710,6 +697,34 @@ class _CollectCashPageState extends State<CollectCashPage> {
         );
       },
     );
+  }
+
+  Future<void> _ensurePaymentRecordsForClaim(Map<String, dynamic> claim) async {
+    final deceasedUserId = claim['user_id'].toString();
+    final dayungUnitId = widget.dayungUnitId;
+
+    for (final member in _approvedMembers) {
+      final memberId = member['id'].toString();
+      if (memberId == deceasedUserId) continue; // skip deceased
+
+      // Check if payment exists
+      final existing = _payments.any((p) =>
+        p['user_id'].toString() == memberId &&
+        p['userdeceased'].toString() == deceasedUserId &&
+        p['dayung_unit_id'] == dayungUnitId
+      );
+      if (!existing) {
+        // Insert missing payment record
+        await sb.from('payments').insert({
+          'user_id': memberId,
+          'userdeceased': deceasedUserId,
+          'amount': claim['amount'],
+          'status': 'unpaid',
+          'dayung_unit_id': dayungUnitId,
+          // add other required fields
+        });
+      }
+    }
   }
 
   @override
@@ -771,23 +786,23 @@ class _CollectCashPageState extends State<CollectCashPage> {
   }
 
   List<Widget> _buildDeceasedStep() {
+    final approvedClaims = _claims.where((c) => (c['status'] ?? '').toString().toLowerCase() == 'approved').toList();
+
     return [
       _overviewCard(
         title: 'Collection Overview',
-        subtitle:
-            'Choose a death notice first, then record which members have already paid in cash.',
+        subtitle: 'Choose an approved claim, then record which members have already paid in cash.',
         cards: [
           _statCard(
             icon: Icons.payments_rounded,
             label: 'Paid Cash',
-            value:
-                '${_payments.where((row) => (row['status'] ?? '').toString().toLowerCase() == 'paid').length}',
+            value: '${_payments.where((row) => (row['status'] ?? '').toString().toLowerCase() == 'paid').length}',
             tone: const Color(0xFF0F766E),
           ),
           _statCard(
-            icon: Icons.person_search_rounded,
-            label: 'Active Notices',
-            value: '${_deceasedOptions.length}',
+            icon: Icons.receipt_long_rounded,
+            label: 'Approved Claims',
+            value: '${approvedClaims.length}',
             tone: const Color(0xFF1E40AF),
           ),
           _statCard(
@@ -800,19 +815,85 @@ class _CollectCashPageState extends State<CollectCashPage> {
       ),
       const SizedBox(height: 18),
       _searchCard(
-        hint: 'Search deceased member or beneficiary',
+        hint: 'Search claim title or passed away',
         onChanged: (value) => setState(() => _deceasedSearch = value.trim()),
       ),
       const SizedBox(height: 18),
-      if (_filteredDeceasedOptions.isEmpty)
+      if (approvedClaims.isEmpty)
         _emptyState(
-          title: 'No payable notices found',
-          subtitle:
-              'Set amounts need to be created first before collectors can record cash payments here.',
+          title: 'No approved claims found',
+          subtitle: 'Claims must be approved before collectors can record cash payments here.',
         )
-      else
-        ..._filteredDeceasedOptions.map(_deceasedCard),
+      else ...approvedClaims.map(_claimCard),
     ];
+  }
+
+  Widget _claimCard(Map<String, dynamic> claim) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: kBorder),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x12000000),
+            blurRadius: 16,
+            offset: Offset(0, 6),
+          ),
+        ],
+      ),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(22),
+        onTap: () {
+          setState(() {
+            _selectedDeceased = claim;
+            _memberSearch = '';
+          });
+        },
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                (claim['beneficiary_id'] ?? '').toString().isNotEmpty
+                    ? 'Claim for ${_beneficiaryLabel([], (claim['beneficiary_id'] ?? '').toString())}'
+                    : _memberName((claim['user_id'] ?? '').toString()),
+                style: const TextStyle(
+                  fontSize: 16,
+                  color: kText,
+                  fontWeight: FontWeight.w700,
+                  fontFamily: 'OpenSans',
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+            'Passed Away: ${(claim['beneficiary_id'] ?? '').toString().isNotEmpty ? (claim['PassedAway'] ?? claim['passed_away'] ?? '') : _memberName((claim['user_id'] ?? '').toString())}',
+                style: const TextStyle(
+                  fontSize: 13,
+                  color: kSubText,
+                  fontWeight: FontWeight.w600,
+                  fontFamily: 'OpenSans',
+                ),
+              ),
+      
+              
+              const SizedBox(height: 4),
+              Text(
+                'Amount: PHP ${_asDouble(claim['amount']).toStringAsFixed(2)}',
+                style: const TextStyle(
+                  fontSize: 13,
+                  color: kSubText,
+                  fontWeight: FontWeight.w600,
+                  fontFamily: 'OpenSans',
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
   List<Widget> _buildMemberStep() {
@@ -839,9 +920,15 @@ class _CollectCashPageState extends State<CollectCashPage> {
             icon: Icons.payments_outlined,
             label: 'Required Amount',
             value:
-                'PHP ${_asDouble(selected['required_amount']).toStringAsFixed(2)}',
+                'PHP ${_asDouble(selected['amount']).toStringAsFixed(2)}',
             tone: kAccent,
           ),
+          _statCard(
+              icon: Icons.attach_money_rounded,
+              label: 'Total Collected',
+              value: 'PHP ${_totalCollectedForSelected.toStringAsFixed(2)}',
+              tone: const Color(0xFF047857),
+            ),
         ],
       ),
       const SizedBox(height: 18),
@@ -1293,10 +1380,12 @@ class _CollectCashPageState extends State<CollectCashPage> {
   }
 
   Widget _memberCard(Map<String, dynamic> member) {
-    final payment = _paymentForMember((member['id'] ?? '').toString());
-    final status = (payment?['status'] ?? 'pending').toString().toLowerCase();
-    final isPaid = status == 'paid';
-    final requiredAmount = _asDouble(_selectedDeceased?['required_amount']);
+    final memberId = (member['id'] ?? '').toString();
+    final payment = _paymentForMember(memberId);
+    final status = (payment?['status'] ?? '').toString().toLowerCase();
+    final bool isPaid = status == 'paid';
+
+
 
     return Container(
       margin: const EdgeInsets.only(bottom: 14),
@@ -1308,9 +1397,10 @@ class _CollectCashPageState extends State<CollectCashPage> {
         ),
         boxShadow: const [
           BoxShadow(
-            color: Color(0x12000000),
-            blurRadius: 16,
+            blurRadius: 10,
+            spreadRadius: 0,
             offset: Offset(0, 6),
+            color: Color(0x1A000000),
           ),
         ],
       ),
@@ -1327,7 +1417,9 @@ class _CollectCashPageState extends State<CollectCashPage> {
                     alpha: 0.12,
                   ),
                   child: Icon(
-                    isPaid ? Icons.check_circle_rounded : Icons.person_rounded,
+                    isPaid
+                      ? Icons.check_circle_rounded
+                      : Icons.payments_rounded,
                     color: isPaid ? kSuccess : kAccent,
                   ),
                 ),
@@ -1386,7 +1478,9 @@ class _CollectCashPageState extends State<CollectCashPage> {
               children: [
                 _miniChip(
                   icon: Icons.payments_rounded,
-                  label: 'PHP ${requiredAmount.toStringAsFixed(2)}',
+                  label: isPaid
+                      ? 'PHP ${_asDouble(payment?['amount']).toStringAsFixed(2)}'
+                      : 'PHP ${_asDouble(_selectedDeceased?['amount']).toStringAsFixed(2)}',
                   color: kAccent,
                   background: const Color(0xFFEFF6FF),
                 ),
@@ -1407,13 +1501,17 @@ class _CollectCashPageState extends State<CollectCashPage> {
             SizedBox(
               width: double.infinity,
               child: ElevatedButton.icon(
-                onPressed: isPaid || _savingPayment
-                    ? null
-                    : () => _showCollectDialog(member),
+                onPressed: isPaid ? null : () => _showCollectDialog(member),
                 icon: Icon(
-                  isPaid ? Icons.receipt_long_rounded : Icons.payments_rounded,
+                  isPaid
+                    ? Icons.check_circle_rounded
+                    : Icons.payments_rounded,
                 ),
-                label: Text(isPaid ? 'Already Paid' : 'Collect Cash'),
+                label: Text(
+                  isPaid
+                    ? 'Paid'
+                    : 'Collect Cash',
+                ),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: kAccent,
                   foregroundColor: Colors.white,

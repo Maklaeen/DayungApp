@@ -283,7 +283,7 @@ class _MembersContributionHistoryState
           .toSet()
           .toList();
 
-      Map<int, Map<String, dynamic>> noticeById = {};
+     Map<String, Map<String, dynamic>> noticeById = {};
       if (noticeIds.isNotEmpty) {
         final notices = List<Map<String, dynamic>>.from(
           await supabase
@@ -291,11 +291,11 @@ class _MembersContributionHistoryState
               .select('id, name, date_of_death')
               .inFilter('id', noticeIds),
         );
-        noticeById = {for (final n in notices) (n['id'] as int): n};
+        noticeById = {for (final n in notices) n['id'].toString(): n};;
       }
 
       final merged = payments.map((p) {
-        final nid = p['death_notice_id'] as int?;
+       final nid = p['death_notice_id']?.toString();
         final n = nid != null ? noticeById[nid] : null;
         final userDeceasedId = p['userdeceased']?.toString();
         final userDeceasedName =

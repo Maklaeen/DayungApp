@@ -41,6 +41,18 @@ class TreasurerDashboardPage extends StatefulWidget {
 }
 
 class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
+    Future<List<Map<String, dynamic>>> _fetchApprovedClaims(List<int> dayungIds) async {
+      try {
+        final rows = await sb
+            .from('claims')
+            .select()
+            .inFilter('dayung_unit_id', dayungIds)
+            .eq('status', 'Approved');
+        return List<Map<String, dynamic>>.from(rows);
+      } catch (_) {
+        return [];
+      }
+    }
   final sb = Supabase.instance.client;
   final ScrollController _scrollController = ScrollController();
 
@@ -151,48 +163,69 @@ class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
     if (_dayungUnitId != null) return [_dayungUnitId!];
     return const [];
   }
+  
 
   Future<List<Map<String, dynamic>>> _deathNoticesFuture() async {
     final ids = await _selectedDayungIds();
     return _fetchDeathNotices(ids);
   }
 
-  Future<List<Map<String, dynamic>>> _fetchDeathNotices(
-    List<int> dayungIds,
-  ) async {
-    try {
-      final ids = dayungIds.isNotEmpty
-          ? dayungIds
-          : (_dayungUnitId != null ? [_dayungUnitId!] : const <int>[]);
-      if (ids.isEmpty) return [];
+  
 
-      // Only fetch notices where dayung_unit_id matches
-      final dnDirect = await sb
-          .from('death_notices')
-          .select(
-            'id,name,date_of_death,dayung_unit_id,user_id,beneficiary_id,deceased_type,paid_count,unpaid_count,total_paid_amount,total_payment_amount',
-          )
-          .inFilter('dayung_unit_id', ids)
-          .order('date_of_death', ascending: false);
+Future<List<Map<String, dynamic>>> _fetchDeathNotices(List<int> dayungIds) async {
+  try {
+    final ids = dayungIds.isNotEmpty
+        ? dayungIds
+        : (_dayungUnitId != null ? [_dayungUnitId!] : const <int>[]);
+    if (ids.isEmpty) return [];
 
-      final direct = List<Map<String, dynamic>>.from(dnDirect);
+    final dnDirect = await sb
+        .from('claims')
+        .select(
+          'id, PassedAway, date_of_death, dayung_unit_id, user_id, beneficiary_id, deceased_type, paid_count, unpaid_count, total_paid_amount, total_payment_amount, status, title, description, death_certificate_url, amount'
+        )
+        .inFilter('dayung_unit_id', ids)
+        .eq('status', 'Approved')
+        .order('date_of_death', ascending: false);
 
-      // Ensure deceased_type populated for older rows
-      for (final m in direct) {
-        final dtype = (m['deceased_type'] ?? '').toString();
-        if (dtype.isEmpty) {
-          m['deceased_type'] = (m['beneficiary_id'] != null)
-              ? 'beneficiary'
-              : 'member';
-        }
+    final direct = List<Map<String, dynamic>>.from(dnDirect);
+
+    // Collect user_ids to fetch names for members
+    final userIds = direct
+        .where((m) => (m['deceased_type'] ?? '') != 'beneficiary')
+        .map((m) => m['user_id'])
+        .where((id) => id != null)
+        .toSet();
+
+    Map<String, String> userNames = {};
+    if (userIds.isNotEmpty) {
+      final users = await sb
+          .from('users')
+          .select('id, full_name')
+          .inFilter('id', userIds.toList());
+      for (final u in List<Map<String, dynamic>>.from(users)) {
+        userNames[u['id']] = u['full_name'] ?? '';
       }
-
-      return direct;
-    } catch (_) {
-      return [];
     }
-  }
 
+    for (final m in direct) {
+      final dtype = (m['deceased_type'] ?? '').toString();
+      if (dtype.isEmpty) {
+        m['deceased_type'] = (m['beneficiary_id'] != null) ? 'beneficiary' : 'member';
+      }
+      if (m['deceased_type'] == 'beneficiary') {
+        m['name'] = m['PassedAway'] ?? 'Beneficiary';
+      } else {
+        m['name'] = userNames[m['user_id']] ?? 'Member';
+      }
+    }
+
+    return direct;
+  } catch (e) {
+    print('DEBUG: error in _fetchDeathNotices: $e');
+    return [];
+  }
+}
   Future<void> _loadDayungFromPrefs() async {
     final prefs = await SharedPreferences.getInstance();
     String label = prefs.getString('selectedDayungUnit') ?? 'Dayung';
@@ -233,7 +266,7 @@ class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
     try {
       final selected = await _selectedDayungIds(); // only current dayung
 
-      // Refresh death notices only when explicitly refreshing
+  
       _deathNoticesFutureCached = _deathNoticesFuture();
       // Reset stats cache; it will be re-initialized lazily when notices arrive
       _paymentStatsFutureCached = null;
@@ -408,8 +441,8 @@ class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
         return;
       }
       final dn = await sb
-          .from('death_notices')
-          .select('name,date_of_death')
+          .from('claims')
+          .select('PassedAway,date_of_death')
           .inFilter('dayung_unit_id', ids)
           .order('date_of_death', ascending: false)
           .limit(2);
@@ -426,12 +459,12 @@ class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
 
     try {
       final notice = await sb
-          .from('death_notices')
-          .select('name')
+          .from('claims')
+          .select('PassedAway')
           .eq('id', deathNoticeId)
           .maybeSingle();
 
-      final deceasedName = (notice?['name'] ?? 'member').toString();
+      final deceasedName = (notice?['PassedAway'] ?? 'member').toString();
       final deadline = DateTime.now().add(const Duration(days: 3));
       final deadlineStr =
           '${deadline.year}-${deadline.month.toString().padLeft(2, '0')}-${deadline.day.toString().padLeft(2, '0')}';
@@ -1621,119 +1654,119 @@ class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
     );
   }
 
-  Widget _buildDeathNoticesSection() {
-    return FutureBuilder<List<Map<String, dynamic>>>(
-      future: _deathNoticesFutureCached,
-      builder: (context, snap) {
-        if (snap.connectionState == ConnectionState.waiting) {
-          return const Center(
-            child: Padding(
-              padding: EdgeInsets.symmetric(vertical: 40),
-              child: CircularProgressIndicator(),
+Widget _buildDeathNoticesSection() {
+  return FutureBuilder<List<Map<String, dynamic>>>(
+    future: _deathNoticesFutureCached,
+    builder: (context, snap) {
+      if (snap.connectionState == ConnectionState.waiting) {
+        return const Center(
+          child: Padding(
+            padding: EdgeInsets.symmetric(vertical: 40),
+            child: CircularProgressIndicator(),
+          ),
+        );
+      }
+      if (snap.hasError) {
+        return Container(
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            color: Colors.red.withValues(alpha: 0.1),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: Colors.red.withValues(alpha: 0.3)),
+          ),
+          child: const Text(
+            'Failed to load death notices.',
+            style: TextStyle(color: Color(0xFFDC2626)),
+          ),
+        );
+      }
+
+      final notices = snap.data ?? const <Map<String, dynamic>>[];
+      if (notices.isEmpty) {
+        return Container(
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            color: Colors.grey.withOpacity(0.1),
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: const Text(
+            'No death notices yet.',
+            style: TextStyle(
+              fontSize: 16,
+              color: Color(0xFF6B7280),
+              fontWeight: FontWeight.w500,
             ),
-          );
-        }
-        if (snap.hasError) {
-          return Container(
-            padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(
-              color: Colors.red.withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: Colors.red.withValues(alpha: 0.3)),
-            ),
-            child: const Text(
-              'Failed to load death notices.',
-              style: TextStyle(color: Color(0xFFDC2626)),
-            ),
-          );
-        }
-        final notices = snap.data ?? const <Map<String, dynamic>>[];
-        if (notices.isEmpty) {
-          return Container(
-            padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(
-              color: Colors.grey.withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(16),
-            ),
-            child: const Text(
-              'No death notices yet.',
-              style: TextStyle(
-                fontSize: 16,
-                color: Color(0xFF6B7280),
-                fontWeight: FontWeight.w500,
+          ),
+        );
+      }
+
+      // Filter by Members | Beneficiaries tab
+      final filtered = notices.where((n) {
+        final t = (n['deceased_type'] ?? '').toString().toLowerCase();
+        if (_noticeFilter == 'members') return t == 'member';
+        return t == 'beneficiary';
+      }).toList();
+
+      if (filtered.isEmpty) {
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _deathNoticesHeader(count: 0),
+            const SizedBox(height: 12),
+            _buildNoticeTypeTabs(),
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                color: Colors.grey.withValues(alpha: 0.08),
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: Text(
+                _noticeFilter == 'members'
+                    ? 'No member death notices yet.'
+                    : 'No beneficiary death notices yet.',
+                style: const TextStyle(
+                  fontSize: 16,
+                  color: Color(0xFF6B7280),
+                  fontWeight: FontWeight.w500,
+                ),
               ),
             ),
-          );
-        }
+          ],
+        );
+      }
 
-        // Filter by Members | Beneficiaries tab
-        final filtered = notices.where((n) {
-          final t = (n['deceased_type'] ?? '').toString().toLowerCase();
-          if (_noticeFilter == 'members') return t == 'member';
-          return t == 'beneficiary';
-        }).toList();
+      // Build payment stats based on payments table
+      final noticeIds =
+          filtered.map<int>((e) => int.tryParse('${e['id']}') ?? 0).toList();
+      final dayungId = _dayungUnitId ??
+          (filtered.isNotEmpty ? (filtered.first['dayung_unit_id'] ?? 0) : 0);
 
-        if (filtered.isEmpty) {
+      _ensureStatsFuture(noticeIds, dayungId);
+
+      return FutureBuilder<Map<String, Map<String, dynamic>>>(
+        future: _paymentStatsFutureCached,
+        builder: (context, statSnap) {
+          final stats =
+              statSnap.data ?? const <String, Map<String, dynamic>>{};
+
           return Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _deathNoticesHeader(count: 0),
+              _deathNoticesHeader(count: filtered.length),
               const SizedBox(height: 12),
               _buildNoticeTypeTabs(),
-              const SizedBox(height: 12),
-              Container(
-                padding: const EdgeInsets.all(20),
-                decoration: BoxDecoration(
-                  color: Colors.grey.withValues(alpha: 0.08),
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                child: Text(
-                  _noticeFilter == 'members'
-                      ? 'No member death notices yet.'
-                      : 'No beneficiary death notices yet.',
-                  style: const TextStyle(
-                    fontSize: 16,
-                    color: Color(0xFF6B7280),
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
+              const SizedBox(height: 16),
+              ...filtered.map(
+                (n) => _buildModernNoticeCard(n, stats, dayungId),
               ),
             ],
           );
-        }
-
-        final noticeIds = filtered
-            .map<int>((e) => int.tryParse('${e['id']}') ?? 0)
-            .toList();
-        final dayungId =
-            _dayungUnitId ??
-            (filtered.isNotEmpty ? (filtered.first['dayung_unit_id'] ?? 0) : 0);
-
-        _ensureStatsFuture(noticeIds, dayungId);
-
-        return FutureBuilder<Map<String, Map<String, dynamic>>>(
-          future: _paymentStatsFutureCached,
-          builder: (context, statSnap) {
-            final stats =
-                statSnap.data ?? const <String, Map<String, dynamic>>{};
-
-            return Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _deathNoticesHeader(count: filtered.length),
-                const SizedBox(height: 12),
-                _buildNoticeTypeTabs(),
-                const SizedBox(height: 16),
-                ...filtered.map(
-                  (n) => _buildModernNoticeCard(n, stats, dayungId),
-                ),
-              ],
-            );
-          },
-        );
-      },
-    );
-  }
+        },
+      );
+    },
+  );
+}
 
   Widget _deathNoticesHeader({required int count}) {
     return Row(
@@ -1845,10 +1878,11 @@ class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
         };
 
     final paid =
-        int.tryParse('${notice['paid_count'] ?? st['paidCount'] ?? 0}') ?? 0;
+      int.tryParse('${notice['paid_count'] ?? st['paidCount'] ?? 0}') ?? 0;
+    
     final unpaid =
-        int.tryParse('${notice['unpaid_count'] ?? st['unpaidCount'] ?? 0}') ??
-        0;
+      int.tryParse('${notice['unpaid_count'] ?? st['unpaidCount'] ?? 0}') ??
+      0;
     final totalCount = paid + unpaid;
 
     final paidAmt = _asDouble(st['paidAmount']);
@@ -1888,7 +1922,7 @@ class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
             children: [
               Expanded(
                 child: Text(
-                  (notice['name'] ?? 'Death Notice').toString(),
+                  (notice['PassedAway'] ?? 'Death Notice').toString(),
                   style: const TextStyle(
                     fontSize: 18,
                     fontWeight: FontWeight.w800,
@@ -1955,7 +1989,7 @@ class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
                 'Paid:',
                 paid,
                 const Color(0xFF10B981),
-                // Remove: amount: paidAmt,
+              
               ),
               const SizedBox(width: 8),
               _buildCountChip(
@@ -2095,8 +2129,8 @@ class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
 
     // 1. Fetch all death notices for this dayung
     final notices = await sb
-        .from('death_notices')
-        .select('id, name, date_of_death')
+        .from('claims')
+        .select('id, PassedAway, date_of_death')
         .inFilter('dayung_unit_id', ids)
         .order('date_of_death', ascending: false);
 
@@ -2219,7 +2253,7 @@ class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
                               const SizedBox(height: 10),
                           itemBuilder: (_, i) {
                             final n = notices[i];
-                            final deceasedName = (n['name'] ?? 'Deceased')
+                            final deceasedName = (n['PassedAway'] ?? 'Deceased')
                                 .toString();
                             final date = (n['date_of_death'] ?? '').toString();
                             return Material(
@@ -2333,7 +2367,7 @@ class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
       final rows = await sb
           .from('payments')
           .select(
-            'id, user_id, status, amount, paid_at, collected_by, '
+            'id, amount, status, paid_at, collected_by, '
             'user:users!payments_user_id_fkey(full_name), '
             'collector:users!payments_collected_by_fkey(full_name)',
           )
@@ -2343,9 +2377,9 @@ class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
       final items =
           List<Map<String, dynamic>>.from(rows)
               .where(
-                (row) => paid
-                    ? (row['status'] ?? '').toString().toLowerCase() == 'paid'
-                    : (row['status'] ?? '').toString().toLowerCase() != 'paid',
+                (r) => paid
+                    ? (r['status'] ?? '').toString().toLowerCase() == 'paid'
+                    : (r['status'] ?? '').toString().toLowerCase() != 'paid',
               )
               .toList()
             ..sort((a, b) {
@@ -2357,6 +2391,30 @@ class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
                   .toLowerCase();
               return an.compareTo(bn);
             });
+
+      // Build collector lookup map
+      final missingCollectorIds = <String>{
+        for (final r in items)
+          if ((r['collected_by'] ?? '').toString().isNotEmpty &&
+              ((((r['collector'] as Map?)?['full_name']) ?? '')
+                  .toString()
+                  .isEmpty))
+            (r['collected_by']).toString(),
+      }.toList();
+
+      final collectorLookup = <String, String>{};
+      if (missingCollectorIds.isNotEmpty) {
+        try {
+          final u = await sb
+              .from('users')
+              .select('id, full_name')
+              .inFilter('id', missingCollectorIds);
+          for (final m in List<Map<String, dynamic>>.from(u)) {
+            collectorLookup[(m['id'] ?? '').toString()] =
+                (m['full_name'] ?? 'Collector').toString();
+          }
+        } catch (_) {}
+      }
 
       if (!mounted) return;
       final totalAmount = items.fold<double>(
@@ -2371,6 +2429,55 @@ class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
           borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
         ),
         builder: (context) {
+          final paidItems = items
+              .where(
+                (r) => (r['status'] ?? '').toString().toLowerCase() == 'paid',
+              )
+              .toList();
+          final pendingItems = items
+              .where(
+                (r) => (r['status'] ?? '').toString().toLowerCase() != 'paid',
+              )
+              .toList();
+
+          Widget section(
+            String title,
+            List<Map<String, dynamic>> rows,
+            bool isPaid,
+          ) {
+            if (rows.isEmpty) return const SizedBox.shrink();
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 8),
+                  child: Text(
+                    title,
+                    style: TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w800,
+                      color: kPrimaryDark,
+                    ),
+                  ),
+                ),
+                ...rows.map((r) {
+                  final directCollectorName =
+                      (((r['collector'] as Map?)?['full_name']) ?? '')
+                          .toString();
+                  final collectorName = directCollectorName.isNotEmpty
+                      ? directCollectorName
+                      : (collectorLookup[(r['collected_by'] ?? '')
+                                .toString()] ??
+                            '');
+                  return _buildStatusTile({
+                    ...r,
+                    'resolved_collector_name': collectorName,
+                  }, isPaid);
+                }),
+              ],
+            );
+          }
+
           return SafeArea(
             child: Padding(
               padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
@@ -2378,97 +2485,27 @@ class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Center(
-                    child: Container(
-                      width: 56,
-                      height: 6,
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFCBD5E1),
-                        borderRadius: BorderRadius.circular(999),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  Text(
-                    deceasedName,
-                    style: const TextStyle(
-                      fontSize: 24,
+                  const Text(
+                    'Payment Status',
+                    style: TextStyle(
+                      fontSize: 18,
                       fontWeight: FontWeight.w800,
                       color: kPrimaryDark,
                       fontFamily: 'Montserrat',
                     ),
                   ),
-                  const SizedBox(height: 4),
-                  Text(
-                    paid ? 'Paid members' : 'Unpaid members',
-                    style: const TextStyle(
-                      fontSize: 16,
-                      color: kSubtleText,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  const SizedBox(height: 14),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: _memberSummaryCard(
-                          icon: paid
-                              ? Icons.people_alt_rounded
-                              : Icons.groups_rounded,
-                          label: paid ? 'Paid Count' : 'Needs Payment',
-                          value: '${items.length}',
-                          accent: paid
-                              ? const Color(0xFF10B981)
-                              : const Color(0xFFF59E0B),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: _memberSummaryCard(
-                          icon: Icons.payments_rounded,
-                          label: paid ? 'Collected' : 'Expected',
-                          value: '₱${totalAmount.toStringAsFixed(0)}',
-                          accent: const Color(0xFF1E40AF),
-                        ),
-                      ),
-                    ],
-                  ),
                   const SizedBox(height: 12),
-                  if (items.isEmpty)
-                    Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.all(24),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(20),
-                        border: Border.all(color: const Color(0xFFE5E7EB)),
-                      ),
-                      child: Text(
-                        paid
-                            ? 'No paid members yet for this deceased.'
-                            : 'No unpaid members for this deceased.',
-                        textAlign: TextAlign.center,
-                        style: const TextStyle(
-                          fontSize: 17,
-                          color: kSubtleText,
-                          fontWeight: FontWeight.w600,
-                          height: 1.45,
-                        ),
-                      ),
-                    )
-                  else
-                    Flexible(
-                      child: ConstrainedBox(
-                        constraints: const BoxConstraints(maxHeight: 460),
-                        child: ListView.separated(
-                          itemCount: items.length,
-                          separatorBuilder: (_, __) =>
-                              Divider(height: 1, color: Colors.grey.shade200),
-                          itemBuilder: (_, i) =>
-                              _buildStatusTile(items[i], paid),
-                        ),
+                  Flexible(
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(maxHeight: 460),
+                      child: ListView(
+                        children: [
+                          section('Paid Members', paidItems, true),
+                          section('Pending Members', pendingItems, false),
+                        ],
                       ),
                     ),
+                  ),
                 ],
               ),
             ),

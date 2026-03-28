@@ -8,12 +8,13 @@ import 'package:file_picker/file_picker.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:geocoding/geocoding.dart';
 import 'dart:io';
-import 'package:flutter/foundation.dart'; // add for kIsWeb
+import 'package:flutter/foundation.dart'; 
 import 'package:capstone_app/data/ph_address_data.dart';
 import 'package:capstone_app/utils/input_safety.dart';
 import 'package:capstone_app/utils/supabase_storage.dart';
+import 'package:encrypt/encrypt.dart' as encrypt;
 
-// Shared palette (aligned with claims page)
+
 const Color kPrimary = Color(0xFF0D47A1);
 const Color kPrimaryDark = Color(0xFF083366);
 const Color kNeutralText = Color(0xFF1F2937);
@@ -460,7 +461,7 @@ class _SubmitClaimFormState extends State<SubmitClaimForm> {
 
   Future<String?> _uploadValidId(String claimId) async {
     final bytes = _validIdBytes;
-    if (bytes == null) return null;
+  if (bytes == null) return null;
 
     final storage = Supabase.instance.client.storage;
     const bucket = 'valid_ids';
@@ -482,14 +483,20 @@ class _SubmitClaimFormState extends State<SubmitClaimForm> {
         'claims/$claimId/valid_id_${DateTime.now().millisecondsSinceEpoch}.$ext';
 
     try {
-      await storage
-          .from(bucket)
-          .uploadBinary(
-            fileName,
-            bytes,
-            fileOptions: FileOptions(contentType: mime, upsert: false),
-          );
-      return buildStorageRef(bucket, fileName);
+  final key = encrypt.Key.fromUtf8('YourStrongPassword123!'.padRight(32).substring(0, 32));
+  final iv = encrypt.IV.fromLength(16); // Use a random IV in production!
+  final encrypter = encrypt.Encrypter(encrypt.AES(key));
+  final encrypted = encrypter.encryptBytes(bytes, iv: iv);
+  Uint8List encryptedBytes = Uint8List.fromList(iv.bytes + encrypted.bytes); // Store IV with ciphertext
+    
+  final storedPath = await storage
+    .from(bucket)
+    .uploadBinary(
+      fileName,
+      encryptedBytes,
+      fileOptions: FileOptions(contentType: mime, upsert: false),
+    );
+  return buildStorageRef(bucket, fileName);
     } on StorageException catch (e, st) {
       debugPrint('[VALID_ID][StorageException] ${e.message}\n$st');
       rethrow;
@@ -582,6 +589,36 @@ class _SubmitClaimFormState extends State<SubmitClaimForm> {
     String fmtDate(DateTime d) =>
         '${d.year.toString().padLeft(4, '0')}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
 
+    // --- Fetch deceased dob and age ---
+    String? deceasedDob;
+    int? deceasedAge;
+    try {
+      if (_selectedDeceasedType == 'member') {
+        // Fetch member's dob from users table
+        final userRow = await sb.from('users').select('dob').eq('id', user.id).maybeSingle();
+        if (userRow != null && userRow['dob'] != null) {
+          deceasedDob = userRow['dob'];
+        }
+      } else if (_selectedDeceasedType != null && _selectedDeceasedType!.startsWith('beneficiary_')) {
+        // Fetch beneficiary's dob
+        if (_selectedBeneficiaryId != null) {
+          final ben = await sb.from('beneficiaries').select('dob').eq('id', _selectedBeneficiaryId as Object).maybeSingle();
+          if (ben != null && ben['dob'] != null) {
+            deceasedDob = ben['dob'];
+          }
+        }
+      }
+      // Calculate age if dob and date of death are available
+      if (deceasedDob != null && _dateOfDeath != null) {
+        final dobDate = DateTime.tryParse(deceasedDob);
+        if (dobDate != null) {
+          deceasedAge = _dateOfDeath!.year - dobDate.year - ((_dateOfDeath!.month < dobDate.month || (_dateOfDeath!.month == dobDate.month && _dateOfDeath!.day < dobDate.day)) ? 1 : 0);
+        }
+      }
+    } catch (e) {
+      debugPrint('Failed to fetch deceased dob/age: $e');
+    }
+
     setState(() => _submitting = true);
     try {
       final claimData = {
@@ -598,6 +635,7 @@ class _SubmitClaimFormState extends State<SubmitClaimForm> {
         'status': 'Pending',
         if (_selectedBeneficiaryId != null)
           'beneficiary_id': _selectedBeneficiaryId,
+        'deceased_type': _selectedDeceasedType?.startsWith('beneficiary_') == true ? 'beneficiary' : 'member',
         'date_of_death': fmtDate(_dateOfDeath!),
         'dayung_unit_id': effectiveUnitId,
         'vigil_latitude': _vigilLat,
@@ -614,6 +652,8 @@ class _SubmitClaimFormState extends State<SubmitClaimForm> {
                 _vigilBarangay!,
                 maxLength: 120,
               ),
+        if (deceasedDob != null) 'dob': deceasedDob,
+        if (deceasedAge != null) 'deceased_age': deceasedAge,
       };
 
       final insertRes = await sb
@@ -660,7 +700,7 @@ class _SubmitClaimFormState extends State<SubmitClaimForm> {
 
       if (!mounted) return;
       Navigator.of(context).pop();
-      messenger.showSnackBar(const SnackBar(content: Text('Claim submitted.')));
+  
     } catch (e, st) {
       debugPrint('CLAIM SUBMIT ERROR: $e\n$st');
       if (!mounted) return;

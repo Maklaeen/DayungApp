@@ -14,7 +14,7 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:http/http.dart' as http;
 
 class DeathNoticeDetail extends StatefulWidget {
-  final int? noticeId;
+  final String? noticeId;
   final int? dayungUnitId;
 
   final String? name;
@@ -410,12 +410,13 @@ class _DeathNoticeDetailState extends State<DeathNoticeDetail> {
   Future<Map<String, dynamic>?> _fetchNoticeRecord({
     required bool includeLocationFields,
   }) {
+    // Always use claims table now, fields are from claims
     final fields = includeLocationFields
-        ? 'id, name, dob, deceased_age, date_of_death, barangay, latitude, longitude, deceased_type, user_id, beneficiary_id'
-        : 'id, name, dob, deceased_age, date_of_death, barangay, deceased_type, user_id, beneficiary_id';
+        ? 'id, PassedAway, dob, deceased_age, date_of_death, vigil_address, vigil_barangay, vigil_latitude, vigil_longitude, deceased_type, user_id, beneficiary_id, death_certificate_url, valid_ids_url, claimedmoney, paid_count, unpaid_count, total_paid_amount, total_payment_amount'
+        : 'id, PassedAway, dob, deceased_age, date_of_death, vigil_address, vigil_barangay, deceased_type, user_id, beneficiary_id, death_certificate_url, valid_ids_url, claimedmoney, paid_count, unpaid_count, total_paid_amount, total_payment_amount';
 
     return _sb
-        .from('death_notices')
+        .from('claims')
         .select(fields)
         .eq('id', widget.noticeId!)
         .maybeSingle();
@@ -461,12 +462,15 @@ class _DeathNoticeDetailState extends State<DeathNoticeDetail> {
         return;
       }
 
-      _fName = (notice['name'] ?? _fName)?.toString();
+      _fName = (notice['PassedAway'] ?? _fName)?.toString();
       _fBirthDate = (notice['dob'] ?? _fBirthDate)?.toString();
       _fDateOfDeath = (notice['date_of_death'] ?? _fDateOfDeath)?.toString();
-      _fBarangay = (notice['barangay'] ?? _fBarangay)?.toString();
-      _fLat = _toDouble(notice['latitude']) ?? _fLat;
-      _fLng = _toDouble(notice['longitude']) ?? _fLng;
+      // Prefer vigil_barangay, fallback to vigil_address, fallback to _fBarangay
+      _fBarangay =
+          (notice['vigil_barangay'] ?? notice['vigil_address'] ?? _fBarangay)
+              ?.toString();
+      _fLat = _toDouble(notice['vigil_latitude']) ?? _fLat;
+      _fLng = _toDouble(notice['vigil_longitude']) ?? _fLng;
       _fStoredAge = _toInt(notice['deceased_age']);
 
       final benId = notice['beneficiary_id'];

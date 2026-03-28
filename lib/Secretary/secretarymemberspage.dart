@@ -1281,19 +1281,19 @@ Future<List<Map<String, dynamic>>> _fetchLastContributionsForUser(
       .toSet()
       .toList();
 
-  Map<int, Map<String, dynamic>> noticeById = {};
-  if (noticeIds.isNotEmpty) {
-    final notices = List<Map<String, dynamic>>.from(
-      await supabase
-          .from('death_notices')
-          .select('id, name, date_of_death')
-          .inFilter('id', noticeIds),
-    );
-    noticeById = {for (final n in notices) (n['id'] as int): n};
+ Map<String, Map<String, dynamic>> noticeById = {};
+if (noticeIds.isNotEmpty) {
+  final notices = List<Map<String, dynamic>>.from(
+    await supabase
+        .from('death_notices')
+        .select('id, name, date_of_death')
+        .inFilter('id', noticeIds),
+  );
+  noticeById = {for (final n in notices) n['id'].toString(): n};
   }
 
   return payments.map((p) {
-    final nid = p['death_notice_id'] as int?;
+ final nid = p['death_notice_id']?.toString();
     final n = nid != null ? noticeById[nid] : null;
     final amount = (p['amount'] is num)
         ? (p['amount'] as num).toDouble()

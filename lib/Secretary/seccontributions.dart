@@ -56,7 +56,7 @@ class _SecretaryContributionsPageState
       final payments = await sb
           .from('payments')
           .select(
-            'id, user_id, amount, status, death_notice_id, paid_at, collected_by, '
+            'id, user_id, amount, status, paid_at, collected_by, '
             'collector:users!payments_collected_by_fkey(full_name)',
           )
           .eq('dayung_unit_id', widget.dayungUnitId)
@@ -87,15 +87,15 @@ class _SecretaryContributionsPageState
 
       // Fetch death notices referenced by payments
       final noticeIds = payments
-          .map((p) => p['death_notice_id'])
+          .map((p) => p['user_id'])
           .where((v) => v != null)
           .toSet()
           .toList();
       final noticesRes = noticeIds.isEmpty
           ? <dynamic>[]
           : await sb
-                .from('death_notices')
-                .select('id, name, date_of_death')
+                .from('claims')
+                .select('id, PassedAway, date_of_death')
                 .inFilter('id', noticeIds);
 
       final noticesMap = <int, dynamic>{
@@ -415,10 +415,10 @@ class _SecretaryContributionsPageState
                                       _users[p['user_id']?.toString()] ??
                                       'Unknown';
                                   final notice =
-                                      _deathNotices[(p['death_notice_id']
+                                      _deathNotices[(p['user_id']
                                               as int?) ??
                                           -1];
-                                  final deceased = notice?['name'] ?? 'Unknown';
+                                  final deceased = notice?['PassedAway'] ?? 'Unknown';
                                   final date = notice?['date_of_death'] ?? '';
                                   final paidAtStr = _fmtDateTime(p['paid_at']);
                                   final paid =

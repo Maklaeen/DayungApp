@@ -35,6 +35,9 @@ class _RecentDeathNoticesState extends State<RecentDeathNotices> {
   List<Map<String, dynamic>> _members = [];
   List<Map<String, dynamic>> _beneficiaries = [];
 
+  // Map of user_id to full_name
+  Map<String, String> _userNames = {};
+
   StreamSubscription<List<Map<String, dynamic>>>? _sub;
 
   @override
@@ -66,12 +69,12 @@ class _RecentDeathNoticesState extends State<RecentDeathNotices> {
       });
       return;
     }
-    _fetchDeathNotices();
-    _sub = Supabase.instance.client
-        .from('death_notices')
-        .stream(primaryKey: ['id'])
-        .eq('dayung_unit_id', widget.dayungUnitId as Object)
-        .listen((data) => _applySplit(List<Map<String, dynamic>>.from(data)));
+_fetchDeathClaims();
+_sub = Supabase.instance.client
+    .from('claims')
+    .stream(primaryKey: ['id'])
+    .eq('dayung_unit_id', widget.dayungUnitId!)
+    .listen((data) => _applySplit(List<Map<String, dynamic>>.from(data)));
   }
 
   @override
@@ -80,15 +83,15 @@ class _RecentDeathNoticesState extends State<RecentDeathNotices> {
     super.dispose();
   }
 
-  void _applySplit(List<Map<String, dynamic>> rows) {
+  Future<void> _applySplit(List<Map<String, dynamic>> rows) async {
     final unitId = widget.dayungUnitId;
 
     // Filter by dayung_unit_id before splitting
     final filtered = rows.where((r) {
-      final v = r['dayung_unit_id'];
-      final asInt = v is int ? v : int.tryParse('$v');
-      return asInt == unitId;
-    }).toList();
+  final v = r['dayung_unit_id'];
+  final asInt = v is int ? v : int.tryParse('$v');
+  return asInt == unitId && r['status'] == 'Approved';
+}).toList();
 
     filtered.sort((a, b) {
       final ad = (a['date_of_death'] ?? '').toString();
@@ -103,14 +106,47 @@ class _RecentDeathNoticesState extends State<RecentDeathNotices> {
         .where((r) => r['deceased_type'] == 'beneficiary')
         .toList();
 
+    // Collect unique user_ids from members
+    final userIds = members
+        .map((m) => m['user_id']?.toString())
+        .where((id) => id != null && id.isNotEmpty)
+        .toSet();
+    Map<String, String> userNames = {};
+    if (userIds.isNotEmpty) {
+      try {
+        final userRows = await Supabase.instance.client
+            .from('users')
+            .select('id, full_name')
+            .inFilter('id', userIds.toList())
+            .limit(userIds.length);
+        for (final row in userRows) {
+          final id = row['id']?.toString();
+          final name = row['full_name']?.toString();
+          if (id != null && name != null) {
+            userNames[id] = name;
+          }
+        }
+      } catch (_) {}
+    }
+
+    // Attach full_name to each member
+    final membersWithNames = members.map((m) {
+      final userId = m['user_id']?.toString();
+      if (userId != null && userNames.containsKey(userId)) {
+        return {...m, 'full_name': userNames[userId]};
+      }
+      return m;
+    }).toList();
+
     setState(() {
-      _members = members;
+      _members = membersWithNames;
       _beneficiaries = beneficiaries;
+      _userNames = userNames;
       _loading = false;
     });
   }
 
-  Future<void> _fetchDeathNotices() async {
+  Future<void> _fetchDeathClaims() async {
     if (widget.dayungUnitId == null) {
       setState(() {
         _members = [];
@@ -122,14 +158,14 @@ class _RecentDeathNoticesState extends State<RecentDeathNotices> {
 
     try {
       final response = await Supabase.instance.client
-          .from('death_notices')
+          .from('claims')
           .select(
-            'id, name, date_of_death, barangay, dayung_unit_id, deceased_type, dob, deceased_age',
+            'id, PassedAway, date_of_death, vigil_barangay, dayung_unit_id, deceased_type, dob, deceased_age, user_id, beneficiary_id, status, title, vigil_address, vigil_latitude, vigil_longitude, death_certificate_url, valid_ids_url, amount, paid_count, unpaid_count, total_paid_amount, total_payment_amount',
           )
           .eq('dayung_unit_id', widget.dayungUnitId as Object)
           .order('date_of_death', ascending: false);
 
-      _applySplit(List<Map<String, dynamic>>.from(response as List));
+      await _applySplit(List<Map<String, dynamic>>.from(response as List));
     } catch (_) {
       setState(() {
         _members = [];
@@ -594,9 +630,12 @@ class _RecentDeathNoticesState extends State<RecentDeathNotices> {
         itemCount: items.length,
         itemBuilder: (context, index) {
           final notice = items[index];
-          final name = (notice['name'] ?? '').toString();
+          final name = (notice['full_name'] ?? notice['PassedAway'] ?? '')
+              .toString();
           final dod = (notice['date_of_death'] ?? '').toString();
-          final barangay = notice['barangay']?.toString();
+          final barangay =
+              notice['vigil_barangay']?.toString() ??
+              notice['vigil_address']?.toString();
 
           return Container(
             margin: const EdgeInsets.only(bottom: 16),
@@ -629,11 +668,13 @@ class _RecentDeathNoticesState extends State<RecentDeathNotices> {
                     isScrollControlled: true,
                     backgroundColor: Colors.transparent,
                     builder: (_) => DeathNoticeDetail.byNoticeId(
-                      noticeId: notice['id'] as int,
+                      noticeId: notice['id']?.toString(),
                       dayungUnitId: widget.dayungUnitId,
-                      name: notice['name']?.toString(),
+                      name: notice['PassedAway']?.toString(),
                       date: notice['date_of_death']?.toString(),
-                      barangay: notice['barangay']?.toString(),
+                      barangay:
+                          notice['vigil_barangay']?.toString() ??
+                          notice['vigil_address']?.toString(),
                     ),
                   );
                 },

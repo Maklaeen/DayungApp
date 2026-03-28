@@ -977,26 +977,25 @@ class _LoginState extends State<Login> {
                                   // ),
                                 ),
 
-                              TextFormField(
-                                controller: emailController,
-                                keyboardType: TextInputType.emailAddress,
-                                textInputAction: TextInputAction.next,
-                                inputFormatters:
-                                    AppInputSecurity.singleLineFormatters(
-                                      maxLength: 120,
-                                    ),
-                                style: TextStyle(
-                                  fontSize: isWide ? 20 : 18,
-                                  color: kNeutralText,
-                                  fontWeight: FontWeight.w500,
-                                ),
-                                decoration: _inputDecoration(
-                                  'Email',
-                                  icon: Icons.phone_rounded,
-                                ),
-                                validator:
-                                    AppInputSecurity.validateEmailOrPhone,
-                              ),
+                           TextFormField(
+  controller: emailController,
+  keyboardType: TextInputType.emailAddress,
+  textInputAction: TextInputAction.next,
+  inputFormatters: AppInputSecurity.singleLineFormatters(
+    maxLength: 40,
+  ),
+
+  style: TextStyle(
+    fontSize: isWide ? 20 : 18,
+    color: kNeutralText,
+    fontWeight: FontWeight.w500,
+  ),
+  decoration: _inputDecoration(
+    'Email',
+    icon: Icons.phone_rounded,
+  ),
+  validator: AppInputSecurity.validateEmailOrPhone,
+),
                               // const SizedBox(height: 10),
                               // Container(
                               //   width: double.infinity,

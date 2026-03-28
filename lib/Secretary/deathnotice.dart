@@ -1237,8 +1237,7 @@ class _CreateDeathNoticePageState extends State<CreateDeathNoticePage> {
               (recipientId) => {
                 'user_id': recipientId,
                 'userdeceased': userId,
-                'beneficiary_id': beneficiaryId,
-                'death_notice_id': deathNoticeId,
+                'beneficiary_id': beneficiaryId,          
                 'dayung_unit_id': widget.dayungUnitId,
                 'amount': result,
                 'status': 'unpaid',

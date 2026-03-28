@@ -64,7 +64,7 @@ class _OfficialPaymentPageState extends State<OfficialPaymentPage> {
 
       final res = await sb
           .from('payments')
-          .select('id, amount, death_notice_id, status, created_at, paid_at')
+          .select('id, amount, status, created_at, paid_at')
           .eq('user_id', uid)
           .eq('dayung_unit_id', widget.dayungUnitId)
           .eq('status', 'pending')

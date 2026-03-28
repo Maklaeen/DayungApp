@@ -22,15 +22,15 @@ final serviceChecklistProvider =
     StateNotifierProvider.family<
       ServiceChecklistNotifier,
       List<Map<String, dynamic>>,
-      int
-    >((ref, deathNoticeId) {
-      return ServiceChecklistNotifier(deathNoticeId);
+      String
+    >((ref, claimId) {
+      return ServiceChecklistNotifier(claimId);
     });
 
 class ServiceChecklistNotifier
     extends StateNotifier<List<Map<String, dynamic>>> {
-  final int deathNoticeId;
-  ServiceChecklistNotifier(this.deathNoticeId) : super([]);
+  final String claimId;
+  ServiceChecklistNotifier(this.claimId) : super([]);
 
   Future<void> removeService(int checklistId) async {
     final sb = Supabase.instance.client;
@@ -45,10 +45,10 @@ class ServiceChecklistNotifier
   Future<void> fetchServices() async {
     final sb = Supabase.instance.client;
     try {
-      final response = await sb
+        final response = await sb
           .from('service_checklist')
           .select()
-          .eq('death_notice_id', deathNoticeId);
+          .eq('claim_id', claimId);
       state = List<Map<String, dynamic>>.from(response as List);
     } catch (e) {
       debugPrint('Error fetching services: $e');
@@ -85,29 +85,70 @@ class _ServiceTrackerPageState extends State<ServiceTrackerPage> {
     });
     try {
       final response = await sb
-          .from('death_notices')
+          .from('claims')
           .select()
           .eq('dayung_unit_id', widget.dayungUnitId)
+          .eq('status', 'Approved')
           .order('date_of_death', ascending: false);
       final notices = List<Map<String, dynamic>>.from(response as List);
 
+      // Collect user_ids and beneficiary_ids
+      final userIds = notices
+          .where((n) => n['deceased_type'] == 'member' && n['user_id'] != null)
+          .map((n) => n['user_id'])
+          .toSet()
+          .toList();
+      final beneficiaryIds = notices
+          .where((n) => n['deceased_type'] == 'beneficiary' && n['beneficiary_id'] != null)
+          .map((n) => n['beneficiary_id'])
+          .toSet()
+          .toList();
+
+      // Fetch users and beneficiaries in batch
+      Map userMap = {};
+      Map beneficiaryMap = {};
+    if (userIds.isNotEmpty) {
+  final users = await sb
+      .from('users')
+      .select('id, full_name')
+      .inFilter('id', userIds);
+  userMap = {for (var u in users) u['id']: u['full_name']};
+}
+if (beneficiaryIds.isNotEmpty) {
+  final beneficiaries = await sb
+      .from('beneficiaries')
+      .select('id, full_name')
+      .inFilter('id', beneficiaryIds);
+  beneficiaryMap = {for (var b in beneficiaries) b['id']: b['full_name']};
+}
+
+      // Attach the correct name to each notice
+      for (final notice in notices) {
+        if (notice['deceased_type'] == 'member') {
+          notice['display_name'] = userMap[notice['user_id']] ?? 'No Name';
+        } else if (notice['deceased_type'] == 'beneficiary') {
+          notice['display_name'] = beneficiaryMap[notice['beneficiary_id']] ?? 'No Name';
+        } else {
+          notice['display_name'] = 'No Name';
+        }
+      }
+
       final servicesByNotice = <String, List<Map<String, dynamic>>>{};
-      final noticeIds = notices
+      final claimIds = notices
           .map((notice) => notice['id'])
           .where((id) => id != null)
           .toList();
 
-      if (noticeIds.isNotEmpty) {
+      if (claimIds.isNotEmpty) {
         final services = await sb
             .from('service_checklist')
             .select()
-            .inFilter('death_notice_id', noticeIds)
             .eq('is_removed', false);
 
         for (final raw in List<Map<String, dynamic>>.from(services as List)) {
-          final noticeId = _noticeKey({'id': raw['death_notice_id']});
-          if (noticeId.isEmpty) continue;
-          servicesByNotice.putIfAbsent(noticeId, () => []).add(raw);
+          final claimId = _noticeKey({'id': raw['claim_id']});
+          if (claimId.isEmpty) continue;
+          servicesByNotice.putIfAbsent(claimId, () => []).add(raw);
         }
 
         for (final entry in servicesByNotice.entries) {
@@ -745,9 +786,7 @@ class _ServiceTrackerPageState extends State<ServiceTrackerPage> {
                                                     CrossAxisAlignment.start,
                                                 children: [
                                                   Text(
-                                                    (notice['name'] ??
-                                                            'No Name')
-                                                        .toString(),
+  (notice['display_name'] ?? 'No Name').toString(),
                                                     style: const TextStyle(
                                                       fontWeight:
                                                           FontWeight.w800,

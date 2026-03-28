@@ -78,14 +78,7 @@ class _SecretaryClaimsPageState extends State<SecretaryClaimsPage>
         context.read<DayungUnitProvider>().currentUnitId;
 
     if (unitId == null) {
-      if (mounted) {
-        setState(() {
-          _claims = [];
-          _userMap = {};
-          _loading = false;
-        });
-      }
-      return;
+      throw Exception('Invalid dayung_unit_id: $unitId');
     }
 
     _lastUnitId = unitId;
@@ -119,20 +112,17 @@ class _SecretaryClaimsPageState extends State<SecretaryClaimsPage>
 
       final statusTitle = _tabs[_tabController.index];
 
-      // New scheme: claims tagged with unit
-      final tagged = await supabase
-          .from('claims')
-          .select(
-            'id, user_id, title, description, status, date_submitted, '
-            'death_certificate_url, beneficiary_id, date_of_death, dayung_unit_id, claimedmoney', // <— added
-          )
-          .eq('status', statusTitle)
-          .eq('dayung_unit_id', unitId)
-          .order('date_submitted', ascending: false);
+
+final tagged = await supabase
+  .from('claims')
+  .select('id, user_id, title, description, status, date_submitted, death_certificate_url, beneficiary_id, date_of_death, dayung_unit_id, claimedmoney')
+  .eq('dayung_unit_id', unitId)
+  .eq('status', statusTitle) // <-- add this line
+  .order('date_submitted', ascending: false);
 
       final taggedList = List<Map<String, dynamic>>.from(tagged);
 
-      // Legacy: claims without dayung_unit_id but by members of this unit
+      
       List<Map<String, dynamic>> legacyList = [];
       if (allowedUserIds.isNotEmpty) {
         final legacy = await supabase
@@ -1438,86 +1428,33 @@ class _SecretaryClaimsPageState extends State<SecretaryClaimsPage>
                               const Center(child: CircularProgressIndicator()),
                         );
                         try {
-                          // Save set_amount
-                          await supabase.from('set_amount').insert({
-                            'userdeceased': claim['user_id'],
-                            'payment_id': claim['id'],
+                          await supabase.from('claims').update({
                             'amount': result,
                             'secretary_id': secretaryId,
-                            'dayung_unit_id': claim['dayung_unit_id'],
-                          });
+                            'datesetamount': DateTime.now().toIso8601String(),
+                            'status': 'Approved',
+                          }).eq('id', claim['id']);
 
-                          // Prepare death_notices data (same as before)
                           final userId = claim['user_id'];
                           final beneficiaryId = claim['beneficiary_id'];
-                          final deathCert = claim['death_certificate_url'];
-                          final dayungId = claim['dayung_unit_id'];
-                          final dod = claim['date_of_death'];
-                          final deceasedType = beneficiaryId != null
-                              ? 'beneficiary'
-                              : 'member';
-
-                          // Fetch user/beneficiary info for name/dob
-                          Map<String, dynamic>? user;
-                          Map<String, dynamic>? ben;
-                          if (beneficiaryId != null) {
-                            ben = await supabase
+                          final deceasedType = beneficiaryId != null ? 'beneficiary' : 'member';
+                          String deceasedName = '';
+                          if (deceasedType == 'beneficiary' && beneficiaryId != null) {
+                            final ben = await supabase
                                 .from('beneficiaries')
-                                .select('full_name, dob, user_id')
+                                .select('full_name')
                                 .eq('id', beneficiaryId)
                                 .maybeSingle();
+                            deceasedName = (ben?['full_name'] ?? '').toString();
                           } else {
-                            user = await supabase
+                            final user = await supabase
                                 .from('users')
-                                .select('full_name, dob')
+                                .select('full_name')
                                 .eq('id', userId)
                                 .maybeSingle();
+                            deceasedName = (user?['full_name'] ?? '').toString();
                           }
-                          final name = beneficiaryId != null
-                              ? (ben?['full_name'] ?? '')
-                              : (user?['full_name'] ?? '');
-                          final dob = beneficiaryId != null
-                              ? (ben?['dob'])
-                              : (user?['dob']);
-                          final computedAge = (() {
-                            if (dob == null || dod == null) return null;
-                            final b = DateTime.tryParse(dob.toString());
-                            final d = DateTime.tryParse(dod.toString());
-                            if (b == null || d == null) return null;
-                            var age = d.year - b.year;
-                            if (d.month < b.month ||
-                                (d.month == b.month && d.day < b.day)) {
-                              age--;
-                            }
-                            return age;
-                          })();
 
-                          // Optionally, fetch vigil location/barangay if needed
-                          final barangay = null;
-                          final latitude = null;
-                          final longitude = null;
-
-                          // Insert into death_notices
-                          await supabase.from('death_notices').insert({
-                            if (beneficiaryId != null)
-                              'beneficiary_id': beneficiaryId,
-                            'user_id': beneficiaryId != null
-                                ? (ben?['user_id'] ?? userId)
-                                : userId,
-                            'name': name,
-                            'date_of_death': dod?.toString().split('T').first,
-                            'death_certificate_url': deathCert,
-                            'dayung_unit_id': dayungId,
-                            'deceased_type': deceasedType,
-                            'barangay': barangay,
-                            'latitude': latitude,
-                            'longitude': longitude,
-                            'dob': dob?.toString().split('T').first,
-                            if (computedAge != null)
-                              'deceased_age': computedAge,
-                          });
-
-                          // --- ADD THIS BLOCK ---
                           final approvedApplications = await supabase
                               .from('applications')
                               .select('user_id')
@@ -1544,23 +1481,22 @@ class _SecretaryClaimsPageState extends State<SecretaryClaimsPage>
                             });
                           }
 
-                          // Insert into payments table for each member who needs to pay
+                          // Insert payments with deceased_name
                           for (final app in List<Map<String, dynamic>>.from(
                             approvedApplications,
                           )) {
                             await supabase.from('payments').insert({
                               'user_id': app['user_id'],
                               'userdeceased': claim['user_id'],
+                              'deceased_name': deceasedName,
                               'dayung_unit_id': claim['dayung_unit_id'],
                               'amount': result,
                               'status': 'unpaid',
                               'created_at': now,
                             });
                           }
-                          // --- END BLOCK ---
 
                           rootNavigator.pop();
-                          // Now approve the claim
                           _updateStatus(id, 'Approved');
                           sheetNavigator.pop();
                         } catch (e) {

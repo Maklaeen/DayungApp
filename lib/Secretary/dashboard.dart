@@ -73,6 +73,7 @@ class _SecretaryDashboardPageState extends State<SecretaryDashboardPage> {
   RealtimeChannel? _appNotifChannel;
 
   List<Map<String, dynamic>> _recentCertificates = [];
+  List<String> _approvedClaimNames = [];
 
   @override
   void initState() {
@@ -117,6 +118,7 @@ class _SecretaryDashboardPageState extends State<SecretaryDashboardPage> {
       _fetchActiveMembersCount(),
       _fetchRecentCertificates(),
       _fetchPendingPayments(),
+      _fetchApprovedClaims(),
     ]);
   }
 
@@ -486,12 +488,40 @@ class _SecretaryDashboardPageState extends State<SecretaryDashboardPage> {
     }
   }
 
+  Future<void> _fetchApprovedClaims() async {
+    try {
+      final unitId = _dayungUnitId;
+      if (unitId == null) {
+        if (mounted) setState(() => _approvedClaimNames = []);
+        return;
+      }
+
+      // Fetch approved claims for this unit
+      final claims = await supabase
+          .from('claims')
+          .select('full_name')
+          .eq('dayung_unit_id', unitId)
+          .eq('status', 'approved')
+          .order('created_at', ascending: false)
+          .limit(10);
+
+      final names = List<Map<String, dynamic>>.from(claims)
+          .map((e) => (e['full_name'] ?? 'Unknown').toString())
+          .toList();
+
+      if (mounted) setState(() => _approvedClaimNames = names);
+    } catch (_) {
+      if (mounted) setState(() => _approvedClaimNames = []);
+    }
+  }
+
   Future<void> _refreshAll() async {
     await _loadSecretaryInfo();
     await Future.wait([
       _fetchActiveMembersCount(),
       _fetchRecentCertificates(),
       _fetchPendingPayments(),
+      _fetchApprovedClaims(),
     ]);
   }
 
@@ -952,7 +982,7 @@ class _SecretaryDashboardPageState extends State<SecretaryDashboardPage> {
   Widget _recentDeathsCard() {
     final names = _recentCertificates;
     final display = names.take(2).toList();
-    // final extra = names.length - display.length;
+    final approvedClaims = _approvedClaimNames.take(2).toList();
 
     return Container(
       padding: const EdgeInsets.all(16),
@@ -990,41 +1020,51 @@ class _SecretaryDashboardPageState extends State<SecretaryDashboardPage> {
           const SizedBox(height: 8),
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
-            children: display
-                .map(
-                  (name) => Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 4),
-                    child: Row(
-                      children: [
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: Text(
-                            name['deceased_name'] ?? 'Unknown',
-                            style: const TextStyle(
-                              fontSize: 13,
-                              fontWeight: FontWeight.w600,
-                              color: Color(0xFF9F1239),
-                            ),
-                            overflow: TextOverflow.ellipsis,
+            children: [
+              ...display.map(
+                (name) => Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 4),
+                  child: Row(
+                    children: [
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          name['deceased_name'] ?? 'Unknown',
+                          style: const TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                            color: Color(0xFF9F1239),
                           ),
+                          overflow: TextOverflow.ellipsis,
                         ),
-                      ],
-                    ),
+                      ),
+                    ],
                   ),
-                )
-                .toList(),
+                ),
+              ),
+              ...approvedClaims.map(
+                (fullName) => Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 4),
+                  child: Row(
+                    children: [
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          fullName,
+                          style: const TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                            color: Color(0xFF2563EB), // Different color for claims
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
           ),
-          // if (extra > 0)
-          //   Text(
-          //     'View All',
-          //     textAlign: TextAlign.center,
-          //     style: TextStyle(
-          //       fontSize: 13.5,
-          //       fontWeight: FontWeight.w800,
-          //       fontFamily: 'OpenSans',
-          //       color: Colors.blue[700],
-          //     ),
-          //   ),
         ],
       ),
     );

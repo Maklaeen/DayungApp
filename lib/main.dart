@@ -31,6 +31,22 @@ import 'screens/splash_screen.dart';
 final GlobalKey<NavigatorState> globalNavigatorKey =
     GlobalKey<NavigatorState>();
 
+class _SupabaseConfig {
+  const _SupabaseConfig({required this.url, required this.anonKey});
+
+  final String url;
+  final String anonKey;
+}
+
+class _BootstrapException implements Exception {
+  const _BootstrapException(this.message);
+
+  final String message;
+
+  @override
+  String toString() => message;
+}
+
 ThemeData _buildAppTheme(Brightness brightness) {
   final isDark = brightness == Brightness.dark;
   final base = ThemeData(
@@ -199,27 +215,150 @@ ThemeData _buildAppTheme(Brightness brightness) {
   );
 }
 
-void main() async {
+Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  await dotenv.load(fileName: '.env');
+  final appTheme = AppTheme();
+  await appTheme.load();
 
-  final supabaseUrl = dotenv.env['SUPABASE_URL'];
-  final supabaseAnonKey = dotenv.env['SUPABASE_ANON_KEY'];
+  try {
+    await dotenv.load(fileName: '.env');
+
+    final supabaseConfig = _readSupabaseConfig();
+
+    await Supabase.initialize(
+      url: supabaseConfig.url,
+      anonKey: supabaseConfig.anonKey,
+    );
+
+    runApp(ProviderScope(child: MyApp(appTheme: appTheme)));
+  } catch (error, stackTrace) {
+    FlutterError.reportError(
+      FlutterErrorDetails(
+        exception: error,
+        stack: stackTrace,
+        library: 'main',
+        context: ErrorDescription('while bootstrapping the application'),
+      ),
+    );
+
+    runApp(_BootstrapErrorApp(appTheme: appTheme, error: error));
+  }
+}
+
+_SupabaseConfig _readSupabaseConfig() {
+  final supabaseUrl = dotenv.env['SUPABASE_URL']?.trim();
+  final supabaseAnonKey = dotenv.env['SUPABASE_ANON_KEY']?.trim();
 
   if (supabaseUrl == null ||
       supabaseUrl.isEmpty ||
       supabaseAnonKey == null ||
       supabaseAnonKey.isEmpty) {
-    throw StateError('Missing SUPABASE_URL or SUPABASE_ANON_KEY');
+    throw const _BootstrapException(
+      'Missing SUPABASE_URL or SUPABASE_ANON_KEY in .env.',
+    );
   }
 
-  final appTheme = AppTheme();
-  await appTheme.load();
+  if (_looksLikePlaceholderValue(supabaseUrl) ||
+      _looksLikePlaceholderValue(supabaseAnonKey)) {
+    throw const _BootstrapException(
+      'The .env file still contains placeholder Supabase credentials. Replace them with your real project URL and anon key.',
+    );
+  }
 
-  await Supabase.initialize(url: supabaseUrl, anonKey: supabaseAnonKey);
+  final uri = Uri.tryParse(supabaseUrl);
+  final hasValidUrl =
+      uri != null &&
+      (uri.scheme == 'https' || uri.scheme == 'http') &&
+      uri.host.isNotEmpty;
 
-  runApp(ProviderScope(child: MyApp(appTheme: appTheme)));
+  if (!hasValidUrl) {
+    throw const _BootstrapException(
+      'SUPABASE_URL is not a valid URL. Use the full project URL from Supabase Settings > API.',
+    );
+  }
+
+  if (!uri.host.contains('supabase.')) {
+    throw const _BootstrapException(
+      'SUPABASE_URL does not look like a Supabase project URL.',
+    );
+  }
+
+  return _SupabaseConfig(url: supabaseUrl, anonKey: supabaseAnonKey);
+}
+
+bool _looksLikePlaceholderValue(String value) {
+  final normalized = value.trim().toLowerCase();
+  return normalized.contains('your-project') ||
+      normalized.contains('your_supabase') ||
+      normalized.contains('anon_key_here') ||
+      normalized.contains('supabase_url_here');
+}
+
+class _BootstrapErrorApp extends StatelessWidget {
+  const _BootstrapErrorApp({required this.appTheme, required this.error});
+
+  final AppTheme appTheme;
+  final Object error;
+
+  @override
+  Widget build(BuildContext context) {
+    final message = switch (error) {
+      _BootstrapException bootstrapError => bootstrapError.message,
+      _ =>
+        'The app could not start because the local configuration is invalid. Check your .env file and try again.',
+    };
+
+    return MaterialApp(
+      debugShowCheckedModeBanner: false,
+      title: 'Dayung Setup Error',
+      theme: _buildAppTheme(Brightness.light),
+      darkTheme: _buildAppTheme(Brightness.dark),
+      themeMode: appTheme.mode,
+      home: Scaffold(
+        body: SafeArea(
+          child: Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 720),
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: Card(
+                  child: Padding(
+                    padding: const EdgeInsets.all(24),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Configuration required',
+                          style: Theme.of(context).textTheme.headlineSmall
+                              ?.copyWith(fontWeight: FontWeight.w800),
+                        ),
+                        const SizedBox(height: 12),
+                        Text(message),
+                        const SizedBox(height: 16),
+                        const Text(
+                          'Expected .env values:',
+                          style: TextStyle(fontWeight: FontWeight.w700),
+                        ),
+                        const SizedBox(height: 8),
+                        SelectableText(
+                          'SUPABASE_URL=https://your-project.supabase.co\n'
+                          'SUPABASE_ANON_KEY=your-anon-key',
+                          style: Theme.of(context).textTheme.bodyMedium
+                              ?.copyWith(fontFamily: 'monospace', height: 1.5),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 class MyApp extends StatefulWidget {

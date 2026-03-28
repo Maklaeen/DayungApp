@@ -21,12 +21,20 @@ class GCashPaymentPage extends StatefulWidget {
 
 class _GCashPaymentPageState extends State<GCashPaymentPage> {
   bool _isUploading = false;
-  String _searchQuery = ""; // Add a variable to store the search query
+  String _searchQuery = "";
+
+Future<List<Map<String, dynamic>>> fetchPayments() async {
+  final data = await Supabase.instance.client
+      .from('payments')
+      .select('id, userdeceased, deceased_name, amount, status, user_id, users!payments_user_id_fkey(full_name)')
+      .then((value) => value as List<dynamic>);
+  return data.cast<Map<String, dynamic>>();
+}
 
   Future<List<Map<String, dynamic>>> fetchSetAmounts() async {
     final data = await Supabase.instance.client
-        .from('set_amount')
-        .select('id, userdeceased, amount, users(full_name)')
+        .from('payments')
+        .select('id, userdeceased, deceased_name, amount, status, user_id, users!payments_user_id_fkey(full_name)')
         .then((value) => value as List<dynamic>);
     return data.cast<Map<String, dynamic>>();
   }
@@ -44,12 +52,11 @@ class _GCashPaymentPageState extends State<GCashPaymentPage> {
     return data != null;
   }
 
-  Future<void> uploadImage(
-    String setAmountId,
-    String userdeceased,
-    int amount, {
-    required int deathNoticeId,
-  }) async {
+Future<void> uploadImage(
+  String setAmountId,
+  String userdeceased,
+  int amount,
+) async {
     setState(() => _isUploading = true);
 
     try {
@@ -110,7 +117,7 @@ class _GCashPaymentPageState extends State<GCashPaymentPage> {
                     decoration: const InputDecoration(
                       labelText: 'Reference No.',
                       border: OutlineInputBorder(),
-                      helperText: 'Enter 9 to 13 digits',
+                      helperText: 'Please Input the Exact Reference No. shown in your GCash receipt',
                     ),
                     onChanged: (value) {
                       String digits = value.replaceAll(RegExp(r'\D'), '');
@@ -192,7 +199,7 @@ class _GCashPaymentPageState extends State<GCashPaymentPage> {
         'status': 'pending',
         'created_at': DateTime.now().toIso8601String().substring(0, 19),
         'dayung_unit_id': widget.dayungUnitId,
-        'death_notice_id': deathNoticeId,
+    
         'refno': refNo,
       });
 
@@ -225,7 +232,7 @@ class _GCashPaymentPageState extends State<GCashPaymentPage> {
           setAmountId,
           userdeceased,
           amount,
-          deathNoticeId: deathNoticeId,
+    
         );
       }
     } catch (e) {
@@ -238,6 +245,15 @@ class _GCashPaymentPageState extends State<GCashPaymentPage> {
         setState(() => _isUploading = false);
       }
     }
+  }
+
+  Future<String?> getBeneficiaryName(String beneficiaryId) async {
+    final data = await Supabase.instance.client
+        .from('beneficiaries')
+        .select('full_name')
+        .eq('id', beneficiaryId)
+        .maybeSingle();
+    return data?['full_name'];
   }
 
   @override
@@ -322,6 +338,9 @@ class _GCashPaymentPageState extends State<GCashPaymentPage> {
                 child: FutureBuilder<List<Map<String, dynamic>>>(
                   future: fetchSetAmounts(),
                   builder: (context, snapshot) {
+                    if (snapshot.hasError) {
+                      return Center(child: Text('Error: ${snapshot.error}'));
+                    }
                     if (!snapshot.hasData) {
                       return const Center(
                         child: CircularProgressIndicator(color: kAccent),
@@ -346,9 +365,9 @@ class _GCashPaymentPageState extends State<GCashPaymentPage> {
 
                     // Filter the list based on the search query
                     final filteredSetAmounts = setAmounts.where((data) {
-                      final fullName = data['users']?['full_name'] ?? '';
+                      final deceasedName = data['deceased_name'] ?? '';
                       final userDeceased = data['userdeceased'] ?? '';
-                      return fullName.toLowerCase().contains(_searchQuery) ||
+                      return deceasedName.toLowerCase().contains(_searchQuery) ||
                           userDeceased.toLowerCase().contains(_searchQuery);
                     }).toList();
 
@@ -399,10 +418,7 @@ class _GCashPaymentPageState extends State<GCashPaymentPage> {
                           itemCount: sortedList.length,
                           itemBuilder: (context, i) {
                             final data = sortedList[i];
-                            final fullName =
-                                data['users']?['full_name'] ??
-                                data['userdeceased'] ??
-                                '';
+                            String fullName = data['deceased_name'] ?? data['userdeceased'] ?? '';
                             final amount = data['amount'];
                             final paidStatus =
                                 i >=
@@ -477,16 +493,17 @@ class _GCashPaymentPageState extends State<GCashPaymentPage> {
                                               ? null
                                               : () async {
                                                   // 1. Fetch QR code info for this dayung_unit_id
-                                                  final qrData = await Supabase
+                                                    debugPrint('DEBUG: widget.dayungUnitId = [1m${widget.dayungUnitId}[0m');
+                                                    final qrData = await Supabase
                                                       .instance
                                                       .client
                                                       .from('gcash_qr_uploads')
                                                       .select()
                                                       .eq(
-                                                        'dayung_unit_id',
-                                                        (widget.dayungUnitId ??
-                                                                0)
-                                                            .toString(),
+                                                      'dayung_unit_id',
+                                                      (widget.dayungUnitId ??
+                                                          0)
+                                                        .toString(),
                                                       )
                                                       .maybeSingle();
 
@@ -823,9 +840,7 @@ class _GCashPaymentPageState extends State<GCashPaymentPage> {
                                                         data['amount']
                                                             .toString(),
                                                       ),
-                                                      deathNoticeId:
-                                                          data['death_notice_id'] ??
-                                                          0,
+                                                   
                                                     );
                                                     if (!context.mounted) {
                                                       return;

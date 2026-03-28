@@ -100,7 +100,7 @@ class _CollectorReceiptsPageState extends State<CollectorReceiptsPage> {
         .from('payments')
         .select(
           'id, user_id, amount, status, paid_at, created_at, collected_by, '
-          'datepaidamount, userdeceased, death_notice_id, dayung_unit_id, '
+          'datepaidamount, userdeceased, dayung_unit_id, '
           'users!payments_user_id_fkey(full_name), '
           'collector:users!payments_collected_by_fkey(full_name)',
         )
@@ -139,7 +139,7 @@ class _CollectorReceiptsPageState extends State<CollectorReceiptsPage> {
             'reference': '',
             'proof_image_url': '',
             'deceased_id': (row['userdeceased'] ?? '').toString(),
-            'death_notice_id': (row['death_notice_id'] ?? '').toString(),
+         
             'sort_date': dateValue,
             'display_date': dateValue,
             'supporting_text': 'Recorded as a completed cash payment.',
@@ -213,7 +213,7 @@ class _CollectorReceiptsPageState extends State<CollectorReceiptsPage> {
         'reference': refValue,
         'proof_image_url': proofImageUrl,
         'deceased_id': (row['userdeceased'] ?? '').toString(),
-        'death_notice_id': (row['death_notice_id'] ?? '').toString(),
+    
         'sort_date': dateValue,
         'display_date': dateValue,
         'supporting_text': status.toLowerCase() == 'paid'
@@ -228,7 +228,7 @@ class _CollectorReceiptsPageState extends State<CollectorReceiptsPage> {
         .from('gcash_qr_codes')
         .select(
           'id, image_url, uploaded_by, created_at, userdeceased, dayung_unit_id, '
-          'amount, death_notice_id, refno',
+          'amount, refno',
         );
     if (widget.dayungUnitId != null) {
       query = query.eq('dayung_unit_id', widget.dayungUnitId as Object);
@@ -244,10 +244,10 @@ class _CollectorReceiptsPageState extends State<CollectorReceiptsPage> {
     for (final row in rows) {
       final uploadedBy = (row['uploaded_by'] ?? '').toString();
       final deceasedId = (row['userdeceased'] ?? '').toString();
-      final noticeId = (row['death_notice_id'] ?? '').toString();
+ 
       if (uploadedBy.isNotEmpty) userIds.add(uploadedBy);
       if (deceasedId.isNotEmpty) userIds.add(deceasedId);
-      if (noticeId.isNotEmpty) noticeIds.add(noticeId);
+
       if (deceasedId.isNotEmpty) deceasedIds.add(deceasedId);
     }
 
@@ -262,7 +262,7 @@ class _CollectorReceiptsPageState extends State<CollectorReceiptsPage> {
       final key = _receiptKey({
         'member_id': uploadedBy,
         'deceased_id': (row['userdeceased'] ?? '').toString(),
-        'death_notice_id': (row['death_notice_id'] ?? '').toString(),
+     
         'amount': row['amount'],
       });
       final isPaid = paidKeys.contains(key);
@@ -283,7 +283,7 @@ class _CollectorReceiptsPageState extends State<CollectorReceiptsPage> {
         'reference': (row['refno'] ?? '').toString(),
         'proof_image_url': (row['image_url'] ?? '').toString(),
         'deceased_id': (row['userdeceased'] ?? '').toString(),
-        'death_notice_id': (row['death_notice_id'] ?? '').toString(),
+     
         'sort_date': dateValue,
         'display_date': dateValue,
         'supporting_text': isPaid
@@ -302,9 +302,9 @@ class _CollectorReceiptsPageState extends State<CollectorReceiptsPage> {
     if (noticeIds.isNotEmpty) {
       dynamic noticeQuery = _sb
           .from('payments')
-          .select('user_id, death_notice_id, userdeceased, amount')
+          .select('user_id, userdeceased, amount')
           .eq('status', 'paid')
-          .inFilter('death_notice_id', noticeIds.toList());
+          .inFilter('userdeceased', noticeIds.toList());
       if (widget.dayungUnitId != null) {
         noticeQuery = noticeQuery.eq(
           'dayung_unit_id',
@@ -319,7 +319,7 @@ class _CollectorReceiptsPageState extends State<CollectorReceiptsPage> {
           _receiptKey({
             'member_id': (payment['user_id'] ?? '').toString(),
             'deceased_id': (payment['userdeceased'] ?? '').toString(),
-            'death_notice_id': (payment['death_notice_id'] ?? '').toString(),
+  
             'amount': payment['amount'],
           }),
         );
@@ -329,9 +329,9 @@ class _CollectorReceiptsPageState extends State<CollectorReceiptsPage> {
     if (deceasedIds.isNotEmpty) {
       dynamic deceasedQuery = _sb
           .from('payments')
-          .select('user_id, death_notice_id, userdeceased, amount')
+          .select('user_id, userdeceased, amount')
           .eq('status', 'paid')
-          .isFilter('death_notice_id', null)
+          .isFilter('user_id', null)
           .inFilter('userdeceased', deceasedIds.toList());
       if (widget.dayungUnitId != null) {
         deceasedQuery = deceasedQuery.eq(
@@ -347,7 +347,7 @@ class _CollectorReceiptsPageState extends State<CollectorReceiptsPage> {
           _receiptKey({
             'member_id': (payment['user_id'] ?? '').toString(),
             'deceased_id': (payment['userdeceased'] ?? '').toString(),
-            'death_notice_id': (payment['death_notice_id'] ?? '').toString(),
+      
             'amount': payment['amount'],
           }),
         );
@@ -383,7 +383,7 @@ class _CollectorReceiptsPageState extends State<CollectorReceiptsPage> {
     return [
       (row['member_id'] ?? '').toString(),
       (row['deceased_id'] ?? '').toString(),
-      (row['death_notice_id'] ?? '').toString(),
+   
       amount,
     ].join('|');
   }
