@@ -14,11 +14,26 @@ DayungApp is a Flutter client backed by Supabase. Privileged SuperAdmin actions 
 
 ### Flutter client
 
-Create a local `.env` file in the project root with values for:
+Provide Flutter client config either through a local `.env` file or through `--dart-define` values for:
 
 - `SUPABASE_URL`
 - `SUPABASE_ANON_KEY`
 - `OPENROUTESERVICE_API_KEY`
+
+If `.env` exists locally, the app will use it automatically.
+
+`--dart-define` values override `.env` values when both are present.
+
+If neither is configured yet, the app now opens a setup screen instead of crashing on startup.
+
+Example:
+
+```bash
+flutter run \
+	--dart-define=SUPABASE_URL=https://your-project.supabase.co \
+	--dart-define=SUPABASE_ANON_KEY=your_supabase_anon_key \
+	--dart-define=OPENROUTESERVICE_API_KEY=your_openrouteservice_api_key
+```
 
 For iOS, create `ios/Flutter/Secrets.xcconfig` from `ios/Flutter/Secrets.xcconfig.example` and set:
 
@@ -53,7 +68,7 @@ Create `backend/.env` using `backend/.env.example` and set:
 
 ## Security Notes
 
-- Do not commit real `.env` files.
+- Do not hardcode real secrets in tracked Dart source files.
 - Do not commit `ios/Flutter/Secrets.xcconfig`.
 - The Edge Function `superadmin-admin` is intended to be authenticated and superadmin-scoped.
 - The backend route `/send-announcement-sms` remains intended to be authenticated and president-scoped if SMS is restored later.

@@ -291,7 +291,7 @@ class _MembersContributionHistoryState
               .select('id, name, date_of_death')
               .inFilter('id', noticeIds),
         );
-        noticeById = {for (final n in notices) n['id'].toString(): n};;
+        noticeById = {for (final n in notices) n['id'].toString(): n};
       }
 
       final merged = payments.map((p) {

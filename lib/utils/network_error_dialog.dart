@@ -1,10 +1,10 @@
 import 'dart:async';
 
+import 'package:capstone_app/config/app_config.dart';
 import 'package:capstone_app/main.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
-import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:http/http.dart' as http;
 
 class NetworkMonitor {
@@ -119,8 +119,8 @@ class NetworkMonitor {
   }
 
   List<_NetworkProbe> _buildBackendProbes() {
-    final supabaseUrl = dotenv.env['SUPABASE_URL'];
-    if (supabaseUrl == null || supabaseUrl.isEmpty) {
+    final supabaseUrl = AppConfig.supabaseUrl.trim();
+    if (supabaseUrl.isEmpty) {
       return const [];
     }
 

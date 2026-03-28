@@ -96,9 +96,9 @@ class _AddServiceDialogState extends State<AddServiceDialog> {
                               ),
                               const SizedBox(height: 2),
                               Text(
-                                (widget.deathNotice['deceased_full_name']?.toString()?.isNotEmpty ?? false)
+                                (widget.deathNotice['deceased_full_name']?.toString().isNotEmpty ?? false)
                                     ? widget.deathNotice['deceased_full_name']!.toString()
-                                    : (widget.deathNotice['name']?.toString()?.isNotEmpty ?? false)
+                                    : (widget.deathNotice['name']?.toString().isNotEmpty ?? false)
                                         ? widget.deathNotice['name']!.toString()
                                         : 'Service schedule',
                                 maxLines: 1,
