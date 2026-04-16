@@ -419,7 +419,7 @@ class _MembersClaimsPageState extends State<MembersClaimsPage>
     // await _loadDayungUnit();
 
     _submittingModalOpen = true;
-    showModalBottomSheet(
+    final result = await showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       showDragHandle: true,
@@ -433,9 +433,11 @@ class _MembersClaimsPageState extends State<MembersClaimsPage>
         ),
         child: SubmitClaimForm(dayungUnitId: widget.dayungUnitId),
       ),
-    ).whenComplete(() {
-      _submittingModalOpen = false;
-    });
+    );
+    _submittingModalOpen = false;
+    if (result == true) {
+      await _fetchClaims();
+    }
   }
 
   void _openDetail(Map<String, dynamic> claim) async {

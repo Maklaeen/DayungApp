@@ -70,6 +70,19 @@ class _GcashQrPageState extends State<GcashQrPage> {
     }
   }
 
+  String _maskName(String? name) {
+    if (name == null || name.isEmpty) return '';
+    final words = name.split(' ');
+    return words
+        .map((word) {
+          if (word.length <= 2) return word;
+          final visible = word.substring(0, 2);
+          final masked = '*' * (word.length - 2);
+          return visible + masked;
+        })
+        .join(' ');
+  }
+
   Future<void> _loadLatestSavedQr() async {
     final messenger = ScaffoldMessenger.of(context);
     try {
@@ -83,18 +96,31 @@ class _GcashQrPageState extends State<GcashQrPage> {
 
       if (!mounted) return;
       if (response.isNotEmpty) {
+        String? signedUrl;
+        String? fileName = response[0]['qr_image_url'];
+  
+        if (fileName != null && fileName.isNotEmpty) {
+          // If fileName is a full URL, extract the path after the bucket name
+          final uri = Uri.parse(fileName);
+          final segments = uri.pathSegments;
+          // Find the index of the bucket name
+          final bucketIndex = segments.indexOf('gcash_qr_images');
+          if (bucketIndex != -1 && bucketIndex + 1 < segments.length) {
+            // Join the rest as the file path
+            fileName = segments.sublist(bucketIndex + 1).join('/');
+          }
+        
+          signedUrl = await Supabase.instance.client.storage
+              .from('gcash_qr_images')
+              .createSignedUrl(fileName, 60 * 60); // 1 hour expiry
+       
+        }
         setState(() {
-          _savedQrImageUrl = response[0]['qr_image_url'];
-          _savedQrName = response[0]['name'];
+          _savedQrImageUrl = signedUrl;
+          _savedQrName = _maskName(response[0]['name']);
           _hasQrForUnit = true;
-          _nameController.text = _savedQrName ?? '';
+          _nameController.text = response[0]['name'] ?? '';
           _gcashNumberController.text = response[0]['gcash_number'] ?? '';
-        });
-      } else {
-        setState(() {
-          _hasQrForUnit = false;
-          _nameController.clear();
-          _gcashNumberController.clear();
         });
       }
     } catch (e) {
@@ -115,14 +141,15 @@ class _GcashQrPageState extends State<GcashQrPage> {
 
   void _saveQrCode() async {
     final messenger = ScaffoldMessenger.of(context);
-    final name = AppInputSecurity.sanitizePlainText(
+    final rawName = AppInputSecurity.sanitizePlainText(
       _nameController.text,
       maxLength: 120,
     );
+    final name = _maskName(rawName);
     final gcashNumber = AppInputSecurity.sanitizePhone(
       _gcashNumberController.text,
     );
-    if ((name.isEmpty && _qrImageBytes == null) || gcashNumber.isEmpty) {
+    if ((rawName.isEmpty && _qrImageBytes == null) || gcashNumber.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text(
@@ -142,18 +169,18 @@ class _GcashQrPageState extends State<GcashQrPage> {
       if (_qrImageBytes != null) {
         final fileBytes = _qrImageBytes!;
         final fileName =
-            'gcash_qr_${DateTime.now().millisecondsSinceEpoch}.png';
+          'gcash_qr_${DateTime.now().millisecondsSinceEpoch}.png';
         await Supabase.instance.client.storage
-            .from('gcash_qr_images')
-            .uploadBinary(
-              fileName,
-              fileBytes,
-              fileOptions: const FileOptions(contentType: 'image/png'),
-            );
+          .from('gcash_qr_images')
+          .uploadBinary(
+            fileName,
+            fileBytes,
+            fileOptions: const FileOptions(contentType: 'image/png'),
+          );
 
-        imageUrl = Supabase.instance.client.storage
-            .from('gcash_qr_images')
-            .getPublicUrl(fileName);
+        imageUrl = await Supabase.instance.client.storage
+          .from('gcash_qr_images')
+          .createSignedUrl(fileName, 60 * 60); // 1 hour expiry
       }
 
       final currentUser = Supabase.instance.client.auth.currentUser;
@@ -174,7 +201,7 @@ class _GcashQrPageState extends State<GcashQrPage> {
           'updated_at': DateTime.now().toIso8601String(),
           'uploaded_by': currentUser?.id,
         };
-        if (name.isNotEmpty && name != existing['name']) {
+        if (rawName.isNotEmpty && name != existing['name']) {
           updateData['name'] = name;
         }
         if (gcashNumber.isNotEmpty && gcashNumber != existing['gcash_number']) {
@@ -207,7 +234,7 @@ class _GcashQrPageState extends State<GcashQrPage> {
         }
       } else {
         // Insert new QR
-        if (name.isEmpty || gcashNumber.isEmpty || imageUrl == null) {
+        if (rawName.isEmpty || gcashNumber.isEmpty || imageUrl == null) {
           if (!mounted) return;
           messenger.showSnackBar(
             const SnackBar(
@@ -220,7 +247,7 @@ class _GcashQrPageState extends State<GcashQrPage> {
         }
         await Supabase.instance.client.from('gcash_qr_uploads').insert({
           'name': name,
-          'gcash_number': gcashNumber, // <-- Add this
+          'gcash_number': gcashNumber,
           'qr_image_url': imageUrl,
           'created_at': DateTime.now().toIso8601String(),
           'uploaded_by': currentUser?.id,
@@ -255,10 +282,11 @@ class _GcashQrPageState extends State<GcashQrPage> {
 
   Future<List<Map<String, dynamic>>> _fetchQrCodes() async {
     final sb = Supabase.instance.client;
+    // Fetch QR codes and join with claims table to get claim id
     final response = await sb
         .from('gcash_qr_codes')
         .select(
-          'image_url, uploaded_by, created_at, userdeceased, dayung_unit_id, amount, death_notice_id, refno',
+          'image_url, uploaded_by, created_at, userdeceased, dayung_unit_id, amount, refno',
         )
         .eq('dayung_unit_id', widget.dayungUnitId)
         .order('created_at', ascending: false)
@@ -268,6 +296,24 @@ class _GcashQrPageState extends State<GcashQrPage> {
     final List<Map<String, dynamic>> data = List<Map<String, dynamic>>.from(
       response,
     );
+
+    // --- Ensure all image URLs are valid signed URLs ---
+    for (final row in data) {
+      final imageUrl = row['image_url']?.toString() ?? '';
+      if (imageUrl.isNotEmpty && !imageUrl.startsWith('http')) {
+        // If imageUrl is not a full URL, generate a signed URL
+        try {
+          // Remove any leading slashes
+          final cleanFileName = imageUrl.startsWith('/') ? imageUrl.substring(1) : imageUrl;
+          final signedUrl = await sb.storage
+              .from('gcash_qr_images')
+              .createSignedUrl(cleanFileName, 60 * 60); // 1 hour expiry
+          row['image_url'] = signedUrl;
+        } catch (e) {
+          // If failed, leave as is (will show broken image)
+        }
+      }
+    }
 
     if (data.isEmpty) return data;
 
@@ -297,28 +343,29 @@ class _GcashQrPageState extends State<GcashQrPage> {
 
     final paidKeys = <String>{};
 
-    final noticeIds = data
-        .map((row) => row['death_notice_id'])
+    // Use claim_id instead of death_notice_id
+    final claimIds = data
+        .map((row) => row['claim_id'])
         .where((value) => value != null)
         .map((value) => value.toString())
         .where((value) => value.isNotEmpty)
         .toSet()
         .toList();
 
-    if (noticeIds.isNotEmpty) {
-      final paymentsByNotice = await sb
+    if (claimIds.isNotEmpty) {
+      final paymentsByClaim = await sb
           .from('payments')
-          .select('user_id, death_notice_id, userdeceased')
+          .select('user_id, claim_id, userdeceased')
           .eq('dayung_unit_id', widget.dayungUnitId)
           .eq('status', 'paid')
-          .inFilter('death_notice_id', noticeIds)
+          .inFilter('claim_id', claimIds)
           .timeout(_queryTimeout);
 
-      for (final payment in List<Map<String, dynamic>>.from(paymentsByNotice)) {
+      for (final payment in List<Map<String, dynamic>>.from(paymentsByClaim)) {
         paidKeys.add(
           _paymentKey(
             userId: payment['user_id'],
-            deathNoticeId: payment['death_notice_id'],
+            deathNoticeId: payment['claim_id'], // claim_id replaces death_notice_id
             deceasedId: payment['userdeceased'],
           ),
         );
@@ -336,10 +383,10 @@ class _GcashQrPageState extends State<GcashQrPage> {
     if (deceasedIds.isNotEmpty) {
       final paymentsByDeceased = await sb
           .from('payments')
-          .select('user_id, death_notice_id, userdeceased')
+          .select('user_id, claim_id, userdeceased')
           .eq('dayung_unit_id', widget.dayungUnitId)
           .eq('status', 'paid')
-          .isFilter('death_notice_id', null)
+          .isFilter('claim_id', null)
           .inFilter('userdeceased', deceasedIds)
           .timeout(_queryTimeout);
 
@@ -349,7 +396,7 @@ class _GcashQrPageState extends State<GcashQrPage> {
         paidKeys.add(
           _paymentKey(
             userId: payment['user_id'],
-            deathNoticeId: payment['death_notice_id'],
+            deathNoticeId: payment['claim_id'], // claim_id replaces death_notice_id
             deceasedId: payment['userdeceased'],
           ),
         );
@@ -364,7 +411,7 @@ class _GcashQrPageState extends State<GcashQrPage> {
       row['already_paid'] = paidKeys.contains(
         _paymentKey(
           userId: row['uploaded_by'],
-          deathNoticeId: row['death_notice_id'],
+          deathNoticeId: row['claim_id'], // claim_id replaces death_notice_id
           deceasedId: row['userdeceased'],
         ),
       );
@@ -1333,6 +1380,7 @@ class _GcashQrPageState extends State<GcashQrPage> {
     required double width,
     required double height,
   }) {
+   
     return ClipRRect(
       borderRadius: BorderRadius.circular(12),
       child: Image.network(
@@ -1393,46 +1441,38 @@ class _GcashQrPageState extends State<GcashQrPage> {
       ),
       onPressed: () {
         showDialog(
+          
           context: context,
           builder: (context) {
-            final TextEditingController amountController =
-                TextEditingController();
             final requiredAmount = row['amount']?.toString() ?? '0';
-            double? enteredAmount;
             bool isLoading = false;
 
             return StatefulBuilder(
               builder: (context, setState) {
                 return AlertDialog(
-                  title: const Text('Enter Amount'),
+                  title: const Text('Confirm Payment'),
                   content: isLoading
                       ? const Center(child: CircularProgressIndicator())
                       : Column(
                           mainAxisSize: MainAxisSize.min,
                           children: [
                             const SizedBox(height: 8),
-                            TextField(
-                              controller: amountController,
-                              keyboardType:
-                                  const TextInputType.numberWithOptions(
-                                    decimal: true,
-                                  ),
-                              inputFormatters: [
-                                FilteringTextInputFormatter.allow(
-                                  RegExp(r'[0-9.,]'),
+                            Row(
+                              children: [
+                                const Text(
+                                  'Amount to pay:',
+                                  style: TextStyle(fontWeight: FontWeight.w600),
                                 ),
-                                LengthLimitingTextInputFormatter(12),
+                                const SizedBox(width: 8),
+                                Text(
+                                  '₱$requiredAmount',
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 18,
+                                    color: Colors.green,
+                                  ),
+                                ),
                               ],
-                              decoration: InputDecoration(
-                                labelText: 'Amount',
-                                border: const OutlineInputBorder(),
-                                helperText: 'Required: ₱$requiredAmount',
-                              ),
-                              onChanged: (value) {
-                                setState(() {
-                                  enteredAmount = double.tryParse(value);
-                                });
-                              },
                             ),
                           ],
                         ),
@@ -1444,79 +1484,62 @@ class _GcashQrPageState extends State<GcashQrPage> {
                             child: const Text('Cancel'),
                           ),
                           ElevatedButton(
-                            onPressed:
-                                (enteredAmount != null &&
-                                    enteredAmount.toString() == requiredAmount)
-                                ? () async {
-                                    final amount =
-                                        AppInputSecurity.sanitizePlainText(
-                                          amountController.text,
-                                          maxLength: 12,
-                                        );
-                                    if (amount.isEmpty) return;
+                            onPressed: () async {
+                              setState(() => isLoading = true);
+                              final navigator = Navigator.of(context);
+                              final messenger = ScaffoldMessenger.of(context);
+                              try {
+                                final userId = row['uploaded_by'];
+                                final userdeceased = row['userdeceased'];
+                                final dayungUnitId = row['dayung_unit_id'];
+                                final currentUserId = Supabase.instance.client.auth.currentUser?.id;
+                                final updateData = {
+                                  'status': 'paid',
+                                  'paid_at': DateTime.now().toUtc().toIso8601String(),
+                                  'datepaidamount': DateTime.now().toUtc().toIso8601String(),
+                                  'collected_by': currentUserId, // Set collected_by to current user
+                                };
 
-                                    setState(() => isLoading = true);
-                                    final currentUser = Supabase
-                                        .instance
-                                        .client
-                                        .auth
-                                        .currentUser;
-                                    final collectedBy = currentUser?.id;
+                                // Debug prints
+                                print('Current auth user id: $currentUserId');
+                                print('Current session: ${Supabase.instance.client.auth.currentSession}');
+                                print('user_id: $userId');
+                                print('userdeceased: $userdeceased');
+                                print('dayungUnitId: $dayungUnitId');
+                                print('row: $row');
 
-                                    final paymentData = {
-                                      'user_id': row['uploaded_by'],
-                                      'collected_by': collectedBy,
-                                      'datepaidamount': DateTime.now()
-                                          .toUtc()
-                                          .toIso8601String(),
-                                      'payment_id': row['userdeceased'],
-                                      'userdeceased': row['userdeceased'],
-                                      'dayung_unit_id': row['dayung_unit_id'],
-                                      'paid_at': DateTime.now()
-                                          .toUtc()
-                                          .toIso8601String(),
-                                      'created_at': DateTime.now()
-                                          .toUtc()
-                                          .toIso8601String(),
-                                      'amount': amount,
-                                      'status': 'paid',
-                                      'death_notice_id': row['death_notice_id'],
-                                    };
+                                // Select query to check if row exists
+                                final selectResult = await Supabase.instance.client
+                                    .from('payments')
+                                    .select()
+                                    .eq('user_id', userId)
+                                    .eq('userdeceased', userdeceased)
+                                    .eq('dayung_unit_id', dayungUnitId);
+                                print('Select result: $selectResult');
 
-                                    final navigator = Navigator.of(context);
-                                    final messenger = ScaffoldMessenger.of(
-                                      context,
-                                    );
-                                    try {
-                                      await Supabase.instance.client
-                                          .from('payments')
-                                          .insert(paymentData);
-                                      if (mounted) {
-                                        this.setState(() {
-                                          row['already_paid'] = true;
-                                        });
-                                        _refreshQrData();
-                                      }
-                                      navigator.pop();
-                                      messenger.showSnackBar(
-                                        SnackBar(
-                                          content: Text(
-                                            'Payment saved: ₱$amount',
-                                          ),
-                                        ),
-                                      );
-                                    } catch (e) {
-                                      navigator.pop();
-                                      messenger.showSnackBar(
-                                        SnackBar(
-                                          content: Text(
-                                            'Error saving payment: $e',
-                                          ),
-                                        ),
-                                      );
-                                    }
-                                  }
-                                : null,
+                                final result = await Supabase.instance.client
+                                    .from('payments')
+                                    .update(updateData)
+                                    .eq('user_id', userId)
+                                    .eq('userdeceased', userdeceased)
+                                    .eq('dayung_unit_id', dayungUnitId);
+                                print('Update result: $result');
+                                if (mounted) {
+                                  this.setState(() {
+                                    row['already_paid'] = true;
+                                  });
+                                  _refreshQrData();
+                                }
+                                navigator.pop();
+                              } catch (e) {
+                                navigator.pop();
+                                messenger.showSnackBar(
+                                  SnackBar(
+                                    content: Text('Error updating payment: $e'),
+                                  ),
+                                );
+                              }
+                            },
                             child: const Text('Save Payment'),
                           ),
                         ],

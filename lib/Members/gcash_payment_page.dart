@@ -52,6 +52,20 @@ Future<List<Map<String, dynamic>>> fetchPayments() async {
     return data != null;
   }
 
+  Future<Map<String, dynamic>?> getExistingUpload(String setAmountId) async {
+    final user = Supabase.instance.client.auth.currentUser;
+    if (user == null) return null;
+
+    final data = await Supabase.instance.client
+        .from('gcash_qr_codes')
+        .select('id, image_url, status, created_at')
+        .eq('set_amount_id', setAmountId)
+        .eq('uploaded_by', user.id)
+        .maybeSingle();
+
+    return data;
+  }
+
 Future<void> uploadImage(
   String setAmountId,
   String userdeceased,
@@ -71,6 +85,19 @@ Future<void> uploadImage(
           const SnackBar(
             content: Text(
               'Payment already marked as paid. No need to upload receipt.',
+            ),
+          ),
+        );
+        return;
+      }
+
+      // Prevent multiple uploads for the same payment by the same user
+      final existingUpload = await getExistingUpload(setAmountId);
+      if (existingUpload != null) {
+        messenger.showSnackBar(
+          const SnackBar(
+            content: Text(
+              'You have already uploaded a receipt for this payment.',
             ),
           ),
         );
@@ -186,55 +213,18 @@ Future<void> uploadImage(
         return;
       }
 
-      final imageUrl = Supabase.instance.client.storage
-          .from('gcash_qr_images')
-          .getPublicUrl(fileName);
-
+      // Save only the file name in the database
       await Supabase.instance.client.from('gcash_qr_codes').insert({
         'set_amount_id': setAmountId,
         'userdeceased': userdeceased,
         'amount': amount,
-        'image_url': imageUrl,
+        'image_url': fileName, // store file name only
         'uploaded_by': user.id,
         'status': 'pending',
         'created_at': DateTime.now().toIso8601String().substring(0, 19),
         'dayung_unit_id': widget.dayungUnitId,
-    
         'refno': refNo,
       });
-
-      if (!mounted) return;
-      messenger.showSnackBar(
-        const SnackBar(content: Text('Image uploaded successfully!')),
-      );
-
-      // Show confirmation dialog
-      final uploadAgain = await showDialog<bool>(
-        context: context,
-        builder: (context) => AlertDialog(
-          title: const Text('Upload Complete'),
-          actions: [
-            TextButton(
-              child: const Text('No'),
-              onPressed: () => Navigator.of(context).pop(false),
-            ),
-            ElevatedButton(
-              child: const Text('Yes'),
-              onPressed: () => Navigator.of(context).pop(true),
-            ),
-          ],
-        ),
-      );
-
-      if (uploadAgain == true) {
-        // Call uploadImage again with the same parameters
-        await uploadImage(
-          setAmountId,
-          userdeceased,
-          amount,
-    
-        );
-      }
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(
@@ -424,74 +414,82 @@ Future<void> uploadImage(
                                 i >=
                                 pending
                                     .length; // Paid if index is after pending
-                            return Card(
-                              margin: const EdgeInsets.symmetric(vertical: 10),
-                              elevation: 3,
-                              color: Colors.white,
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(16),
-                              ),
-                              child: Padding(
-                                padding: const EdgeInsets.symmetric(
-                                  vertical: 16,
-                                  horizontal: 18,
-                                ),
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      fullName,
-                                      style: const TextStyle(
-                                        fontWeight: FontWeight.bold,
-                                        fontSize: 16,
-                                        color: kText,
-                                      ),
+                            final setAmountId = data['id'].toString();
+
+                            return FutureBuilder<Map<String, dynamic>?>(
+                              future: getExistingUpload(setAmountId),
+                              builder: (context, uploadSnapshot) {
+                                final uploadData = uploadSnapshot.data;
+                                final hasUpload = uploadData != null;
+
+                                return Card(
+                                  margin: const EdgeInsets.symmetric(vertical: 10),
+                                  elevation: 3,
+                                  color: Colors.white,
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(16),
+                                  ),
+                                  child: Padding(
+                                    padding: const EdgeInsets.symmetric(
+                                      vertical: 16,
+                                      horizontal: 18,
                                     ),
-                                    const SizedBox(height: 8),
-                                    Text(
-                                      'Amount: ₱ $amount',
-                                      style: const TextStyle(
-                                        fontSize: 15,
-                                        color: kAccent,
-                                      ),
-                                    ),
-                                    const SizedBox(height: 8),
-                                    Row(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
                                       children: [
-                                        // Status
                                         Text(
-                                          paidStatus ? "Paid" : "Pending",
-                                          style: TextStyle(
-                                            color: paidStatus
-                                                ? Colors.green
-                                                : kWarn,
+                                          fullName,
+                                          style: const TextStyle(
                                             fontWeight: FontWeight.bold,
+                                            fontSize: 16,
+                                            color: kText,
                                           ),
                                         ),
-                                        const Spacer(),
-                                        // Upload Button
-                                        ElevatedButton.icon(
-                                          icon: const Icon(
-                                            Icons.upload,
-                                            size: 18,
+                                        const SizedBox(height: 8),
+                                        Text(
+                                          'Amount: ₱ $amount',
+                                          style: const TextStyle(
+                                            fontSize: 15,
+                                            color: kAccent,
                                           ),
-                                          label: Text(
-                                            isMobile
-                                                ? "Upload"
-                                                : "Upload Receipt",
-                                          ),
-                                          style: ElevatedButton.styleFrom(
-                                            backgroundColor: kAccent,
-                                            foregroundColor: Colors.white,
-                                            shape: RoundedRectangleBorder(
-                                              borderRadius:
-                                                  BorderRadius.circular(8),
+                                        ),
+                                        const SizedBox(height: 8),
+                                        Row(
+                                          children: [
+                                            // Status
+                                            Text(
+                                              paidStatus ? "Paid" : "Pending",
+                                              style: TextStyle(
+                                                color: paidStatus
+                                                    ? Colors.green
+                                                    : kWarn,
+                                                fontWeight: FontWeight.bold,
+                                              ),
                                             ),
-                                          ),
-                                          onPressed:
-                                              (_isUploading || paidStatus)
-                                              ? null
-                                              : () async {
+                                            const Spacer(),
+                                            // Upload Button
+                                            ElevatedButton.icon(
+                                              icon: const Icon(
+                                                Icons.upload,
+                                                size: 18,
+                                              ),
+                                              label: Text(
+                                                isMobile
+                                                    ? "Upload"
+                                                    : "Upload Receipt",
+                                              ),
+                                              style: ElevatedButton.styleFrom(
+                                                backgroundColor: kAccent,
+                                                foregroundColor: Colors.white,
+                                                shape: RoundedRectangleBorder(
+                                                  borderRadius:
+                                                      BorderRadius.circular(8),
+                                                ),
+                                              ),
+                                              onPressed:
+                                                  (_isUploading || paidStatus || hasUpload)
+                                                  ? null
+                                                  : () async {
                                                   // 1. Fetch QR code info for this dayung_unit_id
                                                     debugPrint('DEBUG: widget.dayungUnitId = [1m${widget.dayungUnitId}[0m');
                                                     final qrData = await Supabase
@@ -592,188 +590,175 @@ Future<void> uploadImage(
                                                           ),
                                                           content: SingleChildScrollView(
                                                             child: Column(
-                                                              mainAxisSize:
-                                                                  MainAxisSize
-                                                                      .min,
+                                                              mainAxisSize: MainAxisSize.min,
                                                               children: [
-                                                                if (qrData['name'] !=
-                                                                    null)
+                                                                if (qrData['name'] != null)
                                                                   Text(
                                                                     qrData['name'],
                                                                     style: TextStyle(
-                                                                      fontWeight:
-                                                                          FontWeight
-                                                                              .w600,
-                                                                      fontSize:
-                                                                          isMobile
-                                                                          ? 15
-                                                                          : 18,
-                                                                      color:
-                                                                          kText,
+                                                                      fontWeight: FontWeight.w600,
+                                                                      fontSize: isMobile ? 15 : 18,
+                                                                      color: kText,
                                                                     ),
                                                                   ),
-                                                                const SizedBox(
-                                                                  height: 12,
-                                                                ),
-                                                                if (qrData['gcash_number'] !=
-                                                                        null &&
-                                                                    qrData['gcash_number']
-                                                                        .toString()
-                                                                        .isNotEmpty)
+                                                                const SizedBox(height: 12),
+                                                                if (qrData['gcash_number'] != null &&
+                                                                    qrData['gcash_number'].toString().isNotEmpty)
                                                                   Row(
-                                                                    mainAxisAlignment:
-                                                                        MainAxisAlignment
-                                                                            .center,
+                                                                    mainAxisAlignment: MainAxisAlignment.center,
                                                                     children: [
                                                                       Flexible(
                                                                         child: Text(
                                                                           'Gcash Number: ${qrData['gcash_number']}',
                                                                           style: TextStyle(
-                                                                            fontSize:
-                                                                                isMobile
-                                                                                ? 14
-                                                                                : 16,
-                                                                            color:
-                                                                                kSubText,
+                                                                            fontSize: isMobile ? 14 : 16,
+                                                                            color: kSubText,
                                                                           ),
-                                                                          overflow:
-                                                                              TextOverflow.ellipsis,
+                                                                          overflow: TextOverflow.ellipsis,
                                                                         ),
                                                                       ),
                                                                       IconButton(
                                                                         icon: Icon(
-                                                                          Icons
-                                                                              .copy,
-                                                                          size:
-                                                                              18,
-                                                                          color:
-                                                                              kAccent,
+                                                                          Icons.copy,
+                                                                          size: 18,
+                                                                          color: kAccent,
                                                                         ),
-                                                                        tooltip:
-                                                                            'Copy',
+                                                                        tooltip: 'Copy',
                                                                         onPressed: () {
                                                                           Clipboard.setData(
                                                                             ClipboardData(
                                                                               text: qrData['gcash_number'].toString(),
                                                                             ),
                                                                           );
-                                                                          ScaffoldMessenger.of(
-                                                                            context,
-                                                                          ).showSnackBar(
-                                                                            SnackBar(
-                                                                              content: Text(
-                                                                                'Gcash number copied!',
-                                                                              ),
-                                                                            ),
+                                                                          ScaffoldMessenger.of(context).showSnackBar(
+                                                                            SnackBar(content: Text('Gcash number copied!')),
                                                                           );
                                                                         },
                                                                       ),
                                                                     ],
                                                                   ),
-                                                                const SizedBox(
-                                                                  height: 18,
-                                                                ),
-                                                                if (qrData['qr_image_url'] !=
-                                                                    null)
-                                                                  Container(
-                                                                    decoration: BoxDecoration(
-                                                                      borderRadius:
-                                                                          BorderRadius.circular(
-                                                                            16,
+                                                                const SizedBox(height: 18),
+                                                                if (qrData['qr_image_url'] != null)
+                                                                  Builder(
+                                                                    builder: (context) {
+                                                                      final rawFileName = qrData['qr_image_url'];
+                                                                      debugPrint('DEBUG: qr_image_url = ${rawFileName?.toString() ?? 'null'}');
+                                                                      if (rawFileName == null || rawFileName.toString().isEmpty) {
+                                                                        return Container(
+                                                                          height: isMobile ? 180 : 240,
+                                                                          width: isMobile ? 180 : 240,
+                                                                          alignment: Alignment.center,
+                                                                          child: const Text(
+                                                                            'No QR image found.',
+                                                                            style: TextStyle(color: kWarn),
                                                                           ),
-                                                                      border: Border.all(
-                                                                        color:
-                                                                            kAccent,
-                                                                        width:
-                                                                            2,
-                                                                      ),
-                                                                      boxShadow: [
-                                                                        BoxShadow(
-                                                                          color:
-                                                                              Colors.black12,
-                                                                          blurRadius:
-                                                                              8,
-                                                                          offset: Offset(
-                                                                            0,
-                                                                            4,
-                                                                          ),
+                                                                        );
+                                                                      }
+                                                                      // If it's a full URL, extract file name
+                                                                      String fileName = rawFileName;
+                                                                      if (fileName.contains('/')) {
+                                                                        final uri = Uri.tryParse(fileName);
+                                                                        if (uri != null && uri.pathSegments.isNotEmpty) {
+                                                                          final idx = uri.pathSegments.indexOf('gcash_qr_images');
+                                                                          if (idx != -1 && idx + 1 < uri.pathSegments.length) {
+                                                                            fileName = uri.pathSegments.sublist(idx + 1).join('/');
+                                                                          } else {
+                                                                            fileName = uri.pathSegments.last;
+                                                                          }
+                                                                        }
+                                                                      }
+                                                                      return Container(
+                                                                        decoration: BoxDecoration(
+                                                                          borderRadius: BorderRadius.circular(16),
+                                                                          border: Border.all(color: kAccent, width: 2),
+                                                                          boxShadow: [
+                                                                            BoxShadow(
+                                                                              color: Colors.black12,
+                                                                              blurRadius: 8,
+                                                                              offset: Offset(0, 4),
+                                                                            ),
+                                                                          ],
                                                                         ),
-                                                                      ],
-                                                                    ),
-                                                                    child: ClipRRect(
-                                                                      borderRadius:
-                                                                          BorderRadius.circular(
-                                                                            16,
-                                                                          ),
-                                                                      child: GestureDetector(
-                                                                        onTap: () {
-                                                                          showDialog(
-                                                                            context:
-                                                                                context,
-                                                                            builder:
-                                                                                (
-                                                                                  context,
-                                                                                ) => Dialog(
+                                                                        child: ClipRRect(
+                                                                          borderRadius: BorderRadius.circular(16),
+                                                                          child: GestureDetector(
+                                                                            onTap: () {
+                                                                              showDialog(
+                                                                                context: context,
+                                                                                builder: (context) => Dialog(
                                                                                   backgroundColor: Colors.transparent,
                                                                                   child: InteractiveViewer(
                                                                                     child: Container(
-                                                                                      padding: const EdgeInsets.all(
-                                                                                        8,
-                                                                                      ),
+                                                                                      padding: const EdgeInsets.all(8),
                                                                                       color: Colors.white,
-                                                                                      child: Image.network(
-                                                                                        qrData['qr_image_url'],
-                                                                                        width: isMobile
-                                                                                            ? MediaQuery.of(
-                                                                                                    context,
-                                                                                                  ).size.width *
-                                                                                                  0.85
-                                                                                            : 400,
-                                                                                        height: isMobile
-                                                                                            ? MediaQuery.of(
-                                                                                                    context,
-                                                                                                  ).size.height *
-                                                                                                  0.65
-                                                                                            : 400,
-                                                                                        fit: BoxFit.contain,
+                                                                                      child: FutureBuilder<String>(
+                                                                                        future: Supabase.instance.client.storage
+                                                                                            .from('gcash_qr_images')
+                                                                                            .createSignedUrl(fileName, 3600),
+                                                                                        builder: (context, snapshot) {
+                                                                                          if (snapshot.connectionState == ConnectionState.waiting) {
+                                                                                            return const CircularProgressIndicator();
+                                                                                          }
+                                                                                          if (snapshot.hasError || !snapshot.hasData || (snapshot.data?.isEmpty ?? true)) {
+                                                                                            return const Text('Failed to load QR image', style: TextStyle(color: kWarn));
+                                                                                          }
+                                                                                          return Image.network(
+                                                                                            snapshot.data!,
+                                                                                            width: isMobile
+                                                                                                ? MediaQuery.of(context).size.width * 0.85
+                                                                                                : 400,
+                                                                                            height: isMobile
+                                                                                                ? MediaQuery.of(context).size.height * 0.65
+                                                                                                : 400,
+                                                                                            fit: BoxFit.contain,
+                                                                                          );
+                                                                                        },
                                                                                       ),
                                                                                     ),
                                                                                   ),
                                                                                 ),
-                                                                          );
-                                                                        },
-                                                                        child: Image.network(
-                                                                          qrData['qr_image_url'],
-                                                                          height:
-                                                                              isMobile
-                                                                              ? 180
-                                                                              : 240,
-                                                                          width:
-                                                                              isMobile
-                                                                              ? 180
-                                                                              : 240,
-                                                                          fit: BoxFit
-                                                                              .contain,
+                                                                              );
+                                                                            },
+                                                                            child: FutureBuilder<String>(
+                                                                              future: Supabase.instance.client.storage
+                                                                                  .from('gcash_qr_images')
+                                                                                  .createSignedUrl(fileName, 3600),
+                                                                              builder: (context, snapshot) {
+                                                                                if (snapshot.connectionState == ConnectionState.waiting) {
+                                                                                  return const CircularProgressIndicator();
+                                                                                }
+                                                                                if (snapshot.hasError || !snapshot.hasData || (snapshot.data?.isEmpty ?? true)) {
+                                                                                  return Container(
+                                                                                    height: isMobile ? 180 : 240,
+                                                                                    width: isMobile ? 180 : 240,
+                                                                                    alignment: Alignment.center,
+                                                                                    child: const Text(
+                                                                                      'Failed to load QR image',
+                                                                                      style: TextStyle(color: kWarn),
+                                                                                    ),
+                                                                                  );
+                                                                                }
+                                                                                return Image.network(
+                                                                                  snapshot.data!,
+                                                                                  height: isMobile ? 180 : 240,
+                                                                                  width: isMobile ? 180 : 240,
+                                                                                  fit: BoxFit.contain,
+                                                                                );
+                                                                              },
+                                                                            ),
+                                                                          ),
                                                                         ),
-                                                                      ),
-                                                                    ),
+                                                                      );
+                                                                    },
                                                                   ),
-                                                                const SizedBox(
-                                                                  height: 24,
-                                                                ),
+                                                                const SizedBox(height: 24),
                                                                 Text(
                                                                   'Please pay using the QR code above.',
                                                                   style: TextStyle(
-                                                                    fontSize:
-                                                                        isMobile
-                                                                        ? 15
-                                                                        : 17,
-                                                                    color:
-                                                                        kSubText,
+                                                                    fontSize: isMobile ? 15 : 17,
+                                                                    color: kSubText,
                                                                   ),
-                                                                  textAlign:
-                                                                      TextAlign
-                                                                          .center,
+                                                                  textAlign: TextAlign.center,
                                                                 ),
                                                               ],
                                                             ),
@@ -848,12 +833,85 @@ Future<void> uploadImage(
                                                     setState(() {});
                                                   }
                                                 },
+                                            ),
+                                          ],
                                         ),
+                                        if (hasUpload) ...[
+                                          const SizedBox(height: 8),
+                                          FutureBuilder<String>(
+                                            future: () async {
+                                              // Generate signed URL for private image, compatible with file name or full URL
+                                              String? fileName = uploadData['image_url'];
+                                              if (fileName != null && fileName.isNotEmpty && fileName.contains('/')) {
+                                                // If fileName is a full URL, extract the path after the bucket name
+                                                final uri = Uri.parse(fileName);
+                                                final segments = uri.pathSegments;
+                                                final bucketIndex = segments.indexOf('gcash_qr_images');
+                                                if (bucketIndex != -1 && bucketIndex + 1 < segments.length) {
+                                                  fileName = segments.sublist(bucketIndex + 1).join('/');
+                                                }
+                                              }
+                                              // Ensure fileName is not null
+                                              final safeFileName = fileName ?? '';
+                                              final signedUrl = await Supabase.instance.client.storage
+                                                  .from('gcash_qr_images')
+                                                  .createSignedUrl(safeFileName, 3600);
+                                              return signedUrl;
+                                            }(),
+                                            builder: (context, snapshot) {
+                                              if (!snapshot.hasData) {
+                                                return const CircularProgressIndicator(color: kAccent);
+                                              }
+                                              final signedUrl = snapshot.data!;
+                                              return GestureDetector(
+                                                onTap: () {
+                                                  showDialog(
+                                                    context: context,
+                                                    builder: (context) => Dialog(
+                                                      shape: RoundedRectangleBorder(
+                                                        borderRadius: BorderRadius.circular(16),
+                                                      ),
+                                                      child: ClipRRect(
+                                                        borderRadius: BorderRadius.circular(16),
+                                                        child: InteractiveViewer(
+                                                          child: Image.network(
+                                                            signedUrl,
+                                                            fit: BoxFit.contain,
+                                                          ),
+                                                        ),
+                                                      ),
+                                                    ),
+                                                  );
+                                                },
+                                                child: Row(
+                                                  children: const [
+                                                    Icon(
+                                                      Icons.receipt_long,
+                                                      size: 18,
+                                                      color: kAccent,
+                                                    ),
+                                                    SizedBox(width: 8),
+                                                    Expanded(
+                                                      child: Text(
+                                                        'Receipt uploaded',
+                                                        style: TextStyle(
+                                                          fontSize: 14,
+                                                          color: kSubText,
+                                                          fontWeight: FontWeight.w500,
+                                                        ),
+                                                      ),
+                                                    ),
+                                                  ],
+                                                ),
+                                              );
+                                            },
+                                          ),
+                                        ],
                                       ],
                                     ),
-                                  ],
-                                ),
-                              ),
+                                  ),
+                                );
+                              },
                             );
                           },
                         );

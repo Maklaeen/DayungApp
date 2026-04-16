@@ -140,27 +140,30 @@ if (beneficiaryIds.isNotEmpty) {
           .toList();
 
       if (claimIds.isNotEmpty) {
-        final services = await sb
+          // Fetch only services that are not removed
+          final services = await sb
             .from('service_checklist')
             .select()
-            .eq('is_removed', false);
+            .or('is_removed.is.null,is_removed.eq.false');
+          debugPrint('--- DEBUG: Raw services fetched from Supabase (is_removed = false) ---');
+          debugPrint(services.toString());
 
-        for (final raw in List<Map<String, dynamic>>.from(services as List)) {
-          final claimId = _noticeKey({'id': raw['claim_id']});
-          if (claimId.isEmpty) continue;
-          servicesByNotice.putIfAbsent(claimId, () => []).add(raw);
-        }
+          for (final raw in List<Map<String, dynamic>>.from(services as List)) {
+            final claimId = _noticeKey({'id': raw['claim_id']});
+            if (claimId.isEmpty) continue;
+            servicesByNotice.putIfAbsent(claimId, () => []).add(raw);
+          }
 
-        for (final entry in servicesByNotice.entries) {
-          entry.value.sort((a, b) {
-            final aDate = DateTime.tryParse('${a['time_service'] ?? ''}');
-            final bDate = DateTime.tryParse('${b['time_service'] ?? ''}');
-            if (aDate == null && bDate == null) return 0;
-            if (aDate == null) return 1;
-            if (bDate == null) return -1;
-            return aDate.compareTo(bDate);
-          });
-        }
+          for (final entry in servicesByNotice.entries) {
+            entry.value.sort((a, b) {
+              final aDate = DateTime.tryParse('${a['time_service'] ?? ''}');
+              final bDate = DateTime.tryParse('${b['time_service'] ?? ''}');
+              if (aDate == null && bDate == null) return 0;
+              if (aDate == null) return 1;
+              if (bDate == null) return -1;
+              return aDate.compareTo(bDate);
+            });
+          }
       }
 
       if (!mounted) return;
@@ -168,6 +171,18 @@ if (beneficiaryIds.isNotEmpty) {
         _notices = notices;
         _servicesByNotice = servicesByNotice;
         _loading = false;
+      });
+      // DEBUG: Print mapping after fetch
+      debugPrint('--- DEBUG: Notices ---');
+      for (final n in notices) {
+        debugPrint('Notice id: \\${n['id']} (as string: \\${n['id']?.toString()}) display_name: \\${n['display_name']}');
+      }
+      debugPrint('--- DEBUG: Services by Notice ---');
+      servicesByNotice.forEach((key, services) {
+        debugPrint('NoticeKey: \\$key -> Services count: \\${services.length}');
+        for (final s in services) {
+          debugPrint('  Service id: \\${s['id']} claim_id: \\${s['claim_id']} service_name: \\${s['service_name']}');
+        }
       });
     } catch (e) {
       debugPrint('Error fetching notices/services: $e');
@@ -179,7 +194,8 @@ if (beneficiaryIds.isNotEmpty) {
     }
   }
 
-  String _noticeKey(Map<String, dynamic> notice) => '${notice['id'] ?? ''}';
+  // Always return claim id as a string for correct matching
+  String _noticeKey(Map<String, dynamic> notice) => notice['id']?.toString() ?? '';
 
   String _formatDateValue(dynamic value, {String pattern = 'MMM d, yyyy'}) {
     if (value == null) return 'N/A';
@@ -275,16 +291,27 @@ if (beneficiaryIds.isNotEmpty) {
     if (confirmed != true) return;
 
     try {
-      await Supabase.instance.client
+      debugPrint('--- DEBUG: _removeService called ---');
+      debugPrint('Service object: $service');
+      debugPrint('Service id: ${service['id']?.toString() ?? 'NULL'}');
+      final updateQuery = Supabase.instance.client
           .from('service_checklist')
           .update({'is_removed': true})
-          .eq('id', service['id']);
+          .eq('id', int.parse(service['id'].toString()));
+      debugPrint('Update query constructed. About to execute.');
+      final response = await updateQuery;
+      debugPrint('Supabase update response: $response');
+      if (response is Map && response.containsKey('error') && response['error'] != null) {
+        debugPrint('Supabase error: ${response['error']}');
+      }
       await _fetchData();
       if (!mounted) return;
       messenger.showSnackBar(
         const SnackBar(content: Text('Service removed from tracker.')),
       );
-    } catch (e) {
+    } catch (e, stack) {
+      debugPrint('Error in _removeService: $e');
+      debugPrint('Stack trace: $stack');
       if (!mounted) return;
       messenger.showSnackBar(
         SnackBar(content: Text('Failed to remove service: $e')),
@@ -384,6 +411,31 @@ if (beneficiaryIds.isNotEmpty) {
                     fontWeight: FontWeight.w600,
                   ),
                 ),
+                  // Progress/track display for start_time_service and end_time_service
+                  if (service['start_time_service'] != null || service['end_time_service'] != null) ...[
+                    const SizedBox(height: 4),
+                    Row(
+                      children: [
+                        const Icon(Icons.play_arrow_rounded, size: 16, color: kPrimaryDark),
+                        const SizedBox(width: 4),
+                        Text(
+                          'Start: '
+                          '${_formatServiceSchedule(service['start_time_service'])}',
+                          style: const TextStyle(fontSize: 12, color: kPrimaryDark, fontWeight: FontWeight.w600),
+                        ),
+                        if (service['end_time_service'] != null) ...[
+                          const SizedBox(width: 12),
+                          const Icon(Icons.flag_rounded, size: 16, color: kAccentDark),
+                          const SizedBox(width: 4),
+                          Text(
+                            'End: '
+                            '${_formatServiceSchedule(service['end_time_service'])}',
+                            style: const TextStyle(fontSize: 12, color: kAccentDark, fontWeight: FontWeight.w600),
+                          ),
+                        ]
+                      ],
+                    ),
+                  ],
                 if (notes.isNotEmpty) ...[
                   const SizedBox(height: 8),
                   Text(
@@ -896,7 +948,7 @@ if (beneficiaryIds.isNotEmpty) {
                                                 SizedBox(width: 10),
                                                 Expanded(
                                                   child: Text(
-                                                    'No services added yet for this death notice.',
+                                                   'No services added yet. Tap "Add" to schedule a service for this Service Tracker.',
                                                     style: TextStyle(
                                                       fontSize: 13,
                                                       color: kSubText,

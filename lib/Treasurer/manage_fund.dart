@@ -77,7 +77,7 @@ class _ManageFundPageState extends State<ManageFundPage> {
           .timeout(_queryTimeout);
       final paymentResFuture = sb
           .from('payments')
-          .select('death_notice_id, amount, status, paid_at, user_id')
+          .select('amount, status, paid_at, user_id')
           .eq('dayung_unit_id', widget.dayungUnitId)
           .timeout(_queryTimeout);
 
@@ -132,7 +132,7 @@ class _ManageFundPageState extends State<ManageFundPage> {
       }
 
       for (final r in rows) {
-        final dnId = int.tryParse('${r['death_notice_id'] ?? ''}');
+        final dnId = int.tryParse('${r[''] ?? ''}');
         if (dnId == null) continue;
 
         final notice = noticeLookup[dnId];
@@ -219,7 +219,7 @@ class _ManageFundPageState extends State<ManageFundPage> {
           .from('payments')
           .select('amount, status')
           .eq('dayung_unit_id', widget.dayungUnitId)
-          .filter('death_notice_id', 'is', null)
+
           .timeout(_queryTimeout);
 
       double advancePaid = 0.0;
@@ -1293,7 +1293,7 @@ class _ManageFundPageState extends State<ManageFundPage> {
         await sb
             .from('payments')
             .delete()
-            .eq('death_notice_id', deathNoticeId)
+        
             .eq('dayung_unit_id', dayungUnitId)
             .eq('user_id', excludedUserId);
       } catch (_) {}
@@ -1312,7 +1312,7 @@ class _ManageFundPageState extends State<ManageFundPage> {
     final existingRes = await sb
         .from('payments')
         .select('user_id')
-        .eq('death_notice_id', deathNoticeId)
+    
         .eq('dayung_unit_id', dayungUnitId)
         .timeout(_queryTimeout);
     final existingIds = {
@@ -1331,7 +1331,7 @@ class _ManageFundPageState extends State<ManageFundPage> {
         'user_id': uid,
         'amount': '1',
         'status': 'pending',
-        'death_notice_id': deathNoticeId,
+     
         'dayung_unit_id': dayungUnitId,
         'created_at': createdAt,
       });
@@ -1403,7 +1403,7 @@ class _ManageFundPageState extends State<ManageFundPage> {
             'user:users!payments_user_id_fkey(full_name), '
             'collector:users!payments_collected_by_fkey(full_name)',
           )
-          .eq('death_notice_id', deathNoticeId)
+      
           .eq('dayung_unit_id', dayungUnitId)
           .timeout(_queryTimeout);
 

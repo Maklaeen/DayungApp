@@ -15,7 +15,6 @@ import 'package:capstone_app/Providers/user_provider.dart';
 import 'package:capstone_app/Secretary/dashboard.dart';
 import 'package:capstone_app/SuperAdmin/dashboard.dart';
 import 'package:capstone_app/Treasurer/dashboard.dart';
-import 'package:capstone_app/config/app_config.dart';
 import 'package:capstone_app/settings/custom_scroll_behavior.dart';
 import 'package:capstone_app/utils/network_error_dialog.dart';
 import 'package:flutter/material.dart';

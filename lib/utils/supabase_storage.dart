@@ -19,15 +19,16 @@ Future<String?> resolveSupabaseStorageUrl(
 
   if (location != null) {
     try {
-      return await supabase.storage
+      // Always use signed URL for private buckets
+      final signedUrl = await supabase.storage
           .from(location.bucket)
           .createSignedUrl(location.objectPath, expiresInSeconds);
-    } catch (_) {
-      try {
-        return supabase.storage
-            .from(location.bucket)
-            .getPublicUrl(location.objectPath);
-      } catch (_) {}
+      return signedUrl;
+    } catch (e) {
+      // Log the error for debugging
+      // ignore: avoid_print
+      print('Error creating signed URL for ${location.bucket}/${location.objectPath}: $e');
+      return null;
     }
   }
 

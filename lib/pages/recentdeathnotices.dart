@@ -69,12 +69,12 @@ class _RecentDeathNoticesState extends State<RecentDeathNotices> {
       });
       return;
     }
-_fetchDeathClaims();
-_sub = Supabase.instance.client
-    .from('claims')
-    .stream(primaryKey: ['id'])
-    .eq('dayung_unit_id', widget.dayungUnitId!)
-    .listen((data) => _applySplit(List<Map<String, dynamic>>.from(data)));
+    _fetchDeathClaims();
+    _sub = Supabase.instance.client
+        .from('claims')
+        .stream(primaryKey: ['id'])
+        .eq('dayung_unit_id', widget.dayungUnitId!)
+        .listen((data) => _applySplit(List<Map<String, dynamic>>.from(data)));
   }
 
   @override
@@ -88,10 +88,10 @@ _sub = Supabase.instance.client
 
     // Filter by dayung_unit_id before splitting
     final filtered = rows.where((r) {
-  final v = r['dayung_unit_id'];
-  final asInt = v is int ? v : int.tryParse('$v');
-  return asInt == unitId && r['status'] == 'Approved';
-}).toList();
+      final v = r['dayung_unit_id'];
+      final asInt = v is int ? v : int.tryParse('$v');
+      return asInt == unitId && r['status'] == 'Approved';
+    }).toList();
 
     filtered.sort((a, b) {
       final ad = (a['date_of_death'] ?? '').toString();
@@ -138,9 +138,41 @@ _sub = Supabase.instance.client
       return m;
     }).toList();
 
+    // Collect unique beneficiary_ids from beneficiaries
+    final beneficiaryIds = beneficiaries
+        .map((b) => b['beneficiary_id']?.toString())
+        .where((id) => id != null && id.isNotEmpty)
+        .toSet();
+    Map<String, String> beneficiaryNames = {};
+    if (beneficiaryIds.isNotEmpty) {
+      try {
+        final benRows = await Supabase.instance.client
+            .from('beneficiaries')
+            .select('id, full_name')
+            .inFilter('id', beneficiaryIds.toList())
+            .limit(beneficiaryIds.length);
+        for (final row in benRows) {
+          final id = row['id']?.toString();
+          final name = row['full_name']?.toString();
+          if (id != null && name != null) {
+            beneficiaryNames[id] = name;
+          }
+        }
+      } catch (_) {}
+    }
+
+    // Attach full_name to each beneficiary
+    final beneficiariesWithNames = beneficiaries.map((b) {
+      final benId = b['beneficiary_id']?.toString();
+      if (benId != null && beneficiaryNames.containsKey(benId)) {
+        return {...b, 'full_name': beneficiaryNames[benId]};
+      }
+      return b;
+    }).toList();
+
     setState(() {
       _members = membersWithNames;
-      _beneficiaries = beneficiaries;
+      _beneficiaries = beneficiariesWithNames;
       _userNames = userNames;
       _loading = false;
     });
@@ -533,6 +565,7 @@ _sub = Supabase.instance.client
                                 _beneficiaries,
                                 textScale,
                                 isWide,
+                                isBeneficiaryTab: true,
                               ),
                             ],
                           ),
@@ -551,8 +584,10 @@ _sub = Supabase.instance.client
     BuildContext context,
     List<Map<String, dynamic>> items,
     double textScale,
-    bool isWide,
-  ) {
+    bool isWide, {
+    bool isBeneficiaryTab = false,
+  }) {
+    // All users can now see beneficiary full_name
     if (items.isEmpty) {
       return Center(
         child: Container(
@@ -630,8 +665,8 @@ _sub = Supabase.instance.client
         itemCount: items.length,
         itemBuilder: (context, index) {
           final notice = items[index];
-          final name = (notice['full_name'] ?? notice['PassedAway'] ?? '')
-              .toString();
+          // Show real name for all users, both members and beneficiaries
+         String name = (notice['full_name'] ?? notice['PassedAway'] ?? '').toString();
           final dod = (notice['date_of_death'] ?? '').toString();
           final barangay =
               notice['vigil_barangay']?.toString() ??

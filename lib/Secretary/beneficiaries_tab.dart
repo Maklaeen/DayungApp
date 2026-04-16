@@ -42,7 +42,7 @@ class _SecretaryBeneficiariesTabState extends State<SecretaryBeneficiariesTab> {
     setState(() => _loading = true);
     final supabase = Supabase.instance.client;
     try {
-      // 1. Get approved members from applications
+
       final apps = await supabase
           .from('applications')
           .select('user_id')
@@ -610,9 +610,31 @@ class _SecretaryBeneficiariesTabState extends State<SecretaryBeneficiariesTab> {
                                       borderRadius: BorderRadius.circular(12),
                                     ),
                                   ),
-                                  onPressed: () {
-                                    Navigator.pop(context);
-                                    _approveBeneficiary(item['id']);
+                                  onPressed: () async {
+                                    final userName = _users[item['user_id']] ?? 'this member';
+                                    final confirm = await showDialog<bool>(
+                                      context: context,
+                                      builder: (ctx) => AlertDialog(
+                                        title: const Text('Approve Beneficiary'),
+                                        content: Text(
+                                          "Do you want to approve this beneficiary for the member of '$userName'?",
+                                        ),
+                                        actions: [
+                                          TextButton(
+                                            onPressed: () => Navigator.of(ctx).pop(false),
+                                            child: const Text('Cancel'),
+                                          ),
+                                          FilledButton(
+                                            onPressed: () => Navigator.of(ctx).pop(true),
+                                            child: const Text('Approve'),
+                                          ),
+                                        ],
+                                      ),
+                                    );
+                                    if (confirm == true) {
+                                      Navigator.pop(context);
+                                      _approveBeneficiary(item['id']);
+                                    }
                                   },
                                 ),
                               ),

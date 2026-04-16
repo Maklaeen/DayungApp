@@ -21,6 +21,14 @@ class CollectCashPage extends StatefulWidget {
 }
 
 class _CollectCashPageState extends State<CollectCashPage> {
+  String? get _currentUserId => sb.auth.currentUser?.id;
+  int get _unpaidCount {
+    int count = _payments
+        .where((p) => (p['status'] ?? '').toString().toLowerCase() == 'unpaid')
+        .length;
+    return count;
+  }
+
   static const Duration _queryTimeout = Duration(seconds: 10);
 
   final sb = Supabase.instance.client;
@@ -56,15 +64,21 @@ class _CollectCashPageState extends State<CollectCashPage> {
     }).toList();
   }
 
-double get _totalCollectedForSelected {
-  final selected = _selectedDeceased;
-  if (selected == null) return 0.0;
-  return _payments
-      .where((payment) =>
-          (payment['status'] ?? '').toString().toLowerCase() == 'paid' &&
-          _paymentMatchesSelected(payment, selected))
-      .fold<double>(0.0, (sum, payment) => sum + _asDouble(payment['amount']));
-}
+  double get _totalCollectedForSelected {
+    final selected = _selectedDeceased;
+    if (selected == null) return 0.0;
+    return _payments
+        .where(
+          (payment) =>
+              (payment['status'] ?? '').toString().toLowerCase() == 'paid' &&
+              _paymentMatchesSelected(payment, selected),
+        )
+        .fold<double>(
+          0.0,
+          (sum, payment) => sum + _asDouble(payment['amount']),
+        );
+  }
+
   List<Map<String, dynamic>> get _filteredMembers {
     final selected = _selectedDeceased;
     if (selected == null) return const [];
@@ -113,9 +127,7 @@ double get _totalCollectedForSelected {
   @override
   void initState() {
     super.initState();
-    _loadAll().then((_) {
-   
-    });
+    _loadAll().then((_) {});
   }
 
   Future<void> _loadAll() async {
@@ -132,27 +144,29 @@ double get _totalCollectedForSelected {
             .eq('dayung_unit_id', widget.dayungUnitId)
             .eq('status', 'approved')
             .timeout(_queryTimeout),
-  
-      sb
-  .from('payments')
-  .select(
-    'id, user_id, amount, status, paid_at, created_at, collected_by, '
-    'datepaidamount, userdeceased, dayung_unit_id',
-  )
-  .eq('dayung_unit_id', widget.dayungUnitId)
-  .timeout(_queryTimeout),
-      
+
+        sb
+            .from('payments')
+            .select(
+              'id, user_id, amount, status, paid_at, created_at, collected_by, '
+              'datepaidamount, userdeceased, dayung_unit_id',
+            )
+            .eq('dayung_unit_id', widget.dayungUnitId)
+            .timeout(_queryTimeout),
+
         sb.from('beneficiaries').select('id, full_name').timeout(_queryTimeout),
-   sb.from('claims').select('id, status, user_id, beneficiary_id, amount, PassedAway').timeout(_queryTimeout)
+        sb
+            .from('claims')
+            .select('id, status, user_id, beneficiary_id, amount, PassedAway')
+            .timeout(_queryTimeout),
       ]);
 
- final approvedApps = List<Map<String, dynamic>>.from(results[0]);
+      final approvedApps = List<Map<String, dynamic>>.from(results[0]);
 
-final payments = List<Map<String, dynamic>>.from(results[1]);
-  
-    final beneficiaries = List<Map<String, dynamic>>.from(results[2]);
-final claims = List<Map<String, dynamic>>.from(results[3]);
+      final payments = List<Map<String, dynamic>>.from(results[1]);
 
+      final beneficiaries = List<Map<String, dynamic>>.from(results[2]);
+      final claims = List<Map<String, dynamic>>.from(results[3]);
 
       final memberIds = <String>{
         for (final row in approvedApps) (row['user_id'] ?? '').toString(),
@@ -160,7 +174,7 @@ final claims = List<Map<String, dynamic>>.from(results[3]);
 
       final lookupUserIds = <String>{
         ...memberIds,
-  
+
         for (final row in payments) (row['user_id'] ?? '').toString(),
         for (final row in payments) (row['collected_by'] ?? '').toString(),
       }..remove('');
@@ -192,9 +206,10 @@ final claims = List<Map<String, dynamic>>.from(results[3]);
             });
 
       final deceasedOptions = _buildDeceasedOptions(
-        setAmounts: claims,   
+        setAmounts: claims,
         beneficiaries: beneficiaries,
-        userMap: userMap, deathNotices: [],
+        userMap: userMap,
+        deathNotices: [],
       );
 
       Map<String, dynamic>? nextSelected;
@@ -296,7 +311,7 @@ final claims = List<Map<String, dynamic>>.from(results[3]);
             ? _beneficiaryLabel(beneficiaries, beneficiaryId)
             : (userMap[userId] ?? 'Deceased Member'),
         'required_amount': _asDouble(setAmount['amount']),
- 
+
         'deceased_type': beneficiaryId.isNotEmpty ? 'beneficiary' : 'member',
       });
     }
@@ -321,26 +336,27 @@ final claims = List<Map<String, dynamic>>.from(results[3]);
     }
     return 'Beneficiary';
   }
-bool _paymentMatchesSelected(
-  Map<String, dynamic> payment,
-  Map<String, dynamic>? selected,
-) {
-  if (selected == null) return false;
-  final selectedUserId = (selected['user_id'] ?? '').toString();
-  return (payment['userdeceased'] ?? '').toString() == selectedUserId;
-}
-bool _isMemberPaid(String memberId, Map<String, dynamic>? selected) {
-  for (final payment in _payments) {
-   
-    if ((payment['user_id'] ?? '').toString() != memberId) continue;
-    if (!_paymentMatchesSelected(payment, selected)) continue;
-    final status = (payment['status'] ?? '').toString().toLowerCase();
-   
-    if (status == 'paid') return true;
+
+  bool _paymentMatchesSelected(
+    Map<String, dynamic> payment,
+    Map<String, dynamic>? selected,
+  ) {
+    if (selected == null) return false;
+    final selectedUserId = (selected['user_id'] ?? '').toString();
+    return (payment['userdeceased'] ?? '').toString() == selectedUserId;
   }
 
-  return false;
-}
+  bool _isMemberPaid(String memberId, Map<String, dynamic>? selected) {
+    for (final payment in _payments) {
+      if ((payment['user_id'] ?? '').toString() != memberId) continue;
+      if (!_paymentMatchesSelected(payment, selected)) continue;
+      final status = (payment['status'] ?? '').toString().toLowerCase();
+
+      if (status == 'paid') return true;
+    }
+
+    return false;
+  }
 
   Map<String, dynamic>? _paymentForMember(String memberId) {
     final selected = _selectedDeceased;
@@ -471,7 +487,6 @@ bool _isMemberPaid(String memberId, Map<String, dynamic>? selected) {
       }
       final deceasedUserId = (selected['user_id'] ?? '').toString();
 
-
       // Find the latest payment row for this user and deceased
       final paymentRows = List<Map<String, dynamic>>.from(
         await sb
@@ -484,94 +499,58 @@ bool _isMemberPaid(String memberId, Map<String, dynamic>? selected) {
             .limit(1)
             .timeout(_queryTimeout),
       );
-      Map<String, dynamic>? payment = paymentRows.isNotEmpty ? paymentRows.first : null;
+      Map<String, dynamic>? payment = paymentRows.isNotEmpty
+          ? paymentRows.first
+          : null;
 
+      // If payment record does not exist, create it automatically
       if (payment == null) {
-        // Insert new payment as PAID
-        final now = DateTime.now().toUtc().toIso8601String();
-        final newPayment = await sb.from('payments').insert({
-          'user_id': userId,
-          'userdeceased': deceasedUserId,
-          'amount': amount,
-          'status': 'paid',
-          'dayung_unit_id': widget.dayungUnitId,
-          'collected_by': collectorId,
-          'created_at': now,
-          'paid_at': now,
-          'datepaidamount': now,
-        }).select().single();
-        payment = newPayment;
-      } else {
-        // Update existing payment to PAID
-        final now = DateTime.now().toUtc().toIso8601String();
-        await sb
+        final insertResult = await sb
             .from('payments')
-            .update({
-              'status': 'paid',
-              'paid_at': now,
-              'collected_by': collectorId,
-              'datepaidamount': now,
+            .insert({
+              'user_id': userId,
+              'userdeceased': deceasedUserId,
+              'amount': amount,
+              'status': 'unpaid',
+              'dayung_unit_id': widget.dayungUnitId,
             })
-            .eq('id', payment['id'])
+            .select()
             .timeout(_queryTimeout);
-        payment['status'] = 'paid';
-        payment['paid_at'] = now;
-      }
-
-
- 
-      final claimId = selected['id'];
-
-      if (claimId != null) {
-    
-        final now = DateTime.now().toIso8601String();
-        await sb
-            .from('payments')
-            .update({'status': 'paid', 'paid_at': now})
-            .eq('userdeceased', deceasedUserId)
-            .eq('dayung_unit_id', widget.dayungUnitId)
-            .eq('status', 'unpaid')
-            .neq('id', payment['id'])
-            .timeout(_queryTimeout);
-
-        final allPayments = List<Map<String, dynamic>>.from(
-          await sb
-              .from('payments')
-              .select('user_id, amount, status')
-              .eq('userdeceased', deceasedUserId)
-              .eq('dayung_unit_id', widget.dayungUnitId)
-              .timeout(_queryTimeout),
-        );
-
-        int paidCount = 0;
-        int unpaidCount = 0;
-        double totalPaidAmount = 0.0;
-        double totalPaymentAmount = 0.0;
-        for (final p in allPayments) {
-          final status = (p['status'] ?? '').toString().toLowerCase();
-          final amt = _asDouble(p['amount']);
-          totalPaymentAmount += amt;
-          if (status == 'paid') {
-            paidCount++;
-            totalPaidAmount += amt;
-          } else {
-            unpaidCount++;
-          }
+        if (insertResult.isNotEmpty) {
+          payment = insertResult.first;
+        } else {
+          messenger.showSnackBar(
+            const SnackBar(
+              content: Text(
+                'Failed to create payment record. Please try again.',
+              ),
+            ),
+          );
+          setState(() => _savingPayment = false);
+          return;
         }
-       
-   final updateResult = await sb
-    .from('claims')
-    .update({
-      'paid_count': paidCount,
-      'unpaid_count': unpaidCount,
-      'total_paid_amount': totalPaidAmount,
-      'total_payment_amount': totalPaymentAmount,
-    })
-    .eq('id', claimId)
-    .timeout(_queryTimeout);
-        debugPrint('[DEBUG] _savePayment: claims update result: '
-            '${updateResult is List ? updateResult : updateResult.toString()}');
       }
+
+      final now = DateTime.now().toUtc().toIso8601String();
+      // Only update the existing payment to PAID
+
+      final updateResult = await sb
+          .from('payments')
+          .update({
+            'status': 'paid',
+            'paid_at': now,
+            'collected_by': collectorId,
+            'datepaidamount': now,
+          })
+          .eq('id', payment['id'])
+          .timeout(_queryTimeout);
+
+      payment['status'] = 'paid';
+      payment['paid_at'] = now;
+
+      final claimId = selected['id'];
+      // Update aggregate summary fields on the related claim
+      await _updateClaimPaymentSummary(selected);
 
       await _loadAll();
       if (!mounted) return;
@@ -583,9 +562,6 @@ bool _isMemberPaid(String memberId, Map<String, dynamic>? selected) {
         paymentId: payment['id'],
         paidAt: payment['paid_at'] ?? '',
       );
-
-   
-
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(
@@ -595,6 +571,63 @@ bool _isMemberPaid(String memberId, Map<String, dynamic>? selected) {
       if (mounted) {
         setState(() => _savingPayment = false);
       }
+    }
+  }
+
+  /// Updates the aggregate payment summary fields on a claim row in Supabase.
+  ///
+  /// - paid_count: number of payments with status == 'paid'
+  /// - unpaid_count: number of payments with status == 'unpaid'
+  /// - total_paid_amount: sum(amount) where status == 'paid'
+  /// - total_payment_amount: sum(amount) where status in ('paid', 'unpaid')
+  Future<void> _updateClaimPaymentSummary(Map<String, dynamic> claim) async {
+    try {
+      final deceasedUserId = (claim['user_id'] ?? '').toString();
+      if (deceasedUserId.isEmpty) return;
+
+      final payments = List<Map<String, dynamic>>.from(
+        await sb
+            .from('payments')
+            .select('id, amount, status, userdeceased, dayung_unit_id')
+            .eq('dayung_unit_id', widget.dayungUnitId)
+            .eq('userdeceased', deceasedUserId)
+            .timeout(_queryTimeout),
+      );
+
+      int paidCount = 0;
+      int unpaidCount = 0;
+      double totalPaidAmount = 0.0;
+      double totalPaymentAmount = 0.0;
+
+      for (final payment in payments) {
+        final status = (payment['status'] ?? '').toString().toLowerCase();
+        if (status != 'paid' && status != 'unpaid') continue;
+
+        final paymentAmount = _asDouble(payment['amount']);
+
+        if (status == 'paid') {
+          paidCount++;
+          totalPaidAmount += paymentAmount;
+        }
+        if (status == 'unpaid') {
+          unpaidCount++;
+        }
+
+        totalPaymentAmount += paymentAmount;
+      }
+
+      await sb
+          .from('claims')
+          .update({
+            'paid_count': paidCount,
+            'unpaid_count': unpaidCount,
+            'total_paid_amount': totalPaidAmount,
+            'total_payment_amount': totalPaymentAmount,
+          })
+          .eq('id', claim['id'])
+          .timeout(_queryTimeout);
+    } catch (_) {
+      // Silently ignore summary update failures to avoid blocking payment save.
     }
   }
 
@@ -661,8 +694,7 @@ bool _isMemberPaid(String memberId, Map<String, dynamic>? selected) {
                           fontFamily: 'Montserrat',
                         ),
                       ),
-                   
-                    
+
                       const SizedBox(height: 18),
                       _receiptLine('Member', memberName),
                       _receiptLine('For', deceasedName),
@@ -708,10 +740,11 @@ bool _isMemberPaid(String memberId, Map<String, dynamic>? selected) {
       if (memberId == deceasedUserId) continue; // skip deceased
 
       // Check if payment exists
-      final existing = _payments.any((p) =>
-        p['user_id'].toString() == memberId &&
-        p['userdeceased'].toString() == deceasedUserId &&
-        p['dayung_unit_id'] == dayungUnitId
+      final existing = _payments.any(
+        (p) =>
+            p['user_id'].toString() == memberId &&
+            p['userdeceased'].toString() == deceasedUserId &&
+            p['dayung_unit_id'] == dayungUnitId,
       );
       if (!existing) {
         // Insert missing payment record
@@ -786,18 +819,30 @@ bool _isMemberPaid(String memberId, Map<String, dynamic>? selected) {
   }
 
   List<Widget> _buildDeceasedStep() {
-    final approvedClaims = _claims.where((c) => (c['status'] ?? '').toString().toLowerCase() == 'approved').toList();
+    final approvedClaims = _claims
+        .where(
+          (c) => (c['status'] ?? '').toString().toLowerCase() == 'approved',
+        )
+        .toList();
 
     return [
       _overviewCard(
         title: 'Collection Overview',
-        subtitle: 'Choose an approved claim, then record which members have already paid in cash.',
+        subtitle:
+            'Choose an approved claim, then record which members have already paid in cash.',
         cards: [
           _statCard(
             icon: Icons.payments_rounded,
             label: 'Paid Cash',
-            value: '${_payments.where((row) => (row['status'] ?? '').toString().toLowerCase() == 'paid').length}',
+            value:
+                '${_payments.where((row) => (row['status'] ?? '').toString().toLowerCase() == 'paid').length}',
             tone: const Color(0xFF0F766E),
+          ),
+          _statCard(
+            icon: Icons.pending_actions_rounded,
+            label: 'Unpaid Cash',
+            value: '$_unpaidCount',
+            tone: kWarn,
           ),
           _statCard(
             icon: Icons.receipt_long_rounded,
@@ -822,9 +867,11 @@ bool _isMemberPaid(String memberId, Map<String, dynamic>? selected) {
       if (approvedClaims.isEmpty)
         _emptyState(
           title: 'No approved claims found',
-          subtitle: 'Claims must be approved before collectors can record cash payments here.',
+          subtitle:
+              'Claims must be approved before collectors can record cash payments here.',
         )
-      else ...approvedClaims.map(_claimCard),
+      else
+        ...approvedClaims.map(_claimCard),
     ];
   }
 
@@ -869,7 +916,7 @@ bool _isMemberPaid(String memberId, Map<String, dynamic>? selected) {
               ),
               const SizedBox(height: 4),
               Text(
-            'Passed Away: ${(claim['beneficiary_id'] ?? '').toString().isNotEmpty ? (claim['PassedAway'] ?? claim['passed_away'] ?? '') : _memberName((claim['user_id'] ?? '').toString())}',
+                'Passed Away: ${(claim['beneficiary_id'] ?? '').toString().isNotEmpty ? (claim['PassedAway'] ?? claim['passed_away'] ?? '') : _memberName((claim['user_id'] ?? '').toString())}',
                 style: const TextStyle(
                   fontSize: 13,
                   color: kSubText,
@@ -877,8 +924,7 @@ bool _isMemberPaid(String memberId, Map<String, dynamic>? selected) {
                   fontFamily: 'OpenSans',
                 ),
               ),
-      
-              
+
               const SizedBox(height: 4),
               Text(
                 'Amount: PHP ${_asDouble(claim['amount']).toStringAsFixed(2)}',
@@ -899,6 +945,17 @@ bool _isMemberPaid(String memberId, Map<String, dynamic>? selected) {
   List<Widget> _buildMemberStep() {
     final selected = _selectedDeceased!;
     return [
+      const SizedBox(height: 14),
+      const Text(
+        'Cash Receipt',
+        style: TextStyle(
+          fontSize: 22,
+          fontWeight: FontWeight.w900,
+          color: Colors.white,
+          fontFamily: 'Montserrat',
+        ),
+      ),
+      const SizedBox(height: 14),
       _overviewCard(
         title: (selected['display_name'] ?? 'Deceased').toString(),
         subtitle:
@@ -919,16 +976,15 @@ bool _isMemberPaid(String memberId, Map<String, dynamic>? selected) {
           _statCard(
             icon: Icons.payments_outlined,
             label: 'Required Amount',
-            value:
-                'PHP ${_asDouble(selected['amount']).toStringAsFixed(2)}',
+            value: 'PHP ${_asDouble(selected['amount']).toStringAsFixed(2)}',
             tone: kAccent,
           ),
           _statCard(
-              icon: Icons.attach_money_rounded,
-              label: 'Total Collected',
-              value: 'PHP ${_totalCollectedForSelected.toStringAsFixed(2)}',
-              tone: const Color(0xFF047857),
-            ),
+            icon: Icons.attach_money_rounded,
+            label: 'Total Collected',
+            value: 'PHP ${_totalCollectedForSelected.toStringAsFixed(2)}',
+            tone: const Color(0xFF047857),
+          ),
         ],
       ),
       const SizedBox(height: 18),
@@ -984,13 +1040,12 @@ bool _isMemberPaid(String memberId, Map<String, dynamic>? selected) {
               size: 28,
             ),
             onPressed: () {
+              // Only reset selection, never pop the page
               if (_selectedDeceased != null) {
                 setState(() {
                   _selectedDeceased = null;
                   _memberSearch = '';
                 });
-              } else {
-                Navigator.of(context).pop();
               }
             },
           ),
@@ -1384,8 +1439,7 @@ bool _isMemberPaid(String memberId, Map<String, dynamic>? selected) {
     final payment = _paymentForMember(memberId);
     final status = (payment?['status'] ?? '').toString().toLowerCase();
     final bool isPaid = status == 'paid';
-
-
+    final bool isCurrentUser = _currentUserId == memberId;
 
     return Container(
       margin: const EdgeInsets.only(bottom: 14),
@@ -1418,8 +1472,8 @@ bool _isMemberPaid(String memberId, Map<String, dynamic>? selected) {
                   ),
                   child: Icon(
                     isPaid
-                      ? Icons.check_circle_rounded
-                      : Icons.payments_rounded,
+                        ? Icons.check_circle_rounded
+                        : Icons.payments_rounded,
                     color: isPaid ? kSuccess : kAccent,
                   ),
                 ),
@@ -1498,32 +1552,71 @@ bool _isMemberPaid(String memberId, Map<String, dynamic>? selected) {
               ],
             ),
             const SizedBox(height: 16),
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton.icon(
-                onPressed: isPaid ? null : () => _showCollectDialog(member),
-                icon: Icon(
-                  isPaid
-                    ? Icons.check_circle_rounded
-                    : Icons.payments_rounded,
-                ),
-                label: Text(
-                  isPaid
-                    ? 'Paid'
-                    : 'Collect Cash',
-                ),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: kAccent,
-                  foregroundColor: Colors.white,
-                  disabledBackgroundColor: const Color(0xFFE5E7EB),
-                  disabledForegroundColor: const Color(0xFF6B7280),
-                  minimumSize: const Size.fromHeight(50),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16),
+            if (isCurrentUser)
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton.icon(
+                      onPressed: null,
+                      icon: const Icon(Icons.block),
+                      label: const Text('Cannot collect for yourself'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: kWarn.withOpacity(0.7),
+                        foregroundColor: Colors.white,
+                        disabledBackgroundColor: const Color(0xFFFDE68A),
+                        disabledForegroundColor: kWarn,
+                        minimumSize: const Size.fromHeight(50),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: kSurface,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: kWarn.withOpacity(0.3)),
+                    ),
+                    child: const Text(
+                      'You cannot collect your own payment. Please pay via GCash or ask another collector to record your payment.',
+                      style: TextStyle(
+                        color: kWarn,
+                        fontWeight: FontWeight.w700,
+                        fontSize: 13,
+                        fontFamily: 'OpenSans',
+                      ),
+                    ),
+                  ),
+                ],
+              )
+            else
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  onPressed: isPaid ? null : () => _showCollectDialog(member),
+                  icon: Icon(
+                    isPaid
+                        ? Icons.check_circle_rounded
+                        : Icons.payments_rounded,
+                  ),
+                  label: Text(isPaid ? 'Paid' : 'Collect Cash'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: kAccent,
+                    foregroundColor: Colors.white,
+                    disabledBackgroundColor: const Color(0xFFE5E7EB),
+                    disabledForegroundColor: const Color(0xFF6B7280),
+                    minimumSize: const Size.fromHeight(50),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                    ),
                   ),
                 ),
               ),
-            ),
           ],
         ),
       ),

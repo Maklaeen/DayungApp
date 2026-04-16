@@ -30,7 +30,7 @@ class _SecretaryContributionsPageState
   bool _loading = true;
   List<Map<String, dynamic>> _payments = [];
   Map<String, dynamic> _users = {};
-  Map<int, dynamic> _deathNotices = {};
+  Map<String, Map<String, dynamic>>? _claimsByUserId;
 
   @override
   void initState() {
@@ -85,28 +85,37 @@ class _SecretaryContributionsPageState
         for (var u in usersRes) u['id'].toString(): u['full_name'] ?? 'Unknown',
       };
 
-      // Fetch death notices referenced by payments
-      final noticeIds = payments
+      // Fetch latest claim details for the members referenced by payments.
+      final paymentUserIds = payments
           .map((p) => p['user_id'])
           .where((v) => v != null)
           .toSet()
+          .map((v) => v.toString())
           .toList();
-      final noticesRes = noticeIds.isEmpty
+      final claimsRes = paymentUserIds.isEmpty
           ? <dynamic>[]
           : await sb
                 .from('claims')
-                .select('id, PassedAway, date_of_death')
-                .inFilter('id', noticeIds);
+                .select(
+                  'id, user_id, PassedAway, date_of_death, datesetamount, date_submitted',
+                )
+                .inFilter('user_id', paymentUserIds)
+                .order('datesetamount', ascending: false)
+                .order('date_submitted', ascending: false);
 
-      final noticesMap = <int, dynamic>{
-        for (var n in noticesRes) int.parse(n['id'].toString()): n,
-      };
+      final claimsByUserId = <String, Map<String, dynamic>>{};
+      for (final row in claimsRes) {
+        final claim = Map<String, dynamic>.from(row as Map);
+        final userId = claim['user_id']?.toString();
+        if (userId == null || userId.isEmpty) continue;
+        claimsByUserId.putIfAbsent(userId, () => claim);
+      }
 
       if (!mounted) return;
       setState(() {
         _payments = List<Map<String, dynamic>>.from(payments);
         _users = usersMap;
-        _deathNotices = noticesMap;
+        _claimsByUserId = claimsByUserId;
         _loading = false;
       });
     } catch (e) {
@@ -411,15 +420,16 @@ class _SecretaryContributionsPageState
                                     const SizedBox(height: 8),
                                 itemBuilder: (context, i) {
                                   final p = _payments[i];
-                                  final userName =
-                                      _users[p['user_id']?.toString()] ??
-                                      'Unknown';
-                                  final notice =
-                                      _deathNotices[(p['user_id']
-                                              as int?) ??
-                                          -1];
-                                  final deceased = notice?['PassedAway'] ?? 'Unknown';
-                                  final date = notice?['date_of_death'] ?? '';
+                                  final payerId = p['user_id']?.toString();
+                                  final userName = _users[payerId] ?? 'Unknown';
+                                  final claim = payerId == null
+                                      ? null
+                                      : _claimsByUserId?[payerId];
+                                  final deceased =
+                                      (claim?['PassedAway'] ?? 'Unknown')
+                                          .toString();
+                                  final date = (claim?['date_of_death'] ?? '')
+                                      .toString();
                                   final paidAtStr = _fmtDateTime(p['paid_at']);
                                   final paid =
                                       (p['status']?.toString().toLowerCase() ==
@@ -511,10 +521,9 @@ class _SecretaryContributionsPageState
                                                           FontWeight.w500,
                                                     ),
                                                   ),
-                                                  if (date != null &&
-                                                      date
-                                                          .toString()
-                                                          .isNotEmpty)
+                                                  if (date
+                                                      .toString()
+                                                      .isNotEmpty)
                                                     Text(
                                                       'Date of Death: $date',
                                                       style: const TextStyle(

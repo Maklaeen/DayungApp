@@ -12,7 +12,7 @@ import 'package:flutter/foundation.dart';
 import 'package:capstone_app/data/ph_address_data.dart';
 import 'package:capstone_app/utils/input_safety.dart';
 import 'package:capstone_app/utils/supabase_storage.dart';
-import 'package:encrypt/encrypt.dart' as encrypt;
+
 
 
 const Color kPrimary = Color(0xFF0D47A1);
@@ -71,7 +71,7 @@ class _SubmitClaimFormState extends State<SubmitClaimForm> {
   @override
   void initState() {
     super.initState();
-    _title.text = 'You Will Always Be With Us';
+    _title.text = 'Claim for Deceased Member';
     _fetchBeneficiaries();
   }
 
@@ -461,7 +461,7 @@ class _SubmitClaimFormState extends State<SubmitClaimForm> {
 
   Future<String?> _uploadValidId(String claimId) async {
     final bytes = _validIdBytes;
-  if (bytes == null) return null;
+    if (bytes == null) return null;
 
     final storage = Supabase.instance.client.storage;
     const bucket = 'valid_ids';
@@ -483,20 +483,14 @@ class _SubmitClaimFormState extends State<SubmitClaimForm> {
         'claims/$claimId/valid_id_${DateTime.now().millisecondsSinceEpoch}.$ext';
 
     try {
-  final key = encrypt.Key.fromUtf8('YourStrongPassword123!'.padRight(32).substring(0, 32));
-  final iv = encrypt.IV.fromLength(16); // Use a random IV in production!
-  final encrypter = encrypt.Encrypter(encrypt.AES(key));
-  final encrypted = encrypter.encryptBytes(bytes, iv: iv);
-  Uint8List encryptedBytes = Uint8List.fromList(iv.bytes + encrypted.bytes); // Store IV with ciphertext
-    
-  final storedPath = await storage
-    .from(bucket)
-    .uploadBinary(
-      fileName,
-      encryptedBytes,
-      fileOptions: FileOptions(contentType: mime, upsert: false),
-    );
-  return buildStorageRef(bucket, fileName);
+      final storedPath = await storage
+          .from(bucket)
+          .uploadBinary(
+            fileName,
+            bytes,
+            fileOptions: FileOptions(contentType: mime, upsert: false),
+          );
+      return buildStorageRef(bucket, fileName);
     } on StorageException catch (e, st) {
       debugPrint('[VALID_ID][StorageException] ${e.message}\n$st');
       rethrow;
@@ -699,7 +693,7 @@ class _SubmitClaimFormState extends State<SubmitClaimForm> {
       }
 
       if (!mounted) return;
-      Navigator.of(context).pop();
+      Navigator.of(context).pop(true);
   
     } catch (e, st) {
       debugPrint('CLAIM SUBMIT ERROR: $e\n$st');
@@ -846,112 +840,263 @@ class _SubmitClaimFormState extends State<SubmitClaimForm> {
   }
 
   Widget _buildModernFileUpload() {
+    Widget? previewWidget;
+    if (_deathCertBytes != null && _deathCertOrigName != null) {
+      final ext = _deathCertOrigName!.split('.').last.toLowerCase();
+      if (["jpg", "jpeg", "png"].contains(ext)) {
+        previewWidget = GestureDetector(
+          onTap: () {
+            showDialog(
+              context: context,
+              builder: (_) => Dialog(
+                child: InteractiveViewer(
+                  child: Image.memory(_deathCertBytes!),
+                ),
+              ),
+            );
+          },
+          child: Padding(
+            padding: const EdgeInsets.only(top: 8.0),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(8),
+              child: Image.memory(
+                _deathCertBytes!,
+                height: 80,
+                width: 80,
+                fit: BoxFit.cover,
+              ),
+            ),
+          ),
+        );
+      } else if (ext == "pdf") {
+        previewWidget = GestureDetector(
+          onTap: () async {
+            // Optionally, implement PDF viewing using a package like flutter_pdfview
+            showDialog(
+              context: context,
+              builder: (_) => AlertDialog(
+                title: const Text('PDF Preview'),
+                content: const Text('PDF preview not supported in this dialog. Please ensure you selected the correct file.'),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(context),
+                    child: const Text('Close'),
+                  ),
+                ],
+              ),
+            );
+          },
+          child: Padding(
+            padding: const EdgeInsets.only(top: 8.0),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.picture_as_pdf, color: Colors.red, size: 32),
+                const SizedBox(width: 8),
+                Flexible(
+                  child: Text(
+                    _deathCertOrigName!,
+                    style: const TextStyle(fontSize: 13),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      }
+    }
     return Container(
       decoration: BoxDecoration(
         color: Colors.grey.shade50,
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: Colors.grey.shade200),
       ),
-      child: InkWell(
-        onTap: _submitting ? null : _pickDeathCert,
-        borderRadius: BorderRadius.circular(12),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-          child: Row(
-            children: [
-              Icon(Icons.attach_file_rounded, color: kPrimaryDark, size: 20),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Text(
-                  _deathCertOrigName == null
-                      ? 'Attach death certificate'
-                      : _deathCertOrigName!,
-                  style: TextStyle(
-                    fontSize: 14,
-                    color: _deathCertOrigName == null
-                        ? Colors.grey.shade600
-                        : kNeutralText,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          InkWell(
+            onTap: _submitting ? null : _pickDeathCert,
+            borderRadius: BorderRadius.circular(12),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+              child: Row(
+                children: [
+                  Icon(Icons.attach_file_rounded, color: kPrimaryDark, size: 20),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      _deathCertOrigName == null
+                          ? 'Attach death certificate'
+                          : _deathCertOrigName!,
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: _deathCertOrigName == null
+                            ? Colors.grey.shade600
+                            : kNeutralText,
+                      ),
+                      overflow: TextOverflow.ellipsis,
+                    ),
                   ),
-                  overflow: TextOverflow.ellipsis,
-                ),
+                  if (_deathCertOrigName != null)
+                    IconButton(
+                      onPressed: () => setState(() {
+                        _deathCertFile = null;
+                        _deathCertBytes = null;
+                        _deathCertOrigName = null;
+                      }),
+                      icon: Icon(
+                        Icons.close,
+                        color: Colors.grey.shade600,
+                        size: 18,
+                      ),
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(
+                        minWidth: 24,
+                        minHeight: 24,
+                      ),
+                    ),
+                ],
               ),
-              if (_deathCertOrigName != null)
-                IconButton(
-                  onPressed: () => setState(() {
-                    _deathCertFile = null;
-                    _deathCertBytes = null;
-                    _deathCertOrigName = null;
-                  }),
-                  icon: Icon(
-                    Icons.close,
-                    color: Colors.grey.shade600,
-                    size: 18,
-                  ),
-                  padding: EdgeInsets.zero,
-                  constraints: const BoxConstraints(
-                    minWidth: 24,
-                    minHeight: 24,
-                  ),
-                ),
-            ],
+            ),
           ),
-        ),
+          if (previewWidget != null)
+            Padding(
+              padding: const EdgeInsets.only(left: 16, right: 16, bottom: 12),
+              child: previewWidget,
+            ),
+        ],
       ),
     );
   }
 
   // ADD: valid ID upload widget
   Widget _buildValidIdUpload() {
+    Widget? previewWidget;
+    if (_validIdBytes != null && _validIdOrigName != null) {
+      final ext = _validIdOrigName!.split('.').last.toLowerCase();
+      if (["jpg", "jpeg", "png"].contains(ext)) {
+        previewWidget = GestureDetector(
+          onTap: () {
+            showDialog(
+              context: context,
+              builder: (_) => Dialog(
+                child: InteractiveViewer(
+                  child: Image.memory(_validIdBytes!),
+                ),
+              ),
+            );
+          },
+          child: Padding(
+            padding: const EdgeInsets.only(top: 8.0),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(8),
+              child: Image.memory(
+                _validIdBytes!,
+                height: 80,
+                width: 80,
+                fit: BoxFit.cover,
+              ),
+            ),
+          ),
+        );
+      } else if (ext == "pdf") {
+        previewWidget = GestureDetector(
+          onTap: () async {
+            showDialog(
+              context: context,
+              builder: (_) => AlertDialog(
+                title: const Text('PDF Preview'),
+                content: const Text('PDF preview not supported in this dialog. Please ensure you selected the correct file.'),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(context),
+                    child: const Text('Close'),
+                  ),
+                ],
+              ),
+            );
+          },
+          child: Padding(
+            padding: const EdgeInsets.only(top: 8.0),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.picture_as_pdf, color: Colors.red, size: 32),
+                const SizedBox(width: 8),
+                Flexible(
+                  child: Text(
+                    _validIdOrigName!,
+                    style: const TextStyle(fontSize: 13),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      }
+    }
     return Container(
       decoration: BoxDecoration(
         color: Colors.grey.shade50,
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: Colors.grey.shade200),
       ),
-      child: InkWell(
-        onTap: _submitting ? null : _pickValidId,
-        borderRadius: BorderRadius.circular(12),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-          child: Row(
-            children: [
-              Icon(Icons.perm_identity, color: kPrimaryDark, size: 20),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Text(
-                  _validIdOrigName == null
-                      ? 'Attach Valid ID of the claimant / Valid ID sa person na mo claim'
-                      : _validIdOrigName!,
-                  style: TextStyle(
-                    fontSize: 14,
-                    color: _validIdOrigName == null
-                        ? Colors.grey.shade600
-                        : kNeutralText,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          InkWell(
+            onTap: _submitting ? null : _pickValidId,
+            borderRadius: BorderRadius.circular(12),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+              child: Row(
+                children: [
+                  Icon(Icons.perm_identity, color: kPrimaryDark, size: 20),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      _validIdOrigName == null
+                          ? 'Attach Valid ID of the claimant'
+                          : _validIdOrigName!,
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: _validIdOrigName == null
+                            ? Colors.grey.shade600
+                            : kNeutralText,
+                      ),
+                      overflow: TextOverflow.ellipsis,
+                    ),
                   ),
-                  overflow: TextOverflow.ellipsis,
-                ),
+                  if (_validIdOrigName != null)
+                    IconButton(
+                      onPressed: () => setState(() {
+                        _validIdFile = null;
+                        _validIdBytes = null;
+                        _validIdOrigName = null;
+                      }),
+                      icon: Icon(
+                        Icons.close,
+                        color: Colors.grey.shade600,
+                        size: 18,
+                      ),
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(
+                        minWidth: 24,
+                        minHeight: 24,
+                      ),
+                    ),
+                ],
               ),
-              if (_validIdOrigName != null)
-                IconButton(
-                  onPressed: () => setState(() {
-                    _validIdFile = null;
-                    _validIdBytes = null;
-                    _validIdOrigName = null;
-                  }),
-                  icon: Icon(
-                    Icons.close,
-                    color: Colors.grey.shade600,
-                    size: 18,
-                  ),
-                  padding: EdgeInsets.zero,
-                  constraints: const BoxConstraints(
-                    minWidth: 24,
-                    minHeight: 24,
-                  ),
-                ),
-            ],
+            ),
           ),
-        ),
+          if (previewWidget != null)
+            Padding(
+              padding: const EdgeInsets.only(left: 16, right: 16, bottom: 12),
+              child: previewWidget,
+            ),
+        ],
       ),
     );
   }

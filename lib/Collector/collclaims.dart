@@ -169,14 +169,7 @@ class _CollectorClaimsPageState extends State<CollectorClaimsPage> {
                   ..._myClaims.map(_claimCard),
 
                   const SizedBox(height: 18),
-                  const Text(
-                    'All Unit Claims',
-                    style: TextStyle(
-                      color: kText,
-                      fontWeight: FontWeight.w700,
-                      fontSize: 16,
-                    ),
-                  ),
+                  // Removed 'All Unit Claims' header
                   const SizedBox(height: 8),
                   if (_claims.isEmpty)
                     _emptyState('No claims yet for this unit'),
@@ -281,20 +274,6 @@ class _CollectorClaimsPageState extends State<CollectorClaimsPage> {
                 ),
               ],
               const SizedBox(height: 10),
-              Row(
-                children: [
-                  Icon(
-                    Icons.calendar_today,
-                    size: 16,
-                    color: Colors.grey.shade600,
-                  ),
-                  const SizedBox(width: 6),
-                  Text(
-                    'Submitted: ${date.split('T').first}',
-                    style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
-                  ),
-                ],
-              ),
             ],
           ),
         ),

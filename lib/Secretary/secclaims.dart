@@ -91,7 +91,7 @@ class _SecretaryClaimsPageState extends State<SecretaryClaimsPage>
       // Approved members of this unit
       final apps = await supabase
           .from('applications')
-          .select('user_id, user:users(id, full_name, profile_url)')
+          .select('user_id, user:users(id, full_name, profile_url, valid_id)')
           .eq('dayung_unit_id', unitId)
           .eq('status', 'approved');
 
@@ -106,30 +106,31 @@ class _SecretaryClaimsPageState extends State<SecretaryClaimsPage>
         userMap[uid] = {
           'full_name': (u['full_name'] ?? '').toString(),
           'profile_url': (u['profile_url'] ?? '').toString(),
+          'valid_id': (u['valid_id'] ?? '').toString(),
           'dayung_unit_id': unitId,
         };
       }
 
       final statusTitle = _tabs[_tabController.index];
 
-
-final tagged = await supabase
-  .from('claims')
-  .select('id, user_id, title, description, status, date_submitted, death_certificate_url, beneficiary_id, date_of_death, dayung_unit_id, claimedmoney')
-  .eq('dayung_unit_id', unitId)
-  .eq('status', statusTitle) // <-- add this line
-  .order('date_submitted', ascending: false);
+      final tagged = await supabase
+          .from('claims')
+          .select(
+            'id, user_id, title, description, status, date_submitted, death_certificate_url, beneficiary_id, date_of_death, dayung_unit_id, claimedmoney, valid_ids_url',
+          )
+          .eq('dayung_unit_id', unitId)
+          .eq('status', statusTitle) // <-- add this line
+          .order('date_submitted', ascending: false);
 
       final taggedList = List<Map<String, dynamic>>.from(tagged);
 
-      
       List<Map<String, dynamic>> legacyList = [];
       if (allowedUserIds.isNotEmpty) {
         final legacy = await supabase
             .from('claims')
             .select(
               'id, user_id, title, description, status, date_submitted, '
-              'death_certificate_url, beneficiary_id, date_of_death, dayung_unit_id, claimedmoney', // <— added
+              'death_certificate_url, beneficiary_id, date_of_death, dayung_unit_id, claimedmoney, valid_ids_url', // <— added
             )
             .eq('status', statusTitle)
             .isFilter('dayung_unit_id', null)
@@ -660,10 +661,9 @@ final tagged = await supabase
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: color.withValues(alpha: .2), width: 1),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withValues(alpha: .03),
+              color: Colors.black.withOpacity(0.03),
               blurRadius: 8,
               offset: const Offset(0, 2),
             ),
@@ -675,115 +675,43 @@ final tagged = await supabase
           children: [
             Row(
               children: [
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 8,
-                    vertical: 4,
-                  ),
-                  decoration: BoxDecoration(
-                    color: color.withValues(alpha: .1),
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: color.withValues(alpha: .3)),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(_statusIcon(status), size: 12, color: color),
-                      const SizedBox(width: 4),
-                      Text(
-                        status[0].toUpperCase() + status.substring(1),
-                        style: TextStyle(
-                          fontSize: 10,
-                          fontWeight: FontWeight.w600,
-                          fontFamily: 'Montserrat',
-                          color: color,
-                        ),
-                      ),
-                    ],
+                Icon(_statusIcon(status), color: color, size: 18),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    title,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16,
+                      color: kNeutralText,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                   ),
                 ),
-                // Only show claimed chip for Approved
-                if (status.toLowerCase() == 'approved') ...[
-                  const SizedBox(width: 8),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 8,
-                      vertical: 4,
-                    ),
-                    decoration: BoxDecoration(
-                      color: (claimed ? kAccent : Colors.grey).withValues(
-                        alpha: .1,
-                      ),
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(
-                        color: (claimed ? kAccent : Colors.grey).withValues(
-                          alpha: .3,
-                        ),
-                      ),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(
-                          claimed ? Icons.payments : Icons.money_off,
-                          size: 12,
-                          color: claimed ? kAccent : Colors.grey,
-                        ),
-                        const SizedBox(width: 4),
-                        Text(
-                          claimed ? 'Claimed' : 'Not claimed',
-                          style: TextStyle(
-                            fontSize: 10,
-                            fontWeight: FontWeight.w600,
-                            fontFamily: 'Montserrat',
-                            color: claimed ? kAccent : Colors.grey,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-                const Spacer(),
+                const SizedBox(width: 8),
                 Text(
-                  '#${claim['id'].toString().substring(0, 8)}...',
-                  style: TextStyle(
-                    fontSize: 9,
-                    fontFamily: 'OpenSans',
-                    fontWeight: FontWeight.w500,
-                    color: kSubtleText.withValues(alpha: .7),
+                  date,
+                  style: const TextStyle(
+                    fontSize: 12,
+                    color: kSubtleText,
                   ),
                 ),
               ],
             ),
-            const SizedBox(height: 8),
-            // Title
-            Text(
-              title,
-              style: const TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.w700,
-                fontFamily: 'Montserrat',
-                color: kNeutralText,
-              ),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
-            // Description
             if (desc.isNotEmpty) ...[
               const SizedBox(height: 4),
               Text(
                 desc,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
                 style: const TextStyle(
-                  fontSize: 11,
-                  fontFamily: 'OpenSans',
+                  fontSize: 13,
                   color: kSubtleText,
                 ),
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
               ),
             ],
             const SizedBox(height: 6),
-            // Deceased line
             FutureBuilder<Map<String, dynamic>>(
               future: getDeceasedInfo(claim),
               builder: (context, snapshot) {
@@ -792,38 +720,13 @@ final tagged = await supabase
                 return Text(
                   'Deceased: ${deceased['name']}',
                   style: const TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w600,
-                    color: kNeutralText,
+                    fontSize: 13,
+                    color: kSubtleText,
                   ),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 );
               },
-            ),
-            const SizedBox(height: 6),
-            // Date row
-            Row(
-              children: [
-                Icon(Icons.schedule, size: 12, color: kSubtleText),
-                const SizedBox(width: 4),
-                Expanded(
-                  child: Text(
-                    date,
-                    style: const TextStyle(
-                      fontSize: 10,
-                      fontFamily: 'OpenSans',
-                      fontWeight: FontWeight.w500,
-                      color: kSubtleText,
-                    ),
-                  ),
-                ),
-                const Icon(
-                  Icons.chevron_right,
-                  size: 16,
-                  color: Colors.black38,
-                ),
-              ],
             ),
           ],
         ),
@@ -1029,9 +932,7 @@ final tagged = await supabase
                       ),
                       const SizedBox(height: 16),
                       // Death Certificate Button
-                      if ((claim['death_certificate_url'] ?? '')
-                          .toString()
-                          .isNotEmpty)
+                      if ((claim['death_certificate_url'] ?? '').toString().isNotEmpty)
                         SizedBox(
                           width: double.infinity,
                           child: ElevatedButton.icon(
@@ -1049,10 +950,14 @@ final tagged = await supabase
                               final messenger = ScaffoldMessenger.of(context);
                               final raw = claim['death_certificate_url']
                                   .toString();
+                              // Debug log raw value
+                              debugPrint('Death Certificate RAW: $raw');
                               final url = await resolveSupabaseStorageUrl(
                                 raw,
                                 client: supabase,
                               );
+                              // Debug log resolved URL
+                              debugPrint('Death Certificate RESOLVED URL: $url');
                               if (!mounted) return;
                               if (url == null) {
                                 messenger.showSnackBar(
@@ -1062,25 +967,53 @@ final tagged = await supabase
                                 );
                                 return;
                               }
-
                               final isImage = storageLooksLikeImage(url);
                               final isPdf = storageLooksLikePdf(url);
-
                               if (isImage) {
                                 showDialog(
                                   context: context,
+                                  barrierDismissible: true,
                                   builder: (ctx) => Dialog(
-                                    backgroundColor: Colors.black,
-                                    insetPadding: const EdgeInsets.all(12),
-                                    child: PhotoView(
-                                      imageProvider: NetworkImage(url),
-                                      backgroundDecoration: const BoxDecoration(
-                                        color: Colors.black,
-                                      ),
-                                      minScale:
-                                          PhotoViewComputedScale.contained,
-                                      maxScale:
-                                          PhotoViewComputedScale.covered * 3,
+                                    backgroundColor: Colors.transparent,
+                                    insetPadding: const EdgeInsets.all(16),
+                                    child: Stack(
+                                      children: [
+                                        Container(
+                                          width: 350,
+                                          height: 350,
+                                          decoration: BoxDecoration(
+                                            color: Colors.black,
+                                            borderRadius: BorderRadius.circular(16),
+                                          ),
+                                          child: ClipRRect(
+                                            borderRadius: BorderRadius.circular(16),
+                                            child: PhotoView(
+                                              imageProvider: NetworkImage(url),
+                                              backgroundDecoration: const BoxDecoration(
+                                                color: Colors.black,
+                                              ),
+                                              minScale: PhotoViewComputedScale.contained,
+                                              maxScale: PhotoViewComputedScale.covered * 3,
+                                            ),
+                                          ),
+                                        ),
+                                        Positioned(
+                                          top: 0,
+                                          right: 0,
+                                          child: GestureDetector(
+                                            onTap: () => Navigator.of(ctx).pop(),
+                                            child: Container(
+                                              decoration: BoxDecoration(
+                                                color: Colors.black.withOpacity(0.7),
+                                                shape: BoxShape.circle,
+                                              ),
+                                              margin: const EdgeInsets.all(8),
+                                              padding: const EdgeInsets.all(6),
+                                              child: const Icon(Icons.close, color: Colors.white, size: 26),
+                                            ),
+                                          ),
+                                        ),
+                                      ],
                                     ),
                                   ),
                                 );
@@ -1109,7 +1042,8 @@ final tagged = await supabase
                             },
                           ),
                         ),
-                      // Add this block below for valid_ids_url
+
+                      // Valid ID Button (should be directly below Death Certificate)
                       if ((claim['valid_ids_url'] ?? '').toString().isNotEmpty)
                         Padding(
                           padding: const EdgeInsets.only(top: 10.0),
@@ -1117,7 +1051,7 @@ final tagged = await supabase
                             width: double.infinity,
                             child: ElevatedButton.icon(
                               icon: const Icon(Icons.credit_card, size: 20),
-                              label: const Text('View Valid IDs'),
+                              label: const Text('View Valid ID'),
                               style: ElevatedButton.styleFrom(
                                 backgroundColor: kPrimary,
                                 foregroundColor: Colors.white,
@@ -1131,39 +1065,68 @@ final tagged = await supabase
                               onPressed: () async {
                                 final messenger = ScaffoldMessenger.of(context);
                                 final raw = claim['valid_ids_url'].toString();
+                                debugPrint('Valid ID RAW: $raw');
                                 final url = await resolveSupabaseStorageUrl(
                                   raw,
                                   client: supabase,
                                 );
+                                debugPrint('Valid ID RESOLVED URL: $url');
                                 if (!mounted) return;
                                 if (url == null) {
                                   messenger.showSnackBar(
-                                    const SnackBar(
-                                      content: Text('Could not open file.'),
+                                    SnackBar(
+                                      content: Text('Could not open file. (raw: $raw)'),
                                     ),
                                   );
                                   return;
                                 }
-
                                 final isImage = storageLooksLikeImage(url);
                                 final isPdf = storageLooksLikePdf(url);
-
                                 if (isImage) {
                                   showDialog(
                                     context: context,
+                                    barrierDismissible: true,
                                     builder: (ctx) => Dialog(
-                                      backgroundColor: Colors.black,
-                                      insetPadding: const EdgeInsets.all(12),
-                                      child: PhotoView(
-                                        imageProvider: NetworkImage(url),
-                                        backgroundDecoration:
-                                            const BoxDecoration(
+                                      backgroundColor: Colors.transparent,
+                                      insetPadding: const EdgeInsets.all(16),
+                                      child: Stack(
+                                        children: [
+                                          Container(
+                                            width: 350,
+                                            height: 350,
+                                            decoration: BoxDecoration(
                                               color: Colors.black,
+                                              borderRadius: BorderRadius.circular(16),
                                             ),
-                                        minScale:
-                                            PhotoViewComputedScale.contained,
-                                        maxScale:
-                                            PhotoViewComputedScale.covered * 3,
+                                            child: ClipRRect(
+                                              borderRadius: BorderRadius.circular(16),
+                                              child: PhotoView(
+                                                imageProvider: NetworkImage(url),
+                                                backgroundDecoration: const BoxDecoration(
+                                                  color: Colors.black,
+                                                ),
+                                                minScale: PhotoViewComputedScale.contained,
+                                                maxScale: PhotoViewComputedScale.covered * 3,
+                                              ),
+                                            ),
+                                          ),
+                                          Positioned(
+                                            top: 0,
+                                            right: 0,
+                                            child: GestureDetector(
+                                              onTap: () => Navigator.of(ctx).pop(),
+                                              child: Container(
+                                                decoration: BoxDecoration(
+                                                  color: Colors.black.withOpacity(0.7),
+                                                  shape: BoxShape.circle,
+                                                ),
+                                                margin: const EdgeInsets.all(8),
+                                                padding: const EdgeInsets.all(6),
+                                                child: const Icon(Icons.close, color: Colors.white, size: 26),
+                                              ),
+                                            ),
+                                          ),
+                                        ],
                                       ),
                                     ),
                                   );
@@ -1183,8 +1146,8 @@ final tagged = await supabase
                                   } else {
                                     if (!mounted) return;
                                     messenger.showSnackBar(
-                                      const SnackBar(
-                                        content: Text('Could not open file.'),
+                                      SnackBar(
+                                        content: Text('Could not open file. (resolved: $url, raw: $raw)'),
                                       ),
                                     );
                                   }
@@ -1428,18 +1391,25 @@ final tagged = await supabase
                               const Center(child: CircularProgressIndicator()),
                         );
                         try {
-                          await supabase.from('claims').update({
-                            'amount': result,
-                            'secretary_id': secretaryId,
-                            'datesetamount': DateTime.now().toIso8601String(),
-                            'status': 'Approved',
-                          }).eq('id', claim['id']);
+                          await supabase
+                              .from('claims')
+                              .update({
+                                'amount': result,
+                                'secretary_id': secretaryId,
+                                'datesetamount': DateTime.now()
+                                    .toIso8601String(),
+                                'status': 'Approved',
+                              })
+                              .eq('id', claim['id']);
 
                           final userId = claim['user_id'];
                           final beneficiaryId = claim['beneficiary_id'];
-                          final deceasedType = beneficiaryId != null ? 'beneficiary' : 'member';
+                          final deceasedType = beneficiaryId != null
+                              ? 'beneficiary'
+                              : 'member';
                           String deceasedName = '';
-                          if (deceasedType == 'beneficiary' && beneficiaryId != null) {
+                          if (deceasedType == 'beneficiary' &&
+                              beneficiaryId != null) {
                             final ben = await supabase
                                 .from('beneficiaries')
                                 .select('full_name')
@@ -1452,7 +1422,8 @@ final tagged = await supabase
                                 .select('full_name')
                                 .eq('id', userId)
                                 .maybeSingle();
-                            deceasedName = (user?['full_name'] ?? '').toString();
+                            deceasedName = (user?['full_name'] ?? '')
+                                .toString();
                           }
 
                           final approvedApplications = await supabase

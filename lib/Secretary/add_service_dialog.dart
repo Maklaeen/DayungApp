@@ -20,7 +20,8 @@ class AddServiceDialog extends StatefulWidget {
 class _AddServiceDialogState extends State<AddServiceDialog> {
   final _formKey = GlobalKey<FormState>();
   String _serviceName = '';
-  DateTime? _timeService;
+  DateTime? _startTimeService;
+  DateTime? _endTimeService;
   String _notes = '';
   int _required = 1;
   bool _obligated = true;
@@ -137,6 +138,7 @@ class _AddServiceDialogState extends State<AddServiceDialog> {
                       ),
                     ),
                     const SizedBox(height: 14),
+                    // Start Schedule Picker
                     InkWell(
                       borderRadius: BorderRadius.circular(16),
                       onTap: _saving
@@ -144,20 +146,20 @@ class _AddServiceDialogState extends State<AddServiceDialog> {
                           : () async {
                               final date = await showDatePicker(
                                 context: context,
-                                initialDate: _timeService ?? DateTime.now(),
+                                initialDate: _startTimeService ?? DateTime.now(),
                                 firstDate: DateTime(2020),
                                 lastDate: DateTime(2100),
                               );
                               if (date == null || !context.mounted) return;
                               final time = await showTimePicker(
                                 context: context,
-                                initialTime: _timeService == null
+                                initialTime: _startTimeService == null
                                     ? TimeOfDay.now()
-                                    : TimeOfDay.fromDateTime(_timeService!),
+                                    : TimeOfDay.fromDateTime(_startTimeService!),
                               );
                               if (time == null || !context.mounted) return;
                               setState(() {
-                                _timeService = DateTime(
+                                _startTimeService = DateTime(
                                   date.year,
                                   date.month,
                                   date.day,
@@ -192,7 +194,7 @@ class _AddServiceDialogState extends State<AddServiceDialog> {
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   const Text(
-                                    'Schedule',
+                                    'Start Schedule',
                                     style: TextStyle(
                                       fontSize: 13,
                                       fontWeight: FontWeight.w700,
@@ -201,14 +203,101 @@ class _AddServiceDialogState extends State<AddServiceDialog> {
                                   ),
                                   const SizedBox(height: 4),
                                   Text(
-                                    _timeService == null
-                                        ? 'Choose date and time'
+                                    _startTimeService == null
+                                        ? 'Choose start date and time'
                                         : DateFormat(
                                             'MMM d, yyyy • h:mm a',
-                                          ).format(_timeService!),
+                                          ).format(_startTimeService!),
                                     style: TextStyle(
                                       fontSize: 15,
-                                      color: _timeService == null
+                                      color: _startTimeService == null
+                                          ? const Color(0xFF6B7280)
+                                          : const Color(0xFF111827),
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const Icon(Icons.chevron_right_rounded),
+                          ],
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    // End Schedule Picker
+                    InkWell(
+                      borderRadius: BorderRadius.circular(16),
+                      onTap: _saving
+                          ? null
+                          : () async {
+                              final date = await showDatePicker(
+                                context: context,
+                                initialDate: _endTimeService ?? (_startTimeService ?? DateTime.now()),
+                                firstDate: DateTime(2020),
+                                lastDate: DateTime(2100),
+                              );
+                              if (date == null || !context.mounted) return;
+                              final time = await showTimePicker(
+                                context: context,
+                                initialTime: _endTimeService == null
+                                    ? TimeOfDay.now()
+                                    : TimeOfDay.fromDateTime(_endTimeService!),
+                              );
+                              if (time == null || !context.mounted) return;
+                              setState(() {
+                                _endTimeService = DateTime(
+                                  date.year,
+                                  date.month,
+                                  date.day,
+                                  time.hour,
+                                  time.minute,
+                                );
+                              });
+                            },
+                      child: Container(
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          border: Border.all(color: const Color(0xFFD1D5DB)),
+                          borderRadius: BorderRadius.circular(16),
+                          color: const Color(0xFFF8FAFC),
+                        ),
+                        child: Row(
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.all(10),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFDBEAFE),
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: const Icon(
+                                Icons.schedule_rounded,
+                                color: Color(0xFFEF4444),
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const Text(
+                                    'End Schedule',
+                                    style: TextStyle(
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w700,
+                                      color: Color(0xFF374151),
+                                    ),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    _endTimeService == null
+                                        ? 'Choose end date and time'
+                                        : DateFormat(
+                                            'MMM d, yyyy • h:mm a',
+                                          ).format(_endTimeService!),
+                                    style: TextStyle(
+                                      fontSize: 15,
+                                      color: _endTimeService == null
                                           ? const Color(0xFF6B7280)
                                           : const Color(0xFF111827),
                                       fontWeight: FontWeight.w600,
@@ -330,50 +419,58 @@ class _AddServiceDialogState extends State<AddServiceDialog> {
                             onPressed: _saving
                                 ? null
                                 : () async {
-                                    final messenger = ScaffoldMessenger.of(
-                                      context,
-                                    );
+                                    final messenger = ScaffoldMessenger.of(context);
                                     final navigator = Navigator.of(context);
-                                    if (_formKey.currentState?.validate() !=
-                                            true ||
-                                        _timeService == null) {
-                                      if (_timeService == null) {
+                                    if (_formKey.currentState?.validate() != true || _startTimeService == null || _endTimeService == null) {
+                                      if (_startTimeService == null || _endTimeService == null) {
                                         messenger.showSnackBar(
                                           const SnackBar(
-                                            content: Text(
-                                              'Please select a schedule.',
-                                            ),
+                                            content: Text('Please select both start and end schedule.'),
                                           ),
                                         );
                                       }
                                       return;
                                     }
 
+                                    final confirm = await showDialog<bool>(
+                                      context: context,
+                                      builder: (context) => AlertDialog(
+                                        title: const Text('Confirm Save'),
+                                        content: const Text('Are you sure you want to save this service?'),
+                                        actions: [
+                                          TextButton(
+                                            onPressed: () => Navigator.of(context).pop(false),
+                                            child: const Text('Cancel'),
+                                          ),
+                                          ElevatedButton(
+                                            onPressed: () => Navigator.of(context).pop(true),
+                                            child: const Text('Confirm'),
+                                          ),
+                                        ],
+                                      ),
+                                    );
+                                    if (confirm != true) return;
+
                                     setState(() => _saving = true);
                                     try {
                                       final sb = Supabase.instance.client;
                                       await sb.from('service_checklist').insert({
-                                        'service_name':
-                                            AppInputSecurity.sanitizePlainText(
-                                              _serviceName,
-                                              maxLength: 120,
-                                            ),
-                                        'time_service': _timeService!
-                                            .toIso8601String(),
-                                        'notes':
-                                            AppInputSecurity.sanitizePlainText(
-                                              _notes,
-                                              allowNewLines: true,
-                                              maxLength: 300,
-                                            ),
-                                        'required': _obligated
-                                            ? 'All'
-                                            : _required,
-                                        'userdeceased':
-                                            widget.deathNotice['user_id'],
-                                        'dayung_unit_id': widget
-                                            .deathNotice['dayung_unit_id'],
-                                     
+                                        'service_name': AppInputSecurity.sanitizePlainText(
+                                          _serviceName,
+                                          maxLength: 120,
+                                        ),
+                                        'start_time_service': _startTimeService!.toIso8601String(),
+                                        'end_time_service': _endTimeService!.toIso8601String(),
+                                        'notes': AppInputSecurity.sanitizePlainText(
+                                          _notes,
+                                          allowNewLines: true,
+                                          maxLength: 300,
+                                        ),
+                                        'required': _obligated ? 'All' : _required,
+                                        'userdeceased': widget.deathNotice['user_id'],
+                                        'dayung_unit_id': widget.deathNotice['dayung_unit_id'],
+                                        'created_at': DateTime.now().toIso8601String(),
+                                        'claim_id': widget.deathNotice['id'],
                                         'is_removed': false,
                                       });
                                       widget.onServiceAdded();
@@ -382,7 +479,7 @@ class _AddServiceDialogState extends State<AddServiceDialog> {
                                     } on PostgrestException catch (e) {
                                       messenger.showSnackBar(
                                         SnackBar(
-                                          content: Text('Error: ${e.message}'),
+                                          content: Text('Error: [${e.message}'),
                                         ),
                                       );
                                     } catch (e) {

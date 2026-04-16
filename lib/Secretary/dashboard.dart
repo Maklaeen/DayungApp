@@ -73,6 +73,7 @@ class _SecretaryDashboardPageState extends State<SecretaryDashboardPage> {
   RealtimeChannel? _appNotifChannel;
 
   List<Map<String, dynamic>> _recentCertificates = [];
+  List<Map<String, dynamic>> _recentClaimDeaths = [];
   List<String> _approvedClaimNames = [];
 
   @override
@@ -119,6 +120,7 @@ class _SecretaryDashboardPageState extends State<SecretaryDashboardPage> {
       _fetchRecentCertificates(),
       _fetchPendingPayments(),
       _fetchApprovedClaims(),
+      _fetchRecentDeathsFromClaims(),
     ]);
   }
 
@@ -385,6 +387,52 @@ class _SecretaryDashboardPageState extends State<SecretaryDashboardPage> {
     }
   }
 
+  Future<String> _resolveClaimDeceasedName(Map<String, dynamic> claim) async {
+    final deceasedType = claim['deceased_type']?.toString();
+    final userId = claim['user_id']?.toString();
+    final beneficiaryId = claim['beneficiary_id']?.toString();
+    final legacyDeceasedId = claim['deceased_id']?.toString();
+
+    if ((deceasedType == 'member' || deceasedType == null) &&
+        (userId?.isNotEmpty ?? false)) {
+      final userRows = await supabase
+          .from('users')
+          .select('full_name')
+          .eq('id', userId!)
+          .limit(1);
+      if (userRows.isNotEmpty) {
+        return userRows[0]['full_name']?.toString() ?? 'Unknown';
+      }
+    }
+
+    if (deceasedType == 'beneficiary' && (beneficiaryId?.isNotEmpty ?? false)) {
+      final benRows = await supabase
+          .from('beneficiaries')
+          .select('full_name')
+          .eq('id', beneficiaryId!)
+          .limit(1);
+      if (benRows.isNotEmpty) {
+        return benRows[0]['full_name']?.toString() ?? 'Unknown';
+      }
+    }
+
+    if (legacyDeceasedId?.isNotEmpty ?? false) {
+      final sourceTable = deceasedType == 'beneficiary'
+          ? 'beneficiaries'
+          : 'users';
+      final rows = await supabase
+          .from(sourceTable)
+          .select('full_name')
+          .eq('id', legacyDeceasedId!)
+          .limit(1);
+      if (rows.isNotEmpty) {
+        return rows[0]['full_name']?.toString() ?? 'Unknown';
+      }
+    }
+
+    return 'Unknown';
+  }
+
   Future<void> _fetchRecentCertificates() async {
     try {
       final unitId = _dayungUnitId;
@@ -392,64 +440,27 @@ class _SecretaryDashboardPageState extends State<SecretaryDashboardPage> {
         if (mounted) setState(() => _recentCertificates = []);
         return;
       }
-
-      // Direct notices for this unit
-      final direct = await supabase
-          .from('death_notices')
-          .select('id, name, date_of_death, dayung_unit_id')
-          .eq('dayung_unit_id', unitId)
-          .order('date_of_death', ascending: false)
-          .limit(5);
-      final directList = List<Map<String, dynamic>>.from(direct);
-
-      // Members of this unit via approved applications
-      final apps = await supabase
-          .from('applications')
-          .select('user_id')
-          .eq('dayung_unit_id', unitId)
-          .eq('status', 'approved');
-      final userIds = List<Map<String, dynamic>>.from(apps)
-          .map((e) => (e['user_id'] ?? '').toString())
-          .where((s) => s.isNotEmpty)
-          .toList();
-
-      // Notices linked to those users where dayung_unit_id is null
-      List<Map<String, dynamic>> viaUserList = [];
-      if (userIds.isNotEmpty) {
-        final viaUser = await supabase
-            .from('death_notices')
-            .select('id, name, date_of_death, dayung_unit_id, user_id')
-            .isFilter('dayung_unit_id', null)
-            .inFilter('user_id', userIds)
-            .order('date_of_death', ascending: false)
-            .limit(5);
-        viaUserList = List<Map<String, dynamic>>.from(viaUser);
-      }
-
-      // Merge unique by id and sort desc
-      final all = <int, Map<String, dynamic>>{};
-      for (final n in [...directList, ...viaUserList]) {
-        final id = int.tryParse('${n['id']}');
-        if (id != null) all[id] = n;
-      }
-      final list = all.values.toList()
-        ..sort(
-          (a, b) => DateTime.parse(
-            '${b['date_of_death']}',
-          ).compareTo(DateTime.parse('${a['date_of_death']}')),
-        );
-
-      final normalized = list
-          .map(
-            (e) => {
-              'deceased_name': e['name'],
-              'date_of_death': e['date_of_death'],
-              'dayung_unit_id': e['dayung_unit_id'],
-            },
+      // Fetch 5 most recent approved claims for this unit (do not select full_name from claims)
+      final claims = await supabase
+          .from('claims')
+          .select(
+            'id, deceased_type, user_id, beneficiary_id, date_of_death, datesetamount',
           )
-          .toList();
-
-      if (mounted) setState(() => _recentCertificates = normalized);
+          .eq('dayung_unit_id', unitId)
+          .ilike('status', 'approved')
+          .order('datesetamount', ascending: false)
+          .limit(5);
+      final claimList = List<Map<String, dynamic>>.from(claims);
+      List<Map<String, dynamic>> result = [];
+      for (final claim in claimList) {
+        final name = await _resolveClaimDeceasedName(claim);
+        result.add({
+          'deceased_name': name,
+          'date_of_death': claim['date_of_death'],
+          'dayung_unit_id': unitId,
+        });
+      }
+      if (mounted) setState(() => _recentCertificates = result);
     } catch (_) {
       if (mounted) setState(() => _recentCertificates = []);
     }
@@ -496,19 +507,20 @@ class _SecretaryDashboardPageState extends State<SecretaryDashboardPage> {
         return;
       }
 
-      // Fetch approved claims for this unit
+      // Fetch 10 most recent approved claims for this unit (do not select full_name from claims)
       final claims = await supabase
           .from('claims')
-          .select('full_name')
+          .select('id, deceased_type, user_id, beneficiary_id, deceased_id')
           .eq('dayung_unit_id', unitId)
-          .eq('status', 'approved')
+          .ilike('status', 'approved')
           .order('created_at', ascending: false)
           .limit(10);
 
-      final names = List<Map<String, dynamic>>.from(claims)
-          .map((e) => (e['full_name'] ?? 'Unknown').toString())
-          .toList();
-
+      final claimList = List<Map<String, dynamic>>.from(claims);
+      List<String> names = [];
+      for (final claim in claimList) {
+        names.add(await _resolveClaimDeceasedName(claim));
+      }
       if (mounted) setState(() => _approvedClaimNames = names);
     } catch (_) {
       if (mounted) setState(() => _approvedClaimNames = []);
@@ -522,7 +534,40 @@ class _SecretaryDashboardPageState extends State<SecretaryDashboardPage> {
       _fetchRecentCertificates(),
       _fetchPendingPayments(),
       _fetchApprovedClaims(),
+      _fetchRecentDeathsFromClaims(),
     ]);
+  }
+
+  Future<void> _fetchRecentDeathsFromClaims() async {
+    try {
+      final unitId = _dayungUnitId;
+      if (unitId == null) {
+        if (mounted) setState(() => _recentClaimDeaths = []);
+        return;
+      }
+        // Fetch 3 most recent approved claims for this unit (do not select full_name from claims)
+        final claims = await supabase
+          .from('claims')
+          .select('id, deceased_type, user_id, beneficiary_id, deceased_id, datesetamount')
+          .eq('dayung_unit_id', unitId)
+          .ilike('status', 'approved')
+          .order('datesetamount', ascending: false)
+          .limit(3);
+      final claimList = List<Map<String, dynamic>>.from(claims);
+      List<Map<String, dynamic>> result = [];
+      for (final claim in claimList) {
+        final deceasedType = claim['deceased_type']?.toString();
+        final name = await _resolveClaimDeceasedName(claim);
+        result.add({
+          'full_name': name,
+          'datesetamount': claim['datesetamount'],
+          'deceased_type': deceasedType,
+        });
+      }
+      if (mounted) setState(() => _recentClaimDeaths = result);
+    } catch (_) {
+      if (mounted) setState(() => _recentClaimDeaths = []);
+    }
   }
 
   List<Widget> get _pages => [
@@ -980,10 +1025,7 @@ class _SecretaryDashboardPageState extends State<SecretaryDashboardPage> {
   }
 
   Widget _recentDeathsCard() {
-    final names = _recentCertificates;
-    final display = names.take(2).toList();
-    final approvedClaims = _approvedClaimNames.take(2).toList();
-
+    final deaths = _recentClaimDeaths;
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: dayungAccentCardDecoration(
@@ -1018,53 +1060,40 @@ class _SecretaryDashboardPageState extends State<SecretaryDashboardPage> {
             ),
           ),
           const SizedBox(height: 8),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              ...display.map(
-                (name) => Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 4),
-                  child: Row(
-                    children: [
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          name['deceased_name'] ?? 'Unknown',
-                          style: const TextStyle(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w600,
-                            color: Color(0xFF9F1239),
+          if (deaths.isEmpty)
+            const Text(
+              'No recent deaths',
+              style: TextStyle(fontSize: 13, color: Color(0xFF6B7280)),
+            )
+          else
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: deaths
+                  .map(
+                    (d) => Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 4),
+                      child: Row(
+                        children: [
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              d['full_name'] ?? 'Unknown',
+                              style: TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w600,
+                                color: d['deceased_type'] == 'member'
+                                    ? Color(0xFF9F1239)
+                                    : Color(0xFF2563EB),
+                              ),
+                              overflow: TextOverflow.ellipsis,
+                            ),
                           ),
-                          overflow: TextOverflow.ellipsis,
-                        ),
+                        ],
                       ),
-                    ],
-                  ),
-                ),
-              ),
-              ...approvedClaims.map(
-                (fullName) => Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 4),
-                  child: Row(
-                    children: [
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          fullName,
-                          style: const TextStyle(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w600,
-                            color: Color(0xFF2563EB), // Different color for claims
-                          ),
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ],
-          ),
+                    ),
+                  )
+                  .toList(),
+            ),
         ],
       ),
     );
@@ -1508,8 +1537,8 @@ class _SecretaryDashboardPageState extends State<SecretaryDashboardPage> {
                     Expanded(
                       child: Text(
                         _recentCertificates.isEmpty
-                            ? 'Inbox is clear at the moment.'
-                            : '${_recentCertificates.length} certificate item(s) ready for review.',
+                            ? 'No recent deaths.'
+                            : '${_recentCertificates.length} death record(s) ready for review.',
                         style: const TextStyle(
                           fontSize: 13,
                           color: branding.kNeutralText,
@@ -1556,7 +1585,7 @@ class _SecretaryDashboardPageState extends State<SecretaryDashboardPage> {
               ] else ...[
                 const SizedBox(height: 16),
                 const Text(
-                  "No recent certificates",
+                  "No recent deaths",
                   style: TextStyle(
                     fontSize: 14,
                     color: Color(0xFF6B7280),
