@@ -64,6 +64,13 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
     });
   }
 
+  // Helper to get the correct dayung_unit_id from a unit map
+  int? getDayungUnitId(Map<String, dynamic> unit) {
+    final raw = unit['dayung_unit_id'] ?? unit['id'];
+    if (raw is int) return raw;
+    return int.tryParse('$raw');
+  }
+
   // Ang mosunod nga function nag-encode sa user preferences ngadto sa binary vector.
   // Gigamit kini para sa cosine similarity matching sa Dayung units.
   /* 28 positions
@@ -259,7 +266,7 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
         m['__parsedVector'] = _buildRuleVector(m);
 
         // ADD THIS DEBUG PRINT:
-        debugPrint('DEBUG: Unit ID:${m['id']} Vector: ${m['__parsedVector']}');
+        debugPrint('DEBUG: Unit ID:${m['dayung_unit_id'] ?? m['id']} Vector: ${m['__parsedVector']}');
 
         rules.add(m);
       }
@@ -575,7 +582,7 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
         // DEBUG: Show distance computation for each unit
         debugPrint(
           'DEBUG: Distance filter: User (${userLat!.toStringAsFixed(6)}, ${userLng!.toStringAsFixed(6)}) '
-          '→ Unit ID:${unit['id']} (${lat.toStringAsFixed(6)}, ${lng.toStringAsFixed(6)}) = '
+          '→ Unit ID:${unit['dayung_unit_id'] ?? unit['id']} (${lat.toStringAsFixed(6)}, ${lng.toStringAsFixed(6)}) = '
           '${dist.toStringAsFixed(2)} km (threshold: ${selectedDistanceKm!.toStringAsFixed(2)} km) '
           '${dist <= selectedDistanceKm! ? "[INCLUDED]" : "[EXCLUDED]"}',
         );
@@ -599,7 +606,7 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
       final combinedScore = sim * boost;
       // Ipakita sa debug console ang similarity, boost, ug combined score para sa matag unit
       debugPrint(
-        'DEBUG: Unit ID:${unit['id']} Similarity=${sim.toStringAsFixed(3)} Boost=${boost.toStringAsFixed(3)} Combined=${combinedScore.toStringAsFixed(3)}',
+        'DEBUG: Unit ID:${unit['dayung_unit_id'] ?? unit['id']} Similarity=${sim.toStringAsFixed(3)} Boost=${boost.toStringAsFixed(3)} Combined=${combinedScore.toStringAsFixed(3)}',
       );
       return combinedScore >= similarityThreshold;
     }).toList();
@@ -829,7 +836,11 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
                               context,
                               MaterialPageRoute(
                                 builder: (_) => DayungMapPage(
-                                  dayung: unit,
+                                  dayung: {
+                                    ...unit,
+                                    // Always ensure dayung_unit_id is present and used
+                                    'dayung_unit_id': getDayungUnitId(unit),
+                                  },
                                   isApplied: false,
                                   isMember: false,
                                 ),

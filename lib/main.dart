@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'config/env.dart';
 import 'package:capstone_app/Auth/auth_redirects.dart';
 import 'package:capstone_app/Auth/idle_timeout_manage.dart';
 import 'package:capstone_app/Auth/password_recovery_page.dart';
@@ -217,15 +218,21 @@ ThemeData _buildAppTheme(Brightness brightness) {
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  await dotenv.load(fileName: '.env');
+  String supabaseUrl = '';
+  String supabaseAnonKey = '';
 
-  final supabaseUrl = dotenv.env['SUPABASE_URL'];
-  final supabaseAnonKey = dotenv.env['SUPABASE_ANON_KEY'];
+  // Try to use Env class (for web), fallback to dotenv for other platforms
+  supabaseUrl = Env.supabaseUrl;
+  supabaseAnonKey = Env.supabaseAnonKey;
 
-  if (supabaseUrl == null ||
-      supabaseUrl.isEmpty ||
-      supabaseAnonKey == null ||
-      supabaseAnonKey.isEmpty) {
+  // If still placeholders, try dotenv (for mobile/desktop)
+  if (supabaseUrl == 'YOUR_SUPABASE_URL' || supabaseAnonKey == 'YOUR_SUPABASE_ANON_KEY') {
+    await dotenv.load(fileName: '.env');
+    supabaseUrl = dotenv.env['SUPABASE_URL'] ?? '';
+    supabaseAnonKey = dotenv.env['SUPABASE_ANON_KEY'] ?? '';
+  }
+
+  if (supabaseUrl.isEmpty || supabaseAnonKey.isEmpty) {
     throw StateError('Missing SUPABASE_URL or SUPABASE_ANON_KEY');
   }
 

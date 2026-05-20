@@ -204,18 +204,23 @@ class _DayungMapPageState extends State<DayungMapPage> {
     _checkExistingApplication();
   }
 
+  int? getDayungUnitId() {
+    final raw = widget.dayung['dayung_unit_id'] ?? widget.dayung['id'];
+    if (raw is int) return raw;
+    return int.tryParse('$raw');
+  }
+
   Future<void> _checkExistingApplication() async {
     final sb = Supabase.instance.client;
     final uid = sb.auth.currentUser?.id;
-    final rawId = widget.dayung['id'];
-    final dayungId = rawId is int ? rawId : int.tryParse('$rawId');
-    if (uid == null || dayungId == null) return;
+    final dayungUnitId = getDayungUnitId();
+    if (uid == null || dayungUnitId == null) return;
     try {
       final existing = await sb
           .from('applications')
           .select('id,status')
           .eq('user_id', uid)
-          .eq('dayung_unit_id', dayungId)
+          .eq('dayung_unit_id', dayungUnitId)
           .maybeSingle();
       if (mounted && existing != null) {
         setState(() => _applied = true);
@@ -711,7 +716,11 @@ class _DayungMapPageState extends State<DayungMapPage> {
     setState(() => _loadingRules = true);
     try {
       final supabase = Supabase.instance.client;
-      final id = widget.dayung['id'];
+      final id = getDayungUnitId();
+      if (id == null) {
+        if (mounted) setState(() => _loadingRules = false);
+        return;
+      }
       final res = await supabase
           .from('dayung_rules')
           .select()
@@ -1507,10 +1516,12 @@ class _DayungMapPageState extends State<DayungMapPage> {
   Future<void> _applyToDayung() async {
     final sb = Supabase.instance.client;
     final uid = sb.auth.currentUser?.id;
-    final rawId = widget.dayung['id'];
-    final dayungId = rawId is int ? rawId : int.tryParse('$rawId');
+    final dayungUnitId = getDayungUnitId();
 
-    if (uid == null || dayungId == null) {
+    debugPrint('DEBUG: dayungUnitId value: '
+        '([32m$dayungUnitId[0m) type: [34m${dayungUnitId.runtimeType}[0m');
+
+    if (uid == null || dayungUnitId == null) {
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(const SnackBar(content: Text('Missing user or unit.')));
@@ -1524,7 +1535,7 @@ class _DayungMapPageState extends State<DayungMapPage> {
           .from('applications')
           .select('id,status')
           .eq('user_id', uid)
-          .eq('dayung_unit_id', dayungId)
+          .eq('dayung_unit_id', dayungUnitId)
           .maybeSingle();
       if (existing != null) {
         setState(() => _applied = true);
@@ -1534,11 +1545,11 @@ class _DayungMapPageState extends State<DayungMapPage> {
         return;
       }
 
-      // Fetch dayung name + secretary_id
+      // Fetch dayung name + secretary_id from dayung_units using 'id'
       final unit = await sb
           .from('dayung_units')
           .select('name, secretary_id')
-          .eq('id', dayungId)
+          .eq('id', dayungUnitId)
           .maybeSingle();
 
       final unitName = (unit?['name'] ?? widget.dayung['name'] ?? 'Dayung')
@@ -1550,7 +1561,7 @@ class _DayungMapPageState extends State<DayungMapPage> {
           .from('applications')
           .insert({
             'user_id': uid,
-            'dayung_unit_id': dayungId,
+            'dayung_unit_id': dayungUnitId,
             'status': 'pending',
             'name': unitName,
           })
@@ -1562,7 +1573,7 @@ class _DayungMapPageState extends State<DayungMapPage> {
         try {
           await sb.from('dayung_application_notifications').insert({
             'application_id': inserted['id'],
-            'dayung_unit_id': dayungId,
+            'dayung_unit_id': dayungUnitId,
             'secretary_id': secretaryId,
           });
         } catch (_) {}
@@ -1573,7 +1584,7 @@ class _DayungMapPageState extends State<DayungMapPage> {
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text('Application sent to $unitName.')));
-      Navigator.pop(context, {'applied': true, 'dayung_id': dayungId});
+      Navigator.pop(context, {'applied': true, 'dayung_id': dayungUnitId});
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(

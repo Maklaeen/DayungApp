@@ -1,4 +1,6 @@
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:flutter/foundation.dart';
+import 'env.dart';
 
 class AppConfig {
   const AppConfig._();
@@ -28,16 +30,28 @@ class AppConfig {
     }
   }
 
-  static String get supabaseUrl =>
-      _firstNonEmpty(_supabaseUrlDefine, dotenv.env['SUPABASE_URL']);
 
-  static String get supabaseAnonKey =>
-      _firstNonEmpty(_supabaseAnonKeyDefine, dotenv.env['SUPABASE_ANON_KEY']);
+  static String get supabaseUrl {
+    if (kIsWeb) {
+      return Env.supabaseUrl;
+    }
+    return _firstNonEmpty(_supabaseUrlDefine, dotenv.env['SUPABASE_URL']);
+  }
 
-  static String get openRouteServiceApiKey => _firstNonEmpty(
-    _openRouteServiceApiKeyDefine,
-    dotenv.env['OPENROUTESERVICE_API_KEY'],
-  );
+  static String get supabaseAnonKey {
+    if (kIsWeb) {
+      return Env.supabaseAnonKey;
+    }
+    return _firstNonEmpty(_supabaseAnonKeyDefine, dotenv.env['SUPABASE_ANON_KEY']);
+  }
+
+  static String get openRouteServiceApiKey {
+    if (kIsWeb) {
+      // Add to Env if needed
+      return '';
+    }
+    return _firstNonEmpty(_openRouteServiceApiKeyDefine, dotenv.env['OPENROUTESERVICE_API_KEY']);
+  }
 
   static String _firstNonEmpty(String primary, String? fallback) {
     if (primary.trim().isNotEmpty) {
