@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:capstone_app/Auth/logout.dart';
+import 'package:capstone_app/shared/pres_sec_dashboard_overview.dart';
 import 'package:capstone_app/Beneficiary/beneficiary.dart' hide kPrimary;
 import 'package:capstone_app/President/manage_roles.dart';
 import 'package:capstone_app/President/president_payment_page.dart';
@@ -870,7 +871,33 @@ class _PresidentDashboardPageState extends State<PresidentDashboardPage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            _buildModernStatsCards(),
+            // ── New shared overview (Row 1 stats, Row 2 chart, Row 3 collections) ──
+            if (_primaryUnitId != null)
+              PresSecDashboardOverview(
+                key: ValueKey(_primaryUnitId),
+                dayungUnitId: _primaryUnitId!,
+                onNavigateToMembers: () async {
+                  final ids = await _managedDayungIds();
+                  if (!mounted) return;
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => PresidentMembersPage(dayungUnitIds: ids),
+                    ),
+                  );
+                },
+                onNavigateToDeceased: () {
+                  final roleProv = context.read<DayungRoleProvider>();
+                  final unitProv = context.read<DayungUnitProvider>();
+                  final effId = roleProv.unitId ?? unitProv.currentUnitId;
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => RecentDeathNotices(dayungUnitId: effId),
+                    ),
+                  );
+                },
+              ),
             const SizedBox(height: 24),
             _buildQuickActions(),
           ],
@@ -1065,87 +1092,229 @@ class _PresidentDashboardPageState extends State<PresidentDashboardPage> {
   }
 
   Widget _buildQuickActions() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Text(
-          'Quick Actions',
-          style: TextStyle(
-            fontSize: 18,
-            fontWeight: FontWeight.w800,
-            color: Color(0xFF1E40AF),
-            fontFamily: 'Montserrat',
-          ),
-        ),
-        const SizedBox(height: 12),
-        const _PostAnnouncementButton(),
-        const SizedBox(height: 18),
-        _payContributionButton(context),
-        const SizedBox(height: 18),
-        _UpcomingAnnouncementCard(
-          loading: _loadingAnnouncement,
-          announcement: _latestAnnouncement,
-        ),
-        const SizedBox(height: 18),
-        _ContributionBarChartCard(dayungUnitIds: _managedUnitIds),
-      ],
-    );
-  }
-
-  Widget _payContributionButton(BuildContext context) {
-    return Material(
-      color: kPrimary,
-      borderRadius: BorderRadius.circular(20),
-      elevation: 0,
-      child: InkWell(
-        onTap: () async {
-          final navigator = Navigator.of(context);
-          final ids = await _managedDayungIds();
-          if (ids.isEmpty) return;
-          if (!mounted) return;
-          navigator.push(
-            MaterialPageRoute(
-              builder: (context) =>
-                  PresidentPaymentPage(dayungUnitId: ids.first),
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: dayungSectionCardDecoration(context),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Quick Actions',
+            style: TextStyle(
+              fontSize: 20,
+              fontWeight: FontWeight.w800,
+              color: Color(0xFF1E40AF),
+              fontFamily: 'Montserrat',
             ),
-          );
-        },
-        borderRadius: BorderRadius.circular(20),
-        child: Container(
-          width: double.infinity,
-          padding: const EdgeInsets.symmetric(vertical: 20),
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              colors: [kPrimary, kPrimaryLight],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-            ),
-            borderRadius: BorderRadius.circular(20),
-            boxShadow: [
-              BoxShadow(
-                color: kPrimary.withValues(alpha: 0.4),
-                blurRadius: 15,
-                offset: const Offset(0, 6),
-              ),
-            ],
           ),
-          alignment: Alignment.center,
-          child: const Row(
-            mainAxisAlignment: MainAxisAlignment.center,
+          const SizedBox(height: 16),
+          Row(
             children: [
-              Icon(Icons.payments_rounded, color: Colors.white, size: 24),
-              SizedBox(width: 12),
-              Text(
-                'Pay Contribution',
-                style: TextStyle(
-                  fontFamily: 'Montserrat',
-                  color: Colors.white,
-                  fontSize: 18.5,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: 0.3,
+              Expanded(
+                child: SizedBox(
+                  height: 140,
+                  child: _modernActionCard(
+                    icon: Icons.campaign_rounded,
+                    title: 'Post Announcement',
+                    subtitle: 'Notify members',
+                    color: const Color(0xFF3B82F6),
+                    onTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => const PostAnnouncementPage(),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: SizedBox(
+                  height: 140,
+                  child: _modernActionCard(
+                    icon: Icons.payments_rounded,
+                    title: 'Pay Contribution',
+                    subtitle: 'Pay your dues',
+                    color: const Color(0xFF10B981),
+                    onTap: () async {
+                      final ids = await _managedDayungIds();
+                      if (ids.isEmpty || !mounted) return;
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) =>
+                              PresidentPaymentPage(dayungUnitId: ids.first),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: SizedBox(
+                  height: 140,
+                  child: _modernActionCard(
+                    icon: Icons.manage_accounts_rounded,
+                    title: 'Manage Roles',
+                    subtitle: 'Assign officers',
+                    color: const Color(0xFF8B5CF6),
+                    onTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => const ManageRolesPagePres(),
+                      ),
+                    ),
+                  ),
                 ),
               ),
             ],
+          ),
+          const SizedBox(height: 16),
+          const Text(
+            'Quick Access',
+            style: TextStyle(
+              fontSize: 20,
+              fontWeight: FontWeight.w800,
+              color: Color(0xFF1E40AF),
+              fontFamily: 'Montserrat',
+            ),
+          ),
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              Expanded(
+                child: SizedBox(
+                  height: 110,
+                  child: _modernActionCard(
+                    icon: Icons.bar_chart_rounded,
+                    title: 'Contributions',
+                    subtitle: 'View records',
+                    color: kPrimary,
+                    onTap: () => setState(() => _currentIndex = 1),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: SizedBox(
+                  height: 110,
+                  child: _modernActionCard(
+                    icon: Icons.assignment_rounded,
+                    title: 'Claims',
+                    subtitle: 'View claims',
+                    color: const Color(0xFFEF4444),
+                    onTap: () => setState(() => _currentIndex = 2),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              const Expanded(child: SizedBox()),
+            ],
+          ),
+          const SizedBox(height: 16),
+          _UpcomingAnnouncementCard(
+            loading: _loadingAnnouncement,
+            announcement: _latestAnnouncement,
+          ),
+          const SizedBox(height: 16),
+          _ContributionBarChartCard(dayungUnitIds: _managedUnitIds),
+        ],
+      ),
+    );
+  }
+
+  Widget _modernActionCard({
+    required IconData icon,
+    required String title,
+    required String subtitle,
+    required Color color,
+    VoidCallback? onTap,
+    int badgeCount = 0,
+  }) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(16),
+        splashColor: color.withValues(alpha: 0.1),
+        highlightColor: color.withValues(alpha: 0.05),
+        child: Ink(
+          decoration: BoxDecoration(
+            color: dayungSurface(context),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: dayungBorder(context)),
+            boxShadow: [dayungElevatedShadow(context)],
+          ),
+          child: Container(
+            width: double.infinity,
+            height: double.infinity,
+            padding: const EdgeInsets.all(16),
+            child: Stack(
+              children: [
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisAlignment: MainAxisAlignment.start,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: color.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Icon(icon, color: color, size: 20),
+                    ),
+                    const Spacer(),
+                    Text(
+                      title,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700,
+                        color: Theme.of(context).colorScheme.onSurface,
+                        fontFamily: 'Montserrat',
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      subtitle,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                        fontFamily: 'OpenSans',
+                      ),
+                    ),
+                    const Spacer(),
+                  ],
+                ),
+                if (badgeCount > 0)
+                  Positioned(
+                    right: 0,
+                    top: 0,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 4,
+                      ),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFDC2626),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Text(
+                        '$badgeCount',
+                        style: const TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
           ),
         ),
       ),
@@ -1224,66 +1393,7 @@ class _PresidentDashboardPageState extends State<PresidentDashboardPage> {
   }
 }
 
-/* ----------------------- POST ANNOUNCEMENT BUTTON ----------------------- */
 
-class _PostAnnouncementButton extends StatelessWidget {
-  const _PostAnnouncementButton();
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: kPrimary,
-      borderRadius: BorderRadius.circular(20),
-      elevation: 0,
-      child: InkWell(
-        onTap: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(builder: (_) => const PostAnnouncementPage()),
-          );
-        },
-        borderRadius: BorderRadius.circular(20),
-        child: Container(
-          width: double.infinity,
-          padding: const EdgeInsets.symmetric(vertical: 20),
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              colors: [kPrimary, kPrimaryLight],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-            ),
-            borderRadius: BorderRadius.circular(20),
-            boxShadow: [
-              BoxShadow(
-                color: kPrimary.withValues(alpha: 0.4),
-                blurRadius: 15,
-                offset: const Offset(0, 6),
-              ),
-            ],
-          ),
-          alignment: Alignment.center,
-          child: const Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(Icons.add_circle_rounded, color: Colors.white, size: 24),
-              SizedBox(width: 12),
-              Text(
-                'Post Announcement',
-                style: TextStyle(
-                  fontFamily: 'Montserrat',
-                  color: Colors.white,
-                  fontSize: 18.5,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: 0.3,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
 
 /* ------------------------- SIMPLE BAR CHART CARD ------------------------ */
 

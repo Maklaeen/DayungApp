@@ -752,8 +752,6 @@ class _CollectorDashboardPageState extends State<CollectorDashboardPage> {
           _modernActionCards(),
           const SizedBox(height: 24),
           _modernRecentActivity(),
-          const SizedBox(height: 24),
-          _modernQuickActions(),
           const SizedBox(height: 100),
         ],
       ),
@@ -977,130 +975,216 @@ class _CollectorDashboardPageState extends State<CollectorDashboardPage> {
   }
 
   Widget _modernActionCards() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Text(
-          'Quick Actions',
-          style: TextStyle(
-            fontSize: 18,
-            fontWeight: FontWeight.w800,
-            color: Color(0xFF1E40AF),
-            fontFamily: 'Montserrat',
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: dayungSectionCardDecoration(context),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Quick Actions',
+            style: TextStyle(
+              fontSize: 20,
+              fontWeight: FontWeight.w800,
+              color: Color(0xFF1E40AF),
+              fontFamily: 'Montserrat',
+            ),
           ),
-        ),
-        const SizedBox(height: 12),
-        _modernActionCard(
-          icon: Icons.account_balance_wallet_rounded,
-          title: 'Collect Cash',
-          subtitle: 'Record cash payment',
-          color: const Color(0xFF3B82F6),
-          onTap: _recordCashPayment, // <-- goes directly to Collect Cash page
-        ),
-        const SizedBox(height: 8),
-        _modernActionCard(
-          icon: Icons.payments_rounded,
-          title: 'My Payment Page',
-          subtitle: 'Pay your own contribution records',
-          color: const Color(0xFF2563EB),
-          onTap: () {
-            if (_dayungUnitId == null) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Select a Dayung first')),
-              );
-              return;
-            }
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (_) =>
-                    CollectorPaymentPage(dayungUnitId: _dayungUnitId!),
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              Expanded(
+                child: SizedBox(
+                  height: 140,
+                  child: _modernActionCardGrid(
+                    icon: Icons.account_balance_wallet_rounded,
+                    title: 'Collect Cash',
+                    subtitle: 'Record payment',
+                    color: const Color(0xFF3B82F6),
+                    onTap: _recordCashPayment,
+                  ),
+                ),
               ),
-            ).then((_) => _fetchAll());
-          },
-        ),
-        const SizedBox(height: 8),
-        _modernActionCard(
-          icon: Icons.receipt_long_rounded,
-          title: 'Show Receipts',
-          subtitle: 'View payment receipts',
-          color: const Color(0xFF10B981),
-          onTap: _showReceipts,
-        ),
-        const SizedBox(height: 8),
-        _modernActionCard(
-          icon: Icons.people_alt_rounded,
-          title: 'Members Paid',
-          subtitle: 'View all members',
-          color: const Color(0xFF6366F1),
-          onTap: _showMembers,
-        ),
-      ],
+              const SizedBox(width: 12),
+              Expanded(
+                child: SizedBox(
+                  height: 140,
+                  child: _modernActionCardGrid(
+                    icon: Icons.payments_rounded,
+                    title: 'My Payment Page',
+                    subtitle: 'Pay contributions',
+                    color: const Color(0xFF2563EB),
+                    onTap: () {
+                      if (_dayungUnitId == null) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Select a Dayung first')),
+                        );
+                        return;
+                      }
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) =>
+                              CollectorPaymentPage(dayungUnitId: _dayungUnitId!),
+                        ),
+                      ).then((_) => _fetchAll());
+                    },
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: SizedBox(
+                  height: 140,
+                  child: _modernActionCardGrid(
+                    icon: Icons.receipt_long_rounded,
+                    title: 'Show Receipts',
+                    subtitle: 'View receipts',
+                    color: const Color(0xFF10B981),
+                    onTap: _showReceipts,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                child: SizedBox(
+                  height: 140,
+                  child: _modernActionCardGrid(
+                    icon: Icons.people_alt_rounded,
+                    title: 'Members Paid',
+                    subtitle: 'View all members',
+                    color: const Color(0xFF6366F1),
+                    onTap: _showMembers,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              const Expanded(child: SizedBox()),
+              const SizedBox(width: 12),
+              const Expanded(child: SizedBox()),
+            ],
+          ),
+          const SizedBox(height: 16),
+          const Text(
+            'Quick Access',
+            style: TextStyle(
+              fontSize: 20,
+              fontWeight: FontWeight.w800,
+              color: Color(0xFF1E40AF),
+              fontFamily: 'Montserrat',
+            ),
+          ),
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              Expanded(
+                child: SizedBox(
+                  height: 110,
+                  child: _modernActionCardGrid(
+                    icon: Icons.receipt_long_rounded,
+                    title: 'Open Receipts',
+                    subtitle: 'View receipts',
+                    color: const Color(0xFF10B981),
+                    onTap: _showReceipts,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: SizedBox(
+                  height: 110,
+                  child: _modernActionCardGrid(
+                    icon: Icons.payments_rounded,
+                    title: 'My Payment Page',
+                    subtitle: 'Pay contributions',
+                    color: const Color(0xFF3B82F6),
+                    onTap: () {
+                      if (_dayungUnitId == null) return;
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) =>
+                              CollectorPaymentPage(dayungUnitId: _dayungUnitId!),
+                        ),
+                      ).then((_) => _fetchAll());
+                    },
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              const Expanded(child: SizedBox()),
+            ],
+          ),
+        ],
+      ),
     );
   }
 
-  Widget _modernActionCard({
+  Widget _modernActionCardGrid({
     required IconData icon,
     required String title,
     required String subtitle,
     required Color color,
-    required VoidCallback onTap,
+    VoidCallback? onTap,
   }) {
-    return Container(
-      width: double.infinity,
-      decoration: BoxDecoration(
-        color: dayungSurface(context),
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: dayungBorder(context)),
-        boxShadow: [dayungElevatedShadow(context)],
-      ),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          borderRadius: BorderRadius.circular(16),
-          onTap: onTap,
-          child: Padding(
+        splashColor: color.withValues(alpha: 0.1),
+        highlightColor: color.withValues(alpha: 0.05),
+        child: Ink(
+          decoration: BoxDecoration(
+            color: dayungSurface(context),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: dayungBorder(context)),
+            boxShadow: [dayungElevatedShadow(context)],
+          ),
+          child: Container(
+            width: double.infinity,
+            height: double.infinity,
             padding: const EdgeInsets.all(16),
-            child: Row(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.start,
               children: [
                 Container(
-                  padding: const EdgeInsets.all(12),
+                  padding: const EdgeInsets.all(8),
                   decoration: BoxDecoration(
                     color: color.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(12),
+                    borderRadius: BorderRadius.circular(10),
                   ),
-                  child: Icon(icon, color: color, size: 24),
+                  child: Icon(icon, color: color, size: 20),
                 ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        title,
-                        style: const TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w700,
-                          color: Color(0xFF1F2937),
-                        ),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        subtitle,
-                        style: const TextStyle(
-                          fontSize: 12,
-                          color: Color(0xFF6B7280),
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                    ],
+                const Spacer(),
+                Text(
+                  title,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
+                    color: Theme.of(context).colorScheme.onSurface,
+                    fontFamily: 'Montserrat',
                   ),
                 ),
-                Icon(
-                  Icons.arrow_forward_ios_rounded,
-                  color: color.withValues(alpha: 0.6),
-                  size: 16,
+                const SizedBox(height: 4),
+                Text(
+                  subtitle,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    fontFamily: 'OpenSans',
+                  ),
                 ),
+                const Spacer(),
               ],
             ),
           ),
@@ -1108,6 +1192,8 @@ class _CollectorDashboardPageState extends State<CollectorDashboardPage> {
       ),
     );
   }
+
+
 
   Widget _modernRecentActivity() {
     return Column(
@@ -1258,100 +1344,7 @@ class _CollectorDashboardPageState extends State<CollectorDashboardPage> {
     );
   }
 
-  Widget _modernQuickActions() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Text(
-          'Quick Access',
-          style: TextStyle(
-            fontSize: 18,
-            fontWeight: FontWeight.w800,
-            color: Color(0xFF111827),
-            fontFamily: 'Montserrat',
-          ),
-        ),
-        const SizedBox(height: 16),
-        Column(
-          children: [
-            _modernQuickActionCard(
-              icon: Icons.receipt_long_rounded,
-              title: 'Open Receipts',
-              color: const Color(0xFF10B981),
-              onTap: _showReceipts,
-            ),
-            const SizedBox(height: 8),
-            _modernQuickActionCard(
-              icon: Icons.payments_rounded,
-              title: 'My Payment Page',
-              color: const Color(0xFF3B82F6),
-              onTap: () {
-                if (_dayungUnitId == null) return;
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) =>
-                        CollectorPaymentPage(dayungUnitId: _dayungUnitId!),
-                  ),
-                ).then((_) => _fetchAll());
-              },
-            ),
-          ],
-        ),
-      ],
-    );
-  }
 
-  Widget _modernQuickActionCard({
-    required IconData icon,
-    required String title,
-    required Color color,
-    VoidCallback? onTap,
-  }) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(12),
-      child: Container(
-        width: double.infinity,
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: dayungSurface(context),
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: dayungBorder(context)),
-          boxShadow: [dayungElevatedShadow(context)],
-        ),
-        child: Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: color.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Icon(icon, color: color, size: 20),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Text(
-                title,
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                  color: color,
-                  fontFamily: 'Montserrat',
-                ),
-              ),
-            ),
-            Icon(
-              Icons.arrow_forward_ios_rounded,
-              color: color.withValues(alpha: 0.6),
-              size: 16,
-            ),
-          ],
-        ),
-      ),
-    );
-  }
 
   Widget _buildSideDrawer(BuildContext context) {
     return Drawer(

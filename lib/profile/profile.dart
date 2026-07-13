@@ -1273,203 +1273,172 @@ class _ProfilePageState extends State<ProfilePage> {
       );
     }
 
-    return Scaffold(
-      backgroundColor: themeBg,
-      body: Container(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [const Color(0xFFEAF3FF), themeBg],
-          ),
+    final body = Container(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [const Color(0xFFEAF3FF), themeBg],
         ),
-        child: SafeArea(
-          child: Column(
-            children: [
-              _buildModernHeader(context, isWide),
-              Expanded(
-                child: Container(
-                  width: double.infinity,
-                  decoration: BoxDecoration(
-                    color: themeCard,
-                    borderRadius: const BorderRadius.only(
-                      topLeft: Radius.circular(28),
-                      topRight: Radius.circular(28),
-                    ),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.05),
-                        blurRadius: 18,
-                        offset: const Offset(0, -4),
-                      ),
-                    ],
+      ),
+      child: SafeArea(
+        child: Column(
+          children: [
+            _buildModernHeader(context, isWide),
+            Expanded(
+              child: Container(
+                width: double.infinity,
+                decoration: BoxDecoration(
+                  color: themeCard,
+                  borderRadius: const BorderRadius.only(
+                    topLeft: Radius.circular(28),
+                    topRight: Radius.circular(28),
                   ),
-                  child: SingleChildScrollView(
-                    padding: const EdgeInsets.fromLTRB(18, 20, 18, 24),
-                    child: Center(
-                      child: ConstrainedBox(
-                        constraints: BoxConstraints(
-                          maxWidth: isWide ? 760 : double.infinity,
-                        ),
-                        child: Form(
-                          key: _formKey,
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              _buildModernProfileSection(
-                                themeCard,
-                                themeText,
-                                themeSubText,
-                              ),
-                              const SizedBox(height: 18),
-                              Container(
-                                key: _personalInfoKey,
-                                padding: const EdgeInsets.all(22),
-                                decoration: BoxDecoration(
-                                  color: themeCard,
-                                  borderRadius: BorderRadius.circular(24),
-                                  border: Border.all(
-                                    color: kBorderColor.withValues(alpha: 0.75),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.05),
+                      blurRadius: 18,
+                      offset: const Offset(0, -4),
+                    ),
+                  ],
+                ),
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.fromLTRB(18, 20, 18, 24),
+                  child: Center(
+                    child: ConstrainedBox(
+                      constraints: BoxConstraints(
+                        maxWidth: isWide ? 760 : double.infinity,
+                      ),
+                      child: Form(
+                        key: _formKey,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            _buildModernProfileSection(
+                              themeCard,
+                              themeText,
+                              themeSubText,
+                            ),
+                            const SizedBox(height: 18),
+                            Container(
+                              key: _personalInfoKey,
+                              padding: const EdgeInsets.all(22),
+                              decoration: BoxDecoration(
+                                color: themeCard,
+                                borderRadius: BorderRadius.circular(24),
+                                border: Border.all(
+                                  color: kBorderColor.withValues(alpha: 0.75),
+                                ),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.black.withValues(alpha: 0.04),
+                                    blurRadius: 14,
+                                    offset: const Offset(0, 4),
                                   ),
-                                  boxShadow: [
-                                    BoxShadow(
-                                      color: Colors.black.withValues(
-                                        alpha: 0.04,
-                                      ),
-                                      blurRadius: 14,
-                                      offset: const Offset(0, 4),
-                                    ),
-                                  ],
-                                ),
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      _editing
-                                          ? 'Update Profile Details'
-                                          : 'Personal Information',
-                                      style: TextStyle(
-                                        fontSize: 20,
-                                        fontWeight: FontWeight.w800,
-                                        color: themeText,
-                                        fontFamily: 'Montserrat',
-                                      ),
-                                    ),
-                                    const SizedBox(height: 6),
-                                    Text(
-                                      _editing
-                                          ? 'Review your information carefully before saving changes.'
-                                          : 'Your important account details are shown here in a simple and easy-to-read format.',
-                                      style: TextStyle(
-                                        fontSize: 14,
-                                        height: 1.45,
-                                        color: themeSubText,
-                                        fontFamily: 'OpenSans',
-                                      ),
-                                    ),
-                                    const SizedBox(height: 18),
-                                    _buildProfileFields(
-                                      themeCard,
-                                      themeText,
-                                      themeSubText,
-                                      themeField,
-                                    ),
-                                    const SizedBox(height: 18),
-                                    if (_editing)
-                                      SizedBox(
-                                        width: double.infinity,
-                                        child: ElevatedButton.icon(
-                                          icon: _saving
-                                              ? const SizedBox(
-                                                  width: 18,
-                                                  height: 18,
-                                                  child:
-                                                      CircularProgressIndicator(
-                                                        color: Colors.white,
-                                                        strokeWidth: 2,
-                                                      ),
-                                                )
-                                              : const Icon(
-                                                  Icons.save_rounded,
-                                                  color: Colors.white,
-                                                ),
-                                          label: Text(
-                                            _saving
-                                                ? 'Saving...'
-                                                : 'Save Changes',
-                                            style: const TextStyle(
-                                              color: Colors.white,
-                                              fontWeight: FontWeight.bold,
-                                              fontSize: 17,
-                                              fontFamily: 'Montserrat',
-                                            ),
-                                          ),
-                                          style: ElevatedButton.styleFrom(
-                                            backgroundColor: kAccentDark,
-                                            foregroundColor: Colors.white,
-                                            minimumSize: const Size.fromHeight(
-                                              56,
-                                            ),
-                                            shape: RoundedRectangleBorder(
-                                              borderRadius:
-                                                  BorderRadius.circular(18),
-                                            ),
-                                            elevation: 0,
-                                          ),
-                                          onPressed: _saving
-                                              ? null
-                                              : _saveProfile,
-                                        ),
-                                      ),
-                                    if (!_editing) ...[
-                                      const SizedBox(height: 10),
-                                      _buildActionButtons(),
-                                    ],
-                                  ],
-                                ),
+                                ],
                               ),
-                            ],
-                          ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    _editing
+                                        ? 'Update Profile Details'
+                                        : 'Personal Information',
+                                    style: TextStyle(
+                                      fontSize: 20,
+                                      fontWeight: FontWeight.w800,
+                                      color: themeText,
+                                      fontFamily: 'Montserrat',
+                                    ),
+                                  ),
+                                  const SizedBox(height: 6),
+                                  Text(
+                                    _editing
+                                        ? 'Review your information carefully before saving changes.'
+                                        : 'Your important account details are shown here in a simple and easy-to-read format.',
+                                    style: TextStyle(
+                                      fontSize: 14,
+                                      height: 1.45,
+                                      color: themeSubText,
+                                      fontFamily: 'OpenSans',
+                                    ),
+                                  ),
+                                  const SizedBox(height: 18),
+                                  _buildProfileFields(
+                                    themeCard,
+                                    themeText,
+                                    themeSubText,
+                                    themeField,
+                                  ),
+                                  const SizedBox(height: 18),
+                                  if (_editing)
+                                    SizedBox(
+                                      width: double.infinity,
+                                      child: ElevatedButton.icon(
+                                        icon: _saving
+                                            ? const SizedBox(
+                                                width: 18,
+                                                height: 18,
+                                                child:
+                                                    CircularProgressIndicator(
+                                                      color: Colors.white,
+                                                      strokeWidth: 2,
+                                                    ),
+                                              )
+                                            : const Icon(
+                                                Icons.save_rounded,
+                                                color: Colors.white,
+                                              ),
+                                        label: Text(
+                                          _saving
+                                              ? 'Saving...'
+                                              : 'Save Changes',
+                                          style: const TextStyle(
+                                            color: Colors.white,
+                                            fontWeight: FontWeight.bold,
+                                            fontSize: 17,
+                                            fontFamily: 'Montserrat',
+                                          ),
+                                        ),
+                                        style: ElevatedButton.styleFrom(
+                                          backgroundColor: kAccentDark,
+                                          foregroundColor: Colors.white,
+                                          minimumSize: const Size.fromHeight(
+                                            56,
+                                          ),
+                                          shape: RoundedRectangleBorder(
+                                            borderRadius: BorderRadius.circular(
+                                              18,
+                                            ),
+                                          ),
+                                          elevation: 0,
+                                        ),
+                                        onPressed: _saving
+                                            ? null
+                                            : _saveProfile,
+                                      ),
+                                    ),
+                                  if (!_editing) ...[
+                                    const SizedBox(height: 10),
+                                    _buildActionButtons(),
+                                  ],
+                                ],
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                     ),
                   ),
                 ),
               ),
-            ],
-          ),
-        ),
-      ),
-      bottomNavigationBar: Padding(
-        padding: const EdgeInsets.fromLTRB(18, 0, 18, 18),
-        child: SizedBox(
-          width: double.infinity,
-          height: 54,
-          child: ElevatedButton.icon(
-            icon: const Icon(Icons.dashboard_rounded, color: Colors.white),
-            label: const Text(
-              'Dashboard',
-              style: TextStyle(
-                color: Colors.white,
-                fontWeight: FontWeight.w700,
-                fontSize: 16,
-                fontFamily: 'Montserrat',
-              ),
             ),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: kPrimaryLight,
-              foregroundColor: Colors.white,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(16),
-              ),
-              elevation: 2,
-              padding: const EdgeInsets.symmetric(vertical: 12),
-            ),
-            onPressed: () => Navigator.of(context).maybePop(),
-          ),
+          ],
         ),
       ),
     );
+
+    return Scaffold(backgroundColor: themeBg, body: body);
   }
 
   Widget _buildModernProfileSection(
@@ -1668,139 +1637,124 @@ class _ProfilePageState extends State<ProfilePage> {
   }
 
   Widget _buildModernHeader(BuildContext context, bool isWide) {
-    return SafeArea(
-      child: Container(
-        width: double.infinity,
-        margin: const EdgeInsets.only(top: 12, left: 12, right: 12, bottom: 8),
-        padding: EdgeInsets.symmetric(
-          horizontal: isWide ? 28 : 18,
-          vertical: isWide ? 24 : 18,
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.only(top: 12, left: 12, right: 12, bottom: 8),
+      padding: EdgeInsets.symmetric(
+        horizontal: isWide ? 28 : 18,
+        vertical: isWide ? 24 : 18,
+      ),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [kPrimaryLight, kAccentDark],
         ),
-        decoration: BoxDecoration(
-          gradient: const LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [kPrimaryLight, kAccentDark],
+        borderRadius: BorderRadius.circular(28),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.08),
+            blurRadius: 16,
+            offset: const Offset(0, 6),
           ),
-          borderRadius: BorderRadius.circular(28),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.08),
-              blurRadius: 16,
-              offset: const Offset(0, 6),
-            ),
-          ],
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Container(
-                  decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.18),
-                    borderRadius: BorderRadius.circular(14),
-                  ),
-                  // child: IconButton(
-                  //   onPressed: () => Navigator.of(context).maybePop(),
-                  //   icon: const Icon(
-                  //     Icons.arrow_back_ios_new_rounded,
-                  //     color: Colors.white,
-                  //   ),
-                  // ),
-                ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'My Profile',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.w800,
-                          fontSize: isWide ? 28 : 22,
-                          fontFamily: 'Montserrat',
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        'Simple account details in one place.',
-                        style: TextStyle(
-                          color: Colors.white.withValues(alpha: 0.88),
-                          fontSize: isWide ? 14 : 12,
-                          height: 1.4,
-                          fontFamily: 'OpenSans',
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(width: 8),
-                ElevatedButton.icon(
-                  icon: Icon(
-                    _editing ? Icons.close_rounded : Icons.edit_rounded,
-                    size: 17,
-                    color: Colors.white,
-                  ),
-                  label: Text(
-                    _editing ? 'Cancel' : 'Edit',
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.w700,
-                      fontSize: 14,
-                    ),
-                  ),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: _editing
-                        ? kWarn
-                        : const Color.fromARGB(255, 11, 101, 73),
-                    foregroundColor: Colors.white,
-                    minimumSize: const Size(112, 46),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(14),
-                    ),
-                    elevation: 0,
-                  ),
-                  onPressed: _toggleEditingMode,
-                ),
-              ],
-            ),
-            const SizedBox(height: 18),
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-              decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.14),
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: Colors.white.withValues(alpha: 0.12)),
-              ),
-              child: Row(
-                children: [
-                  const Icon(
-                    Icons.info_outline_rounded,
-                    color: Colors.white,
-                    size: 20,
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Text(
-                      _editing
-                          ? 'You can now update your details. Tap your photo if you want to change it.'
-                          : 'Review your profile details below.',
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'My Profile',
                       style: TextStyle(
-                        color: Colors.white.withValues(alpha: 0.94),
-                        fontSize: 12,
+                        color: Colors.white,
+                        fontWeight: FontWeight.w800,
+                        fontSize: isWide ? 28 : 22,
+                        fontFamily: 'Montserrat',
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Simple account details in one place.',
+                      style: TextStyle(
+                        color: Colors.white.withValues(alpha: 0.88),
+                        fontSize: isWide ? 14 : 12,
                         height: 1.4,
                         fontFamily: 'OpenSans',
                       ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
+              const SizedBox(width: 8),
+              ElevatedButton.icon(
+                icon: Icon(
+                  _editing ? Icons.close_rounded : Icons.edit_rounded,
+                  size: 17,
+                  color: Colors.white,
+                ),
+                label: Text(
+                  _editing ? 'Cancel' : 'Edit',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w700,
+                    fontSize: 14,
+                  ),
+                ),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: _editing
+                      ? kWarn
+                      : const Color.fromARGB(255, 11, 101, 73),
+                  foregroundColor: Colors.white,
+                  minimumSize: const Size(112, 46),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  elevation: 0,
+                ),
+                onPressed: _toggleEditingMode,
+              ),
+            ],
+          ),
+          const SizedBox(height: 18),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.14),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: Colors.white.withValues(alpha: 0.12)),
             ),
-          ],
-        ),
+            child: Row(
+              children: [
+                const Icon(
+                  Icons.info_outline_rounded,
+                  color: Colors.white,
+                  size: 20,
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    _editing
+                        ? 'You can now update your details. Tap your photo if you want to change it.'
+                        : 'Review your profile details below.',
+                    style: TextStyle(
+                      color: Colors.white.withValues(alpha: 0.94),
+                      fontSize: 12,
+                      height: 1.4,
+                      fontFamily: 'OpenSans',
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }

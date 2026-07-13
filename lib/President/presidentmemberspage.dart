@@ -820,7 +820,7 @@ class _PresidentMembersPageState extends State<PresidentMembersPage>
       await supabase
           .from('payments')
           .select(
-            'id, amount, status, created_at, dayung_unit_id, death_notice_id',
+            'id, amount, status, created_at, dayung_unit_id, claim_id, userdeceased',
           )
           .eq('user_id', uid)
           .eq('status', 'paid')
@@ -830,35 +830,37 @@ class _PresidentMembersPageState extends State<PresidentMembersPage>
 
     if (payments.isEmpty) return const [];
 
-    final noticeIds = payments
-        .map((p) => p['death_notice_id'])
-        .where((id) => id != null)
-        .cast<int>()
+    final claimIds = payments
+        .map((p) => (p['claim_id'] ?? '').toString())
+        .where((id) => id.isNotEmpty)
         .toSet()
         .toList();
-        
- Map<String, Map<String, dynamic>> noticeById = {};
-  if (noticeIds.isNotEmpty) {
-    final notices = List<Map<String, dynamic>>.from(
-      await supabase
-          .from('death_notices')
-          .select('id, name, date_of_death')
-          .inFilter('id', noticeIds),
-    );
-    noticeById = {for (final n in notices) n['id'].toString(): n};
+
+    Map<String, Map<String, dynamic>> claimById = {};
+    if (claimIds.isNotEmpty) {
+      final claims = List<Map<String, dynamic>>.from(
+        await supabase
+            .from('claims')
+            .select('id, title, user_id, beneficiary_id, date_of_death')
+            .inFilter('id', claimIds),
+      );
+      claimById = {for (final c in claims) c['id'].toString(): c};
     }
 
     return payments.map((p) {
-      final nid = p['death_notice_id']?.toString();
-      final n = nid != null ? noticeById[nid] : null;
+      final claimId = (p['claim_id'] ?? '').toString();
+      final claim = claimId.isNotEmpty ? claimById[claimId] : null;
       final amount = (p['amount'] is num)
           ? (p['amount'] as num).toDouble()
           : double.tryParse('${p['amount']}') ?? 0.0;
+      final deceasedId = (p['userdeceased'] ?? '').toString();
       return {
         'date': (p['created_at'] ?? '').toString(),
         'amount': amount,
-        'notice_name': (n?['name'] ?? 'Death Notice #$nid').toString(),
-        'date_of_death': n?['date_of_death'],
+        'notice_name': (claim?['title'] ?? '').toString().trim().isNotEmpty
+            ? (claim?['title'] ?? '').toString()
+            : (deceasedId.isNotEmpty ? deceasedId : 'Contribution'),
+        'date_of_death': claim?['date_of_death'],
       };
     }).toList();
   }
@@ -1262,19 +1264,50 @@ class _PresidentMembersPageState extends State<PresidentMembersPage>
           ),
         ),
         trailing: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-          decoration: BoxDecoration(
-            color: chipColor.withValues(alpha: .15),
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: chipColor),
-          ),
-          child: Text(
-            chipText,
-            style: TextStyle(
-              fontSize: 8,
-              fontWeight: FontWeight.w600,
-              color: chipColor,
-            ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                decoration: BoxDecoration(
+                  color: chipColor.withValues(alpha: .15),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: chipColor),
+                ),
+                child: Text(
+                  chipText,
+                  style: TextStyle(
+                    fontSize: 8,
+                    fontWeight: FontWeight.w600,
+                    color: chipColor,
+                  ),
+                ),
+              ),
+              if (mode == 'active' && dayungId != null) ...[
+                const SizedBox(width: 6),
+                IconButton(
+                  tooltip: 'Remove member',
+                  visualDensity: VisualDensity.compact,
+                  constraints: const BoxConstraints(
+                    minWidth: 28,
+                    minHeight: 28,
+                  ),
+                  padding: EdgeInsets.zero,
+                  icon: const Icon(
+                    Icons.person_remove_rounded,
+                    size: 18,
+                    color: kDanger,
+                  ),
+                  onPressed: () => _showRemoveMemberDialog(
+                    dayungUnitId: dayungId,
+                    userId: (u?['id'] as String?)?.trim().isNotEmpty == true
+                        ? (u?['id'] as String).trim()
+                        : (r['user_id']?.toString().trim() ?? ''),
+                    memberName: title,
+                  ),
+                ),
+              ],
+            ],
           ),
         ),
         // President can click any member (active, pending, deceased)
@@ -1286,6 +1319,80 @@ class _PresidentMembersPageState extends State<PresidentMembersPage>
         },
       ),
     );
+  }
+
+  void _showRemoveMemberDialog({
+    required int dayungUnitId,
+    required String userId,
+    required String memberName,
+  }) {
+    if (userId.isEmpty) return;
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Text(
+          'Remove Member',
+          style: TextStyle(
+            fontWeight: FontWeight.w800,
+            fontFamily: 'Montserrat',
+          ),
+        ),
+        content: Text(
+          'Move $memberName to removed members?',
+          style: const TextStyle(fontFamily: 'OpenSans'),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(context);
+              _removeMember(dayungUnitId: dayungUnitId, userId: userId);
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: kDanger,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+            child: const Text(
+              'Remove',
+              style: TextStyle(fontWeight: FontWeight.w700),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _removeMember({
+    required int dayungUnitId,
+    required String userId,
+  }) async {
+    try {
+      await _sb
+          .from('applications')
+          .update({
+            'status': 'removed',
+            'updated_at': DateTime.now().toIso8601String(),
+          })
+          .eq('dayung_unit_id', dayungUnitId)
+          .eq('user_id', userId);
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Member removed.')));
+      _load();
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Failed to remove member: $e')));
+    }
   }
 
   String _memberNameOf(Map<String, dynamic> row) {

@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:capstone_app/Auth/logout.dart';
+import 'package:capstone_app/shared/pres_sec_dashboard_overview.dart';
 import 'package:capstone_app/Beneficiary/beneficiary.dart';
 import 'package:capstone_app/Providers/dayung_role_provider.dart';
 import 'package:capstone_app/Secretary/beneficiaries_tab.dart';
@@ -545,10 +546,12 @@ class _SecretaryDashboardPageState extends State<SecretaryDashboardPage> {
         if (mounted) setState(() => _recentClaimDeaths = []);
         return;
       }
-        // Fetch 3 most recent approved claims for this unit (do not select full_name from claims)
-        final claims = await supabase
+      // Fetch 3 most recent approved claims for this unit (do not select full_name from claims)
+      final claims = await supabase
           .from('claims')
-          .select('id, deceased_type, user_id, beneficiary_id, deceased_id, datesetamount')
+          .select(
+            'id, deceased_type, user_id, beneficiary_id, deceased_id, datesetamount',
+          )
           .eq('dayung_unit_id', unitId)
           .ilike('status', 'approved')
           .order('datesetamount', ascending: false)
@@ -583,6 +586,7 @@ class _SecretaryDashboardPageState extends State<SecretaryDashboardPage> {
   Widget build(BuildContext context) {
     final width = MediaQuery.of(context).size.width;
     final bool wide = width > 820;
+    final bool isDesktop = width > 1024;
     final provUnit = context.watch<DayungRoleProvider>().unitId;
     if (provUnit != _lastRoleUnitId) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -590,26 +594,52 @@ class _SecretaryDashboardPageState extends State<SecretaryDashboardPage> {
       });
     }
 
-    return Scaffold(
-      backgroundColor: dayungPageBackground(context),
-      drawer: _buildSideDrawer(context),
-      body: Container(
-        decoration: BoxDecoration(gradient: dayungDashboardGradient(context)),
-        child: Stack(
-          children: [
-            SafeArea(
-              child: Column(
-                children: [_buildModernHeader(), _buildContentArea(wide)],
+    if (isDesktop) {
+      // Desktop - content only (sidebar handled by SidebarLayout wrapper)
+      return Material(
+        child: Container(
+          decoration: BoxDecoration(gradient: dayungDashboardGradient(context)),
+          child: Stack(
+            children: [
+              SafeArea(
+                child: Column(
+                  children: [
+                    _buildModernHeader(showMenuButton: false),
+                    _buildContentArea(wide),
+                  ],
+                ),
               ),
-            ),
-            _bottomNav(wide),
-          ],
+              _bottomNav(wide),
+            ],
+          ),
         ),
-      ),
-    );
+      );
+    } else {
+      // Mobile layout with drawer
+      return Scaffold(
+        backgroundColor: dayungPageBackground(context),
+        drawer: _buildMobileDrawer(context),
+        body: Container(
+          decoration: BoxDecoration(gradient: dayungDashboardGradient(context)),
+          child: Stack(
+            children: [
+              SafeArea(
+                child: Column(
+                  children: [
+                    _buildModernHeader(showMenuButton: true),
+                    _buildContentArea(wide),
+                  ],
+                ),
+              ),
+              _bottomNav(wide),
+            ],
+          ),
+        ),
+      );
+    }
   }
 
-  Widget _buildModernHeader() {
+  Widget _buildModernHeader({bool showMenuButton = true}) {
     return Container(
       padding: const EdgeInsets.fromLTRB(20, 20, 20, 40),
       child: Column(
@@ -617,27 +647,28 @@ class _SecretaryDashboardPageState extends State<SecretaryDashboardPage> {
           // Top bar
           Row(
             children: [
-              Builder(
-                builder: (context) => Container(
-                  padding: const EdgeInsets.all(1),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.2),
-                    borderRadius: BorderRadius.circular(16),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.1),
-                        blurRadius: 8,
-                        offset: const Offset(0, 2),
-                      ),
-                    ],
-                  ),
-                  child: IconButton(
-                    icon: const Icon(Icons.menu_rounded, color: Colors.white),
-                    onPressed: () => Scaffold.of(context).openDrawer(),
+              if (showMenuButton)
+                Builder(
+                  builder: (context) => Container(
+                    padding: const EdgeInsets.all(1),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.2),
+                      borderRadius: BorderRadius.circular(16),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.1),
+                          blurRadius: 8,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
+                    ),
+                    child: IconButton(
+                      icon: const Icon(Icons.menu_rounded, color: Colors.white),
+                      onPressed: () => Scaffold.of(context).openDrawer(),
+                    ),
                   ),
                 ),
-              ),
-              const SizedBox(width: 16),
+              if (showMenuButton) const SizedBox(width: 16),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -645,7 +676,7 @@ class _SecretaryDashboardPageState extends State<SecretaryDashboardPage> {
                     Text(
                       _selectedDayungUnit,
                       maxLines: 1,
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontFamily: 'Montserrat',
                         fontSize: 24,
                         fontWeight: FontWeight.w900,
@@ -676,7 +707,7 @@ class _SecretaryDashboardPageState extends State<SecretaryDashboardPage> {
               Expanded(
                 child: Text(
                   'Good Morning,\n${_fullName.isEmpty ? 'Secretary' : _fullName}!',
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontFamily: 'Montserrat',
                     fontSize: 28,
                     fontWeight: FontWeight.w900,
@@ -686,37 +717,6 @@ class _SecretaryDashboardPageState extends State<SecretaryDashboardPage> {
                   ),
                 ),
               ),
-              // GestureDetector(
-              //   onTap: () {
-              //     Navigator.push(
-              //       context,
-              //       MaterialPageRoute(builder: (_) => const ProfilePage()),
-              //     );
-              //   },
-              //   child: Container(
-              //     padding: const EdgeInsets.all(4),
-              //     decoration: BoxDecoration(
-              //       color: Colors.white.withValues(alpha: 0.2),
-              //       borderRadius: BorderRadius.circular(32),
-              //       boxShadow: [
-              //         BoxShadow(
-              //           color: Colors.black.withValues(alpha: 0.1),
-              //           blurRadius: 8,
-              //           offset: const Offset(0, 2),
-              //         ),
-              //       ],
-              //     ),
-              //     child: const CircleAvatar(
-              //       radius: 28,
-              //       backgroundColor: Colors.white,
-              //       child: Icon(
-              //         Icons.person,
-              //         size: 34,
-              //         color: Color(0xFF1E40AF),
-              //       ),
-              //     ),
-              //   ),
-              // ),
             ],
           ),
         ],
@@ -724,134 +724,333 @@ class _SecretaryDashboardPageState extends State<SecretaryDashboardPage> {
     );
   }
 
-  Widget _buildSideDrawer(BuildContext context) {
-    return Drawer(
-      backgroundColor: kBg,
+  Widget _buildSideDrawer(BuildContext context, {bool isPersistent = false}) {
+    final drawerContent = Container(
+      color: dayungPageBackground(context),
       child: Column(
         children: [
-          // Modern Drawer Header
+          // Modern Header Section
           Container(
             width: double.infinity,
-            padding: const EdgeInsets.fromLTRB(24, 48, 24, 32),
-            decoration: const BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [kPrimaryDark, kPrimary],
-              ),
-              borderRadius: BorderRadius.vertical(bottom: Radius.circular(32)),
-            ),
+            margin: const EdgeInsets.all(16),
+            padding: const EdgeInsets.all(20),
+            decoration: dayungSectionCardDecoration(context),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                CircleAvatar(
-                  radius: 32,
-                  backgroundColor: kAccent.withValues(alpha: 0.15),
-                  child: Icon(Icons.person, size: 36, color: kAccent),
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF1E40AF).withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      child: const Icon(
+                        Icons.person_rounded,
+                        size: 24,
+                        color: Color(0xFF1E40AF),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            _fullName.isEmpty ? 'Secretary' : _fullName,
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w800,
+                              color: Color(0xFF1E40AF),
+                              fontFamily: 'Montserrat',
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            _selectedDayungUnit,
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                              color: Theme.of(
+                                context,
+                              ).colorScheme.onSurfaceVariant,
+                              fontFamily: 'OpenSans',
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                 ),
-                const SizedBox(height: 16),
-                Text(
-                  _fullName,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 20,
-                    fontFamily: 'Montserrat',
+              ],
+            ),
+          ),
+          // Navigation Section
+          Expanded(
+            child: Container(
+              margin: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+              padding: const EdgeInsets.all(16),
+              decoration: dayungSectionCardDecoration(context),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Navigation',
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w800,
+                      color: Color(0xFF1E40AF),
+                      fontFamily: 'Montserrat',
+                    ),
                   ),
+                  const SizedBox(height: 16),
+                  Expanded(
+                    child: ListView(
+                      padding: EdgeInsets.zero,
+                      children: [
+                        _modernNavItem(
+                          context,
+                          icon: Icons.dashboard_rounded,
+                          label: 'Dashboard',
+                          color: const Color(0xFF3B82F6),
+                          isActive: true,
+                          onTap: () {
+                            if (!isPersistent) Navigator.pop(context);
+                            // Already on dashboard
+                          },
+                        ),
+                        const SizedBox(height: 8),
+                        _modernNavItem(
+                          context,
+                          icon: Icons.account_circle_rounded,
+                          label: 'Profile',
+                          color: const Color(0xFF10B981),
+                          onTap: () {
+                            if (!isPersistent) Navigator.pop(context);
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => const ProfilePage(),
+                              ),
+                            );
+                          },
+                        ),
+                        const SizedBox(height: 8),
+                        _modernNavItem(
+                          context,
+                          icon: Icons.people_rounded,
+                          label: 'Beneficiaries',
+                          color: const Color(0xFF8B5CF6),
+                          onTap: () {
+                            if (!isPersistent) Navigator.pop(context);
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => const BeneficiaryPage(),
+                              ),
+                            );
+                          },
+                        ),
+                        const SizedBox(height: 8),
+                        _modernNavItem(
+                          context,
+                          icon: Icons.notifications_rounded,
+                          label: 'Notifications',
+                          color: const Color(0xFFF59E0B),
+                          badgeCount: _unreadNotifCount,
+                          onTap: () {
+                            if (!isPersistent) Navigator.pop(context);
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => const NotificationPage(),
+                              ),
+                            );
+                          },
+                        ),
+                        const SizedBox(height: 8),
+                        _modernNavItem(
+                          context,
+                          icon: Icons.settings_rounded,
+                          label: 'Settings',
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
+                          onTap: () {
+                            if (!isPersistent) Navigator.pop(context);
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => const ProfSettingsPage(),
+                              ),
+                            );
+                          },
+                        ),
+                        const SizedBox(height: 16),
+                        Container(height: 1, color: dayungBorder(context)),
+                        const SizedBox(height: 16),
+                        _modernNavItem(
+                          context,
+                          icon: Icons.logout_rounded,
+                          label: 'Logout',
+                          color: const Color(0xFFEF4444),
+                          onTap: () async {
+                            if (!isPersistent) Navigator.pop(context);
+                            await showLogoutDialog(context);
+                          },
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          // Version footer
+          Container(
+            margin: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: dayungSurface(context),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: dayungBorder(context)),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(
+                  Icons.info_outline_rounded,
+                  size: 14,
+                  color: Theme.of(
+                    context,
+                  ).colorScheme.onSurfaceVariant.withValues(alpha: 0.7),
                 ),
-                const SizedBox(height: 4),
+                const SizedBox(width: 6),
                 Text(
-                  _selectedDayungUnit,
+                  'Version 1.0.0',
                   style: TextStyle(
-                    color: Colors.white.withValues(alpha: 0.85),
-                    fontSize: 15,
+                    color: Theme.of(
+                      context,
+                    ).colorScheme.onSurfaceVariant.withValues(alpha: 0.7),
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
                     fontFamily: 'OpenSans',
                   ),
                 ),
               ],
             ),
           ),
-          const SizedBox(height: 12),
-          // Modern Drawer Items
-          Expanded(
-            child: ListView(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              children: [
-                _ModernDrawerTile(
-                  icon: Icons.account_circle,
-                  label: 'Profile',
-                  onTap: () {
-                    Navigator.pop(context);
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(builder: (_) => const ProfilePage()),
-                    );
-                  },
-                ),
-                _ModernDrawerTile(
-                  icon: Icons.people_rounded,
-                  label: 'Beneficiaries',
-                  onTap: () {
-                    Navigator.pop(context);
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => const BeneficiaryPage(),
-                      ),
-                    );
-                  },
-                ),
-                _ModernDrawerTile(
-                  icon: Icons.notifications,
-                  label: 'Notifications',
-                  onTap: () {
-                    Navigator.pop(context);
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => const NotificationPage(),
-                      ),
-                    );
-                  },
-                ),
-                _ModernDrawerTile(
-                  icon: Icons.settings,
-                  label: 'Settings',
-                  onTap: () {
-                    Navigator.pop(context);
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => const ProfSettingsPage(),
-                      ),
-                    );
-                  },
-                ),
-                const Divider(height: 32, thickness: 1, color: kSubText),
-                _ModernDrawerTile(
-                  icon: Icons.logout,
-                  label: 'Logout',
-                  onTap: () async {
-                    Navigator.pop(context);
-                    await showLogoutDialog(context);
-                  },
-                ),
-              ],
-            ),
-          ),
-          // App version or footer
-          Padding(
-            padding: const EdgeInsets.only(bottom: 16, top: 8),
-            child: Text(
-              'v1.0.0',
-              style: TextStyle(
-                color: kSubText.withValues(alpha: 0.7),
-                fontSize: 13,
-                fontFamily: 'OpenSans',
-              ),
-            ),
-          ),
         ],
+      ),
+    );
+
+    if (isPersistent) {
+      // Desktop persistent sidebar
+      return Container(
+        decoration: BoxDecoration(
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.05),
+              blurRadius: 8,
+              offset: const Offset(2, 0),
+            ),
+          ],
+        ),
+        child: drawerContent,
+      );
+    } else {
+      // Mobile drawer
+      return Drawer(child: drawerContent);
+    }
+  }
+
+  Widget _modernNavItem(
+    BuildContext context, {
+    required IconData icon,
+    required String label,
+    required Color color,
+    required VoidCallback onTap,
+    bool isActive = false,
+    int badgeCount = 0,
+  }) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(12),
+        splashColor: color.withValues(alpha: 0.1),
+        highlightColor: color.withValues(alpha: 0.05),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+          decoration: BoxDecoration(
+            color: isActive
+                ? color.withValues(alpha: 0.08)
+                : Colors.transparent,
+            borderRadius: BorderRadius.circular(12),
+            border: isActive
+                ? Border.all(color: color.withValues(alpha: 0.2), width: 1)
+                : null,
+          ),
+          child: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: isActive ? color : color.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(8),
+                  boxShadow: isActive
+                      ? [
+                          BoxShadow(
+                            color: color.withValues(alpha: 0.3),
+                            blurRadius: 8,
+                            offset: const Offset(0, 2),
+                          ),
+                        ]
+                      : null,
+                ),
+                child: Icon(
+                  icon,
+                  color: isActive ? Colors.white : color,
+                  size: 18,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  label,
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: isActive ? FontWeight.w700 : FontWeight.w600,
+                    color: isActive ? color : const Color(0xFF374151),
+                    fontFamily: 'Montserrat',
+                  ),
+                ),
+              ),
+              if (badgeCount > 0)
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 6,
+                    vertical: 2,
+                  ),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFEF4444),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Text(
+                    '$badgeCount',
+                    style: TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w700,
+                      color: Colors.white,
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -940,7 +1139,7 @@ class _SecretaryDashboardPageState extends State<SecretaryDashboardPage> {
               ),
               child: Text(
                 badge,
-                style: const TextStyle(
+                style: TextStyle(
                   fontFamily: 'OpenSans',
                   fontSize: 10,
                   fontWeight: FontWeight.w700,
@@ -960,14 +1159,39 @@ class _SecretaryDashboardPageState extends State<SecretaryDashboardPage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _overviewSection(MediaQuery.of(context).size.width),
+          // ── New shared overview (Row 1 stats, Row 2 chart, Row 3 collections) ──
+          if (_dayungUnitId != null)
+            PresSecDashboardOverview(
+              key: ValueKey(_dayungUnitId),
+              dayungUnitId: _dayungUnitId!,
+              onNavigateToMembers: () {
+                if (_dayungUnitId == null) return;
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) =>
+                        SecretaryMembersPage(dayungUnitId: _dayungUnitId!),
+                  ),
+                );
+              },
+              onNavigateToDeceased: () {
+                if (_dayungUnitId == null) return;
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) =>
+                        RecentDeathNotices(dayungUnitId: _dayungUnitId!),
+                  ),
+                );
+              },
+            ),
           const SizedBox(height: 24),
-          _modernActionCards(),
+          _quickActionsSection(),
+          const SizedBox(height: 24),
+          _quickAccessSection(),
           const SizedBox(height: 24),
           _modernRecentActivity(),
-          const SizedBox(height: 24),
-          _modernQuickActions(),
-          const SizedBox(height: 100), // space for bottom nav
+          const SizedBox(height: 100),
         ],
       ),
     );
@@ -1050,7 +1274,7 @@ class _SecretaryDashboardPageState extends State<SecretaryDashboardPage> {
             ),
           ),
           const SizedBox(height: 8),
-          const Text(
+          Text(
             'Recent Deaths',
             textAlign: TextAlign.center,
             style: TextStyle(
@@ -1061,9 +1285,12 @@ class _SecretaryDashboardPageState extends State<SecretaryDashboardPage> {
           ),
           const SizedBox(height: 8),
           if (deaths.isEmpty)
-            const Text(
+            Text(
               'No recent deaths',
-              style: TextStyle(fontSize: 13, color: Color(0xFF6B7280)),
+              style: TextStyle(
+                fontSize: 13,
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
             )
           else
             Column(
@@ -1106,7 +1333,7 @@ class _SecretaryDashboardPageState extends State<SecretaryDashboardPage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
+          Text(
             'Overview',
             style: TextStyle(
               fontSize: 20,
@@ -1206,31 +1433,34 @@ class _SecretaryDashboardPageState extends State<SecretaryDashboardPage> {
     );
   }
 
-  Widget _modernActionCards() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Text(
-          "Quick Actions",
-          style: TextStyle(
-            fontSize: 18,
-            fontWeight: FontWeight.w800,
-            color: branding.kNeutralText,
-            fontFamily: 'Montserrat',
+  Widget _quickActionsSection() {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: dayungSectionCardDecoration(context),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Quick Actions',
+            style: TextStyle(
+              fontSize: 20,
+              fontWeight: FontWeight.w800,
+              color: Color(0xFF1E40AF),
+              fontFamily: 'Montserrat',
+            ),
           ),
-        ),
-        const SizedBox(height: 16),
-        Column(
-          children: [
-            Row(
-              children: [
-                Expanded(
+          const SizedBox(height: 16),
+          // First row - 3 main actions
+          Row(
+            children: [
+              Expanded(
+                child: SizedBox(
+                  height: 140,
                   child: _modernActionCard(
                     icon: Icons.add_circle_rounded,
-                    title: "Create Death Notice",
-                    subtitle: "Record new death",
+                    title: 'Create Death Notice',
+                    subtitle: 'Record new death',
                     color: const Color(0xFFEF4444),
-                    height: 150,
                     onTap: () {
                       if (_dayungUnitId == null) {
                         ScaffoldMessenger.of(context).showSnackBar(
@@ -1251,14 +1481,16 @@ class _SecretaryDashboardPageState extends State<SecretaryDashboardPage> {
                     },
                   ),
                 ),
-                const SizedBox(width: 12),
-                Expanded(
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: SizedBox(
+                  height: 140,
                   child: _modernActionCard(
                     icon: Icons.family_restroom_rounded,
-                    title: "Manage",
-                    subtitle: "Beneficiaries                     ",
+                    title: 'Manage Beneficiaries',
+                    subtitle: 'View & manage',
                     color: const Color(0xFF3B82F6),
-                    height: 150,
                     onTap: () {
                       if (_dayungUnitId == null) {
                         ScaffoldMessenger.of(context).showSnackBar(
@@ -1279,18 +1511,16 @@ class _SecretaryDashboardPageState extends State<SecretaryDashboardPage> {
                     },
                   ),
                 ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                Expanded(
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: SizedBox(
+                  height: 140,
                   child: _modernActionCard(
                     icon: Icons.assignment_rounded,
-                    title: "Manage",
-                    subtitle: "Applications                   ",
+                    title: 'Manage Applications',
+                    subtitle: 'Review requests',
                     color: const Color(0xFF10B981),
-                    height: 150,
                     badgeCount: _unseenAppNotifs,
                     onTap: () async {
                       Navigator.push(
@@ -1305,14 +1535,21 @@ class _SecretaryDashboardPageState extends State<SecretaryDashboardPage> {
                     },
                   ),
                 ),
-                const SizedBox(width: 12),
-                Expanded(
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          // Second row - 2 more actions
+          Row(
+            children: [
+              Expanded(
+                child: SizedBox(
+                  height: 140,
                   child: _modernActionCard(
                     icon: Icons.track_changes_rounded,
-                    title: "Service Tracking       ",
-                    subtitle: "Monitor services",
+                    title: 'Service Tracking',
+                    subtitle: 'Monitor services',
                     color: const Color(0xFF8B5CF6),
-                    height: 150,
                     onTap: () {
                       if (_dayungUnitId == null) {
                         ScaffoldMessenger.of(context).showSnackBar(
@@ -1332,34 +1569,118 @@ class _SecretaryDashboardPageState extends State<SecretaryDashboardPage> {
                     },
                   ),
                 ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            _modernActionCard(
-              icon: Icons.payments_rounded,
-              title: 'My Payment Page',
-              subtitle: 'Pay your own contribution records',
-              color: const Color(0xFF2563EB),
-              height: 110,
-              onTap: () {
-                if (_dayungUnitId == null) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Select a Dayung first')),
-                  );
-                  return;
-                }
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) =>
-                        SecretaryPaymentPage(dayungUnitId: _dayungUnitId!),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: SizedBox(
+                  height: 140,
+                  child: _modernActionCard(
+                    icon: Icons.payments_rounded,
+                    title: 'My Payment Page',
+                    subtitle: 'Pay contributions',
+                    color: const Color(0xFF2563EB),
+                    onTap: () {
+                      if (_dayungUnitId == null) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Select a Dayung first'),
+                          ),
+                        );
+                        return;
+                      }
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => SecretaryPaymentPage(
+                            dayungUnitId: _dayungUnitId!,
+                          ),
+                        ),
+                      ).then((_) => _refreshAll());
+                    },
                   ),
-                ).then((_) => _refreshAll());
-              },
+                ),
+              ),
+              const SizedBox(width: 12),
+              const Expanded(child: SizedBox()),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _quickAccessSection() {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: dayungSectionCardDecoration(context),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Quick Access',
+            style: TextStyle(
+              fontSize: 20,
+              fontWeight: FontWeight.w800,
+              color: Color(0xFF1E40AF),
+              fontFamily: 'Montserrat',
             ),
-          ],
-        ),
-      ],
+          ),
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              Expanded(
+                child: SizedBox(
+                  height: 110,
+                  child: _modernActionCard(
+                    icon: Icons.bar_chart_rounded,
+                    title: 'Reports',
+                    subtitle: 'View analytics',
+                    color: branding.kPrimary,
+                    onTap: () {
+                      if (_dayungUnitId == null) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Select a Dayung first'),
+                          ),
+                        );
+                        return;
+                      }
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => ReportsPage(unitId: _dayungUnitId),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: SizedBox(
+                  height: 110,
+                  child: _modernActionCard(
+                    icon: Icons.folder_copy_rounded,
+                    title: 'Certificates',
+                    subtitle: 'Review queue',
+                    color: const Color(0xFF10B981),
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const CertificatesPage(),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              const Expanded(child: SizedBox()),
+            ],
+          ),
+        ],
+      ),
     );
   }
 
@@ -1370,13 +1691,122 @@ class _SecretaryDashboardPageState extends State<SecretaryDashboardPage> {
     required Color color,
     VoidCallback? onTap,
     int badgeCount = 0,
-    double height = 150,
   }) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(16),
-      child: Stack(
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(16),
+        splashColor: color.withValues(alpha: 0.1),
+        highlightColor: color.withValues(alpha: 0.05),
+        child: Ink(
+          decoration: BoxDecoration(
+            color: dayungSurface(context),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: dayungBorder(context)),
+            boxShadow: [dayungElevatedShadow(context)],
+          ),
+          child: Container(
+            width: double.infinity,
+            height: double.infinity,
+            padding: const EdgeInsets.all(16),
+            child: Stack(
+              children: [
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisAlignment: MainAxisAlignment.start,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: color.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Icon(icon, color: color, size: 20),
+                    ),
+                    const Spacer(flex: 1),
+                    Text(
+                      title,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700,
+                        color: Theme.of(context).colorScheme.onSurface,
+                        fontFamily: 'Montserrat',
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      subtitle,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                        fontFamily: 'OpenSans',
+                      ),
+                    ),
+                    const Spacer(flex: 1),
+                  ],
+                ),
+                if (badgeCount > 0)
+                  Positioned(
+                    right: 0,
+                    top: 0,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 4,
+                      ),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFDC2626),
+                        borderRadius: BorderRadius.circular(12),
+                        boxShadow: [
+                          BoxShadow(
+                            color: const Color(
+                              0xFFDC2626,
+                            ).withValues(alpha: 0.3),
+                            blurRadius: 6,
+                            offset: const Offset(0, 2),
+                          ),
+                        ],
+                      ),
+                      child: Text(
+                        '$badgeCount',
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _modernRecentActivity() {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: dayungSectionCardDecoration(context),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          Text(
+            'Recent Activity',
+            style: TextStyle(
+              fontSize: 20,
+              fontWeight: FontWeight.w800,
+              color: Color(0xFF1E40AF),
+              fontFamily: 'Montserrat',
+            ),
+          ),
+          const SizedBox(height: 16),
           Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
@@ -1386,286 +1816,143 @@ class _SecretaryDashboardPageState extends State<SecretaryDashboardPage> {
               boxShadow: [dayungElevatedShadow(context)],
             ),
             child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Icon(icon, color: color, size: 20),
-                const SizedBox(height: 12),
-                Text(
-                  title,
-                  maxLines: 1,
-                  style: const TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w700,
-                    color: branding.kNeutralText,
-                    fontFamily: 'Montserrat',
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  subtitle,
-                  maxLines: 1,
-                  style: const TextStyle(
-                    fontSize: 12,
-                    color: Color(0xFF6B7280),
-                    fontFamily: 'OpenSans',
-                  ),
-                ),
-              ],
-            ),
-          ),
-          if (badgeCount > 0)
-            Positioned(
-              right: 10,
-              top: 10,
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFDC2626),
-                  borderRadius: BorderRadius.circular(12),
-                  boxShadow: [
-                    BoxShadow(
-                      color: const Color(0xFFDC2626).withValues(alpha: 0.3),
-                      blurRadius: 6,
-                      offset: const Offset(0, 2),
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: branding.kPrimary.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: const Icon(
+                        Icons.folder_open_rounded,
+                        color: branding.kPrimary,
+                        size: 20,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        "Death Certificate Inbox",
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w700,
+                          color: Theme.of(context).colorScheme.onSurface,
+                          fontFamily: 'Montserrat',
+                        ),
+                      ),
+                    ),
+                    TextButton(
+                      onPressed: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => const CertificatesPage(),
+                          ),
+                        );
+                      },
+                      child: Text(
+                        "View All",
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          color: branding.kPrimary,
+                          fontFamily: 'Montserrat',
+                        ),
+                      ),
                     ),
                   ],
                 ),
-                child: Text(
-                  '$badgeCount',
-                  style: const TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w700,
-                    color: Colors.white,
+                const SizedBox(height: 12),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 10,
+                  ),
+                  decoration: BoxDecoration(
+                    color: dayungAccentSurface(context, branding.kPrimary),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: branding.kPrimary.withValues(
+                        alpha: dayungIsDark(context) ? 0.34 : 0.18,
+                      ),
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(
+                        Icons.task_alt_rounded,
+                        size: 16,
+                        color: branding.kPrimary,
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          _recentCertificates.isEmpty
+                              ? 'No recent deaths.'
+                              : '${_recentCertificates.length} death record(s) ready for review.',
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: Theme.of(context).colorScheme.onSurface,
+                            fontFamily: 'OpenSans',
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-              ),
-            ),
-        ],
-      ),
-    );
-  }
-
-  Widget _modernRecentActivity() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Text(
-          'Recent Activity',
-          style: TextStyle(
-            fontSize: 18,
-            fontWeight: FontWeight.w800,
-            color: branding.kNeutralText,
-            fontFamily: 'Montserrat',
-          ),
-        ),
-        const SizedBox(height: 16),
-        Container(
-          padding: const EdgeInsets.all(20),
-          decoration: dayungSectionCardDecoration(context, radius: 16),
-          child: Column(
-            children: [
-              Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: branding.kPrimary.withValues(alpha: 0.1),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: const Icon(
-                      Icons.folder_open_rounded,
-                      color: branding.kPrimary,
-                      size: 20,
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  const Expanded(
-                    child: Text(
-                      "Death Certificate Inbox",
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w700,
-                        color: branding.kNeutralText,
-                        fontFamily: 'Montserrat',
-                      ),
-                    ),
-                  ),
-                  TextButton(
-                    onPressed: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => const CertificatesPage(),
+                if (_recentCertificates.isNotEmpty) ...[
+                  const SizedBox(height: 16),
+                  ..._recentCertificates
+                      .take(3)
+                      .map(
+                        (cert) => Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 4),
+                          child: Row(
+                            children: [
+                              Container(
+                                width: 6,
+                                height: 6,
+                                decoration: const BoxDecoration(
+                                  color: branding.kPrimary,
+                                  shape: BoxShape.circle,
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Text(
+                                  cert['deceased_name'] ?? 'Unknown',
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    color: Theme.of(
+                                      context,
+                                    ).colorScheme.onSurface,
+                                    fontFamily: 'OpenSans',
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
-                      );
-                    },
-                    child: const Text(
-                      "View All",
-                      style: TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
-                        color: branding.kPrimary,
-                        fontFamily: 'Montserrat',
                       ),
+                ] else ...[
+                  const SizedBox(height: 16),
+                  Text(
+                    "No recent deaths",
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      fontFamily: 'OpenSans',
                     ),
                   ),
                 ],
-              ),
-              const SizedBox(height: 10),
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 10,
-                ),
-                decoration: BoxDecoration(
-                  color: dayungAccentSurface(context, branding.kPrimary),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(
-                    color: branding.kPrimary.withValues(
-                      alpha: dayungIsDark(context) ? 0.34 : 0.18,
-                    ),
-                  ),
-                ),
-                child: Row(
-                  children: [
-                    const Icon(
-                      Icons.task_alt_rounded,
-                      size: 16,
-                      color: branding.kPrimary,
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        _recentCertificates.isEmpty
-                            ? 'No recent deaths.'
-                            : '${_recentCertificates.length} death record(s) ready for review.',
-                        style: const TextStyle(
-                          fontSize: 13,
-                          color: branding.kNeutralText,
-                          fontFamily: 'OpenSans',
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              if (_recentCertificates.isNotEmpty) ...[
-                const SizedBox(height: 16),
-                ..._recentCertificates
-                    .take(3)
-                    .map(
-                      (cert) => Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 4),
-                        child: Row(
-                          children: [
-                            Container(
-                              width: 6,
-                              height: 6,
-                              decoration: const BoxDecoration(
-                                color: branding.kPrimary,
-                                shape: BoxShape.circle,
-                              ),
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Text(
-                                cert['deceased_name'] ?? 'Unknown',
-                                style: const TextStyle(
-                                  fontSize: 14,
-                                  color: branding.kNeutralText,
-                                  fontFamily: 'OpenSans',
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-              ] else ...[
-                const SizedBox(height: 16),
-                const Text(
-                  "No recent deaths",
-                  style: TextStyle(
-                    fontSize: 14,
-                    color: Color(0xFF6B7280),
-                    fontFamily: 'OpenSans',
-                  ),
-                ),
               ],
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _modernQuickActions() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Text(
-          'Quick Access',
-          style: TextStyle(
-            fontSize: 18,
-            fontWeight: FontWeight.w800,
-            color: branding.kNeutralText,
-            fontFamily: 'Montserrat',
-          ),
-        ),
-        const SizedBox(height: 16),
-        Wrap(
-          spacing: 12,
-          runSpacing: 12,
-          children: [
-            SizedBox(
-              width: MediaQuery.of(context).size.width > 720
-                  ? (MediaQuery.of(context).size.width - 64) / 2
-                  : double.infinity,
-              child: _modernActionCard(
-                icon: Icons.bar_chart_rounded,
-                title: 'Reports',
-                subtitle: 'Open analytics and summary reports for your unit',
-                color: branding.kPrimary,
-                height: 110,
-                onTap: () {
-                  if (_dayungUnitId == null) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Select a Dayung first')),
-                    );
-                    return;
-                  }
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => ReportsPage(unitId: _dayungUnitId),
-                    ),
-                  );
-                },
-              ),
             ),
-            SizedBox(
-              width: MediaQuery.of(context).size.width > 720
-                  ? (MediaQuery.of(context).size.width - 64) / 2
-                  : double.infinity,
-              child: _modernActionCard(
-                icon: Icons.folder_copy_rounded,
-                title: 'Certificates',
-                subtitle:
-                    'Go straight to the certificate inbox and review queue',
-                color: const Color(0xFF10B981),
-                height: 110,
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (_) => const CertificatesPage()),
-                  );
-                },
-              ),
-            ),
-          ],
-        ),
-      ],
+          ),
+        ],
+      ),
     );
   }
 
@@ -1818,58 +2105,181 @@ class _SecretaryDashboardPageState extends State<SecretaryDashboardPage> {
       ),
     );
   }
-}
 
-class _ModernDrawerTile extends StatefulWidget {
-  final IconData icon;
-  final String label;
-  final VoidCallback onTap;
-
-  const _ModernDrawerTile({
-    required this.icon,
-    required this.label,
-    required this.onTap,
-  });
-
-  @override
-  State<_ModernDrawerTile> createState() => _ModernDrawerTileState();
-}
-
-class _ModernDrawerTileState extends State<_ModernDrawerTile> {
-  bool _hovering = false;
-
-  @override
-  Widget build(BuildContext context) {
-    final hoverColor = kPrimary.withValues(alpha: 0.08);
-    return MouseRegion(
-      onEnter: (_) => setState(() => _hovering = true),
-      onExit: (_) => setState(() => _hovering = false),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 180),
-        margin: const EdgeInsets.symmetric(vertical: 4),
-        decoration: BoxDecoration(
-          color: _hovering ? hoverColor : Colors.transparent,
-          borderRadius: BorderRadius.circular(18),
-        ),
-        child: ListTile(
-          leading: Icon(widget.icon, color: kPrimary),
-          title: Text(
-            widget.label,
-            style: const TextStyle(
-              fontWeight: FontWeight.w600,
-              color: kText,
-              fontFamily: 'Montserrat',
+  Widget _buildMobileDrawer(BuildContext context) {
+    return Drawer(
+      backgroundColor: dayungPageBackground(context),
+      child: Column(
+        children: [
+          // Header Section
+          Container(
+            width: double.infinity,
+            margin: const EdgeInsets.all(16),
+            padding: const EdgeInsets.all(20),
+            decoration: dayungSectionCardDecoration(context),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF1E40AF).withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      child: const Icon(
+                        Icons.person_rounded,
+                        size: 24,
+                        color: Color(0xFF1E40AF),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            _fullName.isEmpty ? 'Secretary' : _fullName,
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w800,
+                              color: Color(0xFF1E40AF),
+                              fontFamily: 'Montserrat',
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            _selectedDayungUnit,
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                              color: Theme.of(
+                                context,
+                              ).colorScheme.onSurfaceVariant,
+                              fontFamily: 'OpenSans',
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ],
             ),
           ),
-          onTap: widget.onTap,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(18),
+          // Navigation Section
+          Expanded(
+            child: Container(
+              margin: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+              padding: const EdgeInsets.all(16),
+              decoration: dayungSectionCardDecoration(context),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Navigation',
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w800,
+                      color: Color(0xFF1E40AF),
+                      fontFamily: 'Montserrat',
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Expanded(
+                    child: ListView(
+                      padding: EdgeInsets.zero,
+                      children: [
+                        _modernNavItem(
+                          context,
+                          icon: Icons.account_circle_rounded,
+                          label: 'Profile',
+                          color: const Color(0xFF10B981),
+                          onTap: () {
+                            Navigator.pop(context);
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => const ProfilePage(),
+                              ),
+                            );
+                          },
+                        ),
+                        const SizedBox(height: 8),
+                        _modernNavItem(
+                          context,
+                          icon: Icons.people_rounded,
+                          label: 'Beneficiaries',
+                          color: const Color(0xFF8B5CF6),
+                          onTap: () {
+                            Navigator.pop(context);
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => const BeneficiaryPage(),
+                              ),
+                            );
+                          },
+                        ),
+                        const SizedBox(height: 8),
+                        _modernNavItem(
+                          context,
+                          icon: Icons.notifications_rounded,
+                          label: 'Notifications',
+                          color: const Color(0xFFF59E0B),
+                          badgeCount: _unreadNotifCount,
+                          onTap: () {
+                            Navigator.pop(context);
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => const NotificationPage(),
+                              ),
+                            );
+                          },
+                        ),
+                        const SizedBox(height: 8),
+                        _modernNavItem(
+                          context,
+                          icon: Icons.settings_rounded,
+                          label: 'Settings',
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
+                          onTap: () {
+                            Navigator.pop(context);
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => const ProfSettingsPage(),
+                              ),
+                            );
+                          },
+                        ),
+                        const SizedBox(height: 16),
+                        Container(height: 1, color: dayungBorder(context)),
+                        const SizedBox(height: 16),
+                        _modernNavItem(
+                          context,
+                          icon: Icons.logout_rounded,
+                          label: 'Logout',
+                          color: const Color(0xFFEF4444),
+                          onTap: () async {
+                            Navigator.pop(context);
+                            await showLogoutDialog(context);
+                          },
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
           ),
-          contentPadding: const EdgeInsets.symmetric(
-            horizontal: 18,
-            vertical: 2,
-          ),
-        ),
+        ],
       ),
     );
   }

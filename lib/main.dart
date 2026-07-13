@@ -14,6 +14,7 @@ import 'package:capstone_app/Providers/dayung_role_provider.dart';
 import 'package:capstone_app/Providers/route_observer.dart';
 import 'package:capstone_app/Providers/user_provider.dart';
 import 'package:capstone_app/Secretary/dashboard.dart';
+import 'package:capstone_app/Secretary/dashboard_with_sidebar.dart';
 import 'package:capstone_app/SuperAdmin/dashboard.dart';
 import 'package:capstone_app/Treasurer/dashboard.dart';
 import 'package:capstone_app/settings/custom_scroll_behavior.dart';
@@ -226,7 +227,8 @@ Future<void> main() async {
   supabaseAnonKey = Env.supabaseAnonKey;
 
   // If still placeholders, try dotenv (for mobile/desktop)
-  if (supabaseUrl == 'YOUR_SUPABASE_URL' || supabaseAnonKey == 'YOUR_SUPABASE_ANON_KEY') {
+  if (supabaseUrl == 'YOUR_SUPABASE_URL' ||
+      supabaseAnonKey == 'YOUR_SUPABASE_ANON_KEY') {
     await dotenv.load(fileName: '.env');
     supabaseUrl = dotenv.env['SUPABASE_URL'] ?? '';
     supabaseAnonKey = dotenv.env['SUPABASE_ANON_KEY'] ?? '';
@@ -531,7 +533,8 @@ class _MyAppState extends State<MyApp> {
                 '/reapply': (context) => Reapply(),
                 '/dashboard': (context) => MemberDashboardPage(),
                 '/president-dashboard': (context) => PresidentDashboardPage(),
-                '/secretary-dashboard': (context) => SecretaryDashboardPage(),
+                '/secretary-dashboard': (context) =>
+                    const SecretaryDashboardEntry(),
                 '/treasurer-dashboard': (context) => TreasurerDashboardPage(),
                 '/collector-dashboard': (context) => CollectorDashboardPage(),
                 '/superadmin-dashboard': (context) => SuperAdminDashboardPage(),

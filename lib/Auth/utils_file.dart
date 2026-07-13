@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:capstone_app/President/dashboard.dart';
-import 'package:capstone_app/Secretary/dashboard.dart';
+import 'package:capstone_app/Secretary/dashboard_with_sidebar.dart';
 import 'package:capstone_app/Treasurer/dashboard.dart';
 import 'package:capstone_app/Collector/dashboard.dart';
 import 'package:capstone_app/Members/dashboard.dart';
@@ -54,7 +54,7 @@ Future<bool> isCollector() async {
 
 Future<Widget> pickHome() async {
   if (await isPresident()) return const PresidentDashboardPage();
-  if (await isSecretary()) return const SecretaryDashboardPage();
+  if (await isSecretary()) return const SecretaryDashboardEntry();
   if (await isTreasurer()) return const TreasurerDashboardPage();
   if (await isCollector()) return const CollectorDashboardPage();
   return const MemberDashboardPage();

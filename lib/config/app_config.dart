@@ -30,19 +30,21 @@ class AppConfig {
     }
   }
 
-
   static String get supabaseUrl {
     if (kIsWeb) {
       return Env.supabaseUrl;
     }
-    return _firstNonEmpty(_supabaseUrlDefine, dotenv.env['SUPABASE_URL']);
+    return _firstNonEmpty(_supabaseUrlDefine, _dotenvValue('SUPABASE_URL'));
   }
 
   static String get supabaseAnonKey {
     if (kIsWeb) {
       return Env.supabaseAnonKey;
     }
-    return _firstNonEmpty(_supabaseAnonKeyDefine, dotenv.env['SUPABASE_ANON_KEY']);
+    return _firstNonEmpty(
+      _supabaseAnonKeyDefine,
+      _dotenvValue('SUPABASE_ANON_KEY'),
+    );
   }
 
   static String get openRouteServiceApiKey {
@@ -50,7 +52,10 @@ class AppConfig {
       // Add to Env if needed
       return '';
     }
-    return _firstNonEmpty(_openRouteServiceApiKeyDefine, dotenv.env['OPENROUTESERVICE_API_KEY']);
+    return _firstNonEmpty(
+      _openRouteServiceApiKeyDefine,
+      _dotenvValue('OPENROUTESERVICE_API_KEY'),
+    );
   }
 
   static String _firstNonEmpty(String primary, String? fallback) {
@@ -58,6 +63,14 @@ class AppConfig {
       return primary;
     }
     return fallback?.trim() ?? '';
+  }
+
+  static String? _dotenvValue(String key) {
+    try {
+      return dotenv.env[key];
+    } catch (_) {
+      return null;
+    }
   }
 
   static List<String> missingRequiredKeys() {

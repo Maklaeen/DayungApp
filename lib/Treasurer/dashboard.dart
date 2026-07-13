@@ -1021,8 +1021,6 @@ Future<List<Map<String, dynamic>>> _fetchDeathNotices(List<int> dayungIds) async
             const SizedBox(height: 24),
             _buildRecentActivity(),
             const SizedBox(height: 24),
-            _buildCollectedSection(),
-            const SizedBox(height: 24),
             _buildDeathNoticesSection(),
           ],
         ),
@@ -1234,115 +1232,271 @@ Future<List<Map<String, dynamic>>> _fetchDeathNotices(List<int> dayungIds) async
   }
 
   Widget _buildQuickActions() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Text(
-          'Quick Access',
-          style: TextStyle(
-            fontSize: 18,
-            fontWeight: FontWeight.w800,
-            color: Color(0xFF1E40AF),
-            fontFamily: 'Montserrat',
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: dayungSectionCardDecoration(context),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Quick Actions',
+            style: TextStyle(
+              fontSize: 20,
+              fontWeight: FontWeight.w800,
+              color: Color(0xFF1E40AF),
+              fontFamily: 'Montserrat',
+            ),
+          ),
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              Expanded(
+                child: SizedBox(
+                  height: 140,
+                  child: _modernActionCardGrid(
+                    icon: Icons.account_balance_wallet_rounded,
+                    title: 'Manage Fund',
+                    subtitle: 'View & manage',
+                    color: const Color(0xFF3B82F6),
+                    onTap: () {
+                      if (_dayungUnitId == null) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Select a Dayung first')),
+                        );
+                        return;
+                      }
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) =>
+                              ManageFundPage(dayungUnitId: _dayungUnitId!),
+                        ),
+                      ).then((_) => _fetchAll());
+                    },
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: SizedBox(
+                  height: 140,
+                  child: _modernActionCardGrid(
+                    icon: Icons.payments_rounded,
+                    title: 'My Payment Page',
+                    subtitle: 'Pay contributions',
+                    color: const Color(0xFF2563EB),
+                    onTap: () {
+                      if (_dayungUnitId == null) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Select a Dayung first')),
+                        );
+                        return;
+                      }
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) =>
+                              TreasurerPaymentPage(dayungUnitId: _dayungUnitId!),
+                        ),
+                      ).then((_) => _fetchAll());
+                    },
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: SizedBox(
+                  height: 140,
+                  child: _modernActionCardGrid(
+                    icon: Icons.verified_user_rounded,
+                    title: 'Paid Members',
+                    subtitle: 'View paid list',
+                    color: const Color(0xFF10B981),
+                    onTap: () async {
+                      if (_dayungUnitId == null) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Select a Dayung first')),
+                        );
+                        return;
+                      }
+                      await _showMembersModal(paid: true);
+                    },
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                child: SizedBox(
+                  height: 140,
+                  child: _modernActionCardGrid(
+                    icon: Icons.pending_actions_rounded,
+                    title: 'Unpaid Members',
+                    subtitle: 'View unpaid list',
+                    color: const Color(0xFFEF4444),
+                    onTap: () async {
+                      if (_dayungUnitId == null) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Select a Dayung first')),
+                        );
+                        return;
+                      }
+                      await _showMembersModal(paid: false);
+                    },
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: SizedBox(
+                  height: 140,
+                  child: _modernActionCardGrid(
+                    icon: Icons.qr_code_2_rounded,
+                    title: 'GCash QR',
+                    subtitle: 'Show payment QR',
+                    color: const Color(0xFFF59E0B),
+                    onTap: () {
+                      if (_dayungUnitId == null) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Select a Dayung first')),
+                        );
+                        return;
+                      }
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) =>
+                              GcashQrPage(dayungUnitId: _dayungUnitId!),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              const Expanded(child: SizedBox()),
+            ],
+          ),
+          const SizedBox(height: 16),
+          const Text(
+            'Quick Access',
+            style: TextStyle(
+              fontSize: 20,
+              fontWeight: FontWeight.w800,
+              color: Color(0xFF1E40AF),
+              fontFamily: 'Montserrat',
+            ),
+          ),
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              Expanded(
+                child: SizedBox(
+                  height: 110,
+                  child: _modernActionCardGrid(
+                    icon: Icons.account_balance_rounded,
+                    title: 'Collections',
+                    subtitle: 'From collectors',
+                    color: const Color(0xFF10B981),
+                    onTap: () {
+                      if (_dayungUnitId == null) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Select a Dayung first')),
+                        );
+                        return;
+                      }
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => CollectedFromCollectorsPage(
+                            dayungUnitId: _dayungUnitId!,
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              const Expanded(child: SizedBox()),
+              const SizedBox(width: 12),
+              const Expanded(child: SizedBox()),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _modernActionCardGrid({
+    required IconData icon,
+    required String title,
+    required String subtitle,
+    required Color color,
+    VoidCallback? onTap,
+  }) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(16),
+        splashColor: color.withValues(alpha: 0.1),
+        highlightColor: color.withValues(alpha: 0.05),
+        child: Ink(
+          decoration: BoxDecoration(
+            color: dayungSurface(context),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: dayungBorder(context)),
+            boxShadow: [dayungElevatedShadow(context)],
+          ),
+          child: Container(
+            width: double.infinity,
+            height: double.infinity,
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.start,
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: color.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Icon(icon, color: color, size: 20),
+                ),
+                const Spacer(),
+                Text(
+                  title,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
+                    color: Theme.of(context).colorScheme.onSurface,
+                    fontFamily: 'Montserrat',
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  subtitle,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    fontFamily: 'OpenSans',
+                  ),
+                ),
+                const Spacer(),
+              ],
+            ),
           ),
         ),
-        const SizedBox(height: 12),
-        _buildModernActionCard(
-          icon: Icons.account_balance_wallet_rounded,
-          title: 'Manage Fund',
-          subtitle: 'View and manage fund details',
-          color: const Color(0xFF3B82F6),
-          onTap: () {
-            if (_dayungUnitId == null) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Select a Dayung first')),
-              );
-              return;
-            }
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (_) => ManageFundPage(dayungUnitId: _dayungUnitId!),
-              ),
-            ).then((_) => _fetchAll());
-          },
-        ),
-        const SizedBox(height: 8),
-        _buildModernActionCard(
-          icon: Icons.payments_rounded,
-          title: 'My Payment Page',
-          subtitle: 'Pay your own contribution records',
-          color: const Color(0xFF2563EB),
-          onTap: () {
-            if (_dayungUnitId == null) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Select a Dayung first')),
-              );
-              return;
-            }
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (_) =>
-                    TreasurerPaymentPage(dayungUnitId: _dayungUnitId!),
-              ),
-            ).then((_) => _fetchAll());
-          },
-        ),
-        const SizedBox(height: 8),
-        _buildModernActionCard(
-          icon: Icons.verified_user_rounded,
-          title: 'Paid Members',
-          subtitle: 'View members who have paid',
-          color: const Color(0xFF10B981),
-          onTap: () async {
-            if (_dayungUnitId == null) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Select a Dayung first')),
-              );
-              return;
-            }
-            await _showMembersModal(paid: true);
-          },
-        ),
-        const SizedBox(height: 8),
-        _buildModernActionCard(
-          icon: Icons.pending_actions_rounded,
-          title: 'Unpaid Members',
-          subtitle: 'View members who haven\'t paid',
-          color: const Color(0xFFEF4444),
-          onTap: () async {
-            if (_dayungUnitId == null) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Select a Dayung first')),
-              );
-              return;
-            }
-            await _showMembersModal(paid: false);
-          },
-        ),
-        const SizedBox(height: 8),
-        _buildModernActionCard(
-          icon: Icons.qr_code_2_rounded,
-          title: 'Open GCash QR',
-          subtitle: 'Show payment QR',
-          color: const Color(0xFFF59E0B),
-          onTap: () {
-            if (_dayungUnitId == null) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Select a Dayung first')),
-              );
-              return;
-            }
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (_) => GcashQrPage(dayungUnitId: _dayungUnitId!),
-              ),
-            );
-          },
-        ),
-      ],
+      ),
     );
   }
 
@@ -1492,76 +1646,6 @@ Future<List<Map<String, dynamic>>> _fetchDeathNotices(List<int> dayungIds) async
           ),
         ),
       ],
-    );
-  }
-
-  Widget _buildModernActionCard({
-    required IconData icon,
-    required String title,
-    required String subtitle,
-    required Color color,
-    required VoidCallback onTap,
-  }) {
-    return Container(
-      width: double.infinity,
-      decoration: BoxDecoration(
-        color: dayungSurface(context),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: dayungBorder(context)),
-        boxShadow: [dayungElevatedShadow(context)],
-      ),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          borderRadius: BorderRadius.circular(16),
-          onTap: onTap,
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: color.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Icon(icon, color: color, size: 24),
-                ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        title,
-                        style: const TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w700,
-                          color: Color(0xFF1F2937),
-                        ),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        subtitle,
-                        style: const TextStyle(
-                          fontSize: 12,
-                          color: Color(0xFF6B7280),
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                Icon(
-                  Icons.arrow_forward_ios_rounded,
-                  color: color.withValues(alpha: 0.6),
-                  size: 16,
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
     );
   }
 

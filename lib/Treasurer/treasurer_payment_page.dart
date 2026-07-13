@@ -19,4 +19,4 @@ class _TreasurerPaymentPageState extends State<TreasurerPaymentPage> {
       roleSubtitle: 'Review and settle your own pending contribution records.',
     );
   }
-}
+} 

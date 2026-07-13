@@ -45,7 +45,7 @@ class ServiceChecklistNotifier
   Future<void> fetchServices() async {
     final sb = Supabase.instance.client;
     try {
-        final response = await sb
+      final response = await sb
           .from('service_checklist')
           .select()
           .eq('claim_id', claimId);
@@ -99,7 +99,11 @@ class _ServiceTrackerPageState extends State<ServiceTrackerPage> {
           .toSet()
           .toList();
       final beneficiaryIds = notices
-          .where((n) => n['deceased_type'] == 'beneficiary' && n['beneficiary_id'] != null)
+          .where(
+            (n) =>
+                n['deceased_type'] == 'beneficiary' &&
+                n['beneficiary_id'] != null,
+          )
           .map((n) => n['beneficiary_id'])
           .toSet()
           .toList();
@@ -107,27 +111,28 @@ class _ServiceTrackerPageState extends State<ServiceTrackerPage> {
       // Fetch users and beneficiaries in batch
       Map userMap = {};
       Map beneficiaryMap = {};
-    if (userIds.isNotEmpty) {
-  final users = await sb
-      .from('users')
-      .select('id, full_name')
-      .inFilter('id', userIds);
-  userMap = {for (var u in users) u['id']: u['full_name']};
-}
-if (beneficiaryIds.isNotEmpty) {
-  final beneficiaries = await sb
-      .from('beneficiaries')
-      .select('id, full_name')
-      .inFilter('id', beneficiaryIds);
-  beneficiaryMap = {for (var b in beneficiaries) b['id']: b['full_name']};
-}
+      if (userIds.isNotEmpty) {
+        final users = await sb
+            .from('users')
+            .select('id, full_name')
+            .inFilter('id', userIds);
+        userMap = {for (var u in users) u['id']: u['full_name']};
+      }
+      if (beneficiaryIds.isNotEmpty) {
+        final beneficiaries = await sb
+            .from('beneficiaries')
+            .select('id, full_name')
+            .inFilter('id', beneficiaryIds);
+        beneficiaryMap = {for (var b in beneficiaries) b['id']: b['full_name']};
+      }
 
       // Attach the correct name to each notice
       for (final notice in notices) {
         if (notice['deceased_type'] == 'member') {
           notice['display_name'] = userMap[notice['user_id']] ?? 'No Name';
         } else if (notice['deceased_type'] == 'beneficiary') {
-          notice['display_name'] = beneficiaryMap[notice['beneficiary_id']] ?? 'No Name';
+          notice['display_name'] =
+              beneficiaryMap[notice['beneficiary_id']] ?? 'No Name';
         } else {
           notice['display_name'] = 'No Name';
         }
@@ -140,30 +145,32 @@ if (beneficiaryIds.isNotEmpty) {
           .toList();
 
       if (claimIds.isNotEmpty) {
-          // Fetch only services that are not removed
-          final services = await sb
+        // Fetch only services that are not removed
+        final services = await sb
             .from('service_checklist')
             .select()
             .or('is_removed.is.null,is_removed.eq.false');
-          debugPrint('--- DEBUG: Raw services fetched from Supabase (is_removed = false) ---');
-          debugPrint(services.toString());
+        debugPrint(
+          '--- DEBUG: Raw services fetched from Supabase (is_removed = false) ---',
+        );
+        debugPrint(services.toString());
 
-          for (final raw in List<Map<String, dynamic>>.from(services as List)) {
-            final claimId = _noticeKey({'id': raw['claim_id']});
-            if (claimId.isEmpty) continue;
-            servicesByNotice.putIfAbsent(claimId, () => []).add(raw);
-          }
+        for (final raw in List<Map<String, dynamic>>.from(services as List)) {
+          final claimId = _noticeKey({'id': raw['claim_id']});
+          if (claimId.isEmpty) continue;
+          servicesByNotice.putIfAbsent(claimId, () => []).add(raw);
+        }
 
-          for (final entry in servicesByNotice.entries) {
-            entry.value.sort((a, b) {
-              final aDate = DateTime.tryParse('${a['time_service'] ?? ''}');
-              final bDate = DateTime.tryParse('${b['time_service'] ?? ''}');
-              if (aDate == null && bDate == null) return 0;
-              if (aDate == null) return 1;
-              if (bDate == null) return -1;
-              return aDate.compareTo(bDate);
-            });
-          }
+        for (final entry in servicesByNotice.entries) {
+          entry.value.sort((a, b) {
+            final aDate = DateTime.tryParse('${a['time_service'] ?? ''}');
+            final bDate = DateTime.tryParse('${b['time_service'] ?? ''}');
+            if (aDate == null && bDate == null) return 0;
+            if (aDate == null) return 1;
+            if (bDate == null) return -1;
+            return aDate.compareTo(bDate);
+          });
+        }
       }
 
       if (!mounted) return;
@@ -175,13 +182,17 @@ if (beneficiaryIds.isNotEmpty) {
       // DEBUG: Print mapping after fetch
       debugPrint('--- DEBUG: Notices ---');
       for (final n in notices) {
-        debugPrint('Notice id: \\${n['id']} (as string: \\${n['id']?.toString()}) display_name: \\${n['display_name']}');
+        debugPrint(
+          'Notice id: \\${n['id']} (as string: \\${n['id']?.toString()}) display_name: \\${n['display_name']}',
+        );
       }
       debugPrint('--- DEBUG: Services by Notice ---');
       servicesByNotice.forEach((key, services) {
         debugPrint('NoticeKey: \\$key -> Services count: \\${services.length}');
         for (final s in services) {
-          debugPrint('  Service id: \\${s['id']} claim_id: \\${s['claim_id']} service_name: \\${s['service_name']}');
+          debugPrint(
+            '  Service id: \\${s['id']} claim_id: \\${s['claim_id']} service_name: \\${s['service_name']}',
+          );
         }
       });
     } catch (e) {
@@ -195,7 +206,8 @@ if (beneficiaryIds.isNotEmpty) {
   }
 
   // Always return claim id as a string for correct matching
-  String _noticeKey(Map<String, dynamic> notice) => notice['id']?.toString() ?? '';
+  String _noticeKey(Map<String, dynamic> notice) =>
+      notice['id']?.toString() ?? '';
 
   String _formatDateValue(dynamic value, {String pattern = 'MMM d, yyyy'}) {
     if (value == null) return 'N/A';
@@ -301,7 +313,9 @@ if (beneficiaryIds.isNotEmpty) {
       debugPrint('Update query constructed. About to execute.');
       final response = await updateQuery;
       debugPrint('Supabase update response: $response');
-      if (response is Map && response.containsKey('error') && response['error'] != null) {
+      if (response is Map &&
+          response.containsKey('error') &&
+          response['error'] != null) {
         debugPrint('Supabase error: ${response['error']}');
       }
       await _fetchData();
@@ -411,31 +425,48 @@ if (beneficiaryIds.isNotEmpty) {
                     fontWeight: FontWeight.w600,
                   ),
                 ),
-                  // Progress/track display for start_time_service and end_time_service
-                  if (service['start_time_service'] != null || service['end_time_service'] != null) ...[
-                    const SizedBox(height: 4),
-                    Row(
-                      children: [
-                        const Icon(Icons.play_arrow_rounded, size: 16, color: kPrimaryDark),
+                // Progress/track display for start_time_service and end_time_service
+                if (service['start_time_service'] != null ||
+                    service['end_time_service'] != null) ...[
+                  const SizedBox(height: 4),
+                  Row(
+                    children: [
+                      const Icon(
+                        Icons.play_arrow_rounded,
+                        size: 16,
+                        color: kPrimaryDark,
+                      ),
+                      const SizedBox(width: 4),
+                      Text(
+                        'Start: '
+                        '${_formatServiceSchedule(service['start_time_service'])}',
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: kPrimaryDark,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      if (service['end_time_service'] != null) ...[
+                        const SizedBox(width: 12),
+                        const Icon(
+                          Icons.flag_rounded,
+                          size: 16,
+                          color: kAccentDark,
+                        ),
                         const SizedBox(width: 4),
                         Text(
-                          'Start: '
-                          '${_formatServiceSchedule(service['start_time_service'])}',
-                          style: const TextStyle(fontSize: 12, color: kPrimaryDark, fontWeight: FontWeight.w600),
-                        ),
-                        if (service['end_time_service'] != null) ...[
-                          const SizedBox(width: 12),
-                          const Icon(Icons.flag_rounded, size: 16, color: kAccentDark),
-                          const SizedBox(width: 4),
-                          Text(
-                            'End: '
-                            '${_formatServiceSchedule(service['end_time_service'])}',
-                            style: const TextStyle(fontSize: 12, color: kAccentDark, fontWeight: FontWeight.w600),
+                          'End: '
+                          '${_formatServiceSchedule(service['end_time_service'])}',
+                          style: const TextStyle(
+                            fontSize: 12,
+                            color: kAccentDark,
+                            fontWeight: FontWeight.w600,
                           ),
-                        ]
+                        ),
                       ],
-                    ),
-                  ],
+                    ],
+                  ),
+                ],
                 if (notes.isNotEmpty) ...[
                   const SizedBox(height: 8),
                   Text(
@@ -446,11 +477,11 @@ if (beneficiaryIds.isNotEmpty) {
               ],
             ),
           ),
-          IconButton(
-            tooltip: 'Remove service',
-            onPressed: () => _removeService(service),
-            icon: const Icon(Icons.delete_outline_rounded, color: kDanger),
-          ),
+          // IconButton(
+          //   tooltip: 'Remove service',
+          //   onPressed: () => _removeService(service),
+          //   icon: const Icon(Icons.delete_outline_rounded, color: kDanger),
+          // ),
         ],
       ),
     );
@@ -838,7 +869,9 @@ if (beneficiaryIds.isNotEmpty) {
                                                     CrossAxisAlignment.start,
                                                 children: [
                                                   Text(
-  (notice['display_name'] ?? 'No Name').toString(),
+                                                    (notice['display_name'] ??
+                                                            'No Name')
+                                                        .toString(),
                                                     style: const TextStyle(
                                                       fontWeight:
                                                           FontWeight.w800,
@@ -948,7 +981,7 @@ if (beneficiaryIds.isNotEmpty) {
                                                 SizedBox(width: 10),
                                                 Expanded(
                                                   child: Text(
-                                                   'No services added yet. Tap "Add" to schedule a service for this Service Tracker.',
+                                                    'No services added yet. Tap "Add" to schedule a service for this Service Tracker.',
                                                     style: TextStyle(
                                                       fontSize: 13,
                                                       color: kSubText,

@@ -33,7 +33,7 @@ class _PresidentContributionsPageState
   String _search = '';
   List<Map<String, dynamic>> _payments = [];
   Map<String, String> _userNames = {};
-  Map<int, Map<String, dynamic>> _deathNotices = {};
+  Map<String, Map<String, dynamic>> _claims = {};
   double _paidTotal = 0;
   double _pendingTotal = 0;
   int _paidCount = 0;
@@ -52,7 +52,7 @@ class _PresidentContributionsPageState
       final rows = await _sb
           .from('payments')
           .select(
-            'id, user_id, amount, status, created_at, paid_at, death_notice_id, beneficiary_id, collected_by',
+            'id, user_id, userdeceased, claim_id, amount, status, created_at, paid_at, beneficiary_id, collected_by',
           )
           .eq('dayung_unit_id', widget.dayungUnitId)
           .order('created_at', ascending: false)
@@ -60,15 +60,17 @@ class _PresidentContributionsPageState
 
       final payments = List<Map<String, dynamic>>.from(rows);
       final userIds = <String>{};
-      final noticeIds = <int>{};
+      final claimIds = <String>{};
 
       for (final payment in payments) {
         final userId = (payment['user_id'] ?? '').toString();
         final collectorId = (payment['collected_by'] ?? '').toString();
-        final noticeId = int.tryParse('${payment['death_notice_id'] ?? ''}');
+        final deceasedId = (payment['userdeceased'] ?? '').toString();
+        final claimId = (payment['claim_id'] ?? '').toString();
         if (userId.isNotEmpty) userIds.add(userId);
         if (collectorId.isNotEmpty) userIds.add(collectorId);
-        if (noticeId != null) noticeIds.add(noticeId);
+        if (deceasedId.isNotEmpty) userIds.add(deceasedId);
+        if (claimId.isNotEmpty) claimIds.add(claimId);
       }
 
       final userNames = <String, String>{};
@@ -87,17 +89,17 @@ class _PresidentContributionsPageState
         }
       }
 
-      final deathNotices = <int, Map<String, dynamic>>{};
-      if (noticeIds.isNotEmpty) {
+      final claims = <String, Map<String, dynamic>>{};
+      if (claimIds.isNotEmpty) {
         final notices = await _sb
-            .from('death_notices')
-            .select('id, name, date_of_death, deceased_type')
-            .inFilter('id', noticeIds.toList());
+            .from('claims')
+            .select('id, user_id, beneficiary_id, title, date_of_death, status')
+            .inFilter('id', claimIds.toList());
 
         for (final notice in List<Map<String, dynamic>>.from(notices)) {
-          final id = int.tryParse('${notice['id']}');
-          if (id != null) {
-            deathNotices[id] = notice;
+          final id = (notice['id'] ?? '').toString();
+          if (id.isNotEmpty) {
+            claims[id] = notice;
           }
         }
       }
@@ -123,7 +125,7 @@ class _PresidentContributionsPageState
       setState(() {
         _payments = payments;
         _userNames = userNames;
-        _deathNotices = deathNotices;
+        _claims = claims;
         _paidTotal = paidTotal;
         _pendingTotal = pendingTotal;
         _paidCount = paidCount;
@@ -157,9 +159,16 @@ class _PresidentContributionsPageState
   }
 
   String _deceasedName(Map<String, dynamic> payment) {
-    final noticeId = int.tryParse('${payment['death_notice_id'] ?? ''}');
-    if (noticeId == null) return 'No death notice linked';
-    return (_deathNotices[noticeId]?['name'] ?? 'Unknown deceased').toString();
+    final claimId = (payment['claim_id'] ?? '').toString();
+    final deceasedId = (payment['userdeceased'] ?? '').toString();
+    if (claimId.isNotEmpty && _claims.containsKey(claimId)) {
+      final claim = _claims[claimId]!;
+      final claimName = (claim['title'] ?? '').toString().trim();
+      if (claimName.isNotEmpty) return claimName;
+    }
+    if (deceasedId.isNotEmpty)
+      return _userNames[deceasedId] ?? 'Unknown deceased';
+    return 'No deceased linked';
   }
 
   String _dateOf(Map<String, dynamic> payment) {
