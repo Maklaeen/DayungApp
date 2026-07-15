@@ -32,6 +32,34 @@ class _PresidentMembersPageState extends State<PresidentMembersPage>
   List<Map<String, dynamic>> _rows = [];
   final Map<int, String> _dayungNames = {};
 
+  bool _shouldPreferApplicationRow(
+    Map<String, dynamic> candidate,
+    Map<String, dynamic> current,
+  ) {
+    final candidateStatus = (candidate['status'] ?? '').toString();
+    final currentStatus = (current['status'] ?? '').toString();
+
+    if (candidateStatus != currentStatus) {
+      if (candidateStatus == 'approved') return true;
+      if (currentStatus == 'approved') return false;
+    }
+
+    final candidateAt = DateTime.tryParse(
+      candidate['approved_at']?.toString() ??
+          candidate['applied_at']?.toString() ??
+          '',
+    );
+    final currentAt = DateTime.tryParse(
+      current['approved_at']?.toString() ??
+          current['applied_at']?.toString() ??
+          '',
+    );
+
+    if (candidateAt == null) return false;
+    if (currentAt == null) return true;
+    return candidateAt.isAfter(currentAt);
+  }
+
   @override
   void initState() {
     super.initState();
@@ -81,7 +109,7 @@ class _PresidentMembersPageState extends State<PresidentMembersPage>
       final apps = await _sb
           .from('applications')
           .select(
-            'user_id, status, name, dayung_unit_id, approved_at, applied_at, '
+            'id, user_id, status, name, dayung_unit_id, approved_at, applied_at, '
             'user:users(id, full_name, email, profile_url)',
           )
           .inFilter('dayung_unit_id', dayungIds)
@@ -141,14 +169,7 @@ class _PresidentMembersPageState extends State<PresidentMembersPage>
           byKey[key] = normalized;
         } else {
           final prev = byKey[key]!;
-          final prevAt = prev['approved_at']?.toString();
-          final currAt = r['approved_at']?.toString();
-          if (currAt != null &&
-              (prevAt == null ||
-                  DateTime.tryParse(
-                        currAt,
-                      )?.isAfter(DateTime.tryParse(prevAt) ?? DateTime(0)) ==
-                      true)) {
+          if (_shouldPreferApplicationRow(normalized, prev)) {
             byKey[key] = normalized;
           }
         }
@@ -1299,6 +1320,7 @@ class _PresidentMembersPageState extends State<PresidentMembersPage>
                     color: kDanger,
                   ),
                   onPressed: () => _showRemoveMemberDialog(
+                    applicationId: (r['id'] as num).toInt(),
                     dayungUnitId: dayungId,
                     userId: (u?['id'] as String?)?.trim().isNotEmpty == true
                         ? (u?['id'] as String).trim()
@@ -1322,6 +1344,7 @@ class _PresidentMembersPageState extends State<PresidentMembersPage>
   }
 
   void _showRemoveMemberDialog({
+    required int applicationId,
     required int dayungUnitId,
     required String userId,
     required String memberName,
@@ -1350,7 +1373,11 @@ class _PresidentMembersPageState extends State<PresidentMembersPage>
           ElevatedButton(
             onPressed: () {
               Navigator.pop(context);
-              _removeMember(dayungUnitId: dayungUnitId, userId: userId);
+              _removeMember(
+                applicationId: applicationId,
+                dayungUnitId: dayungUnitId,
+                userId: userId,
+              );
             },
             style: ElevatedButton.styleFrom(
               backgroundColor: kDanger,
@@ -1370,18 +1397,29 @@ class _PresidentMembersPageState extends State<PresidentMembersPage>
   }
 
   Future<void> _removeMember({
+    required int applicationId,
     required int dayungUnitId,
     required String userId,
   }) async {
     try {
-      await _sb
+      await _sb.rpc(
+        'remove_member_application',
+        params: {'p_application_id': applicationId},
+      );
+
+      final stillApproved = await _sb
           .from('applications')
-          .update({
-            'status': 'removed',
-            'updated_at': DateTime.now().toIso8601String(),
-          })
+          .select('id')
+          .eq('id', applicationId)
           .eq('dayung_unit_id', dayungUnitId)
-          .eq('user_id', userId);
+          .eq('user_id', userId)
+          .eq('status', 'approved')
+          .maybeSingle();
+
+      if (stillApproved != null) {
+        throw StateError('Application status was not updated.');
+      }
+
       if (!mounted) return;
       ScaffoldMessenger.of(
         context,
@@ -1391,7 +1429,9 @@ class _PresidentMembersPageState extends State<PresidentMembersPage>
       if (!mounted) return;
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(SnackBar(content: Text('Failed to remove member: $e')));
+      ).showSnackBar(
+        SnackBar(content: Text('Failed to remove member: $e')),
+      );
     }
   }
 

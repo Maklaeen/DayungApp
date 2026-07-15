@@ -19,8 +19,10 @@ class RemovedMembersPage extends StatefulWidget {
 class _RemovedMembersPageState extends State<RemovedMembersPage> {
   final _sb = Supabase.instance.client;
   bool _loading = true;
+  String? _error;
   List<Map<String, dynamic>> _members = [];
   String _search = '';
+  final Set<String> _removingUserIds = <String>{};
 
   @override
   void initState() {
@@ -29,17 +31,20 @@ class _RemovedMembersPageState extends State<RemovedMembersPage> {
   }
 
   Future<void> _load() async {
-    setState(() => _loading = true);
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
     try {
       final rows = await _sb
           .from('applications')
           .select(
-            'user_id, updated_at, '
+            'id, user_id, approved_at, updated_at, status, '
             'user:users(id, full_name, profile_url, email)',
           )
           .eq('dayung_unit_id', widget.dayungUnitId)
-          .eq('status', 'removed')
-          .order('updated_at', ascending: false);
+          .eq('status', 'approved')
+          .order('approved_at', ascending: false);
 
       if (mounted) {
         setState(() {
@@ -47,29 +52,19 @@ class _RemovedMembersPageState extends State<RemovedMembersPage> {
           _loading = false;
         });
       }
-    } catch (_) {
-      if (mounted) setState(() => _loading = false);
-    }
-  }
-
-  Future<void> _restoreMember(String userId) async {
-    try {
-      await _sb
-          .from('applications')
-          .update({'status': 'approved'})
-          .eq('dayung_unit_id', widget.dayungUnitId)
-          .eq('user_id', userId);
+    } on PostgrestException catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Member restored successfully.')),
-        );
-        _load();
+        setState(() {
+          _error = e.message;
+          _loading = false;
+        });
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Failed to restore: $e')));
+        setState(() {
+          _error = e.toString();
+          _loading = false;
+        });
       }
     }
   }
@@ -80,8 +75,110 @@ class _RemovedMembersPageState extends State<RemovedMembersPage> {
     return _members.where((r) {
       final u = r['user'] as Map?;
       final name = (u?['full_name'] ?? '').toString().toLowerCase();
-      return name.contains(q);
+      final userId = (r['user_id'] ?? '').toString().toLowerCase();
+      return name.contains(q) || userId.contains(q);
     }).toList();
+  }
+
+  Future<void> _confirmRemove(Map<String, dynamic> member) async {
+    final u = member['user'] as Map?;
+    final memberName = (u?['full_name'] ?? 'this member').toString();
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Text(
+          'Remove Member',
+          style: TextStyle(
+            fontWeight: FontWeight.w800,
+            fontFamily: 'Montserrat',
+          ),
+        ),
+        content: Text(
+          'Move $memberName to removed members?',
+          style: const TextStyle(fontFamily: 'OpenSans'),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: _kDanger,
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Remove'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true) {
+      await _removeMember(member);
+    }
+  }
+
+  Future<void> _removeMember(Map<String, dynamic> member) async {
+    final applicationId = member['id'];
+    final userId = (member['user_id'] ?? '').toString();
+    if (applicationId == null || userId.isEmpty || _removingUserIds.contains(userId)) {
+      return;
+    }
+
+    setState(() => _removingUserIds.add(userId));
+
+    try {
+      await _sb
+          .from('applications')
+          .update({
+            'status': 'removed',
+            'updated_at': DateTime.now().toIso8601String(),
+          })
+          .eq('id', applicationId)
+          .eq('dayung_unit_id', widget.dayungUnitId)
+          .eq('user_id', userId)
+          .eq('status', 'approved');
+
+      final stillApproved = await _sb
+          .from('applications')
+          .select('id')
+          .eq('id', applicationId)
+          .eq('dayung_unit_id', widget.dayungUnitId)
+          .eq('user_id', userId)
+          .eq('status', 'approved')
+          .maybeSingle();
+
+      if (stillApproved != null) {
+        throw StateError('Application status was not updated.');
+      }
+
+      if (!mounted) return;
+
+      setState(() {
+        _members.removeWhere((row) => row['id'] == applicationId);
+        _removingUserIds.remove(userId);
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Member removed.')),
+      );
+      _load();
+    } on PostgrestException catch (e) {
+      if (!mounted) return;
+      setState(() => _removingUserIds.remove(userId));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to remove member: ${e.message}')),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _removingUserIds.remove(userId));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to remove member: $e')),
+      );
+    }
   }
 
   @override
@@ -119,14 +216,14 @@ class _RemovedMembersPageState extends State<RemovedMembersPage> {
                   ),
                   const SizedBox(width: 4),
                   const Icon(
-                    Icons.person_remove_rounded,
+                    Icons.groups_rounded,
                     color: Colors.white,
                     size: 26,
                   ),
                   const SizedBox(width: 12),
                   const Expanded(
                     child: Text(
-                      'Removed Members',
+                      'Approved Members',
                       style: TextStyle(
                         fontSize: 20,
                         fontWeight: FontWeight.w800,
@@ -161,7 +258,7 @@ class _RemovedMembersPageState extends State<RemovedMembersPage> {
               padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
               child: TextField(
                 decoration: InputDecoration(
-                  hintText: 'Search removed member...',
+                  hintText: 'Search approved member or user ID...',
                   prefixIcon: const Icon(
                     Icons.search_rounded,
                     color: _kPrimary,
@@ -190,6 +287,52 @@ class _RemovedMembersPageState extends State<RemovedMembersPage> {
                   ? const Center(
                       child: CircularProgressIndicator(color: _kPrimary),
                     )
+                  : _error != null
+                  ? Center(
+                      child: Padding(
+                        padding: const EdgeInsets.all(24),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              Icons.error_outline_rounded,
+                              size: 48,
+                              color: _kDanger.withValues(alpha: 0.8),
+                            ),
+                            const SizedBox(height: 12),
+                            const Text(
+                              'Failed to load approved members',
+                              style: TextStyle(
+                                color: _kNeutralText,
+                                fontSize: 16,
+                                fontFamily: 'Montserrat',
+                                fontWeight: FontWeight.w700,
+                              ),
+                              textAlign: TextAlign.center,
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              _error!,
+                              style: const TextStyle(
+                                color: _kSubText,
+                                fontSize: 12,
+                                fontFamily: 'OpenSans',
+                              ),
+                              textAlign: TextAlign.center,
+                            ),
+                            const SizedBox(height: 16),
+                            ElevatedButton(
+                              onPressed: _load,
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: _kPrimary,
+                                foregroundColor: Colors.white,
+                              ),
+                              child: const Text('Retry'),
+                            ),
+                          ],
+                        ),
+                      ),
+                    )
                   : _filtered.isEmpty
                   ? Center(
                       child: Column(
@@ -202,7 +345,7 @@ class _RemovedMembersPageState extends State<RemovedMembersPage> {
                           ),
                           const SizedBox(height: 12),
                           const Text(
-                            'No removed members found',
+                            'No approved members found',
                             style: TextStyle(
                               color: _kSubText,
                               fontSize: 16,
@@ -232,11 +375,13 @@ class _RemovedMembersPageState extends State<RemovedMembersPage> {
     final u = r['user'] as Map?;
     final name = (u?['full_name'] ?? 'Member').toString();
     final profileUrl = (u?['profile_url'] ?? '').toString();
-    final userId = (u?['id'] ?? r['user_id'] ?? '').toString();
-    final removedAt = r['updated_at']?.toString() ?? '';
+    final userId = (r['user_id'] ?? '').toString();
+    final isRemoving = _removingUserIds.contains(userId);
+    final approvedAt =
+        (r['approved_at'] ?? r['updated_at'] ?? '').toString();
     String dateStr = '';
-    if (removedAt.isNotEmpty) {
-      final dt = DateTime.tryParse(removedAt);
+    if (approvedAt.isNotEmpty) {
+      final dt = DateTime.tryParse(approvedAt);
       if (dt != null) dateStr = '${dt.month}/${dt.day}/${dt.year}';
     }
 
@@ -261,13 +406,13 @@ class _RemovedMembersPageState extends State<RemovedMembersPage> {
           backgroundImage: profileUrl.isNotEmpty
               ? NetworkImage(profileUrl)
               : null,
-          backgroundColor: _kDanger.withValues(alpha: 0.1),
+          backgroundColor: _kSuccess.withValues(alpha: 0.1),
           child: profileUrl.isEmpty
               ? Text(
                   name.isNotEmpty ? name[0].toUpperCase() : 'M',
                   style: const TextStyle(
                     fontWeight: FontWeight.bold,
-                    color: _kDanger,
+                    color: _kSuccess,
                   ),
                 )
               : null,
@@ -283,7 +428,7 @@ class _RemovedMembersPageState extends State<RemovedMembersPage> {
         ),
         subtitle: dateStr.isNotEmpty
             ? Text(
-                'Removed: $dateStr',
+                'Approved: $dateStr',
                 style: const TextStyle(
                   fontSize: 12,
                   color: _kSubText,
@@ -292,63 +437,29 @@ class _RemovedMembersPageState extends State<RemovedMembersPage> {
               )
             : null,
         trailing: TextButton.icon(
-          onPressed: userId.isEmpty
-              ? null
-              : () => _showRestoreConfirm(userId, name),
-          icon: const Icon(Icons.restore_rounded, size: 16),
-          label: const Text('Restore'),
+          onPressed: isRemoving ? null : () => _confirmRemove(r),
           style: TextButton.styleFrom(
-            foregroundColor: _kSuccess,
-            textStyle: const TextStyle(
+            foregroundColor: _kDanger,
+            padding: const EdgeInsets.symmetric(horizontal: 8),
+            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            minimumSize: const Size(0, 32),
+          ),
+          icon: isRemoving
+              ? const SizedBox(
+                  width: 14,
+                  height: 14,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : const Icon(Icons.person_remove_rounded, size: 16),
+          label: Text(
+            isRemoving ? 'Removing' : 'Remove',
+            style: const TextStyle(
               fontWeight: FontWeight.w700,
-              fontSize: 13,
+              fontSize: 12,
               fontFamily: 'Montserrat',
             ),
           ),
         ),
-      ),
-    );
-  }
-
-  void _showRestoreConfirm(String userId, String name) {
-    showDialog(
-      context: context,
-      builder: (_) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: const Text(
-          'Restore Member',
-          style: TextStyle(
-            fontWeight: FontWeight.w800,
-            fontFamily: 'Montserrat',
-          ),
-        ),
-        content: Text(
-          'Restore $name as an active member?',
-          style: const TextStyle(fontFamily: 'OpenSans'),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.pop(context);
-              _restoreMember(userId);
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: _kSuccess,
-              foregroundColor: Colors.white,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
-            ),
-            child: const Text(
-              'Restore',
-              style: TextStyle(fontWeight: FontWeight.w700),
-            ),
-          ),
-        ],
       ),
     );
   }

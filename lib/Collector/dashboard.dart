@@ -8,6 +8,8 @@ import 'package:capstone_app/Collector/collector_receipts_page.dart';
 import 'package:capstone_app/Collector/collect_cash.dart';
 import 'package:capstone_app/Providers/dayung_provider.dart';
 import 'package:capstone_app/Providers/dayung_role_provider.dart';
+import 'package:capstone_app/Secretary/service_tracker.dart'
+    show ServiceTrackerPage;
 import 'package:capstone_app/pages/members_page.dart';
 import 'package:capstone_app/pages/notification.dart';
 import 'package:capstone_app/pages/recentdeathnotices.dart';
@@ -1017,15 +1019,18 @@ class _CollectorDashboardPageState extends State<CollectorDashboardPage> {
                     onTap: () {
                       if (_dayungUnitId == null) {
                         ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Select a Dayung first')),
+                          const SnackBar(
+                            content: Text('Select a Dayung first'),
+                          ),
                         );
                         return;
                       }
                       Navigator.push(
                         context,
                         MaterialPageRoute(
-                          builder: (_) =>
-                              CollectorPaymentPage(dayungUnitId: _dayungUnitId!),
+                          builder: (_) => CollectorPaymentPage(
+                            dayungUnitId: _dayungUnitId!,
+                          ),
                         ),
                       ).then((_) => _fetchAll());
                     },
@@ -1085,6 +1090,33 @@ class _CollectorDashboardPageState extends State<CollectorDashboardPage> {
                 child: SizedBox(
                   height: 110,
                   child: _modernActionCardGrid(
+                    icon: Icons.track_changes_rounded,
+                    title: 'Service Tracking',
+                    subtitle: 'Join services',
+                    color: const Color(0xFF8B5CF6),
+                    onTap: () {
+                      if (_dayungUnitId == null) return;
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => ServiceTrackerPage(
+                            dayungUnitId: _dayungUnitId!,
+                            allowManage: false,
+                            allowJoin: true,
+                            subtitle:
+                                'View scheduled services and join when a member count is required.',
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: SizedBox(
+                  height: 110,
+                  child: _modernActionCardGrid(
                     icon: Icons.receipt_long_rounded,
                     title: 'Open Receipts',
                     subtitle: 'View receipts',
@@ -1107,16 +1139,15 @@ class _CollectorDashboardPageState extends State<CollectorDashboardPage> {
                       Navigator.push(
                         context,
                         MaterialPageRoute(
-                          builder: (_) =>
-                              CollectorPaymentPage(dayungUnitId: _dayungUnitId!),
+                          builder: (_) => CollectorPaymentPage(
+                            dayungUnitId: _dayungUnitId!,
+                          ),
                         ),
                       ).then((_) => _fetchAll());
                     },
                   ),
                 ),
               ),
-              const SizedBox(width: 12),
-              const Expanded(child: SizedBox()),
             ],
           ),
         ],
@@ -1192,8 +1223,6 @@ class _CollectorDashboardPageState extends State<CollectorDashboardPage> {
       ),
     );
   }
-
-
 
   Widget _modernRecentActivity() {
     return Column(
@@ -1343,8 +1372,6 @@ class _CollectorDashboardPageState extends State<CollectorDashboardPage> {
       ],
     );
   }
-
-
 
   Widget _buildSideDrawer(BuildContext context) {
     return Drawer(

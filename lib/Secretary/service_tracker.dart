@@ -4,6 +4,7 @@ import 'package:capstone_app/Secretary/secretary_ui.dart';
 import 'package:flutter_riverpod/legacy.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:intl/intl.dart';
+import 'dart:convert';
 
 const kText = Color(0xFF111827);
 const kSubText = Color(0xFF6B7280);
@@ -58,7 +59,20 @@ class ServiceChecklistNotifier
 
 class ServiceTrackerPage extends StatefulWidget {
   final int dayungUnitId;
-  const ServiceTrackerPage({super.key, required this.dayungUnitId});
+  final bool allowManage;
+  final bool allowJoin;
+  final String title;
+  final String subtitle;
+
+  const ServiceTrackerPage({
+    super.key,
+    required this.dayungUnitId,
+    this.allowManage = true,
+    this.allowJoin = false,
+    this.title = 'Service Tracker',
+    this.subtitle =
+        'Monitor scheduled services and coordinate active death notices.',
+  });
 
   @override
   State<ServiceTrackerPage> createState() => _ServiceTrackerPageState();
@@ -70,6 +84,9 @@ class _ServiceTrackerPageState extends State<ServiceTrackerPage> {
   String _searchQuery = '';
   List<Map<String, dynamic>> _notices = [];
   Map<String, List<Map<String, dynamic>>> _servicesByNotice = {};
+  Map<String, String> _userNamesById = {};
+  String? _currentUserId;
+  String _currentUserName = 'You';
 
   @override
   void initState() {
@@ -84,6 +101,19 @@ class _ServiceTrackerPageState extends State<ServiceTrackerPage> {
       _error = null;
     });
     try {
+      _currentUserId = sb.auth.currentUser?.id;
+      if (_currentUserId != null) {
+        final profile = await sb
+            .from('users')
+            .select('full_name')
+            .eq('id', _currentUserId!)
+            .maybeSingle();
+        final fullName = (profile?['full_name'] ?? '').toString().trim();
+        if (fullName.isNotEmpty) {
+          _currentUserName = fullName;
+        }
+      }
+
       final response = await sb
           .from('claims')
           .select()
@@ -139,6 +169,10 @@ class _ServiceTrackerPageState extends State<ServiceTrackerPage> {
       }
 
       final servicesByNotice = <String, List<Map<String, dynamic>>>{};
+      final userNamesById = <String, String>{
+        for (final entry in userMap.entries)
+          entry.key.toString(): (entry.value ?? '').toString(),
+      };
       final claimIds = notices
           .map((notice) => notice['id'])
           .where((id) => id != null)
@@ -155,7 +189,34 @@ class _ServiceTrackerPageState extends State<ServiceTrackerPage> {
         );
         debugPrint(services.toString());
 
-        for (final raw in List<Map<String, dynamic>>.from(services as List)) {
+        final serviceRows = List<Map<String, dynamic>>.from(services as List);
+        final joinedUserIds = <String>{};
+
+        for (final raw in serviceRows) {
+          for (final member in _joinedMembersFromValue(raw['joined_members'])) {
+            final userId = (member['user_id'] ?? '').trim();
+            if (userId.isNotEmpty) {
+              joinedUserIds.add(userId);
+            }
+          }
+        }
+
+        final missingUserIds = joinedUserIds
+            .where((userId) => !userNamesById.containsKey(userId))
+            .toList();
+
+        if (missingUserIds.isNotEmpty) {
+          final joinedUsers = await sb
+              .from('users')
+              .select('id, full_name')
+              .inFilter('id', missingUserIds);
+          for (final user in List<Map<String, dynamic>>.from(joinedUsers)) {
+            userNamesById[user['id'].toString()] = (user['full_name'] ?? '')
+                .toString();
+          }
+        }
+
+        for (final raw in serviceRows) {
           final claimId = _noticeKey({'id': raw['claim_id']});
           if (claimId.isEmpty) continue;
           servicesByNotice.putIfAbsent(claimId, () => []).add(raw);
@@ -177,6 +238,7 @@ class _ServiceTrackerPageState extends State<ServiceTrackerPage> {
       setState(() {
         _notices = notices;
         _servicesByNotice = servicesByNotice;
+        _userNamesById = userNamesById;
         _loading = false;
       });
       // DEBUG: Print mapping after fetch
@@ -228,6 +290,146 @@ class _ServiceTrackerPageState extends State<ServiceTrackerPage> {
     if (text.isEmpty) return 'Flexible';
     if (text.toLowerCase() == 'all') return 'All members';
     return '$text person${text == '1' ? '' : 's'}';
+  }
+
+  bool _serviceAllowsJoin(Map<String, dynamic> service) {
+    final text = (service['required'] ?? '').toString().trim().toLowerCase();
+    return text.isNotEmpty && text != 'all';
+  }
+
+  bool _serviceJoinWindowOpen(Map<String, dynamic> service) {
+    final endValue = service['end_time_service'];
+    if (endValue == null) return true;
+
+    final endTime = endValue is DateTime
+        ? endValue.toLocal()
+        : DateTime.tryParse('$endValue')?.toLocal();
+    if (endTime == null) return true;
+
+    return !DateTime.now().isAfter(endTime);
+  }
+
+  List<Map<String, String>> _joinedMembers(Map<String, dynamic> service) {
+    return _joinedMembersFromValue(service['joined_members']);
+  }
+
+  List<Map<String, String>> _joinedMembersFromValue(dynamic raw) {
+    dynamic decoded = raw;
+    if (raw is String && raw.trim().isNotEmpty) {
+      try {
+        decoded = jsonDecode(raw);
+      } catch (_) {
+        return const [];
+      }
+    }
+
+    if (decoded is! List) return const [];
+
+    return decoded
+        .whereType<dynamic>()
+        .map<Map<String, String>?>((entry) {
+          if (entry is Map) {
+            final userId = (entry['user_id'] ?? '').toString().trim();
+            final fullName = _resolveJoinedMemberName(
+              userId,
+              (entry['full_name'] ?? '').toString().trim(),
+            );
+            if (userId.isEmpty && fullName.isEmpty) return null;
+            return {'user_id': userId, 'full_name': fullName};
+          }
+          final value = entry.toString().trim();
+          if (value.isEmpty) return null;
+          if (_looksLikeUserId(value)) {
+            return {
+              'user_id': value,
+              'full_name': _resolveJoinedMemberName(value, ''),
+            };
+          }
+          return {'user_id': '', 'full_name': value};
+        })
+        .whereType<Map<String, String>>()
+        .toList();
+  }
+
+  String _resolveJoinedMemberName(String userId, String fallbackName) {
+    if (fallbackName.isNotEmpty) return fallbackName;
+    return _userNamesById[userId]?.trim() ?? '';
+  }
+
+  bool _looksLikeUserId(String value) {
+    return RegExp(
+      r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$',
+    ).hasMatch(value);
+  }
+
+  bool _isCurrentUserJoined(Map<String, dynamic> service) {
+    final currentUserId = _currentUserId;
+    if (currentUserId == null || currentUserId.isEmpty) return false;
+    return _joinedMembers(
+      service,
+    ).any((member) => member['user_id'] == currentUserId);
+  }
+
+  String _joinedMembersLabel(Map<String, dynamic> service) {
+    final names = _joinedMembers(service)
+        .map((member) => (member['full_name'] ?? '').trim())
+        .where((name) => name.isNotEmpty)
+        .toList();
+    if (names.isEmpty) return 'None yet';
+    return names.join(', ');
+  }
+
+  Future<void> _toggleJoinService(Map<String, dynamic> service) async {
+    final currentUserId = _currentUserId;
+    if (currentUserId == null || currentUserId.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please sign in again to join a service.'),
+        ),
+      );
+      return;
+    }
+
+    final messenger = ScaffoldMessenger.of(context);
+    final joinedMembers = _joinedMembers(service);
+    final alreadyJoined = joinedMembers.any(
+      (member) => member['user_id'] == currentUserId,
+    );
+
+    final updatedMembers = alreadyJoined
+        ? joinedMembers
+              .where((member) => member['user_id'] != currentUserId)
+              .map((member) => (member['user_id'] ?? '').trim())
+              .where((userId) => userId.isNotEmpty)
+              .toList()
+        : [
+            ...joinedMembers
+                .map((member) => (member['user_id'] ?? '').trim())
+                .where((userId) => userId.isNotEmpty),
+            currentUserId,
+          ];
+
+    try {
+      await Supabase.instance.client
+          .from('service_checklist')
+          .update({'joined_members': updatedMembers})
+          .eq('id', int.parse(service['id'].toString()));
+
+      await _fetchData();
+      if (!mounted) return;
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text(
+            alreadyJoined ? 'You left the service.' : 'You joined the service.',
+          ),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      messenger.showSnackBar(
+        SnackBar(content: Text('Failed to update service join: $e')),
+      );
+    }
   }
 
   List<Map<String, dynamic>> get _visibleNotices {
@@ -374,6 +576,12 @@ class _ServiceTrackerPageState extends State<ServiceTrackerPage> {
 
   Widget _buildServiceTile(Map<String, dynamic> service) {
     final notes = (service['notes'] ?? '').toString().trim();
+    final canJoin =
+        widget.allowJoin &&
+        _serviceAllowsJoin(service) &&
+        _serviceJoinWindowOpen(service);
+    final joinedLabel = _joinedMembersLabel(service);
+    final isJoined = _isCurrentUserJoined(service);
 
     return Container(
       margin: const EdgeInsets.only(top: 10),
@@ -425,6 +633,63 @@ class _ServiceTrackerPageState extends State<ServiceTrackerPage> {
                     fontWeight: FontWeight.w600,
                   ),
                 ),
+                if (_serviceAllowsJoin(service)) ...[
+                  const SizedBox(height: 6),
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Joined:',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: kSubText,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          joinedLabel,
+                          textAlign: TextAlign.right,
+                          style: const TextStyle(
+                            fontSize: 12,
+                            color: kPrimaryDark,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+                if (canJoin) ...[
+                  const SizedBox(height: 10),
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: OutlinedButton.icon(
+                      onPressed: () => _toggleJoinService(service),
+                      icon: Icon(
+                        isJoined
+                            ? Icons.person_remove_alt_1_rounded
+                            : Icons.volunteer_activism_rounded,
+                        size: 18,
+                      ),
+                      label: Text(isJoined ? 'Leave Service' : 'Join Service'),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: isJoined ? kDanger : kPrimary,
+                        side: BorderSide(
+                          color: isJoined ? kDanger : kPrimaryLight,
+                        ),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 10,
+                        ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
                 // Progress/track display for start_time_service and end_time_service
                 if (service['start_time_service'] != null ||
                     service['end_time_service'] != null) ...[
@@ -477,11 +742,12 @@ class _ServiceTrackerPageState extends State<ServiceTrackerPage> {
               ],
             ),
           ),
-          // IconButton(
-          //   tooltip: 'Remove service',
-          //   onPressed: () => _removeService(service),
-          //   icon: const Icon(Icons.delete_outline_rounded, color: kDanger),
-          // ),
+          if (widget.allowManage)
+            IconButton(
+              tooltip: 'Remove service',
+              onPressed: () => _removeService(service),
+              icon: const Icon(Icons.delete_outline_rounded, color: kDanger),
+            ),
         ],
       ),
     );
@@ -741,10 +1007,9 @@ class _ServiceTrackerPageState extends State<ServiceTrackerPage> {
       body: SafeArea(
         child: Column(
           children: [
-            const SecretaryPageHeader(
-              title: 'Service Tracker',
-              subtitle:
-                  'Monitor scheduled services and coordinate active death notices.',
+            SecretaryPageHeader(
+              title: widget.title,
+              subtitle: widget.subtitle,
               icon: Icons.track_changes_rounded,
               usePaymentStyle: true,
             ),
@@ -896,28 +1161,33 @@ class _ServiceTrackerPageState extends State<ServiceTrackerPage> {
                                                 ],
                                               ),
                                             ),
-                                            FilledButton.icon(
-                                              onPressed: () =>
-                                                  _showAddServiceDialog(notice),
-                                              style: FilledButton.styleFrom(
-                                                backgroundColor: kPrimary,
-                                                foregroundColor: Colors.white,
-                                                padding:
-                                                    const EdgeInsets.symmetric(
-                                                      horizontal: 14,
-                                                      vertical: 12,
+                                            if (widget.allowManage)
+                                              FilledButton.icon(
+                                                onPressed: () =>
+                                                    _showAddServiceDialog(
+                                                      notice,
                                                     ),
-                                                shape: RoundedRectangleBorder(
-                                                  borderRadius:
-                                                      BorderRadius.circular(14),
+                                                style: FilledButton.styleFrom(
+                                                  backgroundColor: kPrimary,
+                                                  foregroundColor: Colors.white,
+                                                  padding:
+                                                      const EdgeInsets.symmetric(
+                                                        horizontal: 14,
+                                                        vertical: 12,
+                                                      ),
+                                                  shape: RoundedRectangleBorder(
+                                                    borderRadius:
+                                                        BorderRadius.circular(
+                                                          14,
+                                                        ),
+                                                  ),
                                                 ),
+                                                icon: const Icon(
+                                                  Icons.add_rounded,
+                                                  size: 18,
+                                                ),
+                                                label: const Text('Add'),
                                               ),
-                                              icon: const Icon(
-                                                Icons.add_rounded,
-                                                size: 18,
-                                              ),
-                                              label: const Text('Add'),
-                                            ),
                                           ],
                                         ),
                                         const SizedBox(height: 14),
@@ -972,17 +1242,19 @@ class _ServiceTrackerPageState extends State<ServiceTrackerPage> {
                                                 ),
                                               ),
                                             ),
-                                            child: const Row(
+                                            child: Row(
                                               children: [
-                                                Icon(
+                                                const Icon(
                                                   Icons.info_outline_rounded,
                                                   color: kSubText,
                                                 ),
-                                                SizedBox(width: 10),
+                                                const SizedBox(width: 10),
                                                 Expanded(
                                                   child: Text(
-                                                    'No services added yet. Tap "Add" to schedule a service for this Service Tracker.',
-                                                    style: TextStyle(
+                                                    widget.allowManage
+                                                        ? 'No services added yet. Tap "Add" to schedule a service for this Service Tracker.'
+                                                        : 'No services scheduled yet for this notice.',
+                                                    style: const TextStyle(
                                                       fontSize: 13,
                                                       color: kSubText,
                                                       fontWeight:

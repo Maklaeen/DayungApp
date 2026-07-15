@@ -52,7 +52,7 @@ class _PresidentContributionsPageState
       final rows = await _sb
           .from('payments')
           .select(
-            'id, user_id, userdeceased, claim_id, amount, status, created_at, paid_at, beneficiary_id, collected_by',
+            'id, user_id, userdeceased, claim_id, amount, status, created_at, paid_at, collected_by',
           )
           .eq('dayung_unit_id', widget.dayungUnitId)
           .order('created_at', ascending: false)
@@ -93,7 +93,7 @@ class _PresidentContributionsPageState
       if (claimIds.isNotEmpty) {
         final notices = await _sb
             .from('claims')
-            .select('id, user_id, beneficiary_id, title, date_of_death, status')
+            .select('id, user_id, title, date_of_death, status')
             .inFilter('id', claimIds.toList());
 
         for (final notice in List<Map<String, dynamic>>.from(notices)) {
@@ -166,8 +166,9 @@ class _PresidentContributionsPageState
       final claimName = (claim['title'] ?? '').toString().trim();
       if (claimName.isNotEmpty) return claimName;
     }
-    if (deceasedId.isNotEmpty)
+    if (deceasedId.isNotEmpty) {
       return _userNames[deceasedId] ?? 'Unknown deceased';
+    }
     return 'No deceased linked';
   }
 

@@ -49,6 +49,15 @@ class _PresSecDashboardOverviewState extends State<PresSecDashboardOverview> {
   // Incomplete collections (deceased with partial payments)
   List<_IncompleteCollection> _incomplete = [];
 
+  bool _isClaimedMoney(dynamic value) {
+    if (value == null) return false;
+    if (value is bool) return value;
+    if (value is num) return value != 0;
+
+    final normalized = value.toString().trim().toLowerCase();
+    return normalized == 'yes' || normalized == 'true' || normalized == '1';
+  }
+
   @override
   void initState() {
     super.initState();
@@ -83,31 +92,30 @@ class _PresSecDashboardOverviewState extends State<PresSecDashboardOverview> {
         .eq('dayung_unit_id', unitId);
 
     final appList = List<Map<String, dynamic>>.from(apps);
-    final approvedIds = appList
-        .where((r) => r['status'] == 'approved')
-        .map((r) => (r['user_id'] ?? '').toString())
-        .where((s) => s.isNotEmpty)
-        .toSet();
+    final approvedCount =
+      appList.where((r) => r['status'] == 'approved').length;
     final removedCount = appList.where((r) => r['status'] == 'removed').length;
 
-    // Deceased members (from death_notices, member type)
     int deceasedCount = 0;
-    if (approvedIds.isNotEmpty) {
-      final deaths = await _sb
-          .from('death_notices')
-          .select('user_id')
-          .eq('dayung_unit_id', unitId)
-          .or('deceased_type.is.null,deceased_type.eq.member');
-      final deceasedIds = List<Map<String, dynamic>>.from(deaths)
-          .map((r) => (r['user_id'] ?? '').toString())
-          .where((s) => s.isNotEmpty)
-          .toSet();
-      deceasedCount = approvedIds
-          .where((id) => deceasedIds.contains(id))
-          .length;
-    }
+    final claims = await _sb
+        .from('claims')
+      .select('user_id, deceased_type, status, claimedmoney')
+        .eq('dayung_unit_id', unitId);
 
-    final activeCount = approvedIds.length - deceasedCount;
+    final claimList = List<Map<String, dynamic>>.from(claims);
+    final approvedClaims = claimList.where((r) {
+      return (r['status'] ?? '').toString().toLowerCase() == 'approved';
+    }).toList();
+
+    final claimedDeceasedIds = claimList
+      .where((r) => _isClaimedMoney(r['claimedmoney']))
+      .map((r) => (r['user_id'] ?? '').toString().trim())
+      .where((userId) => userId.isNotEmpty)
+      .toSet();
+
+    deceasedCount = approvedClaims.length;
+
+    final activeCount = approvedCount;
 
     // Collectors
     final cols = await _sb
@@ -119,11 +127,15 @@ class _PresSecDashboardOverviewState extends State<PresSecDashboardOverview> {
     // Current funds (total paid payments)
     final payments = await _sb
         .from('payments')
-        .select('amount, status')
+        .select('amount, status, userdeceased')
         .eq('dayung_unit_id', unitId);
     double totalFunds = 0;
     for (final r in List<Map<String, dynamic>>.from(payments)) {
-      if ((r['status'] ?? '').toString().toLowerCase() == 'paid') {
+      final paymentStatus = (r['status'] ?? '').toString().toLowerCase();
+      final deceasedId = (r['userdeceased'] ?? '').toString().trim();
+      final alreadyClaimed = claimedDeceasedIds.contains(deceasedId);
+
+      if (paymentStatus == 'paid' && !alreadyClaimed) {
         final amt = r['amount'];
         totalFunds += (amt is num)
             ? amt.toDouble()
@@ -171,73 +183,62 @@ class _PresSecDashboardOverviewState extends State<PresSecDashboardOverview> {
   }
 
   Future<void> _fetchIncompleteCollections() async {
-    // Get death notices for this unit
-    final notices = await _sb
-        .from('death_notices')
-        .select('id, name, user_id')
+    final rows = await _sb
+        .from('payments')
+        .select('user_id, userdeceased, deceased_name, status, created_at')
         .eq('dayung_unit_id', widget.dayungUnitId)
         .order('created_at', ascending: false);
 
-    final noticeList = List<Map<String, dynamic>>.from(notices);
-    if (noticeList.isEmpty) {
+    final payments = List<Map<String, dynamic>>.from(rows);
+    if (payments.isEmpty) {
       if (mounted) setState(() => _incomplete = []);
       return;
     }
 
-    // Get approved member count (for goal)
-    final apps = await _sb
-        .from('applications')
-        .select('user_id')
-        .eq('dayung_unit_id', widget.dayungUnitId)
-        .eq('status', 'approved');
-    final totalMembers = (apps as List).length;
+    final grouped = <String, _CollectionProgressBucket>{};
 
-    // Get payments per death notice
-    final noticeIds = noticeList.map((n) => n['id']).whereType<int>().toList();
+    for (final row in payments) {
+      final deceasedId = (row['userdeceased'] ?? '').toString().trim();
+      final deceasedName = (row['deceased_name'] ?? '').toString().trim();
+      final memberId = (row['user_id'] ?? '').toString().trim();
+      final status = (row['status'] ?? '').toString().toLowerCase();
 
-    Map<int, double> paidByNotice = {};
-    Map<int, double> goalByNotice = {};
+      final bucketKey = deceasedId.isNotEmpty ? deceasedId : deceasedName;
+      if (bucketKey.isEmpty || memberId.isEmpty) continue;
 
-    if (noticeIds.isNotEmpty) {
-      final payments = await _sb
-          .from('payments')
-          .select('amount, status, death_notice_id')
-          .eq('dayung_unit_id', widget.dayungUnitId)
-          .inFilter('death_notice_id', noticeIds);
+      final bucket = grouped.putIfAbsent(
+        bucketKey,
+        () => _CollectionProgressBucket(
+          name: deceasedName.isNotEmpty ? deceasedName : 'Deceased',
+        ),
+      );
 
-      for (final r in List<Map<String, dynamic>>.from(payments)) {
-        final nid = r['death_notice_id'];
-        if (nid == null) continue;
-        final id = nid is int ? nid : int.tryParse('$nid');
-        if (id == null) continue;
-        final amt = r['amount'];
-        final amount = (amt is num)
-            ? amt.toDouble()
-            : double.tryParse('$amt') ?? 0;
-        goalByNotice[id] = (goalByNotice[id] ?? 0) + amount;
-        if ((r['status'] ?? '').toString().toLowerCase() == 'paid') {
-          paidByNotice[id] = (paidByNotice[id] ?? 0) + amount;
-        }
+      if (bucket.name == 'Deceased' && deceasedName.isNotEmpty) {
+        bucket.name = deceasedName;
+      }
+
+      bucket.expectedMemberIds.add(memberId);
+      if (status == 'paid') {
+        bucket.paidMemberIds.add(memberId);
       }
     }
 
-    final incomplete = <_IncompleteCollection>[];
-    for (final n in noticeList) {
-      final id = n['id'] as int?;
-      if (id == null) continue;
-      final paid = paidByNotice[id] ?? 0;
-      final goal = goalByNotice[id] ?? totalMembers.toDouble();
-      if (goal <= 0) continue;
-      if (paid >= goal) continue; // fully collected — hide
-      incomplete.add(
-        _IncompleteCollection(
-          noticeId: id,
-          name: (n['name'] ?? 'Deceased').toString(),
-          paid: paid,
-          goal: goal,
-        ),
-      );
-    }
+    final incomplete =
+        grouped.entries
+            .map(
+              (entry) => _IncompleteCollection(
+                noticeId: entry.key.hashCode,
+                name: entry.value.name,
+                paid: entry.value.paidMemberIds.length.toDouble(),
+                goal: entry.value.expectedMemberIds.length.toDouble(),
+              ),
+            )
+            .where(
+              (collection) =>
+                  collection.goal > 0 && collection.paid < collection.goal,
+            )
+            .toList()
+          ..sort((a, b) => (b.goal - b.paid).compareTo(a.goal - a.paid));
 
     if (mounted) setState(() => _incomplete = incomplete);
   }
@@ -270,7 +271,7 @@ class _PresSecDashboardOverviewState extends State<PresSecDashboardOverview> {
         _sectionTitle('Ongoing Collections'),
         const SizedBox(height: 4),
         const Text(
-          'Deceased members whose collection is not yet complete.',
+          'Shows how many members have already paid for each deceased member.',
           style: TextStyle(
             fontSize: 12,
             color: _kSubText,
@@ -607,8 +608,9 @@ class _PresSecDashboardOverviewState extends State<PresSecDashboardOverview> {
                       showTitles: true,
                       getTitlesWidget: (value, meta) {
                         final idx = value.toInt();
-                        if (idx < 0 || idx >= 12)
+                        if (idx < 0 || idx >= 12) {
                           return const SizedBox.shrink();
+                        }
                         return Padding(
                           padding: const EdgeInsets.only(top: 6),
                           child: Text(
@@ -828,7 +830,7 @@ class _PresSecDashboardOverviewState extends State<PresSecDashboardOverview> {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(
-                '₱${c.paid.toStringAsFixed(0)} collected',
+                '${c.paid.toStringAsFixed(0)} of ${c.goal.toStringAsFixed(0)} members paid',
                 style: const TextStyle(
                   fontSize: 12,
                   fontWeight: FontWeight.w700,
@@ -837,7 +839,7 @@ class _PresSecDashboardOverviewState extends State<PresSecDashboardOverview> {
                 ),
               ),
               Text(
-                'Goal: ₱${c.goal.toStringAsFixed(0)}',
+                '${(c.goal - c.paid).toStringAsFixed(0)} remaining',
                 style: const TextStyle(
                   fontSize: 12,
                   fontWeight: FontWeight.w600,
@@ -865,4 +867,12 @@ class _IncompleteCollection {
     required this.paid,
     required this.goal,
   });
+}
+
+class _CollectionProgressBucket {
+  String name;
+  final Set<String> expectedMemberIds = <String>{};
+  final Set<String> paidMemberIds = <String>{};
+
+  _CollectionProgressBucket({required this.name});
 }

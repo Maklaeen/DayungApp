@@ -1432,14 +1432,24 @@ class _SecretaryClaimsPageState extends State<SecretaryClaimsPage>
                               .eq('dayung_unit_id', claim['dayung_unit_id'])
                               .eq('status', 'approved');
 
+                          final approvedApplicationList =
+                              List<Map<String, dynamic>>.from(
+                                approvedApplications,
+                              );
+                          final deceasedUserId = userId?.toString();
+                          final paymentRecipients = deceasedType == 'member'
+                              ? approvedApplicationList.where((app) {
+                                  return app['user_id']?.toString() !=
+                                      deceasedUserId;
+                                }).toList()
+                              : approvedApplicationList;
+
                           final now = DateTime.now().toIso8601String();
                           final notificationBody =
                               '$fullName passed away. Amount: ₱${result.toStringAsFixed(2)}';
 
                           // Insert notification for each approved user
-                          for (final app in List<Map<String, dynamic>>.from(
-                            approvedApplications,
-                          )) {
+                          for (final app in approvedApplicationList) {
                             await supabase.from('notifications').insert({
                               'recipient_id': app['user_id'],
                               'body': notificationBody,
@@ -1453,9 +1463,7 @@ class _SecretaryClaimsPageState extends State<SecretaryClaimsPage>
                           }
 
                           // Insert payments with deceased_name
-                          for (final app in List<Map<String, dynamic>>.from(
-                            approvedApplications,
-                          )) {
+                          for (final app in paymentRecipients) {
                             await supabase.from('payments').insert({
                               'user_id': app['user_id'],
                               'userdeceased': claim['user_id'],
