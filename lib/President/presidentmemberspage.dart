@@ -32,34 +32,6 @@ class _PresidentMembersPageState extends State<PresidentMembersPage>
   List<Map<String, dynamic>> _rows = [];
   final Map<int, String> _dayungNames = {};
 
-  bool _shouldPreferApplicationRow(
-    Map<String, dynamic> candidate,
-    Map<String, dynamic> current,
-  ) {
-    final candidateStatus = (candidate['status'] ?? '').toString();
-    final currentStatus = (current['status'] ?? '').toString();
-
-    if (candidateStatus != currentStatus) {
-      if (candidateStatus == 'approved') return true;
-      if (currentStatus == 'approved') return false;
-    }
-
-    final candidateAt = DateTime.tryParse(
-      candidate['approved_at']?.toString() ??
-          candidate['applied_at']?.toString() ??
-          '',
-    );
-    final currentAt = DateTime.tryParse(
-      current['approved_at']?.toString() ??
-          current['applied_at']?.toString() ??
-          '',
-    );
-
-    if (candidateAt == null) return false;
-    if (currentAt == null) return true;
-    return candidateAt.isAfter(currentAt);
-  }
-
   @override
   void initState() {
     super.initState();
@@ -169,7 +141,14 @@ class _PresidentMembersPageState extends State<PresidentMembersPage>
           byKey[key] = normalized;
         } else {
           final prev = byKey[key]!;
-          if (_shouldPreferApplicationRow(normalized, prev)) {
+          final prevAt = prev['approved_at']?.toString();
+          final currAt = r['approved_at']?.toString();
+          if (currAt != null &&
+              (prevAt == null ||
+                  DateTime.tryParse(
+                        currAt,
+                      )?.isAfter(DateTime.tryParse(prevAt) ?? DateTime(0)) ==
+                      true)) {
             byKey[key] = normalized;
           }
         }

@@ -64,6 +64,11 @@ class _PresidentDashboardPageState extends State<PresidentDashboardPage> {
   List<int> _managedUnitIds = [];
   int? get _primaryUnitId =>
       _managedUnitIds.isNotEmpty ? _managedUnitIds.first : null;
+  int? _effectiveUnitId(BuildContext context) {
+    final roleUnitId = context.read<DayungRoleProvider>().unitId;
+    final selectedUnitId = context.read<DayungUnitProvider>().currentUnitId;
+    return roleUnitId ?? selectedUnitId ?? _dayungUnitId ?? _primaryUnitId;
+  }
   String _fullName = '';
   String _selectedDayungUnit = 'Dayung Unit';
 
@@ -862,46 +867,44 @@ class _PresidentDashboardPageState extends State<PresidentDashboardPage> {
 
   /* ------------------------------- Home page ------------------------------- */
   Widget _buildHomePage(BuildContext context) {
-    return RefreshIndicator(
-      onRefresh: _load,
-      edgeOffset: 68,
-      child: SingleChildScrollView(
-        physics: const AlwaysScrollableScrollPhysics(),
-        padding: const EdgeInsets.fromLTRB(20, 20, 20, 100),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // ── New shared overview (Row 1 stats, Row 2 chart, Row 3 collections) ──
-            if (_primaryUnitId != null)
-              PresSecDashboardOverview(
-                key: ValueKey(_primaryUnitId),
-                dayungUnitId: _primaryUnitId!,
-                onNavigateToMembers: () async {
-                  final ids = await _managedDayungIds();
-                  if (!mounted) return;
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => PresidentMembersPage(dayungUnitIds: ids),
-                    ),
-                  );
-                },
-                onNavigateToDeceased: () {
-                  final roleProv = context.read<DayungRoleProvider>();
-                  final unitProv = context.read<DayungUnitProvider>();
-                  final effId = roleProv.unitId ?? unitProv.currentUnitId;
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => RecentDeathNotices(dayungUnitId: effId),
-                    ),
-                  );
-                },
-              ),
-            const SizedBox(height: 24),
-            _buildQuickActions(),
-          ],
-        ),
+    final dashboardUnitId = _effectiveUnitId(context);
+
+    return SingleChildScrollView(
+      controller: _scrollController,
+      padding: const EdgeInsets.all(20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // ── New shared overview (Row 1 stats, Row 2 chart, Row 3 collections) ──
+          if (dashboardUnitId != null)
+            PresSecDashboardOverview(
+              key: ValueKey(dashboardUnitId),
+              dayungUnitId: dashboardUnitId,
+              onNavigateToMembers: () async {
+                final navigator = Navigator.of(context);
+                final ids = await _managedDayungIds();
+                if (!mounted) return;
+                navigator.push(
+                  MaterialPageRoute(
+                    builder: (_) => PresidentMembersPage(dayungUnitIds: ids),
+                  ),
+                );
+              },
+              onNavigateToDeceased: () {
+                final effectiveUnitId = _effectiveUnitId(context);
+                if (effectiveUnitId == null) return;
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) =>
+                        RecentDeathNotices(dayungUnitId: effectiveUnitId),
+                  ),
+                );
+              },
+            ),
+          const SizedBox(height: 24),
+          _buildQuickActions(),
+        ],
       ),
     );
   }

@@ -332,6 +332,15 @@ class _CollectorDashboardPageState extends State<CollectorDashboardPage> {
     return normalized == 'yes' || normalized == 'true' || normalized == '1';
   }
 
+  bool _isTrueFlag(dynamic value) {
+    if (value == null) return false;
+    if (value is bool) return value;
+    if (value is num) return value != 0;
+
+    final normalized = value.toString().trim().toLowerCase();
+    return normalized == 'true' || normalized == '1' || normalized == 'yes';
+  }
+
   Future<void> _fetchCurrentFunds(List<int> ids) async {
     try {
       _currentFunds = 0;
@@ -515,22 +524,31 @@ class _CollectorDashboardPageState extends State<CollectorDashboardPage> {
       final rows = await sb
           .from('payments')
           .select(
-            'user_id, amount, status, dayung_unit_id, users!payments_user_id_fkey(full_name)',
+            'user_id, userdeceased, deceased_name, amount, status, is_due, dayung_unit_id, users!payments_user_id_fkey(full_name)',
           )
           .inFilter('dayung_unit_id', ids)
-          .eq('status', 'pending');
+          .inFilter('status', ['pending', 'unpaid']);
 
       final grouped = <String, Map<String, dynamic>>{};
       for (final row in List<Map<String, dynamic>>.from(rows)) {
-        final userId = (row['user_id'] ?? '').toString();
-        if (userId.isEmpty) continue;
+        if (!_isTrueFlag(row['is_due'])) continue;
+        final deceasedUserId = (row['userdeceased'] ?? '').toString();
+        if (deceasedUserId.isEmpty) continue;
         final fullName = (row['users'] as Map?)?['full_name']?.toString() ?? 'Member';
+        final deceasedName = (row['deceased_name'] ?? '').toString().trim();
         final amount = (row['amount'] is num) ? (row['amount'] as num).toDouble() : double.tryParse('${row['amount']}') ?? 0;
-        final entry = grouped.putIfAbsent(userId, () => {
-              'user_id': userId,
+        final entry = grouped.putIfAbsent(deceasedUserId, () => {
+              'user_id': deceasedUserId,
+              'userdeceased': deceasedUserId,
               'member_name': fullName,
+              'deceased_name': deceasedName,
               'total_due': 0.0,
+              'is_due': true,
             });
+        if ((entry['deceased_name'] ?? '').toString().trim().isEmpty &&
+            deceasedName.isNotEmpty) {
+          entry['deceased_name'] = deceasedName;
+        }
         entry['total_due'] = (entry['total_due'] as double) + amount;
       }
 
@@ -865,7 +883,7 @@ class _CollectorDashboardPageState extends State<CollectorDashboardPage> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               const Text(
-                'Top 5 Due Members',
+                'Due Members',
                 style: TextStyle(
                   fontSize: 18,
                   fontWeight: FontWeight.w800,
@@ -883,7 +901,9 @@ class _CollectorDashboardPageState extends State<CollectorDashboardPage> {
                 ..._topDueMembers.map(
                   (entry) {
                     return GestureDetector(
-                      onTap: _recordCashPayment,
+                      onTap: () => _recordCashPayment(
+                        deceasedUserId: (entry['userdeceased'] ?? '').toString(),
+                      ),
                       child: Container(
                         margin: const EdgeInsets.only(bottom: 10),
                         padding: const EdgeInsets.all(14),
@@ -895,12 +915,28 @@ class _CollectorDashboardPageState extends State<CollectorDashboardPage> {
                         child: Row(
                           children: [
                             Expanded(
-                              child: Text(
-                                entry['member_name'] ?? 'Member',
-                                style: const TextStyle(
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.w700,
-                                ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                   'Member Name: ${entry['member_name'] ?? 'Member'}',
+                                    style: const TextStyle(
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                  if (_isTrueFlag(entry['is_due']))
+                                    Text(
+                                    (entry['deceased_name'] ?? '').toString().trim().isEmpty
+    ? 'Deceased Name: N/A'
+    : 'Deceased Name: ${(entry['deceased_name'] ?? '').toString()}',
+                                      style: const TextStyle(
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w600,
+                                        color: Color(0xFF6B7280),
+                                      ),
+                                    ),
+                                ],
                               ),
                             ),
                             Text(
@@ -1686,7 +1722,7 @@ class _CollectorDashboardPageState extends State<CollectorDashboardPage> {
     );
   }
 
-  void _recordCashPayment() {
+  void _recordCashPayment({String? deceasedUserId}) {
     if (_dayungUnitId == null) {
       ScaffoldMessenger.of(
         context,
@@ -1696,7 +1732,10 @@ class _CollectorDashboardPageState extends State<CollectorDashboardPage> {
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (_) => CollectCashPage(dayungUnitId: _dayungUnitId!),
+        builder: (_) => CollectCashPage(
+          dayungUnitId: _dayungUnitId!,
+          preselectedDeceasedUserId: deceasedUserId,
+        ),
       ),
     );
   }

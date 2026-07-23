@@ -17,14 +17,8 @@ class _CollectorContributionsPageState
     extends State<CollectorContributionsPage> {
   final sb = Supabase.instance.client;
   bool _loading = true;
-  double _total = 0;
   List<Map<String, dynamic>> _rows = [];
-
-  double _myTotal = 0;
-  int _myCount = 0;
-  List<Map<String, dynamic>> _myRows = [];
-
-  int _totalPaymentNumbers = 0; // <-- Add this
+  double _total = 0;
 
   @override
   void initState() {
@@ -44,38 +38,17 @@ class _CollectorContributionsPageState
         });
         return;
       }
+
       final res = await sb
           .from('payments')
           .select(
-            'id, amount, status, paid_at, created_at, user_id, dayung_unit_id, collected_by, death_notice_id',
+            'id, amount, status, paid_at, created_at, user_id, dayung_unit_id, collected_by, death_notice_id, deceased_name',
           )
           .eq('dayung_unit_id', widget.dayungUnitId)
           .eq('status', 'paid')
           .eq('collected_by', uid)
           .order('paid_at', ascending: false)
-          .limit(100);
-
-      final myRes = await sb
-          .from('payments')
-          .select('id, amount, status, created_at, dayung_unit_id')
-          .eq('dayung_unit_id', widget.dayungUnitId)
-          .eq('status', 'paid')
-          .eq('user_id', uid)
-          .order('created_at', ascending: false)
-          .limit(100);
-
-      final myRows = List<Map<String, dynamic>>.from(myRes);
-      double myTotal = 0;
-      for (final r in myRows) {
-        final a = r['amount'];
-        myTotal += a is num ? a.toDouble() : double.tryParse('$a') ?? 0.0;
-      }
-      setState(() {
-        _myRows = myRows;
-        _myTotal = myTotal;
-        _myCount = myRows.length;
-        // keep existing _rows/_total for "Collected by Me"
-      });
+          .limit(200);
 
       final rows = List<Map<String, dynamic>>.from(res);
       double total = 0;
@@ -83,20 +56,10 @@ class _CollectorContributionsPageState
         final a = r['amount'];
         total += a is num ? a.toDouble() : double.tryParse('$a') ?? 0.0;
       }
-      int totalPaymentNumbers = 0;
-      for (final r in rows) {
-        final pn = r['payment_number'];
-        if (pn is int) {
-          totalPaymentNumbers += pn;
-        } else if (pn != null) {
-          totalPaymentNumbers += int.tryParse('$pn') ?? 0;
-        }
-      }
       setState(() {
         _rows = rows;
         _total = total;
         _loading = false;
-        _totalPaymentNumbers = totalPaymentNumbers; // <-- Add this
       });
     } catch (_) {
       setState(() {
@@ -116,6 +79,11 @@ class _CollectorContributionsPageState
     final raw = (row['paid_at'] ?? row['created_at'] ?? '').toString();
     if (raw.isEmpty) return 'No date';
     return raw.split('T').first;
+  }
+
+  String _deceasedNameOf(Map<String, dynamic> row) {
+    final name = (row['deceased_name'] ?? '').toString().trim();
+    return name.isEmpty ? 'No deceased name' : name;
   }
 
   Widget _shortcutCard() {
@@ -207,9 +175,8 @@ class _CollectorContributionsPageState
     );
   }
 
-  Widget _paymentTile(Map<String, dynamic> row, {required bool mine}) {
+  Widget _paymentTile(Map<String, dynamic> row) {
     final amount = _amountOf(row['amount']);
-    final label = mine ? 'Your paid contribution' : 'Collected by you';
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(16),
@@ -227,13 +194,35 @@ class _CollectorContributionsPageState
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            label,
-            style: const TextStyle(
-              fontSize: 15,
-              fontWeight: FontWeight.w800,
-              color: Color(0xFF1F2937),
-            ),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: Text(
+                  _deceasedNameOf(row),
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w800,
+                    color: Color(0xFF1F2937),
+                  ),
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF2E7D32).withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(999),
+                ),
+                child: const Text(
+                  'PAID',
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w900,
+                    color: Color(0xFF2E7D32),
+                  ),
+                ),
+              ),
+            ],
           ),
           const SizedBox(height: 8),
           Text(
@@ -246,10 +235,91 @@ class _CollectorContributionsPageState
           ),
           const SizedBox(height: 4),
           Text(
-            _dateOf(row),
+            'Date paid: ${_dateOf(row)}',
             style: const TextStyle(
               fontSize: 13,
               fontWeight: FontWeight.w600,
+              color: Color(0xFF4B5563),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _summaryCard() {
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: const Color(0xFF0D47A1).withValues(alpha: 0.12)),
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: const Color(0xFF0D47A1).withValues(alpha: 0.10),
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: const Icon(
+              Icons.payments_rounded,
+              color: Color(0xFF0D47A1),
+              size: 26,
+            ),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  '₱${_total.toStringAsFixed(2)}',
+                  style: const TextStyle(
+                    fontSize: 24,
+                    fontWeight: FontWeight.w900,
+                    color: Color(0xFF1F2937),
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  '${_rows.length} paid payment${_rows.length == 1 ? '' : 's'} in this dayung unit',
+                  style: const TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                    color: Color(0xFF4B5563),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _emptyState() {
+    return Container(
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: const Column(
+        children: [
+          Icon(
+            Icons.receipt_long_outlined,
+            size: 40,
+            color: Color(0xFF4B5563),
+          ),
+          SizedBox(height: 12),
+          Text(
+            'No paid payments collected by this account in the selected dayung unit.',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w700,
               color: Color(0xFF4B5563),
             ),
           ),
@@ -274,83 +344,12 @@ class _CollectorContributionsPageState
                 children: [
                   _shortcutCard(),
                   const SizedBox(height: 16),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: _statCard(
-                          'My Paid Total',
-                          '₱${_myTotal.toStringAsFixed(2)}',
-                          Icons.person_rounded,
-                          const Color(0xFF0D47A1),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: _statCard(
-                          'Collected Total',
-                          '₱${_total.toStringAsFixed(2)}',
-                          Icons.payments_rounded,
-                          const Color(0xFF2E7D32),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: _statCard(
-                          'My Paid Count',
-                          '$_myCount',
-                          Icons.check_circle_rounded,
-                          const Color(0xFFF57C00),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: _statCard(
-                          'Payment Numbers',
-                          '$_totalPaymentNumbers',
-                          Icons.confirmation_number_rounded,
-                          const Color(0xFF7C3AED),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 20),
-                  const Text(
-                    'My Contributions',
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w800,
-                      color: Color(0xFF1F2937),
-                    ),
-                  ),
-                  const SizedBox(height: 10),
-                  if (_myRows.isEmpty)
-                    const Text(
-                      'No personal paid contributions yet.',
-                      style: TextStyle(color: Color(0xFF4B5563)),
-                    )
-                  else
-                    ..._myRows.map((row) => _paymentTile(row, mine: true)),
-                  const SizedBox(height: 12),
-                  const Text(
-                    'Collected By Me',
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w800,
-                      color: Color(0xFF1F2937),
-                    ),
-                  ),
-                  const SizedBox(height: 10),
+                  _summaryCard(),
+                  const SizedBox(height: 16),
                   if (_rows.isEmpty)
-                    const Text(
-                      'No collected payments yet.',
-                      style: TextStyle(color: Color(0xFF4B5563)),
-                    )
+                    _emptyState()
                   else
-                    ..._rows.map((row) => _paymentTile(row, mine: false)),
+                    ..._rows.map(_paymentTile),
                 ],
               ),
             ),

@@ -87,7 +87,7 @@ class _SecretaryMembersPageState extends State<SecretaryMembersPage>
       final apps = await _sb
           .from('applications')
           .select(
-            'user_id, status, dayung_unit_id, approved_at, '
+            'user_id, status, dayung_unit_id, approved_at, isRemovedInDayung, '
             'user:users(id, full_name, email, profile_url, is_deceased, date_of_death)',
           )
           .eq('dayung_unit_id', dayungId) // <--- strict filter!
@@ -152,9 +152,10 @@ class _SecretaryMembersPageState extends State<SecretaryMembersPage>
 
   List<Map<String, dynamic>> get _approved => _rows.where((r) {
     final status = (r['status'] ?? '').toString();
+    final removedInDayung = r['isRemovedInDayung'] == true;
     final u = r['user'] as Map<String, dynamic>?;
     final deceased = (u?['is_deceased'] == true);
-    return status == 'approved' && !deceased;
+    return status == 'approved' && !removedInDayung && !deceased;
   }).toList();
 
   List<Map<String, dynamic>> get _pending => _rows.where((r) {

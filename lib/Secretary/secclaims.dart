@@ -33,6 +33,7 @@ class SecretaryClaimsPage extends StatefulWidget {
 class _SecretaryClaimsPageState extends State<SecretaryClaimsPage>
     with SingleTickerProviderStateMixin {
   final supabase = Supabase.instance.client;
+  RealtimeChannel? _claimsChannel;
 
   late TabController _tabController;
 
@@ -58,6 +59,7 @@ class _SecretaryClaimsPageState extends State<SecretaryClaimsPage>
       final id = context.read<DayungUnitProvider>().currentUnitId;
       _lastUnitId = id;
       _fetchClaims(forUnitId: id);
+      _resubscribeRealtime(unitId: id);
     });
   }
 
@@ -67,8 +69,76 @@ class _SecretaryClaimsPageState extends State<SecretaryClaimsPage>
     final currentId = context.watch<DayungUnitProvider>().currentUnitId;
     if (currentId != _lastUnitId) {
       _lastUnitId = currentId;
+      _resubscribeRealtime(unitId: currentId);
       _fetchClaims(forUnitId: currentId);
     }
+  }
+
+  void _resubscribeRealtime({int? unitId}) {
+    try {
+      _claimsChannel?.unsubscribe();
+      if (_claimsChannel != null) {
+        supabase.removeChannel(_claimsChannel!);
+      }
+    } catch (_) {}
+    _claimsChannel = null;
+    if (unitId != null) {
+      _subscribeRealtime(unitId: unitId);
+    }
+  }
+
+  void _subscribeRealtime({required int unitId}) {
+    _claimsChannel = supabase.channel('secretary_claims_$unitId');
+
+    void refreshClaims(PostgresChangePayload payload) {
+      if (!mounted) return;
+      final record =
+          (payload.newRecord.isNotEmpty
+                  ? payload.newRecord
+                  : payload.oldRecord)
+              as Map<String, dynamic>?;
+      final recordUnitId = record?['dayung_unit_id'];
+      final changedUnitId = recordUnitId is int
+          ? recordUnitId
+          : int.tryParse('$recordUnitId');
+      if (changedUnitId != unitId) return;
+      _fetchClaims(forUnitId: unitId, tabSwitch: true);
+    }
+
+    _claimsChannel!
+        .onPostgresChanges(
+          event: PostgresChangeEvent.all,
+          schema: 'public',
+          table: 'claims',
+          filter: PostgresChangeFilter(
+            type: PostgresChangeFilterType.eq,
+            column: 'dayung_unit_id',
+            value: unitId,
+          ),
+          callback: refreshClaims,
+        )
+        .onPostgresChanges(
+          event: PostgresChangeEvent.all,
+          schema: 'public',
+          table: 'payments',
+          filter: PostgresChangeFilter(
+            type: PostgresChangeFilterType.eq,
+            column: 'dayung_unit_id',
+            value: unitId,
+          ),
+          callback: refreshClaims,
+        )
+        .subscribe();
+  }
+
+  void _updateClaimLocally(String claimId, dynamic claimedValue) {
+    final index = _claims.indexWhere((claim) => claim['id'].toString() == claimId);
+    if (index < 0 || !mounted) return;
+    final updatedClaim = Map<String, dynamic>.from(_claims[index])
+      ..['claimedmoney'] = claimedValue;
+    setState(() {
+      _claims[index] = updatedClaim;
+    });
   }
 
   Future<void> _fetchClaims({int? forUnitId, bool tabSwitch = false}) async {
@@ -300,19 +370,57 @@ class _SecretaryClaimsPageState extends State<SecretaryClaimsPage>
     return value ? 'yes' : 'no';
   }
 
+  String _philippinesNowIso() {
+    final now = DateTime.now().toUtc().add(const Duration(hours: 8));
+    final date = DateFormat('yyyy-MM-ddTHH:mm:ss').format(now);
+    final milliseconds = now.millisecond.toString().padLeft(3, '0');
+    final microseconds = now.microsecond.toString().padLeft(3, '0');
+    return '$date.$milliseconds$microseconds+08:00';
+  }
+
+  int? _resolveClaimUnitId(Map<String, dynamic> claim) {
+    final claimUnitId = claim['dayung_unit_id'];
+    if (claimUnitId is int) return claimUnitId;
+    final parsedClaimUnitId = int.tryParse('$claimUnitId');
+    return parsedClaimUnitId ??
+        _lastUnitId ??
+        context.read<DayungUnitProvider>().currentUnitId;
+  }
+
   Future<void> _updateClaimed(
     String claimId,
     bool newValue,
     dynamic existingColumnValue,
+    Map<String, dynamic> claim,
   ) async {
     if (_updating) return;
     setState(() => _updating = true);
     try {
+      final resolvedUnitId = _resolveClaimUnitId(claim);
+      if (resolvedUnitId == null) {
+        throw Exception('Unable to resolve dayung_unit_id for claim $claimId');
+      }
+
       final storeVal = _storeClaimedValue(newValue, existingColumnValue);
+      final claimedAt = _philippinesNowIso();
+      final paymentUpdate = <String, dynamic>{
+        'is_due': newValue,
+        'due_date': newValue ? claimedAt : null,
+      };
+
       await supabase
           .from('claims')
           .update({'claimedmoney': storeVal})
           .eq('id', claimId);
+      _updateClaimLocally(claimId, storeVal);
+
+        await supabase
+          .from('payments')
+          .update(paymentUpdate)
+          .eq('dayung_unit_id', resolvedUnitId)
+          .eq('userdeceased', (claim['user_id'] ?? '').toString())
+          .eq('status', 'unpaid');
+
       await _fetchClaims();
     } catch (e) {
       debugPrint("Error updating claimedmoney: $e");
@@ -323,6 +431,13 @@ class _SecretaryClaimsPageState extends State<SecretaryClaimsPage>
 
   @override
   void dispose() {
+    try {
+      _claimsChannel?.unsubscribe();
+      if (_claimsChannel != null) {
+        supabase.removeChannel(_claimsChannel!);
+      }
+    } catch (_) {}
+    _claimsChannel = null;
     _tabController.dispose();
     _searchCtrl.dispose();
     super.dispose();
@@ -652,7 +767,6 @@ class _SecretaryClaimsPageState extends State<SecretaryClaimsPage>
     final title = (claim['title'] ?? 'Untitled').toString();
     final date = _formatDate(claim['date_submitted']);
     final desc = (claim['description'] ?? '').toString().trim();
-    final claimed = _isClaimed(claim['claimedmoney']); // <— existing
 
     return InkWell(
       onTap: () => _showDetail(claim),
@@ -663,7 +777,7 @@ class _SecretaryClaimsPageState extends State<SecretaryClaimsPage>
           borderRadius: BorderRadius.circular(12),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.03),
+              color: Colors.black.withValues(alpha: 0.03),
               blurRadius: 8,
               offset: const Offset(0, 2),
             ),
@@ -1004,7 +1118,7 @@ class _SecretaryClaimsPageState extends State<SecretaryClaimsPage>
                                             onTap: () => Navigator.of(ctx).pop(),
                                             child: Container(
                                               decoration: BoxDecoration(
-                                                color: Colors.black.withOpacity(0.7),
+                                                color: Colors.black.withValues(alpha: 0.7),
                                                 shape: BoxShape.circle,
                                               ),
                                               margin: const EdgeInsets.all(8),
@@ -1117,7 +1231,7 @@ class _SecretaryClaimsPageState extends State<SecretaryClaimsPage>
                                               onTap: () => Navigator.of(ctx).pop(),
                                               child: Container(
                                                 decoration: BoxDecoration(
-                                                  color: Colors.black.withOpacity(0.7),
+                                                  color: Colors.black.withValues(alpha: 0.7),
                                                   shape: BoxShape.circle,
                                                 ),
                                                 margin: const EdgeInsets.all(8),
@@ -1194,11 +1308,13 @@ class _SecretaryClaimsPageState extends State<SecretaryClaimsPage>
                                         ),
                                       );
                                       if (confirm == true) {
-                                        _updateClaimed(
+                                        await _updateClaimed(
                                           claim['id'].toString(),
                                           !claimed,
                                           claim['claimedmoney'],
+                                          claim,
                                         );
+                                        if (!mounted) return;
                                         navigator.pop();
                                       }
                                     },
@@ -1470,6 +1586,8 @@ class _SecretaryClaimsPageState extends State<SecretaryClaimsPage>
                               'deceased_name': deceasedName,
                               'dayung_unit_id': claim['dayung_unit_id'],
                               'amount': result,
+                              'is_due': false,
+                              'due_date': null,
                               'status': 'unpaid',
                               'created_at': now,
                             });

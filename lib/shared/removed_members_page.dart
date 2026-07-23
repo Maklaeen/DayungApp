@@ -17,12 +17,17 @@ class RemovedMembersPage extends StatefulWidget {
 }
 
 class _RemovedMembersPageState extends State<RemovedMembersPage> {
+  static const int _pageSize = 10;
+
   final _sb = Supabase.instance.client;
   bool _loading = true;
   String? _error;
   List<Map<String, dynamic>> _members = [];
+  List<Map<String, dynamic>> _removedMembers = [];
   String _search = '';
+  int _pageIndex = 0;
   final Set<String> _removingUserIds = <String>{};
+  final Set<String> _restoringUserIds = <String>{};
 
   @override
   void initState() {
@@ -39,16 +44,26 @@ class _RemovedMembersPageState extends State<RemovedMembersPage> {
       final rows = await _sb
           .from('applications')
           .select(
-            'id, user_id, approved_at, updated_at, status, '
+            'id, user_id, approved_at, updated_at, status, isRemovedInDayung, '
             'user:users(id, full_name, profile_url, email)',
           )
           .eq('dayung_unit_id', widget.dayungUnitId)
           .eq('status', 'approved')
           .order('approved_at', ascending: false);
 
+      final allRows = List<Map<String, dynamic>>.from(rows);
+      final activeRows = allRows
+          .where((row) => row['isRemovedInDayung'] != true)
+          .toList();
+      final removedRows = allRows
+          .where((row) => row['isRemovedInDayung'] == true)
+          .toList();
+
       if (mounted) {
         setState(() {
-          _members = List<Map<String, dynamic>>.from(rows);
+          _members = activeRows;
+          _removedMembers = removedRows;
+          _pageIndex = 0;
           _loading = false;
         });
       }
@@ -78,6 +93,41 @@ class _RemovedMembersPageState extends State<RemovedMembersPage> {
       final userId = (r['user_id'] ?? '').toString().toLowerCase();
       return name.contains(q) || userId.contains(q);
     }).toList();
+  }
+
+  int get _pageCount {
+    if (_filtered.isEmpty) return 1;
+    return (_filtered.length / _pageSize).ceil();
+  }
+
+  List<Map<String, dynamic>> get _pagedFiltered {
+    final start = _pageIndex * _pageSize;
+    if (start >= _filtered.length) return const <Map<String, dynamic>>[];
+    final end = (start + _pageSize).clamp(0, _filtered.length);
+    return _filtered.sublist(start, end);
+  }
+
+  void _goToPreviousPage() {
+    if (_pageIndex == 0) return;
+    setState(() => _pageIndex -= 1);
+  }
+
+  void _goToNextPage() {
+    if (_pageIndex >= _pageCount - 1) return;
+    setState(() => _pageIndex += 1);
+  }
+
+  String _philippinesNowIso() {
+    final now = DateTime.now().toUtc().add(const Duration(hours: 8));
+    final year = now.year.toString().padLeft(4, '0');
+    final month = now.month.toString().padLeft(2, '0');
+    final day = now.day.toString().padLeft(2, '0');
+    final hour = now.hour.toString().padLeft(2, '0');
+    final minute = now.minute.toString().padLeft(2, '0');
+    final second = now.second.toString().padLeft(2, '0');
+    final milliseconds = now.millisecond.toString().padLeft(3, '0');
+    final microseconds = now.microsecond.toString().padLeft(3, '0');
+    return '$year-$month-$day''T$hour:$minute:$second.$milliseconds$microseconds+08:00';
   }
 
   Future<void> _confirmRemove(Map<String, dynamic> member) async {
@@ -131,35 +181,37 @@ class _RemovedMembersPageState extends State<RemovedMembersPage> {
     setState(() => _removingUserIds.add(userId));
 
     try {
-      await _sb
+      final updatedRows = await _sb
           .from('applications')
           .update({
-            'status': 'removed',
-            'updated_at': DateTime.now().toIso8601String(),
+            'isRemovedInDayung': true,
+            'updated_at': _philippinesNowIso(),
           })
           .eq('id', applicationId)
           .eq('dayung_unit_id', widget.dayungUnitId)
-          .eq('user_id', userId)
-          .eq('status', 'approved');
+          .select('id, isRemovedInDayung');
 
-      final stillApproved = await _sb
-          .from('applications')
-          .select('id')
-          .eq('id', applicationId)
-          .eq('dayung_unit_id', widget.dayungUnitId)
-          .eq('user_id', userId)
-          .eq('status', 'approved')
-          .maybeSingle();
+      final updatedApplication = updatedRows.isNotEmpty
+          ? Map<String, dynamic>.from(updatedRows.first)
+          : null;
 
-      if (stillApproved != null) {
-        throw StateError('Application status was not updated.');
+      if (updatedApplication == null || updatedApplication['isRemovedInDayung'] != true) {
+        throw StateError(
+          'No applications row was updated. Check the applications update policy and the isRemovedInDayung column name in Supabase.',
+        );
       }
 
       if (!mounted) return;
 
       setState(() {
         _members.removeWhere((row) => row['id'] == applicationId);
+        final removedRow = Map<String, dynamic>.from(member);
+        removedRow['isRemovedInDayung'] = true;
+        _removedMembers.insert(0, removedRow);
         _removingUserIds.remove(userId);
+        if (_pageIndex >= _pageCount) {
+          _pageIndex = _pageCount - 1;
+        }
       });
 
       ScaffoldMessenger.of(context).showSnackBar(
@@ -177,6 +229,107 @@ class _RemovedMembersPageState extends State<RemovedMembersPage> {
       setState(() => _removingUserIds.remove(userId));
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Failed to remove member: $e')),
+      );
+    }
+  }
+
+  Future<void> _confirmRestore(Map<String, dynamic> member) async {
+    final u = member['user'] as Map?;
+    final memberName = (u?['full_name'] ?? 'this member').toString();
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Text(
+          'Restore Member',
+          style: TextStyle(
+            fontWeight: FontWeight.w800,
+            fontFamily: 'Montserrat',
+          ),
+        ),
+        content: Text(
+          'Return $memberName to approved members?',
+          style: const TextStyle(fontFamily: 'OpenSans'),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: _kPrimary,
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Restore'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true) {
+      await _restoreMember(member);
+    }
+  }
+
+  Future<void> _restoreMember(Map<String, dynamic> member) async {
+    final applicationId = member['id'];
+    final userId = (member['user_id'] ?? '').toString();
+    if (applicationId == null || userId.isEmpty || _restoringUserIds.contains(userId)) {
+      return;
+    }
+
+    setState(() => _restoringUserIds.add(userId));
+
+    try {
+      final updatedRows = await _sb
+          .from('applications')
+          .update({
+            'isRemovedInDayung': false,
+            'updated_at': _philippinesNowIso(),
+          })
+          .eq('id', applicationId)
+          .eq('dayung_unit_id', widget.dayungUnitId)
+          .select('id, isRemovedInDayung');
+
+      final updatedApplication = updatedRows.isNotEmpty
+          ? Map<String, dynamic>.from(updatedRows.first)
+          : null;
+
+      if (updatedApplication == null || updatedApplication['isRemovedInDayung'] != false) {
+        throw StateError(
+          'No applications row was restored. Check the applications update policy and the isRemovedInDayung column name in Supabase.',
+        );
+      }
+
+      if (!mounted) return;
+
+      setState(() {
+        _removedMembers.removeWhere((row) => row['id'] == applicationId);
+        final restoredRow = Map<String, dynamic>.from(member);
+        restoredRow['isRemovedInDayung'] = false;
+        restoredRow['updated_at'] = _philippinesNowIso();
+        _members.insert(0, restoredRow);
+        _restoringUserIds.remove(userId);
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Member restored.')),
+      );
+      _load();
+    } on PostgrestException catch (e) {
+      if (!mounted) return;
+      setState(() => _restoringUserIds.remove(userId));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to restore member: ${e.message}')),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _restoringUserIds.remove(userId));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to restore member: $e')),
       );
     }
   }
@@ -279,7 +432,10 @@ class _RemovedMembersPageState extends State<RemovedMembersPage> {
                   ),
                   contentPadding: const EdgeInsets.symmetric(vertical: 12),
                 ),
-                onChanged: (v) => setState(() => _search = v.trim()),
+                onChanged: (v) => setState(() {
+                  _search = v.trim();
+                  _pageIndex = 0;
+                }),
               ),
             ),
             Expanded(
@@ -356,13 +512,133 @@ class _RemovedMembersPageState extends State<RemovedMembersPage> {
                         ],
                       ),
                     )
-                  : RefreshIndicator(
-                      onRefresh: _load,
-                      child: ListView.builder(
-                        padding: const EdgeInsets.all(16),
-                        itemCount: _filtered.length,
-                        itemBuilder: (_, i) => _memberCard(_filtered[i]),
-                      ),
+                  : Column(
+                      children: [
+                        Expanded(
+                          child: RefreshIndicator(
+                            onRefresh: _load,
+                            child: ListView.builder(
+                              padding: const EdgeInsets.all(16),
+                              itemCount: _pagedFiltered.length,
+                              itemBuilder: (_, i) => _memberCard(_pagedFiltered[i]),
+                            ),
+                          ),
+                        ),
+                        if (_filtered.isNotEmpty)
+                          Padding(
+                            padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                IconButton(
+                                  onPressed: _pageIndex == 0 ? null : _goToPreviousPage,
+                                  icon: const Icon(Icons.arrow_back_ios_new_rounded),
+                                  color: _kPrimary,
+                                ),
+                                Text(
+                                  'Page ${_pageIndex + 1} of $_pageCount',
+                                  style: const TextStyle(
+                                    color: _kNeutralText,
+                                    fontWeight: FontWeight.w700,
+                                    fontFamily: 'Montserrat',
+                                  ),
+                                ),
+                                IconButton(
+                                  onPressed: _pageIndex >= _pageCount - 1 ? null : _goToNextPage,
+                                  icon: const Icon(Icons.arrow_forward_ios_rounded),
+                                  color: _kPrimary,
+                                ),
+                              ],
+                            ),
+                          ),
+                        if (_removedMembers.isNotEmpty)
+                          Container(
+                            width: double.infinity,
+                            margin: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                            padding: const EdgeInsets.all(16),
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(16),
+                              border: Border.all(color: Colors.grey.shade200),
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Text(
+                                  'Removed In Dayung',
+                                  style: TextStyle(
+                                    color: _kNeutralText,
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w800,
+                                    fontFamily: 'Montserrat',
+                                  ),
+                                ),
+                                const SizedBox(height: 10),
+                                Wrap(
+                                  spacing: 8,
+                                  runSpacing: 8,
+                                  children: _removedMembers.map((row) {
+                                    final user = row['user'] as Map?;
+                                    final fullName =
+                                        (user?['full_name'] ?? 'Member').toString();
+                                    final userId =
+                                        (row['user_id'] ?? '').toString();
+                                    final isRestoring =
+                                        _restoringUserIds.contains(userId);
+                                    return Container(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 12,
+                                        vertical: 8,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: _kDanger.withValues(alpha: 0.08),
+                                        borderRadius: BorderRadius.circular(999),
+                                      ),
+                                      child: Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          Text(
+                                            fullName,
+                                            style: const TextStyle(
+                                              color: _kDanger,
+                                              fontSize: 12,
+                                              fontWeight: FontWeight.w700,
+                                              fontFamily: 'OpenSans',
+                                            ),
+                                          ),
+                                          const SizedBox(width: 8),
+                                          InkWell(
+                                            onTap: isRestoring
+                                                ? null
+                                                : () => _confirmRestore(row),
+                                            borderRadius: BorderRadius.circular(999),
+                                            child: Padding(
+                                              padding: const EdgeInsets.all(2),
+                                              child: isRestoring
+                                                  ? const SizedBox(
+                                                      width: 14,
+                                                      height: 14,
+                                                      child:
+                                                          CircularProgressIndicator(
+                                                        strokeWidth: 2,
+                                                      ),
+                                                    )
+                                                  : const Icon(
+                                                      Icons.undo_rounded,
+                                                      size: 16,
+                                                      color: _kPrimary,
+                                                    ),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    );
+                                  }).toList(),
+                                ),
+                              ],
+                            ),
+                          ),
+                      ],
                     ),
             ),
           ],

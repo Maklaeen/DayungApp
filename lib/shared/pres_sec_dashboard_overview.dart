@@ -13,9 +13,8 @@ const Color _kSuccess = Color(0xFF10B981);
 const Color _kWarn = Color(0xFFF59E0B);
 const Color _kPurple = Color(0xFF7C3AED);
 
-/// Shared dashboard overview for President and Secretary.
-/// Pass [onNavigateToMembers] to handle tapping "Active Members" card.
-/// Pass [onNavigateToDeceased] to handle tapping "Deceased Members" card.
+
+
 class PresSecDashboardOverview extends StatefulWidget {
   final int dayungUnitId;
   final VoidCallback? onNavigateToMembers;
@@ -88,13 +87,16 @@ class _PresSecDashboardOverviewState extends State<PresSecDashboardOverview> {
     // Active members
     final apps = await _sb
         .from('applications')
-        .select('user_id, status')
+        .select('user_id, status, isRemovedInDayung')
         .eq('dayung_unit_id', unitId);
 
     final appList = List<Map<String, dynamic>>.from(apps);
-    final approvedCount =
-      appList.where((r) => r['status'] == 'approved').length;
-    final removedCount = appList.where((r) => r['status'] == 'removed').length;
+    final approvedCount = appList.where((r) {
+      final status = (r['status'] ?? '').toString();
+      final removedInDayung = r['isRemovedInDayung'] == true;
+      return status == 'approved' && !removedInDayung;
+    }).length;
+    final removedCount = appList.where((r) => r['isRemovedInDayung'] == true).length;
 
     int deceasedCount = 0;
     final claims = await _sb

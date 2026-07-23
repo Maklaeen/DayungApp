@@ -13,8 +13,13 @@ const kWarn = Color(0xFFF59E0B);
 
 class CollectCashPage extends StatefulWidget {
   final int dayungUnitId;
+  final String? preselectedDeceasedUserId;
 
-  const CollectCashPage({super.key, required this.dayungUnitId});
+  const CollectCashPage({
+    super.key,
+    required this.dayungUnitId,
+    this.preselectedDeceasedUserId,
+  });
 
   @override
   State<CollectCashPage> createState() => _CollectCashPageState();
@@ -49,6 +54,15 @@ class _CollectCashPageState extends State<CollectCashPage> {
   double _asDouble(dynamic value, {double fallback = 0.0}) {
     if (value is num) return value.toDouble();
     return double.tryParse('${value ?? ''}') ?? fallback;
+  }
+
+  bool _isClaimedMoney(dynamic value) {
+    if (value == null) return false;
+    if (value is bool) return value;
+    if (value is num) return value != 0;
+
+    final normalized = value.toString().trim().toLowerCase();
+    return normalized == 'yes' || normalized == 'true' || normalized == '1';
   }
 
   bool get _hasSelectedDeceased => _selectedDeceased != null;
@@ -157,7 +171,9 @@ class _CollectCashPageState extends State<CollectCashPage> {
         sb.from('beneficiaries').select('id, full_name').timeout(_queryTimeout),
         sb
             .from('claims')
-            .select('id, status, user_id, beneficiary_id, amount, PassedAway')
+            .select(
+              'id, status, user_id, beneficiary_id, amount, PassedAway, datesetamount, claimedmoney',
+            )
             .timeout(_queryTimeout),
       ]);
 
@@ -222,6 +238,7 @@ class _CollectCashPageState extends State<CollectCashPage> {
           }
         }
       }
+      nextSelected ??= _resolvePreselectedClaim(deceasedOptions);
 
       if (!mounted) return;
       setState(() {
@@ -239,6 +256,50 @@ class _CollectCashPageState extends State<CollectCashPage> {
         _loading = false;
       });
     }
+  }
+
+  Map<String, dynamic>? _resolvePreselectedClaim(
+    List<Map<String, dynamic>> deceasedOptions,
+  ) {
+    final selectedUserId =
+        (_selectedDeceased?['user_id'] ?? widget.preselectedDeceasedUserId ?? '')
+            .toString();
+    if (selectedUserId.isEmpty) return null;
+
+    for (final option in deceasedOptions) {
+      if ((option['user_id'] ?? '').toString() == selectedUserId) {
+        return option;
+      }
+    }
+
+    return null;
+  }
+
+  Map<String, dynamic> _selectionForClaim(Map<String, dynamic> claim) {
+    final beneficiaryId = (claim['beneficiary_id'] ?? '').toString();
+    final userId = (claim['user_id'] ?? '').toString();
+    final key = beneficiaryId.isNotEmpty
+        ? 'beneficiary:$beneficiaryId'
+        : 'user:$userId';
+
+    for (final option in _deceasedOptions) {
+      if ((option['key'] ?? '').toString() == key) {
+        return option;
+      }
+    }
+
+    final displayName = beneficiaryId.isNotEmpty
+        ? ((claim['PassedAway'] ?? claim['passed_away'] ?? 'Beneficiary')
+              .toString())
+        : _memberName(userId);
+
+    return {
+      ...claim,
+      'key': key,
+      'display_name': displayName,
+      'amount': _asDouble(claim['amount']),
+      'required_amount': _asDouble(claim['amount']),
+    };
   }
 
   List<Map<String, dynamic>> _buildDeceasedOptions({
@@ -283,11 +344,13 @@ class _CollectCashPageState extends State<CollectCashPage> {
                 : (userMap[userId] ?? 'Deceased Member'));
 
       options.add({
+        'id': setAmount['id'],
         'key': key,
         'death_notice_id': notice['id'],
         'user_id': userId,
         'beneficiary_id': beneficiaryId,
         'display_name': displayName,
+        'amount': _asDouble(setAmount['amount']),
         'required_amount': _asDouble(setAmount['amount']),
 
         'deceased_type': (notice['deceased_type'] ?? 'member').toString(),
@@ -303,6 +366,7 @@ class _CollectCashPageState extends State<CollectCashPage> {
       if (key == 'user:' || !seenKeys.add(key)) continue;
 
       options.add({
+        'id': setAmount['id'],
         'key': key,
         'death_notice_id': null,
         'user_id': userId,
@@ -310,6 +374,7 @@ class _CollectCashPageState extends State<CollectCashPage> {
         'display_name': beneficiaryId.isNotEmpty
             ? _beneficiaryLabel(beneficiaries, beneficiaryId)
             : (userMap[userId] ?? 'Deceased Member'),
+        'amount': _asDouble(setAmount['amount']),
         'required_amount': _asDouble(setAmount['amount']),
 
         'deceased_type': beneficiaryId.isNotEmpty ? 'beneficiary' : 'member',
@@ -534,7 +599,7 @@ class _CollectCashPageState extends State<CollectCashPage> {
       final now = DateTime.now().toUtc().toIso8601String();
       // Only update the existing payment to PAID
 
-      final updateResult = await sb
+      await sb
           .from('payments')
           .update({
             'status': 'paid',
@@ -548,7 +613,6 @@ class _CollectCashPageState extends State<CollectCashPage> {
       payment['status'] = 'paid';
       payment['paid_at'] = now;
 
-      final claimId = selected['id'];
       // Update aggregate summary fields on the related claim
       await _updateClaimPaymentSummary(selected);
 
@@ -823,7 +887,23 @@ class _CollectCashPageState extends State<CollectCashPage> {
         .where(
           (c) => (c['status'] ?? '').toString().toLowerCase() == 'approved',
         )
-        .toList();
+        .toList()
+      ..sort((a, b) {
+        final aClaimed = _isClaimedMoney(a['claimedmoney']);
+        final bClaimed = _isClaimedMoney(b['claimedmoney']);
+        if (aClaimed != bClaimed) return aClaimed ? 1 : -1;
+
+        final aDate = DateTime.tryParse(
+          (a['datesetamount'] ?? '').toString(),
+        );
+        final bDate = DateTime.tryParse(
+          (b['datesetamount'] ?? '').toString(),
+        );
+        if (aDate == null && bDate == null) return 0;
+        if (aDate == null) return 1;
+        if (bDate == null) return -1;
+        return bDate.compareTo(aDate);
+      });
 
     return [
       _overviewCard(
@@ -876,6 +956,8 @@ class _CollectCashPageState extends State<CollectCashPage> {
   }
 
   Widget _claimCard(Map<String, dynamic> claim) {
+    final isClaimed = _isClaimedMoney(claim['claimedmoney']);
+
     return Container(
       margin: const EdgeInsets.only(bottom: 14),
       decoration: BoxDecoration(
@@ -894,7 +976,7 @@ class _CollectCashPageState extends State<CollectCashPage> {
         borderRadius: BorderRadius.circular(22),
         onTap: () {
           setState(() {
-            _selectedDeceased = claim;
+            _selectedDeceased = _selectionForClaim(claim);
             _memberSearch = '';
           });
         },
@@ -903,16 +985,45 @@ class _CollectCashPageState extends State<CollectCashPage> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                (claim['beneficiary_id'] ?? '').toString().isNotEmpty
-                    ? 'Claim for ${_beneficiaryLabel([], (claim['beneficiary_id'] ?? '').toString())}'
-                    : _memberName((claim['user_id'] ?? '').toString()),
-                style: const TextStyle(
-                  fontSize: 16,
-                  color: kText,
-                  fontWeight: FontWeight.w700,
-                  fontFamily: 'OpenSans',
-                ),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    child: Text(
+                      (claim['beneficiary_id'] ?? '').toString().isNotEmpty
+                          ? 'Claim for ${_beneficiaryLabel([], (claim['beneficiary_id'] ?? '').toString())}'
+                          : _memberName((claim['user_id'] ?? '').toString()),
+                      style: const TextStyle(
+                        fontSize: 16,
+                        color: kText,
+                        fontWeight: FontWeight.w700,
+                        fontFamily: 'OpenSans',
+                      ),
+                    ),
+                  ),
+                  if (isClaimed) ...[
+                    const SizedBox(width: 12),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 6,
+                      ),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFE5E7EB),
+                        borderRadius: BorderRadius.circular(999),
+                      ),
+                      child: const Text(
+                        'CLAIMED MONEY',
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: Color(0xFF374151),
+                          fontWeight: FontWeight.w800,
+                          fontFamily: 'Montserrat',
+                        ),
+                      ),
+                    ),
+                  ],
+                ],
               ),
               const SizedBox(height: 4),
               Text(
