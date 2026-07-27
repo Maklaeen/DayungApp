@@ -3,10 +3,14 @@ import 'package:capstone_app/Auth/logout.dart';
 import 'package:capstone_app/Beneficiary/beneficiary.dart';
 import 'package:capstone_app/Providers/dayung_provider.dart';
 import 'package:capstone_app/Providers/dayung_role_provider.dart';
+import 'package:capstone_app/Treasurer/collected.dart';
+import 'package:capstone_app/Treasurer/manage_fund.dart';
 import 'package:capstone_app/Treasurer/treasclaims.dart';
 import 'package:capstone_app/Treasurer/treascontributions.dart';
 import 'package:capstone_app/Treasurer/treasurer_payment_page.dart';
+import 'package:capstone_app/Collector/gcash_qr_page.dart';
 import 'package:capstone_app/pages/notification.dart';
+import 'package:capstone_app/pages/recentdeathnotices.dart';
 import 'package:capstone_app/profile/profile.dart';
 import 'package:capstone_app/settings/profsettings.dart';
 import 'package:capstone_app/shared/names_only_members_page.dart';
@@ -53,12 +57,14 @@ class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
   int _todayDeceased = 0;
   int _pendingMembers = 0;
   int _unreadNotifCount = 0;
+  double _pendingAmount = 0;
   double _currentFunds = 0;
   double _collectorCollected = 0;
   double _todayCollected = 0;
   List<double> _monthlyCollected = List.filled(12, 0);
   List<Map<String, dynamic>> _recentCollections = [];
   List<Map<String, dynamic>> _topDueMembers = [];
+  List<String> _recentDeaths = [];
   DateTime? _lastRefreshTime;
 
   @override
@@ -168,12 +174,14 @@ class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
         _fetchRemovedMembers(selected),
         _fetchTodayDeceasedCount(selected),
         _fetchPendingMembersCount(selected),
+        _fetchPendingAmount(selected),
         _fetchCurrentFunds(selected),
         _fetchCollectorCollected(selected),
         _fetchTodayCollectedAmount(selected),
         _fetchMonthlyCollected(selected),
         _fetchRecentCollections(selected),
         _fetchTopDueMembers(selected),
+        _fetchRecentDeaths(selected),
         _fetchUnreadNotifCount(selected),
       ]);
     } finally {
@@ -421,6 +429,46 @@ class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
     }
   }
 
+  Future<void> _fetchPendingAmount(List<int> ids) async {
+    try {
+      _pendingAmount = 0;
+      if (ids.isEmpty) return;
+      final rows = await sb
+          .from('payments')
+          .select('amount')
+          .inFilter('dayung_unit_id', ids)
+          .eq('status', 'pending');
+      double total = 0;
+      for (final row in List<Map<String, dynamic>>.from(rows)) {
+        final amount = row['amount'];
+        total += (amount is num)
+            ? amount.toDouble()
+            : double.tryParse('$amount') ?? 0;
+      }
+      _pendingAmount = total;
+    } catch (_) {
+      _pendingAmount = 0;
+    }
+  }
+
+  Future<void> _fetchRecentDeaths(List<int> ids) async {
+    try {
+      _recentDeaths = [];
+      if (ids.isEmpty) return;
+      final rows = await sb
+          .from('claims')
+          .select('PassedAway,date_of_death')
+          .inFilter('dayung_unit_id', ids)
+          .order('date_of_death', ascending: false)
+          .limit(3);
+      _recentDeaths = List<Map<String, dynamic>>.from(
+        rows,
+      ).map((row) => (row['PassedAway'] ?? 'Member').toString()).toList();
+    } catch (_) {
+      _recentDeaths = [];
+    }
+  }
+
   Future<void> _fetchMonthlyCollected(List<int> ids) async {
     try {
       _monthlyCollected = List.filled(12, 0);
@@ -583,6 +631,829 @@ class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
     return GestureDetector(onTap: onTap, child: card);
   }
 
+  Widget _buildQuickActions() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'Quick Access',
+          style: TextStyle(
+            fontSize: 18,
+            fontWeight: FontWeight.w800,
+            color: Color(0xFF1E40AF),
+            fontFamily: 'Montserrat',
+          ),
+        ),
+        const SizedBox(height: 12),
+        _buildModernActionCard(
+          icon: Icons.account_balance_wallet_rounded,
+          title: 'Manage Fund',
+          subtitle: 'View and manage fund details',
+          color: const Color(0xFF3B82F6),
+          onTap: () {
+            if (_dayungUnitId == null) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Select a Dayung first')),
+              );
+              return;
+            }
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => ManageFundPage(dayungUnitId: _dayungUnitId!),
+              ),
+            ).then((_) => _fetchAll());
+          },
+        ),
+        const SizedBox(height: 8),
+        _buildModernActionCard(
+          icon: Icons.payments_rounded,
+          title: 'My Payment Page',
+          subtitle: 'Pay your own contribution records',
+          color: const Color(0xFF2563EB),
+          onTap: () {
+            if (_dayungUnitId == null) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Select a Dayung first')),
+              );
+              return;
+            }
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) =>
+                    TreasurerPaymentPage(dayungUnitId: _dayungUnitId!),
+              ),
+            ).then((_) => _fetchAll());
+          },
+        ),
+        const SizedBox(height: 8),
+        _buildModernActionCard(
+          icon: Icons.verified_user_rounded,
+          title: 'Paid Members',
+          subtitle: 'View members who have paid',
+          color: const Color(0xFF10B981),
+          onTap: () async {
+            if (_dayungUnitId == null) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Select a Dayung first')),
+              );
+              return;
+            }
+            await _showMembersModal(paid: true);
+          },
+        ),
+        const SizedBox(height: 8),
+        _buildModernActionCard(
+          icon: Icons.pending_actions_rounded,
+          title: 'Unpaid Members',
+          subtitle: 'View members who haven\'t paid',
+          color: const Color(0xFFEF4444),
+          onTap: () async {
+            if (_dayungUnitId == null) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Select a Dayung first')),
+              );
+              return;
+            }
+            await _showMembersModal(paid: false);
+          },
+        ),
+        const SizedBox(height: 8),
+        _buildModernActionCard(
+          icon: Icons.qr_code_2_rounded,
+          title: 'Open GCash QR',
+          subtitle: 'Show payment QR',
+          color: const Color(0xFFF59E0B),
+          onTap: () {
+            if (_dayungUnitId == null) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Select a Dayung first')),
+              );
+              return;
+            }
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => GcashQrPage(dayungUnitId: _dayungUnitId!),
+              ),
+            );
+          },
+        ),
+      ],
+    );
+  }
+
+  Widget _buildModernActionCard({
+    required IconData icon,
+    required String title,
+    required String subtitle,
+    required Color color,
+    required VoidCallback onTap,
+  }) {
+    return Container(
+      width: double.infinity,
+      decoration: BoxDecoration(
+        color: dayungSurface(context),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: dayungBorder(context)),
+        boxShadow: [dayungElevatedShadow(context)],
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(16),
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: color.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Icon(icon, color: color, size: 24),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        title,
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w700,
+                          color: Color(0xFF1F2937),
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        subtitle,
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: Color(0xFF6B7280),
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Icon(
+                  Icons.arrow_forward_ios_rounded,
+                  color: color.withValues(alpha: 0.6),
+                  size: 16,
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildRecentActivity() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'Recent Activity',
+          style: TextStyle(
+            fontSize: 18,
+            fontWeight: FontWeight.w800,
+            color: Color(0xFF111827),
+            fontFamily: 'Montserrat',
+          ),
+        ),
+        const SizedBox(height: 16),
+        Container(
+          padding: const EdgeInsets.all(20),
+          decoration: dayungSectionCardDecoration(context, radius: 16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: dayungAccentSurface(
+                        context,
+                        const Color(0xFFEC4899),
+                        lightAlpha: 0.08,
+                        darkAlpha: 0.14,
+                      ),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Icon(
+                      Icons.family_restroom_rounded,
+                      color: Color(0xFFEC4899),
+                      size: 20,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      'Death Notice Queue',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
+                        color: dayungTextColor(context),
+                        fontFamily: 'Montserrat',
+                      ),
+                    ),
+                  ),
+                  TextButton(
+                    onPressed: () {
+                      if (_dayungUnitId == null) return;
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) =>
+                              RecentDeathNotices(dayungUnitId: _dayungUnitId),
+                        ),
+                      );
+                    },
+                    child: const Text(
+                      'View All',
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: Color(0xFF3B82F6),
+                        fontFamily: 'Montserrat',
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 10),
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 10,
+                ),
+                decoration: BoxDecoration(
+                  color: dayungAccentSurface(context, kPrimaryDark),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: kPrimaryDark.withValues(
+                      alpha: dayungIsDark(context) ? 0.34 : 0.18,
+                    ),
+                  ),
+                ),
+                child: Text(
+                  _loading
+                      ? 'Refreshing treasurer dashboard...'
+                      : 'Pending amount for collection: ₱${_pendingAmount.toStringAsFixed(0)}',
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: dayungTextColor(context),
+                    fontFamily: 'OpenSans',
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 14),
+              if (_recentDeaths.isEmpty)
+                const Text(
+                  'No recent activity yet.',
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: Color(0xFF6B7280),
+                    fontFamily: 'OpenSans',
+                  ),
+                )
+              else
+                ..._recentDeaths
+                    .take(3)
+                    .map(
+                      (name) => Padding(
+                        padding: const EdgeInsets.only(bottom: 10),
+                        child: Row(
+                          children: [
+                            Container(
+                              width: 6,
+                              height: 6,
+                              decoration: const BoxDecoration(
+                                color: Color(0xFF3B82F6),
+                                shape: BoxShape.circle,
+                              ),
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Text(
+                                name,
+                                style: const TextStyle(
+                                  fontSize: 14,
+                                  color: Color(0xFF111827),
+                                  fontFamily: 'OpenSans',
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildCollectedSection() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [Color(0xFF10B981), Color(0xFF059669)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF10B981).withValues(alpha: 0.3),
+            blurRadius: 15,
+            offset: const Offset(0, 5),
+          ),
+        ],
+      ),
+      child: Column(
+        children: [
+          const Icon(
+            Icons.account_balance_rounded,
+            color: Colors.white,
+            size: 32,
+          ),
+          const SizedBox(height: 12),
+          const Text(
+            'Collected from Collectors',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.w800,
+              color: Colors.white,
+              fontFamily: 'Montserrat',
+            ),
+          ),
+          const SizedBox(height: 16),
+          Container(
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(12),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.1),
+                  blurRadius: 8,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+            ),
+            child: Material(
+              color: Colors.transparent,
+              child: InkWell(
+                borderRadius: BorderRadius.circular(12),
+                onTap: () {
+                  if (_dayungUnitId == null) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Select a Dayung first')),
+                    );
+                    return;
+                  }
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => CollectedFromCollectorsPage(
+                        dayungUnitId: _dayungUnitId!,
+                      ),
+                    ),
+                  );
+                },
+                child: const Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                  child: Text(
+                    'View Collections',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w700,
+                      color: Color(0xFF10B981),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDeathNoticesSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            const Text(
+              'Death Notices',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.w800,
+                color: Color(0xFF1E40AF),
+                fontFamily: 'Montserrat',
+              ),
+            ),
+            const Spacer(),
+            TextButton(
+              onPressed: () {
+                if (_dayungUnitId == null) return;
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) =>
+                        RecentDeathNotices(dayungUnitId: _dayungUnitId!),
+                  ),
+                );
+              },
+              child: const Text(
+                'View All',
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: Color(0xFF3B82F6),
+                  fontFamily: 'Montserrat',
+                ),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        Container(
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: Colors.grey.shade200),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withAlpha(10),
+                blurRadius: 12,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (_loading)
+                const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 20),
+                  child: Center(child: CircularProgressIndicator()),
+                )
+              else if (_recentDeaths.isEmpty)
+                const Text(
+                  'No death notices yet.',
+                  style: TextStyle(
+                    fontSize: 16,
+                    color: Color(0xFF6B7280),
+                    fontWeight: FontWeight.w500,
+                  ),
+                )
+              else
+                ..._recentDeaths
+                    .take(3)
+                    .map(
+                      (name) => Container(
+                        margin: const EdgeInsets.only(bottom: 12),
+                        padding: const EdgeInsets.all(14),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFF8FAFC),
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                        child: Row(
+                          children: [
+                            const Icon(
+                              Icons.notifications_active_rounded,
+                              color: Color(0xFF0D47A1),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Text(
+                                name,
+                                style: const TextStyle(
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.w700,
+                                  color: Color(0xFF111827),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildSideDrawer(BuildContext context) {
+    return Drawer(
+      backgroundColor: kBg,
+      child: Column(
+        children: [
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.fromLTRB(24, 48, 24, 32),
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [kPrimaryDark, kPrimary],
+              ),
+              borderRadius: BorderRadius.vertical(bottom: Radius.circular(32)),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                CircleAvatar(
+                  radius: 32,
+                  backgroundColor: kAccent.withValues(alpha: 0.15),
+                  child: Icon(Icons.person, size: 36, color: kAccent),
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  _fullName,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 20,
+                    fontFamily: 'Montserrat',
+                  ),
+                ),
+                const SizedBox(height: 4),
+              ],
+            ),
+          ),
+          const SizedBox(height: 12),
+          Expanded(
+            child: ListView(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              children: [
+                _modernDrawerTile(
+                  icon: Icons.account_circle,
+                  label: 'Profile',
+                  onTap: () {
+                    Navigator.pop(context);
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => const ProfilePage()),
+                    );
+                  },
+                ),
+                _modernDrawerTile(
+                  icon: Icons.people_rounded,
+                  label: 'Beneficiaries',
+                  onTap: () {
+                    Navigator.pop(context);
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => const BeneficiaryPage(),
+                      ),
+                    );
+                  },
+                ),
+                _modernDrawerTile(
+                  icon: Icons.notifications,
+                  label: 'Notifications',
+                  onTap: () async {
+                    Navigator.pop(context);
+                    await _openNotifications();
+                  },
+                ),
+                _modernDrawerTile(
+                  icon: Icons.settings,
+                  label: 'Settings',
+                  onTap: () {
+                    Navigator.pop(context);
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => const ProfSettingsPage(),
+                      ),
+                    );
+                  },
+                ),
+                const Divider(height: 32, thickness: 1, color: kSubText),
+                _modernDrawerTile(
+                  icon: Icons.logout,
+                  label: 'Logout',
+                  onTap: () async {
+                    Navigator.pop(context);
+                    await showLogoutDialog(context);
+                  },
+                ),
+              ],
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.only(bottom: 16, top: 8),
+            child: Text(
+              'v1.0.0',
+              style: TextStyle(
+                color: kSubText.withValues(alpha: 0.7),
+                fontSize: 13,
+                fontFamily: 'OpenSans',
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _modernDrawerTile({
+    required IconData icon,
+    required String label,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        margin: const EdgeInsets.symmetric(vertical: 4),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(16),
+          color: Colors.white,
+          border: Border.all(color: Colors.grey.shade200),
+        ),
+        child: Row(
+          children: [
+            Icon(icon, color: kPrimaryDark),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Text(
+                label,
+                style: const TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+            const Icon(
+              Icons.arrow_forward_ios,
+              size: 16,
+              color: Color(0xFF6B7280),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _showMembersModal({required bool paid}) async {
+    if (_dayungUnitId == null) return;
+    final statuses = paid ? ['paid'] : ['pending', 'unpaid'];
+    final members = <Map<String, String>>[];
+
+    try {
+      final rows = await sb
+          .from('payments')
+          .select('user_id, status, users!payments_user_id_fkey(full_name)')
+          .inFilter('dayung_unit_id', [_dayungUnitId!])
+          .inFilter('status', statuses)
+          .order('created_at', ascending: false);
+
+      final paymentRows = List<Map<String, dynamic>>.from(
+        rows as List<dynamic>,
+      );
+      final seen = <String>{};
+      for (final row in paymentRows) {
+        final userId = '${row['user_id'] ?? ''}';
+        if (userId.isEmpty || seen.contains(userId)) continue;
+        seen.add(userId);
+        final userName =
+            ((row['users'] as Map?)?['full_name']?.toString() ?? 'Member');
+        members.add({
+          'name': userName,
+          'status': row['status']?.toString() ?? '',
+        });
+      }
+    } catch (_) {
+      // ignore errors and show empty state
+    }
+
+    if (!mounted) return;
+
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) {
+        return DraggableScrollableSheet(
+          initialChildSize: 0.6,
+          minChildSize: 0.4,
+          maxChildSize: 0.9,
+          expand: false,
+          builder: (context, scrollController) {
+            return Container(
+              decoration: BoxDecoration(
+                color: dayungSurface(context),
+                borderRadius: const BorderRadius.vertical(
+                  top: Radius.circular(24),
+                ),
+              ),
+              child: Column(
+                children: [
+                  const SizedBox(height: 10),
+                  Container(
+                    width: 40,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: Colors.grey.shade400,
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 20),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            paid ? 'Paid Members' : 'Unpaid Members',
+                            style: const TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                        ),
+                        IconButton(
+                          onPressed: () => Navigator.pop(context),
+                          icon: const Icon(Icons.close),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Expanded(
+                    child: members.isEmpty
+                        ? Padding(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 20,
+                              vertical: 24,
+                            ),
+                            child: Text(
+                              paid
+                                  ? 'No paid members found.'
+                                  : 'No unpaid members found.',
+                              style: const TextStyle(
+                                color: Color(0xFF6B7280),
+                                fontSize: 15,
+                              ),
+                            ),
+                          )
+                        : ListView.separated(
+                            controller: scrollController,
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 20,
+                              vertical: 12,
+                            ),
+                            itemCount: members.length,
+                            separatorBuilder: (_, __) =>
+                                const Divider(height: 0),
+                            itemBuilder: (_, index) {
+                              final entry = members[index];
+                              return ListTile(
+                                contentPadding: EdgeInsets.zero,
+                                title: Text(entry['name'] ?? 'Member'),
+                                subtitle: Text(entry['status'] ?? ''),
+                                trailing: Icon(
+                                  paid
+                                      ? Icons.check_circle_outline
+                                      : Icons.hourglass_bottom,
+                                  color: paid
+                                      ? const Color(0xFF10B981)
+                                      : const Color(0xFFF59E0B),
+                                ),
+                              );
+                            },
+                          ),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
   Widget _monthlyCollectionCard() {
     final totals = _monthlyCollected;
     final maxY = totals.isNotEmpty
@@ -590,6 +1461,7 @@ class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
         : 0.0;
     final chartMax = maxY <= 0 ? 100.0 : maxY * 1.25;
     const months = ['J', 'F', 'M', 'A', 'M', 'J', 'J', 'A', 'S', 'O', 'N', 'D'];
+
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
@@ -702,8 +1574,9 @@ class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
                       reservedSize: 24,
                       getTitlesWidget: (value, meta) {
                         final index = value.toInt();
-                        if (index < 0 || index >= months.length)
+                        if (index < 0 || index >= months.length) {
                           return const SizedBox.shrink();
+                        }
                         return SideTitleWidget(
                           meta: meta,
                           child: Text(
@@ -786,7 +1659,7 @@ class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
             border: Border.all(color: Colors.grey.shade200),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.04),
+                color: Colors.black.withAlpha(10),
                 blurRadius: 12,
                 offset: const Offset(0, 4),
               ),
@@ -842,88 +1715,88 @@ class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
             ],
           ),
         ),
-        const SizedBox(height: 16),
-        Container(
-          padding: const EdgeInsets.all(20),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: Colors.grey.shade200),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(0.04),
-                blurRadius: 12,
-                offset: const Offset(0, 4),
-              ),
-            ],
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text(
-                'Top 5 Due Members',
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w800,
-                  color: Color(0xFF1E40AF),
-                  fontFamily: 'Montserrat',
-                ),
-              ),
-              const SizedBox(height: 12),
-              if (_topDueMembers.isEmpty)
-                const Text(
-                  'No pending members found.',
-                  style: TextStyle(color: Color(0xFF6B7280)),
-                )
-              else
-                ..._topDueMembers.map(
-                  (entry) => GestureDetector(
-                    onTap: () {
-                      if (_dayungUnitId == null) return;
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => TreasurerPaymentPage(
-                            dayungUnitId: _dayungUnitId!,
-                          ),
-                        ),
-                      );
-                    },
-                    child: Container(
-                      margin: const EdgeInsets.only(bottom: 10),
-                      padding: const EdgeInsets.all(14),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(16),
-                        border: Border.all(color: const Color(0xFFE5E7EB)),
-                      ),
-                      child: Row(
-                        children: [
-                          Expanded(
-                            child: Text(
-                              entry['member_name'] ?? 'Member',
-                              style: const TextStyle(
-                                fontSize: 14,
-                                fontWeight: FontWeight.w700,
-                              ),
-                            ),
-                          ),
-                          Text(
-                            _formatAmount(entry['total_due']),
-                            style: const TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w700,
-                              color: Color(0xFFEF4444),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-            ],
-          ),
-        ),
+        // const SizedBox(height: 16),
+        // Container(
+        //   padding: const EdgeInsets.all(20),
+        //   decoration: BoxDecoration(
+        //     color: Colors.white,
+        //     borderRadius: BorderRadius.circular(20),
+        //     border: Border.all(color: Colors.grey.shade200),
+        //     boxShadow: [
+        //       BoxShadow(
+        //         color: Colors.black.withAlpha(10),
+        //         blurRadius: 12,
+        //         offset: const Offset(0, 4),
+        //       ),
+        //     ],
+        //   ),
+        //   child: Column(
+        //     crossAxisAlignment: CrossAxisAlignment.start,
+        //     children: [
+        //       const Text(
+        //         'Top 5 Due Members',
+        //         style: TextStyle(
+        //           fontSize: 18,
+        //           fontWeight: FontWeight.w800,
+        //           color: Color(0xFF1E40AF),
+        //           fontFamily: 'Montserrat',
+        //         ),
+        //       ),
+        //       const SizedBox(height: 12),
+        //       if (_topDueMembers.isEmpty)
+        //         const Text(
+        //           'No pending members found.',
+        //           style: TextStyle(color: Color(0xFF6B7280)),
+        //         )
+        //       else
+        //         ..._topDueMembers.map(
+        //           (entry) => GestureDetector(
+        //             onTap: () {
+        //               if (_dayungUnitId == null) return;
+        //               Navigator.push(
+        //                 context,
+        //                 MaterialPageRoute(
+        //                   builder: (_) => TreasurerPaymentPage(
+        //                     dayungUnitId: _dayungUnitId!,
+        //                   ),
+        //                 ),
+        //               );
+        //             },
+        //             child: Container(
+        //               margin: const EdgeInsets.only(bottom: 10),
+        //               padding: const EdgeInsets.all(14),
+        //               decoration: BoxDecoration(
+        //                 color: Colors.white,
+        //                 borderRadius: BorderRadius.circular(16),
+        //                 border: Border.all(color: const Color(0xFFE5E7EB)),
+        //               ),
+        //               child: Row(
+        //                 children: [
+        //                   Expanded(
+        //                     child: Text(
+        //                       entry['member_name'] ?? 'Member',
+        //                       style: const TextStyle(
+        //                         fontSize: 14,
+        //                         fontWeight: FontWeight.w700,
+        //                       ),
+        //                     ),
+        //                   ),
+        //                   Text(
+        //                     _formatAmount(entry['total_due']),
+        //                     style: const TextStyle(
+        //                       fontSize: 14,
+        //                       fontWeight: FontWeight.w700,
+        //                       color: Color(0xFFEF4444),
+        //                     ),
+        //                   ),
+        //                 ],
+        //               ),
+        //             ),
+        //           ),
+        //         ),
+        //     ],
+        //   ),
+        // ),
       ],
     );
   }
@@ -968,17 +1841,21 @@ class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
     //   });
     // }
 
-    return Container(
-      decoration: BoxDecoration(gradient: dayungDashboardGradient(context)),
-      child: Stack(
-        children: [
-          SafeArea(
-            child: Column(
-              children: [_buildModernHeader(), _buildContentArea(wide)],
+    return Scaffold(
+      backgroundColor: dayungPageBackground(context),
+      drawer: _buildSideDrawer(context),
+      body: Container(
+        decoration: BoxDecoration(gradient: dayungDashboardGradient(context)),
+        child: Stack(
+          children: [
+            SafeArea(
+              child: Column(
+                children: [_buildModernHeader(), _buildContentArea(wide)],
+              ),
             ),
-          ),
-          _buildFloatingNavBar(wide),
-        ],
+            _buildFloatingNavBar(wide),
+          ],
+        ),
       ),
     );
   }
@@ -1271,9 +2148,17 @@ class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
           children: [
             _buildOverviewSection(),
             const SizedBox(height: 24),
+            _buildQuickActions(),
+            const SizedBox(height: 24),
+            _buildRecentActivity(),
+            const SizedBox(height: 24),
+            _buildCollectedSection(),
+            const SizedBox(height: 24),
             _monthlyCollectionCard(),
             const SizedBox(height: 24),
             _recentCollectionsAndDueMembersSection(),
+            const SizedBox(height: 24),
+            _buildDeathNoticesSection(),
           ],
         ),
       ),

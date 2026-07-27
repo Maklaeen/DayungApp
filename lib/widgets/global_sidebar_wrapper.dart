@@ -558,7 +558,7 @@ class DashboardSidebar extends StatelessWidget {
                 ),
                 const SizedBox(width: 6),
                 Text(
-                  'Version 1.0.0',
+                  'Version 1.5.0',
                   style: TextStyle(
                     color: const Color(0xFF6B7280).withValues(alpha: 0.7),
                     fontSize: 12,
