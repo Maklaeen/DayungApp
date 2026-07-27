@@ -615,25 +615,21 @@ class _SecretaryDashboardPageState extends State<SecretaryDashboardPage> {
         ),
       );
     } else {
-      // Mobile layout with drawer
-      return Scaffold(
-        backgroundColor: dayungPageBackground(context),
-        drawer: _buildMobileDrawer(context),
-        body: Container(
-          decoration: BoxDecoration(gradient: dayungDashboardGradient(context)),
-          child: Stack(
-            children: [
-              SafeArea(
-                child: Column(
-                  children: [
-                    _buildModernHeader(showMenuButton: true),
-                    _buildContentArea(wide),
-                  ],
-                ),
+      // Mobile layout with global drawer handled by wrapper
+      return Container(
+        decoration: BoxDecoration(gradient: dayungDashboardGradient(context)),
+        child: Stack(
+          children: [
+            SafeArea(
+              child: Column(
+                children: [
+                  _buildModernHeader(showMenuButton: true),
+                  _buildContentArea(wide),
+                ],
               ),
-              _bottomNav(wide),
-            ],
-          ),
+            ),
+            _bottomNav(wide),
+          ],
         ),
       );
     }
@@ -722,249 +718,6 @@ class _SecretaryDashboardPageState extends State<SecretaryDashboardPage> {
         ],
       ),
     );
-  }
-
-  Widget _buildSideDrawer(BuildContext context, {bool isPersistent = false}) {
-    final drawerContent = Container(
-      color: dayungPageBackground(context),
-      child: Column(
-        children: [
-          // Modern Header Section
-          Container(
-            width: double.infinity,
-            margin: const EdgeInsets.all(16),
-            padding: const EdgeInsets.all(20),
-            decoration: dayungSectionCardDecoration(context),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF1E40AF).withValues(alpha: 0.1),
-                        borderRadius: BorderRadius.circular(16),
-                      ),
-                      child: const Icon(
-                        Icons.person_rounded,
-                        size: 24,
-                        color: Color(0xFF1E40AF),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            _fullName.isEmpty ? 'Secretary' : _fullName,
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w800,
-                              color: Color(0xFF1E40AF),
-                              fontFamily: 'Montserrat',
-                            ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                          const SizedBox(height: 2),
-                          Text(
-                            _selectedDayungUnit,
-                            style: TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w600,
-                              color: Theme.of(
-                                context,
-                              ).colorScheme.onSurfaceVariant,
-                              fontFamily: 'OpenSans',
-                            ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-          // Navigation Section
-          Expanded(
-            child: Container(
-              margin: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-              padding: const EdgeInsets.all(16),
-              decoration: dayungSectionCardDecoration(context),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Navigation',
-                    style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w800,
-                      color: Color(0xFF1E40AF),
-                      fontFamily: 'Montserrat',
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  Expanded(
-                    child: ListView(
-                      padding: EdgeInsets.zero,
-                      children: [
-                        _modernNavItem(
-                          context,
-                          icon: Icons.dashboard_rounded,
-                          label: 'Dashboard',
-                          color: const Color(0xFF3B82F6),
-                          isActive: true,
-                          onTap: () {
-                            if (!isPersistent) Navigator.pop(context);
-                            // Already on dashboard
-                          },
-                        ),
-                        const SizedBox(height: 8),
-                        _modernNavItem(
-                          context,
-                          icon: Icons.account_circle_rounded,
-                          label: 'Profile',
-                          color: const Color(0xFF10B981),
-                          onTap: () {
-                            if (!isPersistent) Navigator.pop(context);
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (_) => const ProfilePage(),
-                              ),
-                            );
-                          },
-                        ),
-                        const SizedBox(height: 8),
-                        _modernNavItem(
-                          context,
-                          icon: Icons.people_rounded,
-                          label: 'Beneficiaries',
-                          color: const Color(0xFF8B5CF6),
-                          onTap: () {
-                            if (!isPersistent) Navigator.pop(context);
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (_) => const BeneficiaryPage(),
-                              ),
-                            );
-                          },
-                        ),
-                        const SizedBox(height: 8),
-                        _modernNavItem(
-                          context,
-                          icon: Icons.notifications_rounded,
-                          label: 'Notifications',
-                          color: const Color(0xFFF59E0B),
-                          badgeCount: _unreadNotifCount,
-                          onTap: () {
-                            if (!isPersistent) Navigator.pop(context);
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (_) => const NotificationPage(),
-                              ),
-                            );
-                          },
-                        ),
-                        const SizedBox(height: 8),
-                        _modernNavItem(
-                          context,
-                          icon: Icons.settings_rounded,
-                          label: 'Settings',
-                          color: Theme.of(context).colorScheme.onSurfaceVariant,
-                          onTap: () {
-                            if (!isPersistent) Navigator.pop(context);
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (_) => const ProfSettingsPage(),
-                              ),
-                            );
-                          },
-                        ),
-                        const SizedBox(height: 16),
-                        Container(height: 1, color: dayungBorder(context)),
-                        const SizedBox(height: 16),
-                        _modernNavItem(
-                          context,
-                          icon: Icons.logout_rounded,
-                          label: 'Logout',
-                          color: const Color(0xFFEF4444),
-                          onTap: () async {
-                            if (!isPersistent) Navigator.pop(context);
-                            await showLogoutDialog(context);
-                          },
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-          // Version footer
-          Container(
-            margin: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: dayungSurface(context),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: dayungBorder(context)),
-            ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(
-                  Icons.info_outline_rounded,
-                  size: 14,
-                  color: Theme.of(
-                    context,
-                  ).colorScheme.onSurfaceVariant.withValues(alpha: 0.7),
-                ),
-                const SizedBox(width: 6),
-                Text(
-                  'Version 1.0.0',
-                  style: TextStyle(
-                    color: Theme.of(
-                      context,
-                    ).colorScheme.onSurfaceVariant.withValues(alpha: 0.7),
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                    fontFamily: 'OpenSans',
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-
-    if (isPersistent) {
-      // Desktop persistent sidebar
-      return Container(
-        decoration: BoxDecoration(
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.05),
-              blurRadius: 8,
-              offset: const Offset(2, 0),
-            ),
-          ],
-        ),
-        child: drawerContent,
-      );
-    } else {
-      // Mobile drawer
-      return Drawer(child: drawerContent);
-    }
   }
 
   Widget _modernNavItem(
@@ -1692,6 +1445,11 @@ class _SecretaryDashboardPageState extends State<SecretaryDashboardPage> {
     VoidCallback? onTap,
     int badgeCount = 0,
   }) {
+    final isCompact = MediaQuery.of(context).size.width < 360;
+    final titleFontSize = isCompact ? 12.0 : 14.0;
+    final subtitleFontSize = isCompact ? 10.0 : 12.0;
+    final contentGap = isCompact ? 6.0 : 8.0;
+
     return Material(
       color: Colors.transparent,
       child: InkWell(
@@ -1724,30 +1482,35 @@ class _SecretaryDashboardPageState extends State<SecretaryDashboardPage> {
                       ),
                       child: Icon(icon, color: color, size: 20),
                     ),
-                    const Spacer(flex: 1),
-                    Text(
-                      title,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w700,
-                        color: Theme.of(context).colorScheme.onSurface,
-                        fontFamily: 'Montserrat',
+                    SizedBox(height: contentGap),
+                    Flexible(
+                      child: Text(
+                        title,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        softWrap: true,
+                        style: TextStyle(
+                          fontSize: titleFontSize,
+                          fontWeight: FontWeight.w700,
+                          color: Theme.of(context).colorScheme.onSurface,
+                          fontFamily: 'Montserrat',
+                        ),
                       ),
                     ),
                     const SizedBox(height: 4),
-                    Text(
-                      subtitle,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: Theme.of(context).colorScheme.onSurfaceVariant,
-                        fontFamily: 'OpenSans',
+                    Flexible(
+                      child: Text(
+                        subtitle,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        softWrap: true,
+                        style: TextStyle(
+                          fontSize: subtitleFontSize,
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
+                          fontFamily: 'OpenSans',
+                        ),
                       ),
                     ),
-                    const Spacer(flex: 1),
                   ],
                 ),
                 if (badgeCount > 0)
@@ -2102,184 +1865,6 @@ class _SecretaryDashboardPageState extends State<SecretaryDashboardPage> {
             ),
           ),
         ),
-      ),
-    );
-  }
-
-  Widget _buildMobileDrawer(BuildContext context) {
-    return Drawer(
-      backgroundColor: dayungPageBackground(context),
-      child: Column(
-        children: [
-          // Header Section
-          Container(
-            width: double.infinity,
-            margin: const EdgeInsets.all(16),
-            padding: const EdgeInsets.all(20),
-            decoration: dayungSectionCardDecoration(context),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF1E40AF).withValues(alpha: 0.1),
-                        borderRadius: BorderRadius.circular(16),
-                      ),
-                      child: const Icon(
-                        Icons.person_rounded,
-                        size: 24,
-                        color: Color(0xFF1E40AF),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            _fullName.isEmpty ? 'Secretary' : _fullName,
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w800,
-                              color: Color(0xFF1E40AF),
-                              fontFamily: 'Montserrat',
-                            ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                          const SizedBox(height: 2),
-                          Text(
-                            _selectedDayungUnit,
-                            style: TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w600,
-                              color: Theme.of(
-                                context,
-                              ).colorScheme.onSurfaceVariant,
-                              fontFamily: 'OpenSans',
-                            ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-          // Navigation Section
-          Expanded(
-            child: Container(
-              margin: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-              padding: const EdgeInsets.all(16),
-              decoration: dayungSectionCardDecoration(context),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Navigation',
-                    style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w800,
-                      color: Color(0xFF1E40AF),
-                      fontFamily: 'Montserrat',
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  Expanded(
-                    child: ListView(
-                      padding: EdgeInsets.zero,
-                      children: [
-                        _modernNavItem(
-                          context,
-                          icon: Icons.account_circle_rounded,
-                          label: 'Profile',
-                          color: const Color(0xFF10B981),
-                          onTap: () {
-                            Navigator.pop(context);
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (_) => const ProfilePage(),
-                              ),
-                            );
-                          },
-                        ),
-                        const SizedBox(height: 8),
-                        _modernNavItem(
-                          context,
-                          icon: Icons.people_rounded,
-                          label: 'Beneficiaries',
-                          color: const Color(0xFF8B5CF6),
-                          onTap: () {
-                            Navigator.pop(context);
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (_) => const BeneficiaryPage(),
-                              ),
-                            );
-                          },
-                        ),
-                        const SizedBox(height: 8),
-                        _modernNavItem(
-                          context,
-                          icon: Icons.notifications_rounded,
-                          label: 'Notifications',
-                          color: const Color(0xFFF59E0B),
-                          badgeCount: _unreadNotifCount,
-                          onTap: () {
-                            Navigator.pop(context);
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (_) => const NotificationPage(),
-                              ),
-                            );
-                          },
-                        ),
-                        const SizedBox(height: 8),
-                        _modernNavItem(
-                          context,
-                          icon: Icons.settings_rounded,
-                          label: 'Settings',
-                          color: Theme.of(context).colorScheme.onSurfaceVariant,
-                          onTap: () {
-                            Navigator.pop(context);
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (_) => const ProfSettingsPage(),
-                              ),
-                            );
-                          },
-                        ),
-                        const SizedBox(height: 16),
-                        Container(height: 1, color: dayungBorder(context)),
-                        const SizedBox(height: 16),
-                        _modernNavItem(
-                          context,
-                          icon: Icons.logout_rounded,
-                          label: 'Logout',
-                          color: const Color(0xFFEF4444),
-                          onTap: () async {
-                            Navigator.pop(context);
-                            await showLogoutDialog(context);
-                          },
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ],
       ),
     );
   }

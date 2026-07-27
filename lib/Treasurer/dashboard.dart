@@ -122,7 +122,6 @@ class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
     if (_dayungUnitId != null) return [_dayungUnitId!];
     return const [];
   }
-  
 
   Future<void> _loadDayungFromPrefs() async {
     final prefs = await SharedPreferences.getInstance();
@@ -161,7 +160,8 @@ class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
     }
     _lastRefreshTime = now;
     setState(() => _loading = true);
-    try {      final selected = await _selectedDayungIds(); // only current dayung
+    try {
+      final selected = await _selectedDayungIds(); // only current dayung
 
       await Future.wait([
         _fetchActiveMembers(selected),
@@ -176,7 +176,6 @@ class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
         _fetchTopDueMembers(selected),
         _fetchUnreadNotifCount(selected),
       ]);
-
     } finally {
       if (mounted) setState(() => _loading = false);
     }
@@ -360,7 +359,9 @@ class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
       double total = 0;
       for (final row in List<Map<String, dynamic>>.from(rows)) {
         final amount = row['amount'];
-        total += (amount is num) ? amount.toDouble() : double.tryParse('$amount') ?? 0;
+        total += (amount is num)
+            ? amount.toDouble()
+            : double.tryParse('$amount') ?? 0;
       }
       _currentFunds = total;
     } catch (_) {
@@ -380,7 +381,9 @@ class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
       double total = 0;
       for (final row in List<Map<String, dynamic>>.from(rows)) {
         final amount = row['amount'];
-        total += (amount is num) ? amount.toDouble() : double.tryParse('$amount') ?? 0;
+        total += (amount is num)
+            ? amount.toDouble()
+            : double.tryParse('$amount') ?? 0;
       }
       _collectorCollected = total;
     } catch (_) {
@@ -407,7 +410,9 @@ class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
         if (date == null) continue;
         if (!date.isBefore(start) && date.isBefore(end)) {
           final amount = row['amount'];
-          total += (amount is num) ? amount.toDouble() : double.tryParse('$amount') ?? 0;
+          total += (amount is num)
+              ? amount.toDouble()
+              : double.tryParse('$amount') ?? 0;
         }
       }
       _todayCollected = total;
@@ -422,7 +427,14 @@ class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
       if (ids.isEmpty) return;
       final now = DateTime.now();
       final startOfYear = DateTime(now.year, 1, 1).toIso8601String();
-      final endOfYear = DateTime(now.year, 12, 31, 23, 59, 59).toIso8601String();
+      final endOfYear = DateTime(
+        now.year,
+        12,
+        31,
+        23,
+        59,
+        59,
+      ).toIso8601String();
       final rows = await sb
           .from('payments')
           .select('amount, paid_at, created_at')
@@ -434,8 +446,9 @@ class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
         final raw = (row['paid_at'] ?? row['created_at'])?.toString() ?? '';
         final date = DateTime.tryParse(raw);
         if (date == null) continue;
-        _monthlyCollected[date.month - 1] +=
-            (row['amount'] is num) ? (row['amount'] as num).toDouble() : double.tryParse('${row['amount']}') ?? 0;
+        _monthlyCollected[date.month - 1] += (row['amount'] is num)
+            ? (row['amount'] as num).toDouble()
+            : double.tryParse('${row['amount']}') ?? 0;
       }
     } catch (_) {
       _monthlyCollected = List.filled(12, 0);
@@ -448,17 +461,22 @@ class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
       if (ids.isEmpty) return;
       final rows = await sb
           .from('payments')
-          .select('id, amount, paid_at, created_at, user_id, users!payments_user_id_fkey(full_name)')
+          .select(
+            'id, amount, paid_at, created_at, user_id, users!payments_user_id_fkey(full_name)',
+          )
           .inFilter('dayung_unit_id', ids)
           .eq('status', 'paid')
           .order('paid_at', ascending: false)
           .limit(5);
       _recentCollections = List<Map<String, dynamic>>.from(rows)
-          .map((row) => {
-                'member_name': (row['users'] as Map?)?['full_name']?.toString() ?? 'Member',
-                'amount': row['amount'],
-                'date': (row['paid_at'] ?? row['created_at'])?.toString() ?? '',
-              })
+          .map(
+            (row) => {
+              'member_name':
+                  (row['users'] as Map?)?['full_name']?.toString() ?? 'Member',
+              'amount': row['amount'],
+              'date': (row['paid_at'] ?? row['created_at'])?.toString() ?? '',
+            },
+          )
           .toList();
     } catch (_) {
       _recentCollections = [];
@@ -471,24 +489,31 @@ class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
       if (ids.isEmpty) return;
       final rows = await sb
           .from('payments')
-          .select('user_id, amount, status, users!payments_user_id_fkey(full_name)')
+          .select(
+            'user_id, amount, status, users!payments_user_id_fkey(full_name)',
+          )
           .inFilter('dayung_unit_id', ids)
           .eq('status', 'pending');
       final grouped = <String, Map<String, dynamic>>{};
       for (final row in List<Map<String, dynamic>>.from(rows)) {
         final userId = (row['user_id'] ?? '').toString();
         if (userId.isEmpty) continue;
-        final fullName = (row['users'] as Map?)?['full_name']?.toString() ?? 'Member';
-        final amount = (row['amount'] is num) ? (row['amount'] as num).toDouble() : double.tryParse('${row['amount']}') ?? 0;
-        final entry = grouped.putIfAbsent(userId, () => {
-              'user_id': userId,
-              'member_name': fullName,
-              'total_due': 0.0,
-            });
+        final fullName =
+            (row['users'] as Map?)?['full_name']?.toString() ?? 'Member';
+        final amount = (row['amount'] is num)
+            ? (row['amount'] as num).toDouble()
+            : double.tryParse('${row['amount']}') ?? 0;
+        final entry = grouped.putIfAbsent(
+          userId,
+          () => {'user_id': userId, 'member_name': fullName, 'total_due': 0.0},
+        );
         entry['total_due'] = (entry['total_due'] as double) + amount;
       }
       _topDueMembers = grouped.values.toList()
-        ..sort((a, b) => (b['total_due'] as double).compareTo(a['total_due'] as double));
+        ..sort(
+          (a, b) =>
+              (b['total_due'] as double).compareTo(a['total_due'] as double),
+        );
       if (_topDueMembers.length > 5) {
         _topDueMembers = _topDueMembers.sublist(0, 5);
       }
@@ -560,7 +585,9 @@ class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
 
   Widget _monthlyCollectionCard() {
     final totals = _monthlyCollected;
-    final maxY = totals.isNotEmpty ? totals.reduce((a, b) => a > b ? a : b) : 0.0;
+    final maxY = totals.isNotEmpty
+        ? totals.reduce((a, b) => a > b ? a : b)
+        : 0.0;
     final chartMax = maxY <= 0 ? 100.0 : maxY * 1.25;
     const months = ['J', 'F', 'M', 'A', 'M', 'J', 'J', 'A', 'S', 'O', 'N', 'D'];
     return Container(
@@ -583,7 +610,10 @@ class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
           Row(
             children: [
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 6,
+                ),
                 decoration: BoxDecoration(
                   color: const Color(0xFF0D47A1).withValues(alpha: 0.08),
                   borderRadius: BorderRadius.circular(999),
@@ -644,8 +674,12 @@ class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
                 ),
                 titlesData: FlTitlesData(
                   show: true,
-                  topTitles: AxisTitles(sideTitles: const SideTitles(showTitles: false)),
-                  rightTitles: AxisTitles(sideTitles: const SideTitles(showTitles: false)),
+                  topTitles: AxisTitles(
+                    sideTitles: const SideTitles(showTitles: false),
+                  ),
+                  rightTitles: AxisTitles(
+                    sideTitles: const SideTitles(showTitles: false),
+                  ),
                   leftTitles: AxisTitles(
                     sideTitles: SideTitles(
                       showTitles: true,
@@ -668,7 +702,8 @@ class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
                       reservedSize: 24,
                       getTitlesWidget: (value, meta) {
                         final index = value.toInt();
-                        if (index < 0 || index >= months.length) return const SizedBox.shrink();
+                        if (index < 0 || index >= months.length)
+                          return const SizedBox.shrink();
                         return SideTitleWidget(
                           meta: meta,
                           child: Text(
@@ -848,7 +883,9 @@ class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
                       Navigator.push(
                         context,
                         MaterialPageRoute(
-                          builder: (_) => TreasurerPaymentPage(dayungUnitId: _dayungUnitId!),
+                          builder: (_) => TreasurerPaymentPage(
+                            dayungUnitId: _dayungUnitId!,
+                          ),
                         ),
                       );
                     },
@@ -892,10 +929,11 @@ class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
   }
 
   String _formatAmount(dynamic amount) {
-    final value = amount is num ? amount.toDouble() : double.tryParse('$amount') ?? 0.0;
+    final value = amount is num
+        ? amount.toDouble()
+        : double.tryParse('$amount') ?? 0.0;
     return '₱${value.toStringAsFixed(0)}';
   }
-
 
   List<Widget> get _pages => [
     _homePage(),
@@ -930,21 +968,17 @@ class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
     //   });
     // }
 
-    return Scaffold(
-      backgroundColor: dayungPageBackground(context),
-      drawer: _buildSideDrawer(context),
-      body: Container(
-        decoration: BoxDecoration(gradient: dayungDashboardGradient(context)),
-        child: Stack(
-          children: [
-            SafeArea(
-              child: Column(
-                children: [_buildModernHeader(), _buildContentArea(wide)],
-              ),
+    return Container(
+      decoration: BoxDecoration(gradient: dayungDashboardGradient(context)),
+      child: Stack(
+        children: [
+          SafeArea(
+            child: Column(
+              children: [_buildModernHeader(), _buildContentArea(wide)],
             ),
-            _buildFloatingNavBar(wide),
-          ],
-        ),
+          ),
+          _buildFloatingNavBar(wide),
+        ],
       ),
     );
   }
@@ -1115,133 +1149,6 @@ class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
             ),
           ),
         ),
-      ),
-    );
-  }
-
-  Widget _buildSideDrawer(BuildContext context) {
-    return Drawer(
-      backgroundColor: kBg,
-      child: Column(
-        children: [
-          // Modern Drawer Header
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.fromLTRB(24, 48, 24, 32),
-            decoration: const BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [kPrimaryDark, kPrimary],
-              ),
-              borderRadius: BorderRadius.vertical(bottom: Radius.circular(32)),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                CircleAvatar(
-                  radius: 32,
-                  backgroundColor: kAccent.withValues(alpha: 0.15),
-                  child: Icon(Icons.person, size: 36, color: kAccent),
-                ),
-                const SizedBox(height: 16),
-                Text(
-                  _fullName,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 20,
-                    fontFamily: 'Montserrat',
-                  ),
-                ),
-                const SizedBox(height: 4),
-                // Text(
-                //   _selectedDayungUnit,
-                //   style: TextStyle(
-                //     color: Colors.white.withOpacity(0.85),
-                //     fontSize: 15,
-                //     fontFamily: 'OpenSans',
-                //   ),
-                // ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 12),
-          // Modern Drawer Items
-          Expanded(
-            child: ListView(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              children: [
-                _ModernDrawerTile(
-                  icon: Icons.account_circle,
-                  label: 'Profile',
-                  onTap: () {
-                    Navigator.pop(context);
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(builder: (_) => const ProfilePage()),
-                    );
-                  },
-                ),
-                _ModernDrawerTile(
-                  icon: Icons.people_rounded,
-                  label: 'Beneficiaries',
-                  onTap: () {
-                    Navigator.pop(context);
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => const BeneficiaryPage(),
-                      ),
-                    );
-                  },
-                ),
-                _ModernDrawerTile(
-                  icon: Icons.notifications,
-                  label: 'Notifications',
-                  onTap: () async {
-                    Navigator.pop(context);
-                    await _openNotifications();
-                  },
-                ),
-                _ModernDrawerTile(
-                  icon: Icons.settings,
-                  label: 'Settings',
-                  onTap: () {
-                    Navigator.pop(context);
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => const ProfSettingsPage(),
-                      ),
-                    );
-                  },
-                ),
-                const Divider(height: 32, thickness: 1, color: kSubText),
-                _ModernDrawerTile(
-                  icon: Icons.logout,
-                  label: 'Logout',
-                  onTap: () async {
-                    Navigator.pop(context);
-                    await showLogoutDialog(context);
-                  },
-                ),
-              ],
-            ),
-          ),
-          // App version or footer
-          Padding(
-            padding: const EdgeInsets.only(bottom: 16, top: 8),
-            child: Text(
-              'v1.0.0',
-              style: TextStyle(
-                color: kSubText.withValues(alpha: 0.7),
-                fontSize: 13,
-                fontFamily: 'OpenSans',
-              ),
-            ),
-          ),
-        ],
       ),
     );
   }
@@ -1433,66 +1340,11 @@ class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
           Wrap(
             spacing: 12,
             runSpacing: 12,
-            children: cards.map((card) => SizedBox(width: 170, height: 130, child: card)).toList(),
+            children: cards
+                .map((card) => SizedBox(width: 170, height: 130, child: card))
+                .toList(),
           ),
         ],
-      ),
-    );
-  }
-
-
-}
-
-class _ModernDrawerTile extends StatefulWidget {
-  final IconData icon;
-  final String label;
-  final VoidCallback onTap;
-
-  const _ModernDrawerTile({
-    required this.icon,
-    required this.label,
-    required this.onTap,
-  });
-
-  @override
-  State<_ModernDrawerTile> createState() => _ModernDrawerTileState();
-}
-
-class _ModernDrawerTileState extends State<_ModernDrawerTile> {
-  bool _hovering = false;
-
-  @override
-  Widget build(BuildContext context) {
-    final hoverColor = kPrimary.withValues(alpha: 0.08);
-    return MouseRegion(
-      onEnter: (_) => setState(() => _hovering = true),
-      onExit: (_) => setState(() => _hovering = false),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 180),
-        margin: const EdgeInsets.symmetric(vertical: 4),
-        decoration: BoxDecoration(
-          color: _hovering ? hoverColor : Colors.transparent,
-          borderRadius: BorderRadius.circular(18),
-        ),
-        child: ListTile(
-          leading: Icon(widget.icon, color: kPrimary),
-          title: Text(
-            widget.label,
-            style: const TextStyle(
-              fontWeight: FontWeight.w600,
-              color: kText,
-              fontFamily: 'Montserrat',
-            ),
-          ),
-          onTap: widget.onTap,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(18),
-          ),
-          contentPadding: const EdgeInsets.symmetric(
-            horizontal: 18,
-            vertical: 2,
-          ),
-        ),
       ),
     );
   }

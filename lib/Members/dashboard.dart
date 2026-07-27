@@ -1165,6 +1165,10 @@ class _MemberDashboardPageState extends State<MemberDashboardPage>
     required Color color,
     required VoidCallback onTap,
   }) {
+    final isCompact = MediaQuery.of(context).size.width < 360;
+    final titleFontSize = isCompact ? 14.0 : 16.0;
+    final subtitleFontSize = isCompact ? 11.0 : 12.0;
+
     return Container(
       width: double.infinity,
       decoration: BoxDecoration(
@@ -1197,8 +1201,11 @@ class _MemberDashboardPageState extends State<MemberDashboardPage>
                     children: [
                       Text(
                         title,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        softWrap: true,
                         style: TextStyle(
-                          fontSize: 16,
+                          fontSize: titleFontSize,
                           fontWeight: FontWeight.w700,
                           color: dayungTextColor(context),
                         ),
@@ -1206,8 +1213,11 @@ class _MemberDashboardPageState extends State<MemberDashboardPage>
                       const SizedBox(height: 2),
                       Text(
                         subtitle,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        softWrap: true,
                         style: TextStyle(
-                          fontSize: 12,
+                          fontSize: subtitleFontSize,
                           color: dayungSubtextColor(context),
                           fontWeight: FontWeight.w500,
                         ),
@@ -1463,21 +1473,17 @@ class _MemberDashboardPageState extends State<MemberDashboardPage>
     final width = MediaQuery.of(context).size.width;
     final bool wide = width > 820;
 
-    return Scaffold(
-      backgroundColor: dayungPageBackground(context),
-      drawer: _buildSideDrawer(context),
-      body: Container(
-        decoration: BoxDecoration(gradient: dayungDashboardGradient(context)),
-        child: Stack(
-          children: [
-            SafeArea(
-              child: Column(
-                children: [_buildModernHeader(), _buildContentArea(wide)],
-              ),
+    return Container(
+      decoration: BoxDecoration(gradient: dayungDashboardGradient(context)),
+      child: Stack(
+        children: [
+          SafeArea(
+            child: Column(
+              children: [_buildModernHeader(), _buildContentArea(wide)],
             ),
-            _buildFloatingNavBar(wide),
-          ],
-        ),
+          ),
+          _buildFloatingNavBar(wide),
+        ],
       ),
     );
   }
@@ -1515,146 +1521,6 @@ class _MemberDashboardPageState extends State<MemberDashboardPage>
             ),
           ),
         ),
-      ),
-    );
-  }
-
-  Widget _buildSideDrawer(BuildContext context) {
-    return Drawer(
-      backgroundColor: kBg,
-      child: Column(
-        children: [
-          // Modern Drawer Header
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.fromLTRB(24, 48, 24, 32),
-            decoration: const BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [kPrimaryDark, kPrimary],
-              ),
-              borderRadius: BorderRadius.vertical(bottom: Radius.circular(32)),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                CircleAvatar(
-                  radius: 32,
-                  backgroundColor: kAccent.withValues(alpha: 0.15),
-                  child: Icon(Icons.person, size: 36, color: kAccent),
-                ),
-                const SizedBox(height: 16),
-                Text(
-                  _fullName,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 20,
-                    fontFamily: 'Montserrat',
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  _selectedDayungUnit,
-                  style: TextStyle(
-                    color: Colors.white.withValues(alpha: 0.85),
-                    fontSize: 15,
-                    fontFamily: 'OpenSans',
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 12),
-          // Modern Drawer Items
-          Expanded(
-            child: ListView(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              children: [
-                _ModernDrawerTile(
-                  icon: Icons.account_circle,
-                  label: 'Profile',
-                  onTap: () {
-                    Navigator.pop(context);
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(builder: (_) => const ProfilePage()),
-                    );
-                  },
-                ),
-                _ModernDrawerTile(
-                  icon: Icons.people_rounded,
-                  label: 'Beneficiaries',
-                  onTap: () {
-                    Navigator.pop(context);
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => const BeneficiaryPage(),
-                      ),
-                    );
-                  },
-                ),
-                _ModernDrawerTile(
-                  icon: Icons.notifications,
-                  label: 'Notifications',
-                  onTap: () async {
-                    Navigator.pop(context);
-                    await _openNotifications();
-                  },
-                ),
-                _ModernDrawerTile(
-                  icon: Icons.settings,
-                  label: 'Settings',
-                  onTap: () {
-                    Navigator.pop(context);
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => const ProfSettingsPage(),
-                      ),
-                    );
-                  },
-                ),
-                // _ModernDrawerTile(
-                //   icon: Icons.swap_horiz_rounded,
-                //   label: 'Change Dayung',
-                //   onTap: () {
-                //     Navigator.pop(context);
-                //     Navigator.push(
-                //       context,
-                //       MaterialPageRoute(
-                //         builder: (_) => const DayungSettingsPage(),
-                //       ),
-                //     );
-                //   },
-                // ),
-                const Divider(height: 32, thickness: 1, color: kSubText),
-                _ModernDrawerTile(
-                  icon: Icons.logout,
-                  label: 'Logout',
-                  onTap: () async {
-                    Navigator.pop(context);
-                    await showLogoutDialog(context);
-                  },
-                ),
-              ],
-            ),
-          ),
-          // App version or footer
-          Padding(
-            padding: const EdgeInsets.only(bottom: 16, top: 8),
-            child: Text(
-              'v1.0.0',
-              style: TextStyle(
-                color: kSubText.withValues(alpha: 0.7),
-                fontSize: 13,
-                fontFamily: 'OpenSans',
-              ),
-            ),
-          ),
-        ],
       ),
     );
   }
@@ -1865,61 +1731,6 @@ class _MemberDashboardPageState extends State<MemberDashboardPage>
             ),
           ),
         ],
-      ),
-    );
-  }
-}
-
-class _ModernDrawerTile extends StatefulWidget {
-  final IconData icon;
-  final String label;
-  final VoidCallback onTap;
-
-  const _ModernDrawerTile({
-    required this.icon,
-    required this.label,
-    required this.onTap,
-  });
-
-  @override
-  State<_ModernDrawerTile> createState() => _ModernDrawerTileState();
-}
-
-class _ModernDrawerTileState extends State<_ModernDrawerTile> {
-  bool _hovering = false;
-
-  @override
-  Widget build(BuildContext context) {
-    final hoverColor = kPrimary.withValues(alpha: 0.08);
-    return MouseRegion(
-      onEnter: (_) => setState(() => _hovering = true),
-      onExit: (_) => setState(() => _hovering = false),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 180),
-        margin: const EdgeInsets.symmetric(vertical: 4),
-        decoration: BoxDecoration(
-          color: _hovering ? hoverColor : Colors.transparent,
-          borderRadius: BorderRadius.circular(18),
-        ),
-        child: ListTile(
-          leading: Icon(widget.icon, color: kPrimary),
-          title: Text(
-            widget.label,
-            style: const TextStyle(
-              fontWeight: FontWeight.w600,
-              color: kText,
-              fontFamily: 'Montserrat',
-            ),
-          ),
-          onTap: widget.onTap,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(18),
-          ),
-          contentPadding: const EdgeInsets.symmetric(
-            horizontal: 18,
-            vertical: 2,
-          ),
-        ),
       ),
     );
   }

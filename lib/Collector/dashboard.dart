@@ -372,7 +372,9 @@ class _CollectorDashboardPageState extends State<CollectorDashboardPage> {
           continue;
         }
         final amount = row['amount'];
-        total += (amount is num) ? amount.toDouble() : double.tryParse('$amount') ?? 0;
+        total += (amount is num)
+            ? amount.toDouble()
+            : double.tryParse('$amount') ?? 0;
       }
       _currentFunds = total;
     } catch (_) {
@@ -396,7 +398,9 @@ class _CollectorDashboardPageState extends State<CollectorDashboardPage> {
         final collectorId = (row['collected_by'] ?? '').toString();
         if (collectorId.isEmpty) continue;
         final amount = row['amount'];
-        total += (amount is num) ? amount.toDouble() : double.tryParse('$amount') ?? 0;
+        total += (amount is num)
+            ? amount.toDouble()
+            : double.tryParse('$amount') ?? 0;
       }
       _collectorCollected = total;
     } catch (_) {
@@ -443,13 +447,18 @@ class _CollectorDashboardPageState extends State<CollectorDashboardPage> {
       double total = 0;
 
       for (final row in List<Map<String, dynamic>>.from(rows)) {
-        final dateValue = (row['paid_at'] ?? row['created_at'])?.toString() ?? '';
+        final dateValue =
+            (row['paid_at'] ?? row['created_at'])?.toString() ?? '';
         final date = DateTime.tryParse(dateValue);
         if (date == null) continue;
-        if (date.isAfter(todayStart.subtract(const Duration(milliseconds: 1))) &&
+        if (date.isAfter(
+              todayStart.subtract(const Duration(milliseconds: 1)),
+            ) &&
             date.isBefore(todayEnd)) {
           final amount = row['amount'];
-          total += (amount is num) ? amount.toDouble() : double.tryParse('$amount') ?? 0;
+          total += (amount is num)
+              ? amount.toDouble()
+              : double.tryParse('$amount') ?? 0;
         }
       }
       _todayCollected = total;
@@ -475,11 +484,14 @@ class _CollectorDashboardPageState extends State<CollectorDashboardPage> {
 
       final list = List<Map<String, dynamic>>.from(rows);
       _recentCollections = list
-          .map((row) => {
-                'member_name': (row['users'] as Map?)?['full_name']?.toString() ?? 'Member',
-                'amount': row['amount'],
-                'date': (row['paid_at'] ?? row['created_at'])?.toString() ?? '',
-              })
+          .map(
+            (row) => {
+              'member_name':
+                  (row['users'] as Map?)?['full_name']?.toString() ?? 'Member',
+              'amount': row['amount'],
+              'date': (row['paid_at'] ?? row['created_at'])?.toString() ?? '',
+            },
+          )
           .toList();
     } catch (_) {
       _recentCollections = [];
@@ -493,7 +505,14 @@ class _CollectorDashboardPageState extends State<CollectorDashboardPage> {
 
       final now = DateTime.now();
       final startOfYear = DateTime(now.year, 1, 1).toIso8601String();
-      final endOfYear = DateTime(now.year, 12, 31, 23, 59, 59).toIso8601String();
+      final endOfYear = DateTime(
+        now.year,
+        12,
+        31,
+        23,
+        59,
+        59,
+      ).toIso8601String();
 
       final rows = await sb
           .from('payments')
@@ -504,12 +523,15 @@ class _CollectorDashboardPageState extends State<CollectorDashboardPage> {
           .lte('created_at', endOfYear);
 
       for (final row in List<Map<String, dynamic>>.from(rows)) {
-        final date = DateTime.tryParse((row['paid_at'] ?? row['created_at'])?.toString() ?? '');
+        final date = DateTime.tryParse(
+          (row['paid_at'] ?? row['created_at'])?.toString() ?? '',
+        );
         if (date == null) continue;
         final monthIndex = date.month - 1;
         final amount = row['amount'];
-        _monthlyCollected[monthIndex] +=
-            (amount is num) ? amount.toDouble() : double.tryParse('$amount') ?? 0;
+        _monthlyCollected[monthIndex] += (amount is num)
+            ? amount.toDouble()
+            : double.tryParse('$amount') ?? 0;
       }
     } catch (_) {
       _monthlyCollected = List.filled(12, 0);
@@ -534,17 +556,23 @@ class _CollectorDashboardPageState extends State<CollectorDashboardPage> {
         if (!_isTrueFlag(row['is_due'])) continue;
         final deceasedUserId = (row['userdeceased'] ?? '').toString();
         if (deceasedUserId.isEmpty) continue;
-        final fullName = (row['users'] as Map?)?['full_name']?.toString() ?? 'Member';
+        final fullName =
+            (row['users'] as Map?)?['full_name']?.toString() ?? 'Member';
         final deceasedName = (row['deceased_name'] ?? '').toString().trim();
-        final amount = (row['amount'] is num) ? (row['amount'] as num).toDouble() : double.tryParse('${row['amount']}') ?? 0;
-        final entry = grouped.putIfAbsent(deceasedUserId, () => {
-              'user_id': deceasedUserId,
-              'userdeceased': deceasedUserId,
-              'member_name': fullName,
-              'deceased_name': deceasedName,
-              'total_due': 0.0,
-              'is_due': true,
-            });
+        final amount = (row['amount'] is num)
+            ? (row['amount'] as num).toDouble()
+            : double.tryParse('${row['amount']}') ?? 0;
+        final entry = grouped.putIfAbsent(
+          deceasedUserId,
+          () => {
+            'user_id': deceasedUserId,
+            'userdeceased': deceasedUserId,
+            'member_name': fullName,
+            'deceased_name': deceasedName,
+            'total_due': 0.0,
+            'is_due': true,
+          },
+        );
         if ((entry['deceased_name'] ?? '').toString().trim().isEmpty &&
             deceasedName.isNotEmpty) {
           entry['deceased_name'] = deceasedName;
@@ -552,9 +580,11 @@ class _CollectorDashboardPageState extends State<CollectorDashboardPage> {
         entry['total_due'] = (entry['total_due'] as double) + amount;
       }
 
-      _topDueMembers = grouped.values
-          .toList()
-          ..sort((a, b) => (b['total_due'] as double).compareTo(a['total_due'] as double));
+      _topDueMembers = grouped.values.toList()
+        ..sort(
+          (a, b) =>
+              (b['total_due'] as double).compareTo(a['total_due'] as double),
+        );
       if (_topDueMembers.length > 5) {
         _topDueMembers = _topDueMembers.sublist(0, 5);
       }
@@ -622,20 +652,21 @@ class _CollectorDashboardPageState extends State<CollectorDashboardPage> {
     );
 
     if (onTap == null) return card;
-    return GestureDetector(
-      onTap: onTap,
-      child: card,
-    );
+    return GestureDetector(onTap: onTap, child: card);
   }
 
   String _formatAmount(dynamic amount) {
-    final value = (amount is num) ? amount.toDouble() : double.tryParse('$amount') ?? 0.0;
+    final value = (amount is num)
+        ? amount.toDouble()
+        : double.tryParse('$amount') ?? 0.0;
     return '₱${value.toStringAsFixed(0)}';
   }
 
   Widget _monthlyCollectionCard() {
     final totals = _monthlyCollected;
-    final maxY = totals.isNotEmpty ? totals.reduce((a, b) => a > b ? a : b) : 0.0;
+    final maxY = totals.isNotEmpty
+        ? totals.reduce((a, b) => a > b ? a : b)
+        : 0.0;
     final chartMax = maxY <= 0 ? 100.0 : maxY * 1.25;
     const months = ['J', 'F', 'M', 'A', 'M', 'J', 'J', 'A', 'S', 'O', 'N', 'D'];
 
@@ -723,8 +754,12 @@ class _CollectorDashboardPageState extends State<CollectorDashboardPage> {
                 ),
                 titlesData: FlTitlesData(
                   show: true,
-                  topTitles: AxisTitles(sideTitles: const SideTitles(showTitles: false)),
-                  rightTitles: AxisTitles(sideTitles: const SideTitles(showTitles: false)),
+                  topTitles: AxisTitles(
+                    sideTitles: const SideTitles(showTitles: false),
+                  ),
+                  rightTitles: AxisTitles(
+                    sideTitles: const SideTitles(showTitles: false),
+                  ),
                   leftTitles: AxisTitles(
                     sideTitles: SideTitles(
                       showTitles: true,
@@ -747,7 +782,8 @@ class _CollectorDashboardPageState extends State<CollectorDashboardPage> {
                       reservedSize: 24,
                       getTitlesWidget: (value, meta) {
                         final index = value.toInt();
-                        if (index < 0 || index >= months.length) return const SizedBox.shrink();
+                        if (index < 0 || index >= months.length)
+                          return const SizedBox.shrink();
                         return SideTitleWidget(
                           meta: meta,
                           child: Text(
@@ -898,68 +934,68 @@ class _CollectorDashboardPageState extends State<CollectorDashboardPage> {
                   style: TextStyle(color: Color(0xFF6B7280)),
                 )
               else
-                ..._topDueMembers.map(
-                  (entry) {
-                    return GestureDetector(
-                      onTap: () => _recordCashPayment(
-                        deceasedUserId: (entry['userdeceased'] ?? '').toString(),
+                ..._topDueMembers.map((entry) {
+                  return GestureDetector(
+                    onTap: () => _recordCashPayment(
+                      deceasedUserId: (entry['userdeceased'] ?? '').toString(),
+                    ),
+                    child: Container(
+                      margin: const EdgeInsets.only(bottom: 10),
+                      padding: const EdgeInsets.all(14),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(color: const Color(0xFFE5E7EB)),
                       ),
-                      child: Container(
-                        margin: const EdgeInsets.only(bottom: 10),
-                        padding: const EdgeInsets.all(14),
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(16),
-                          border: Border.all(color: const Color(0xFFE5E7EB)),
-                        ),
-                        child: Row(
-                          children: [
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Member Name: ${entry['member_name'] ?? 'Member'}',
+                                  style: const TextStyle(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                                if (_isTrueFlag(entry['is_due']))
                                   Text(
-                                   'Member Name: ${entry['member_name'] ?? 'Member'}',
+                                    (entry['deceased_name'] ?? '')
+                                            .toString()
+                                            .trim()
+                                            .isEmpty
+                                        ? 'Deceased Name: N/A'
+                                        : 'Deceased Name: ${(entry['deceased_name'] ?? '').toString()}',
                                     style: const TextStyle(
-                                      fontSize: 14,
-                                      fontWeight: FontWeight.w700,
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w600,
+                                      color: Color(0xFF6B7280),
                                     ),
                                   ),
-                                  if (_isTrueFlag(entry['is_due']))
-                                    Text(
-                                    (entry['deceased_name'] ?? '').toString().trim().isEmpty
-    ? 'Deceased Name: N/A'
-    : 'Deceased Name: ${(entry['deceased_name'] ?? '').toString()}',
-                                      style: const TextStyle(
-                                        fontSize: 12,
-                                        fontWeight: FontWeight.w600,
-                                        color: Color(0xFF6B7280),
-                                      ),
-                                    ),
-                                ],
-                              ),
+                              ],
                             ),
-                            Text(
-                              _formatAmount(entry['total_due']),
-                              style: const TextStyle(
-                                fontSize: 14,
-                                fontWeight: FontWeight.w700,
-                                color: Color(0xFFEF4444),
-                              ),
+                          ),
+                          Text(
+                            _formatAmount(entry['total_due']),
+                            style: const TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w700,
+                              color: Color(0xFFEF4444),
                             ),
-                          ],
-                        ),
+                          ),
+                        ],
                       ),
-                    );
-                  },
-                ),
+                    ),
+                  );
+                }),
             ],
           ),
         ),
       ],
     );
   }
-
 
   // List<Widget> get _pages => [
   //   _homePage(),
@@ -1003,19 +1039,15 @@ class _CollectorDashboardPageState extends State<CollectorDashboardPage> {
     //     _maybeOnProviderUnitChanged(provUnit);
     //   });
     // }
-    return Scaffold(
-      backgroundColor: dayungPageBackground(context),
-      drawer: _buildSideDrawer(context),
-      body: Container(
-        decoration: BoxDecoration(gradient: dayungDashboardGradient(context)),
-        child: Stack(
-          children: [
-            SafeArea(
-              child: Column(children: [_topBar(), _buildContentArea(wide)]),
-            ),
-            _bottomNav(wide),
-          ],
-        ),
+    return Container(
+      decoration: BoxDecoration(gradient: dayungDashboardGradient(context)),
+      child: Stack(
+        children: [
+          SafeArea(
+            child: Column(children: [_topBar(), _buildContentArea(wide)]),
+          ),
+          _bottomNav(wide),
+        ],
       ),
     );
   }
@@ -1451,15 +1483,14 @@ class _CollectorDashboardPageState extends State<CollectorDashboardPage> {
           Wrap(
             spacing: 12,
             runSpacing: 12,
-            children: cards.map((card) => SizedBox(width: 170, height: 130, child: card)).toList(),
+            children: cards
+                .map((card) => SizedBox(width: 170, height: 130, child: card))
+                .toList(),
           ),
         ],
       ),
     );
   }
-
-
-
 
   Widget _modernActionCards() {
     return Column(
@@ -1503,7 +1534,8 @@ class _CollectorDashboardPageState extends State<CollectorDashboardPage> {
                     Navigator.push(
                       context,
                       MaterialPageRoute(
-                        builder: (_) => CollectCashPage(dayungUnitId: _dayungUnitId!),
+                        builder: (_) =>
+                            CollectCashPage(dayungUnitId: _dayungUnitId!),
                       ),
                     );
                   },
@@ -1526,6 +1558,7 @@ class _CollectorDashboardPageState extends State<CollectorDashboardPage> {
       ],
     );
   }
+
   Widget _modernActionCardGrid({
     required IconData icon,
     required String title,
@@ -1533,6 +1566,11 @@ class _CollectorDashboardPageState extends State<CollectorDashboardPage> {
     required Color color,
     VoidCallback? onTap,
   }) {
+    final isCompact = MediaQuery.of(context).size.width < 360;
+    final titleFontSize = isCompact ? 12.0 : 14.0;
+    final subtitleFontSize = isCompact ? 10.0 : 12.0;
+    final contentGap = isCompact ? 6.0 : 8.0;
+
     return Material(
       color: Colors.transparent,
       child: InkWell(
@@ -1563,161 +1601,39 @@ class _CollectorDashboardPageState extends State<CollectorDashboardPage> {
                   ),
                   child: Icon(icon, color: color, size: 20),
                 ),
-                const Spacer(),
-                Text(
-                  title,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w700,
-                    color: Theme.of(context).colorScheme.onSurface,
-                    fontFamily: 'Montserrat',
+                SizedBox(height: contentGap),
+                Flexible(
+                  child: Text(
+                    title,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    softWrap: true,
+                    style: TextStyle(
+                      fontSize: titleFontSize,
+                      fontWeight: FontWeight.w700,
+                      color: Theme.of(context).colorScheme.onSurface,
+                      fontFamily: 'Montserrat',
+                    ),
                   ),
                 ),
                 const SizedBox(height: 4),
-                Text(
-                  subtitle,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: Theme.of(context).colorScheme.onSurfaceVariant,
-                    fontFamily: 'OpenSans',
+                Flexible(
+                  child: Text(
+                    subtitle,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    softWrap: true,
+                    style: TextStyle(
+                      fontSize: subtitleFontSize,
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      fontFamily: 'OpenSans',
+                    ),
                   ),
                 ),
-                const Spacer(),
               ],
             ),
           ),
         ),
-      ),
-    );
-  }
-
-  Widget _buildSideDrawer(BuildContext context) {
-    return Drawer(
-      backgroundColor: kBg,
-      child: Column(
-        children: [
-          // Modern Drawer Header
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.fromLTRB(24, 48, 24, 32),
-            decoration: const BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [kPrimaryDark, kPrimary],
-              ),
-              borderRadius: BorderRadius.vertical(bottom: Radius.circular(32)),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                CircleAvatar(
-                  radius: 32,
-                  backgroundColor: kAccent.withValues(alpha: 0.15),
-                  child: Icon(Icons.person, size: 36, color: kAccent),
-                ),
-                const SizedBox(height: 16),
-                // Text(
-                //   _fullName,
-                //   style: const TextStyle(
-                //     color: Colors.white,
-                //     fontWeight: FontWeight.bold,
-                //     fontSize: 20,
-                //     fontFamily: 'Montserrat',
-                //   ),
-                // ),
-                // const SizedBox(height: 4),
-                // Text(
-                //   _selectedDayungUnit,
-                //   style: TextStyle(
-                //     color: Colors.white.withOpacity(0.85),
-                //     fontSize: 15,
-                //     fontFamily: 'OpenSans',
-                //   ),
-                // ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 12),
-          // Modern Drawer Items
-          Expanded(
-            child: ListView(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              children: [
-                _ModernDrawerTile(
-                  icon: Icons.account_circle,
-                  label: 'Profile',
-                  onTap: () {
-                    Navigator.pop(context);
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(builder: (_) => const ProfilePage()),
-                    );
-                  },
-                ),
-                _ModernDrawerTile(
-                  icon: Icons.people_rounded,
-                  label: 'Beneficiaries',
-                  onTap: () {
-                    Navigator.pop(context);
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => const BeneficiaryPage(),
-                      ),
-                    );
-                  },
-                ),
-                _ModernDrawerTile(
-                  icon: Icons.notifications,
-                  label: 'Notifications',
-                  onTap: () async {
-                    Navigator.pop(context);
-                    await _openNotifications();
-                  },
-                ),
-                _ModernDrawerTile(
-                  icon: Icons.settings,
-                  label: 'Settings',
-                  onTap: () {
-                    Navigator.pop(context);
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => const ProfSettingsPage(),
-                      ),
-                    );
-                  },
-                ),
-                const Divider(height: 32, thickness: 1, color: kSubText),
-                _ModernDrawerTile(
-                  icon: Icons.logout,
-                  label: 'Logout',
-                  onTap: () async {
-                    Navigator.pop(context);
-                    await showLogoutDialog(context);
-                  },
-                ),
-              ],
-            ),
-          ),
-          // App version or footer
-          Padding(
-            padding: const EdgeInsets.only(bottom: 16, top: 8),
-            child: Text(
-              'v1.0.0',
-              style: TextStyle(
-                color: kSubText.withValues(alpha: 0.7),
-                fontSize: 13,
-                fontFamily: 'OpenSans',
-              ),
-            ),
-          ),
-        ],
       ),
     );
   }
@@ -1755,61 +1671,6 @@ class _CollectorDashboardPageState extends State<CollectorDashboardPage> {
       MaterialPageRoute(
         builder: (_) =>
             MembersPage(dayungUnitId: _dayungUnitId), // Pass ID if needed
-      ),
-    );
-  }
-}
-
-class _ModernDrawerTile extends StatefulWidget {
-  final IconData icon;
-  final String label;
-  final VoidCallback onTap;
-
-  const _ModernDrawerTile({
-    required this.icon,
-    required this.label,
-    required this.onTap,
-  });
-
-  @override
-  State<_ModernDrawerTile> createState() => _ModernDrawerTileState();
-}
-
-class _ModernDrawerTileState extends State<_ModernDrawerTile> {
-  bool _hovering = false;
-
-  @override
-  Widget build(BuildContext context) {
-    final hoverColor = kPrimary.withValues(alpha: 0.08);
-    return MouseRegion(
-      onEnter: (_) => setState(() => _hovering = true),
-      onExit: (_) => setState(() => _hovering = false),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 180),
-        margin: const EdgeInsets.symmetric(vertical: 4),
-        decoration: BoxDecoration(
-          color: _hovering ? hoverColor : Colors.transparent,
-          borderRadius: BorderRadius.circular(18),
-        ),
-        child: ListTile(
-          leading: Icon(widget.icon, color: kPrimary),
-          title: Text(
-            widget.label,
-            style: const TextStyle(
-              fontWeight: FontWeight.w600,
-              color: kText,
-              fontFamily: 'Montserrat',
-            ),
-          ),
-          onTap: widget.onTap,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(18),
-          ),
-          contentPadding: const EdgeInsets.symmetric(
-            horizontal: 18,
-            vertical: 2,
-          ),
-        ),
       ),
     );
   }

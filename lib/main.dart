@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:capstone_app/Secretary/dashboard.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'config/env.dart';
 import 'package:capstone_app/Auth/auth_redirects.dart';
@@ -13,7 +14,6 @@ import 'package:capstone_app/Providers/dayung_provider.dart';
 import 'package:capstone_app/Providers/dayung_role_provider.dart';
 import 'package:capstone_app/Providers/route_observer.dart';
 import 'package:capstone_app/Providers/user_provider.dart';
-import 'package:capstone_app/Secretary/dashboard_with_sidebar.dart';
 import 'package:capstone_app/SuperAdmin/dashboard.dart';
 import 'package:capstone_app/Treasurer/dashboard.dart';
 import 'package:capstone_app/settings/custom_scroll_behavior.dart';
@@ -533,7 +533,7 @@ class _MyAppState extends State<MyApp> {
                 '/dashboard': (context) => MemberDashboardPage(),
                 '/president-dashboard': (context) => PresidentDashboardPage(),
                 '/secretary-dashboard': (context) =>
-                    const SecretaryDashboardEntry(),
+                    const SecretaryDashboardPage(),
                 '/treasurer-dashboard': (context) => TreasurerDashboardPage(),
                 '/collector-dashboard': (context) => CollectorDashboardPage(),
                 '/superadmin-dashboard': (context) => SuperAdminDashboardPage(),

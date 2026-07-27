@@ -11,6 +11,7 @@ import 'package:http/http.dart' as http;
 import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
+
 // Color palette
 const kBg = Color(0xFFFAFAF7);
 const kText = Color(0xFF1F2937);
@@ -24,7 +25,10 @@ const kBorder = Color(0xFFE5E7EB);
 const kSoftBg = Color(0xFFF8FAFC);
 
 class ProfSettingsPage extends StatefulWidget {
-  const ProfSettingsPage({super.key});
+  final VoidCallback? onBack;
+  final bool showBackButton;
+
+  const ProfSettingsPage({super.key, this.onBack, this.showBackButton = true});
 
   @override
   State<ProfSettingsPage> createState() => _ProfSettingsPageState();
@@ -211,12 +215,13 @@ class _ProfSettingsPageState extends State<ProfSettingsPage> {
     final ext = file.extension ?? 'pdf';
     if (bytes == null) return;
 
-    
-    final key = encrypt.Key.fromUtf8('capstonedayungappjjm'.padRight(32).substring(0, 32));
-    final iv = encrypt.IV.fromLength(16); 
+    final key = encrypt.Key.fromUtf8(
+      'capstonedayungappjjm'.padRight(32).substring(0, 32),
+    );
+    final iv = encrypt.IV.fromLength(16);
     final encrypter = encrypt.Encrypter(encrypt.AES(key));
     final encrypted = encrypter.encryptBytes(bytes, iv: iv);
-    Uint8List encryptedBytes = Uint8List.fromList(iv.bytes + encrypted.bytes); 
+    Uint8List encryptedBytes = Uint8List.fromList(iv.bytes + encrypted.bytes);
 
     setState(() => _uploadingImage = true);
     try {
@@ -307,18 +312,28 @@ class _ProfSettingsPageState extends State<ProfSettingsPage> {
     try {
       final response = await http.get(Uri.parse(displayUrl));
       if (response.statusCode != 200) {
-        _showTopPopup('Failed to load image', color: kWarn, icon: Icons.error_outline);
+        _showTopPopup(
+          'Failed to load image',
+          color: kWarn,
+          icon: Icons.error_outline,
+        );
         return;
       }
       final encryptedBytes = response.bodyBytes;
       if (encryptedBytes.length < 16) {
-        _showTopPopup('Invalid encrypted image', color: kWarn, icon: Icons.error_outline);
+        _showTopPopup(
+          'Invalid encrypted image',
+          color: kWarn,
+          icon: Icons.error_outline,
+        );
         return;
       }
       // Extract IV and ciphertext
       final ivBytes = encryptedBytes.sublist(0, 16);
       final cipherBytes = encryptedBytes.sublist(16);
-      final key = encrypt.Key.fromUtf8('capstonedayungappjjm'.padRight(32).substring(0, 32));
+      final key = encrypt.Key.fromUtf8(
+        'capstonedayungappjjm'.padRight(32).substring(0, 32),
+      );
       final iv = encrypt.IV(ivBytes);
       final encrypter = encrypt.Encrypter(encrypt.AES(key));
       final decryptedBytes = encrypter.decryptBytes(
@@ -327,38 +342,53 @@ class _ProfSettingsPageState extends State<ProfSettingsPage> {
       );
 
       showDialog(
-  context: context,
-  builder: (ctx) => Dialog(
-    backgroundColor: Colors.black,
-    insetPadding: const EdgeInsets.symmetric(horizontal: 32, vertical: 64), // More padding
-    child: AspectRatio(
-      aspectRatio: 4 / 5, // Or use LayoutBuilder for more control
-      child: Stack(
-        children: [
-          Positioned.fill(
-            child: PhotoView(
-              imageProvider: MemoryImage(Uint8List.fromList(decryptedBytes)),
-              backgroundDecoration: const BoxDecoration(color: Colors.black),
-              minScale: PhotoViewComputedScale.contained,
-              maxScale: PhotoViewComputedScale.covered * 3,
+        context: context,
+        builder: (ctx) => Dialog(
+          backgroundColor: Colors.black,
+          insetPadding: const EdgeInsets.symmetric(
+            horizontal: 32,
+            vertical: 64,
+          ), // More padding
+          child: AspectRatio(
+            aspectRatio: 4 / 5, // Or use LayoutBuilder for more control
+            child: Stack(
+              children: [
+                Positioned.fill(
+                  child: PhotoView(
+                    imageProvider: MemoryImage(
+                      Uint8List.fromList(decryptedBytes),
+                    ),
+                    backgroundDecoration: const BoxDecoration(
+                      color: Colors.black,
+                    ),
+                    minScale: PhotoViewComputedScale.contained,
+                    maxScale: PhotoViewComputedScale.covered * 3,
+                  ),
+                ),
+                Positioned(
+                  top: 8,
+                  right: 8,
+                  child: IconButton(
+                    icon: const Icon(
+                      Icons.close,
+                      color: Colors.white,
+                      size: 32,
+                    ),
+                    onPressed: () => Navigator.of(ctx).pop(),
+                    tooltip: 'Close',
+                  ),
+                ),
+              ],
             ),
           ),
-          Positioned(
-            top: 8,
-            right: 8,
-            child: IconButton(
-              icon: const Icon(Icons.close, color: Colors.white, size: 32),
-              onPressed: () => Navigator.of(ctx).pop(),
-              tooltip: 'Close',
-           ),
-          ),
-        ],
-      ),
-    ),
-  ),
-);
+        ),
+      );
     } catch (e) {
-      _showTopPopup('Error displaying image: $e', color: kWarn, icon: Icons.error_outline);
+      _showTopPopup(
+        'Error displaying image: $e',
+        color: kWarn,
+        icon: Icons.error_outline,
+      );
     }
   }
 
@@ -419,20 +449,22 @@ class _ProfSettingsPageState extends State<ProfSettingsPage> {
                   children: [
                     Row(
                       children: [
-                        Container(
-                          decoration: BoxDecoration(
-                            color: Colors.white.withValues(alpha: 0.18),
-                            borderRadius: BorderRadius.circular(14),
-                          ),
-                          child: IconButton(
-                            onPressed: () => Navigator.pop(context),
-                            icon: const Icon(
-                              Icons.arrow_back_ios_new_rounded,
-                              color: Colors.white,
+                        if (widget.showBackButton)
+                          Container(
+                            decoration: BoxDecoration(
+                              color: Colors.white.withValues(alpha: 0.18),
+                              borderRadius: BorderRadius.circular(14),
+                            ),
+                            child: IconButton(
+                              onPressed:
+                                  widget.onBack ?? () => Navigator.pop(context),
+                              icon: const Icon(
+                                Icons.arrow_back_ios_new_rounded,
+                                color: Colors.white,
+                              ),
                             ),
                           ),
-                        ),
-                        const SizedBox(width: 16),
+                        if (widget.showBackButton) const SizedBox(width: 16),
                         Expanded(
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,

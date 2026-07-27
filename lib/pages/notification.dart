@@ -28,7 +28,10 @@ enum _NotificationKind {
 }
 
 class NotificationPage extends StatefulWidget {
-  const NotificationPage({super.key});
+  final VoidCallback? onBack;
+  final bool showBackButton;
+
+  const NotificationPage({super.key, this.onBack, this.showBackButton = true});
 
   @override
   State<NotificationPage> createState() => _NotificationPageState();
@@ -941,7 +944,7 @@ class _NotificationPageState extends State<NotificationPage> {
             // Modern Curved Header
             Container(
               padding: EdgeInsets.fromLTRB(
-                8,
+                30,
                 isWide ? 36 : 28,
                 isWide ? 24 : 16,
                 isWide ? 32 : 24,
@@ -962,22 +965,17 @@ class _NotificationPageState extends State<NotificationPage> {
               ),
               child: Row(
                 children: [
-                  IconButton(
-                    icon: const Icon(
-                      Icons.arrow_back_rounded,
-                      color: Colors.white,
-                      size: 26,
+                  if (widget.showBackButton)
+                    IconButton(
+                      icon: const Icon(
+                        Icons.arrow_back_rounded,
+                        color: Colors.white,
+                        size: 26,
+                      ),
+                      onPressed: widget.onBack ?? () => Navigator.pop(context),
+                      tooltip: 'Back',
                     ),
-                    onPressed: () => Navigator.pop(context),
-                    tooltip: 'Back',
-                  ),
-                  // const SizedBox(width: 4),
-                  // const Icon(
-                  //   Icons.notifications_rounded,
-                  //   color: Colors.white,
-                  //   size: 26,
-                  // ),
-                  const SizedBox(width: 16),
+                  if (widget.showBackButton) const SizedBox(width: 16),
                   Expanded(
                     child: Text(
                       'Notifications',
