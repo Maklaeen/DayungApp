@@ -24,6 +24,31 @@ const double kRadius = 18;
 const kCardBg = Color(0xFFFFFFFF);
 const kBorderColor = Color(0xFFE5E7EB);
 
+List<Map<String, dynamic>> filterPaymentRecipientsForDeceasedClaim({
+  required List<Map<String, dynamic>> approvedApplications,
+  required List<Map<String, dynamic>> membershipFeePayments,
+  required String? deceasedUserId,
+}) {
+  final blockedUserIds = <String>{};
+
+  for (final payment in membershipFeePayments) {
+    final userId = (payment['user_id'] ?? '').toString();
+    final status = (payment['status'] ?? '').toString().toLowerCase();
+    final type = (payment['type'] ?? '').toString().toLowerCase();
+    if (userId.isEmpty) continue;
+    if (type == 'membership fee' && status == 'unpaid') {
+      blockedUserIds.add(userId);
+    }
+  }
+
+  return approvedApplications.where((app) {
+    final appUserId = (app['user_id'] ?? '').toString();
+    if (appUserId.isEmpty) return false;
+    if (deceasedUserId != null && appUserId == deceasedUserId) return false;
+    return !blockedUserIds.contains(appUserId);
+  }).toList();
+}
+
 class SecretaryClaimsPage extends StatefulWidget {
   const SecretaryClaimsPage({super.key});
   @override
@@ -1552,13 +1577,33 @@ class _SecretaryClaimsPageState extends State<SecretaryClaimsPage>
                               List<Map<String, dynamic>>.from(
                                 approvedApplications,
                               );
+                          final approvedUserIds = approvedApplicationList
+                              .map((app) => (app['user_id'] ?? '').toString())
+                              .where((id) => id.isNotEmpty)
+                              .toList();
+
+                          List<Map<String, dynamic>> membershipFeePayments = [];
+                          if (approvedUserIds.isNotEmpty) {
+                            final payments = await supabase
+                                .from('payments')
+                                .select('user_id, status, type')
+                                .eq('dayung_unit_id', claim['dayung_unit_id'])
+                                .eq('type', 'membership fee')
+                                .inFilter('user_id', approvedUserIds);
+                            membershipFeePayments = List<Map<String, dynamic>>.from(
+                              payments,
+                            );
+                          }
+
                           final deceasedUserId = userId?.toString();
-                          final paymentRecipients = deceasedType == 'member'
-                              ? approvedApplicationList.where((app) {
-                                  return app['user_id']?.toString() !=
-                                      deceasedUserId;
-                                }).toList()
-                              : approvedApplicationList;
+                          final paymentRecipients =
+                              filterPaymentRecipientsForDeceasedClaim(
+                                approvedApplications: approvedApplicationList,
+                                membershipFeePayments: membershipFeePayments,
+                                deceasedUserId: deceasedType == 'member'
+                                    ? deceasedUserId
+                                    : null,
+                              );
 
                           final now = DateTime.now().toIso8601String();
                           final notificationBody =
@@ -1606,6 +1651,7 @@ class _SecretaryClaimsPageState extends State<SecretaryClaimsPage>
                         }
                       }
                     },
+                    // Approve button sa Claim Deceased Member
               icon: const Icon(Icons.check_circle, size: 20),
               label: const Text("Approve"),
               style: ElevatedButton.styleFrom(

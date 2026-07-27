@@ -30,6 +30,37 @@ class SecretaryApplicationsPage extends StatefulWidget {
       _SecretaryApplicationsPageState();
 }
 
+Map<String, dynamic> buildMembershipPaymentPayload({
+  required String userId,
+  required int dayungUnitId,
+  required double amount,
+  String? createdAt,
+}) {
+  final now = createdAt ?? DateTime.now().toIso8601String();
+  return {
+    'user_id': userId,
+    'amount': amount,
+    'status': 'unpaid',
+    'dayung_unit_id': dayungUnitId,
+    'created_at': now,
+    'paid_at': null,
+    'collected_by': null,
+    'datepaidamount': null,
+    'userdeceased': null,
+    'deceased_name': null,
+    'message': null,
+    'claim_id': null,
+    'is_due': null,
+    'due_date': null,
+    'type': 'membership fee',
+  };
+}
+
+double parseMembershipAmount(dynamic value) {
+  final cleaned = value?.toString().replaceAll(RegExp(r'[^0-9.-]'), '') ?? '';
+  return double.tryParse(cleaned) ?? 0.0;
+}
+
 class _SecretaryApplicationsPageState extends State<SecretaryApplicationsPage> {
   final _supabase = Supabase.instance.client;
 
@@ -840,6 +871,40 @@ class _SecretaryApplicationsPageState extends State<SecretaryApplicationsPage> {
     }
   }
 
+  Future<void> _createMembershipPaymentRecord({
+    required String userId,
+    required int dayungUnitId,
+  }) async {
+    try {
+      final rulesRow = await _supabase
+          .from('dayung_rules')
+          .select('exactamountformembership')
+          .eq('dayung_unit_id', dayungUnitId)
+          .maybeSingle();
+
+      final existing = await _supabase
+          .from('payments')
+          .select('id')
+          .eq('user_id', userId)
+          .eq('dayung_unit_id', dayungUnitId)
+          .eq('type', 'membership fee')
+          .maybeSingle();
+
+      if (existing != null) return;
+
+      final amount = parseMembershipAmount(rulesRow?['exactamountformembership']);
+      await _supabase.from('payments').insert(
+        buildMembershipPaymentPayload(
+          userId: userId,
+          dayungUnitId: dayungUnitId,
+          amount: amount,
+        ),
+      );
+    } catch (_) {
+      // Ignore payment insert issues so the approval flow is not blocked.
+    }
+  }
+
   Future<void> _approve(
     int applicationId, {
     required bool deceasedElsewhere,
@@ -867,10 +932,23 @@ class _SecretaryApplicationsPageState extends State<SecretaryApplicationsPage> {
       if (proceed != true) return;
     }
     try {
+      final applicationRow = await _supabase
+          .from('applications')
+          .select('user_id, dayung_unit_id')
+          .eq('id', applicationId)
+          .maybeSingle();
+
       await _supabase.rpc(
         'approve_application',
         params: {'p_application_id': applicationId},
       );
+
+      final userId = applicationRow?['user_id']?.toString();
+      final unitId = int.tryParse('${applicationRow?['dayung_unit_id']}');
+      if (userId != null && userId.isNotEmpty && unitId != null) {
+        await _createMembershipPaymentRecord(userId: userId, dayungUnitId: unitId);
+      }
+
       if (!mounted) return;
       ScaffoldMessenger.of(
         context,

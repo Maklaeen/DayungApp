@@ -712,6 +712,23 @@ class _DayungMapPageState extends State<DayungMapPage> {
     super.dispose();
   }
 
+  Future<Map<String, dynamic>?> _fetchRequiredApplication(
+    SupabaseClient supabase,
+    int id,
+  ) async {
+    for (final value in [id, id.toString()]) {
+      try {
+        final result = await supabase
+            .from('required_applications')
+            .select('title, description')
+            .eq('dayung_unit_id', value)
+            .maybeSingle();
+        if (result != null) return result;
+      } catch (_) {}
+    }
+    return null;
+  }
+
   Future<void> _fetchRules() async {
     setState(() => _loadingRules = true);
     try {
@@ -721,25 +738,22 @@ class _DayungMapPageState extends State<DayungMapPage> {
         if (mounted) setState(() => _loadingRules = false);
         return;
       }
-      final res = await supabase
-          .from('dayung_rules')
-          .select()
-          .eq('dayung_unit_id', id)
-          .maybeSingle();
 
-      // Fetch required_applications if no rules
-      Map<String, dynamic>? requiredApp;
-      if (res == null) {
-        requiredApp = await supabase
-            .from('required_applications')
-            .select('title, description')
-            .eq('dayung_unit_id', id)
-            .maybeSingle();
+      final requiredApp = await _fetchRequiredApplication(supabase, id);
+      Map<String, dynamic>? rules;
+      if (requiredApp == null) {
+        try {
+          rules = await supabase
+              .from('dayung_rules')
+              .select()
+              .eq('dayung_unit_id', id)
+              .maybeSingle();
+        } catch (_) {}
       }
 
       if (mounted) {
         setState(() {
-          _rules = res;
+          _rules = rules;
           _requiredApplication = requiredApp;
           _loadingRules = false;
         });
@@ -1201,8 +1215,8 @@ class _DayungMapPageState extends State<DayungMapPage> {
                         padding: EdgeInsets.symmetric(vertical: 12),
                         child: Center(child: CircularProgressIndicator()),
                       )
-                    else if (_rules != null)
-                      _rulesSection(_rules!),
+                    else if (_rules != null || _requiredApplication != null)
+                      _rulesSection(_rules),
                     const Spacer(),
                     _actionSection(dist),
                   ],
@@ -1246,7 +1260,7 @@ class _DayungMapPageState extends State<DayungMapPage> {
     );
   }
 
-  Widget _rulesSection(Map<String, dynamic> rules) {
+  Widget _rulesSection(Map<String, dynamic>? rules) {
     final items = <Widget>[];
     void addRule(String label, String? value) {
       if (value != null && value.trim().isNotEmpty) {
@@ -1280,35 +1294,54 @@ class _DayungMapPageState extends State<DayungMapPage> {
       }
     }
 
-    addRule('Contribution Rules', rules['contribution_rules']);
-    addRule('Payout Rules', rules['payout_rules']);
-    addRule('Membership Rules', rules['membership_rules']);
-    addRule('Meeting Rules', rules['meeting_rules']);
-    addRule('Service Rules', rules['service_rules']);
+    if (rules != null) {
+      addRule('Contribution Rules', rules['contribution_rules']?.toString());
+      addRule('Payout Rules', rules['payout_rules']?.toString());
+      addRule('Membership Rules', rules['membership_rules']?.toString());
+      addRule('Meeting Rules', rules['meeting_rules']?.toString());
+      addRule('Service Rules', rules['service_rules']?.toString());
+    }
 
     if (items.isEmpty) {
-      if (_requiredApplication != null) {
-        return Padding(
-          padding: const EdgeInsets.symmetric(vertical: 10),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                _requiredApplication!['title'] ?? '',
-                style: const TextStyle(
-                  color: kPrimary,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 15,
-                ),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                _requiredApplication!['description'] ?? '',
-                style: const TextStyle(color: kSubtleText, fontSize: 13),
-              ),
-            ],
-          ),
-        );
+      final requiredApp = _requiredApplication;
+      if (requiredApp != null) {
+        final title = (requiredApp['title'] ?? '').toString();
+        final description = (requiredApp['description'] ?? '').toString();
+        if (title.isNotEmpty || description.isNotEmpty) {
+          return Padding(
+            padding: const EdgeInsets.symmetric(vertical: 10),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                if (title.isNotEmpty)
+                  Text(
+                    title,
+                    style: const TextStyle(
+                      color: kPrimary,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 15,
+                    ),
+                  ),
+                if (title.isNotEmpty && description.isNotEmpty)
+                  const SizedBox(height: 8),
+                if (description.isNotEmpty)
+                  SizedBox(
+                    height: 260,
+                    child: SingleChildScrollView(
+                      child: Text(
+                        description,
+                        style: const TextStyle(
+                          color: kSubtleText,
+                          fontSize: 13,
+                          height: 1.5,
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          );
+        }
       }
       return const Padding(
         padding: EdgeInsets.symmetric(vertical: 10),

@@ -38,17 +38,26 @@ class _ManageRulesPagePresState extends State<ManageRulesPagePres> {
   String? _selectedMembershipPayment;
   String? _selectedPenaltyPayment;
   String? _selectedPaymentMethodDropdown;
+  String? _exactAmountForMembership;
   bool _openForAll = false;
   bool _hasService = false; // <-- Add this line
 
   bool _loading = true;
   List<Map<String, dynamic>> _units = [];
   int? _unitId;
+  late TextEditingController _exactAmountController;
 
   @override
   void initState() {
     super.initState();
+    _exactAmountController = TextEditingController(text: _exactAmountForMembership ?? '');
     _init();
+  }
+
+  @override
+  void dispose() {
+    _exactAmountController.dispose();
+    super.dispose();
   }
 
   Future<void> _init() async {
@@ -86,7 +95,7 @@ class _ManageRulesPagePresState extends State<ManageRulesPagePres> {
       final row = await sb
           .from('dayung_rules')
           .select('''
-            meeting_frequency, registration_fee_range, membership_payment, penalty_payment, payment_method, open_for_all, has_service
+            meeting_frequency, registration_fee_range, membership_payment, penalty_payment, payment_method, open_for_all, has_service, exactamountformembership
             ''')
           .eq('dayung_unit_id', unitId)
           .maybeSingle();
@@ -98,6 +107,8 @@ class _ManageRulesPagePresState extends State<ManageRulesPagePres> {
       _selectedPaymentMethodDropdown = row?['payment_method'];
       _openForAll = row?['open_for_all'] == true;
       _hasService = row?['has_service'] == true; // <-- Add this line
+      _exactAmountForMembership = row?['exactamountformembership'];
+      _exactAmountController.text = _exactAmountForMembership ?? '';
 
       setState(() {});
     } catch (_) {}
@@ -124,6 +135,7 @@ class _ManageRulesPagePresState extends State<ManageRulesPagePres> {
         'payment_method': _selectedPaymentMethodDropdown,
         'open_for_all': _openForAll,
         'has_service': _hasService, // <-- Add this line
+        'exactamountformembership': _exactAmountForMembership,
         'updated_by': uid,
       };
 
@@ -312,6 +324,8 @@ class _ManageRulesPagePresState extends State<ManageRulesPagePres> {
                                       () => _selectedMembershipPayment = v,
                                     ),
                                   ),
+                                  _exactAmountTextField(),
+                                  const SizedBox(height: 8),
                                   _dropdownField(
                                     'Penalty Payment',
                                     _feeRanges,
@@ -575,6 +589,60 @@ class _ManageRulesPagePresState extends State<ManageRulesPagePres> {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _exactAmountTextField() {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: TextField(
+        controller: _exactAmountController,
+        keyboardType: TextInputType.number,
+        decoration: InputDecoration(
+          labelText: 'Exact Amount for Membership',
+          labelStyle: const TextStyle(
+            color: kText,
+            fontWeight: FontWeight.w700,
+            fontFamily: 'Montserrat',
+          ),
+          hintText: 'Enter exact amount',
+          hintStyle: TextStyle(
+            color: kSubText.withValues(alpha: 0.5),
+            fontFamily: 'OpenSans',
+          ),
+          filled: true,
+          fillColor: kCardBg,
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: const BorderSide(color: kBorderColor, width: 1),
+          ),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: const BorderSide(color: kBorderColor, width: 1),
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: const BorderSide(color: kPrimary, width: 2),
+          ),
+          prefixIcon: const Padding(
+            padding: EdgeInsets.only(left: 12),
+            child: Text(
+              '₱',
+              style: TextStyle(
+                fontSize: 18,
+                color: kPrimary,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+          prefixIconConstraints: const BoxConstraints(minWidth: 0, minHeight: 0),
+        ),
+        onChanged: (value) => setState(() => _exactAmountForMembership = value),
+        style: const TextStyle(
+          fontFamily: 'OpenSans',
+          fontWeight: FontWeight.w600,
+        ),
       ),
     );
   }

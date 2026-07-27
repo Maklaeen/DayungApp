@@ -546,7 +546,6 @@ class _SubmitClaimFormState extends State<SubmitClaimForm> {
       return;
     }
 
-    // Validate membership in the selected unit via applications (approved)
     final apps = await sb
         .from('applications')
         .select('id')
@@ -562,7 +561,6 @@ class _SubmitClaimFormState extends State<SubmitClaimForm> {
       return;
     }
 
-    // Validate membership in the selected unit via applications (approved)
     if (widget.requireMembership) {
       final apps = await sb
           .from('applications')
