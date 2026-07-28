@@ -1,5 +1,6 @@
 import 'dart:math' as math;
 
+import 'package:capstone_app/utils/dayung_service_tags.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 class DayungPreferencesData {
@@ -181,7 +182,7 @@ class DayungRecommendationService {
         .select(
           'id, dayung_unit_id, dayung_unit_name, meeting_frequency, '
           'registration_fee_range, membership_payment, penalty_payment, '
-          'payment_method, open_for_all, dayung_units('
+          'payment_method, open_for_all, ${dayungServiceTagLabels.map((label) => dayungServiceTagColumns[label]!).join(', ')}, dayung_units('
           'id, name, latitude, longitude, barangay, city, province)',
         );
 
@@ -233,6 +234,10 @@ class DayungRecommendationService {
           '${data['payment_method']}',
         if ((data['open_for_all'] ?? '').toString().toLowerCase() == 'yes')
           'Open for all',
+        ...dayungServiceTagLabels.where((label) {
+          final column = dayungServiceTagColumns[label]!;
+          return data[column] == true;
+        }),
         if (km != null) '${km.toStringAsFixed(1)} km away',
       ];
 
@@ -293,6 +298,10 @@ class DayungRecommendationService {
       return out;
     }
 
+    final serviceTags = dayungServiceTagLabels.map((label) {
+      return 0.0;
+    }).toList();
+
     return [
       prefs.meetingFrequency == 'Weekly' ? 1.0 : 0.0,
       prefs.meetingFrequency == 'Monthly' ? 1.0 : 0.0,
@@ -304,6 +313,7 @@ class DayungRecommendationService {
       ...bucket(prefs.membershipPayment),
       ...bucket(prefs.penaltyPayment),
       prefs.openForAll == true ? 1.0 : 0.0,
+      ...serviceTags,
     ];
   }
 
@@ -332,6 +342,11 @@ class DayungRecommendationService {
     final meeting = norm(data['meeting_frequency']);
     final paymentMethod = norm(data['payment_method']);
 
+    final serviceTagVector = dayungServiceTagLabels.map((label) {
+      final column = dayungServiceTagColumns[label]!;
+      return data[column] == true ? 1.0 : 0.0;
+    }).toList();
+
     return [
       meeting == 'weekly' ? 1.0 : 0.0,
       meeting == 'monthly' ? 1.0 : 0.0,
@@ -343,6 +358,7 @@ class DayungRecommendationService {
       ...bucket(data['membership_payment']),
       ...bucket(data['penalty_payment']),
       norm('${data['open_for_all']}') == 'yes' ? 1.0 : 0.0,
+      ...serviceTagVector,
     ];
   }
 

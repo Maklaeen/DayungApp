@@ -13,6 +13,7 @@ import 'package:dropdown_button2/dropdown_button2.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:capstone_app/Auth/login.dart';
 import 'package:geocoding/geocoding.dart';
 import 'package:geolocator/geolocator.dart';
@@ -742,9 +743,23 @@ class _RegisterState extends State<Register> {
           msg.contains('fetch') ||
           msg.contains('socket') ||
           msg.contains('timeout');
+      final isEmailTaken =
+          msg.contains('already registered') ||
+          msg.contains('already exists') ||
+          msg.contains('email already') ||
+          msg.contains('user already') ||
+          msg.contains('duplicate');
 
       if (isOffline) {
         await NetworkMonitor().checkNow();
+        return;
+      }
+
+      if (isEmailTaken) {
+        _showTopErrorDialog(
+          context,
+          'This email is already registered. Please sign in or use a different email.',
+        );
         return;
       }
 
@@ -814,6 +829,18 @@ class _RegisterState extends State<Register> {
         ),
       ),
     );
+  }
+
+  String _formatFullName(String input) {
+    if (input.trim().isEmpty) return '';
+
+    return input
+        .split(RegExp(r'\s+'))
+        .map((word) {
+          if (word.isEmpty) return '';
+          return '${word[0].toUpperCase()}${word.substring(1)}';
+        })
+        .join(' ');
   }
 
   InputDecoration _dec(String label, {String? hint, IconData? icon}) {
@@ -1021,10 +1048,25 @@ class _RegisterState extends State<Register> {
                                 TextFormField(
                                   controller: fullNameController,
                                   textInputAction: TextInputAction.next,
-                                  inputFormatters:
-                                      AppInputSecurity.singleLineFormatters(
-                                        maxLength: 120,
-                                      ),
+                                  textCapitalization: TextCapitalization.words,
+                                  inputFormatters: [
+                                    ...AppInputSecurity.singleLineFormatters(
+                                      maxLength: 120,
+                                    ),
+                                    TextInputFormatter.withFunction(
+                                      (oldValue, newValue) {
+                                        final formatted = _formatFullName(
+                                          newValue.text,
+                                        );
+                                        return newValue.copyWith(
+                                          text: formatted,
+                                          selection: TextSelection.collapsed(
+                                            offset: formatted.length,
+                                          ),
+                                        );
+                                      },
+                                    ),
+                                  ],
                                   style: TextStyle(
                                     fontSize: isWide ? 18 : 16,
                                     color: kNeutralText,
@@ -1214,11 +1256,29 @@ class _RegisterState extends State<Register> {
                                 TextFormField(
                                   controller: emailController,
                                   keyboardType: TextInputType.emailAddress,
+                                  textCapitalization: TextCapitalization.none,
                                   textInputAction: TextInputAction.next,
-                                  inputFormatters:
-                                      AppInputSecurity.singleLineFormatters(
-                                        maxLength: 120,
-                                      ),
+                                  inputFormatters: [
+                                    ...AppInputSecurity.singleLineFormatters(
+                                      maxLength: 120,
+                                    ),
+                                    FilteringTextInputFormatter.deny(
+                                      RegExp(r'[A-Z]'),
+                                    ),
+                                  ],
+                                  onChanged: (value) {
+                                    final lowered = value.toLowerCase();
+                                    if (value != lowered) {
+                                      emailController.value =
+                                          emailController.value.copyWith(
+                                            text: lowered,
+                                            selection:
+                                                TextSelection.collapsed(
+                                                  offset: lowered.length,
+                                                ),
+                                          );
+                                    }
+                                  },
                                   style: TextStyle(
                                     fontSize: isWide ? 18 : 16,
                                     color: kNeutralText,

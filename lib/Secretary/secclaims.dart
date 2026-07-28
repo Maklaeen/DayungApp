@@ -459,6 +459,7 @@ class _SecretaryClaimsPageState extends State<SecretaryClaimsPage>
       final paymentUpdate = <String, dynamic>{
         'is_due': newValue,
         'due_date': newValue ? claimedAt : null,
+        'is_claimed': newValue,
       };
 
       await supabase
@@ -467,12 +468,11 @@ class _SecretaryClaimsPageState extends State<SecretaryClaimsPage>
           .eq('id', claimId);
       _updateClaimLocally(claimId, storeVal);
 
-        await supabase
+      await supabase
           .from('payments')
           .update(paymentUpdate)
           .eq('dayung_unit_id', resolvedUnitId)
-          .eq('userdeceased', (claim['user_id'] ?? '').toString())
-          .eq('status', 'unpaid');
+          .eq('userdeceased', (claim['user_id'] ?? '').toString());
 
       await _fetchClaims();
     } catch (e) {

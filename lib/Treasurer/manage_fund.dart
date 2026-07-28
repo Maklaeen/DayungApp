@@ -219,7 +219,8 @@ class _ManageFundPageState extends State<ManageFundPage> {
           .from('payments')
           .select('amount, status')
           .eq('dayung_unit_id', widget.dayungUnitId)
-
+          .eq('type', 'deceased_payment')
+          .neq('is_claimed', true)
           .timeout(_queryTimeout);
 
       double advancePaid = 0.0;
@@ -638,9 +639,9 @@ class _ManageFundPageState extends State<ManageFundPage> {
             ),
           ),
           const SizedBox(height: 16),
-          const Text(
+          Text(
             'No matching funds found',
-            style: TextStyle(
+            style: const TextStyle(
               fontSize: 18,
               fontWeight: FontWeight.w800,
               color: kNeutralText,

@@ -295,7 +295,7 @@ class _CollectorDashboardPageState extends State<CollectorDashboardPage> {
           .from('applications')
           .select('id')
           .inFilter('dayung_unit_id', ids)
-          .eq('status', 'removed');
+          .isFilter('isRemovedInDayung', true);
       _removedMembers = (rows as List).length;
     } catch (_) {
       _removedMembers = 0;
@@ -363,6 +363,7 @@ class _CollectorDashboardPageState extends State<CollectorDashboardPage> {
           .from('payments')
           .select('amount, status, userdeceased, dayung_unit_id')
           .inFilter('dayung_unit_id', ids)
+          .eq('type', 'deceased_payment')
           .eq('status', 'paid');
 
       double total = 0;
@@ -387,16 +388,16 @@ class _CollectorDashboardPageState extends State<CollectorDashboardPage> {
       _collectorCollected = 0;
       if (ids.isEmpty) return;
 
+      // Sum all deceased_payment records for this dayung unit that are marked as paid.
       final rows = await sb
           .from('payments')
-          .select('amount, status, collected_by, dayung_unit_id')
+          .select('amount, status, type, dayung_unit_id')
           .inFilter('dayung_unit_id', ids)
-          .eq('status', 'paid');
+          .eq('status', 'paid')
+          .eq('type', 'deceased_payment');
 
       double total = 0;
       for (final row in List<Map<String, dynamic>>.from(rows)) {
-        final collectorId = (row['collected_by'] ?? '').toString();
-        if (collectorId.isEmpty) continue;
         final amount = row['amount'];
         total += (amount is num)
             ? amount.toDouble()
@@ -514,13 +515,16 @@ class _CollectorDashboardPageState extends State<CollectorDashboardPage> {
         59,
       ).toIso8601String();
 
+      // Only consider payments that are marked as paid and are of type 'deceased_payment'.
+      // Use the `paid_at` timestamp for date range filtering when available.
       final rows = await sb
           .from('payments')
-          .select('amount, paid_at, created_at, status, dayung_unit_id')
+          .select('amount, paid_at, created_at, status, dayung_unit_id, type')
           .inFilter('dayung_unit_id', ids)
           .eq('status', 'paid')
-          .gte('created_at', startOfYear)
-          .lte('created_at', endOfYear);
+          .eq('type', 'deceased_payment')
+          .gte('paid_at', startOfYear)
+          .lte('paid_at', endOfYear);
 
       for (final row in List<Map<String, dynamic>>.from(rows)) {
         final date = DateTime.tryParse(
@@ -1447,16 +1451,17 @@ class _CollectorDashboardPageState extends State<CollectorDashboardPage> {
         value: _loading ? '—' : '₱${_currentFunds.toStringAsFixed(0)}',
         color: const Color(0xFF0D47A1),
       ),
-      _buildStatCard(
-        title: 'Collected by Collectors',
-        value: _loading ? '—' : '₱${_collectorCollected.toStringAsFixed(0)}',
-        color: const Color(0xFF10B981),
-      ),
-      _buildStatCard(
-        title: 'Pending Members',
-        value: _loading ? '—' : '$_pendingMembers',
-        color: const Color(0xFFF59E0B),
-      ),
+      // _buildStatCard(
+      //   title: 'Collected by Collectors',
+      //   value: _loading ? '—' : '₱${_collectorCollected.toStringAsFixed(0)}',
+      //   color: const Color(0xFF10B981),
+      // ),
+      // Pending members is currently temporary and hidden until final behavior is confirmed.
+      // _buildStatCard(
+      //   title: 'Pending Members',
+      //   value: _loading ? '—' : '$_pendingMembers',
+      //   color: const Color(0xFFF59E0B),
+      // ),
       _buildStatCard(
         title: 'Today’s Collected',
         value: _loading ? '—' : '₱${_todayCollected.toStringAsFixed(0)}',
@@ -1531,13 +1536,16 @@ class _CollectorDashboardPageState extends State<CollectorDashboardPage> {
                   color: kPrimary,
                   onTap: () {
                     if (_dayungUnitId == null) return;
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) =>
-                            CollectCashPage(dayungUnitId: _dayungUnitId!),
-                      ),
-                    );
+                    () async {
+                      final changed = await Navigator.push<bool?>(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) =>
+                              CollectCashPage(dayungUnitId: _dayungUnitId!),
+                        ),
+                      );
+                      if (changed == true) await _fetchAll();
+                    }();
                   },
                 ),
               ),
@@ -1645,15 +1653,18 @@ class _CollectorDashboardPageState extends State<CollectorDashboardPage> {
       ).showSnackBar(const SnackBar(content: Text('No dayung selected.')));
       return;
     }
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => CollectCashPage(
-          dayungUnitId: _dayungUnitId!,
-          preselectedDeceasedUserId: deceasedUserId,
+    () async {
+      final changed = await Navigator.push<bool?>(
+        context,
+        MaterialPageRoute(
+          builder: (_) => CollectCashPage(
+            dayungUnitId: _dayungUnitId!,
+            preselectedDeceasedUserId: deceasedUserId,
+          ),
         ),
-      ),
-    );
+      );
+      if (changed == true) await _fetchAll();
+    }();
   }
 
   void _showReceipts() {

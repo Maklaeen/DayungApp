@@ -1,3 +1,4 @@
+import 'package:capstone_app/utils/dayung_service_tags.dart';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -40,7 +41,8 @@ class _ManageRulesPagePresState extends State<ManageRulesPagePres> {
   String? _selectedPaymentMethodDropdown;
   String? _exactAmountForMembership;
   bool _openForAll = false;
-  bool _hasService = false; // <-- Add this line
+  bool _hasService = false;
+  final Map<String, bool> _selectedServiceTags = {};
 
   bool _loading = true;
   List<Map<String, dynamic>> _units = [];
@@ -95,7 +97,7 @@ class _ManageRulesPagePresState extends State<ManageRulesPagePres> {
       final row = await sb
           .from('dayung_rules')
           .select('''
-            meeting_frequency, registration_fee_range, membership_payment, penalty_payment, payment_method, open_for_all, has_service, exactamountformembership
+            meeting_frequency, registration_fee_range, membership_payment, penalty_payment, payment_method, open_for_all, has_service, exactamountformembership, ${dayungServiceTagLabels.map((label) => dayungServiceTagColumns[label]!).join(', ')}
             ''')
           .eq('dayung_unit_id', unitId)
           .maybeSingle();
@@ -106,7 +108,11 @@ class _ManageRulesPagePresState extends State<ManageRulesPagePres> {
       _selectedPenaltyPayment = row?['penalty_payment'];
       _selectedPaymentMethodDropdown = row?['payment_method'];
       _openForAll = row?['open_for_all'] == true;
-      _hasService = row?['has_service'] == true; // <-- Add this line
+      _hasService = row?['has_service'] == true;
+      for (final label in dayungServiceTagLabels) {
+        final column = dayungServiceTagColumns[label]!;
+        _selectedServiceTags[label] = row?[column] == true;
+      }
       _exactAmountForMembership = row?['exactamountformembership'];
       _exactAmountController.text = _exactAmountForMembership ?? '';
 
@@ -134,8 +140,10 @@ class _ManageRulesPagePresState extends State<ManageRulesPagePres> {
         'penalty_payment': _selectedPenaltyPayment,
         'payment_method': _selectedPaymentMethodDropdown,
         'open_for_all': _openForAll,
-        'has_service': _hasService, // <-- Add this line
+        'has_service': _hasService,
         'exactamountformembership': _exactAmountForMembership,
+        for (final label in dayungServiceTagLabels)
+          dayungServiceTagColumns[label]!: _selectedServiceTags[label] ?? false,
         'updated_by': uid,
       };
 
@@ -343,7 +351,39 @@ class _ManageRulesPagePresState extends State<ManageRulesPagePres> {
                                     ),
                                   ),
                                   _openForAllSwitch(),
-                                  _hasServiceSwitch(), // <-- Add this line
+                                  _hasServiceSwitch(),
+                                  const SizedBox(height: 8),
+                                  Align(
+                                    alignment: Alignment.centerLeft,
+                                    child: Text(
+                                      'Service Tags',
+                                      style: TextStyle(
+                                        fontSize: 15,
+                                        fontWeight: FontWeight.w700,
+                                        color: kPrimary,
+                                        fontFamily: 'Montserrat',
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(height: 8),
+                                  Wrap(
+                                    spacing: 8,
+                                    runSpacing: 8,
+                                    children: dayungServiceTagLabels.map((label) {
+                                      return FilterChip(
+                                        label: Text(label),
+                                        selected: _selectedServiceTags[label] ?? false,
+                                        onSelected: (value) {
+                                          setState(() {
+                                            _selectedServiceTags[label] = value;
+                                          });
+                                        },
+                                        side: const BorderSide(color: kBorderColor),
+                                        selectedColor: kPrimary.withValues(alpha: 0.16),
+                                        checkmarkColor: kPrimary,
+                                      );
+                                    }).toList(),
+                                  ),
                                   const SizedBox(height: 16),
                                   SizedBox(
                                     width: double.infinity,

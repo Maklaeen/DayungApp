@@ -37,13 +37,16 @@ class _NamesOnlyMembersPageState extends State<NamesOnlyMembersPage> {
     });
 
     try {
-      final rows = await _sb.from('applications').select(
+      final baseQuery = _sb.from('applications').select(
             'user_id, status, user:users(id, full_name, profile_url)',
           )
-        .eq('dayung_unit_id', widget.dayungUnitId)
-        .inFilter('status', widget.statuses)
-        .order('user_id', ascending: true);
+        .eq('dayung_unit_id', widget.dayungUnitId);
 
+      final query = (widget.statuses.length == 1 && widget.statuses.first == 'removed')
+          ? baseQuery.isFilter('isRemovedInDayung', true)
+          : baseQuery.inFilter('status', widget.statuses);
+
+      final rows = await query.order('user_id', ascending: true);
       final list = List<Map<String, dynamic>>.from(rows);
       final members = <Map<String, dynamic>>[];
       for (final row in list) {

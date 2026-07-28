@@ -40,6 +40,7 @@ class _CollectCashPageState extends State<CollectCashPage> {
 
   bool _loading = true;
   bool _savingPayment = false;
+  bool _hasChanges = false;
   String? _error;
 
   List<Map<String, dynamic>> _approvedMembers = [];
@@ -163,7 +164,7 @@ class _CollectCashPageState extends State<CollectCashPage> {
             .from('payments')
             .select(
               'id, user_id, amount, status, paid_at, created_at, collected_by, '
-              'datepaidamount, userdeceased, dayung_unit_id',
+              'datepaidamount, userdeceased, dayung_unit_id, type',
             )
             .eq('dayung_unit_id', widget.dayungUnitId)
             .timeout(_queryTimeout),
@@ -577,6 +578,7 @@ class _CollectCashPageState extends State<CollectCashPage> {
               'userdeceased': deceasedUserId,
               'amount': amount,
               'status': 'unpaid',
+              'type': 'deceased_payment',
               'dayung_unit_id': widget.dayungUnitId,
             })
             .select()
@@ -612,6 +614,9 @@ class _CollectCashPageState extends State<CollectCashPage> {
 
       payment['status'] = 'paid';
       payment['paid_at'] = now;
+
+      // Mark that we made changes so callers can refresh when this page pops.
+      _hasChanges = true;
 
       // Update aggregate summary fields on the related claim
       await _updateClaimPaymentSummary(selected);
@@ -829,54 +834,69 @@ class _CollectCashPageState extends State<CollectCashPage> {
     final width = MediaQuery.of(context).size.width;
     final wide = width >= 860;
 
-    return Scaffold(
-      backgroundColor: kBg,
-      body: SafeArea(
-        child: Column(
-          children: [
-            _buildHeader(wide),
-            Expanded(
-              child: Container(
-                decoration: const BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.only(
-                    topLeft: Radius.circular(24),
-                    topRight: Radius.circular(24),
-                  ),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Color(0x1A000000),
-                      blurRadius: 20,
-                      offset: Offset(0, -4),
+    return WillPopScope(
+      onWillPop: () async {
+        if (_selectedDeceased != null) {
+          setState(() {
+            _selectedDeceased = null;
+            _memberSearch = '';
+          });
+          return false;
+        }
+
+        Navigator.of(context).pop(_hasChanges);
+        return false;
+      },
+      child: Scaffold(
+        backgroundColor: kBg,
+        body: SafeArea(
+          child: Column(
+            children: [
+              _buildHeader(wide),
+              Expanded(
+                child: Container(
+                  decoration: const BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.only(
+                      topLeft: Radius.circular(24),
+                      topRight: Radius.circular(24),
                     ),
-                  ],
-                ),
-                child: ClipRRect(
-                  borderRadius: const BorderRadius.only(
-                    topLeft: Radius.circular(24),
-                    topRight: Radius.circular(24),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Color(0x1A000000),
+                        blurRadius: 20,
+                        offset: Offset(0, -4),
+                      ),
+                    ],
                   ),
-                  child: _loading
-                      ? const Center(
-                          child: CircularProgressIndicator(color: kAccent),
-                        )
-                      : _error != null
-                      ? _buildErrorState()
-                      : RefreshIndicator(
-                          color: kAccent,
-                          onRefresh: _loadAll,
-                          child: ListView(
-                            physics: const AlwaysScrollableScrollPhysics(),
-                            padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
-                            children: _hasSelectedDeceased
-                                ? _buildMemberStep()
-                                : _buildDeceasedStep(),
-                          ),
-                        ),
+                  child: ClipRRect(
+                    borderRadius: const BorderRadius.only(
+                      topLeft: Radius.circular(24),
+                      topRight: Radius.circular(24),
+                    ),
+                    child: _loading
+                        ? const Center(
+                            child: CircularProgressIndicator(color: kAccent),
+                          )
+                        : _error != null
+                            ? _buildErrorState()
+                            : RefreshIndicator(
+                                color: kAccent,
+                                onRefresh: _loadAll,
+                                child: ListView(
+                                  physics: const AlwaysScrollableScrollPhysics(),
+                                  padding:
+                                      const EdgeInsets.fromLTRB(20, 20, 20, 24),
+                                  children: _hasSelectedDeceased
+                                      ? _buildMemberStep()
+                                      : _buildDeceasedStep(),
+                                ),
+                              ),
+                  ),
                 ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -1151,13 +1171,14 @@ class _CollectCashPageState extends State<CollectCashPage> {
               size: 28,
             ),
             onPressed: () {
-              // Only reset selection, never pop the page
               if (_selectedDeceased != null) {
                 setState(() {
                   _selectedDeceased = null;
                   _memberSearch = '';
                 });
+                return;
               }
+              Navigator.of(context).pop(_hasChanges);
             },
           ),
           const SizedBox(width: 8),
@@ -1606,7 +1627,11 @@ class _CollectCashPageState extends State<CollectCashPage> {
                       Text(
                         isPaid
                             ? 'Payment already marked as paid.'
-                            : 'Ready for cash collection and receipt generation.',
+                            : (payment != null &&
+                                    (payment['type'] ?? '').toString().toLowerCase() ==
+                                        'deceased_payment'
+                                ? 'Ready for cash collection and receipt generation. User ID: ${payment['user_id'] ?? ''}'
+                                : 'Ready for cash collection and receipt generation.'),
                         style: const TextStyle(
                           fontSize: 13,
                           color: kSubText,
@@ -1694,7 +1719,7 @@ class _CollectCashPageState extends State<CollectCashPage> {
                       border: Border.all(color: kWarn.withOpacity(0.3)),
                     ),
                     child: const Text(
-                      'You cannot collect your own payment. Please pay via GCash or ask another collector to record your payment.',
+                      'You cannot collect your own payment. Please pay via GCash or ask the Treasurer to record your payment.',
                       style: TextStyle(
                         color: kWarn,
                         fontWeight: FontWeight.w700,

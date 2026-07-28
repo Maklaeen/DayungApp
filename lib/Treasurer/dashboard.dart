@@ -310,7 +310,7 @@ class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
           .from('applications')
           .select('id')
           .inFilter('dayung_unit_id', ids)
-          .eq('status', 'removed');
+          .isFilter('isRemovedInDayung', true);
       _removedMembers = (rows as List).length;
     } catch (_) {
       _removedMembers = 0;
@@ -364,7 +364,8 @@ class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
           .from('payments')
           .select('amount')
           .inFilter('dayung_unit_id', ids)
-          .eq('status', 'paid');
+          .eq('status', 'paid')
+          .eq('type', 'deceased_payment');
       double total = 0;
       for (final row in List<Map<String, dynamic>>.from(rows)) {
         final amount = row['amount'];
@@ -386,7 +387,8 @@ class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
           .from('payments')
           .select('amount')
           .inFilter('dayung_unit_id', ids)
-          .eq('status', 'paid');
+          .eq('status', 'paid')
+          .eq('type', 'deceased_payment');
       double total = 0;
       for (final row in List<Map<String, dynamic>>.from(rows)) {
         final amount = row['amount'];
@@ -1339,39 +1341,111 @@ class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
     );
   }
 
+  Future<Object?> _fetchDayungCollectorId() async {
+    if (_dayungUnitId == null) return null;
+    try {
+      final result = await sb
+          .from('dayung_units')
+          .select('collector_id')
+          .eq('id', _dayungUnitId as Object)
+          .maybeSingle();
+      if (result == null) return null;
+      return result['collector_id'];
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<bool> _markPaymentAsPaid(String paymentId) async {
+    final currentUserId = sb.auth.currentUser?.id;
+    if (currentUserId == null) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Unable to mark payment: no logged-in user.')),
+        );
+      }
+      return false;
+    }
+
+    try {
+      final now = DateTime.now().toUtc().toIso8601String();
+      await sb.from('payments').update({
+        'status': 'paid',
+        'collected_by': currentUserId,
+        'paid_at': now,
+        'datepaidamount': now,
+      }).eq('id', paymentId);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Payment marked as paid.')),
+        );
+      }
+      return true;
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to update payment: $e')),
+        );
+      }
+      return false;
+    }
+  }
+
   Future<void> _showMembersModal({required bool paid}) async {
     if (_dayungUnitId == null) return;
     final statuses = paid ? ['paid'] : ['pending', 'unpaid'];
-    final members = <Map<String, String>>[];
+    final members = <Map<String, dynamic>>[];
+    final searchController = TextEditingController();
+    var filteredMembers = <Map<String, dynamic>>[];
+    final processingIds = <String>{};
+    var updated = false;
+
+    void applyFilter(String query) {
+      final normalized = query.trim().toLowerCase();
+      if (normalized.isEmpty) {
+        filteredMembers = List<Map<String, dynamic>>.from(members);
+      } else {
+        filteredMembers = members.where((entry) {
+          final name = (entry['name'] ?? '').toString().toLowerCase();
+          final status = (entry['status'] ?? '').toString().toLowerCase();
+          return name.contains(normalized) || status.contains(normalized);
+        }).toList();
+      }
+    }
 
     try {
       final rows = await sb
           .from('payments')
-          .select('user_id, status, users!payments_user_id_fkey(full_name)')
+          .select(
+            'id, user_id, amount, status, paid_at, created_at, users!payments_user_id_fkey(full_name)',
+          )
           .inFilter('dayung_unit_id', [_dayungUnitId!])
           .inFilter('status', statuses)
           .order('created_at', ascending: false);
 
-      final paymentRows = List<Map<String, dynamic>>.from(
-        rows as List<dynamic>,
-      );
-      final seen = <String>{};
+      final paymentRows = List<Map<String, dynamic>>.from(rows as List<dynamic>);
       for (final row in paymentRows) {
         final userId = '${row['user_id'] ?? ''}';
-        if (userId.isEmpty || seen.contains(userId)) continue;
-        seen.add(userId);
+        if (userId.isEmpty) continue;
         final userName =
             ((row['users'] as Map?)?['full_name']?.toString() ?? 'Member');
         members.add({
+          'id': row['id']?.toString() ?? '',
           'name': userName,
           'status': row['status']?.toString() ?? '',
+          'amount': row['amount']?.toString() ?? '0',
+          'date': (row['paid_at'] ?? row['created_at'])?.toString() ?? '',
         });
       }
+      applyFilter('');
     } catch (_) {
       // ignore errors and show empty state
     }
 
-    if (!mounted) return;
+    if (!mounted) {
+      searchController.dispose();
+      return;
+    }
 
     await showModalBottomSheet<void>(
       context: context,
@@ -1384,96 +1458,193 @@ class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
           maxChildSize: 0.9,
           expand: false,
           builder: (context, scrollController) {
-            return Container(
-              decoration: BoxDecoration(
-                color: dayungSurface(context),
-                borderRadius: const BorderRadius.vertical(
-                  top: Radius.circular(24),
-                ),
-              ),
-              child: Column(
-                children: [
-                  const SizedBox(height: 10),
-                  Container(
-                    width: 40,
-                    height: 4,
-                    decoration: BoxDecoration(
-                      color: Colors.grey.shade400,
-                      borderRadius: BorderRadius.circular(999),
+            return StatefulBuilder(
+              builder: (context, modalSetState) {
+                return Container(
+                  decoration: BoxDecoration(
+                    color: dayungSurface(context),
+                    borderRadius: const BorderRadius.vertical(
+                      top: Radius.circular(24),
                     ),
                   ),
-                  const SizedBox(height: 16),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 20),
-                    child: Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            paid ? 'Paid Members' : 'Unpaid Members',
-                            style: const TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.w800,
-                            ),
-                          ),
+                  child: Column(
+                    children: [
+                      const SizedBox(height: 10),
+                      Container(
+                        width: 40,
+                        height: 4,
+                        decoration: BoxDecoration(
+                          color: Colors.grey.shade400,
+                          borderRadius: BorderRadius.circular(999),
                         ),
-                        IconButton(
-                          onPressed: () => Navigator.pop(context),
-                          icon: const Icon(Icons.close),
-                        ),
-                      ],
-                    ),
-                  ),
-                  Expanded(
-                    child: members.isEmpty
-                        ? Padding(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 20,
-                              vertical: 24,
-                            ),
-                            child: Text(
-                              paid
-                                  ? 'No paid members found.'
-                                  : 'No unpaid members found.',
-                              style: const TextStyle(
-                                color: Color(0xFF6B7280),
-                                fontSize: 15,
+                      ),
+                      const SizedBox(height: 16),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 20),
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                paid ? 'Paid Members' : 'Unpaid Members',
+                                style: const TextStyle(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.w800,
+                                ),
                               ),
                             ),
-                          )
-                        : ListView.separated(
-                            controller: scrollController,
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 20,
+                            IconButton(
+                              onPressed: () => Navigator.pop(context),
+                              icon: const Icon(Icons.close),
+                            ),
+                          ],
+                        ),
+                      ),
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
+                        child: TextField(
+                          controller: searchController,
+                          onChanged: (value) {
+                            modalSetState(() => applyFilter(value));
+                          },
+                          decoration: InputDecoration(
+                            hintText: 'Search by name or status',
+                            prefixIcon: const Icon(Icons.search),
+                            filled: true,
+                            fillColor: dayungSurface(context),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(16),
+                              borderSide: BorderSide(
+                                color: Colors.grey.withOpacity(0.3),
+                              ),
+                            ),
+                            contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 16,
                               vertical: 12,
                             ),
-                            itemCount: members.length,
-                            separatorBuilder: (_, __) =>
-                                const Divider(height: 0),
-                            itemBuilder: (_, index) {
-                              final entry = members[index];
-                              return ListTile(
-                                contentPadding: EdgeInsets.zero,
-                                title: Text(entry['name'] ?? 'Member'),
-                                subtitle: Text(entry['status'] ?? ''),
-                                trailing: Icon(
-                                  paid
-                                      ? Icons.check_circle_outline
-                                      : Icons.hourglass_bottom,
-                                  color: paid
-                                      ? const Color(0xFF10B981)
-                                      : const Color(0xFFF59E0B),
-                                ),
-                              );
-                            },
                           ),
+                        ),
+                      ),
+                      Expanded(
+                        child: filteredMembers.isEmpty
+                            ? Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 20,
+                                  vertical: 24,
+                                ),
+                                child: Text(
+                                  members.isEmpty
+                                      ? paid
+                                          ? 'No paid members found.'
+                                          : 'No unpaid members found.'
+                                      : 'No matching members found.',
+                                  style: const TextStyle(
+                                    color: Color(0xFF6B7280),
+                                    fontSize: 15,
+                                  ),
+                                ),
+                              )
+                            : ListView.separated(
+                                controller: scrollController,
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 20,
+                                  vertical: 12,
+                                ),
+                                itemCount: filteredMembers.length,
+                                separatorBuilder: (_, __) =>
+                                    const Divider(height: 0),
+                                itemBuilder: (_, index) {
+                                  final entry = filteredMembers[index];
+                                  final paymentId = entry['id']?.toString() ?? '';
+                                  final isProcessing =
+                                      processingIds.contains(paymentId);
+                                  return ListTile(
+                                    contentPadding: EdgeInsets.zero,
+                                    title: Text(entry['name'] ?? 'Member'),
+                                    subtitle: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Text(entry['status'] ?? ''),
+                                        const SizedBox(height: 4),
+                                        Text(
+                                          '₱${entry['amount']} • ${entry['date']}',
+                                          style: const TextStyle(
+                                            fontSize: 13,
+                                            color: Color(0xFF6B7280),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                    trailing: paid
+                                        ? const Icon(
+                                            Icons.check_circle_outline,
+                                            color: Color(0xFF10B981),
+                                          )
+                                        : ElevatedButton(
+                                            onPressed: paymentId.isEmpty ||
+                                                    isProcessing
+                                                ? null
+                                                : () async {
+                                                    modalSetState(() {
+                                                      processingIds
+                                                          .add(paymentId);
+                                                    });
+                                                    final success =
+                                                        await _markPaymentAsPaid(
+                                                            paymentId);
+                                                    modalSetState(() {
+                                                      processingIds
+                                                          .remove(paymentId);
+                                                    });
+                                                    if (success) {
+                                                      updated = true;
+                                                      modalSetState(() {
+                                                        members.removeWhere(
+                                                            (item) =>
+                                                                item['id']
+                                                                    .toString() ==
+                                                                paymentId);
+                                                        filteredMembers
+                                                            .removeWhere(
+                                                                (item) =>
+                                                                    item['id']
+                                                                        .toString() ==
+                                                                    paymentId);
+                                                      });
+                                                    }
+                                                  },
+                                            child: isProcessing
+                                                ? const SizedBox(
+                                                    width: 18,
+                                                    height: 18,
+                                                    child:
+                                                        CircularProgressIndicator(
+                                                      strokeWidth: 2,
+                                                      valueColor:
+                                                          AlwaysStoppedAnimation(
+                                                              Colors.white),
+                                                    ),
+                                                  )
+                                                : const Text('Mark Paid'),
+                                          ),
+                                  );
+                                },
+                              ),
+                      ),
+                    ],
                   ),
-                ],
-              ),
+                );
+              },
             );
           },
         );
       },
     );
+
+    searchController.dispose();
+    if (updated && mounted) {
+      await _fetchAll();
+    }
   }
 
   Widget _monthlyCollectionCard() {
@@ -2211,11 +2382,11 @@ class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
         value: _loading ? '—' : '₱${_currentFunds.toStringAsFixed(0)}',
         color: const Color(0xFF0D47A1),
       ),
-      _buildStatCard(
-        title: 'Collected by Collectors',
-        value: _loading ? '—' : '₱${_collectorCollected.toStringAsFixed(0)}',
-        color: const Color(0xFF10B981),
-      ),
+      // _buildStatCard(
+      //   title: 'Collected by Collectors',
+      //   value: _loading ? '—' : '₱${_collectorCollected.toStringAsFixed(0)}',
+      //   color: const Color(0xFF10B981),
+      // ),
       _buildStatCard(
         title: 'Pending Members',
         value: _loading ? '—' : '$_pendingMembers',

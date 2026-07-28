@@ -41,6 +41,7 @@ class _PresSecDashboardOverviewState extends State<PresSecDashboardOverview> {
   int _deceasedMembers = 0;
   int _collectorsCount = 0;
   double _currentFunds = 0;
+  double _membershipFunds = 0;
 
   // Monthly cash collected (Jan–Dec current year)
   List<double> _monthlyCollected = List.filled(12, 0);
@@ -109,7 +110,7 @@ class _PresSecDashboardOverviewState extends State<PresSecDashboardOverview> {
       return (r['status'] ?? '').toString().toLowerCase() == 'approved';
     }).toList();
 
-    final claimedDeceasedIds = claimList
+    final claimedDeceasedIds = approvedClaims
       .where((r) => _isClaimedMoney(r['claimedmoney']))
       .map((r) => (r['user_id'] ?? '').toString().trim())
       .where((userId) => userId.isNotEmpty)
@@ -130,7 +131,8 @@ class _PresSecDashboardOverviewState extends State<PresSecDashboardOverview> {
     final payments = await _sb
         .from('payments')
         .select('amount, status, userdeceased')
-        .eq('dayung_unit_id', unitId);
+        .eq('dayung_unit_id', unitId)
+        .eq('type', 'deceased_payment');
     double totalFunds = 0;
     for (final r in List<Map<String, dynamic>>.from(payments)) {
       final paymentStatus = (r['status'] ?? '').toString().toLowerCase();
@@ -145,6 +147,22 @@ class _PresSecDashboardOverviewState extends State<PresSecDashboardOverview> {
       }
     }
 
+    // Membership Funds (paid membership payments)
+    final membershipPayments = await _sb
+        .from('payments')
+        .select('amount, status')
+        .eq('dayung_unit_id', unitId)
+        .eq('type', 'membership_payment')
+        .eq('status', 'paid');
+
+    double totalMembershipFunds = 0;
+    for (final r in List<Map<String, dynamic>>.from(membershipPayments)) {
+      final amt = r['amount'];
+      totalMembershipFunds += (amt is num)
+          ? amt.toDouble()
+          : double.tryParse('$amt') ?? 0;
+    }
+
     if (mounted) {
       setState(() {
         _activeMembers = activeCount < 0 ? 0 : activeCount;
@@ -152,6 +170,7 @@ class _PresSecDashboardOverviewState extends State<PresSecDashboardOverview> {
         _deceasedMembers = deceasedCount;
         _collectorsCount = collectorsCount;
         _currentFunds = totalFunds;
+        _membershipFunds = totalMembershipFunds;
       });
     }
   }
@@ -165,6 +184,7 @@ class _PresSecDashboardOverviewState extends State<PresSecDashboardOverview> {
         .from('payments')
         .select('amount, paid_at, created_at')
         .eq('dayung_unit_id', widget.dayungUnitId)
+        .eq('type', 'deceased_payment')
         .eq('status', 'paid')
         .gte('created_at', yearStart)
         .lte('created_at', yearEnd);
@@ -189,6 +209,7 @@ class _PresSecDashboardOverviewState extends State<PresSecDashboardOverview> {
         .from('payments')
         .select('user_id, userdeceased, deceased_name, status, created_at')
         .eq('dayung_unit_id', widget.dayungUnitId)
+        .eq('type', 'deceased_payment')
         .order('created_at', ascending: false);
 
     final payments = List<Map<String, dynamic>>.from(rows);
@@ -460,6 +481,7 @@ class _PresSecDashboardOverviewState extends State<PresSecDashboardOverview> {
         ],
       ),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Container(
             padding: const EdgeInsets.all(12),
@@ -475,38 +497,96 @@ class _PresSecDashboardOverviewState extends State<PresSecDashboardOverview> {
           ),
           const SizedBox(width: 16),
           Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'Current Funds Balance',
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                    color: Colors.white70,
-                    fontFamily: 'OpenSans',
+            child: Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: Colors.white24),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Current Funds Balance',
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.white70,
+                      fontFamily: 'OpenSans',
+                    ),
                   ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  '₱${_currentFunds.toStringAsFixed(2)}',
-                  style: const TextStyle(
-                    fontSize: 26,
-                    fontWeight: FontWeight.w900,
-                    color: Colors.white,
-                    fontFamily: 'Montserrat',
+                  const SizedBox(height: 4),
+                  Text(
+                    '₱${_currentFunds.toStringAsFixed(2)}',
+                    style: const TextStyle(
+                      fontSize: 26,
+                      fontWeight: FontWeight.w900,
+                      color: Colors.white,
+                      fontFamily: 'Montserrat',
+                    ),
                   ),
-                ),
-                const SizedBox(height: 2),
-                const Text(
-                  'Total collected from all death notices',
-                  style: TextStyle(
-                    fontSize: 11,
-                    color: Colors.white60,
-                    fontFamily: 'OpenSans',
+                  const SizedBox(height: 2),
+                  const Text(
+                    'Total collected from all death notices',
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: Colors.white60,
+                      fontFamily: 'OpenSans',
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(width: 16),
+          Container(
+            width: 1,
+            height: 120,
+            color: Colors.white24,
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: Colors.white24),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Membership Funds',
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.white70,
+                      fontFamily: 'OpenSans',
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    '₱${_membershipFunds.toStringAsFixed(2)}',
+                    style: const TextStyle(
+                      fontSize: 26,
+                      fontWeight: FontWeight.w900,
+                      color: Colors.white,
+                      fontFamily: 'Montserrat',
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  const Text(
+                    'Total collected from membership payments',
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: Colors.white60,
+                      fontFamily: 'OpenSans',
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         ],

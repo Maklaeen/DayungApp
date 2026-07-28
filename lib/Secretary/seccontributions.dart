@@ -30,7 +30,6 @@ class _SecretaryContributionsPageState
   bool _loading = true;
   List<Map<String, dynamic>> _payments = [];
   Map<String, dynamic> _users = {};
-  Map<String, Map<String, dynamic>>? _claimsByUserId;
 
   @override
   void initState() {
@@ -52,70 +51,49 @@ class _SecretaryContributionsPageState
     if (mounted) setState(() => _loading = true);
     final sb = Supabase.instance.client;
     try {
-      // Old backend logic: richer select with collector embed + fallback
+      final currentUser = sb.auth.currentUser;
+      if (currentUser == null) {
+        if (!mounted) return;
+        setState(() {
+          _payments = [];
+          _users = {};
+          _loading = false;
+        });
+        return;
+      }
+
       final payments = await sb
           .from('payments')
           .select(
-            'id, user_id, amount, status, paid_at, collected_by, '
+            'id, user_id, amount, status, paid_at, collected_by, userdeceased, deceased_name, '
             'collector:users!payments_collected_by_fkey(full_name)',
           )
           .eq('dayung_unit_id', widget.dayungUnitId)
+          .eq('user_id', currentUser.id)
           .order('paid_at', ascending: false);
 
-      // Build user id list for payer and collector fallback
-      final payerIds = payments
-          .map((p) => p['user_id'])
-          .where((v) => v != null);
-      final collectorIds = payments
-          .map((p) => p['collected_by'])
-          .where((v) => v != null);
-      final userIds = {
-        ...payerIds,
-        ...collectorIds,
-      }.map((e) => e.toString()).toList();
+      final deceasedIds = payments
+          .map((p) => p['userdeceased'])
+          .where((v) => v != null && v.toString().isNotEmpty)
+          .map((v) => v.toString())
+          .toSet()
+          .toList();
 
-      final usersRes = userIds.isEmpty
+      final usersRes = deceasedIds.isEmpty
           ? <dynamic>[]
           : await sb
                 .from('users')
                 .select('id, full_name')
-                .inFilter('id', userIds);
+                .inFilter('id', deceasedIds);
 
       final usersMap = <String, dynamic>{
         for (var u in usersRes) u['id'].toString(): u['full_name'] ?? 'Unknown',
       };
 
-      // Fetch latest claim details for the members referenced by payments.
-      final paymentUserIds = payments
-          .map((p) => p['user_id'])
-          .where((v) => v != null)
-          .toSet()
-          .map((v) => v.toString())
-          .toList();
-      final claimsRes = paymentUserIds.isEmpty
-          ? <dynamic>[]
-          : await sb
-                .from('claims')
-                .select(
-                  'id, user_id, PassedAway, date_of_death, datesetamount, date_submitted',
-                )
-                .inFilter('user_id', paymentUserIds)
-                .order('datesetamount', ascending: false)
-                .order('date_submitted', ascending: false);
-
-      final claimsByUserId = <String, Map<String, dynamic>>{};
-      for (final row in claimsRes) {
-        final claim = Map<String, dynamic>.from(row as Map);
-        final userId = claim['user_id']?.toString();
-        if (userId == null || userId.isEmpty) continue;
-        claimsByUserId.putIfAbsent(userId, () => claim);
-      }
-
       if (!mounted) return;
       setState(() {
         _payments = List<Map<String, dynamic>>.from(payments);
         _users = usersMap;
-        _claimsByUserId = claimsByUserId;
         _loading = false;
       });
     } catch (e) {
@@ -127,13 +105,15 @@ class _SecretaryContributionsPageState
     }
   }
 
-  int _countByStatus(String status) => _payments
-      .where(
-        (p) =>
-            (p['status']?.toString().toLowerCase() ?? '') ==
-            status.toLowerCase(),
-      )
-      .length;
+  int _countByStatus(String status) {
+    return _payments.where((p) {
+      final value = p['status']?.toString().toLowerCase() ?? '';
+      if (status.toLowerCase() == 'pending') {
+        return value == 'pending' || value == 'unpaid';
+      }
+      return value == status.toLowerCase();
+    }).length;
+  }
 
   Widget _paymentShortcutCard() {
     return Container(
@@ -420,35 +400,20 @@ class _SecretaryContributionsPageState
                                     const SizedBox(height: 8),
                                 itemBuilder: (context, i) {
                                   final p = _payments[i];
-                                  final payerId = p['user_id']?.toString();
-                                  final userName = _users[payerId] ?? 'Unknown';
-                                  final claim = payerId == null
-                                      ? null
-                                      : _claimsByUserId?[payerId];
-                                  final deceased =
-                                      (claim?['PassedAway'] ?? 'Unknown')
-                                          .toString();
-                                  final date = (claim?['date_of_death'] ?? '')
-                                      .toString();
+                                  final userDeceasedId =
+                                      (p['userdeceased'] ?? '').toString();
+                                  final userDeceased =
+                                      (p['deceased_name']?.toString().isNotEmpty ==
+                                              true)
+                                          ? p['deceased_name'].toString()
+                                          : (userDeceasedId.isNotEmpty
+                                              ? _users[userDeceasedId] ??
+                                                  userDeceasedId
+                                              : 'Membership Payment');
                                   final paidAtStr = _fmtDateTime(p['paid_at']);
                                   final paid =
                                       (p['status']?.toString().toLowerCase() ==
-                                      'paid');
-
-                                  // Collector name: prefer embed, fallback to lookup
-                                  String collectorName =
-                                      (((p['collector']
-                                                  as Map?)?['full_name']) ??
-                                              '')
-                                          .toString();
-                                  if (collectorName.isEmpty &&
-                                      p['collected_by'] != null) {
-                                    collectorName =
-                                        (_users[p['collected_by']
-                                                    ?.toString()] ??
-                                                '')
-                                            .toString();
-                                  }
+                                          'paid');
 
                                   return Container(
                                     padding: const EdgeInsets.all(8),
@@ -501,7 +466,7 @@ class _SecretaryContributionsPageState
                                                     CrossAxisAlignment.start,
                                                 children: [
                                                   Text(
-                                                    userName.toString(),
+                                                    userDeceased,
                                                     style: const TextStyle(
                                                       fontSize: 14,
                                                       fontWeight:
@@ -510,37 +475,8 @@ class _SecretaryContributionsPageState
                                                       fontFamily: 'Montserrat',
                                                     ),
                                                   ),
-                                                  const SizedBox(height: 1),
-                                                  Text(
-                                                    'For: $deceased',
-                                                    style: const TextStyle(
-                                                      fontSize: 11,
-                                                      color: kSubText,
-                                                      fontFamily: 'OpenSans',
-                                                      fontWeight:
-                                                          FontWeight.w500,
-                                                    ),
-                                                  ),
-                                                  if (date
-                                                      .toString()
-                                                      .isNotEmpty)
-                                                    Text(
-                                                      'Date of Death: $date',
-                                                      style: const TextStyle(
-                                                        fontSize: 10,
-                                                        color: kSubText,
-                                                        fontFamily: 'OpenSans',
-                                                      ),
-                                                    ),
-                                                  if (collectorName.isNotEmpty)
-                                                    Text(
-                                                      'Collected by: $collectorName',
-                                                      style: const TextStyle(
-                                                        fontSize: 10,
-                                                        color: kSubText,
-                                                        fontFamily: 'OpenSans',
-                                                      ),
-                                                    ),
+                                               
+                                                  
                                                 ],
                                               ),
                                             ),

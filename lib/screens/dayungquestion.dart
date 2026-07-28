@@ -4,6 +4,7 @@ import 'dart:math';
 
 import 'package:capstone_app/Members/dashboard.dart';
 import 'package:capstone_app/screens/dayung_map_page.dart';
+import 'package:capstone_app/utils/dayung_service_tags.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart' as ll;
@@ -22,6 +23,7 @@ const Color kBg = Color(0xFFF8FAFC);
 const Color kCardBg = Color(0xFFFFFFFF);
 const Color kSubText = Color(0xFF6B7280);
 const Color kText = Color(0xFF111827);
+const Color kBorderColor = Color(0xFFE5E7EB);
 
 class QuestionnaireScreen extends StatefulWidget {
   final String userId;
@@ -50,6 +52,7 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
   List<dynamic> suggestedUnits = [];
   bool isLoading = false;
   bool isSubmitting = false;
+  final Map<String, bool> selectedServiceTags = {};
 
   double? userLat; // <-- Set this to the user's latitude
   double? userLng; // <-- Set this to the user's longitude
@@ -122,6 +125,10 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
     // Open For All (1 position)
     double openAll = openForAll == 'Yes' ? 1.0 : 0.0;
 
+    final serviceTagVector = dayungServiceTagLabels.map((label) {
+      return selectedServiceTags[label] == true ? 1.0 : 0.0;
+    }).toList();
+
     return [
       meetWeekly,
       meetMonthly,
@@ -133,6 +140,7 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
       ...memFee,
       ...penFee,
       openAll,
+      ...serviceTagVector,
     ];
   }
 
@@ -168,7 +176,11 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
   // Helper function para maghimo og vector gikan sa dayung_rules row.
   // Gigamit kini para sa local similarity matching.
   List<double> _buildRuleVector(Map<String, dynamic> m) {
-    String norm(String? s) => (s ?? '').trim().toLowerCase();
+    String norm(Object? s) {
+      if (s == null) return '';
+      if (s is bool) return s ? 'yes' : 'no';
+      return s.toString().trim().toLowerCase();
+    }
 
     // Meeting Frequency (3 positions)
     final meet = norm(m['meeting_frequency']);
@@ -212,6 +224,12 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
     // Open For All (1 position)
     double openAll = norm(m['open_for_all']) == 'yes' ? 1.0 : 0.0;
 
+    final serviceTagVector = dayungServiceTagLabels.map((label) {
+      final column = dayungServiceTagColumns[label]!;
+      final value = m[column];
+      return value == true ? 1.0 : 0.0;
+    }).toList();
+
     return [
       meetWeekly,
       meetMonthly,
@@ -223,6 +241,7 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
       ...memFee,
       ...penFee,
       openAll,
+      ...serviceTagVector,
     ];
   }
 
@@ -244,7 +263,7 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
       final resp = await Supabase.instance.client
           .from('dayung_rules')
           .select(
-            'id,dayung_unit_id,dayung_unit_name,meeting_frequency,registration_fee_range,membership_payment,penalty_payment,payment_method,open_for_all,'
+            'id,dayung_unit_id,dayung_unit_name,meeting_frequency,registration_fee_range,membership_payment,penalty_payment,payment_method,open_for_all,${dayungServiceTagLabels.map((label) => dayungServiceTagColumns[label]!).join(',')},'
             'dayung_units(latitude,longitude,barangay,city,province)',
           );
 
@@ -303,32 +322,62 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
   }
 
   Future<void> _savePreferences({int? selectedUnitId}) async {
-    final payload = {
-      'user_id': widget.userId,
+    setState(() => isSubmitting = true);
+    try {
+      final payload = {
+        'user_id': widget.userId,
+        'meeting_frequency': meeting_frequency,
+        'penalty_policy': penalty_policy,
+        'contribution_amount': contribution_amount,
+        'membership_payment': membership_payment,
+        'penalty_payment': penalty_payment,
+        'payment_method': payment_method,
+        'open_for_all': openForAll == null ? null : (openForAll == 'Yes'),
+        'selected_unit_id': selectedUnitId,
+        for (final label in dayungServiceTagLabels)
+          dayungServiceTagColumns[label]!: selectedServiceTags[label] ?? false,
+      };
 
-      'meeting_frequency': meeting_frequency,
-      'penalty_policy': penalty_policy,
-      'contribution_amount': contribution_amount,
-      'membership_payment': membership_payment,
-      'penalty_payment': penalty_payment,
-      'payment_method': payment_method,
-      'open_for_all': openForAll == null ? null : (openForAll == 'Yes'),
-      'selected_unit_id': selectedUnitId,
-    };
-
-    final existing = await Supabase.instance.client
-        .from('user_preferences')
-        .select('id')
-        .eq('user_id', widget.userId)
-        .limit(1);
-
-    if ((existing as List).isNotEmpty) {
-      await Supabase.instance.client
+      final existing = await Supabase.instance.client
           .from('user_preferences')
-          .update(payload)
-          .eq('user_id', widget.userId);
-    } else {
-      await Supabase.instance.client.from('user_preferences').insert(payload);
+          .select('id')
+          .eq('user_id', widget.userId)
+          .limit(1)
+          .timeout(
+            const Duration(seconds: 10),
+            onTimeout: () => <Map<String, dynamic>>[] as PostgrestList,
+          );
+
+      if ((existing as List).isNotEmpty) {
+        await Supabase.instance.client
+            .from('user_preferences')
+            .update(payload)
+            .eq('user_id', widget.userId)
+            .timeout(
+              const Duration(seconds: 10),
+              onTimeout: () => <dynamic>[],
+            );
+      } else {
+        await Supabase.instance.client
+            .from('user_preferences')
+            .insert(payload)
+            .timeout(
+              const Duration(seconds: 10),
+              onTimeout: () => <dynamic>[],
+            );
+      }
+    } catch (e, st) {
+      debugPrint('Save preferences failed: $e\n$st');
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Could not save preferences. Continuing without saving.',
+          ),
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => isSubmitting = false);
     }
   }
 
@@ -336,6 +385,7 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
   void initState() {
     super.initState();
     selectedDistanceKm = 5;
+    _loadSavedServicePreferences();
     _fetchUserAddress();
     _fetchSuggestions();
     _fetchUserLatitude();
@@ -343,6 +393,30 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
   }
 
   String? userBarangay, userCity, userProvince;
+
+  Future<void> _loadSavedServicePreferences() async {
+    try {
+      final resp = await Supabase.instance.client
+          .from('user_preferences')
+          .select(
+            dayungServiceTagLabels.map((label) => dayungServiceTagColumns[label]!).join(','),
+          )
+          .eq('user_id', widget.userId)
+          .maybeSingle();
+
+      if (resp == null) return;
+      if (!mounted) return;
+
+      setState(() {
+        for (final label in dayungServiceTagLabels) {
+          final column = dayungServiceTagColumns[label]!;
+          selectedServiceTags[label] = resp[column] == true;
+        }
+      });
+    } catch (e) {
+      debugPrint('Failed to load saved service preferences: $e');
+    }
+  }
 
   Future<void> _fetchUserAddress() async {
     try {
@@ -689,6 +763,50 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
                       value: openForAll,
                       onChanged: (v) => setState(() => openForAll = v),
                     ),
+                    const SizedBox(height: 8),
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        'Preferred Support Services',
+                        style: TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w700,
+                          color: kPrimaryDark,
+                          fontFamily: 'Montserrat',
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        'Select the support services you want.',
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: kSubText,
+                          fontFamily: 'OpenSans',
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: dayungServiceTagLabels.map((label) {
+                        return FilterChip(
+                          label: Text(label),
+                          selected: selectedServiceTags[label] ?? false,
+                          onSelected: (value) {
+                            setState(() {
+                              selectedServiceTags[label] = value;
+                            });
+                          },
+                          side: const BorderSide(color: kBorderColor),
+                          selectedColor: kPrimary.withValues(alpha: 0.16),
+                          checkmarkColor: kPrimary,
+                        );
+                      }).toList(),
+                    ),
                     // const SizedBox(height: 18),
                     // Distance Filter Slider
                     // Row(
@@ -915,16 +1033,18 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
                 ),
                 elevation: 2,
               ),
-              onPressed: () async {
-                final navigator = Navigator.of(context);
-                await _savePreferences();
-                if (!mounted) return;
-                navigator.pushReplacement(
-                  MaterialPageRoute(
-                    builder: (_) => const MemberDashboardPage(),
-                  ),
-                );
-              },
+              onPressed: isSubmitting
+                  ? null
+                  : () async {
+                      final navigator = Navigator.of(context);
+                      await _savePreferences();
+                      if (!mounted) return;
+                      navigator.pushReplacement(
+                        MaterialPageRoute(
+                          builder: (_) => const MemberDashboardPage(),
+                        ),
+                      );
+                    },
             ),
           ),
         ],
