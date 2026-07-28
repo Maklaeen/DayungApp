@@ -5,6 +5,7 @@ import 'package:capstone_app/Providers/dayung_provider.dart';
 import 'package:capstone_app/Providers/dayung_role_provider.dart';
 import 'package:capstone_app/Treasurer/collected.dart';
 import 'package:capstone_app/Treasurer/manage_fund.dart';
+import 'package:capstone_app/Treasurer/membership_page.dart';
 import 'package:capstone_app/Treasurer/treasclaims.dart';
 import 'package:capstone_app/Treasurer/treascontributions.dart';
 import 'package:capstone_app/Treasurer/treasurer_payment_page.dart';
@@ -736,6 +737,27 @@ class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
               context,
               MaterialPageRoute(
                 builder: (_) => GcashQrPage(dayungUnitId: _dayungUnitId!),
+              ),
+            );
+          },
+        ),
+        const SizedBox(height: 8),
+        _buildModernActionCard(
+          icon: Icons.people_alt_rounded,
+          title: 'Membership',
+          subtitle: 'View and manage membership',
+          color: const Color(0xFF8B5CF6),
+          onTap: () {
+            if (_dayungUnitId == null) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Select a Dayung first')),
+              );
+              return;
+            }
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => MembershipPage(dayungUnitId: _dayungUnitId!),
               ),
             );
           },

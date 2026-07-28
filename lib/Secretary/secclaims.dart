@@ -403,6 +403,34 @@ class _SecretaryClaimsPageState extends State<SecretaryClaimsPage>
     return '$date.$milliseconds$microseconds+08:00';
   }
 
+  String _formatDefaultContributionAmount(dynamic value) {
+    if (value == null) return '';
+    final raw = value.toString().trim();
+    if (raw.isEmpty) return '';
+
+    final cleaned = raw.replaceAll(RegExp(r'[^0-9.-]'), '');
+    if (cleaned.isEmpty) return '';
+
+    final parsed = double.tryParse(cleaned);
+    return parsed == null ? raw : parsed.toStringAsFixed(2);
+  }
+
+  Future<String> _loadDefaultContributionAmount(int? unitId) async {
+    if (unitId == null) return '';
+
+    try {
+      final row = await supabase
+          .from('dayung_rules')
+          .select('exactamountformembership')
+          .eq('dayung_unit_id', unitId)
+          .maybeSingle();
+
+      return _formatDefaultContributionAmount(row?['exactamountformembership']);
+    } catch (_) {
+      return '';
+    }
+  }
+
   int? _resolveClaimUnitId(Map<String, dynamic> claim) {
     final claimUnitId = claim['dayung_unit_id'];
     if (claimUnitId is int) return claimUnitId;
@@ -1440,8 +1468,8 @@ class _SecretaryClaimsPageState extends State<SecretaryClaimsPage>
                   ? null
                   : () async {
                       // Prompt for amount before approving
-                      final TextEditingController amountController =
-                          TextEditingController();
+                      final unitId = int.tryParse('${claim['dayung_unit_id']}');
+                      if (!mounted) return;
                       final messenger = ScaffoldMessenger.of(context);
                       final rootNavigator = Navigator.of(
                         context,
@@ -1452,6 +1480,9 @@ class _SecretaryClaimsPageState extends State<SecretaryClaimsPage>
                           _userMap[claim['user_id']
                               ?.toString()]?['full_name'] ??
                           'Member';
+                      final defaultAmount = await _loadDefaultContributionAmount(unitId);
+                      final TextEditingController amountController =
+                          TextEditingController(text: defaultAmount);
 
                       // Fetch secretary_id before showing the dialog
                       final unit = await supabase
@@ -1634,6 +1665,7 @@ class _SecretaryClaimsPageState extends State<SecretaryClaimsPage>
                               'is_due': false,
                               'due_date': null,
                               'status': 'unpaid',
+                              'type': 'deceased_payment',
                               'created_at': now,
                             });
                           }

@@ -39,17 +39,18 @@ Future<List<Map<String, dynamic>>> fetchPayments() async {
     return data.cast<Map<String, dynamic>>();
   }
 
-  Future<bool> isPaid(String setAmountId, String userdeceased) async {
+  Future<bool> isPaid(String setAmountId) async {
     final user = Supabase.instance.client.auth.currentUser;
-    if (user == null) return false;
+    if (user == null || setAmountId.isEmpty) return false;
+
     final data = await Supabase.instance.client
         .from('payments')
-        .select('id')
-        .eq('userdeceased', userdeceased)
+        .select('status')
+        .eq('id', setAmountId)
         .eq('user_id', user.id)
-        .eq('status', 'paid')
         .maybeSingle();
-    return data != null;
+
+    return data?['status']?.toString().toLowerCase() == 'paid';
   }
 
   Future<Map<String, dynamic>?> getExistingUpload(String setAmountId) async {
@@ -68,9 +69,18 @@ Future<List<Map<String, dynamic>>> fetchPayments() async {
 
 Future<void> uploadImage(
   String setAmountId,
-  String userdeceased,
+  String? userdeceased,
   int amount,
 ) async {
+    if (userdeceased == null || userdeceased.isEmpty) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Payment record is missing deceased user info.'),
+        ),
+      );
+      return;
+    }
     setState(() => _isUploading = true);
 
     try {
@@ -78,7 +88,7 @@ Future<void> uploadImage(
       final user = Supabase.instance.client.auth.currentUser;
       if (user == null) throw Exception("User not logged in");
 
-      final paid = await isPaid(setAmountId, userdeceased);
+      final paid = await isPaid(setAmountId);
       if (!mounted) return;
       if (paid) {
         messenger.showSnackBar(
@@ -380,13 +390,15 @@ Future<void> uploadImage(
                     return FutureBuilder<List<bool>>(
                       future: Future.wait(
                         filteredSetAmounts.map(
-                          (data) => isPaid(
-                            data['id'].toString(),
-                            data['userdeceased'],
-                          ),
+                          (data) => isPaid(data['id'].toString()),
                         ),
                       ),
                       builder: (context, statusSnapshot) {
+                        if (statusSnapshot.hasError) {
+                          return Center(
+                            child: Text('Error: ${statusSnapshot.error}'),
+                          );
+                        }
                         if (!statusSnapshot.hasData) {
                           return const Center(
                             child: CircularProgressIndicator(color: kAccent),
@@ -408,17 +420,23 @@ Future<void> uploadImage(
                           itemCount: sortedList.length,
                           itemBuilder: (context, i) {
                             final data = sortedList[i];
-                            String fullName = data['deceased_name'] ?? data['userdeceased'] ?? '';
+                            String fullName = data['deceased_name'] ?? data['userdeceased'] ?? 'Membership Payment';
                             final amount = data['amount'];
                             final paidStatus =
                                 i >=
                                 pending
-                                    .length; // Paid if index is after pending
+                                    .length; 
                             final setAmountId = data['id'].toString();
 
                             return FutureBuilder<Map<String, dynamic>?>(
                               future: getExistingUpload(setAmountId),
                               builder: (context, uploadSnapshot) {
+                                if (uploadSnapshot.hasError) {
+                                  return Padding(
+                                    padding: const EdgeInsets.symmetric(vertical: 10),
+                                    child: Text('Error: ${uploadSnapshot.error}'),
+                                  );
+                                }
                                 final uploadData = uploadSnapshot.data;
                                 final hasUpload = uploadData != null;
 
@@ -818,9 +836,19 @@ Future<void> uploadImage(
                                                   // ...existing code...
                                                   // 3. If user chooses to upload, proceed with uploadImage
                                                   if (proceed == true) {
+                                                    final userDeceasedValue = data['userdeceased']?.toString();
+                                                    if (userDeceasedValue == null || userDeceasedValue.isEmpty) {
+                                                      if (!context.mounted) return;
+                                                      ScaffoldMessenger.of(context).showSnackBar(
+                                                        const SnackBar(
+                                                          content: Text('This payment record has no deceased user assigned.'),
+                                                        ),
+                                                      );
+                                                      return;
+                                                    }
                                                     await uploadImage(
                                                       data['id'].toString(),
-                                                      data['userdeceased'],
+                                                      userDeceasedValue,
                                                       int.parse(
                                                         data['amount']
                                                             .toString(),
@@ -859,7 +887,13 @@ Future<void> uploadImage(
                                               return signedUrl;
                                             }(),
                                             builder: (context, snapshot) {
-                                              if (!snapshot.hasData) {
+                                              if (snapshot.hasError) {
+                                                return Text(
+                                                  'Error loading receipt: ${snapshot.error}',
+                                                  style: const TextStyle(color: kWarn),
+                                                );
+                                              }
+                                              if (!snapshot.hasData || snapshot.connectionState == ConnectionState.waiting) {
                                                 return const CircularProgressIndicator(color: kAccent);
                                               }
                                               final signedUrl = snapshot.data!;

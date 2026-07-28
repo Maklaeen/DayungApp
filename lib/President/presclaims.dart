@@ -243,6 +243,36 @@ class _PresidentClaimsPageState extends State<PresidentClaimsPage> {
     return _submittedBy(claim);
   }
 
+  String _formatDefaultContributionAmount(dynamic value) {
+    if (value == null) return '';
+    final raw = value.toString().trim();
+    if (raw.isEmpty) return '';
+
+    final cleaned = raw.replaceAll(RegExp(r'[^0-9.-]'), '');
+    if (cleaned.isEmpty) return '';
+
+    final parsed = double.tryParse(cleaned);
+    return parsed == null ? raw : parsed.toStringAsFixed(2);
+  }
+
+  Future<String> _loadDefaultContributionAmount(int? unitId) async {
+    if (unitId == null) return '';
+
+    try {
+      final row = await _sb
+          .from('dayung_rules')
+          .select('exactamountformembership')
+          .eq('dayung_unit_id', unitId)
+          .maybeSingle();
+
+      return _formatDefaultContributionAmount(
+        row?['exactamountformembership'],
+      );
+    } catch (_) {
+      return '';
+    }
+  }
+
   Future<void> _updateStatus(String claimId, String newStatus) async {
     if (_updating) return;
     setState(() => _updating = true);
@@ -263,7 +293,13 @@ class _PresidentClaimsPageState extends State<PresidentClaimsPage> {
     Map<String, dynamic> claim,
     BuildContext sheetContext,
   ) async {
-    final amountController = TextEditingController();
+    final resolvedUnitId = int.tryParse(
+      '${claim['dayung_unit_id'] ?? widget.dayungUnitId}',
+    );
+    final defaultAmountText = await _loadDefaultContributionAmount(
+      resolvedUnitId,
+    );
+    final amountController = TextEditingController(text: defaultAmountText);
     final messenger = ScaffoldMessenger.of(context);
     final sheetNavigator = Navigator.of(sheetContext);
     final fullName = _deceasedName(claim);
@@ -420,6 +456,7 @@ class _PresidentClaimsPageState extends State<PresidentClaimsPage> {
                 'dayung_unit_id': dayungId,
                 'amount': amount,
                 'status': 'unpaid',
+                'type': 'deceased_payment',
                 'created_at': now,
               },
             )
