@@ -62,7 +62,7 @@ class _DayungSuggestionsPageState extends State<DayungSuggestionsPage> {
       final res = await _sb
           .from('dayung_units')
           .select(
-            'id, name, barangay, city, province, description, rules, tags, latitude, longitude',
+            'id, name, barangay, city, province, latitude, longitude',
           )
           .order('name');
       setState(() {

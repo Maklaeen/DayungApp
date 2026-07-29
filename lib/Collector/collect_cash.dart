@@ -47,6 +47,8 @@ class _CollectCashPageState extends State<CollectCashPage> {
   List<Map<String, dynamic>> _payments = [];
   List<Map<String, dynamic>> _deceasedOptions = [];
   List<Map<String, dynamic>> _claims = [];
+  // IDs of members assigned to the logged-in collector (if any).
+  Set<String> _assignedMemberIds = <String>{};
 
   Map<String, dynamic>? _selectedDeceased;
   String _memberSearch = '';
@@ -112,6 +114,15 @@ class _CollectCashPageState extends State<CollectCashPage> {
       return fullName.contains(query);
     }).toList();
 
+    // If the current user is a collector with assigned member IDs, limit the
+    // displayed members to only those assigned to this collector.
+    if (_assignedMemberIds.isNotEmpty) {
+      members.retainWhere((member) {
+        final memberId = (member['id'] ?? '').toString();
+        return _assignedMemberIds.contains(memberId);
+      });
+    }
+
     members.sort((a, b) {
       final aPaid = _isMemberPaid((a['id'] ?? '').toString(), selected);
       final bPaid = _isMemberPaid((b['id'] ?? '').toString(), selected);
@@ -152,13 +163,38 @@ class _CollectCashPageState extends State<CollectCashPage> {
     });
 
     try {
+      // Determine if the current user is a collector and get their collectors_id
+      final currentUserId = sb.auth.currentUser?.id ?? '';
+      String collectorId = '';
+      _assignedMemberIds = <String>{};
+      if (currentUserId.isNotEmpty) {
+        final collectorRows = List<Map<String, dynamic>>.from(
+          await sb
+              .from('dayung_collectors')
+              .select('collectors_id')
+              .eq('user_id', currentUserId)
+              .limit(1)
+              .timeout(_queryTimeout),
+        );
+        if (collectorRows.isNotEmpty) {
+          collectorId = (collectorRows.first['collectors_id'] ?? '').toString();
+        }
+      }
+
+      // Build applications query. If the current user is a collector, restrict
+      // to rows where `assigned_collector` matches their collectors_id so that
+      // other collectors won't see user_ids assigned to someone else or NULL.
+      var applicationsQuery = sb
+          .from('applications')
+          .select('user_id')
+          .eq('dayung_unit_id', widget.dayungUnitId)
+          .eq('status', 'approved');
+      if (collectorId.isNotEmpty) {
+        applicationsQuery = applicationsQuery.eq('assigned_collector', collectorId);
+      }
+
       final results = await Future.wait([
-        sb
-            .from('applications')
-            .select('user_id')
-            .eq('dayung_unit_id', widget.dayungUnitId)
-            .eq('status', 'approved')
-            .timeout(_queryTimeout),
+        applicationsQuery.timeout(_queryTimeout),
 
         sb
             .from('payments')
@@ -178,7 +214,20 @@ class _CollectCashPageState extends State<CollectCashPage> {
             .timeout(_queryTimeout),
       ]);
 
+      // _assignedMemberIds will be set from the fetched approvedApps below when
+      // collectorId is present so we don't need a separate query.
+
       final approvedApps = List<Map<String, dynamic>>.from(results[0]);
+
+      // If this user is a collector (collectorId present) then the applications
+      // query was already restricted to their assigned rows; use that to set
+      // the assigned member ids. This also ensures rows with NULL
+      // `assigned_collector` are not visible to other collectors.
+      if (collectorId.isNotEmpty) {
+        _assignedMemberIds = {
+          for (final row in approvedApps) (row['user_id'] ?? '').toString()
+        }..remove('');
+      }
 
       final payments = List<Map<String, dynamic>>.from(results[1]);
 
@@ -189,11 +238,22 @@ class _CollectCashPageState extends State<CollectCashPage> {
         for (final row in approvedApps) (row['user_id'] ?? '').toString(),
       }..remove('');
 
+      // If we have assigned member IDs for this collector, filter payments to only
+      // those for the assigned members so the UI shows relevant payment rows.
+      if (_assignedMemberIds.isNotEmpty) {
+        payments.removeWhere((p) {
+          final uid = (p['user_id'] ?? '').toString();
+          return !_assignedMemberIds.contains(uid);
+        });
+      }
+
       final lookupUserIds = <String>{
         ...memberIds,
 
         for (final row in payments) (row['user_id'] ?? '').toString(),
         for (final row in payments) (row['collected_by'] ?? '').toString(),
+        // Ensure we fetch full names for deceased users referenced by claims
+        for (final row in claims) (row['user_id'] ?? '').toString(),
       }..remove('');
 
       final userRows = lookupUserIds.isEmpty
@@ -228,6 +288,36 @@ class _CollectCashPageState extends State<CollectCashPage> {
         userMap: userMap,
         deathNotices: [],
       );
+
+      // Ensure every approved claim produces a deceased option even when
+      // there are no death notices or payments referencing `userdeceased`.
+      // This guarantees the UI shows the full name for the claim's user_id.
+      final existingKeys = {for (final o in deceasedOptions) (o['key'] ?? '').toString()};
+      for (final claim in claims) {
+        final beneficiaryId = (claim['beneficiary_id'] ?? '').toString();
+        final userId = (claim['user_id'] ?? '').toString();
+        final key = beneficiaryId.isNotEmpty ? 'beneficiary:$beneficiaryId' : 'user:$userId';
+        if (key == 'user:' || existingKeys.contains(key)) continue;
+
+        final displayName = beneficiaryId.isNotEmpty
+            ? _beneficiaryLabel(beneficiaries, beneficiaryId)
+            : (userMap[userId] ?? (claim['PassedAway'] ?? claim['passed_away'] ?? 'Deceased Member'));
+
+        deceasedOptions.add({
+          'id': claim['id'],
+          'key': key,
+          'death_notice_id': null,
+          'user_id': userId,
+          'beneficiary_id': beneficiaryId,
+          'display_name': displayName,
+          'amount': _asDouble(claim['amount']),
+          'required_amount': _asDouble(claim['amount']),
+          'deceased_type': beneficiaryId.isNotEmpty ? 'beneficiary' : 'member',
+        });
+        existingKeys.add(key);
+      }
+
+      deceasedOptions.sort((a, b) => (a['display_name'] ?? '').toString().toLowerCase().compareTo((b['display_name'] ?? '').toString().toLowerCase()));
 
       Map<String, dynamic>? nextSelected;
       final selectedKey = (_selectedDeceased?['key'] ?? '').toString();
@@ -925,6 +1015,11 @@ class _CollectCashPageState extends State<CollectCashPage> {
         return bDate.compareTo(aDate);
       });
 
+    // Show approved claims regardless of whether any payments currently
+    // reference their `user_id`. Collectors will still see only assigned
+    // members in the members list; claims (the deceased options) remain
+    // visible even if there are no payment rows with `userdeceased` set.
+
     return [
       _overviewCard(
         title: 'Collection Overview',
@@ -977,6 +1072,19 @@ class _CollectCashPageState extends State<CollectCashPage> {
 
   Widget _claimCard(Map<String, dynamic> claim) {
     final isClaimed = _isClaimedMoney(claim['claimedmoney']);
+    final beneficiaryId = (claim['beneficiary_id'] ?? '').toString();
+    final userId = (claim['user_id'] ?? '').toString();
+    final key = beneficiaryId.isNotEmpty ? 'beneficiary:$beneficiaryId' : 'user:$userId';
+    String displayName = '';
+    try {
+      final opt = _deceasedOptions.firstWhere(
+        (o) => (o['key'] ?? '').toString() == key,
+        orElse: () => <String, dynamic>{},
+      );
+      if (opt.isNotEmpty) displayName = (opt['display_name'] ?? '').toString();
+    } catch (_) {
+      displayName = '';
+    }
 
     return Container(
       margin: const EdgeInsets.only(bottom: 14),
@@ -1012,7 +1120,7 @@ class _CollectCashPageState extends State<CollectCashPage> {
                     child: Text(
                       (claim['beneficiary_id'] ?? '').toString().isNotEmpty
                           ? 'Claim for ${_beneficiaryLabel([], (claim['beneficiary_id'] ?? '').toString())}'
-                          : _memberName((claim['user_id'] ?? '').toString()),
+                          : (displayName.isNotEmpty ? displayName : _memberName(userId)),
                       style: const TextStyle(
                         fontSize: 16,
                         color: kText,
@@ -1045,17 +1153,7 @@ class _CollectCashPageState extends State<CollectCashPage> {
                   ],
                 ],
               ),
-              const SizedBox(height: 4),
-              Text(
-                'Passed Away: ${(claim['beneficiary_id'] ?? '').toString().isNotEmpty ? (claim['PassedAway'] ?? claim['passed_away'] ?? '') : _memberName((claim['user_id'] ?? '').toString())}',
-                style: const TextStyle(
-                  fontSize: 13,
-                  color: kSubText,
-                  fontWeight: FontWeight.w600,
-                  fontFamily: 'OpenSans',
-                ),
-              ),
-
+             
               const SizedBox(height: 4),
               Text(
                 'Amount: PHP ${_asDouble(claim['amount']).toStringAsFixed(2)}',

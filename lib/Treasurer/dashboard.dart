@@ -8,12 +8,15 @@ import 'package:capstone_app/Treasurer/manage_fund.dart';
 import 'package:capstone_app/Treasurer/membership_page.dart';
 import 'package:capstone_app/Treasurer/treasclaims.dart';
 import 'package:capstone_app/Treasurer/treascontributions.dart';
+import 'package:capstone_app/Treasurer/treasurer_fund_confirmation_page.dart';
 import 'package:capstone_app/Treasurer/treasurer_payment_page.dart';
 import 'package:capstone_app/Collector/gcash_qr_page.dart';
 import 'package:capstone_app/pages/notification.dart';
 import 'package:capstone_app/pages/recentdeathnotices.dart';
 import 'package:capstone_app/profile/profile.dart';
 import 'package:capstone_app/settings/profsettings.dart';
+import 'package:capstone_app/shared/collectors_manage_page.dart';
+import 'package:capstone_app/Treasurer/assign_collectors_page.dart';
 import 'package:capstone_app/shared/names_only_members_page.dart';
 import 'package:capstone_app/utils/theme_surface.dart';
 import 'package:fl_chart/fl_chart.dart';
@@ -650,6 +653,29 @@ class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
         const SizedBox(height: 12),
         _buildModernActionCard(
           icon: Icons.account_balance_wallet_rounded,
+          title: 'Ledger Balance',
+          subtitle: 'Confirm remitted funds before posting to the ledger',
+          color: const Color(0xFF3B82F6),
+          onTap: () {
+            if (_dayungUnitId == null) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Select a Dayung first')),
+              );
+              return;
+            }
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => TreasurerFundConfirmationPage(
+                  dayungUnitId: _dayungUnitId!,
+                ),
+              ),
+            ).then((_) => _fetchAll());
+          },
+        ),
+        const SizedBox(height: 8),
+        _buildModernActionCard(
+          icon: Icons.account_balance_wallet_rounded,
           title: 'Manage Fund',
           subtitle: 'View and manage fund details',
           color: const Color(0xFF3B82F6),
@@ -739,6 +765,27 @@ class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
               context,
               MaterialPageRoute(
                 builder: (_) => GcashQrPage(dayungUnitId: _dayungUnitId!),
+              ),
+            );
+          },
+        ),
+        const SizedBox(height: 8),
+        _buildModernActionCard(
+          icon: Icons.group_add_rounded,
+          title: 'Assign Collectors',
+          subtitle: 'Assign collectors to members',
+          color: const Color(0xFF8B5CF6),
+          onTap: () {
+            if (_dayungUnitId == null) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Select a Dayung first')),
+              );
+              return;
+            }
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => AssignCollectorsPage(dayungUnitId: _dayungUnitId!),
               ),
             );
           },
