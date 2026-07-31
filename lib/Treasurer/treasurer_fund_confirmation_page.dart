@@ -33,10 +33,7 @@ double calculateCollectorPendingAmount({
 class TreasurerFundConfirmationPage extends StatefulWidget {
   final int dayungUnitId;
 
-  const TreasurerFundConfirmationPage({
-    super.key,
-    required this.dayungUnitId,
-  });
+  const TreasurerFundConfirmationPage({super.key, required this.dayungUnitId});
 
   @override
   State<TreasurerFundConfirmationPage> createState() =>
@@ -92,8 +89,8 @@ class _TreasurerFundConfirmationPageState
         );
 
         for (final row in userRows) {
-          namesById['${row['id']}'] = ((row['full_name'] ?? 'Collector') as String)
-              .trim();
+          namesById['${row['id']}'] =
+              ((row['full_name'] ?? 'Collector') as String).trim();
         }
       }
 
@@ -115,7 +112,9 @@ class _TreasurerFundConfirmationPageState
         if (claimedValue is num) return claimedValue == 0;
         if (claimedValue is String) {
           final normalized = claimedValue.trim().toLowerCase();
-          return normalized != 'TRUE' && normalized != '1' && normalized != 'yes';
+          return normalized != 'TRUE' &&
+              normalized != '1' &&
+              normalized != 'yes';
         }
         return true;
       }).toList();
@@ -137,8 +136,8 @@ class _TreasurerFundConfirmationPageState
         );
 
         for (final row in userRows) {
-          memberNamesById['${row['id']}'] = ((row['full_name'] ?? 'Member') as String)
-              .trim();
+          memberNamesById['${row['id']}'] =
+              ((row['full_name'] ?? 'Member') as String).trim();
         }
       }
 
@@ -158,8 +157,12 @@ class _TreasurerFundConfirmationPageState
         final summary = summaries[collectorId];
         if (summary == null) continue;
 
-        final isTreasurerCollected = _isTruthyFlag(row['iscollectedbytreasurer']);
-        final amountContribution = isTreasurerCollected ? 0.0 : _asDouble(row['amount']);
+        final isTreasurerCollected = _isTruthyFlag(
+          row['iscollectedbytreasurer'],
+        );
+        final amountContribution = isTreasurerCollected
+            ? 0.0
+            : _asDouble(row['amount']);
 
         summary['amount'] = _asDouble(summary['amount']) + amountContribution;
         summary['count'] = (summary['count'] as int) + 1;
@@ -168,13 +171,16 @@ class _TreasurerFundConfirmationPageState
         final memberKey = memberId.isEmpty ? '__unknown__' : memberId;
         final memberTotals = summary['member_totals'] as Map<String, dynamic>;
 
-        final receivedDate = _normalizeReceivedDate(row['iscollectedbytreasurer_date']);
+        final receivedDate = _normalizeReceivedDate(
+          row['iscollectedbytreasurer_date'],
+        );
 
         if (!memberTotals.containsKey(memberKey)) {
           memberTotals[memberKey] = {
             'id': memberId,
-            'name': (row['deceased_name'] ?? memberNamesById[memberId] ?? 'Member')
-                .toString(),
+            'name':
+                (row['deceased_name'] ?? memberNamesById[memberId] ?? 'Member')
+                    .toString(),
             'amount': 0.0,
             'payment_ids': <String>[],
             'is_received': isTreasurerCollected,
@@ -183,15 +189,20 @@ class _TreasurerFundConfirmationPageState
         }
 
         final memberEntry = memberTotals[memberKey] as Map<String, dynamic>;
-        memberEntry['amount'] = _asDouble(memberEntry['amount']) + amountContribution;
-        memberEntry['is_received'] = (memberEntry['is_received'] as bool? ?? true) && isTreasurerCollected;
+        memberEntry['amount'] =
+            _asDouble(memberEntry['amount']) + amountContribution;
+        memberEntry['is_received'] =
+            (memberEntry['is_received'] as bool? ?? true) &&
+            isTreasurerCollected;
         if (isTreasurerCollected && receivedDate != null) {
           memberEntry['received_date'] = receivedDate;
         }
 
         final paymentId = '${row['id'] ?? ''}'.trim();
         if (paymentId.isNotEmpty) {
-          final paymentIds = List<String>.from(memberEntry['payment_ids'] ?? []);
+          final paymentIds = List<String>.from(
+            memberEntry['payment_ids'] ?? [],
+          );
           if (!paymentIds.contains(paymentId)) {
             paymentIds.add(paymentId);
             memberEntry['payment_ids'] = paymentIds;
@@ -199,40 +210,45 @@ class _TreasurerFundConfirmationPageState
         }
       }
 
-      final treasurerCollectedTotal = paymentRows.fold<double>(
-        0.0,
-        (sum, row) {
-          final isTreasurerCollected = _isTruthyFlag(row['iscollectedbytreasurer']);
-          return isTreasurerCollected
-              ? sum + _asDouble(row['amount'])
-              : sum;
-        },
-      );
+      final treasurerCollectedTotal = paymentRows.fold<double>(0.0, (sum, row) {
+        final isTreasurerCollected = _isTruthyFlag(
+          row['iscollectedbytreasurer'],
+        );
+        return isTreasurerCollected ? sum + _asDouble(row['amount']) : sum;
+      });
 
-      final collectorSummaries = summaries.values.toList().map((entry) {
-        final memberTotals = <Map<String, dynamic>>[];
-        final memberEntries = entry['member_totals'] as Map<String, dynamic>;
-        for (final memberEntry in memberEntries.values) {
-          memberTotals.add({
-            'id': (memberEntry as Map<String, dynamic>)['id'],
-            'name': (memberEntry)['name'],
-            'amount': _asDouble(memberEntry['amount']),
-            'payment_ids': List<String>.from(memberEntry['payment_ids'] ?? []),
-            'is_received': (memberEntry)['is_received'] == true,
-            'received_date': (memberEntry)['received_date']?.toString(),
-          });
-        }
-        memberTotals.sort((a, b) => _asDouble(b['amount']).compareTo(_asDouble(a['amount'])));
+      final collectorSummaries =
+          summaries.values.toList().map((entry) {
+            final memberTotals = <Map<String, dynamic>>[];
+            final memberEntries =
+                entry['member_totals'] as Map<String, dynamic>;
+            for (final memberEntry in memberEntries.values) {
+              memberTotals.add({
+                'id': (memberEntry as Map<String, dynamic>)['id'],
+                'name': (memberEntry)['name'],
+                'amount': _asDouble(memberEntry['amount']),
+                'payment_ids': List<String>.from(
+                  memberEntry['payment_ids'] ?? [],
+                ),
+                'is_received': (memberEntry)['is_received'] == true,
+                'received_date': (memberEntry)['received_date']?.toString(),
+              });
+            }
+            memberTotals.sort(
+              (a, b) =>
+                  _asDouble(b['amount']).compareTo(_asDouble(a['amount'])),
+            );
 
-        return {
-          'id': entry['id'],
-          'name': entry['name'],
-          'amount': _asDouble(entry['amount']),
-          'count': entry['count'] as int,
-          'member_totals': memberTotals,
-        };
-      }).toList()
-        ..sort((a, b) => _asDouble(b['amount']).compareTo(_asDouble(a['amount'])));
+            return {
+              'id': entry['id'],
+              'name': entry['name'],
+              'amount': _asDouble(entry['amount']),
+              'count': entry['count'] as int,
+              'member_totals': memberTotals,
+            };
+          }).toList()..sort(
+            (a, b) => _asDouble(b['amount']).compareTo(_asDouble(a['amount'])),
+          );
 
       if (!mounted) return;
       setState(() {
@@ -297,7 +313,9 @@ class _TreasurerFundConfirmationPageState
           .from('payments')
           .update({
             'iscollectedbytreasurer': true,
-            'iscollectedbytreasurer_date': DateTime.now().toUtc().toIso8601String(),
+            'iscollectedbytreasurer_date': DateTime.now()
+                .toUtc()
+                .toIso8601String(),
           })
           .inFilter('id', paymentIds)
           .timeout(_queryTimeout);
@@ -407,7 +425,9 @@ class _TreasurerFundConfirmationPageState
                                   mainAxisSize: MainAxisSize.min,
                                   children: [
                                     Text(
-                                      _formatCurrency(_asDouble(member['amount'])),
+                                      _formatCurrency(
+                                        _asDouble(member['amount']),
+                                      ),
                                       style: const TextStyle(
                                         color: Color(0xFF6B7280),
                                         fontSize: 12,
@@ -434,36 +454,47 @@ class _TreasurerFundConfirmationPageState
                                             member,
                                             onConfirmed: () {
                                               setDialogState(() {
-                                                final index = members.indexWhere(
-                                                  (candidate) =>
-                                                      candidate['id'] == member['id'] &&
-                                                      candidate['name'] == member['name'],
-                                                );
+                                                final index = members
+                                                    .indexWhere(
+                                                      (candidate) =>
+                                                          candidate['id'] ==
+                                                              member['id'] &&
+                                                          candidate['name'] ==
+                                                              member['name'],
+                                                    );
 
                                                 if (index != -1) {
-                                                  final updatedMember = Map<String, dynamic>.from(
-                                                    members[index],
-                                                  );
-                                                  updatedMember['is_received'] = true;
+                                                  final updatedMember =
+                                                      Map<String, dynamic>.from(
+                                                        members[index],
+                                                      );
+                                                  updatedMember['is_received'] =
+                                                      true;
                                                   updatedMember['received_date'] =
-                                                      _normalizeReceivedDate(DateTime.now());
-                                                  members[index] = updatedMember;
+                                                      _normalizeReceivedDate(
+                                                        DateTime.now(),
+                                                      );
+                                                  members[index] =
+                                                      updatedMember;
                                                 }
                                               });
                                             },
                                           );
                                         },
                                   style: TextButton.styleFrom(
-                                    foregroundColor: member['is_received'] == true
+                                    foregroundColor:
+                                        member['is_received'] == true
                                         ? Colors.grey
                                         : const Color(0xFF10B981),
                                   ),
                                   child: Text(
                                     member['is_received'] == true
                                         ? (member['received_date'] != null &&
-                                                member['received_date'].toString().isNotEmpty
-                                            ? 'Received • ${member['received_date']}'
-                                            : 'Received')
+                                                  member['received_date']
+                                                      .toString()
+                                                      .isNotEmpty
+                                              ? 'Received • ${member['received_date']}'
+                                              : 'Received')
                                         : 'Receive',
                                   ),
                                 ),
@@ -496,192 +527,248 @@ class _TreasurerFundConfirmationPageState
     );
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Ledger Balance'),
-        backgroundColor: const Color(0xFF0D47A1),
-        foregroundColor: Colors.white,
-      ),
-      body: SafeArea(
-        child: _loading
-            ? const Center(child: CircularProgressIndicator())
-            : SingleChildScrollView(
-                padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+      backgroundColor: const Color(0xFFF8FAFC),
+      body: Container(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            colors: [Color(0xFF0D47A1), Color(0xFF2563EB)],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+        ),
+        child: SafeArea(
+          child: _loading
+              ? const Center(
+                  child: CircularProgressIndicator(color: Colors.white),
+                )
+              : Column(
                   children: [
-                    Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.all(20),
-                      decoration: BoxDecoration(
-                        gradient: const LinearGradient(
-                          colors: [Color(0xFF0D47A1), Color(0xFF2563EB)],
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                        ),
-                        borderRadius: BorderRadius.circular(20),
-                      ),
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(20, 20, 20, 16),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           const Text(
-                            'Collector totals',
+                            'Ledger',
                             style: TextStyle(
                               color: Colors.white70,
                               fontSize: 13,
                               fontWeight: FontWeight.w700,
                             ),
                           ),
-                          const SizedBox(height: 8),
-                          Text(
-                            _formatCurrency(totalCollected),
-                            style: const TextStyle(
+                          const SizedBox(height: 6),
+                          const Text(
+                            'Ledger Balance',
+                            style: TextStyle(
                               color: Colors.white,
-                              fontSize: 28,
+                              fontSize: 24,
                               fontWeight: FontWeight.w800,
                             ),
                           ),
-                          const SizedBox(height: 8),
-                          Text(
-                            'Total amount collected by each assigned collector',
-                            style: TextStyle(
-                              color: Colors.white.withValues(alpha: 0.9),
-                              fontSize: 14,
+                          const SizedBox(height: 12),
+                          Container(
+                            width: double.infinity,
+                            padding: const EdgeInsets.all(16),
+                            decoration: BoxDecoration(
+                              color: Colors.white.withValues(alpha: 0.16),
+                              borderRadius: BorderRadius.circular(18),
+                              border: Border.all(
+                                color: Colors.white.withValues(alpha: 0.25),
+                              ),
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Text(
+                                  'Collector totals',
+                                  style: TextStyle(
+                                    color: Colors.white70,
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                                const SizedBox(height: 6),
+                                Text(
+                                  _formatCurrency(totalCollected),
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 24,
+                                    fontWeight: FontWeight.w800,
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
                         ],
                       ),
                     ),
-                    const SizedBox(height: 16),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: _summaryCard(
-                            title: 'Assigned collectors',
-                            value: '${_collectorSummaries.length}',
-                            accent: const Color(0xFFF59E0B),
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: _summaryCard(
-                            title: 'Total Collected',
-                            value: _formatCurrency(_treasurerCollectedTotal),
-                            accent: const Color(0xFF10B981),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 20),
-                    const Text(
-                      'Collector totals',
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.w800,
-                        color: Color(0xFF111827),
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    if (_error != null)
-                      Container(
-                        padding: const EdgeInsets.all(16),
+                    Expanded(
+                      child: Container(
+                        margin: const EdgeInsets.fromLTRB(16, 0, 16, 16),
                         decoration: BoxDecoration(
-                          color: const Color(0xFFFFF7ED),
-                          borderRadius: BorderRadius.circular(16),
+                          color: const Color(0xFFF8FAFC),
+                          borderRadius: BorderRadius.circular(24),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withValues(alpha: 0.08),
+                              blurRadius: 18,
+                              offset: const Offset(0, 8),
+                            ),
+                          ],
                         ),
-                        child: Text(_error!),
-                      )
-                    else if (_collectorSummaries.isEmpty)
-                      Container(
-                        padding: const EdgeInsets.all(20),
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(16),
-                          border: Border.all(color: const Color(0xFFE5E7EB)),
-                        ),
-                        child: const Text(
-                          'No assigned collectors or paid remittances are available yet.',
-                          style: TextStyle(color: Color(0xFF6B7280)),
-                        ),
-                      )
-                    else
-                      ..._collectorSummaries.map((collector) {
-                        return Container(
-                          margin: const EdgeInsets.only(bottom: 12),
-                          padding: const EdgeInsets.all(16),
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            borderRadius: BorderRadius.circular(16),
-                            border: Border.all(color: const Color(0xFFE5E7EB)),
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.black.withValues(alpha: 0.03),
-                                blurRadius: 8,
-                                offset: const Offset(0, 2),
-                              ),
-                            ],
-                          ),
+                        child: SingleChildScrollView(
+                          padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Row(
                                 children: [
                                   Expanded(
-                                    child: GestureDetector(
-                                      onTap: () => _showCollectorDetailsDialog(collector),
-                                      child: Column(
-                                        crossAxisAlignment: CrossAxisAlignment.start,
-                                        children: [
-                                          Text(
-                                            collector['name']?.toString() ?? 'Collector',
-                                            style: const TextStyle(
-                                              fontWeight: FontWeight.w800,
-                                              fontSize: 15,
-                                              color: Color(0xFF111827),
-                                            ),
-                                          ),
-                                          const SizedBox(height: 4),
-                                          Text(
-                                            '${collector['count']} paid remittance${collector['count'] == 1 ? '' : 's'} • tap to view members',
-                                            style: const TextStyle(
-                                              color: Color(0xFF6B7280),
-                                              fontSize: 12,
-                                            ),
-                                          ),
-                                        ],
-                                      ),
+                                    child: _summaryCard(
+                                      title: 'Assigned collectors',
+                                      value: '${_collectorSummaries.length}',
+                                      accent: const Color(0xFFF59E0B),
                                     ),
                                   ),
-                                  Column(
-                                    crossAxisAlignment: CrossAxisAlignment.end,
-                                    children: [
-                                      Text(
-                                        _formatCurrency(_asDouble(collector['amount'])),
-                                        style: const TextStyle(
-                                          fontSize: 18,
-                                          fontWeight: FontWeight.w800,
-                                          color: Color(0xFF0D47A1),
-                                        ),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: _summaryCard(
+                                      title: 'Total Collected',
+                                      value: _formatCurrency(
+                                        _treasurerCollectedTotal,
                                       ),
-                                      const SizedBox(height: 4),
-                                      const Text(
-                                        'Collected',
-                                        style: TextStyle(
-                                          color: Color(0xFF10B981),
-                                          fontSize: 12,
-                                          fontWeight: FontWeight.w700,
-                                        ),
-                                      ),
-                                    ],
+                                      accent: const Color(0xFF10B981),
+                                    ),
                                   ),
                                 ],
                               ),
+                              const SizedBox(height: 16),
+                              const Text(
+                                'Collector totals',
+                                style: TextStyle(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.w800,
+                                  color: Color(0xFF111827),
+                                ),
+                              ),
+                              const SizedBox(height: 12),
+                              if (_error != null)
+                                Container(
+                                  padding: const EdgeInsets.all(16),
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFFFFF7ED),
+                                    borderRadius: BorderRadius.circular(16),
+                                  ),
+                                  child: Text(_error!),
+                                )
+                              else if (_collectorSummaries.isEmpty)
+                                Container(
+                                  padding: const EdgeInsets.all(20),
+                                  decoration: BoxDecoration(
+                                    color: Colors.white,
+                                    borderRadius: BorderRadius.circular(16),
+                                    border: Border.all(
+                                      color: const Color(0xFFE5E7EB),
+                                    ),
+                                  ),
+                                  child: const Text(
+                                    'No assigned collectors or paid remittances are available yet.',
+                                    style: TextStyle(color: Color(0xFF6B7280)),
+                                  ),
+                                )
+                              else
+                                ..._collectorSummaries.map((collector) {
+                                  return Container(
+                                    margin: const EdgeInsets.only(bottom: 12),
+                                    padding: const EdgeInsets.all(16),
+                                    decoration: BoxDecoration(
+                                      color: Colors.white,
+                                      borderRadius: BorderRadius.circular(16),
+                                      border: Border.all(
+                                        color: const Color(0xFFE5E7EB),
+                                      ),
+                                      boxShadow: [
+                                        BoxShadow(
+                                          color: Colors.black.withValues(
+                                            alpha: 0.03,
+                                          ),
+                                          blurRadius: 8,
+                                          offset: const Offset(0, 2),
+                                        ),
+                                      ],
+                                    ),
+                                    child: Row(
+                                      children: [
+                                        Expanded(
+                                          child: GestureDetector(
+                                            onTap: () =>
+                                                _showCollectorDetailsDialog(
+                                                  collector,
+                                                ),
+                                            child: Column(
+                                              crossAxisAlignment:
+                                                  CrossAxisAlignment.start,
+                                              children: [
+                                                Text(
+                                                  collector['name']
+                                                          ?.toString() ??
+                                                      'Collector',
+                                                  style: const TextStyle(
+                                                    fontWeight: FontWeight.w800,
+                                                    fontSize: 15,
+                                                    color: Color(0xFF111827),
+                                                  ),
+                                                ),
+                                                const SizedBox(height: 4),
+                                                Text(
+                                                  '${collector['count']} paid remittance${collector['count'] == 1 ? '' : 's'} • tap to view members',
+                                                  style: const TextStyle(
+                                                    color: Color(0xFF6B7280),
+                                                    fontSize: 12,
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                        ),
+                                        const SizedBox(width: 12),
+                                        Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.end,
+                                          children: [
+                                            Text(
+                                              _formatCurrency(
+                                                _asDouble(collector['amount']),
+                                              ),
+                                              style: const TextStyle(
+                                                fontSize: 18,
+                                                fontWeight: FontWeight.w800,
+                                                color: Color(0xFF0D47A1),
+                                              ),
+                                            ),
+                                            const SizedBox(height: 4),
+                                            const Text(
+                                              'Collected',
+                                              style: TextStyle(
+                                                color: Color(0xFF10B981),
+                                                fontSize: 12,
+                                                fontWeight: FontWeight.w700,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ],
+                                    ),
+                                  );
+                                }),
                             ],
                           ),
-                        );
-                      }),
+                        ),
+                      ),
+                    ),
                   ],
                 ),
-              ),
+        ),
       ),
     );
   }

@@ -115,6 +115,7 @@ class _TreasurerClaimsPageState extends State<TreasurerClaimsPage> {
       floatingActionButton: Padding(
         padding: const EdgeInsets.only(bottom: 60),
         child: FloatingActionButton.extended(
+          heroTag: 'submitClaimFab',
           icon: const Icon(Icons.add),
           label: const Text('Submit Claim'),
           backgroundColor: kPrimary,

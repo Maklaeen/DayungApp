@@ -11,6 +11,8 @@ const kSubText = Color(0xFF6B7280);
 const kAccent = Color(0xFF3B82F6);
 const kPrimary = Color(0xFF1E40AF);
 const kWarn = Color(0xFFF59E0B);
+const Color _kHeaderGradientStart = Color(0xFF1E40AF);
+const Color _kHeaderGradientEnd = Color(0xFF3B82F6);
 
 class GcashQrPage extends StatefulWidget {
   final dynamic dayungUnitId; // Accept dayungUnitId
@@ -471,77 +473,168 @@ class _GcashQrPageState extends State<GcashQrPage> {
       body: SafeArea(
         child: Column(
           children: [
-            // Curved Header
             Container(
               width: double.infinity,
-              padding: const EdgeInsets.fromLTRB(20, 20, 20, 30),
               decoration: const BoxDecoration(
                 gradient: LinearGradient(
+                  colors: [
+                    _kHeaderGradientStart,
+                    _kHeaderGradientEnd,
+                  ],
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
-                  colors: [
-                    Color(0xFF1E40AF),
-                    Color(0xFF3B82F6),
-                    Color(0xFF60A5FA),
-                  ],
                 ),
+                borderRadius: BorderRadius.only(
+                  bottomLeft: Radius.circular(28),
+                  bottomRight: Radius.circular(28),
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: Color(0x22083366),
+                    blurRadius: 18,
+                    offset: Offset(0, 8),
+                  ),
+                ],
               ),
+              padding: const EdgeInsets.fromLTRB(16, 20, 16, 24),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  IconButton(
-                    onPressed: () => Navigator.pop(context),
-                    icon: Container(
-                      padding: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(
-                        color: Colors.white.withValues(alpha: 0.16),
-                        borderRadius: BorderRadius.circular(14),
+                  Row(
+                    children: [
+                      IconButton(
+                        onPressed: () => Navigator.pop(context),
+                        icon: Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withOpacity(0.16),
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                          child: const Icon(
+                            Icons.arrow_back_ios_new_rounded,
+                            color: Colors.white,
+                            size: 18,
+                          ),
+                        ),
                       ),
-                      child: const Icon(
-                        Icons.arrow_back_ios_new_rounded,
-                        color: Colors.white,
-                        size: 18,
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              'GCash QR Management',
+                              style: TextStyle(
+                                fontSize: 26,
+                                fontWeight: FontWeight.w800,
+                                color: Colors.white,
+                                letterSpacing: 0.3,
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              'Upload, update, and manage your unit’s QR payment code with clarity and speed.',
+                              style: TextStyle(
+                                fontSize: isMobile ? 14 : 15,
+                                color: Colors.white.withOpacity(0.88),
+                                fontWeight: FontWeight.w600,
+                                height: 1.45,
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
-                    ),
+                    ],
                   ),
-                  const SizedBox(height: 12),
-                  const Text(
-                    'GCash QR Management',
-                    style: TextStyle(
-                      fontSize: 28,
-                      fontWeight: FontWeight.w800,
-                      color: Colors.white,
-                      fontFamily: 'Montserrat',
-                      letterSpacing: 0.3,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Manage the active QR code for your unit and review uploaded payment proofs in one consistent workspace.',
-                    style: TextStyle(
-                      fontSize: isMobile ? 14 : 15,
-                      color: Colors.white.withValues(alpha: 0.88),
-                      fontWeight: FontWeight.w600,
-                      fontFamily: 'OpenSans',
-                      height: 1.45,
-                    ),
+                  const SizedBox(height: 18),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Container(
+                          padding: const EdgeInsets.all(14),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withOpacity(0.12),
+                            borderRadius: BorderRadius.circular(18),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text(
+                                'QR Status',
+                                style: TextStyle(
+                                  color: Colors.white70,
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                              const SizedBox(height: 6),
+                              Text(
+                                _hasQrForUnit ? 'Active' : 'Not set',
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.w800,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Container(
+                          padding: const EdgeInsets.all(14),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withOpacity(0.12),
+                            borderRadius: BorderRadius.circular(18),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text(
+                                'Uploads',
+                                style: TextStyle(
+                                  color: Colors.white70,
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                              const SizedBox(height: 6),
+                              Text(
+                                '${_qrRows.length}',
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.w800,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                 ],
               ),
             ),
-
-            // Content
             Expanded(
               child: Container(
-                width: double.infinity,
-                decoration: const BoxDecoration(
+                margin: const EdgeInsets.fromLTRB(16, 16, 16, 16),
+                decoration: BoxDecoration(
                   color: Colors.white,
-                  borderRadius: BorderRadius.vertical(top: Radius.circular(30)),
+                  borderRadius: BorderRadius.circular(24),
+                  boxShadow: const [
+                    BoxShadow(
+                      color: Color(0x12000000),
+                      blurRadius: 18,
+                      offset: Offset(0, 8),
+                    ),
+                  ],
                 ),
                 child: ListView(
                   padding: const EdgeInsets.all(16),
+                  physics: const AlwaysScrollableScrollPhysics(),
                   children: [
-                    // Add QR Card
                     Container(
                       decoration: BoxDecoration(
                         color: Colors.white,
@@ -557,186 +650,167 @@ class _GcashQrPageState extends State<GcashQrPage> {
                       ),
                       child: Padding(
                         padding: const EdgeInsets.symmetric(
-                          vertical: 18,
-                          horizontal: 18,
+                          vertical: 20,
+                          horizontal: 20,
                         ),
                         child: isMobile
                             ? Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      const Text(
-                                        'Add New GCash QR',
-                                        style: TextStyle(
-                                          fontWeight: FontWeight.w800,
-                                          fontSize: 18,
-                                          color: kText,
-                                          fontFamily: 'Montserrat',
-                                        ),
-                                      ),
-                                      const SizedBox(height: 6),
-                                      const Text(
-                                        'Upload the official QR and assign the correct GCash owner details.',
-                                        style: TextStyle(
-                                          color: kSubText,
-                                          fontSize: 13,
-                                          fontWeight: FontWeight.w600,
-                                          fontFamily: 'OpenSans',
-                                        ),
-                                      ),
-                                      const SizedBox(height: 12),
-                                      TextField(
-                                        controller: _nameController,
-                                        inputFormatters:
-                                            AppInputSecurity.singleLineFormatters(
-                                              maxLength: 120,
-                                            ),
-                                        decoration: const InputDecoration(
-                                          labelText: 'GCash Name',
-                                          filled: true,
-                                          fillColor: Color(0xFFF8FAFC),
-                                          border: OutlineInputBorder(
-                                            borderRadius: BorderRadius.all(
-                                              Radius.circular(16),
-                                            ),
-                                          ),
-                                        ),
-                                      ),
-                                      const SizedBox(height: 12),
-                                      TextField(
-                                        controller: _gcashNumberController,
-                                        keyboardType: TextInputType.number,
-                                        inputFormatters:
-                                            AppInputSecurity.phoneFormatters(
-                                              maxLength: 11,
-                                            ),
-                                        maxLength: 11,
-                                        decoration: const InputDecoration(
-                                          labelText: 'GCash Number',
-                                          filled: true,
-                                          fillColor: Color(0xFFF8FAFC),
-                                          border: OutlineInputBorder(
-                                            borderRadius: BorderRadius.all(
-                                              Radius.circular(16),
-                                            ),
-                                          ),
-                                          counterText: '',
-                                        ),
-                                      ),
-                                      const SizedBox(height: 12),
-                                      if (_qrImageBytes != null)
-                                        ClipRRect(
-                                          borderRadius: BorderRadius.circular(
-                                            12,
-                                          ),
-                                          child: Image.memory(
-                                            _qrImageBytes!,
-                                            width: previewSize,
-                                            height: previewSize,
-                                            fit: BoxFit.cover,
-                                          ),
-                                        ),
-                                      TextButton.icon(
-                                        icon: const Icon(Icons.upload),
-                                        label: const Text('Upload QR'),
-                                        onPressed: _pickQrImage,
-                                      ),
-                                      const SizedBox(height: 12),
-                                      SizedBox(
-                                        width: double.infinity,
-                                        child: ElevatedButton.icon(
-                                          icon: _isLoading
-                                              ? const SizedBox(
-                                                  width: 18,
-                                                  height: 18,
-                                                  child:
-                                                      CircularProgressIndicator(
-                                                        color: Colors.white,
-                                                        strokeWidth: 2,
-                                                      ),
-                                                )
-                                              : Icon(
-                                                  _hasQrForUnit
-                                                      ? Icons.update
-                                                      : Icons.save,
-                                                ),
-                                          label: Text(
-                                            _hasQrForUnit
-                                                ? 'Update QR'
-                                                : 'Save QR',
-                                          ),
-                                          style: ElevatedButton.styleFrom(
-                                            backgroundColor: kPrimary,
-                                            foregroundColor: Colors.white,
-                                            shape: RoundedRectangleBorder(
-                                              borderRadius:
-                                                  BorderRadius.circular(14),
-                                            ),
-                                            padding: const EdgeInsets.symmetric(
-                                              vertical: 14,
-                                            ),
-                                          ),
-                                          onPressed: _isLoading
-                                              ? null
-                                              : _saveQrCode,
-                                        ),
-                                      ),
-                                      if (_showUpdateSuccess)
-                                        Padding(
-                                          padding: const EdgeInsets.only(
-                                            top: 10,
-                                          ),
-                                          child: Row(
-                                            children: const [
-                                              Icon(
-                                                Icons.check_circle,
-                                                color: Colors.green,
-                                              ),
-                                              SizedBox(width: 8),
-                                              Text(
-                                                'GCash QR updated',
-                                                style: TextStyle(
-                                                  color: Colors.green,
-                                                  fontWeight: FontWeight.bold,
-                                                ),
-                                              ),
-                                            ],
-                                          ),
-                                        ),
-                                      if (_showNoChanges)
-                                        Padding(
-                                          padding: const EdgeInsets.only(
-                                            top: 10,
-                                          ),
-                                          child: Row(
-                                            children: const [
-                                              Icon(
-                                                Icons.warning,
-                                                color: Colors.orange,
-                                              ),
-                                              SizedBox(width: 8),
-                                              Text(
-                                                'No changes to update.',
-                                                style: TextStyle(
-                                                  color: Colors.orange,
-                                                  fontWeight: FontWeight.bold,
-                                                ),
-                                              ),
-                                            ],
-                                          ),
-                                        ),
-                                    ],
+                                  const Text(
+                                    'Add New GCash QR',
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.w800,
+                                      fontSize: 18,
+                                      color: kText,
+                                      fontFamily: 'Montserrat',
+                                    ),
                                   ),
+                                  const SizedBox(height: 6),
+                                  const Text(
+                                    'Upload the official QR and assign the correct GCash owner details.',
+                                    style: TextStyle(
+                                      color: kSubText,
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w600,
+                                      fontFamily: 'OpenSans',
+                                    ),
+                                  ),
+                                  const SizedBox(height: 16),
+                                  TextField(
+                                    controller: _nameController,
+                                    inputFormatters:
+                                        AppInputSecurity.singleLineFormatters(
+                                      maxLength: 120,
+                                    ),
+                                    decoration: const InputDecoration(
+                                      labelText: 'GCash Name',
+                                      filled: true,
+                                      fillColor: Color(0xFFF8FAFC),
+                                      border: OutlineInputBorder(
+                                        borderRadius: BorderRadius.all(
+                                          Radius.circular(16),
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(height: 12),
+                                  TextField(
+                                    controller: _gcashNumberController,
+                                    keyboardType: TextInputType.number,
+                                    inputFormatters:
+                                        AppInputSecurity.phoneFormatters(
+                                      maxLength: 11,
+                                    ),
+                                    maxLength: 11,
+                                    decoration: const InputDecoration(
+                                      labelText: 'GCash Number',
+                                      filled: true,
+                                      fillColor: Color(0xFFF8FAFC),
+                                      border: OutlineInputBorder(
+                                        borderRadius: BorderRadius.all(
+                                          Radius.circular(16),
+                                        ),
+                                      ),
+                                      counterText: '',
+                                    ),
+                                  ),
+                                  const SizedBox(height: 12),
+                                  if (_qrImageBytes != null)
+                                    ClipRRect(
+                                      borderRadius: BorderRadius.circular(12),
+                                      child: Image.memory(
+                                        _qrImageBytes!,
+                                        width: previewSize,
+                                        height: previewSize,
+                                        fit: BoxFit.cover,
+                                      ),
+                                    ),
+                                  TextButton.icon(
+                                    icon: const Icon(Icons.upload),
+                                    label: const Text('Upload QR'),
+                                    onPressed: _pickQrImage,
+                                  ),
+                                  const SizedBox(height: 12),
+                                  SizedBox(
+                                    width: double.infinity,
+                                    child: ElevatedButton.icon(
+                                      icon: _isLoading
+                                          ? const SizedBox(
+                                              width: 18,
+                                              height: 18,
+                                              child: CircularProgressIndicator(
+                                                color: Colors.white,
+                                                strokeWidth: 2,
+                                              ),
+                                            )
+                                          : Icon(
+                                              _hasQrForUnit
+                                                  ? Icons.update
+                                                  : Icons.save,
+                                            ),
+                                      label: Text(
+                                        _hasQrForUnit ? 'Update QR' : 'Save QR',
+                                      ),
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor: kPrimary,
+                                        foregroundColor: Colors.white,
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius:
+                                              BorderRadius.circular(14),
+                                        ),
+                                        padding: const EdgeInsets.symmetric(
+                                          vertical: 14,
+                                        ),
+                                      ),
+                                      onPressed: _isLoading ? null : _saveQrCode,
+                                    ),
+                                  ),
+                                  if (_showUpdateSuccess)
+                                    Padding(
+                                      padding: const EdgeInsets.only(top: 10),
+                                      child: Row(
+                                        children: const [
+                                          Icon(
+                                            Icons.check_circle,
+                                            color: Colors.green,
+                                          ),
+                                          SizedBox(width: 8),
+                                          Text(
+                                            'GCash QR updated',
+                                            style: TextStyle(
+                                              color: Colors.green,
+                                              fontWeight: FontWeight.bold,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  if (_showNoChanges)
+                                    Padding(
+                                      padding: const EdgeInsets.only(top: 10),
+                                      child: Row(
+                                        children: const [
+                                          Icon(
+                                            Icons.warning,
+                                            color: Colors.orange,
+                                          ),
+                                          SizedBox(width: 8),
+                                          Text(
+                                            'No changes to update.',
+                                            style: TextStyle(
+                                              color: Colors.orange,
+                                              fontWeight: FontWeight.bold,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
                                   if (_savedQrImageUrl != null &&
                                       _savedQrName != null) ...[
                                     const SizedBox(height: 20),
                                     Center(
                                       child: Column(
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.center,
                                         children: [
                                           Text(
                                             _savedQrName!,
@@ -748,11 +822,9 @@ class _GcashQrPageState extends State<GcashQrPage> {
                                           ),
                                           const SizedBox(height: 8),
                                           GestureDetector(
-                                            onTap: () {
-                                              _showImagePreview(
-                                                _savedQrImageUrl!,
-                                              );
-                                            },
+                                            onTap: () => _showImagePreview(
+                                              _savedQrImageUrl!,
+                                            ),
                                             child: _buildThumbImage(
                                               _savedQrImageUrl!,
                                               width: 120,
@@ -768,7 +840,6 @@ class _GcashQrPageState extends State<GcashQrPage> {
                             : Row(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  // Left: Form
                                   Expanded(
                                     child: Column(
                                       crossAxisAlignment:
@@ -793,127 +864,153 @@ class _GcashQrPageState extends State<GcashQrPage> {
                                             fontFamily: 'OpenSans',
                                           ),
                                         ),
-                                        const SizedBox(height: 12),
+                                        const SizedBox(height: 16),
                                         Row(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
                                           children: [
-                                            SizedBox(
-                                              width: 180,
-                                              child: TextField(
-                                                controller: _nameController,
-                                                inputFormatters:
-                                                    AppInputSecurity.singleLineFormatters(
+                                            Expanded(
+                                              child: Column(
+                                                children: [
+                                                  TextField(
+                                                    controller: _nameController,
+                                                    inputFormatters:
+                                                        AppInputSecurity.singleLineFormatters(
                                                       maxLength: 120,
                                                     ),
-                                                decoration:
-                                                    const InputDecoration(
+                                                    decoration:
+                                                        const InputDecoration(
                                                       labelText: 'GCash Name',
                                                       filled: true,
-                                                      fillColor: Color(
-                                                        0xFFF8FAFC,
-                                                      ),
+                                                      fillColor:
+                                                          Color(0xFFF8FAFC),
                                                       border: OutlineInputBorder(
                                                         borderRadius:
                                                             BorderRadius.all(
-                                                              Radius.circular(
-                                                                16,
-                                                              ),
-                                                            ),
-                                                      ),
-                                                    ),
-                                              ),
-                                            ),
-                                            const SizedBox(width: 12),
-                                            SizedBox(
-                                              width: 140,
-                                              child: TextField(
-                                                controller:
-                                                    _gcashNumberController,
-                                                keyboardType:
-                                                    TextInputType.number,
-                                                inputFormatters:
-                                                    AppInputSecurity.phoneFormatters(
-                                                      maxLength: 11,
-                                                    ),
-                                                maxLength:
-                                                    11, // <-- Limit to 11 digits
-                                                decoration: const InputDecoration(
-                                                  labelText: 'GCash Number',
-                                                  filled: true,
-                                                  fillColor: Color(0xFFF8FAFC),
-                                                  border: OutlineInputBorder(
-                                                    borderRadius:
-                                                        BorderRadius.all(
                                                           Radius.circular(16),
                                                         ),
+                                                      ),
+                                                    ),
                                                   ),
-                                                  counterText:
-                                                      '', // Hide character counter if you want
-                                                ),
+                                                  const SizedBox(height: 12),
+                                                  TextField(
+                                                    controller:
+                                                        _gcashNumberController,
+                                                    keyboardType:
+                                                        TextInputType.number,
+                                                    inputFormatters:
+                                                        AppInputSecurity.phoneFormatters(
+                                                      maxLength: 11,
+                                                    ),
+                                                    maxLength: 11,
+                                                    decoration:
+                                                        const InputDecoration(
+                                                      labelText: 'GCash Number',
+                                                      filled: true,
+                                                      fillColor:
+                                                          Color(0xFFF8FAFC),
+                                                      border: OutlineInputBorder(
+                                                        borderRadius:
+                                                            BorderRadius.all(
+                                                          Radius.circular(16),
+                                                        ),
+                                                      ),
+                                                      counterText: '',
+                                                    ),
+                                                  ),
+                                                ],
                                               ),
+                                            ),
+                                            const SizedBox(width: 18),
+                                            Column(
+                                              children: [
+                                                if (_qrImageBytes != null)
+                                                  ClipRRect(
+                                                    borderRadius:
+                                                        BorderRadius.circular(
+                                                            16),
+                                                    child: Image.memory(
+                                                      _qrImageBytes!,
+                                                      width: previewSize,
+                                                      height: previewSize,
+                                                      fit: BoxFit.cover,
+                                                    ),
+                                                  )
+                                                else
+                                                  Container(
+                                                    width: previewSize,
+                                                    height: previewSize,
+                                                    decoration: BoxDecoration(
+                                                      color:
+                                                          const Color(0xFFF8FAFC),
+                                                      borderRadius:
+                                                          BorderRadius.circular(
+                                                              16),
+                                                      border: Border.all(
+                                                        color:
+                                                            const Color(0xFFE5E7EB),
+                                                      ),
+                                                    ),
+                                                    alignment: Alignment.center,
+                                                    child: const Icon(
+                                                      Icons.qr_code_rounded,
+                                                      color: kSubText,
+                                                      size: 28,
+                                                    ),
+                                                  ),
+                                                const SizedBox(height: 12),
+                                                TextButton.icon(
+                                                  icon: const Icon(Icons.upload),
+                                                  label: const Text('Upload QR'),
+                                                  onPressed: _pickQrImage,
+                                                ),
+                                              ],
                                             ),
                                           ],
                                         ),
-                                        const SizedBox(height: 12),
-                                        _qrImageBytes != null
-                                            ? ClipRRect(
+                                        const SizedBox(height: 16),
+                                        SizedBox(
+                                          width: double.infinity,
+                                          child: ElevatedButton.icon(
+                                            icon: _isLoading
+                                                ? const SizedBox(
+                                                    width: 18,
+                                                    height: 18,
+                                                    child:
+                                                        CircularProgressIndicator(
+                                                      color: Colors.white,
+                                                      strokeWidth: 2,
+                                                    ),
+                                                  )
+                                                : Icon(
+                                                    _hasQrForUnit
+                                                        ? Icons.update
+                                                        : Icons.save,
+                                                  ),
+                                            label: Text(
+                                              _hasQrForUnit
+                                                  ? 'Update QR'
+                                                  : 'Save QR',
+                                            ),
+                                            style: ElevatedButton.styleFrom(
+                                              backgroundColor: kPrimary,
+                                              foregroundColor: Colors.white,
+                                              shape: RoundedRectangleBorder(
                                                 borderRadius:
-                                                    BorderRadius.circular(12),
-                                                child: Image.memory(
-                                                  _qrImageBytes!,
-                                                  width: previewSize,
-                                                  height: previewSize,
-                                                  fit: BoxFit.cover,
-                                                ),
-                                              )
-                                            : const SizedBox(),
-                                        TextButton.icon(
-                                          icon: const Icon(Icons.upload),
-                                          label: const Text('Upload QR'),
-                                          onPressed: _pickQrImage,
-                                        ),
-                                        const SizedBox(height: 12),
-                                        ElevatedButton.icon(
-                                          icon: _isLoading
-                                              ? const SizedBox(
-                                                  width: 18,
-                                                  height: 18,
-                                                  child:
-                                                      CircularProgressIndicator(
-                                                        color: Colors.white,
-                                                        strokeWidth: 2,
-                                                      ),
-                                                )
-                                              : Icon(
-                                                  _hasQrForUnit
-                                                      ? Icons.update
-                                                      : Icons.save,
-                                                ),
-                                          label: Text(
-                                            _hasQrForUnit
-                                                ? 'Update QR'
-                                                : 'Save QR',
-                                          ),
-                                          style: ElevatedButton.styleFrom(
-                                            backgroundColor: kPrimary,
-                                            foregroundColor: Colors.white,
-                                            shape: RoundedRectangleBorder(
-                                              borderRadius:
-                                                  BorderRadius.circular(14),
+                                                    BorderRadius.circular(14),
+                                              ),
+                                              padding: const EdgeInsets.symmetric(
+                                                vertical: 16,
+                                              ),
                                             ),
-                                            padding: const EdgeInsets.symmetric(
-                                              horizontal: 18,
-                                              vertical: 14,
-                                            ),
+                                            onPressed:
+                                                _isLoading ? null : _saveQrCode,
                                           ),
-                                          onPressed: _isLoading
-                                              ? null
-                                              : _saveQrCode, // <-- Disable if loading
                                         ),
                                         if (_showUpdateSuccess)
                                           Padding(
-                                            padding: const EdgeInsets.only(
-                                              top: 10,
-                                            ),
+                                            padding:
+                                                const EdgeInsets.only(top: 10),
                                             child: Row(
                                               children: const [
                                                 Icon(
@@ -925,17 +1022,17 @@ class _GcashQrPageState extends State<GcashQrPage> {
                                                   'GCash QR updated',
                                                   style: TextStyle(
                                                     color: Colors.green,
-                                                    fontWeight: FontWeight.bold,
+                                                    fontWeight:
+                                                        FontWeight.bold,
                                                   ),
                                                 ),
                                               ],
                                             ),
                                           ),
-                                        if (_showNoChanges) // <-- Add this block
+                                        if (_showNoChanges)
                                           Padding(
-                                            padding: const EdgeInsets.only(
-                                              top: 10,
-                                            ),
+                                            padding:
+                                                const EdgeInsets.only(top: 10),
                                             child: Row(
                                               children: const [
                                                 Icon(
@@ -947,7 +1044,8 @@ class _GcashQrPageState extends State<GcashQrPage> {
                                                   'No changes to update.',
                                                   style: TextStyle(
                                                     color: Colors.orange,
-                                                    fontWeight: FontWeight.bold,
+                                                    fontWeight:
+                                                        FontWeight.bold,
                                                   ),
                                                 ),
                                               ],
@@ -956,13 +1054,10 @@ class _GcashQrPageState extends State<GcashQrPage> {
                                       ],
                                     ),
                                   ),
-                                  // Right: Display saved QR and name
                                   if (_savedQrImageUrl != null &&
                                       _savedQrName != null) ...[
                                     const SizedBox(width: 24),
                                     Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.center,
                                       children: [
                                         Text(
                                           _savedQrName!,
@@ -974,15 +1069,13 @@ class _GcashQrPageState extends State<GcashQrPage> {
                                         ),
                                         const SizedBox(height: 8),
                                         GestureDetector(
-                                          onTap: () {
-                                            _showImagePreview(
-                                              _savedQrImageUrl!,
-                                            );
-                                          },
+                                          onTap: () => _showImagePreview(
+                                            _savedQrImageUrl!,
+                                          ),
                                           child: _buildThumbImage(
                                             _savedQrImageUrl!,
-                                            width: 80,
-                                            height: 80,
+                                            width: 96,
+                                            height: 96,
                                           ),
                                         ),
                                       ],
@@ -993,7 +1086,6 @@ class _GcashQrPageState extends State<GcashQrPage> {
                       ),
                     ),
                     const SizedBox(height: 18),
-                    // Saved QRs
                     const Text(
                       'Payments collected via GCash',
                       style: TextStyle(
@@ -1023,8 +1115,7 @@ class _GcashQrPageState extends State<GcashQrPage> {
                         fontFamily: 'OpenSans',
                       ),
                     ),
-                    const SizedBox(height: 12),
-                    // --- Search Bar ---
+                    const SizedBox(height: 14),
                     TextField(
                       controller: _searchController,
                       inputFormatters: AppInputSecurity.singleLineFormatters(
@@ -1055,7 +1146,7 @@ class _GcashQrPageState extends State<GcashQrPage> {
                         });
                       },
                     ),
-                    const SizedBox(height: 12),
+                    const SizedBox(height: 14),
                     if (_qrRowsLoading)
                       const Padding(
                         padding: EdgeInsets.symmetric(vertical: 24),
@@ -1138,6 +1229,7 @@ class _GcashQrPageState extends State<GcashQrPage> {
                                 ),
                               ),
                               child: const Column(
+                                mainAxisSize: MainAxisSize.min,
                                 children: [
                                   Icon(
                                     Icons.qr_code_2_rounded,
@@ -1201,22 +1293,23 @@ class _GcashQrPageState extends State<GcashQrPage> {
                                           crossAxisAlignment:
                                               CrossAxisAlignment.start,
                                           children: [
-                                            row['image_url'] != null
-                                                ? GestureDetector(
-                                                    onTap: () {
-                                                      _showImagePreview(
-                                                        row['image_url']
-                                                            .toString(),
-                                                      );
-                                                    },
-                                                    child: _buildThumbImage(
-                                                      row['image_url']
-                                                          .toString(),
-                                                      width: double.infinity,
-                                                      height: 180,
-                                                    ),
-                                                  )
-                                                : const Text('No Image'),
+                                            if (row['image_url'] != null)
+                                              GestureDetector(
+                                                onTap: () {
+                                                  _showImagePreview(
+                                                    row['image_url']
+                                                        .toString(),
+                                                  );
+                                                },
+                                                child: _buildThumbImage(
+                                                  row['image_url']
+                                                      .toString(),
+                                                  width: double.infinity,
+                                                  height: 180,
+                                                ),
+                                              )
+                                            else
+                                              const SizedBox(),
                                             const SizedBox(height: 12),
                                             Text(
                                               row['uploaded_by_name']
@@ -1225,7 +1318,7 @@ class _GcashQrPageState extends State<GcashQrPage> {
                                                           .isNotEmpty ==
                                                       true
                                                   ? row['uploaded_by_name']
-                                                        .toString()
+                                                      .toString()
                                                   : 'Unknown uploader',
                                               style: const TextStyle(
                                                 fontWeight: FontWeight.w800,
@@ -1276,25 +1369,24 @@ class _GcashQrPageState extends State<GcashQrPage> {
                                           crossAxisAlignment:
                                               CrossAxisAlignment.start,
                                           children: [
-                                            // QR Image
-                                            row['image_url'] != null
-                                                ? GestureDetector(
-                                                    onTap: () {
-                                                      _showImagePreview(
-                                                        row['image_url']
-                                                            .toString(),
-                                                      );
-                                                    },
-                                                    child: _buildThumbImage(
-                                                      row['image_url']
-                                                          .toString(),
-                                                      width: 60,
-                                                      height: 60,
-                                                    ),
-                                                  )
-                                                : const Text('No Image'),
+                                            if (row['image_url'] != null)
+                                              GestureDetector(
+                                                onTap: () {
+                                                  _showImagePreview(
+                                                    row['image_url']
+                                                        .toString(),
+                                                  );
+                                                },
+                                                child: _buildThumbImage(
+                                                  row['image_url']
+                                                      .toString(),
+                                                  width: 60,
+                                                  height: 60,
+                                                ),
+                                              )
+                                            else
+                                              const SizedBox(),
                                             const SizedBox(width: 16),
-                                            // Details
                                             Expanded(
                                               child: Column(
                                                 crossAxisAlignment:
@@ -1307,7 +1399,7 @@ class _GcashQrPageState extends State<GcashQrPage> {
                                                                 .isNotEmpty ==
                                                             true
                                                         ? row['uploaded_by_name']
-                                                              .toString()
+                                                            .toString()
                                                         : 'Unknown uploader',
                                                     style: const TextStyle(
                                                       fontWeight:
@@ -1343,7 +1435,6 @@ class _GcashQrPageState extends State<GcashQrPage> {
                                                 ],
                                               ),
                                             ),
-                                            // Action
                                             if (row['already_paid'] == true)
                                               const Chip(
                                                 label: Text(

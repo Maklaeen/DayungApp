@@ -1,21 +1,17 @@
 import 'dart:convert';
-import 'package:capstone_app/Auth/logout.dart';
-import 'package:capstone_app/Beneficiary/beneficiary.dart';
 import 'package:capstone_app/Providers/dayung_provider.dart';
 import 'package:capstone_app/Providers/dayung_role_provider.dart';
 import 'package:capstone_app/Treasurer/collected.dart';
 import 'package:capstone_app/Treasurer/manage_fund.dart';
 import 'package:capstone_app/Treasurer/membership_page.dart';
+import 'package:capstone_app/Treasurer/paid_unpaid_members_page.dart';
 import 'package:capstone_app/Treasurer/treasclaims.dart';
 import 'package:capstone_app/Treasurer/treascontributions.dart';
-import 'package:capstone_app/Treasurer/treasurer_fund_confirmation_page.dart';
+import 'package:capstone_app/Treasurer/ledger_balance.dart';
 import 'package:capstone_app/Treasurer/treasurer_payment_page.dart';
 import 'package:capstone_app/Collector/gcash_qr_page.dart';
 import 'package:capstone_app/pages/notification.dart';
 import 'package:capstone_app/pages/recentdeathnotices.dart';
-import 'package:capstone_app/profile/profile.dart';
-import 'package:capstone_app/settings/profsettings.dart';
-import 'package:capstone_app/shared/collectors_manage_page.dart';
 import 'package:capstone_app/Treasurer/assign_collectors_page.dart';
 import 'package:capstone_app/shared/names_only_members_page.dart';
 import 'package:capstone_app/utils/theme_surface.dart';
@@ -666,9 +662,7 @@ class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
             Navigator.push(
               context,
               MaterialPageRoute(
-                builder: (_) => TreasurerFundConfirmationPage(
-                  dayungUnitId: _dayungUnitId!,
-                ),
+                builder: (_) => LedgerBalancePage(dayungUnitId: _dayungUnitId!),
               ),
             ).then((_) => _fetchAll());
           },
@@ -719,33 +713,23 @@ class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
         const SizedBox(height: 8),
         _buildModernActionCard(
           icon: Icons.verified_user_rounded,
-          title: 'Paid Members',
-          subtitle: 'View members who have paid',
+          title: 'Paid & Unpaid Members',
+          subtitle: 'View paid and unpaid member records in one place',
           color: const Color(0xFF10B981),
-          onTap: () async {
+          onTap: () {
             if (_dayungUnitId == null) {
               ScaffoldMessenger.of(context).showSnackBar(
                 const SnackBar(content: Text('Select a Dayung first')),
               );
               return;
             }
-            await _showMembersModal(paid: true);
-          },
-        ),
-        const SizedBox(height: 8),
-        _buildModernActionCard(
-          icon: Icons.pending_actions_rounded,
-          title: 'Unpaid Members',
-          subtitle: 'View members who haven\'t paid',
-          color: const Color(0xFFEF4444),
-          onTap: () async {
-            if (_dayungUnitId == null) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Select a Dayung first')),
-              );
-              return;
-            }
-            await _showMembersModal(paid: false);
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) =>
+                    PaidUnpaidMembersPage(dayungUnitId: _dayungUnitId!),
+              ),
+            );
           },
         ),
         const SizedBox(height: 8),
@@ -785,7 +769,8 @@ class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
             Navigator.push(
               context,
               MaterialPageRoute(
-                builder: (_) => AssignCollectorsPage(dayungUnitId: _dayungUnitId!),
+                builder: (_) =>
+                    AssignCollectorsPage(dayungUnitId: _dayungUnitId!),
               ),
             );
           },
@@ -1233,161 +1218,6 @@ class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
     );
   }
 
-  Widget _buildSideDrawer(BuildContext context) {
-    return Drawer(
-      backgroundColor: kBg,
-      child: Column(
-        children: [
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.fromLTRB(24, 48, 24, 32),
-            decoration: const BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [kPrimaryDark, kPrimary],
-              ),
-              borderRadius: BorderRadius.vertical(bottom: Radius.circular(32)),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                CircleAvatar(
-                  radius: 32,
-                  backgroundColor: kAccent.withValues(alpha: 0.15),
-                  child: Icon(Icons.person, size: 36, color: kAccent),
-                ),
-                const SizedBox(height: 16),
-                Text(
-                  _fullName,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 20,
-                    fontFamily: 'Montserrat',
-                  ),
-                ),
-                const SizedBox(height: 4),
-              ],
-            ),
-          ),
-          const SizedBox(height: 12),
-          Expanded(
-            child: ListView(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              children: [
-                _modernDrawerTile(
-                  icon: Icons.account_circle,
-                  label: 'Profile',
-                  onTap: () {
-                    Navigator.pop(context);
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(builder: (_) => const ProfilePage()),
-                    );
-                  },
-                ),
-                _modernDrawerTile(
-                  icon: Icons.people_rounded,
-                  label: 'Beneficiaries',
-                  onTap: () {
-                    Navigator.pop(context);
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => const BeneficiaryPage(),
-                      ),
-                    );
-                  },
-                ),
-                _modernDrawerTile(
-                  icon: Icons.notifications,
-                  label: 'Notifications',
-                  onTap: () async {
-                    Navigator.pop(context);
-                    await _openNotifications();
-                  },
-                ),
-                _modernDrawerTile(
-                  icon: Icons.settings,
-                  label: 'Settings',
-                  onTap: () {
-                    Navigator.pop(context);
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => const ProfSettingsPage(),
-                      ),
-                    );
-                  },
-                ),
-                const Divider(height: 32, thickness: 1, color: kSubText),
-                _modernDrawerTile(
-                  icon: Icons.logout,
-                  label: 'Logout',
-                  onTap: () async {
-                    Navigator.pop(context);
-                    await showLogoutDialog(context);
-                  },
-                ),
-              ],
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.only(bottom: 16, top: 8),
-            child: Text(
-              'v1.0.0',
-              style: TextStyle(
-                color: kSubText.withValues(alpha: 0.7),
-                fontSize: 13,
-                fontFamily: 'OpenSans',
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _modernDrawerTile({
-    required IconData icon,
-    required String label,
-    required VoidCallback onTap,
-  }) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        margin: const EdgeInsets.symmetric(vertical: 4),
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(16),
-          color: Colors.white,
-          border: Border.all(color: Colors.grey.shade200),
-        ),
-        child: Row(
-          children: [
-            Icon(icon, color: kPrimaryDark),
-            const SizedBox(width: 16),
-            Expanded(
-              child: Text(
-                label,
-                style: const TextStyle(
-                  fontSize: 15,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ),
-            const Icon(
-              Icons.arrow_forward_ios,
-              size: 16,
-              color: Color(0xFF6B7280),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
   Future<Object?> _fetchDayungCollectorId() async {
     if (_dayungUnitId == null) return null;
     try {
@@ -1408,7 +1238,9 @@ class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
     if (currentUserId == null) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Unable to mark payment: no logged-in user.')),
+          const SnackBar(
+            content: Text('Unable to mark payment: no logged-in user.'),
+          ),
         );
       }
       return false;
@@ -1416,12 +1248,15 @@ class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
 
     try {
       final now = DateTime.now().toUtc().toIso8601String();
-      await sb.from('payments').update({
-        'status': 'paid',
-        'collected_by': currentUserId,
-        'paid_at': now,
-        'datepaidamount': now,
-      }).eq('id', paymentId);
+      await sb
+          .from('payments')
+          .update({
+            'status': 'paid',
+            'collected_by': currentUserId,
+            'paid_at': now,
+            'datepaidamount': now,
+          })
+          .eq('id', paymentId);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Payment marked as paid.')),
@@ -1430,9 +1265,9 @@ class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
       return true;
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to update payment: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Failed to update payment: $e')));
       }
       return false;
     }
@@ -1470,7 +1305,9 @@ class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
           .inFilter('status', statuses)
           .order('created_at', ascending: false);
 
-      final paymentRows = List<Map<String, dynamic>>.from(rows as List<dynamic>);
+      final paymentRows = List<Map<String, dynamic>>.from(
+        rows as List<dynamic>,
+      );
       for (final row in paymentRows) {
         final userId = '${row['user_id'] ?? ''}';
         if (userId.isEmpty) continue;
@@ -1581,8 +1418,8 @@ class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
                                 child: Text(
                                   members.isEmpty
                                       ? paid
-                                          ? 'No paid members found.'
-                                          : 'No unpaid members found.'
+                                            ? 'No paid members found.'
+                                            : 'No unpaid members found.'
                                       : 'No matching members found.',
                                   style: const TextStyle(
                                     color: Color(0xFF6B7280),
@@ -1601,9 +1438,11 @@ class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
                                     const Divider(height: 0),
                                 itemBuilder: (_, index) {
                                   final entry = filteredMembers[index];
-                                  final paymentId = entry['id']?.toString() ?? '';
-                                  final isProcessing =
-                                      processingIds.contains(paymentId);
+                                  final paymentId =
+                                      entry['id']?.toString() ?? '';
+                                  final isProcessing = processingIds.contains(
+                                    paymentId,
+                                  );
                                   return ListTile(
                                     contentPadding: EdgeInsets.zero,
                                     title: Text(entry['name'] ?? 'Member'),
@@ -1628,35 +1467,40 @@ class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
                                             color: Color(0xFF10B981),
                                           )
                                         : ElevatedButton(
-                                            onPressed: paymentId.isEmpty ||
+                                            onPressed:
+                                                paymentId.isEmpty ||
                                                     isProcessing
                                                 ? null
                                                 : () async {
                                                     modalSetState(() {
-                                                      processingIds
-                                                          .add(paymentId);
+                                                      processingIds.add(
+                                                        paymentId,
+                                                      );
                                                     });
                                                     final success =
                                                         await _markPaymentAsPaid(
-                                                            paymentId);
+                                                          paymentId,
+                                                        );
                                                     modalSetState(() {
-                                                      processingIds
-                                                          .remove(paymentId);
+                                                      processingIds.remove(
+                                                        paymentId,
+                                                      );
                                                     });
                                                     if (success) {
                                                       updated = true;
                                                       modalSetState(() {
                                                         members.removeWhere(
-                                                            (item) =>
-                                                                item['id']
-                                                                    .toString() ==
-                                                                paymentId);
-                                                        filteredMembers
-                                                            .removeWhere(
-                                                                (item) =>
-                                                                    item['id']
-                                                                        .toString() ==
-                                                                    paymentId);
+                                                          (item) =>
+                                                              item['id']
+                                                                  .toString() ==
+                                                              paymentId,
+                                                        );
+                                                        filteredMembers.removeWhere(
+                                                          (item) =>
+                                                              item['id']
+                                                                  .toString() ==
+                                                              paymentId,
+                                                        );
                                                       });
                                                     }
                                                   },
@@ -1664,12 +1508,12 @@ class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
                                                 ? const SizedBox(
                                                     width: 18,
                                                     height: 18,
-                                                    child:
-                                                        CircularProgressIndicator(
+                                                    child: CircularProgressIndicator(
                                                       strokeWidth: 2,
                                                       valueColor:
                                                           AlwaysStoppedAnimation(
-                                                              Colors.white),
+                                                            Colors.white,
+                                                          ),
                                                     ),
                                                   )
                                                 : const Text('Mark Paid'),
@@ -2074,62 +1918,85 @@ class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
   Widget build(BuildContext context) {
     final width = MediaQuery.of(context).size.width;
     final wide = width > 820;
-    // final provUnit = context.watch<DayungRoleProvider>().unitId;
-    // if (provUnit != _lastRoleUnitId) {
-    //   WidgetsBinding.instance.addPostFrameCallback((_) {
-    //     _maybeOnProviderUnitChanged(provUnit);
-    //   });
-    // }
+    final bool isDesktop = width > 1024;
+    final provUnit = context.watch<DayungRoleProvider>().unitId;
+    if (provUnit != _lastRoleUnitId) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        _maybeOnProviderUnitChanged(provUnit);
+      });
+    }
 
-    return Scaffold(
-      backgroundColor: dayungPageBackground(context),
-      drawer: _buildSideDrawer(context),
-      body: Container(
-        decoration: BoxDecoration(gradient: dayungDashboardGradient(context)),
-        child: Stack(
-          children: [
-            SafeArea(
-              child: Column(
-                children: [_buildModernHeader(), _buildContentArea(wide)],
+    if (isDesktop) {
+      return Material(
+        child: Container(
+          decoration: BoxDecoration(gradient: dayungDashboardGradient(context)),
+          child: Stack(
+            children: [
+              SafeArea(
+                child: Column(
+                  children: [
+                    _buildModernHeader(showMenuButton: false),
+                    _buildContentArea(wide),
+                  ],
+                ),
               ),
-            ),
-            _buildFloatingNavBar(wide),
-          ],
+              _buildFloatingNavBar(wide),
+            ],
+          ),
         ),
+      );
+    }
+
+    return Container(
+      decoration: BoxDecoration(gradient: dayungDashboardGradient(context)),
+      child: Stack(
+        children: [
+          SafeArea(
+            child: Column(
+              children: [
+                _buildModernHeader(showMenuButton: true),
+                _buildContentArea(wide),
+              ],
+            ),
+          ),
+          _buildFloatingNavBar(wide),
+        ],
       ),
     );
   }
 
   /* ------------------------------- UI parts ------------------------------- */
 
-  Widget _buildModernHeader() {
+  Widget _buildModernHeader({bool showMenuButton = false}) {
     return Container(
       padding: const EdgeInsets.fromLTRB(20, 20, 20, 40),
       child: Column(
         children: [
           Row(
             children: [
-              Builder(
-                builder: (context) => Container(
-                  padding: const EdgeInsets.all(1),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF1E40AF).withValues(alpha: 0.8),
-                    borderRadius: BorderRadius.circular(16),
-                    boxShadow: [
-                      BoxShadow(
-                        color: const Color(0xFF1E40AF).withValues(alpha: 0.3),
-                        blurRadius: 8,
-                        offset: const Offset(0, 2),
-                      ),
-                    ],
-                  ),
-                  child: IconButton(
-                    icon: const Icon(Icons.menu_rounded, color: Colors.white),
-                    onPressed: () => Scaffold.of(context).openDrawer(),
+              if (showMenuButton)
+                Builder(
+                  builder: (context) => Container(
+                    padding: const EdgeInsets.all(1),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.2),
+                      borderRadius: BorderRadius.circular(16),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.1),
+                          blurRadius: 8,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
+                    ),
+                    child: IconButton(
+                      icon: const Icon(Icons.menu_rounded, color: Colors.white),
+                      onPressed: () => Scaffold.of(context).openDrawer(),
+                    ),
                   ),
                 ),
-              ),
-              const SizedBox(width: 16),
+              if (showMenuButton) const SizedBox(width: 16),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -2419,11 +2286,11 @@ class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
         color: const Color(0xFFEF4444),
         onTap: () => _openNamesOnlyMembersPage('Removed Members', ['removed']),
       ),
-      _buildStatCard(
-        title: 'Today’s Deceased',
-        value: _loading ? '—' : '$_todayDeceased',
-        color: const Color(0xFF8B5CF6),
-      ),
+      // _buildStatCard(
+      //   title: 'Today’s Deceased',
+      //   value: _loading ? '—' : '$_todayDeceased',
+      //   color: const Color(0xFF8B5CF6),
+      // ),
       _buildStatCard(
         title: 'Current Funds',
         value: _loading ? '—' : '₱${_currentFunds.toStringAsFixed(0)}',
