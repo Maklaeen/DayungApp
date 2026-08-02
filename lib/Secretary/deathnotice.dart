@@ -1284,15 +1284,14 @@ Future<void> savePayment(Map<String, dynamic> paymentData) async {
 
   final userId = paymentData['user_id'];
   final userDeceasedId = paymentData['userdeceased'];
-  final datePaidAmount = paymentData['datepaidamount'];
 
-  // Bilangin lahat ng payments na mas maaga o equal ang datepaidamount
+  
   final existing = await supabase
       .from('payments')
       .select('id')
       .eq('user_id', userId)
       .eq('userdeceased', userDeceasedId)
-      .lte('datepaidamount', datePaidAmount);
+      .order('created_at', ascending: true);
 
   final paymentNumber = (existing as List).length + 1;
 

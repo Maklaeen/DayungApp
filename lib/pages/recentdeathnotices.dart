@@ -50,22 +50,12 @@ class _RecentDeathNoticesState extends State<RecentDeathNotices> {
         final roleProv = context.read<DayungRoleProvider>();
         final unitProv = context.read<DayungUnitProvider>();
         int? fallback = roleProv.unitId ?? unitProv.currentUnitId;
-        if (fallback == null) {
-          fallback = await roleProv.ensureOfficerUnitSelection();
-          if (fallback != null) {
-            unitProv.setDayungUnit('Dayung', obj: {'id': fallback});
-          }
-        }
         if (!mounted) return;
-        if (fallback != null) {
-          navigator.pushReplacement(
-            MaterialPageRoute(
-              builder: (_) => RecentDeathNotices(dayungUnitId: fallback),
-            ),
-          );
-        } else {
-          setState(() => _loading = false);
-        }
+        navigator.pushReplacement(
+          MaterialPageRoute(
+            builder: (_) => RecentDeathNotices(dayungUnitId: fallback),
+          ),
+        );
       });
       return;
     }
@@ -94,15 +84,17 @@ class _RecentDeathNoticesState extends State<RecentDeathNotices> {
     }).toList();
 
     filtered.sort((a, b) {
-      final ad = (a['date_of_death'] ?? '').toString();
-      final bd = (b['date_of_death'] ?? '').toString();
+      final ad = (a['datesetamount'] ?? '').toString();
+      final bd = (b['datesetamount'] ?? '').toString();
       return bd.compareTo(ad); // desc
     });
 
-    final members = filtered
+    final recentClaims = filtered.take(5).toList();
+
+    final members = recentClaims
         .where((r) => (r['deceased_type'] ?? 'member') == 'member')
         .toList();
-    final beneficiaries = filtered
+    final beneficiaries = recentClaims
         .where((r) => r['deceased_type'] == 'beneficiary')
         .toList();
 
@@ -192,10 +184,12 @@ class _RecentDeathNoticesState extends State<RecentDeathNotices> {
       final response = await Supabase.instance.client
           .from('claims')
           .select(
-            'id, PassedAway, date_of_death, vigil_barangay, dayung_unit_id, deceased_type, dob, deceased_age, user_id, beneficiary_id, status, title, vigil_address, vigil_latitude, vigil_longitude, death_certificate_url, valid_ids_url, amount, paid_count, unpaid_count, total_paid_amount, total_payment_amount',
+            'id, PassedAway, date_of_death, datesetamount, vigil_barangay, dayung_unit_id, deceased_type, dob, deceased_age, user_id, beneficiary_id, status, title, vigil_address, vigil_latitude, vigil_longitude, death_certificate_url, valid_ids_url, amount, paid_count, unpaid_count, total_paid_amount, total_payment_amount',
           )
           .eq('dayung_unit_id', widget.dayungUnitId as Object)
-          .order('date_of_death', ascending: false);
+          .ilike('status', 'approved')
+          .order('datesetamount', ascending: false)
+          .limit(5);
 
       await _applySplit(List<Map<String, dynamic>>.from(response as List));
     } catch (_) {
@@ -666,7 +660,8 @@ class _RecentDeathNoticesState extends State<RecentDeathNotices> {
         itemBuilder: (context, index) {
           final notice = items[index];
           // Show real name for all users, both members and beneficiaries
-         String name = (notice['full_name'] ?? notice['PassedAway'] ?? '').toString();
+          String name = (notice['full_name'] ?? notice['PassedAway'] ?? '')
+              .toString();
           final dod = (notice['date_of_death'] ?? '').toString();
           final barangay =
               notice['vigil_barangay']?.toString() ??

@@ -11,8 +11,8 @@ void main() {
       ];
 
       final membershipFeePayments = [
-        {'user_id': 'user-1', 'status': 'paid', 'type': 'membership fee'},
-        {'user_id': 'user-2', 'status': 'unpaid', 'type': 'membership fee'},
+        {'user_id': 'user-1', 'status': 'paid', 'type': 'membership_payment'},
+        {'user_id': 'user-2', 'status': 'unpaid', 'type': 'membership_payment'},
       ];
 
       final recipients = filterPaymentRecipientsForDeceasedClaim(
@@ -24,4 +24,41 @@ void main() {
       expect(recipients.map((recipient) => recipient['user_id']), ['user-1']);
     });
   });
+
+  test(
+    'sums only paid payments collected by the treasurer for the deceased',
+    () {
+      final total = calculateTreasurerCollectedAmount(
+        userDeceased: 'deceased-1',
+        paymentRows: [
+          {
+            'userdeceased': 'deceased-1',
+            'status': 'paid',
+            'iscollectedbytreasurer': true,
+            'amount': 100,
+          },
+          {
+            'userdeceased': 'deceased-1',
+            'status': 'unpaid',
+            'iscollectedbytreasurer': true,
+            'amount': 200,
+          },
+          {
+            'userdeceased': 'deceased-1',
+            'status': 'paid',
+            'iscollectedbytreasurer': false,
+            'amount': 300,
+          },
+          {
+            'userdeceased': 'deceased-2',
+            'status': 'paid',
+            'iscollectedbytreasurer': true,
+            'amount': 400,
+          },
+        ],
+      );
+
+      expect(total, 100);
+    },
+  );
 }

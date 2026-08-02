@@ -326,14 +326,14 @@ class _RegisterState extends State<Register> {
 
       final List<String> addressVariants = [
         [
-          if (cleanBarangay != null && cleanBarangay.isNotEmpty) cleanBarangay,
-          if (cleanCity != null && cleanCity.isNotEmpty) cleanCity,
-          if (cleanProvince != null && cleanProvince.isNotEmpty) cleanProvince,
+          if (cleanBarangay!.isNotEmpty) cleanBarangay,
+          if (cleanCity!.isNotEmpty) cleanCity,
+          if (cleanProvince!.isNotEmpty) cleanProvince,
           'Philippines',
         ].join(', '),
         [
-          if (cleanCity != null && cleanCity.isNotEmpty) cleanCity,
-          if (cleanProvince != null && cleanProvince.isNotEmpty) cleanProvince,
+          if (cleanCity.isNotEmpty) cleanCity,
+          if (cleanProvince.isNotEmpty) cleanProvince,
           'Philippines',
         ].join(', '),
       ];

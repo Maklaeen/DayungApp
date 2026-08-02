@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:capstone_app/Auth/logout.dart';
 import 'package:capstone_app/Beneficiary/beneficiary.dart';
+import 'package:capstone_app/pages/membership_agreement_page.dart';
 import 'package:capstone_app/pages/notification.dart';
 import 'package:capstone_app/profile/profile.dart';
 import 'package:capstone_app/settings/profsettings.dart';
@@ -142,6 +143,11 @@ class _GlobalSidebarWrapperState extends State<GlobalSidebarWrapper> {
           onBack: () => _navigate('dashboard'),
           showBackButton: !isDesktop,
         );
+      case 'membershipAgreement':
+        return MembershipAgreementPage(
+          onBack: () => _navigate('dashboard'),
+          showBackButton: !isDesktop,
+        );
       case 'dashboard':
       default:
         return widget.dashboard;
@@ -189,6 +195,8 @@ class _GlobalSidebarWrapperState extends State<GlobalSidebarWrapper> {
                       _fetchUnreadNotifCount();
                     },
                     onSettingsTap: () => _navigate('settings'),
+                    onMembershipAgreementTap: () =>
+                        _navigate('membershipAgreement'),
                     onLogoutTap: () => showLogoutDialog(context),
                   ),
                 ),
@@ -347,6 +355,17 @@ class _GlobalSidebarWrapperState extends State<GlobalSidebarWrapper> {
                             _navigate('settings');
                           },
                         ),
+                        const SizedBox(height: 8),
+                        _SidebarButton(
+                          icon: Icons.description_rounded,
+                          label: 'Membership Agreement',
+                          color: const Color(0xFF2563EB),
+                          selected: _currentPage == 'membershipAgreement',
+                          onTap: () {
+                            Navigator.pop(context);
+                            _navigate('membershipAgreement');
+                          },
+                        ),
                         const SizedBox(height: 16),
                         Container(height: 1, color: dayungBorder(context)),
                         const SizedBox(height: 16),
@@ -384,6 +403,7 @@ class DashboardSidebar extends StatelessWidget {
   final VoidCallback onBeneficiariesTap;
   final VoidCallback onNotificationsTap;
   final VoidCallback onSettingsTap;
+  final VoidCallback onMembershipAgreementTap;
   final VoidCallback onLogoutTap;
 
   const DashboardSidebar({
@@ -398,6 +418,7 @@ class DashboardSidebar extends StatelessWidget {
     required this.onBeneficiariesTap,
     required this.onNotificationsTap,
     required this.onSettingsTap,
+    required this.onMembershipAgreementTap,
     required this.onLogoutTap,
   });
 
@@ -522,6 +543,14 @@ class DashboardSidebar extends StatelessWidget {
                           color: const Color(0xFF6B7280),
                           selected: currentPage == 'settings',
                           onTap: onSettingsTap,
+                        ),
+                        const SizedBox(height: 8),
+                        _SidebarButton(
+                          icon: Icons.description_rounded,
+                          label: 'Membership Agreement',
+                          color: const Color(0xFF2563EB),
+                          selected: currentPage == 'membershipAgreement',
+                          onTap: onMembershipAgreementTap,
                         ),
                         const SizedBox(height: 16),
                         Container(height: 1, color: dayungBorder(context)),

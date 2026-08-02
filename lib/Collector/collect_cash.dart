@@ -190,7 +190,10 @@ class _CollectCashPageState extends State<CollectCashPage> {
           .eq('dayung_unit_id', widget.dayungUnitId)
           .eq('status', 'approved');
       if (collectorId.isNotEmpty) {
-        applicationsQuery = applicationsQuery.eq('assigned_collector', collectorId);
+        applicationsQuery = applicationsQuery.eq(
+          'assigned_collector',
+          collectorId,
+        );
       }
 
       final results = await Future.wait([
@@ -200,7 +203,7 @@ class _CollectCashPageState extends State<CollectCashPage> {
             .from('payments')
             .select(
               'id, user_id, amount, status, paid_at, created_at, collected_by, '
-              'datepaidamount, userdeceased, dayung_unit_id, type',
+              'userdeceased, dayung_unit_id, type',
             )
             .eq('dayung_unit_id', widget.dayungUnitId)
             .timeout(_queryTimeout),
@@ -225,7 +228,7 @@ class _CollectCashPageState extends State<CollectCashPage> {
       // `assigned_collector` are not visible to other collectors.
       if (collectorId.isNotEmpty) {
         _assignedMemberIds = {
-          for (final row in approvedApps) (row['user_id'] ?? '').toString()
+          for (final row in approvedApps) (row['user_id'] ?? '').toString(),
         }..remove('');
       }
 
@@ -292,16 +295,23 @@ class _CollectCashPageState extends State<CollectCashPage> {
       // Ensure every approved claim produces a deceased option even when
       // there are no death notices or payments referencing `userdeceased`.
       // This guarantees the UI shows the full name for the claim's user_id.
-      final existingKeys = {for (final o in deceasedOptions) (o['key'] ?? '').toString()};
+      final existingKeys = {
+        for (final o in deceasedOptions) (o['key'] ?? '').toString(),
+      };
       for (final claim in claims) {
         final beneficiaryId = (claim['beneficiary_id'] ?? '').toString();
         final userId = (claim['user_id'] ?? '').toString();
-        final key = beneficiaryId.isNotEmpty ? 'beneficiary:$beneficiaryId' : 'user:$userId';
+        final key = beneficiaryId.isNotEmpty
+            ? 'beneficiary:$beneficiaryId'
+            : 'user:$userId';
         if (key == 'user:' || existingKeys.contains(key)) continue;
 
         final displayName = beneficiaryId.isNotEmpty
             ? _beneficiaryLabel(beneficiaries, beneficiaryId)
-            : (userMap[userId] ?? (claim['PassedAway'] ?? claim['passed_away'] ?? 'Deceased Member'));
+            : (userMap[userId] ??
+                  (claim['PassedAway'] ??
+                      claim['passed_away'] ??
+                      'Deceased Member'));
 
         deceasedOptions.add({
           'id': claim['id'],
@@ -317,7 +327,11 @@ class _CollectCashPageState extends State<CollectCashPage> {
         existingKeys.add(key);
       }
 
-      deceasedOptions.sort((a, b) => (a['display_name'] ?? '').toString().toLowerCase().compareTo((b['display_name'] ?? '').toString().toLowerCase()));
+      deceasedOptions.sort(
+        (a, b) => (a['display_name'] ?? '').toString().toLowerCase().compareTo(
+          (b['display_name'] ?? '').toString().toLowerCase(),
+        ),
+      );
 
       Map<String, dynamic>? nextSelected;
       final selectedKey = (_selectedDeceased?['key'] ?? '').toString();
@@ -353,7 +367,9 @@ class _CollectCashPageState extends State<CollectCashPage> {
     List<Map<String, dynamic>> deceasedOptions,
   ) {
     final selectedUserId =
-        (_selectedDeceased?['user_id'] ?? widget.preselectedDeceasedUserId ?? '')
+        (_selectedDeceased?['user_id'] ??
+                widget.preselectedDeceasedUserId ??
+                '')
             .toString();
     if (selectedUserId.isEmpty) return null;
 
@@ -697,7 +713,6 @@ class _CollectCashPageState extends State<CollectCashPage> {
             'status': 'paid',
             'paid_at': now,
             'collected_by': collectorId,
-            'datepaidamount': now,
           })
           .eq('id', payment['id'])
           .timeout(_queryTimeout);
@@ -969,19 +984,23 @@ class _CollectCashPageState extends State<CollectCashPage> {
                             child: CircularProgressIndicator(color: kAccent),
                           )
                         : _error != null
-                            ? _buildErrorState()
-                            : RefreshIndicator(
-                                color: kAccent,
-                                onRefresh: _loadAll,
-                                child: ListView(
-                                  physics: const AlwaysScrollableScrollPhysics(),
-                                  padding:
-                                      const EdgeInsets.fromLTRB(20, 20, 20, 24),
-                                  children: _hasSelectedDeceased
-                                      ? _buildMemberStep()
-                                      : _buildDeceasedStep(),
-                                ),
+                        ? _buildErrorState()
+                        : RefreshIndicator(
+                            color: kAccent,
+                            onRefresh: _loadAll,
+                            child: ListView(
+                              physics: const AlwaysScrollableScrollPhysics(),
+                              padding: const EdgeInsets.fromLTRB(
+                                20,
+                                20,
+                                20,
+                                24,
                               ),
+                              children: _hasSelectedDeceased
+                                  ? _buildMemberStep()
+                                  : _buildDeceasedStep(),
+                            ),
+                          ),
                   ),
                 ),
               ),
@@ -993,27 +1012,28 @@ class _CollectCashPageState extends State<CollectCashPage> {
   }
 
   List<Widget> _buildDeceasedStep() {
-    final approvedClaims = _claims
-        .where(
-          (c) => (c['status'] ?? '').toString().toLowerCase() == 'approved',
-        )
-        .toList()
-      ..sort((a, b) {
-        final aClaimed = _isClaimedMoney(a['claimedmoney']);
-        final bClaimed = _isClaimedMoney(b['claimedmoney']);
-        if (aClaimed != bClaimed) return aClaimed ? 1 : -1;
+    final approvedClaims =
+        _claims
+            .where(
+              (c) => (c['status'] ?? '').toString().toLowerCase() == 'approved',
+            )
+            .toList()
+          ..sort((a, b) {
+            final aClaimed = _isClaimedMoney(a['claimedmoney']);
+            final bClaimed = _isClaimedMoney(b['claimedmoney']);
+            if (aClaimed != bClaimed) return aClaimed ? 1 : -1;
 
-        final aDate = DateTime.tryParse(
-          (a['datesetamount'] ?? '').toString(),
-        );
-        final bDate = DateTime.tryParse(
-          (b['datesetamount'] ?? '').toString(),
-        );
-        if (aDate == null && bDate == null) return 0;
-        if (aDate == null) return 1;
-        if (bDate == null) return -1;
-        return bDate.compareTo(aDate);
-      });
+            final aDate = DateTime.tryParse(
+              (a['datesetamount'] ?? '').toString(),
+            );
+            final bDate = DateTime.tryParse(
+              (b['datesetamount'] ?? '').toString(),
+            );
+            if (aDate == null && bDate == null) return 0;
+            if (aDate == null) return 1;
+            if (bDate == null) return -1;
+            return bDate.compareTo(aDate);
+          });
 
     // Show approved claims regardless of whether any payments currently
     // reference their `user_id`. Collectors will still see only assigned
@@ -1074,7 +1094,9 @@ class _CollectCashPageState extends State<CollectCashPage> {
     final isClaimed = _isClaimedMoney(claim['claimedmoney']);
     final beneficiaryId = (claim['beneficiary_id'] ?? '').toString();
     final userId = (claim['user_id'] ?? '').toString();
-    final key = beneficiaryId.isNotEmpty ? 'beneficiary:$beneficiaryId' : 'user:$userId';
+    final key = beneficiaryId.isNotEmpty
+        ? 'beneficiary:$beneficiaryId'
+        : 'user:$userId';
     String displayName = '';
     try {
       final opt = _deceasedOptions.firstWhere(
@@ -1120,7 +1142,9 @@ class _CollectCashPageState extends State<CollectCashPage> {
                     child: Text(
                       (claim['beneficiary_id'] ?? '').toString().isNotEmpty
                           ? 'Claim for ${_beneficiaryLabel([], (claim['beneficiary_id'] ?? '').toString())}'
-                          : (displayName.isNotEmpty ? displayName : _memberName(userId)),
+                          : (displayName.isNotEmpty
+                                ? displayName
+                                : _memberName(userId)),
                       style: const TextStyle(
                         fontSize: 16,
                         color: kText,
@@ -1153,7 +1177,7 @@ class _CollectCashPageState extends State<CollectCashPage> {
                   ],
                 ],
               ),
-             
+
               const SizedBox(height: 4),
               Text(
                 'Amount: PHP ${_asDouble(claim['amount']).toStringAsFixed(2)}',
@@ -1726,10 +1750,12 @@ class _CollectCashPageState extends State<CollectCashPage> {
                         isPaid
                             ? 'Payment already marked as paid.'
                             : (payment != null &&
-                                    (payment['type'] ?? '').toString().toLowerCase() ==
-                                        'deceased_payment'
-                                ? 'Ready for cash collection and receipt generation. User ID: ${payment['user_id'] ?? ''}'
-                                : 'Ready for cash collection and receipt generation.'),
+                                      (payment['type'] ?? '')
+                                              .toString()
+                                              .toLowerCase() ==
+                                          'deceased_payment'
+                                  ? 'Ready for cash collection and receipt generation. User ID: ${payment['user_id'] ?? ''}'
+                                  : 'Ready for cash collection and receipt generation.'),
                         style: const TextStyle(
                           fontSize: 13,
                           color: kSubText,

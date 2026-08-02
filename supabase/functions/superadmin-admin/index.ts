@@ -580,7 +580,10 @@ Deno.serve(async (req) => {
 
     const requester = authCheck.user!;
     const body = await req.json().catch(() => ({}));
-    const action = sanitizeText(body.action, 60).toLowerCase();
+    const action = sanitizeText(body.action, 60)
+      .toLowerCase()
+      .replace(/^\/?superadmin\//, '')
+      .replace(/-/g, '_');
 
     switch (action) {
       case 'list_users': {
@@ -788,6 +791,153 @@ Deno.serve(async (req) => {
         );
 
         return json(200, { success: true, disabled });
+      }
+
+      case 'assign_unit_role': {
+        const dayungUnitId = Number(body.dayung_unit_id);
+        const userId = sanitizeText(body.user_id, 80);
+        const role = sanitizeText(body.role, 40).toLowerCase();
+        const roleColumns: Record<string, string> = {
+          president: 'president_id',
+          secretary: 'secretary_id',
+          treasurer: 'treasurer_id',
+        };
+
+        if (!Number.isInteger(dayungUnitId) || dayungUnitId <= 0 || !userId) {
+          return json(400, { error: 'Invalid role assignment data' });
+        }
+        if (!['president', 'secretary', 'treasurer', 'collector'].includes(role)) {
+          return json(400, { error: 'Invalid officer role' });
+        }
+
+        const targetUser = await getPublicUserById(adminClient, userId);
+        if (!targetUser) {
+          return json(404, { error: 'User not found' });
+        }
+
+        if (role === 'collector') {
+          const { error: deleteError } = await adminClient
+            .from('dayung_collectors')
+            .delete()
+            .eq('dayung_unit_id', dayungUnitId)
+            .eq('user_id', userId);
+          if (deleteError) {
+            return json(400, { error: deleteError.message || 'Failed to assign collector' });
+          }
+
+          const { data: latestCollector, error: collectorIdError } = await adminClient
+            .from('dayung_collectors')
+            .select('collectors_id')
+            .order('collectors_id', { ascending: false })
+            .limit(1)
+            .maybeSingle();
+          if (collectorIdError) {
+            return json(400, { error: collectorIdError.message || 'Failed to assign collector' });
+          }
+
+          const latestCollectorId = Number(latestCollector?.collectors_id || 0);
+
+          const { error: insertError } = await adminClient.from('dayung_collectors').insert({
+            collectors_id: Number.isInteger(latestCollectorId) ? latestCollectorId + 1 : 1,
+            dayung_unit_id: dayungUnitId,
+            user_id: userId,
+            added_by: requester.id,
+            created_at: new Date().toISOString(),
+          });
+          if (insertError) {
+            return json(400, { error: insertError.message || 'Failed to assign collector' });
+          }
+
+          await insertAuditLog(adminClient, requester.id, 'UNIT_ROLE_ASSIGNED', {
+            role,
+            unit: `unit ${dayungUnitId}`,
+            target: targetUser.email || userId,
+          });
+          return json(200, { success: true });
+        }
+
+        const { data: updatedUnit, error } = await adminClient
+          .from('dayung_units')
+          .update({ [roleColumns[role]]: userId })
+          .eq('id', dayungUnitId)
+          .select('id, name, president_id, secretary_id, treasurer_id')
+          .maybeSingle();
+
+        if (error) {
+          return json(400, { error: error.message || 'Failed to assign role' });
+        }
+        if (!updatedUnit) {
+          return json(404, { error: 'Dayung unit not found or was not updated' });
+        }
+
+        await insertAuditLog(adminClient, requester.id, 'UNIT_ROLE_ASSIGNED', {
+          role,
+          unit: updatedUnit.name || `unit ${dayungUnitId}`,
+          target: targetUser.email || userId,
+        });
+
+        return json(200, { success: true, unit: updatedUnit });
+      }
+
+      case 'remove_unit_role': {
+        const dayungUnitId = Number(body.dayung_unit_id);
+        const role = sanitizeText(body.role, 40).toLowerCase();
+        const userId = sanitizeText(body.user_id, 80);
+        const roleColumns: Record<string, string> = {
+          president: 'president_id',
+          secretary: 'secretary_id',
+          treasurer: 'treasurer_id',
+        };
+
+        if (!Number.isInteger(dayungUnitId) || dayungUnitId <= 0) {
+          return json(400, { error: 'Invalid dayung_unit_id' });
+        }
+        if (!['president', 'secretary', 'treasurer', 'collector'].includes(role)) {
+          return json(400, { error: 'Invalid officer role' });
+        }
+
+        if (role === 'collector') {
+          if (!userId) {
+            return json(400, { error: 'Collector removal requires user_id' });
+          }
+          const { error } = await adminClient
+            .from('dayung_collectors')
+            .delete()
+            .eq('dayung_unit_id', dayungUnitId)
+            .eq('user_id', userId);
+          if (error) {
+            return json(400, { error: error.message || 'Failed to remove collector' });
+          }
+
+          await insertAuditLog(adminClient, requester.id, 'UNIT_ROLE_REMOVED', {
+            role,
+            unit: `unit ${dayungUnitId}`,
+            target: userId,
+          });
+          return json(200, { success: true });
+        }
+
+        const { data: updatedUnit, error } = await adminClient
+          .from('dayung_units')
+          .update({ [roleColumns[role]]: null })
+          .eq('id', dayungUnitId)
+          .select('id, name, president_id, secretary_id, treasurer_id')
+          .maybeSingle();
+
+        if (error) {
+          return json(400, { error: error.message || 'Failed to remove role' });
+        }
+        if (!updatedUnit) {
+          return json(404, { error: 'Dayung unit not found or was not updated' });
+        }
+
+        await insertAuditLog(adminClient, requester.id, 'UNIT_ROLE_REMOVED', {
+          role,
+          unit: updatedUnit.name || `unit ${dayungUnitId}`,
+          target: 'unassigned',
+        });
+
+        return json(200, { success: true, unit: updatedUnit });
       }
 
       case 'get_reports': {

@@ -1023,9 +1023,25 @@ app.post(
           .eq('dayung_unit_id', dayungUnitId)
           .eq('user_id', userId);
 
+        const { data: latestCollector, error: collectorIdError } = await supabase
+          .from('dayung_collectors')
+          .select('collectors_id')
+          .order('collectors_id', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        if (collectorIdError) {
+          throw collectorIdError;
+        }
+
+        const latestCollectorId = Number(latestCollector?.collectors_id || 0);
+
         const { error } = await supabase.from('dayung_collectors').insert({
+          collectors_id: Number.isInteger(latestCollectorId) ? latestCollectorId + 1 : 1,
           dayung_unit_id: dayungUnitId,
           user_id: userId,
+          added_by: req.user.id,
+          created_at: new Date().toISOString(),
         });
 
         if (error) {
@@ -1034,14 +1050,19 @@ app.post(
         }
       } else {
         const column = UNIT_ROLE_COLUMNS[role];
-        const { error } = await supabase
+        const { data: updatedUnit, error } = await supabase
           .from('dayung_units')
           .update({ [column]: userId })
-          .eq('id', dayungUnitId);
+          .eq('id', dayungUnitId)
+          .select('id, name, president_id, secretary_id, treasurer_id')
+          .maybeSingle();
 
         if (error) {
           console.error('Failed to assign unit role', error);
           return res.status(400).json({ error: error.message || 'Failed to assign role' });
+        }
+        if (!updatedUnit) {
+          return res.status(404).json({ error: 'Dayung unit not found or was not updated' });
         }
       }
 
@@ -1108,14 +1129,19 @@ app.post(
         }
       } else {
         const column = UNIT_ROLE_COLUMNS[role];
-        const { error } = await supabase
+        const { data: updatedUnit, error } = await supabase
           .from('dayung_units')
           .update({ [column]: null })
-          .eq('id', dayungUnitId);
+          .eq('id', dayungUnitId)
+          .select('id, name, president_id, secretary_id, treasurer_id')
+          .maybeSingle();
 
         if (error) {
           console.error('Failed to remove unit role', error);
           return res.status(400).json({ error: error.message || 'Failed to remove role' });
+        }
+        if (!updatedUnit) {
+          return res.status(404).json({ error: 'Dayung unit not found or was not updated' });
         }
       }
 

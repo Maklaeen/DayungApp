@@ -8,6 +8,7 @@ import 'package:capstone_app/Treasurer/paid_unpaid_members_page.dart';
 import 'package:capstone_app/Treasurer/treasclaims.dart';
 import 'package:capstone_app/Treasurer/treascontributions.dart';
 import 'package:capstone_app/Treasurer/ledger_balance.dart';
+import 'package:capstone_app/Treasurer/payment_release_history.dart';
 import 'package:capstone_app/Treasurer/treasurer_payment_page.dart';
 import 'package:capstone_app/Collector/gcash_qr_page.dart';
 import 'package:capstone_app/pages/notification.dart';
@@ -135,11 +136,11 @@ class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
     String? jsonFull = prefs.getString('selectedDayungUnitData');
     Map<String, dynamic>? parsed;
 
-    try {
-      if (jsonFull != null) {
+    if (jsonFull != null) {
+      try {
         parsed = jsonDecode(jsonFull);
-      }
-    } catch (_) {}
+      } catch (_) {}
+    }
     if (parsed == null &&
         label.trim().startsWith('{') &&
         label.contains('"name"')) {
@@ -355,18 +356,28 @@ class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
     }
   }
 
+  bool _isTruthyFlag(dynamic value) {
+    if (value is bool) return value;
+    if (value is num) return value != 0;
+    if (value is String) {
+      return ['true', '1', 'yes'].contains(value.trim().toLowerCase());
+    }
+    return false;
+  }
+
   Future<void> _fetchCurrentFunds(List<int> ids) async {
     try {
       _currentFunds = 0;
       if (ids.isEmpty) return;
       final rows = await sb
           .from('payments')
-          .select('amount')
+          .select('amount, iscollectedbytreasurer')
           .inFilter('dayung_unit_id', ids)
           .eq('status', 'paid')
           .eq('type', 'deceased_payment');
       double total = 0;
       for (final row in List<Map<String, dynamic>>.from(rows)) {
+        if (!_isTruthyFlag(row['iscollectedbytreasurer'])) continue;
         final amount = row['amount'];
         total += (amount is num)
             ? amount.toDouble()
@@ -459,13 +470,39 @@ class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
       if (ids.isEmpty) return;
       final rows = await sb
           .from('claims')
-          .select('PassedAway,date_of_death')
+          .select('PassedAway,user_id,date_of_death,datesetamount')
           .inFilter('dayung_unit_id', ids)
-          .order('date_of_death', ascending: false)
-          .limit(3);
-      _recentDeaths = List<Map<String, dynamic>>.from(
-        rows,
-      ).map((row) => (row['PassedAway'] ?? 'Member').toString()).toList();
+          .ilike('status', 'approved')
+          .order('datesetamount', ascending: false)
+          .limit(5);
+      final claims = List<Map<String, dynamic>>.from(rows);
+      final userIds = claims
+          .map((row) => row['user_id']?.toString())
+          .whereType<String>()
+          .where((id) => id.isNotEmpty)
+          .toSet()
+          .toList();
+      final userNames = <String, String>{};
+      if (userIds.isNotEmpty) {
+        final users = await sb
+            .from('users')
+            .select('id, full_name')
+            .inFilter('id', userIds);
+        for (final user in List<Map<String, dynamic>>.from(users)) {
+          final id = user['id']?.toString();
+          final name = user['full_name']?.toString();
+          if (id != null && name != null && name.trim().isNotEmpty) {
+            userNames[id] = name.trim();
+          }
+        }
+      }
+      _recentDeaths = claims
+          .map(
+            (row) =>
+                userNames[row['user_id']?.toString()] ??
+                (row['PassedAway'] ?? 'Member').toString(),
+          )
+          .toList();
     } catch (_) {
       _recentDeaths = [];
     }
@@ -686,6 +723,28 @@ class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
                 builder: (_) => ManageFundPage(dayungUnitId: _dayungUnitId!),
               ),
             ).then((_) => _fetchAll());
+          },
+        ),
+        const SizedBox(height: 8),
+        _buildModernActionCard(
+          icon: Icons.history_rounded,
+          title: 'Payment Release History',
+          subtitle: 'View claimed payments and release dates',
+          color: const Color(0xFF0D9488),
+          onTap: () {
+            if (_dayungUnitId == null) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Select a Dayung first')),
+              );
+              return;
+            }
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) =>
+                    PaymentReleaseHistoryPage(dayungUnitId: _dayungUnitId!),
+              ),
+            );
           },
         ),
         const SizedBox(height: 8),
@@ -944,33 +1003,6 @@ class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
                   ),
                 ],
               ),
-              const SizedBox(height: 10),
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 10,
-                ),
-                decoration: BoxDecoration(
-                  color: dayungAccentSurface(context, kPrimaryDark),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(
-                    color: kPrimaryDark.withValues(
-                      alpha: dayungIsDark(context) ? 0.34 : 0.18,
-                    ),
-                  ),
-                ),
-                child: Text(
-                  _loading
-                      ? 'Refreshing treasurer dashboard...'
-                      : 'Pending amount for collection: ₱${_pendingAmount.toStringAsFixed(0)}',
-                  style: TextStyle(
-                    fontSize: 13,
-                    color: dayungTextColor(context),
-                    fontFamily: 'OpenSans',
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ),
               const SizedBox(height: 14),
               if (_recentDeaths.isEmpty)
                 const Text(
@@ -983,7 +1015,7 @@ class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
                 )
               else
                 ..._recentDeaths
-                    .take(3)
+                    .take(5)
                     .map(
                       (name) => Padding(
                         padding: const EdgeInsets.only(bottom: 10),
@@ -1181,7 +1213,7 @@ class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
                 )
               else
                 ..._recentDeaths
-                    .take(3)
+                    .take(5)
                     .map(
                       (name) => Container(
                         margin: const EdgeInsets.only(bottom: 12),
@@ -1254,7 +1286,6 @@ class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
             'status': 'paid',
             'collected_by': currentUserId,
             'paid_at': now,
-            'datepaidamount': now,
           })
           .eq('id', paymentId);
       if (mounted) {

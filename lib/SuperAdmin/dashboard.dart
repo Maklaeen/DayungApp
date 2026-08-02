@@ -2,6 +2,7 @@ import 'package:capstone_app/SuperAdmin/admins_page.dart';
 import 'package:capstone_app/SuperAdmin/audit_logs_page.dart';
 import 'package:capstone_app/SuperAdmin/broadcast_page.dart';
 import 'package:capstone_app/SuperAdmin/manage_beneficiaries_page.dart';
+import 'package:capstone_app/SuperAdmin/organization_page.dart';
 import 'package:capstone_app/SuperAdmin/reports_page.dart';
 import 'package:capstone_app/SuperAdmin/settings_page.dart';
 import 'package:capstone_app/SuperAdmin/superadmin_support.dart';
@@ -206,6 +207,16 @@ class SuperAdminDashboardPage extends StatelessWidget {
         onTap: () => Navigator.push(
           context,
           MaterialPageRoute(builder: (_) => const ManageBeneficiariesPage()),
+        ),
+      ),
+      _ActionTile(
+        icon: Icons.account_balance_rounded,
+        title: 'Dayung Organization',
+        description:
+            'Create a Dayung unit by entering its name and location details.',
+        onTap: () => Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => const SuperAdminOrganizationPage()),
         ),
       ),
       _ActionTile(

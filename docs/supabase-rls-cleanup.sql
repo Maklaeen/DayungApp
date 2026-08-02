@@ -13,6 +13,21 @@ drop policy if exists "Allow all select" on public.beneficiaries;
 -- claims
 drop policy if exists "Allow update for authenticated" on public.claims;
 
+-- Collectors need to review claims filed within their assigned Dayung unit.
+drop policy if exists collector_select_own_unit_claims on public.claims;
+create policy collector_select_own_unit_claims
+on public.claims
+for select
+to authenticated
+using (
+  exists (
+    select 1
+    from public.dayung_collectors dc
+    where dc.user_id = auth.uid()
+      and dc.dayung_unit_id = claims.dayung_unit_id
+  )
+);
+
 -- dayung_collectors
 drop policy if exists "Allow all select" on public.dayung_collectors;
 

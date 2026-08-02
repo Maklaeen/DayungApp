@@ -1,7 +1,6 @@
 import 'dart:convert';
-import 'package:capstone_app/Auth/logout.dart';
 import 'package:capstone_app/shared/pres_sec_dashboard_overview.dart';
-import 'package:capstone_app/Beneficiary/beneficiary.dart';
+import 'package:capstone_app/shared/collector_progress_page.dart';
 import 'package:capstone_app/Providers/dayung_role_provider.dart';
 import 'package:capstone_app/Secretary/beneficiaries_tab.dart';
 import 'package:capstone_app/Secretary/certificates.dart';
@@ -15,8 +14,6 @@ import 'package:capstone_app/Secretary/service_tracker.dart';
 import 'package:capstone_app/pages/notification.dart';
 import 'package:capstone_app/pages/recentdeathnotices.dart';
 import 'package:capstone_app/pages/reports.dart';
-import 'package:capstone_app/profile/profile.dart';
-import 'package:capstone_app/settings/profsettings.dart';
 import 'package:capstone_app/ui/theme/branding.dart' as branding;
 import 'package:capstone_app/utils/theme_surface.dart';
 import 'package:flutter/material.dart';
@@ -313,9 +310,7 @@ class _SecretaryDashboardPageState extends State<SecretaryDashboardPage> {
     String? jsonFull = prefs.getString('selectedDayungUnitData');
     Map<String, dynamic>? parsed;
     try {
-      if (jsonFull != null) {
-        parsed = jsonDecode(jsonFull);
-      }
+      parsed = jsonDecode(jsonFull!);
     } catch (_) {}
     if (parsed == null &&
         dayungLabelRaw.trim().startsWith('{') &&
@@ -1354,7 +1349,35 @@ class _SecretaryDashboardPageState extends State<SecretaryDashboardPage> {
                 ),
               ),
               const SizedBox(width: 12),
-              const Expanded(child: SizedBox()),
+              Expanded(
+                child: SizedBox(
+                  height: 140,
+                  child: _modernActionCard(
+                    icon: Icons.bar_chart_rounded,
+                    title: 'Collector Progress',
+                    subtitle: 'View collection status',
+                    color: const Color(0xFF8B5CF6),
+                    onTap: () {
+                      if (_dayungUnitId == null) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Select a Dayung first'),
+                          ),
+                        );
+                        return;
+                      }
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => CollectorProgressPage(
+                            dayungUnitId: _dayungUnitId!,
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ),
             ],
           ),
         ],

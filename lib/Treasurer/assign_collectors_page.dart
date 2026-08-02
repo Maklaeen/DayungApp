@@ -142,7 +142,6 @@ class _AssignCollectorsPageState extends State<AssignCollectorsPage> {
     }
   }
 
-
   Future<void> _assignCollector(String userId, String? collectorsId) async {
     try {
       final payload = collectorsId == null || collectorsId.isEmpty
@@ -156,15 +155,6 @@ class _AssignCollectorsPageState extends State<AssignCollectorsPage> {
       });
 
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            collectorsId == null
-                ? 'Collector unassigned.'
-                : 'Member assigned to collector.',
-          ),
-        ),
-      );
       await _load();
     } catch (e) {
       if (mounted) {
@@ -311,7 +301,11 @@ class _AssignCollectorsPageState extends State<AssignCollectorsPage> {
                     physics: const AlwaysScrollableScrollPhysics(),
                     children: [
                       const SizedBox(height: 18),
-                      _buildSummaryRow(assignedCount, unassignedCount, collectorCount),
+                      _buildSummaryRow(
+                        assignedCount,
+                        unassignedCount,
+                        collectorCount,
+                      ),
                       const SizedBox(height: 14),
                       _buildFilterChips(),
                       const SizedBox(height: 12),
@@ -390,7 +384,11 @@ class _AssignCollectorsPageState extends State<AssignCollectorsPage> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               IconButton(
-                icon: const Icon(Icons.chevron_left_rounded, color: Colors.white, size: 28),
+                icon: const Icon(
+                  Icons.chevron_left_rounded,
+                  color: Colors.white,
+                  size: 28,
+                ),
                 onPressed: () => Navigator.of(context).pop(),
               ),
               const SizedBox(width: 8),
@@ -660,5 +658,4 @@ class _AssignCollectorsPageState extends State<AssignCollectorsPage> {
       ),
     );
   }
-
 }

@@ -36,7 +36,7 @@ List<Map<String, dynamic>> filterPaymentRecipientsForDeceasedClaim({
     final status = (payment['status'] ?? '').toString().toLowerCase();
     final type = (payment['type'] ?? '').toString().toLowerCase();
     if (userId.isEmpty) continue;
-    if (type == 'membership fee' && status == 'unpaid') {
+    if (type == 'membership_payment' && status == 'unpaid') {
       blockedUserIds.add(userId);
     }
   }
@@ -47,6 +47,25 @@ List<Map<String, dynamic>> filterPaymentRecipientsForDeceasedClaim({
     if (deceasedUserId != null && appUserId == deceasedUserId) return false;
     return !blockedUserIds.contains(appUserId);
   }).toList();
+}
+
+double calculateTreasurerCollectedAmount({
+  required List<Map<String, dynamic>> paymentRows,
+  required String userDeceased,
+}) {
+  double total = 0;
+  for (final row in paymentRows) {
+    if ((row['userdeceased'] ?? '').toString() != userDeceased ||
+        (row['status'] ?? '').toString().toLowerCase() != 'paid' ||
+        row['iscollectedbytreasurer'] != true) {
+      continue;
+    }
+    final amount = row['amount'];
+    total += amount is num
+        ? amount.toDouble()
+        : double.tryParse('$amount') ?? 0;
+  }
+  return total;
 }
 
 class SecretaryClaimsPage extends StatefulWidget {
@@ -118,9 +137,7 @@ class _SecretaryClaimsPageState extends State<SecretaryClaimsPage>
     void refreshClaims(PostgresChangePayload payload) {
       if (!mounted) return;
       final record =
-          (payload.newRecord.isNotEmpty
-                  ? payload.newRecord
-                  : payload.oldRecord)
+          (payload.newRecord.isNotEmpty ? payload.newRecord : payload.oldRecord)
               as Map<String, dynamic>?;
       final recordUnitId = record?['dayung_unit_id'];
       final changedUnitId = recordUnitId is int
@@ -157,7 +174,9 @@ class _SecretaryClaimsPageState extends State<SecretaryClaimsPage>
   }
 
   void _updateClaimLocally(String claimId, dynamic claimedValue) {
-    final index = _claims.indexWhere((claim) => claim['id'].toString() == claimId);
+    final index = _claims.indexWhere(
+      (claim) => claim['id'].toString() == claimId,
+    );
     if (index < 0 || !mounted) return;
     final updatedClaim = Map<String, dynamic>.from(_claims[index])
       ..['claimedmoney'] = claimedValue;
@@ -460,11 +479,15 @@ class _SecretaryClaimsPageState extends State<SecretaryClaimsPage>
         'is_due': newValue,
         'due_date': newValue ? claimedAt : null,
         'is_claimed': newValue,
+        'is_claimed_date': newValue ? claimedAt : null,
       };
 
       await supabase
           .from('claims')
-          .update({'claimedmoney': storeVal})
+          .update({
+            'claimedmoney': storeVal,
+            'claimedmoney_date': newValue ? claimedAt : null,
+          })
           .eq('id', claimId);
       _updateClaimLocally(claimId, storeVal);
 
@@ -479,6 +502,28 @@ class _SecretaryClaimsPageState extends State<SecretaryClaimsPage>
       debugPrint("Error updating claimedmoney: $e");
     } finally {
       if (mounted) setState(() => _updating = false);
+    }
+  }
+
+  Future<double> _loadTreasurerCollectedAmount(
+    Map<String, dynamic> claim,
+  ) async {
+    final userDeceased = (claim['user_id'] ?? '').toString();
+    if (userDeceased.isEmpty) return 0;
+
+    try {
+      final rows = await supabase
+          .from('payments')
+          .select('amount, status, userdeceased, iscollectedbytreasurer')
+          .eq('userdeceased', userDeceased)
+          .eq('status', 'paid')
+          .eq('iscollectedbytreasurer', true);
+      return calculateTreasurerCollectedAmount(
+        paymentRows: List<Map<String, dynamic>>.from(rows),
+        userDeceased: userDeceased,
+      );
+    } catch (_) {
+      return 0;
     }
   }
 
@@ -859,10 +904,7 @@ class _SecretaryClaimsPageState extends State<SecretaryClaimsPage>
                 const SizedBox(width: 8),
                 Text(
                   date,
-                  style: const TextStyle(
-                    fontSize: 12,
-                    color: kSubtleText,
-                  ),
+                  style: const TextStyle(fontSize: 12, color: kSubtleText),
                 ),
               ],
             ),
@@ -870,10 +912,7 @@ class _SecretaryClaimsPageState extends State<SecretaryClaimsPage>
               const SizedBox(height: 4),
               Text(
                 desc,
-                style: const TextStyle(
-                  fontSize: 13,
-                  color: kSubtleText,
-                ),
+                style: const TextStyle(fontSize: 13, color: kSubtleText),
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
               ),
@@ -886,10 +925,7 @@ class _SecretaryClaimsPageState extends State<SecretaryClaimsPage>
                 final deceased = snapshot.data!;
                 return Text(
                   'Deceased: ${deceased['name']}',
-                  style: const TextStyle(
-                    fontSize: 13,
-                    color: kSubtleText,
-                  ),
+                  style: const TextStyle(fontSize: 13, color: kSubtleText),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 );
@@ -1053,7 +1089,7 @@ class _SecretaryClaimsPageState extends State<SecretaryClaimsPage>
                         submitter,
                       ),
                       _buildInfoRow(Icons.business, 'Dayung', dayungName),
-                      // Only show Claimed Money row for Approved
+
                       if (status.toLowerCase() == 'approved')
                         _buildInfoRow(
                           Icons.attach_money,
@@ -1099,7 +1135,9 @@ class _SecretaryClaimsPageState extends State<SecretaryClaimsPage>
                       ),
                       const SizedBox(height: 16),
                       // Death Certificate Button
-                      if ((claim['death_certificate_url'] ?? '').toString().isNotEmpty)
+                      if ((claim['death_certificate_url'] ?? '')
+                          .toString()
+                          .isNotEmpty)
                         SizedBox(
                           width: double.infinity,
                           child: ElevatedButton.icon(
@@ -1124,7 +1162,9 @@ class _SecretaryClaimsPageState extends State<SecretaryClaimsPage>
                                 client: supabase,
                               );
                               // Debug log resolved URL
-                              debugPrint('Death Certificate RESOLVED URL: $url');
+                              debugPrint(
+                                'Death Certificate RESOLVED URL: $url',
+                              );
                               if (!mounted) return;
                               if (url == null) {
                                 messenger.showSnackBar(
@@ -1150,17 +1190,26 @@ class _SecretaryClaimsPageState extends State<SecretaryClaimsPage>
                                           height: 350,
                                           decoration: BoxDecoration(
                                             color: Colors.black,
-                                            borderRadius: BorderRadius.circular(16),
+                                            borderRadius: BorderRadius.circular(
+                                              16,
+                                            ),
                                           ),
                                           child: ClipRRect(
-                                            borderRadius: BorderRadius.circular(16),
+                                            borderRadius: BorderRadius.circular(
+                                              16,
+                                            ),
                                             child: PhotoView(
                                               imageProvider: NetworkImage(url),
-                                              backgroundDecoration: const BoxDecoration(
-                                                color: Colors.black,
-                                              ),
-                                              minScale: PhotoViewComputedScale.contained,
-                                              maxScale: PhotoViewComputedScale.covered * 3,
+                                              backgroundDecoration:
+                                                  const BoxDecoration(
+                                                    color: Colors.black,
+                                                  ),
+                                              minScale: PhotoViewComputedScale
+                                                  .contained,
+                                              maxScale:
+                                                  PhotoViewComputedScale
+                                                      .covered *
+                                                  3,
                                             ),
                                           ),
                                         ),
@@ -1168,15 +1217,22 @@ class _SecretaryClaimsPageState extends State<SecretaryClaimsPage>
                                           top: 0,
                                           right: 0,
                                           child: GestureDetector(
-                                            onTap: () => Navigator.of(ctx).pop(),
+                                            onTap: () =>
+                                                Navigator.of(ctx).pop(),
                                             child: Container(
                                               decoration: BoxDecoration(
-                                                color: Colors.black.withValues(alpha: 0.7),
+                                                color: Colors.black.withValues(
+                                                  alpha: 0.7,
+                                                ),
                                                 shape: BoxShape.circle,
                                               ),
                                               margin: const EdgeInsets.all(8),
                                               padding: const EdgeInsets.all(6),
-                                              child: const Icon(Icons.close, color: Colors.white, size: 26),
+                                              child: const Icon(
+                                                Icons.close,
+                                                color: Colors.white,
+                                                size: 26,
+                                              ),
                                             ),
                                           ),
                                         ),
@@ -1242,7 +1298,9 @@ class _SecretaryClaimsPageState extends State<SecretaryClaimsPage>
                                 if (url == null) {
                                   messenger.showSnackBar(
                                     SnackBar(
-                                      content: Text('Could not open file. (raw: $raw)'),
+                                      content: Text(
+                                        'Could not open file. (raw: $raw)',
+                                      ),
                                     ),
                                   );
                                   return;
@@ -1263,17 +1321,26 @@ class _SecretaryClaimsPageState extends State<SecretaryClaimsPage>
                                             height: 350,
                                             decoration: BoxDecoration(
                                               color: Colors.black,
-                                              borderRadius: BorderRadius.circular(16),
+                                              borderRadius:
+                                                  BorderRadius.circular(16),
                                             ),
                                             child: ClipRRect(
-                                              borderRadius: BorderRadius.circular(16),
+                                              borderRadius:
+                                                  BorderRadius.circular(16),
                                               child: PhotoView(
-                                                imageProvider: NetworkImage(url),
-                                                backgroundDecoration: const BoxDecoration(
-                                                  color: Colors.black,
+                                                imageProvider: NetworkImage(
+                                                  url,
                                                 ),
-                                                minScale: PhotoViewComputedScale.contained,
-                                                maxScale: PhotoViewComputedScale.covered * 3,
+                                                backgroundDecoration:
+                                                    const BoxDecoration(
+                                                      color: Colors.black,
+                                                    ),
+                                                minScale: PhotoViewComputedScale
+                                                    .contained,
+                                                maxScale:
+                                                    PhotoViewComputedScale
+                                                        .covered *
+                                                    3,
                                               ),
                                             ),
                                           ),
@@ -1281,15 +1348,23 @@ class _SecretaryClaimsPageState extends State<SecretaryClaimsPage>
                                             top: 0,
                                             right: 0,
                                             child: GestureDetector(
-                                              onTap: () => Navigator.of(ctx).pop(),
+                                              onTap: () =>
+                                                  Navigator.of(ctx).pop(),
                                               child: Container(
                                                 decoration: BoxDecoration(
-                                                  color: Colors.black.withValues(alpha: 0.7),
+                                                  color: Colors.black
+                                                      .withValues(alpha: 0.7),
                                                   shape: BoxShape.circle,
                                                 ),
                                                 margin: const EdgeInsets.all(8),
-                                                padding: const EdgeInsets.all(6),
-                                                child: const Icon(Icons.close, color: Colors.white, size: 26),
+                                                padding: const EdgeInsets.all(
+                                                  6,
+                                                ),
+                                                child: const Icon(
+                                                  Icons.close,
+                                                  color: Colors.white,
+                                                  size: 26,
+                                                ),
                                               ),
                                             ),
                                           ),
@@ -1314,7 +1389,9 @@ class _SecretaryClaimsPageState extends State<SecretaryClaimsPage>
                                     if (!mounted) return;
                                     messenger.showSnackBar(
                                       SnackBar(
-                                        content: Text('Could not open file. (resolved: $url, raw: $raw)'),
+                                        content: Text(
+                                          'Could not open file. (resolved: $url, raw: $raw)',
+                                        ),
                                       ),
                                     );
                                   }
@@ -1333,6 +1410,10 @@ class _SecretaryClaimsPageState extends State<SecretaryClaimsPage>
                                   ? null
                                   : () async {
                                       final navigator = Navigator.of(context);
+                                      final treasurerCollectedAmount =
+                                          await _loadTreasurerCollectedAmount(
+                                            claim,
+                                          );
                                       final confirm = await showDialog<bool>(
                                         context: context,
                                         builder: (ctx) => AlertDialog(
@@ -1342,9 +1423,8 @@ class _SecretaryClaimsPageState extends State<SecretaryClaimsPage>
                                                 : 'Mark as Claimed?',
                                           ),
                                           content: Text(
-                                            claimed
-                                                ? 'Are you sure you want to mark this claim as NOT claimed?'
-                                                : 'Are you sure you want to mark this claim as claimed?',
+                                            '${claimed ? 'Are you sure you want to mark this claim as NOT claimed?' : 'Are you sure you want to mark this claim as claimed?'}\n\n'
+                                            'Total collected by treasurer: ₱${treasurerCollectedAmount.toStringAsFixed(2)}',
                                           ),
                                           actions: [
                                             TextButton(
@@ -1467,7 +1547,6 @@ class _SecretaryClaimsPageState extends State<SecretaryClaimsPage>
               onPressed: _updating
                   ? null
                   : () async {
-                      // Prompt for amount before approving
                       final unitId = int.tryParse('${claim['dayung_unit_id']}');
                       if (!mounted) return;
                       final messenger = ScaffoldMessenger.of(context);
@@ -1480,11 +1559,11 @@ class _SecretaryClaimsPageState extends State<SecretaryClaimsPage>
                           _userMap[claim['user_id']
                               ?.toString()]?['full_name'] ??
                           'Member';
-                      final defaultAmount = await _loadDefaultContributionAmount(unitId);
+                      final defaultAmount =
+                          await _loadDefaultContributionAmount(unitId);
                       final TextEditingController amountController =
                           TextEditingController(text: defaultAmount);
 
-                      // Fetch secretary_id before showing the dialog
                       final unit = await supabase
                           .from('dayung_units')
                           .select('secretary_id')
@@ -1499,6 +1578,7 @@ class _SecretaryClaimsPageState extends State<SecretaryClaimsPage>
                           title: Text('Contribution Amount for $fullName'),
                           content: TextField(
                             controller: amountController,
+                            readOnly: true,
                             keyboardType: TextInputType.numberWithOptions(
                               decimal: true,
                             ),
@@ -1619,11 +1699,10 @@ class _SecretaryClaimsPageState extends State<SecretaryClaimsPage>
                                 .from('payments')
                                 .select('user_id, status, type')
                                 .eq('dayung_unit_id', claim['dayung_unit_id'])
-                                .eq('type', 'membership fee')
+                                .eq('type', 'membership_payment')
                                 .inFilter('user_id', approvedUserIds);
-                            membershipFeePayments = List<Map<String, dynamic>>.from(
-                              payments,
-                            );
+                            membershipFeePayments =
+                                List<Map<String, dynamic>>.from(payments);
                           }
 
                           final deceasedUserId = userId?.toString();
@@ -1640,7 +1719,6 @@ class _SecretaryClaimsPageState extends State<SecretaryClaimsPage>
                           final notificationBody =
                               '$fullName passed away. Amount: ₱${result.toStringAsFixed(2)}';
 
-                          // Insert notification for each approved user
                           for (final app in approvedApplicationList) {
                             await supabase.from('notifications').insert({
                               'recipient_id': app['user_id'],
@@ -1683,7 +1761,7 @@ class _SecretaryClaimsPageState extends State<SecretaryClaimsPage>
                         }
                       }
                     },
-                    // Approve button sa Claim Deceased Member
+              // Approve button sa Claim Deceased Member
               icon: const Icon(Icons.check_circle, size: 20),
               label: const Text("Approve"),
               style: ElevatedButton.styleFrom(

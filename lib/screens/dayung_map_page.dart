@@ -143,7 +143,7 @@ class _DayungMapPageState extends State<DayungMapPage> {
   bool _permissionDenied = false;
   StreamSubscription<Position>? positionStream;
   Map<String, dynamic>? _rules;
-  Map<String, dynamic>? _requiredApplication;
+  List<Map<String, dynamic>> _requiredApplications = [];
   bool _loadingRules = true;
   double? _compassHeading;
   StreamSubscription<CompassEvent>? compassStream;
@@ -712,7 +712,7 @@ class _DayungMapPageState extends State<DayungMapPage> {
     super.dispose();
   }
 
-  Future<Map<String, dynamic>?> _fetchRequiredApplication(
+  Future<List<Map<String, dynamic>>> _fetchRequiredApplications(
     SupabaseClient supabase,
     int id,
   ) async {
@@ -722,11 +722,15 @@ class _DayungMapPageState extends State<DayungMapPage> {
             .from('required_applications')
             .select('title, description')
             .eq('dayung_unit_id', value)
-            .maybeSingle();
-        if (result != null) return result;
-      } catch (_) {}
+            .order('id', ascending: true);
+
+        return result
+            .whereType<Map<String, dynamic>>()
+            .map((row) => Map<String, dynamic>.from(row))
+            .toList();
+            } catch (_) {}
     }
-    return null;
+    return [];
   }
 
   Future<void> _fetchRules() async {
@@ -739,9 +743,9 @@ class _DayungMapPageState extends State<DayungMapPage> {
         return;
       }
 
-      final requiredApp = await _fetchRequiredApplication(supabase, id);
+      final requiredApps = await _fetchRequiredApplications(supabase, id);
       Map<String, dynamic>? rules;
-      if (requiredApp == null) {
+      if (requiredApps.isEmpty) {
         try {
           rules = await supabase
               .from('dayung_rules')
@@ -754,7 +758,7 @@ class _DayungMapPageState extends State<DayungMapPage> {
       if (mounted) {
         setState(() {
           _rules = rules;
-          _requiredApplication = requiredApp;
+          _requiredApplications = requiredApps;
           _loadingRules = false;
         });
       }
@@ -1215,7 +1219,7 @@ class _DayungMapPageState extends State<DayungMapPage> {
                         padding: EdgeInsets.symmetric(vertical: 12),
                         child: Center(child: CircularProgressIndicator()),
                       )
-                    else if (_rules != null || _requiredApplication != null)
+                    else if (_rules != null || _requiredApplications.isNotEmpty)
                       _rulesSection(_rules),
                     const Spacer(),
                     _actionSection(dist),
@@ -1303,45 +1307,90 @@ class _DayungMapPageState extends State<DayungMapPage> {
     }
 
     if (items.isEmpty) {
-      final requiredApp = _requiredApplication;
-      if (requiredApp != null) {
-        final title = (requiredApp['title'] ?? '').toString();
-        final description = (requiredApp['description'] ?? '').toString();
-        if (title.isNotEmpty || description.isNotEmpty) {
-          return Padding(
-            padding: const EdgeInsets.symmetric(vertical: 10),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                if (title.isNotEmpty)
-                  Text(
-                    title,
-                    style: const TextStyle(
-                      color: kPrimary,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 15,
-                    ),
-                  ),
-                if (title.isNotEmpty && description.isNotEmpty)
-                  const SizedBox(height: 8),
-                if (description.isNotEmpty)
-                  SizedBox(
-                    height: 260,
-                    child: SingleChildScrollView(
-                      child: Text(
-                        description,
+      final requiredApps = _requiredApplications;
+      if (requiredApps.isNotEmpty) {
+        String? mainTitle;
+        final sectionWidgets = <Widget>[];
+
+        for (final requiredApp in requiredApps) {
+          final title = (requiredApp['title'] ?? '').toString().trim();
+          final description = (requiredApp['description'] ?? '')
+              .toString()
+              .trim();
+          if (title.isEmpty && description.isEmpty) {
+            continue;
+          }
+
+          if (mainTitle == null && description.isEmpty) {
+            mainTitle = title;
+            continue;
+          }
+
+          sectionWidgets.add(
+            Padding(
+              padding: const EdgeInsets.only(bottom: 14),
+              child: Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF8FAFC),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: const Color(0xFFDBEAFE)),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    if (title.isNotEmpty)
+                      Text(
+                        title,
                         style: const TextStyle(
-                          color: kSubtleText,
-                          fontSize: 13,
-                          height: 1.5,
+                          color: kPrimary,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 15,
                         ),
                       ),
-                    ),
-                  ),
-              ],
+                    if (title.isNotEmpty) const SizedBox(height: 6),
+                    if (description.isNotEmpty)
+                      SizedBox(
+                        height: 120,
+                        child: SingleChildScrollView(
+                          child: Text(
+                            description,
+                            style: const TextStyle(
+                              color: kSubtleText,
+                              fontSize: 13,
+                              height: 1.5,
+                            ),
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
             ),
           );
         }
+
+        return Padding(
+          padding: const EdgeInsets.symmetric(vertical: 10),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (mainTitle != null && mainTitle.isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 12),
+                  child: Text(
+                    mainTitle,
+                    style: const TextStyle(
+                      color: kPrimaryDark,
+                      fontWeight: FontWeight.w800,
+                      fontSize: 16,
+                    ),
+                  ),
+                ),
+              ...sectionWidgets,
+            ],
+          ),
+        );
       }
       return const Padding(
         padding: EdgeInsets.symmetric(vertical: 10),
@@ -1393,11 +1442,11 @@ class _DayungMapPageState extends State<DayungMapPage> {
         else if (rg is String)
           // ignore: curly_braces_in_flow_control_structures
           lng = double.tryParse(rg);
-        if (lat == null || lng == null) continue;
+        if (lng == null) continue;
         final dist = Geolocator.distanceBetween(
           _pos!.latitude,
           _pos!.longitude,
-          lat,
+          lat!,
           lng,
         );
         if (dist <= widget.nearbyRadiusMeters) {
@@ -1551,8 +1600,10 @@ class _DayungMapPageState extends State<DayungMapPage> {
     final uid = sb.auth.currentUser?.id;
     final dayungUnitId = getDayungUnitId();
 
-    debugPrint('DEBUG: dayungUnitId value: '
-        '([32m$dayungUnitId[0m) type: [34m${dayungUnitId.runtimeType}[0m');
+    debugPrint(
+      'DEBUG: dayungUnitId value: '
+      '([32m$dayungUnitId[0m) type: [34m${dayungUnitId.runtimeType}[0m',
+    );
 
     if (uid == null || dayungUnitId == null) {
       ScaffoldMessenger.of(

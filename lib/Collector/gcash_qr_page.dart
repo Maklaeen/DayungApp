@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter/services.dart';
 import 'package:capstone_app/utils/input_safety.dart';
@@ -56,6 +57,39 @@ class _GcashQrPageState extends State<GcashQrPage> {
     return '$normalizedUserId|$normalizedNoticeId|$normalizedDeceasedId';
   }
 
+  String _formatUploadedAt(dynamic value) {
+    final rawValue = value?.toString() ?? '';
+    if (rawValue.isEmpty) return '';
+
+    final parsed = DateTime.tryParse(rawValue);
+    if (parsed == null) return rawValue;
+
+    final philippinesTime = parsed.toUtc().add(const Duration(hours: 8));
+    return DateFormat('MMM d, yyyy - h:mm a').format(philippinesTime);
+  }
+
+  bool _isUuid(String? value) {
+    if (value == null || value.isEmpty) return false;
+    final uuidRegExp = RegExp(
+      r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$',
+    );
+    return uuidRegExp.hasMatch(value);
+  }
+
+  String _getDeceasedDisplayText(Map<String, dynamic> row) {
+    final deceasedName = row['userdeceased_name']?.toString().trim();
+    if (deceasedName != null && deceasedName.isNotEmpty) {
+      return deceasedName;
+    }
+
+    final type = row['type']?.toString().trim().toLowerCase();
+    if (type == 'for_membership') {
+      return 'For Membership';
+    }
+
+    return 'Unknown';
+  }
+
   void _refreshQrData() {
     _loadQrRows();
   }
@@ -100,8 +134,8 @@ class _GcashQrPageState extends State<GcashQrPage> {
       if (response.isNotEmpty) {
         String? signedUrl;
         String? fileName = response[0]['qr_image_url'];
-  
-        if (fileName != null && fileName.isNotEmpty) {
+
+        if (fileName!.isNotEmpty) {
           // If fileName is a full URL, extract the path after the bucket name
           final uri = Uri.parse(fileName);
           final segments = uri.pathSegments;
@@ -111,11 +145,10 @@ class _GcashQrPageState extends State<GcashQrPage> {
             // Join the rest as the file path
             fileName = segments.sublist(bucketIndex + 1).join('/');
           }
-        
+
           signedUrl = await Supabase.instance.client.storage
               .from('gcash_qr_images')
               .createSignedUrl(fileName, 60 * 60); // 1 hour expiry
-       
         }
         setState(() {
           _savedQrImageUrl = signedUrl;
@@ -171,18 +204,18 @@ class _GcashQrPageState extends State<GcashQrPage> {
       if (_qrImageBytes != null) {
         final fileBytes = _qrImageBytes!;
         final fileName =
-          'gcash_qr_${DateTime.now().millisecondsSinceEpoch}.png';
+            'gcash_qr_${DateTime.now().millisecondsSinceEpoch}.png';
         await Supabase.instance.client.storage
-          .from('gcash_qr_images')
-          .uploadBinary(
-            fileName,
-            fileBytes,
-            fileOptions: const FileOptions(contentType: 'image/png'),
-          );
+            .from('gcash_qr_images')
+            .uploadBinary(
+              fileName,
+              fileBytes,
+              fileOptions: const FileOptions(contentType: 'image/png'),
+            );
 
         imageUrl = await Supabase.instance.client.storage
-          .from('gcash_qr_images')
-          .createSignedUrl(fileName, 60 * 60); // 1 hour expiry
+            .from('gcash_qr_images')
+            .createSignedUrl(fileName, 60 * 60); // 1 hour expiry
       }
 
       final currentUser = Supabase.instance.client.auth.currentUser;
@@ -288,7 +321,7 @@ class _GcashQrPageState extends State<GcashQrPage> {
     final response = await sb
         .from('gcash_qr_codes')
         .select(
-          'image_url, uploaded_by, created_at, userdeceased, dayung_unit_id, amount, refno',
+          'id, set_amount_id, image_url, uploaded_by, created_at, userdeceased, dayung_unit_id, amount, refno, type',
         )
         .eq('dayung_unit_id', widget.dayungUnitId)
         .order('created_at', ascending: false)
@@ -306,7 +339,9 @@ class _GcashQrPageState extends State<GcashQrPage> {
         // If imageUrl is not a full URL, generate a signed URL
         try {
           // Remove any leading slashes
-          final cleanFileName = imageUrl.startsWith('/') ? imageUrl.substring(1) : imageUrl;
+          final cleanFileName = imageUrl.startsWith('/')
+              ? imageUrl.substring(1)
+              : imageUrl;
           final signedUrl = await sb.storage
               .from('gcash_qr_images')
               .createSignedUrl(cleanFileName, 60 * 60); // 1 hour expiry
@@ -323,8 +358,12 @@ class _GcashQrPageState extends State<GcashQrPage> {
     for (final row in data) {
       final uploadedBy = row['uploaded_by']?.toString();
       final userDeceased = row['userdeceased']?.toString();
-      if (uploadedBy != null && uploadedBy.isNotEmpty) userIds.add(uploadedBy);
-      if (userDeceased != null && userDeceased.isNotEmpty) {
+      if (uploadedBy != null && uploadedBy.isNotEmpty && _isUuid(uploadedBy)) {
+        userIds.add(uploadedBy);
+      }
+      if (userDeceased != null &&
+          userDeceased.isNotEmpty &&
+          _isUuid(userDeceased)) {
         userIds.add(userDeceased);
       }
     }
@@ -344,33 +383,64 @@ class _GcashQrPageState extends State<GcashQrPage> {
     }
 
     final paidKeys = <String>{};
+    final paymentIdMap = <String, String>{};
 
-    // Use claim_id instead of death_notice_id
-    final claimIds = data
-        .map((row) => row['claim_id'])
+    final setAmountIds = data
+        .map((row) => row['set_amount_id'])
         .where((value) => value != null)
         .map((value) => value.toString())
-        .where((value) => value.isNotEmpty)
+        .where((value) => value.isNotEmpty && _isUuid(value))
         .toSet()
         .toList();
 
-    if (claimIds.isNotEmpty) {
-      final paymentsByClaim = await sb
+    if (setAmountIds.isNotEmpty) {
+      final paymentsBySetAmount = await sb
           .from('payments')
-          .select('user_id, claim_id, userdeceased')
+          .select('id, status')
           .eq('dayung_unit_id', widget.dayungUnitId)
-          .eq('status', 'paid')
-          .inFilter('claim_id', claimIds)
+          .inFilter('id', setAmountIds)
           .timeout(_queryTimeout);
 
-      for (final payment in List<Map<String, dynamic>>.from(paymentsByClaim)) {
-        paidKeys.add(
-          _paymentKey(
-            userId: payment['user_id'],
-            deathNoticeId: payment['claim_id'], // claim_id replaces death_notice_id
-            deceasedId: payment['userdeceased'],
-          ),
+      for (final payment in List<Map<String, dynamic>>.from(
+        paymentsBySetAmount,
+      )) {
+        final paymentId = payment['id']?.toString();
+        if (paymentId == null || paymentId.isEmpty) continue;
+        if (payment['status']?.toString().toLowerCase() == 'paid') {
+          paidKeys.add(paymentId);
+        }
+        paymentIdMap[paymentId] = paymentId;
+      }
+    }
+
+    final qrIds = data
+        .map((row) => row['qr_id'])
+        .where((value) => value != null)
+        .map((value) => value.toString())
+        .where((value) => value.isNotEmpty && _isUuid(value))
+        .toSet()
+        .toList();
+
+    if (qrIds.isNotEmpty) {
+      final paymentsByQr = await sb
+          .from('payments')
+          .select('id, user_id, qr_id, userdeceased, status')
+          .eq('dayung_unit_id', widget.dayungUnitId)
+          .inFilter('qr_id', qrIds)
+          .timeout(_queryTimeout);
+
+      for (final payment in List<Map<String, dynamic>>.from(paymentsByQr)) {
+        final key = _paymentKey(
+          userId: payment['user_id'],
+          deathNoticeId: payment['qr_id'],
+          deceasedId: payment['userdeceased'],
         );
+        if (payment['status']?.toString().toLowerCase() == 'paid') {
+          paidKeys.add(key);
+        }
+        if (payment['id'] != null) {
+          paymentIdMap[key] = payment['id'].toString();
+        }
       }
     }
 
@@ -385,40 +455,53 @@ class _GcashQrPageState extends State<GcashQrPage> {
     if (deceasedIds.isNotEmpty) {
       final paymentsByDeceased = await sb
           .from('payments')
-          .select('user_id, claim_id, userdeceased')
+          .select('id, user_id, qr_id, userdeceased')
           .eq('dayung_unit_id', widget.dayungUnitId)
           .eq('status', 'paid')
-          .isFilter('claim_id', null)
+          .isFilter('qr_id', null)
           .inFilter('userdeceased', deceasedIds)
           .timeout(_queryTimeout);
 
       for (final payment in List<Map<String, dynamic>>.from(
         paymentsByDeceased,
       )) {
-        paidKeys.add(
-          _paymentKey(
-            userId: payment['user_id'],
-            deathNoticeId: payment['claim_id'], // claim_id replaces death_notice_id
-            deceasedId: payment['userdeceased'],
-          ),
+        final key = _paymentKey(
+          userId: payment['user_id'],
+          deathNoticeId: payment['qr_id'],
+          deceasedId: payment['userdeceased'],
         );
+        paidKeys.add(key);
+        if (payment['id'] != null) {
+          paymentIdMap[key] = payment['id'].toString();
+        }
       }
     }
 
+    // ...existing code...
     for (final row in data) {
       final uploadedBy = row['uploaded_by']?.toString() ?? '';
       final deceasedId = row['userdeceased']?.toString() ?? '';
+      final setAmountId = row['set_amount_id']?.toString();
+      final qrId = row['qr_id']?.toString();
+
+      String? paymentKey;
+      if (setAmountId != null &&
+          setAmountId.isNotEmpty &&
+          _isUuid(setAmountId)) {
+        paymentKey = setAmountId;
+      } else {
+        paymentKey = _paymentKey(
+          userId: row['uploaded_by'],
+          deathNoticeId: qrId,
+          deceasedId: row['userdeceased'],
+        );
+      }
+
       row['uploaded_by_name'] = userNameMap[uploadedBy] ?? '';
       row['userdeceased_name'] = userNameMap[deceasedId] ?? '';
-      row['already_paid'] = paidKeys.contains(
-        _paymentKey(
-          userId: row['uploaded_by'],
-          deathNoticeId: row['claim_id'], // claim_id replaces death_notice_id
-          deceasedId: row['userdeceased'],
-        ),
-      );
+      row['payment_id'] = paymentIdMap[paymentKey];
+      row['already_paid'] = paymentKey != null && paidKeys.contains(paymentKey);
     }
-
     return data;
   }
 
@@ -477,10 +560,7 @@ class _GcashQrPageState extends State<GcashQrPage> {
               width: double.infinity,
               decoration: const BoxDecoration(
                 gradient: LinearGradient(
-                  colors: [
-                    _kHeaderGradientStart,
-                    _kHeaderGradientEnd,
-                  ],
+                  colors: [_kHeaderGradientStart, _kHeaderGradientEnd],
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
                 ),
@@ -681,8 +761,8 @@ class _GcashQrPageState extends State<GcashQrPage> {
                                     controller: _nameController,
                                     inputFormatters:
                                         AppInputSecurity.singleLineFormatters(
-                                      maxLength: 120,
-                                    ),
+                                          maxLength: 120,
+                                        ),
                                     decoration: const InputDecoration(
                                       labelText: 'GCash Name',
                                       filled: true,
@@ -700,8 +780,8 @@ class _GcashQrPageState extends State<GcashQrPage> {
                                     keyboardType: TextInputType.number,
                                     inputFormatters:
                                         AppInputSecurity.phoneFormatters(
-                                      maxLength: 11,
-                                    ),
+                                          maxLength: 11,
+                                        ),
                                     maxLength: 11,
                                     decoration: const InputDecoration(
                                       labelText: 'GCash Number',
@@ -756,14 +836,17 @@ class _GcashQrPageState extends State<GcashQrPage> {
                                         backgroundColor: kPrimary,
                                         foregroundColor: Colors.white,
                                         shape: RoundedRectangleBorder(
-                                          borderRadius:
-                                              BorderRadius.circular(14),
+                                          borderRadius: BorderRadius.circular(
+                                            14,
+                                          ),
                                         ),
                                         padding: const EdgeInsets.symmetric(
                                           vertical: 14,
                                         ),
                                       ),
-                                      onPressed: _isLoading ? null : _saveQrCode,
+                                      onPressed: _isLoading
+                                          ? null
+                                          : _saveQrCode,
                                     ),
                                   ),
                                   if (_showUpdateSuccess)
@@ -876,19 +959,21 @@ class _GcashQrPageState extends State<GcashQrPage> {
                                                     controller: _nameController,
                                                     inputFormatters:
                                                         AppInputSecurity.singleLineFormatters(
-                                                      maxLength: 120,
-                                                    ),
-                                                    decoration:
-                                                        const InputDecoration(
+                                                          maxLength: 120,
+                                                        ),
+                                                    decoration: const InputDecoration(
                                                       labelText: 'GCash Name',
                                                       filled: true,
-                                                      fillColor:
-                                                          Color(0xFFF8FAFC),
+                                                      fillColor: Color(
+                                                        0xFFF8FAFC,
+                                                      ),
                                                       border: OutlineInputBorder(
                                                         borderRadius:
                                                             BorderRadius.all(
-                                                          Radius.circular(16),
-                                                        ),
+                                                              Radius.circular(
+                                                                16,
+                                                              ),
+                                                            ),
                                                       ),
                                                     ),
                                                   ),
@@ -900,20 +985,22 @@ class _GcashQrPageState extends State<GcashQrPage> {
                                                         TextInputType.number,
                                                     inputFormatters:
                                                         AppInputSecurity.phoneFormatters(
-                                                      maxLength: 11,
-                                                    ),
+                                                          maxLength: 11,
+                                                        ),
                                                     maxLength: 11,
-                                                    decoration:
-                                                        const InputDecoration(
+                                                    decoration: const InputDecoration(
                                                       labelText: 'GCash Number',
                                                       filled: true,
-                                                      fillColor:
-                                                          Color(0xFFF8FAFC),
+                                                      fillColor: Color(
+                                                        0xFFF8FAFC,
+                                                      ),
                                                       border: OutlineInputBorder(
                                                         borderRadius:
                                                             BorderRadius.all(
-                                                          Radius.circular(16),
-                                                        ),
+                                                              Radius.circular(
+                                                                16,
+                                                              ),
+                                                            ),
                                                       ),
                                                       counterText: '',
                                                     ),
@@ -928,7 +1015,8 @@ class _GcashQrPageState extends State<GcashQrPage> {
                                                   ClipRRect(
                                                     borderRadius:
                                                         BorderRadius.circular(
-                                                            16),
+                                                          16,
+                                                        ),
                                                     child: Image.memory(
                                                       _qrImageBytes!,
                                                       width: previewSize,
@@ -941,14 +1029,17 @@ class _GcashQrPageState extends State<GcashQrPage> {
                                                     width: previewSize,
                                                     height: previewSize,
                                                     decoration: BoxDecoration(
-                                                      color:
-                                                          const Color(0xFFF8FAFC),
+                                                      color: const Color(
+                                                        0xFFF8FAFC,
+                                                      ),
                                                       borderRadius:
                                                           BorderRadius.circular(
-                                                              16),
+                                                            16,
+                                                          ),
                                                       border: Border.all(
-                                                        color:
-                                                            const Color(0xFFE5E7EB),
+                                                        color: const Color(
+                                                          0xFFE5E7EB,
+                                                        ),
                                                       ),
                                                     ),
                                                     alignment: Alignment.center,
@@ -960,8 +1051,12 @@ class _GcashQrPageState extends State<GcashQrPage> {
                                                   ),
                                                 const SizedBox(height: 12),
                                                 TextButton.icon(
-                                                  icon: const Icon(Icons.upload),
-                                                  label: const Text('Upload QR'),
+                                                  icon: const Icon(
+                                                    Icons.upload,
+                                                  ),
+                                                  label: const Text(
+                                                    'Upload QR',
+                                                  ),
                                                   onPressed: _pickQrImage,
                                                 ),
                                               ],
@@ -978,9 +1073,9 @@ class _GcashQrPageState extends State<GcashQrPage> {
                                                     height: 18,
                                                     child:
                                                         CircularProgressIndicator(
-                                                      color: Colors.white,
-                                                      strokeWidth: 2,
-                                                    ),
+                                                          color: Colors.white,
+                                                          strokeWidth: 2,
+                                                        ),
                                                   )
                                                 : Icon(
                                                     _hasQrForUnit
@@ -999,18 +1094,21 @@ class _GcashQrPageState extends State<GcashQrPage> {
                                                 borderRadius:
                                                     BorderRadius.circular(14),
                                               ),
-                                              padding: const EdgeInsets.symmetric(
-                                                vertical: 16,
-                                              ),
+                                              padding:
+                                                  const EdgeInsets.symmetric(
+                                                    vertical: 16,
+                                                  ),
                                             ),
-                                            onPressed:
-                                                _isLoading ? null : _saveQrCode,
+                                            onPressed: _isLoading
+                                                ? null
+                                                : _saveQrCode,
                                           ),
                                         ),
                                         if (_showUpdateSuccess)
                                           Padding(
-                                            padding:
-                                                const EdgeInsets.only(top: 10),
+                                            padding: const EdgeInsets.only(
+                                              top: 10,
+                                            ),
                                             child: Row(
                                               children: const [
                                                 Icon(
@@ -1022,8 +1120,7 @@ class _GcashQrPageState extends State<GcashQrPage> {
                                                   'GCash QR updated',
                                                   style: TextStyle(
                                                     color: Colors.green,
-                                                    fontWeight:
-                                                        FontWeight.bold,
+                                                    fontWeight: FontWeight.bold,
                                                   ),
                                                 ),
                                               ],
@@ -1031,8 +1128,9 @@ class _GcashQrPageState extends State<GcashQrPage> {
                                           ),
                                         if (_showNoChanges)
                                           Padding(
-                                            padding:
-                                                const EdgeInsets.only(top: 10),
+                                            padding: const EdgeInsets.only(
+                                              top: 10,
+                                            ),
                                             child: Row(
                                               children: const [
                                                 Icon(
@@ -1044,8 +1142,7 @@ class _GcashQrPageState extends State<GcashQrPage> {
                                                   'No changes to update.',
                                                   style: TextStyle(
                                                     color: Colors.orange,
-                                                    fontWeight:
-                                                        FontWeight.bold,
+                                                    fontWeight: FontWeight.bold,
                                                   ),
                                                 ),
                                               ],
@@ -1297,13 +1394,11 @@ class _GcashQrPageState extends State<GcashQrPage> {
                                               GestureDetector(
                                                 onTap: () {
                                                   _showImagePreview(
-                                                    row['image_url']
-                                                        .toString(),
+                                                    row['image_url'].toString(),
                                                   );
                                                 },
                                                 child: _buildThumbImage(
-                                                  row['image_url']
-                                                      .toString(),
+                                                  row['image_url'].toString(),
                                                   width: double.infinity,
                                                   height: 180,
                                                 ),
@@ -1318,7 +1413,7 @@ class _GcashQrPageState extends State<GcashQrPage> {
                                                           .isNotEmpty ==
                                                       true
                                                   ? row['uploaded_by_name']
-                                                      .toString()
+                                                        .toString()
                                                   : 'Unknown uploader',
                                               style: const TextStyle(
                                                 fontWeight: FontWeight.w800,
@@ -1328,7 +1423,7 @@ class _GcashQrPageState extends State<GcashQrPage> {
                                             ),
                                             const SizedBox(height: 4),
                                             Text(
-                                              'Date Uploaded: ${row['created_at']?.toString() ?? ''}',
+                                              'Date Uploaded: ${_formatUploadedAt(row['created_at'])}',
                                               style: const TextStyle(
                                                 fontSize: 13,
                                                 color: kSubText,
@@ -1336,7 +1431,7 @@ class _GcashQrPageState extends State<GcashQrPage> {
                                             ),
                                             const SizedBox(height: 4),
                                             Text(
-                                              'Deceased: ${(row['userdeceased_name']?.toString().trim().isNotEmpty == true) ? row['userdeceased_name'].toString() : 'Unknown'}',
+                                              'Deceased: ${_getDeceasedDisplayText(row)}',
                                               style: const TextStyle(
                                                 fontSize: 13,
                                                 color: kSubText,
@@ -1373,13 +1468,11 @@ class _GcashQrPageState extends State<GcashQrPage> {
                                               GestureDetector(
                                                 onTap: () {
                                                   _showImagePreview(
-                                                    row['image_url']
-                                                        .toString(),
+                                                    row['image_url'].toString(),
                                                   );
                                                 },
                                                 child: _buildThumbImage(
-                                                  row['image_url']
-                                                      .toString(),
+                                                  row['image_url'].toString(),
                                                   width: 60,
                                                   height: 60,
                                                 ),
@@ -1399,7 +1492,7 @@ class _GcashQrPageState extends State<GcashQrPage> {
                                                                 .isNotEmpty ==
                                                             true
                                                         ? row['uploaded_by_name']
-                                                            .toString()
+                                                              .toString()
                                                         : 'Unknown uploader',
                                                     style: const TextStyle(
                                                       fontWeight:
@@ -1410,7 +1503,7 @@ class _GcashQrPageState extends State<GcashQrPage> {
                                                   ),
                                                   const SizedBox(height: 4),
                                                   Text(
-                                                    'Date Uploaded: ${row['created_at']?.toString() ?? ''}',
+                                                    'Date Uploaded: ${_formatUploadedAt(row['created_at'])}',
                                                     style: const TextStyle(
                                                       fontSize: 13,
                                                       color: kSubText,
@@ -1418,7 +1511,7 @@ class _GcashQrPageState extends State<GcashQrPage> {
                                                   ),
                                                   const SizedBox(height: 4),
                                                   Text(
-                                                    'Deceased: ${(row['userdeceased_name']?.toString().trim().isNotEmpty == true) ? row['userdeceased_name'].toString() : 'Unknown'}',
+                                                    'Deceased: ${_getDeceasedDisplayText(row)}',
                                                     style: const TextStyle(
                                                       fontSize: 13,
                                                       color: kSubText,
@@ -1471,7 +1564,6 @@ class _GcashQrPageState extends State<GcashQrPage> {
     required double width,
     required double height,
   }) {
-   
     return ClipRRect(
       borderRadius: BorderRadius.circular(12),
       child: Image.network(
@@ -1532,7 +1624,6 @@ class _GcashQrPageState extends State<GcashQrPage> {
       ),
       onPressed: () {
         showDialog(
-          
           context: context,
           builder: (context) {
             final requiredAmount = row['amount']?.toString() ?? '0';
@@ -1580,40 +1671,70 @@ class _GcashQrPageState extends State<GcashQrPage> {
                               final navigator = Navigator.of(context);
                               final messenger = ScaffoldMessenger.of(context);
                               try {
-                                final userId = row['uploaded_by'];
-                                final userdeceased = row['userdeceased'];
-                                final dayungUnitId = row['dayung_unit_id'];
-                                final currentUserId = Supabase.instance.client.auth.currentUser?.id;
+                                final paymentId = row['payment_id'];
+                                final currentUserId = Supabase
+                                    .instance
+                                    .client
+                                    .auth
+                                    .currentUser
+                                    ?.id;
                                 final updateData = {
                                   'status': 'paid',
-                                  'paid_at': DateTime.now().toUtc().toIso8601String(),
-                                  'datepaidamount': DateTime.now().toUtc().toIso8601String(),
-                                  'collected_by': currentUserId, // Set collected_by to current user
+                                  'paid_at': DateTime.now()
+                                      .toUtc()
+                                      .toIso8601String(),
+                                  'collected_by': currentUserId,
+                                  'iscollectedbytreasurer': true,
+                                  'iscollectedbytreasurer_date': DateTime.now()
+                                      .toUtc()
+                                      .toIso8601String(),
                                 };
+
+                                if (paymentId == null) {
+                                  messenger.showSnackBar(
+                                    const SnackBar(
+                                      content: Text(
+                                        'Unable to mark payment as paid: missing payment identifier.',
+                                      ),
+                                    ),
+                                  );
+                                  setState(() => isLoading = false);
+                                  return;
+                                }
 
                                 // Debug prints
                                 print('Current auth user id: $currentUserId');
-                                print('Current session: ${Supabase.instance.client.auth.currentSession}');
-                                print('user_id: $userId');
-                                print('userdeceased: $userdeceased');
-                                print('dayungUnitId: $dayungUnitId');
+                                print(
+                                  'Current session: ${Supabase.instance.client.auth.currentSession}',
+                                );
+                                print('payment id: $paymentId');
                                 print('row: $row');
 
-                                // Select query to check if row exists
-                                final selectResult = await Supabase.instance.client
+                                if (paymentId == null ||
+                                    paymentId.toString().isEmpty) {
+                                  messenger.showSnackBar(
+                                    const SnackBar(
+                                      content: Text(
+                                        'Unable to mark payment as paid: no linked payment record found.',
+                                      ),
+                                    ),
+                                  );
+                                  setState(() => isLoading = false);
+                                  return;
+                                }
+
+                                final selectResult = await Supabase
+                                    .instance
+                                    .client
                                     .from('payments')
                                     .select()
-                                    .eq('user_id', userId)
-                                    .eq('userdeceased', userdeceased)
-                                    .eq('dayung_unit_id', dayungUnitId);
+                                    .eq('id', paymentId);
                                 print('Select result: $selectResult');
 
                                 final result = await Supabase.instance.client
                                     .from('payments')
                                     .update(updateData)
-                                    .eq('user_id', userId)
-                                    .eq('userdeceased', userdeceased)
-                                    .eq('dayung_unit_id', dayungUnitId);
+                                    .eq('id', paymentId);
                                 print('Update result: $result');
                                 if (mounted) {
                                   this.setState(() {

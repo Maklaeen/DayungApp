@@ -69,6 +69,7 @@ class _LedgerBalancePageState extends State<LedgerBalancePage> {
   bool _loading = true;
   String? _error;
   List<Map<String, dynamic>> _collectorSummaries = [];
+  double _treasurerCollectedTotal = 0.0;
 
   @override
   void initState() {
@@ -116,7 +117,7 @@ class _LedgerBalancePageState extends State<LedgerBalancePage> {
         await sb
             .from('payments')
             .select(
-              'id, amount, collected_by, userdeceased, deceased_name, is_claimed, iscollectedbytreasurer, iscollectedbytreasurer_date',
+              'id, amount, collected_by, userdeceased, deceased_name, type, is_claimed, iscollectedbytreasurer, iscollectedbytreasurer_date',
             )
             .eq('dayung_unit_id', widget.dayungUnitId)
             .eq('status', 'paid')
@@ -169,14 +170,22 @@ class _LedgerBalancePageState extends State<LedgerBalancePage> {
         };
       }
 
+      var treasurerCollectedTotal = 0.0;
       for (final row in paymentRows) {
-        final collectorId = '${row['collected_by']}';
-        final summary = summaries[collectorId];
-        if (summary == null) continue;
+        if (row['type'] != 'deceased_payment') continue;
 
         final isTreasurerCollected = _isTruthyFlag(
           row['iscollectedbytreasurer'],
         );
+        final isClaimed = _isTruthyFlag(row['is_claimed']);
+        if (isTreasurerCollected && !isClaimed) {
+          treasurerCollectedTotal += _asDouble(row['amount']);
+        }
+
+        final collectorId = '${row['collected_by']}';
+        final summary = summaries[collectorId];
+        if (summary == null) continue;
+
         final amountContribution = isTreasurerCollected
             ? 0.0
             : _asDouble(row['amount']);
@@ -263,6 +272,7 @@ class _LedgerBalancePageState extends State<LedgerBalancePage> {
       if (!mounted) return;
       setState(() {
         _collectorSummaries = collectorSummaries;
+        _treasurerCollectedTotal = treasurerCollectedTotal;
         _loading = false;
       });
     } catch (e) {
@@ -274,11 +284,11 @@ class _LedgerBalancePageState extends State<LedgerBalancePage> {
     }
   }
 
-  Future<void> _markPaymentReceived(
+  Future<bool> _markPaymentReceived(
     List<String> paymentIds,
     String memberName,
   ) async {
-    if (paymentIds.isEmpty) return;
+    if (paymentIds.isEmpty) return false;
 
     try {
       await sb
@@ -292,7 +302,7 @@ class _LedgerBalancePageState extends State<LedgerBalancePage> {
           .inFilter('id', paymentIds)
           .timeout(_queryTimeout);
 
-      if (!mounted) return;
+      if (!mounted) return false;
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -302,14 +312,16 @@ class _LedgerBalancePageState extends State<LedgerBalancePage> {
       );
 
       await _loadCollectorTotals();
+      return true;
     } catch (e) {
-      if (!mounted) return;
+      if (!mounted) return false;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Unable to update receipt status: $e'),
           backgroundColor: Colors.redAccent,
         ),
       );
+      return false;
     }
   }
 
@@ -347,8 +359,8 @@ class _LedgerBalancePageState extends State<LedgerBalancePage> {
     );
 
     if (confirmed == true) {
-      await _markPaymentReceived(paymentIds, memberName);
-      onConfirmed?.call();
+      final updated = await _markPaymentReceived(paymentIds, memberName);
+      if (updated) onConfirmed?.call();
     }
   }
 
@@ -422,6 +434,11 @@ class _LedgerBalancePageState extends State<LedgerBalancePage> {
                                           await _confirmReceipt(
                                             member,
                                             onConfirmed: () {
+                                              member['is_received'] = true;
+                                              member['received_date'] =
+                                                  _normalizeReceivedDate(
+                                                    DateTime.now(),
+                                                  );
                                               setDialogState(() {});
                                             },
                                           );
@@ -503,10 +520,7 @@ class _LedgerBalancePageState extends State<LedgerBalancePage> {
 
   @override
   Widget build(BuildContext context) {
-    final totalCollected = _collectorSummaries.fold<double>(
-      0.0,
-      (sum, collector) => sum + _asDouble(collector['amount']),
-    );
+    final totalCollected = _treasurerCollectedTotal;
 
     return Scaffold(
       backgroundColor: _kPageBg,

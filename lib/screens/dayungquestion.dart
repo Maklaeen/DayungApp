@@ -345,7 +345,7 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
           .limit(1)
           .timeout(
             const Duration(seconds: 10),
-            onTimeout: () => <Map<String, dynamic>>[] as PostgrestList,
+            onTimeout: () => <Map<String, dynamic>>[],
           );
 
       if ((existing as List).isNotEmpty) {

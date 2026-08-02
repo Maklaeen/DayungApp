@@ -13,8 +13,6 @@ const Color _kSuccess = Color(0xFF10B981);
 const Color _kWarn = Color(0xFFF59E0B);
 const Color _kPurple = Color(0xFF7C3AED);
 
-
-
 class PresSecDashboardOverview extends StatefulWidget {
   final int dayungUnitId;
   final VoidCallback? onNavigateToMembers;
@@ -58,6 +56,15 @@ class _PresSecDashboardOverviewState extends State<PresSecDashboardOverview> {
     return normalized == 'yes' || normalized == 'true' || normalized == '1';
   }
 
+  bool _isTruthyFlag(dynamic value) {
+    if (value is bool) return value;
+    if (value is num) return value != 0;
+    if (value is String) {
+      return ['true', '1', 'yes'].contains(value.trim().toLowerCase());
+    }
+    return false;
+  }
+
   @override
   void initState() {
     super.initState();
@@ -97,12 +104,14 @@ class _PresSecDashboardOverviewState extends State<PresSecDashboardOverview> {
       final removedInDayung = r['isRemovedInDayung'] == true;
       return status == 'approved' && !removedInDayung;
     }).length;
-    final removedCount = appList.where((r) => r['isRemovedInDayung'] == true).length;
+    final removedCount = appList
+        .where((r) => r['isRemovedInDayung'] == true)
+        .length;
 
     int deceasedCount = 0;
     final claims = await _sb
         .from('claims')
-      .select('user_id, deceased_type, status, claimedmoney')
+        .select('user_id, deceased_type, status, claimedmoney')
         .eq('dayung_unit_id', unitId);
 
     final claimList = List<Map<String, dynamic>>.from(claims);
@@ -111,10 +120,10 @@ class _PresSecDashboardOverviewState extends State<PresSecDashboardOverview> {
     }).toList();
 
     final claimedDeceasedIds = approvedClaims
-      .where((r) => _isClaimedMoney(r['claimedmoney']))
-      .map((r) => (r['user_id'] ?? '').toString().trim())
-      .where((userId) => userId.isNotEmpty)
-      .toSet();
+        .where((r) => _isClaimedMoney(r['claimedmoney']))
+        .map((r) => (r['user_id'] ?? '').toString().trim())
+        .where((userId) => userId.isNotEmpty)
+        .toSet();
 
     deceasedCount = approvedClaims.length;
 
@@ -130,7 +139,7 @@ class _PresSecDashboardOverviewState extends State<PresSecDashboardOverview> {
     // Current funds (total paid payments)
     final payments = await _sb
         .from('payments')
-        .select('amount, status, userdeceased')
+        .select('amount, status, userdeceased, iscollectedbytreasurer')
         .eq('dayung_unit_id', unitId)
         .eq('type', 'deceased_payment');
     double totalFunds = 0;
@@ -138,8 +147,11 @@ class _PresSecDashboardOverviewState extends State<PresSecDashboardOverview> {
       final paymentStatus = (r['status'] ?? '').toString().toLowerCase();
       final deceasedId = (r['userdeceased'] ?? '').toString().trim();
       final alreadyClaimed = claimedDeceasedIds.contains(deceasedId);
+      final isCollectedByTreasurer = _isTruthyFlag(r['iscollectedbytreasurer']);
 
-      if (paymentStatus == 'paid' && !alreadyClaimed) {
+      if (paymentStatus == 'paid' &&
+          !alreadyClaimed &&
+          isCollectedByTreasurer) {
         final amt = r['amount'];
         totalFunds += (amt is num)
             ? amt.toDouble()
@@ -182,10 +194,11 @@ class _PresSecDashboardOverviewState extends State<PresSecDashboardOverview> {
 
     final rows = await _sb
         .from('payments')
-        .select('amount, paid_at, created_at')
+        .select('amount, paid_at, created_at, iscollectedbytreasurer')
         .eq('dayung_unit_id', widget.dayungUnitId)
         .eq('type', 'deceased_payment')
         .eq('status', 'paid')
+        .eq('iscollectedbytreasurer', true)
         .gte('created_at', yearStart)
         .lte('created_at', yearEnd);
 
@@ -294,7 +307,7 @@ class _PresSecDashboardOverviewState extends State<PresSecDashboardOverview> {
         _sectionTitle('Ongoing Collections'),
         const SizedBox(height: 4),
         const Text(
-          'Shows how many members have already paid for each deceased member.',
+          'Shows only collections that are still incomplete on the dashboard.',
           style: TextStyle(
             fontSize: 12,
             color: _kSubText,
@@ -540,11 +553,7 @@ class _PresSecDashboardOverviewState extends State<PresSecDashboardOverview> {
             ),
           ),
           const SizedBox(width: 16),
-          Container(
-            width: 1,
-            height: 120,
-            color: Colors.white24,
-          ),
+          Container(width: 1, height: 120, color: Colors.white24),
           const SizedBox(width: 16),
           Expanded(
             child: Container(

@@ -8,12 +8,10 @@ import 'package:file_picker/file_picker.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:geocoding/geocoding.dart';
 import 'dart:io';
-import 'package:flutter/foundation.dart'; 
+import 'package:flutter/foundation.dart';
 import 'package:capstone_app/data/ph_address_data.dart';
 import 'package:capstone_app/utils/input_safety.dart';
 import 'package:capstone_app/utils/supabase_storage.dart';
-
-
 
 const Color kPrimary = Color(0xFF0D47A1);
 const Color kPrimaryDark = Color(0xFF083366);
@@ -35,7 +33,6 @@ class SubmitClaimForm extends StatefulWidget {
 
 class _SubmitClaimFormState extends State<SubmitClaimForm> {
   final _formKey = GlobalKey<FormState>();
-  final _title = TextEditingController();
   final _desc = TextEditingController();
   String? _vigilAddress;
   String? _vigilBarangay;
@@ -69,15 +66,7 @@ class _SubmitClaimFormState extends State<SubmitClaimForm> {
   }
 
   @override
-  void initState() {
-    super.initState();
-    _title.text = 'Claim for Deceased Member';
-    _fetchBeneficiaries();
-  }
-
-  @override
   void dispose() {
-    _title.dispose();
     _desc.dispose();
     super.dispose();
   }
@@ -584,19 +573,37 @@ class _SubmitClaimFormState extends State<SubmitClaimForm> {
     // --- Fetch deceased dob and age ---
     String? deceasedDob;
     int? deceasedAge;
+    String deceasedName = 'Member';
     try {
       if (_selectedDeceasedType == 'member') {
         // Fetch member's dob from users table
-        final userRow = await sb.from('users').select('dob').eq('id', user.id).maybeSingle();
+        final userRow = await sb
+            .from('users')
+            .select('full_name, dob')
+            .eq('id', user.id)
+            .maybeSingle();
         if (userRow != null && userRow['dob'] != null) {
           deceasedDob = userRow['dob'];
         }
-      } else if (_selectedDeceasedType != null && _selectedDeceasedType!.startsWith('beneficiary_')) {
+        final memberName = userRow?['full_name']?.toString().trim();
+        if (memberName != null && memberName.isNotEmpty) {
+          deceasedName = memberName;
+        }
+      } else if (_selectedDeceasedType != null &&
+          _selectedDeceasedType!.startsWith('beneficiary_')) {
         // Fetch beneficiary's dob
         if (_selectedBeneficiaryId != null) {
-          final ben = await sb.from('beneficiaries').select('dob').eq('id', _selectedBeneficiaryId as Object).maybeSingle();
+          final ben = await sb
+              .from('beneficiaries')
+              .select('full_name, dob')
+              .eq('id', _selectedBeneficiaryId as Object)
+              .maybeSingle();
           if (ben != null && ben['dob'] != null) {
             deceasedDob = ben['dob'];
+          }
+          final beneficiaryName = ben?['full_name']?.toString().trim();
+          if (beneficiaryName != null && beneficiaryName.isNotEmpty) {
+            deceasedName = beneficiaryName;
           }
         }
       }
@@ -604,7 +611,14 @@ class _SubmitClaimFormState extends State<SubmitClaimForm> {
       if (deceasedDob != null && _dateOfDeath != null) {
         final dobDate = DateTime.tryParse(deceasedDob);
         if (dobDate != null) {
-          deceasedAge = _dateOfDeath!.year - dobDate.year - ((_dateOfDeath!.month < dobDate.month || (_dateOfDeath!.month == dobDate.month && _dateOfDeath!.day < dobDate.day)) ? 1 : 0);
+          deceasedAge =
+              _dateOfDeath!.year -
+              dobDate.year -
+              ((_dateOfDeath!.month < dobDate.month ||
+                      (_dateOfDeath!.month == dobDate.month &&
+                          _dateOfDeath!.day < dobDate.day))
+                  ? 1
+                  : 0);
         }
       }
     } catch (e) {
@@ -615,10 +629,7 @@ class _SubmitClaimFormState extends State<SubmitClaimForm> {
     try {
       final claimData = {
         'user_id': user.id,
-        'title': AppInputSecurity.sanitizePlainText(
-          _title.text,
-          maxLength: 120,
-        ),
+        'title': 'Death Claim - $deceasedName',
         'description': AppInputSecurity.sanitizePlainText(
           _desc.text,
           allowNewLines: true,
@@ -627,7 +638,10 @@ class _SubmitClaimFormState extends State<SubmitClaimForm> {
         'status': 'Pending',
         if (_selectedBeneficiaryId != null)
           'beneficiary_id': _selectedBeneficiaryId,
-        'deceased_type': _selectedDeceasedType?.startsWith('beneficiary_') == true ? 'beneficiary' : 'member',
+        'deceased_type':
+            _selectedDeceasedType?.startsWith('beneficiary_') == true
+            ? 'beneficiary'
+            : 'member',
         'date_of_death': fmtDate(_dateOfDeath!),
         'dayung_unit_id': effectiveUnitId,
         'vigil_latitude': _vigilLat,
@@ -692,7 +706,6 @@ class _SubmitClaimFormState extends State<SubmitClaimForm> {
 
       if (!mounted) return;
       Navigator.of(context).pop(true);
-  
     } catch (e, st) {
       debugPrint('CLAIM SUBMIT ERROR: $e\n$st');
       if (!mounted) return;
@@ -847,9 +860,7 @@ class _SubmitClaimFormState extends State<SubmitClaimForm> {
             showDialog(
               context: context,
               builder: (_) => Dialog(
-                child: InteractiveViewer(
-                  child: Image.memory(_deathCertBytes!),
-                ),
+                child: InteractiveViewer(child: Image.memory(_deathCertBytes!)),
               ),
             );
           },
@@ -874,7 +885,9 @@ class _SubmitClaimFormState extends State<SubmitClaimForm> {
               context: context,
               builder: (_) => AlertDialog(
                 title: const Text('PDF Preview'),
-                content: const Text('PDF preview not supported in this dialog. Please ensure you selected the correct file.'),
+                content: const Text(
+                  'PDF preview not supported in this dialog. Please ensure you selected the correct file.',
+                ),
                 actions: [
                   TextButton(
                     onPressed: () => Navigator.pop(context),
@@ -920,7 +933,11 @@ class _SubmitClaimFormState extends State<SubmitClaimForm> {
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
               child: Row(
                 children: [
-                  Icon(Icons.attach_file_rounded, color: kPrimaryDark, size: 20),
+                  Icon(
+                    Icons.attach_file_rounded,
+                    color: kPrimaryDark,
+                    size: 20,
+                  ),
                   const SizedBox(width: 12),
                   Expanded(
                     child: Text(
@@ -979,9 +996,7 @@ class _SubmitClaimFormState extends State<SubmitClaimForm> {
             showDialog(
               context: context,
               builder: (_) => Dialog(
-                child: InteractiveViewer(
-                  child: Image.memory(_validIdBytes!),
-                ),
+                child: InteractiveViewer(child: Image.memory(_validIdBytes!)),
               ),
             );
           },
@@ -1005,7 +1020,9 @@ class _SubmitClaimFormState extends State<SubmitClaimForm> {
               context: context,
               builder: (_) => AlertDialog(
                 title: const Text('PDF Preview'),
-                content: const Text('PDF preview not supported in this dialog. Please ensure you selected the correct file.'),
+                content: const Text(
+                  'PDF preview not supported in this dialog. Please ensure you selected the correct file.',
+                ),
                 actions: [
                   TextButton(
                     onPressed: () => Navigator.pop(context),
@@ -1315,26 +1332,6 @@ class _SubmitClaimFormState extends State<SubmitClaimForm> {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    // Title
-                    _buildModernField(
-                      controller: _title,
-                      label: 'Title',
-                      icon: Icons.title_rounded,
-                      inputFormatters: AppInputSecurity.singleLineFormatters(
-                        maxLength: 120,
-                      ),
-                      validator: (v) {
-                        return AppInputSecurity.validateSafeText(
-                          v,
-                          fieldName: 'Title',
-                          minLength: 4,
-                          maxLength: 120,
-                        );
-                      },
-                      readOnly: true,
-                    ),
-                    const SizedBox(height: 16),
-
                     // Description
                     _buildModernField(
                       controller: _desc,

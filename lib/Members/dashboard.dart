@@ -1,16 +1,13 @@
 import 'dart:convert';
-import 'package:capstone_app/Auth/logout.dart';
-import 'package:capstone_app/Beneficiary/beneficiary.dart';
 import 'package:capstone_app/Members/gcash_payment_page.dart';
 import 'package:capstone_app/Members/memclaims.dart';
 import 'package:capstone_app/Members/memcontributions.dart';
 import 'package:capstone_app/Members/receipts.dart';
 import 'package:capstone_app/Providers/dayung_provider.dart';
 import 'package:capstone_app/pages/notification.dart';
+import 'package:capstone_app/pages/membership_agreement_page.dart';
 import 'package:capstone_app/pages/recentdeathnotices.dart';
-import 'package:capstone_app/profile/profile.dart';
 import 'package:capstone_app/Auth/login.dart';
-import 'package:capstone_app/settings/profsettings.dart';
 import 'package:capstone_app/utils/theme_surface.dart';
 // import 'package:capstone_app/profile/dayung_profile.dart';
 import 'package:flutter/material.dart';
@@ -68,6 +65,9 @@ class _MemberDashboardPageState extends State<MemberDashboardPage>
 
   int _unreadNotifCount = 0;
   int _activeMembersCount = 0;
+  bool _hasPendingApplication = false;
+  String? _pendingApplicationDayungName;
+  int? _pendingApplicationDayungUnitId;
   int? _asInt(dynamic v) => v == null ? null : int.tryParse(v.toString());
   int? _lastRoleUnitId;
   int _currentIndex = 0;
@@ -137,12 +137,14 @@ class _MemberDashboardPageState extends State<MemberDashboardPage>
     try {
       final ids = await _managedDayungIds();
       if (ids.isEmpty) {
+        await _fetchPendingApplication();
         return;
       }
       await Future.wait([
         _fetchActiveMembers(),
         _fetchRecentDeaths(),
         _fetchPendingPayments(),
+        _fetchPendingApplication(),
       ]);
     } catch (e) {
       debugPrint('Failed to load member dashboard data: $e');
@@ -155,6 +157,7 @@ class _MemberDashboardPageState extends State<MemberDashboardPage>
       _fetchActiveMembers(),
       _fetchRecentDeaths(),
       _fetchPendingPayments(),
+      _fetchPendingApplication(),
     ]);
   }
 
@@ -165,6 +168,70 @@ class _MemberDashboardPageState extends State<MemberDashboardPage>
   //   await _fetchUnreadNotifCount();
   //   await _fetchAllStats();
   //   _subscribeNotificationsRealtime();
+
+  Future<void> _fetchPendingApplication() async {
+    try {
+      final userId = supabase.auth.currentUser?.id;
+      if (userId == null) {
+        if (!mounted) return;
+        setState(() {
+          _hasPendingApplication = false;
+          _pendingApplicationDayungName = null;
+          _pendingApplicationDayungUnitId = null;
+        });
+        return;
+      }
+
+      final applicationRows = await supabase
+          .from('applications')
+          .select('status, dayung_unit_id')
+          .eq('user_id', userId)
+          .limit(1);
+
+      final row = (applicationRows is List && applicationRows.isNotEmpty)
+          ? applicationRows.first as Map<String, dynamic>
+          : null;
+      final status = row == null
+          ? ''
+          : (row['status'] ?? '').toString().toLowerCase().trim();
+      if (status == 'pending') {
+        final unitId = _asInt(row!['dayung_unit_id']);
+        String? unitName;
+        if (unitId != null) {
+          final unitRow = await supabase
+              .from('dayung_units')
+              .select('name')
+              .eq('id', unitId)
+              .maybeSingle();
+          if (unitRow is Map<String, dynamic>) {
+            unitName = (unitRow['name'] ?? '').toString().trim();
+          }
+        }
+
+        if (!mounted) return;
+        setState(() {
+          _hasPendingApplication = true;
+          _pendingApplicationDayungName = unitName;
+          _pendingApplicationDayungUnitId = unitId;
+        });
+        return;
+      }
+
+      if (!mounted) return;
+      setState(() {
+        _hasPendingApplication = false;
+        _pendingApplicationDayungName = null;
+        _pendingApplicationDayungUnitId = null;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _hasPendingApplication = false;
+        _pendingApplicationDayungName = null;
+        _pendingApplicationDayungUnitId = null;
+      });
+    }
+  }
 
   Future<void> _fetchUnreadNotifCount() async {
     final sb = Supabase.instance.client;
@@ -307,6 +374,7 @@ class _MemberDashboardPageState extends State<MemberDashboardPage>
     await _loadUserData();
     await _reloadDayungFromPrefs();
     await _fetchAllStats();
+    await _fetchPendingApplication();
     await _fetchUnreadNotifCount();
   }
 
@@ -766,6 +834,10 @@ class _MemberDashboardPageState extends State<MemberDashboardPage>
           children: [
             _overviewSection(),
             const SizedBox(height: 24),
+            if (_hasPendingApplication) ...[
+              _buildPendingApplicationNotice(),
+              const SizedBox(height: 24),
+            ],
             _buildNextPaymentCard(
               false,
             ), // Keep your Next Payment Due card here
@@ -1239,6 +1311,89 @@ class _MemberDashboardPageState extends State<MemberDashboardPage>
   }
 
   // Recent Activity
+  Widget _buildPendingApplicationNotice() {
+    final unitName = _pendingApplicationDayungName;
+    final unitLabel = unitName != null && unitName.isNotEmpty
+        ? unitName
+        : _pendingApplicationDayungUnitId != null
+        ? 'Dayung unit #${_pendingApplicationDayungUnitId}'
+        : 'selected Dayung unit';
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 22),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFFF7ED),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: const Color(0xFFF59E0B).withOpacity(0.28)),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFFF59E0B).withOpacity(0.12),
+            blurRadius: 16,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.info_outline_rounded, color: Color(0xFFB45309)),
+              const SizedBox(width: 10),
+              const Text(
+                'Application in progress',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w800,
+                  color: Color(0xFF92400E),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          Text(
+            'You are applying to $unitLabel. Please check the Membership Agreement and read the terms so your membership can continue.',
+            style: const TextStyle(
+              fontSize: 15,
+              height: 1.5,
+              color: Color(0xFF92400E),
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: 18),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton(
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => const MembershipAgreementPage(),
+                  ),
+                );
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFFB45309),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                padding: const EdgeInsets.symmetric(vertical: 14),
+              ),
+              child: const Text(
+                'Open Membership Agreement',
+                style: TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w700,
+                  color: Colors.white,
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _modernRecentActivity() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1690,7 +1845,6 @@ class _MemberDashboardPageState extends State<MemberDashboardPage>
                   : () {
                       final id = _asInt(_selectedDayungUnitObj?['id']);
                       if (id == null) {
-                        // Show an error, fallback, or prevent navigation
                         return;
                       }
                       Navigator.push(

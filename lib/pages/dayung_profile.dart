@@ -38,17 +38,12 @@ class _DayungProfilePageState extends State<DayungProfilePage> {
     int? unitId = widget.dayungUnitId;
     _unitId = unitId;
 
-    if (unitId == null) {
-      _setStateSafe(() => _loading = false);
-      return;
-    }
-
     try {
       // 2) Fetch dayung info
       final d = await supabase
           .from('dayung_units')
           .select('id,name,barangay,city,province,description')
-          .eq('id', unitId)
+          .eq('id', unitId!)
           .maybeSingle();
 
       // 3) Fetch approved members by applications join (NOT users.dayung_unit_id)

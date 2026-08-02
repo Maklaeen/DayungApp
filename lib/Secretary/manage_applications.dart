@@ -2,11 +2,13 @@ import 'dart:typed_data';
 import 'package:capstone_app/Providers/membership_qualification_provider.dart';
 import 'package:capstone_app/Secretary/secretary_ui.dart';
 import 'package:pdfx/pdfx.dart';
+import 'package:encrypt/encrypt.dart' as encrypt;
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:provider/provider.dart' as provider;
 import 'package:capstone_app/Providers/dayung_provider.dart';
+import 'package:capstone_app/utils/supabase_storage.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -45,14 +47,14 @@ Map<String, dynamic> buildMembershipPaymentPayload({
     'created_at': now,
     'paid_at': null,
     'collected_by': null,
-    'datepaidamount': null,
+
     'userdeceased': null,
     'deceased_name': null,
     'message': null,
     'claim_id': null,
     'is_due': null,
     'due_date': null,
-    'type': 'membership fee',
+    'type': 'membership_payment',
   };
 }
 
@@ -74,7 +76,7 @@ class _SecretaryApplicationsPageState extends State<SecretaryApplicationsPage> {
   RealtimeChannel? _channel;
   int? _currentUnitId;
   String _inferType(String url) {
-    final lower = url.toLowerCase();
+    final lower = (Uri.tryParse(url)?.path ?? url).toLowerCase();
     if (lower.endsWith('.pdf')) return 'pdf';
     if (lower.endsWith('.png')) return 'png';
     if (lower.endsWith('.jpg') || lower.endsWith('.jpeg')) return 'jpg';
@@ -447,45 +449,82 @@ class _SecretaryApplicationsPageState extends State<SecretaryApplicationsPage> {
     );
   }
 
-  Future<Uri?> _resolveCertificateUri(String raw) async {
-    if (raw.trim().isEmpty) return null;
-
-    // If it's already a valid absolute URL, use it
-    try {
-      final u = Uri.parse(raw);
-      if (u.hasScheme && (u.isScheme('https') || u.isScheme('http'))) {
-        return u;
-      }
-    } catch (_) {}
-
-    // Treat as Supabase Storage path: "bucket/path/to/file.pdf" (or with leading slash)
-    final path = raw.replaceFirst(RegExp(r'^/+'), '');
-    final parts = path.split('/');
-    if (parts.length < 2) return null;
-
-    final bucket = parts.first;
-    final objectPath = parts.sublist(1).join('/');
-
-    try {
-      // Prefer a short-lived signed URL (works for private buckets)
-      final signed = await _supabase.storage
-          .from(bucket)
-          .createSignedUrl(objectPath, 3600); // 1 hour
-
-      return Uri.parse(signed);
-    } catch (_) {
-      // Fallback to public URL if bucket is public
-      try {
-        final pub = _supabase.storage.from(bucket).getPublicUrl(objectPath);
-        return Uri.parse(pub);
-      } catch (_) {
-        return null;
+  Future<Uri?> _resolveCertificateUri(
+    String raw, {
+    String? fallbackBucket,
+  }) async {
+    var resolved = await resolveSupabaseStorageUrl(raw, client: _supabase);
+    if (resolved == null && fallbackBucket != null) {
+      final value = raw.trim().replaceFirst(RegExp(r'^/+'), '');
+      if (value.isNotEmpty && !value.contains('/')) {
+        resolved = await resolveSupabaseStorageUrl(
+          buildStorageRef(fallbackBucket, value),
+          client: _supabase,
+        );
       }
     }
+    return resolved == null ? null : Uri.tryParse(resolved);
   }
 
-  Future<void> _openCertificateViewer(String raw) async {
-    final uri = await _resolveCertificateUri(raw);
+  Future<Uint8List> _loadCertificateBytes(Uri uri) async {
+    final response = await http.get(uri);
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw Exception('HTTP ${response.statusCode}');
+    }
+
+    final encryptedBytes = response.bodyBytes;
+    if (_isPlaintextCertificate(encryptedBytes)) {
+      return encryptedBytes;
+    }
+    if (encryptedBytes.length < 16) {
+      throw Exception('Invalid certificate');
+    }
+
+    final ivBytes = encryptedBytes.sublist(0, 16);
+    final cipherBytes = encryptedBytes.sublist(16);
+    final key = encrypt.Key.fromUtf8(
+      'capstonedayungappjjm'.padRight(32).substring(0, 32),
+    );
+    final iv = encrypt.IV(ivBytes);
+    final encrypter = encrypt.Encrypter(encrypt.AES(key));
+    return Uint8List.fromList(
+      encrypter.decryptBytes(encrypt.Encrypted(cipherBytes), iv: iv),
+    );
+  }
+
+  bool _isPlaintextCertificate(Uint8List bytes) {
+    if (bytes.length >= 4 &&
+        bytes[0] == 0xFF &&
+        bytes[1] == 0xD8 &&
+        bytes[2] == 0xFF) {
+      return true;
+    }
+    if (bytes.length >= 8 &&
+        bytes[0] == 0x89 &&
+        bytes[1] == 0x50 &&
+        bytes[2] == 0x4E &&
+        bytes[3] == 0x47 &&
+        bytes[4] == 0x0D &&
+        bytes[5] == 0x0A &&
+        bytes[6] == 0x1A &&
+        bytes[7] == 0x0A) {
+      return true;
+    }
+    return bytes.length >= 4 &&
+        bytes[0] == 0x25 &&
+        bytes[1] == 0x50 &&
+        bytes[2] == 0x44 &&
+        bytes[3] == 0x46;
+  }
+
+  Future<void> _openCertificateViewer(
+    String raw, {
+    String? fallbackBucket,
+  }) async {
+    final uri = await _resolveCertificateUri(
+      raw,
+      fallbackBucket: fallbackBucket,
+    );
     if (uri == null) {
       if (!mounted) return;
       ScaffoldMessenger.of(
@@ -525,31 +564,39 @@ class _SecretaryApplicationsPageState extends State<SecretaryApplicationsPage> {
                   child: Builder(
                     builder: (_) {
                       if (kind == 'png' || kind == 'jpg') {
-                        return ClipRRect(
-                          borderRadius: BorderRadius.circular(20),
-                          child: Container(
-                            color: const Color(0xFFF8FAFC),
-                            child: InteractiveViewer(
-                              child: Image.network(
-                                uri.toString(),
-                                fit: BoxFit.contain,
-                                errorBuilder: (_, __, ___) => const Center(
-                                  child: Text('Failed to load image'),
+                        return FutureBuilder<Uint8List>(
+                          future: _loadCertificateBytes(uri),
+                          builder: (context, snap) {
+                            if (snap.connectionState != ConnectionState.done) {
+                              return const Center(
+                                child: CircularProgressIndicator(),
+                              );
+                            }
+                            if (snap.hasError || snap.data == null) {
+                              return Center(
+                                child: Text(
+                                  'Failed to load image${snap.error == null ? '' : ': ${snap.error}'}',
+                                ),
+                              );
+                            }
+                            return ClipRRect(
+                              borderRadius: BorderRadius.circular(20),
+                              child: Container(
+                                color: const Color(0xFFF8FAFC),
+                                child: InteractiveViewer(
+                                  child: Image.memory(
+                                    snap.data!,
+                                    fit: BoxFit.contain,
+                                  ),
                                 ),
                               ),
-                            ),
-                          ),
+                            );
+                          },
                         );
                       }
                       if (kind == 'pdf') {
                         return FutureBuilder<Uint8List>(
-                          future: () async {
-                            final resp = await http.get(uri);
-                            if (resp.statusCode != 200) {
-                              throw Exception('HTTP ${resp.statusCode}');
-                            }
-                            return resp.bodyBytes;
-                          }(),
+                          future: _loadCertificateBytes(uri),
                           builder: (context, snap) {
                             if (snap.connectionState != ConnectionState.done) {
                               return const Center(
@@ -783,6 +830,14 @@ class _SecretaryApplicationsPageState extends State<SecretaryApplicationsPage> {
     );
   }
 
+  bool _isAgreeTrue(Map<String, dynamic> row) {
+    final value = row['is_agree'];
+    if (value is bool) return value;
+    if (value is String) return value.trim().toLowerCase() == 'true';
+    if (value is int) return value == 1;
+    return false;
+  }
+
   Future<void> _fetchApplications({int? forUnitId}) async {
     final unitId =
         forUnitId ??
@@ -804,20 +859,24 @@ class _SecretaryApplicationsPageState extends State<SecretaryApplicationsPage> {
       _error = null;
     });
     try {
-      final data = await _supabase
+      final query = _supabase
           .from('applications')
           .select(
             // Include user_id so we can flag per user.
-            'id, user_id, status, applied_at, dayung_unit_id, users(id, full_name, email, profile_url)',
+            'id, user_id, status, applied_at, dayung_unit_id, is_agree, users(id, full_name, email, profile_url)',
           )
-          .eq('dayung_unit_id', unitId) // single authoritative filter
+          .eq('dayung_unit_id', unitId); // single authoritative filter
+
+      final data = await query
           .eq('status', _filter)
           .order('applied_at', ascending: false);
 
       final list = List<Map<String, dynamic>>.from(data).where((r) {
         final v = r['dayung_unit_id'];
         final rid = v is int ? v : int.tryParse('$v');
-        return rid == unitId;
+        if (rid != unitId) return false;
+        if (_filter == 'pending' && !_isAgreeTrue(r)) return false;
+        return true;
       }).toList();
       // Build deceased flags (any death_notice for the user in a different unit)
       final userIds = list
@@ -887,19 +946,23 @@ class _SecretaryApplicationsPageState extends State<SecretaryApplicationsPage> {
           .select('id')
           .eq('user_id', userId)
           .eq('dayung_unit_id', dayungUnitId)
-          .eq('type', 'membership fee')
+          .eq('type', 'membership_payment')
           .maybeSingle();
 
       if (existing != null) return;
 
-      final amount = parseMembershipAmount(rulesRow?['exactamountformembership']);
-      await _supabase.from('payments').insert(
-        buildMembershipPaymentPayload(
-          userId: userId,
-          dayungUnitId: dayungUnitId,
-          amount: amount,
-        ),
+      final amount = parseMembershipAmount(
+        rulesRow?['exactamountformembership'],
       );
+      await _supabase
+          .from('payments')
+          .insert(
+            buildMembershipPaymentPayload(
+              userId: userId,
+              dayungUnitId: dayungUnitId,
+              amount: amount,
+            ),
+          );
     } catch (_) {
       // Ignore payment insert issues so the approval flow is not blocked.
     }
@@ -946,13 +1009,14 @@ class _SecretaryApplicationsPageState extends State<SecretaryApplicationsPage> {
       final userId = applicationRow?['user_id']?.toString();
       final unitId = int.tryParse('${applicationRow?['dayung_unit_id']}');
       if (userId != null && userId.isNotEmpty && unitId != null) {
-        await _createMembershipPaymentRecord(userId: userId, dayungUnitId: unitId);
+        await _createMembershipPaymentRecord(
+          userId: userId,
+          dayungUnitId: unitId,
+        );
       }
 
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Application approved')));
+
       _fetchApplications(forUnitId: _currentUnitId);
     } on PostgrestException catch (e) {
       if (!mounted) return;
@@ -1372,7 +1436,10 @@ class _SecretaryApplicationsPageState extends State<SecretaryApplicationsPage> {
                             completed: uploadedResidency,
                             url: residencyUrl,
                             onView: uploadedResidency
-                                ? () => _openCertificateViewer(residencyUrl)
+                                ? () => _openCertificateViewer(
+                                    residencyUrl,
+                                    fallbackBucket: 'proof_of_residency',
+                                  )
                                 : null,
                           ),
                           const SizedBox(height: 18),
@@ -1746,15 +1813,7 @@ class _SecretaryApplicationsPageState extends State<SecretaryApplicationsPage> {
                                                 fontFamily: 'OpenSans',
                                               ),
                                             ),
-                                            const SizedBox(height: 4),
-                                            Text(
-                                              dayungName,
-                                              style: const TextStyle(
-                                                fontSize: 12,
-                                                color: kSubText,
-                                                fontFamily: 'OpenSans',
-                                              ),
-                                            ),
+
                                             // specific objectives - riverpod
                                             Consumer(
                                               builder: (context, ref, _) {

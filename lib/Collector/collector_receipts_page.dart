@@ -100,7 +100,7 @@ class _CollectorReceiptsPageState extends State<CollectorReceiptsPage> {
         .from('payments')
         .select(
           'id, user_id, amount, status, paid_at, created_at, collected_by, '
-          'datepaidamount, userdeceased, dayung_unit_id, '
+          ' userdeceased, dayung_unit_id, '
           'users!payments_user_id_fkey(full_name), '
           'collector:users!payments_collected_by_fkey(full_name)',
         )
@@ -116,12 +116,8 @@ class _CollectorReceiptsPageState extends State<CollectorReceiptsPage> {
 
     return rows
         .map((row) {
-          final dateValue =
-              (row['paid_at'] ??
-                      row['datepaidamount'] ??
-                      row['created_at'] ??
-                      '')
-                  .toString();
+          final dateValue = (row['paid_at'] ?? row['created_at'] ?? '')
+              .toString();
           return {
             'id': 'cash-${row['id']}',
             'receipt_id': row['id']?.toString() ?? 'N/A',
@@ -139,7 +135,7 @@ class _CollectorReceiptsPageState extends State<CollectorReceiptsPage> {
             'reference': '',
             'proof_image_url': '',
             'deceased_id': (row['userdeceased'] ?? '').toString(),
-         
+
             'sort_date': dateValue,
             'display_date': dateValue,
             'supporting_text': 'Recorded as a completed cash payment.',
@@ -213,7 +209,7 @@ class _CollectorReceiptsPageState extends State<CollectorReceiptsPage> {
         'reference': refValue,
         'proof_image_url': proofImageUrl,
         'deceased_id': (row['userdeceased'] ?? '').toString(),
-    
+
         'sort_date': dateValue,
         'display_date': dateValue,
         'supporting_text': status.toLowerCase() == 'paid'
@@ -244,7 +240,7 @@ class _CollectorReceiptsPageState extends State<CollectorReceiptsPage> {
     for (final row in rows) {
       final uploadedBy = (row['uploaded_by'] ?? '').toString();
       final deceasedId = (row['userdeceased'] ?? '').toString();
- 
+
       if (uploadedBy.isNotEmpty) userIds.add(uploadedBy);
       if (deceasedId.isNotEmpty) userIds.add(deceasedId);
 
@@ -262,7 +258,7 @@ class _CollectorReceiptsPageState extends State<CollectorReceiptsPage> {
       final key = _receiptKey({
         'member_id': uploadedBy,
         'deceased_id': (row['userdeceased'] ?? '').toString(),
-     
+
         'amount': row['amount'],
       });
       final isPaid = paidKeys.contains(key);
@@ -279,11 +275,11 @@ class _CollectorReceiptsPageState extends State<CollectorReceiptsPage> {
             ? 'Approved through collector review'
             : 'Awaiting review',
         'amount': row['amount'],
-        'status': isPaid ? 'paid' : 'submitted',
+
         'reference': (row['refno'] ?? '').toString(),
         'proof_image_url': (row['image_url'] ?? '').toString(),
         'deceased_id': (row['userdeceased'] ?? '').toString(),
-     
+
         'sort_date': dateValue,
         'display_date': dateValue,
         'supporting_text': isPaid
@@ -319,7 +315,7 @@ class _CollectorReceiptsPageState extends State<CollectorReceiptsPage> {
           _receiptKey({
             'member_id': (payment['user_id'] ?? '').toString(),
             'deceased_id': (payment['userdeceased'] ?? '').toString(),
-  
+
             'amount': payment['amount'],
           }),
         );
@@ -347,7 +343,7 @@ class _CollectorReceiptsPageState extends State<CollectorReceiptsPage> {
           _receiptKey({
             'member_id': (payment['user_id'] ?? '').toString(),
             'deceased_id': (payment['userdeceased'] ?? '').toString(),
-      
+
             'amount': payment['amount'],
           }),
         );
@@ -383,7 +379,7 @@ class _CollectorReceiptsPageState extends State<CollectorReceiptsPage> {
     return [
       (row['member_id'] ?? '').toString(),
       (row['deceased_id'] ?? '').toString(),
-   
+
       amount,
     ].join('|');
   }
@@ -901,7 +897,7 @@ class _CollectorReceiptsPageState extends State<CollectorReceiptsPage> {
   Widget _buildReceiptCard(Map<String, dynamic> receipt) {
     final source = (receipt['source'] ?? 'cash').toString().toLowerCase();
     final sourceTone = source == 'gcash' ? kReceiptsWarn : kReceiptsSuccess;
-    final status = (receipt['status'] ?? 'paid').toString();
+
     final hasProofImage = (receipt['proof_image_url'] ?? '')
         .toString()
         .isNotEmpty;
@@ -974,8 +970,6 @@ class _CollectorReceiptsPageState extends State<CollectorReceiptsPage> {
                         receipt['source_label'].toString(),
                         sourceTone,
                       ),
-                      const SizedBox(height: 8),
-                      _statusChip(status.toUpperCase(), _statusColor(status)),
                     ],
                   ),
                 ],

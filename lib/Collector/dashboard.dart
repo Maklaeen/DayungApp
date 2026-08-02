@@ -1,6 +1,4 @@
 import 'dart:convert';
-import 'package:capstone_app/Auth/logout.dart';
-import 'package:capstone_app/Beneficiary/beneficiary.dart' hide kPrimary;
 import 'package:capstone_app/Collector/collclaims.dart' hide kPrimary;
 import 'package:capstone_app/Collector/collcontributions.dart';
 import 'package:capstone_app/Collector/collector_receipts_page.dart';
@@ -9,8 +7,6 @@ import 'package:capstone_app/Providers/dayung_provider.dart';
 import 'package:capstone_app/Providers/dayung_role_provider.dart';
 import 'package:capstone_app/pages/members_page.dart';
 import 'package:capstone_app/pages/notification.dart';
-import 'package:capstone_app/profile/profile.dart';
-import 'package:capstone_app/settings/profsettings.dart' hide kPrimary;
 import 'package:capstone_app/shared/names_only_members_page.dart';
 import 'package:capstone_app/ui/theme/branding.dart';
 import 'package:capstone_app/utils/theme_surface.dart';
@@ -33,6 +29,20 @@ const kPrimaryDark = Color(0xFF083366);
 const kAccent = Color(0xFF0D47A1);
 
 const double kEdge = 16;
+
+DateTime? _parseDashboardDate(dynamic value) {
+  if (value == null) return null;
+  if (value is DateTime) return value;
+  if (value is String) return DateTime.tryParse(value);
+  return null;
+}
+
+bool _isSameCalendarDay(DateTime? value, DateTime reference) {
+  if (value == null) return false;
+  return value.year == reference.year &&
+      value.month == reference.month &&
+      value.day == reference.day;
+}
 
 class CollectorDashboardPage extends StatefulWidget {
   const CollectorDashboardPage({super.key});
@@ -129,11 +139,11 @@ class _CollectorDashboardPageState extends State<CollectorDashboardPage> {
     String? jsonFull = prefs.getString('selectedDayungUnitData');
     Map<String, dynamic>? parsed;
 
-    try {
-      if (jsonFull != null) {
+    if (jsonFull != null) {
+      try {
         parsed = jsonDecode(jsonFull);
-      }
-    } catch (_) {}
+      } catch (_) {}
+    }
     if (parsed == null &&
         label.trim().startsWith('{') &&
         label.contains('"name"')) {
@@ -308,28 +318,27 @@ class _CollectorDashboardPageState extends State<CollectorDashboardPage> {
         _todayDeceased = 0;
         return;
       }
-      final now = DateTime.now();
-      final todayStart = DateTime(now.year, now.month, now.day);
-      final todayEnd = todayStart.add(const Duration(days: 1));
+
       final rows = await sb
-          .from('death_notices')
-          .select('id')
-          .inFilter('dayung_unit_id', ids)
-          .gte('date_of_death', todayStart.toIso8601String())
-          .lt('date_of_death', todayEnd.toIso8601String());
-      _todayDeceased = (rows as List).length;
+          .from('claims')
+          .select('id, datesetamount')
+          .inFilter('dayung_unit_id', ids);
+
+      final now = DateTime.now();
+      final today = DateTime(now.year, now.month, now.day);
+      var count = 0;
+
+      for (final row in List<Map<String, dynamic>>.from(rows)) {
+        final claimDate = _parseDashboardDate(row['datesetamount']);
+        if (_isSameCalendarDay(claimDate, today)) {
+          count += 1;
+        }
+      }
+
+      _todayDeceased = count;
     } catch (_) {
       _todayDeceased = 0;
     }
-  }
-
-  bool _isClaimedMoney(dynamic value) {
-    if (value == null) return false;
-    if (value is bool) return value;
-    if (value is num) return value != 0;
-
-    final normalized = value.toString().trim().toLowerCase();
-    return normalized == 'yes' || normalized == 'true' || normalized == '1';
   }
 
   bool _isTrueFlag(dynamic value) {
@@ -345,31 +354,24 @@ class _CollectorDashboardPageState extends State<CollectorDashboardPage> {
     try {
       _currentFunds = 0;
       if (ids.isEmpty) return;
-
-      final claimRows = await sb
-          .from('claims')
-          .select('user_id, claimedmoney, status')
-          .inFilter('dayung_unit_id', ids)
-          .eq('status', 'Approved');
-      final claimedDeceasedIds = <String>{};
-      for (final row in List<Map<String, dynamic>>.from(claimRows)) {
-        if (_isClaimedMoney(row['claimedmoney'])) {
-          final uid = (row['user_id'] ?? '').toString();
-          if (uid.isNotEmpty) claimedDeceasedIds.add(uid);
-        }
-      }
+      final collectorId = sb.auth.currentUser?.id;
+      if (collectorId == null) return;
 
       final payments = await sb
           .from('payments')
-          .select('amount, status, userdeceased, dayung_unit_id')
+          .select(
+            'amount, status, userdeceased, dayung_unit_id, collected_by, '
+            'iscollectedbytreasurer, is_claimed',
+          )
           .inFilter('dayung_unit_id', ids)
+          .eq('collected_by', collectorId)
           .eq('type', 'deceased_payment')
           .eq('status', 'paid');
 
       double total = 0;
       for (final row in List<Map<String, dynamic>>.from(payments)) {
-        final deceasedId = (row['userdeceased'] ?? '').toString();
-        if (deceasedId.isNotEmpty && claimedDeceasedIds.contains(deceasedId)) {
+        if (_isTrueFlag(row['iscollectedbytreasurer']) ||
+            _isTrueFlag(row['is_claimed'])) {
           continue;
         }
         final amount = row['amount'];
@@ -436,11 +438,15 @@ class _CollectorDashboardPageState extends State<CollectorDashboardPage> {
       _todayCollected = 0;
       if (ids.isEmpty) return;
 
+      final collectorId = sb.auth.currentUser?.id;
+      if (collectorId == null) return;
+
       final rows = await sb
           .from('payments')
           .select('amount, status, paid_at, created_at, dayung_unit_id')
           .inFilter('dayung_unit_id', ids)
-          .eq('status', 'paid');
+          .eq('status', 'paid')
+          .eq('collected_by', collectorId);
 
       final now = DateTime.now();
       final todayStart = DateTime(now.year, now.month, now.day);
@@ -473,13 +479,17 @@ class _CollectorDashboardPageState extends State<CollectorDashboardPage> {
       _recentCollections = [];
       if (ids.isEmpty) return;
 
+      final collectorId = sb.auth.currentUser?.id;
+      if (collectorId == null) return;
+
       final rows = await sb
           .from('payments')
           .select(
-            'id, amount, status, paid_at, created_at, user_id, users!payments_user_id_fkey(full_name)',
+            'id, amount, status, paid_at, created_at, user_id, collected_by, users!payments_user_id_fkey(full_name)',
           )
           .inFilter('dayung_unit_id', ids)
           .eq('status', 'paid')
+          .eq('collected_by', collectorId)
           .order('paid_at', ascending: false)
           .limit(5);
 
@@ -501,42 +511,32 @@ class _CollectorDashboardPageState extends State<CollectorDashboardPage> {
 
   Future<void> _fetchMonthlyCollected(List<int> ids) async {
     try {
-      _monthlyCollected = List.filled(12, 0);
-      if (ids.isEmpty) return;
+      if (ids.isEmpty) {
+        _monthlyCollected = List.filled(12, 0);
+        return;
+      }
 
       final now = DateTime.now();
-      final startOfYear = DateTime(now.year, 1, 1).toIso8601String();
-      final endOfYear = DateTime(
-        now.year,
-        12,
-        31,
-        23,
-        59,
-        59,
-      ).toIso8601String();
-
-      // Only consider payments that are marked as paid and are of type 'deceased_payment'.
-      // Use the `paid_at` timestamp for date range filtering when available.
+      final monthlyTotals = List.filled(12, 0.0);
+      // Include every paid payment in the current year's monthly totals.
       final rows = await sb
           .from('payments')
           .select('amount, paid_at, created_at, status, dayung_unit_id, type')
           .inFilter('dayung_unit_id', ids)
-          .eq('status', 'paid')
-          .eq('type', 'deceased_payment')
-          .gte('paid_at', startOfYear)
-          .lte('paid_at', endOfYear);
+          .eq('status', 'paid');
 
       for (final row in List<Map<String, dynamic>>.from(rows)) {
         final date = DateTime.tryParse(
           (row['paid_at'] ?? row['created_at'])?.toString() ?? '',
         );
-        if (date == null) continue;
+        if (date == null || date.year != now.year) continue;
         final monthIndex = date.month - 1;
         final amount = row['amount'];
-        _monthlyCollected[monthIndex] += (amount is num)
+        monthlyTotals[monthIndex] += (amount is num)
             ? amount.toDouble()
             : double.tryParse('$amount') ?? 0;
       }
+      _monthlyCollected = monthlyTotals;
     } catch (_) {
       _monthlyCollected = List.filled(12, 0);
     }
@@ -558,8 +558,9 @@ class _CollectorDashboardPageState extends State<CollectorDashboardPage> {
       final grouped = <String, Map<String, dynamic>>{};
       for (final row in List<Map<String, dynamic>>.from(rows)) {
         if (!_isTrueFlag(row['is_due'])) continue;
+        final memberUserId = (row['user_id'] ?? '').toString();
         final deceasedUserId = (row['userdeceased'] ?? '').toString();
-        if (deceasedUserId.isEmpty) continue;
+        if (memberUserId.isEmpty || deceasedUserId.isEmpty) continue;
         final fullName =
             (row['users'] as Map?)?['full_name']?.toString() ?? 'Member';
         final deceasedName = (row['deceased_name'] ?? '').toString().trim();
@@ -567,9 +568,9 @@ class _CollectorDashboardPageState extends State<CollectorDashboardPage> {
             ? (row['amount'] as num).toDouble()
             : double.tryParse('${row['amount']}') ?? 0;
         final entry = grouped.putIfAbsent(
-          deceasedUserId,
+          memberUserId,
           () => {
-            'user_id': deceasedUserId,
+            'user_id': memberUserId,
             'userdeceased': deceasedUserId,
             'member_name': fullName,
             'deceased_name': deceasedName,
@@ -786,8 +787,9 @@ class _CollectorDashboardPageState extends State<CollectorDashboardPage> {
                       reservedSize: 24,
                       getTitlesWidget: (value, meta) {
                         final index = value.toInt();
-                        if (index < 0 || index >= months.length)
+                        if (index < 0 || index >= months.length) {
                           return const SizedBox.shrink();
+                        }
                         return SideTitleWidget(
                           meta: meta,
                           child: Text(

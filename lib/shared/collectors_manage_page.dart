@@ -145,8 +145,9 @@ class _CollectorsManagePageState extends State<CollectorsManagePage> {
         final rows = List<Map<String, dynamic>>.from(res ?? []);
         if (rows.isNotEmpty) {
           final v = rows[0]['collectors_id'];
-          if (v is int) newCollectorsId = v + 1;
-          else if (v is String) {
+          if (v is int) {
+            newCollectorsId = v + 1;
+          } else if (v is String) {
             final parsed = int.tryParse(v);
             if (parsed != null) newCollectorsId = parsed + 1;
           }

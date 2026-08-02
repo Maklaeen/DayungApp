@@ -8,6 +8,7 @@ import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:fl_chart/fl_chart.dart';
+import 'package:intl/intl.dart';
 
 const Color kCardBg = Color(0xFFFFFFFF);
 const Color kBorderColor = Color(0xFFE5E7EB);
@@ -29,14 +30,20 @@ const List<String> _monthShortLabels = [
   'Dec',
 ];
 
-enum _ReportExportOption {
-  moneyCollected,
-  newMembers,
-  all,
-}
+enum _ReportExportOption { moneyCollected, newMembers, all }
 
 class ReportsService {
   final sb = Supabase.instance.client;
+
+  Future<Map<String, dynamic>> fetchPaymentFlowSummary({int? unitId}) async {
+    var query = sb
+        .from('payments')
+        .select('amount, iscollectedbytreasurer, is_claimed, is_claimed_date');
+    if (unitId != null) query.eq('dayung_unit_id', unitId);
+
+    final rows = List<Map<String, dynamic>>.from(await query);
+    return summarizePaymentFlowRows(rows);
+  }
 
   // gina fetch ang total money collected per collector per month
   Future<List<Map<String, dynamic>>> fetchMoneyCollectedPerCollector({
@@ -142,6 +149,71 @@ String _formatMonthYear(String ym) {
   return '$monthName - $year';
 }
 
+String formatPhilippineDateTime(Object? value) {
+  if (value == null) return '—';
+
+  final rawValue = value.toString().trim();
+  if (rawValue.isEmpty || rawValue == '—') return '—';
+
+  DateTime? parsed;
+  try {
+    parsed = DateTime.parse(rawValue);
+  } catch (_) {
+    return rawValue;
+  }
+
+  final isUtcInput = rawValue.endsWith('Z') || rawValue.endsWith('z');
+  final philippineTime = isUtcInput
+      ? parsed.toUtc().add(const Duration(hours: 8))
+      : parsed.add(const Duration(hours: 8));
+
+  return DateFormat('MMM d, yyyy • h:mm a').format(philippineTime);
+}
+
+bool _isTruthyFlag(Object? value) {
+  if (value is bool) return value;
+  if (value is num) return value != 0;
+  if (value is String) {
+    final normalized = value.trim().toLowerCase();
+    return normalized == 'true' || normalized == '1' || normalized == 'yes';
+  }
+  return false;
+}
+
+Map<String, dynamic> summarizePaymentFlowRows(List<Map<String, dynamic>> rows) {
+  double inTotal = 0;
+  double outTotal = 0;
+  String? latestClaimDate;
+
+  for (final row in rows) {
+    final amount = double.tryParse(row['amount']?.toString() ?? '') ?? 0.0;
+    if (_isTruthyFlag(row['iscollectedbytreasurer'])) {
+      inTotal += amount;
+    }
+
+    if (_isTruthyFlag(row['is_claimed'])) {
+      outTotal += amount;
+      final dateValue = row['is_claimed_date']?.toString();
+      if (dateValue != null && dateValue.isNotEmpty) {
+        final parsedDate = DateTime.tryParse(dateValue);
+        if (parsedDate != null) {
+          final normalizedDate = parsedDate
+              .toLocal()
+              .toIso8601String()
+              .split('T')
+              .first;
+          if (latestClaimDate == null ||
+              normalizedDate.compareTo(latestClaimDate) > 0) {
+            latestClaimDate = normalizedDate;
+          }
+        }
+      }
+    }
+  }
+
+  return {'in': inTotal, 'out': outTotal, 'date': latestClaimDate ?? '—'};
+}
+
 class ReportsPage extends StatefulWidget {
   final int? unitId;
   const ReportsPage({super.key, this.unitId});
@@ -153,6 +225,11 @@ class _ReportsPageState extends State<ReportsPage> {
   final service = ReportsService();
   List<Map<String, dynamic>> moneyCollected = [];
   List<Map<String, dynamic>> newMembers = [];
+  Map<String, dynamic> paymentFlowSummary = const {
+    'in': 0.0,
+    'out': 0.0,
+    'date': '—',
+  };
   bool loading = true;
   pw.ThemeData? _pdfTheme;
 
@@ -165,6 +242,9 @@ class _ReportsPageState extends State<ReportsPage> {
   Future<void> _loadReports() async {
     setState(() => loading = true);
     moneyCollected = await service.fetchMoneyCollectedPerCollector(
+      unitId: widget.unitId,
+    );
+    paymentFlowSummary = await service.fetchPaymentFlowSummary(
       unitId: widget.unitId,
     );
     // Pass unitId as required
@@ -245,10 +325,8 @@ class _ReportsPageState extends State<ReportsPage> {
                   color: kPrimary,
                 ),
                 title: const Text('Money Collected Per Collector (Monthly)'),
-                onTap: () => Navigator.pop(
-                  context,
-                  _ReportExportOption.moneyCollected,
-                ),
+                onTap: () =>
+                    Navigator.pop(context, _ReportExportOption.moneyCollected),
               ),
               ListTile(
                 leading: const Icon(
@@ -256,10 +334,8 @@ class _ReportsPageState extends State<ReportsPage> {
                   color: kPrimary,
                 ),
                 title: const Text('New Members Per Month'),
-                onTap: () => Navigator.pop(
-                  context,
-                  _ReportExportOption.newMembers,
-                ),
+                onTap: () =>
+                    Navigator.pop(context, _ReportExportOption.newMembers),
               ),
               ListTile(
                 leading: const Icon(Icons.print_rounded, color: kPrimary),
@@ -308,7 +384,8 @@ class _ReportsPageState extends State<ReportsPage> {
             widgets.add(
               _buildPdfBarSection(
                 title: 'Money Collected Per Collector (Monthly)',
-                subtitle: 'Current year total: ₱${moneyTotals.fold(0.0, (sum, value) => sum + value).toStringAsFixed(0)}',
+                subtitle:
+                    'Current year total: ₱${moneyTotals.fold(0.0, (sum, value) => sum + value).toStringAsFixed(0)}',
                 values: moneyTotals,
                 labels: _monthShortLabels,
                 barColor: PdfColor.fromInt(kPrimary.toARGB32()),
@@ -328,7 +405,10 @@ class _ReportsPageState extends State<ReportsPage> {
                     .map((row) => ((row['count'] as num?) ?? 0).toDouble())
                     .toList(),
                 labels: newMembersRows
-                    .map((row) => _formatPdfMonthLabel((row['month'] ?? '').toString()))
+                    .map(
+                      (row) =>
+                          _formatPdfMonthLabel((row['month'] ?? '').toString()),
+                    )
                     .toList(),
                 barColor: PdfColor.fromInt(kAccent.toARGB32()),
                 asCurrency: false,
@@ -509,6 +589,22 @@ class _ReportsPageState extends State<ReportsPage> {
                                   maxWidth: cardMaxWidth,
                                 ),
                                 child: _modernSectionCard(
+                                  title: 'Payment Flow Summary',
+                                  icon: Icons.swap_horiz_rounded,
+                                  titleFontSize: sectionTitleFontSize,
+                                  child: _PaymentFlowSummaryTable(
+                                    summary: paymentFlowSummary,
+                                  ),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 24),
+                            Center(
+                              child: ConstrainedBox(
+                                constraints: BoxConstraints(
+                                  maxWidth: cardMaxWidth,
+                                ),
+                                child: _modernSectionCard(
                                   title:
                                       'Money Collected Per Collector (Monthly)',
                                   icon: Icons.account_balance_rounded,
@@ -662,6 +758,78 @@ class _ReportsPageState extends State<ReportsPage> {
   }
 }
 
+class _PaymentFlowSummaryTable extends StatelessWidget {
+  final Map<String, dynamic> summary;
+  const _PaymentFlowSummaryTable({super.key, required this.summary});
+
+  @override
+  Widget build(BuildContext context) {
+    final inValue = (summary['in'] as num?)?.toDouble() ?? 0.0;
+    final outValue = (summary['out'] as num?)?.toDouble() ?? 0.0;
+    final dateValue = summary['date']?.toString() ?? '—';
+
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: kBorderColor.withValues(alpha: 0.35)),
+      ),
+      child: Table(
+        columnWidths: const {
+          0: FlexColumnWidth(),
+          1: FlexColumnWidth(),
+          2: FlexColumnWidth(),
+        },
+        children: [
+          TableRow(
+            decoration: BoxDecoration(color: kPrimary.withValues(alpha: 0.06)),
+            children: [
+              _buildHeaderCell('IN'),
+              _buildHeaderCell('OUT'),
+              _buildHeaderCell('DATE/TIME'),
+            ],
+          ),
+          TableRow(
+            children: [
+              _buildValueCell('₱${inValue.toStringAsFixed(2)}'),
+              _buildValueCell('₱${outValue.toStringAsFixed(2)}'),
+              _buildValueCell(formatPhilippineDateTime(dateValue)),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildHeaderCell(String label) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      child: Text(
+        label,
+        style: const TextStyle(
+          fontSize: 12,
+          fontWeight: FontWeight.w800,
+          color: kPrimary,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildValueCell(String value) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+      child: Text(
+        value,
+        style: const TextStyle(
+          fontSize: 13,
+          fontWeight: FontWeight.w700,
+          color: Colors.black87,
+        ),
+      ),
+    );
+  }
+}
+
 // Chart for Money Collected Per Collector (Monthly)
 class _MoneyCollectedBarChart extends StatelessWidget {
   final List<Map<String, dynamic>> data;
@@ -695,7 +863,20 @@ class _MoneyCollectedBarChart extends StatelessWidget {
     final maxY = monthlyTotals.reduce((a, b) => a > b ? a : b);
     final chartMax = maxY <= 0 ? 100.0 : maxY * 1.25;
     final totalYear = monthlyTotals.fold(0.0, (sum, value) => sum + value);
-    const monthLabels = ['J', 'F', 'M', 'A', 'M', 'J', 'J', 'A', 'S', 'O', 'N', 'D'];
+    const monthLabels = [
+      'J',
+      'F',
+      'M',
+      'A',
+      'M',
+      'J',
+      'J',
+      'A',
+      'S',
+      'O',
+      'N',
+      'D',
+    ];
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,

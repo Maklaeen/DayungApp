@@ -77,7 +77,7 @@ class _ManageFundPageState extends State<ManageFundPage> {
           .timeout(_queryTimeout);
       final paymentResFuture = sb
           .from('payments')
-          .select('amount, status, paid_at, user_id')
+          .select('amount, status, paid_at, user_id, collected_by, is_claimed')
           .eq('dayung_unit_id', widget.dayungUnitId)
           .timeout(_queryTimeout);
 
@@ -97,6 +97,18 @@ class _ManageFundPageState extends State<ManageFundPage> {
       final paymentRes = results[2];
 
       final rows = List<Map<String, dynamic>>.from(paymentRes);
+      final currentUserId = sb.auth.currentUser?.id;
+      double treasurerCollected = 0.0;
+      for (final row in rows) {
+        final collectedBy = (row['collected_by'] ?? '').toString();
+        final status = (row['status'] ?? '').toString().toLowerCase();
+        if (currentUserId != null &&
+            collectedBy == currentUserId &&
+            status == 'paid' &&
+            row['is_claimed'] != true) {
+          treasurerCollected += _asDouble(row['amount']);
+        }
+      }
 
       final noticeLookup = <int, Map<String, dynamic>>{};
       for (final row in List<Map<String, dynamic>>.from(noticeRes)) {
@@ -255,17 +267,15 @@ class _ManageFundPageState extends State<ManageFundPage> {
       }
       // --- END ADVANCE FUND LOGIC ---
 
-      double totalPaid = 0.0;
       double totalGoal = 0.0;
       for (final fund in list) {
-        totalPaid += _asDouble(fund['paid']);
         totalGoal += _asDouble(fund['goal']);
       }
 
       if (!mounted) return;
       setState(() {
         _funds = list;
-        _totalPaid = totalPaid;
+        _totalPaid = treasurerCollected;
         _totalGoal = totalGoal;
         _approvedMemberCount = approvedUserIds.length;
         _loading = false;
@@ -774,7 +784,11 @@ class _ManageFundPageState extends State<ManageFundPage> {
 
               return Row(
                 children: [
-                  _kpi('Collected', _currency(_totalPaid), color: Colors.teal),
+                  _kpi(
+                    'Own Collected',
+                    _currency(_totalPaid),
+                    color: Colors.teal,
+                  ),
                   const SizedBox(width: 12),
                   _kpi('Goal', _currency(_totalGoal), color: Colors.indigo),
                   const SizedBox(width: 12),
@@ -1294,7 +1308,6 @@ class _ManageFundPageState extends State<ManageFundPage> {
         await sb
             .from('payments')
             .delete()
-        
             .eq('dayung_unit_id', dayungUnitId)
             .eq('user_id', excludedUserId);
       } catch (_) {}
@@ -1313,7 +1326,6 @@ class _ManageFundPageState extends State<ManageFundPage> {
     final existingRes = await sb
         .from('payments')
         .select('user_id')
-    
         .eq('dayung_unit_id', dayungUnitId)
         .timeout(_queryTimeout);
     final existingIds = {
@@ -1332,7 +1344,7 @@ class _ManageFundPageState extends State<ManageFundPage> {
         'user_id': uid,
         'amount': '1',
         'status': 'pending',
-     
+
         'dayung_unit_id': dayungUnitId,
         'created_at': createdAt,
       });
@@ -1404,7 +1416,6 @@ class _ManageFundPageState extends State<ManageFundPage> {
             'user:users!payments_user_id_fkey(full_name), '
             'collector:users!payments_collected_by_fkey(full_name)',
           )
-      
           .eq('dayung_unit_id', dayungUnitId)
           .timeout(_queryTimeout);
 

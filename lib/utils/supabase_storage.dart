@@ -27,16 +27,16 @@ Future<String?> resolveSupabaseStorageUrl(
     } catch (e) {
       // Log the error for debugging
       // ignore: avoid_print
-      print('Error creating signed URL for ${location.bucket}/${location.objectPath}: $e');
+      print(
+        'Error creating signed URL for ${location.bucket}/${location.objectPath}: $e',
+      );
       return null;
     }
   }
 
-  final uri = Uri.tryParse(value);
-  if (uri != null && uri.hasScheme) {
-    return uri.toString();
-  }
-
+  // Do not pass through arbitrary URLs: sensitive document buckets are private.
+  // Callers must use a bucket/object path or a recognized Supabase storage URL
+  // so the object is always served through a short-lived signed URL.
   return null;
 }
 
@@ -88,6 +88,10 @@ _StorageLocation? _parseStorageLocation(String raw) {
 _StorageLocation? _parseBucketPath(String raw) {
   final value = raw.trim().replaceFirst(RegExp(r'^/+'), '');
   if (value.isEmpty) return null;
+
+  // Absolute URLs must be parsed from their storage path, not as bucket refs.
+  final uri = Uri.tryParse(value);
+  if (uri != null && uri.hasScheme) return null;
 
   final segments = value.split('/');
   if (segments.length < 2) return null;

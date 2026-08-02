@@ -1,8 +1,7 @@
 import 'dart:convert';
 
-import 'package:capstone_app/Auth/logout.dart';
 import 'package:capstone_app/shared/pres_sec_dashboard_overview.dart';
-import 'package:capstone_app/Beneficiary/beneficiary.dart' hide kPrimary;
+import 'package:capstone_app/shared/collector_progress_page.dart';
 import 'package:capstone_app/President/manage_roles.dart';
 import 'package:capstone_app/President/president_payment_page.dart';
 import 'package:capstone_app/President/post_announcement.dart';
@@ -13,7 +12,6 @@ import 'package:capstone_app/President/presidentmemberspage.dart'
 import 'package:capstone_app/Providers/dayung_provider.dart';
 import 'package:capstone_app/Providers/dayung_role_provider.dart';
 import 'package:capstone_app/pages/recentdeathnotices.dart';
-import 'package:capstone_app/settings/profsettings.dart' hide kPrimary;
 import 'package:capstone_app/ui/theme/branding.dart';
 import 'package:capstone_app/utils/theme_surface.dart';
 import 'package:flutter/material.dart';
@@ -21,7 +19,6 @@ import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:capstone_app/pages/notification.dart';
-import 'package:capstone_app/profile/profile.dart';
 import 'package:fl_chart/fl_chart.dart';
 
 // Palette aligned with Secretary
@@ -122,9 +119,7 @@ class _PresidentDashboardPageState extends State<PresidentDashboardPage> {
     String? jsonFull = prefs.getString('selectedDayungUnitData');
     Map<String, dynamic>? parsed;
     try {
-      if (jsonFull != null) {
-        parsed = jsonDecode(jsonFull);
-      }
+      parsed = jsonDecode(jsonFull!);
     } catch (_) {}
     if (parsed == null &&
         dayungLabelRaw.trim().startsWith('{') &&
@@ -1042,6 +1037,31 @@ class _PresidentDashboardPageState extends State<PresidentDashboardPage> {
                 ),
               ),
             ],
+          ),
+          const SizedBox(height: 16),
+          SizedBox(
+            height: 140,
+            child: _modernActionCard(
+              icon: Icons.bar_chart_rounded,
+              title: 'Collector Progress',
+              subtitle: 'View collection status',
+              color: const Color(0xFF8B5CF6),
+              onTap: () {
+                final unitId = _effectiveUnitId(context);
+                if (unitId == null) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Select a Dayung first')),
+                  );
+                  return;
+                }
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => CollectorProgressPage(dayungUnitId: unitId),
+                  ),
+                );
+              },
+            ),
           ),
           const SizedBox(height: 16),
           const Text(

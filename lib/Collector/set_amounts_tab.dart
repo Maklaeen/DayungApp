@@ -263,45 +263,43 @@ class SetAmountsTab extends StatelessWidget {
                             );
                             if (!context.mounted) return;
 
-                            if (amount != null) {
-                              final uuidRegExp = RegExp(
-                                r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$',
+                            final uuidRegExp = RegExp(
+                              r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$',
+                            );
+                            final userDeceasedIdStr =
+                                userDeceasedId?.toString() ?? '';
+                            final userIdStr =
+                                selectedMember?['id']?.toString() ?? '';
+
+                            if (uuidRegExp.hasMatch(userDeceasedIdStr) &&
+                                uuidRegExp.hasMatch(userIdStr)) {
+                              // Show loading dialog
+                              showDialog(
+                                context: context,
+                                barrierDismissible: false,
+                                builder: (context) => const Center(
+                                  child: CircularProgressIndicator(),
+                                ),
                               );
-                              final userDeceasedIdStr =
-                                  userDeceasedId?.toString() ?? '';
-                              final userIdStr =
-                                  selectedMember?['id']?.toString() ?? '';
 
-                              if (uuidRegExp.hasMatch(userDeceasedIdStr) &&
-                                  uuidRegExp.hasMatch(userIdStr)) {
-                                // Show loading dialog
-                                showDialog(
-                                  context: context,
-                                  barrierDismissible: false,
-                                  builder: (context) => const Center(
-                                    child: CircularProgressIndicator(),
-                                  ),
-                                );
-
-                                try {
-                                  onSetAmount(i, amount, item['id'].toString());
-                                } catch (e) {
-                                  rootNavigator.pop();
-                                  messenger.showSnackBar(
-                                    SnackBar(content: Text('Error: $e')),
-                                  );
-                                }
-                              } else {
+                              try {
+                                onSetAmount(i, amount!, item['id'].toString());
+                              } catch (e) {
+                                rootNavigator.pop();
                                 messenger.showSnackBar(
-                                  const SnackBar(
-                                    content: Text(
-                                      'Invalid user ID. Cannot save payment.',
-                                    ),
-                                  ),
+                                  SnackBar(content: Text('Error: $e')),
                                 );
                               }
+                            } else {
+                              messenger.showSnackBar(
+                                const SnackBar(
+                                  content: Text(
+                                    'Invalid user ID. Cannot save payment.',
+                                  ),
+                                ),
+                              );
                             }
-                          },
+                                                    },
                   );
                 },
               ),

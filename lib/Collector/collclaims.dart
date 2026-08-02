@@ -28,11 +28,9 @@ class CollectorClaimsPage extends StatefulWidget {
 class _CollectorClaimsPageState extends State<CollectorClaimsPage> {
   final sb = Supabase.instance.client;
   bool _loading = true;
+  bool _submittingModalOpen = false;
 
-  // Unit + my claims
-  List<Map<String, dynamic>> _claims = [];
   List<Map<String, dynamic>> _myClaims = [];
-  int _myPending = 0;
 
   @override
   void initState() {
@@ -45,14 +43,6 @@ class _CollectorClaimsPageState extends State<CollectorClaimsPage> {
     try {
       final uid = sb.auth.currentUser?.id;
 
-      final unitRes = await sb
-          .from('claims')
-          .select(
-            'id, title, description, status, date_submitted, user_id, beneficiary_id, dayung_unit_id',
-          )
-          .eq('dayung_unit_id', widget.dayungUnitId)
-          .order('date_submitted', ascending: false);
-
       final myRes = uid == null
           ? []
           : await sb
@@ -64,26 +54,15 @@ class _CollectorClaimsPageState extends State<CollectorClaimsPage> {
                 .eq('user_id', uid as Object)
                 .order('date_submitted', ascending: false);
 
-      final unitClaims = List<Map<String, dynamic>>.from(unitRes);
       final myClaims = List<Map<String, dynamic>>.from(myRes);
 
-      final myPending = myClaims
-          .where(
-            (c) => (c['status'] ?? '').toString().toLowerCase() == 'pending',
-          )
-          .length;
-
       setState(() {
-        _claims = unitClaims;
         _myClaims = myClaims;
-        _myPending = myPending;
         _loading = false;
       });
     } catch (_) {
       setState(() {
-        _claims = [];
         _myClaims = [];
-        _myPending = 0;
         _loading = false;
       });
     }
@@ -93,187 +72,263 @@ class _CollectorClaimsPageState extends State<CollectorClaimsPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: dayungPageBackground(context),
-      appBar: AppBar(
-        backgroundColor: dayungPageBackground(context),
-        elevation: 0,
-        title: const Text(
-          'Claims',
-          style: TextStyle(color: kText, fontWeight: FontWeight.w700),
-        ),
-      ),
       floatingActionButton: Padding(
         padding: const EdgeInsets.only(bottom: 60),
         child: FloatingActionButton.extended(
-          icon: const Icon(Icons.add),
-          label: const Text('Submit Claim'),
-          backgroundColor: kPrimary,
+          backgroundColor: kPrimaryDark,
           foregroundColor: Colors.white,
-          onPressed: () {
-            showModalBottomSheet(
-              context: context,
-              isScrollControlled: true,
-              showDragHandle: true,
-              backgroundColor: Colors.white,
-              shape: const RoundedRectangleBorder(
-                borderRadius: BorderRadius.vertical(top: Radius.circular(26)),
-              ),
-              builder: (_) => Padding(
-                padding: EdgeInsets.only(
-                  bottom: MediaQuery.of(context).viewInsets.bottom,
-                ),
-                child: SubmitClaimForm(
-                  dayungUnitId: widget.dayungUnitId,
-                  requireMembership: false, // officers can submit
-                ),
-              ),
-            );
-          },
+          elevation: 4,
+          extendedPadding: const EdgeInsets.symmetric(
+            horizontal: 22,
+            vertical: 14,
+          ),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(18),
+          ),
+          icon: const Icon(Icons.add_circle_outline_rounded),
+          label: const Text(
+            'Submit Claim',
+            style: TextStyle(
+              fontWeight: FontWeight.w800,
+              fontFamily: 'Montserrat',
+            ),
+          ),
+          onPressed: _openSubmitSheet,
         ),
       ),
       floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
-      body: _loading
-          ? const DayungPageSkeleton(
-              layout: DayungSkeletonLayout.dashboard,
-              itemCount: 4,
-            )
-          : RefreshIndicator(
-              color: kPrimary,
-              onRefresh: _load,
-              child: ListView(
-                physics: const AlwaysScrollableScrollPhysics(
-                  parent: BouncingScrollPhysics(),
-                ),
-                padding: const EdgeInsets.fromLTRB(16, 12, 16, 120),
-                children: [
-                  // My chips
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: [
-                      _chip('My Pending', _myPending, kWarn),
-                      _chip('My Total', _myClaims.length, kPrimary),
-                    ],
+      body: SafeArea(
+        child: Column(
+          children: [
+            _buildHeader(),
+            Expanded(
+              child: Container(
+                width: double.infinity,
+                decoration: BoxDecoration(
+                  color: dayungSurface(context),
+                  borderRadius: const BorderRadius.vertical(
+                    top: Radius.circular(30),
                   ),
-                  const SizedBox(height: 18),
-
-                  if (_myClaims.isNotEmpty)
-                    const Text(
-                      'My Claims',
-                      style: TextStyle(
-                        color: kText,
-                        fontWeight: FontWeight.w700,
-                        fontSize: 16,
+                  boxShadow: [dayungTopShadow(context)],
+                ),
+                child: _loading
+                    ? const DayungPageSkeleton(
+                        layout: DayungSkeletonLayout.dashboard,
+                        itemCount: 4,
+                      )
+                    : RefreshIndicator(
+                        color: kPrimary,
+                        onRefresh: _load,
+                        child: ListView(
+                          physics: const AlwaysScrollableScrollPhysics(
+                            parent: BouncingScrollPhysics(),
+                          ),
+                          padding: const EdgeInsets.fromLTRB(16, 20, 16, 120),
+                          children: [
+                            if (_myClaims.isNotEmpty)
+                              const Padding(
+                                padding: EdgeInsets.only(bottom: 12),
+                                child: Text(
+                                  'My Claims',
+                                  style: TextStyle(
+                                    color: kText,
+                                    fontWeight: FontWeight.w800,
+                                    fontSize: 18,
+                                    fontFamily: 'Montserrat',
+                                  ),
+                                ),
+                              ),
+                            ..._myClaims.map(_claimCard),
+                            const SizedBox(height: 8),
+                            if (_myClaims.isEmpty)
+                              _emptyState('No claims yet for this unit'),
+                          ],
+                        ),
                       ),
-                    ),
-                  if (_myClaims.isNotEmpty) const SizedBox(height: 8),
-                  ..._myClaims.map(_claimCard),
-
-                  const SizedBox(height: 18),
-                  // Removed 'All Unit Claims' header
-                  const SizedBox(height: 8),
-                  if (_claims.isEmpty)
-                    _emptyState('No claims yet for this unit'),
-                  ..._claims.map(_claimCard),
-                ],
               ),
             ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _openSubmitSheet() async {
+    if (_submittingModalOpen) return;
+    _submittingModalOpen = true;
+
+    final result = await showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(26)),
+      ),
+      builder: (_) => Padding(
+        padding: EdgeInsets.only(
+          bottom: MediaQuery.of(context).viewInsets.bottom,
+        ),
+        child: SubmitClaimForm(dayungUnitId: widget.dayungUnitId),
+      ),
+    );
+
+    _submittingModalOpen = false;
+    if (result == true) await _load();
+  }
+
+  Widget _buildHeader() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(20, 20, 20, 30),
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Color(0xFF1E40AF), Color(0xFF3B82F6), Color(0xFF60A5FA)],
+        ),
+      ),
+      child: const Text(
+        'Claims',
+        style: TextStyle(
+          color: Colors.white,
+          fontSize: 26,
+          fontWeight: FontWeight.w800,
+          fontFamily: 'Montserrat',
+        ),
+      ),
     );
   }
 
   // UI helpers
-  Widget _chip(String label, int count, Color color) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.1),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: color.withValues(alpha: 0.25)),
-      ),
-      child: Text(
-        '$label: $count',
-        style: TextStyle(color: color, fontWeight: FontWeight.w600),
-      ),
-    );
-  }
-
   Widget _claimCard(Map<String, dynamic> c) {
     final status = (c['status'] ?? '').toString();
-    final title = (c['title'] ?? 'Claim').toString();
+    final title = (c['title'] ?? 'Untitled').toString();
     final desc = (c['description'] ?? '').toString().trim();
-    final date = (c['date_submitted'] ?? '').toString();
+    final date = _formatDate(c['date_submitted']);
+    final color = _statusColor(status);
 
-    return Card(
+    return Container(
       margin: const EdgeInsets.only(bottom: 12),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(kCardRadius),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: color.withValues(alpha: 0.16)),
+        boxShadow: [
+          BoxShadow(
+            color: color.withValues(alpha: 0.08),
+            blurRadius: 18,
+            offset: const Offset(0, 8),
+          ),
+          const BoxShadow(
+            color: Color(0x0D000000),
+            blurRadius: 8,
+            offset: Offset(0, 2),
+          ),
+        ],
       ),
-      elevation: 2,
-      color: Colors.white,
       child: InkWell(
-        borderRadius: BorderRadius.circular(kCardRadius),
+        borderRadius: BorderRadius.circular(20),
         onTap: () {
           // TODO: open claim detail (collector)
         },
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
+          padding: const EdgeInsets.all(20),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Title + status pill
               Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Expanded(
-                    child: Text(
-                      title,
-                      style: const TextStyle(
-                        color: kText,
-                        fontWeight: FontWeight.w700,
-                        fontSize: 16,
-                      ),
-                    ),
-                  ),
                   Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 10,
-                      vertical: 6,
-                    ),
+                    width: 48,
+                    height: 48,
                     decoration: BoxDecoration(
-                      color: _statusColor(status).withValues(alpha: 0.08),
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(
-                        color: _statusColor(status).withValues(alpha: .2),
-                      ),
+                      color: color.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(14),
                     ),
-                    child: Row(
+                    child: Icon(_statusIcon(status), color: color, size: 24),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Icon(
-                          _statusIcon(status),
-                          size: 16,
-                          color: _statusColor(status),
-                        ),
-                        const SizedBox(width: 6),
                         Text(
-                          _displayStatus(status),
-                          style: TextStyle(
-                            color: _statusColor(status),
+                          title,
+                          style: const TextStyle(
+                            fontFamily: 'Montserrat',
+                            fontWeight: FontWeight.w800,
+                            fontSize: 17,
+                            color: kText,
+                            height: 1.2,
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          date,
+                          style: const TextStyle(
+                            fontFamily: 'OpenSans',
+                            fontSize: 13,
+                            color: kSubText,
                             fontWeight: FontWeight.w600,
                           ),
                         ),
                       ],
                     ),
                   ),
+                  const SizedBox(width: 10),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 6,
+                    ),
+                    decoration: BoxDecoration(
+                      color: color.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                    child: Text(
+                      _displayStatus(status),
+                      style: TextStyle(
+                        color: color,
+                        fontWeight: FontWeight.w700,
+                        fontSize: 12,
+                        fontFamily: 'Montserrat',
+                      ),
+                    ),
+                  ),
                 ],
               ),
               if (desc.isNotEmpty) ...[
-                const SizedBox(height: 8),
+                const SizedBox(height: 14),
                 Text(
                   desc,
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(color: kSubText),
+                  style: const TextStyle(
+                    fontFamily: 'OpenSans',
+                    fontSize: 15,
+                    color: kSubText,
+                    height: 1.45,
+                  ),
                 ),
               ],
-              const SizedBox(height: 10),
+              const SizedBox(height: 14),
+              Row(
+                children: [
+                  Icon(Icons.arrow_outward_rounded, size: 16, color: color),
+                  const SizedBox(width: 6),
+                  Text(
+                    'View details',
+                    style: TextStyle(
+                      fontFamily: 'OpenSans',
+                      fontSize: 13,
+                      color: color,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ],
+              ),
             ],
           ),
         ),
@@ -299,6 +354,13 @@ class _CollectorClaimsPageState extends State<CollectorClaimsPage> {
         ],
       ),
     );
+  }
+
+  String _formatDate(dynamic date) {
+    if (date == null) return 'N/A';
+    final parsed = DateTime.tryParse(date.toString());
+    if (parsed == null) return date.toString();
+    return '${parsed.year}-${parsed.month.toString().padLeft(2, '0')}-${parsed.day.toString().padLeft(2, '0')}';
   }
 
   Color _statusColor(String s) {

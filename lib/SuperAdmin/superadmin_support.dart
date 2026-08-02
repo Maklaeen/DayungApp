@@ -43,6 +43,8 @@ const Map<String, String> _kEdgeFunctionPostActions = {
   '/superadmin/create-user': 'create_user',
   '/superadmin/reset-user-password': 'reset_user_password',
   '/superadmin/set-user-disabled': 'set_user_disabled',
+  '/superadmin/assign-unit-role': 'assign_unit_role',
+  '/superadmin/remove-unit-role': 'remove_unit_role',
   '/superadmin/send-broadcast': 'send_broadcast',
 };
 
@@ -870,9 +872,22 @@ Future<Map<String, dynamic>> _handleLocalPost(
         throw Exception('Missing required role assignment data.');
       }
       if (role == 'collector') {
+        final latestCollector = await sb
+            .from('dayung_collectors')
+            .select('collectors_id')
+            .order('collectors_id', ascending: false)
+            .limit(1);
+        final latestRows = List<Map<String, dynamic>>.from(latestCollector);
+        final latestId = latestRows.isEmpty
+            ? 0
+            : int.tryParse('${latestRows.first['collectors_id']}') ?? 0;
+
         await sb.from('dayung_collectors').upsert({
+          'collectors_id': latestId + 1,
           'dayung_unit_id': unitId,
           'user_id': userId,
+          'added_by': currentUser.id,
+          'created_at': DateTime.now().toUtc().toIso8601String(),
         });
       } else {
         final columns = {
