@@ -37,7 +37,7 @@ final GlobalKey<NavigatorState> globalNavigatorKey =
     GlobalKey<NavigatorState>();
 
 ThemeData _buildAppTheme(Brightness brightness) {
-  final isDark = brightness == Brightness.light;
+  final isDark = brightness == Brightness.dark;
   final base = ThemeData(
     useMaterial3: true,
     brightness: brightness,
@@ -261,13 +261,11 @@ class AppSetupRequiredApp extends StatelessWidget {
       value: appTheme,
       child: Builder(
         builder: (context) {
-          final mode = context.watch<AppTheme>().mode;
           return MaterialApp(
             debugShowCheckedModeBanner: false,
             title: 'Dayung Setup Required',
             theme: _buildAppTheme(Brightness.light),
-            darkTheme: _buildAppTheme(Brightness.dark),
-            themeMode: mode,
+            themeMode: ThemeMode.light,
             home: _SetupRequiredScreen(missingKeys: missingKeys),
           );
         },
@@ -504,8 +502,6 @@ class _MyAppState extends State<MyApp> {
         ],
         child: Builder(
           builder: (context) {
-            final mode = context.watch<AppTheme>().mode;
-
             return MaterialApp(
               navigatorKey: globalNavigatorKey,
               debugShowCheckedModeBanner: false,
@@ -519,8 +515,7 @@ class _MyAppState extends State<MyApp> {
                 return child!;
               },
               theme: _buildAppTheme(Brightness.light),
-              darkTheme: _buildAppTheme(Brightness.dark),
-              themeMode: mode,
+              themeMode: ThemeMode.light,
               themeAnimationDuration: const Duration(milliseconds: 400),
               initialRoute: '/',
               routes: {
@@ -603,8 +598,6 @@ class _AuthGateState extends State<_AuthGate> {
 
   @override
   Widget build(BuildContext context) {
-    return const Scaffold(
-      body: Center(child: CircularProgressIndicator()),
-    );
+    return const Scaffold(body: Center(child: CircularProgressIndicator()));
   }
 }

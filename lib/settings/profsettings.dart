@@ -1,14 +1,12 @@
 import 'dart:ui';
 import 'dart:typed_data';
 import 'package:encrypt/encrypt.dart' as encrypt;
-import 'package:capstone_app/Providers/apptheme_provider.dart';
 import 'package:capstone_app/profile/dayung_profile.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:capstone_app/utils/supabase_storage.dart';
 import 'package:photo_view/photo_view.dart';
 import 'package:http/http.dart' as http;
-import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -394,7 +392,6 @@ class _ProfSettingsPageState extends State<ProfSettingsPage> {
 
   @override
   Widget build(BuildContext context) {
-    final appTheme = context.watch<AppTheme>();
     final width = MediaQuery.of(context).size.width;
     final isWide = width > 700;
     final titleStyle = TextStyle(
@@ -524,98 +521,6 @@ class _ProfSettingsPageState extends State<ProfSettingsPage> {
                                 height: 1.4,
                                 fontFamily: 'OpenSans',
                               ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 18),
-              _buildSectionCard(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.all(12),
-                          decoration: BoxDecoration(
-                            color: _primaryColor.withValues(alpha: 0.12),
-                            borderRadius: BorderRadius.circular(16),
-                          ),
-                          child: Icon(
-                            Icons.dark_mode_rounded,
-                            color: _primaryColor,
-                            size: 24,
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text('Appearance', style: titleStyle),
-                              const SizedBox(height: 4),
-                              Text(
-                                'Choose light, dark, or follow the device theme. This applies app-wide.',
-                                style: bodyStyle,
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 16),
-                    SegmentedButton<ThemeMode>(
-                      showSelectedIcon: false,
-                      segments: const [
-                        ButtonSegment<ThemeMode>(
-                          value: ThemeMode.system,
-                          icon: Icon(Icons.brightness_auto_rounded),
-                          label: Text('System'),
-                        ),
-                        ButtonSegment<ThemeMode>(
-                          value: ThemeMode.light,
-                          icon: Icon(Icons.light_mode_rounded),
-                          label: Text('Light'),
-                        ),
-                        ButtonSegment<ThemeMode>(
-                          value: ThemeMode.dark,
-                          icon: Icon(Icons.dark_mode_rounded),
-                          label: Text('Dark'),
-                        ),
-                      ],
-                      selected: <ThemeMode>{appTheme.mode},
-                      onSelectionChanged: (selection) async {
-                        if (selection.isEmpty) {
-                          return;
-                        }
-                        await context.read<AppTheme>().set(selection.first);
-                      },
-                    ),
-                    const SizedBox(height: 12),
-                    Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.all(14),
-                      decoration: BoxDecoration(
-                        color: _softColor,
-                        borderRadius: BorderRadius.circular(16),
-                        border: Border.all(color: _borderColor),
-                      ),
-                      child: Row(
-                        children: [
-                          Icon(
-                            Icons.palette_outlined,
-                            color: _primaryColor,
-                            size: 20,
-                          ),
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: Text(
-                              'Current mode: ${_themeModeDescription(appTheme.mode)}',
-                              style: bodyStyle.copyWith(color: _textColor),
                             ),
                           ),
                         ],
@@ -946,16 +851,5 @@ class _ProfSettingsPageState extends State<ProfSettingsPage> {
         ],
       ),
     );
-  }
-
-  String _themeModeDescription(ThemeMode mode) {
-    switch (mode) {
-      case ThemeMode.system:
-        return 'System default';
-      case ThemeMode.light:
-        return 'Light mode';
-      case ThemeMode.dark:
-        return 'Dark mode';
-    }
   }
 }
