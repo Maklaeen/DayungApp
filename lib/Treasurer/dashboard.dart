@@ -34,6 +34,25 @@ const Color kSubtleText = Color(0xFF4B5563);
 const kSubText = Color(0xFF4B5563);
 const kText = Color(0xFF1F2937);
 
+bool _isTruthyFlagValue(dynamic value) {
+  if (value is bool) return value;
+  if (value is num) return value != 0;
+  if (value is String) {
+    return ['true', '1', 'yes'].contains(value.trim().toLowerCase());
+  }
+  return false;
+}
+
+bool shouldCountCurrentFundPayment(Map<String, dynamic> row) {
+  if (!_isTruthyFlagValue(row['iscollectedbytreasurer'])) return false;
+  if (_isTruthyFlagValue(row['is_claimed'])) return false;
+  if ((row['status']?.toString().toLowerCase() ?? '') != 'paid') return false;
+  if ((row['type']?.toString().toLowerCase() ?? '') != 'deceased_payment') {
+    return false;
+  }
+  return true;
+}
+
 class TreasurerDashboardPage extends StatefulWidget {
   const TreasurerDashboardPage({super.key});
 
@@ -377,7 +396,7 @@ class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
           .eq('type', 'deceased_payment');
       double total = 0;
       for (final row in List<Map<String, dynamic>>.from(rows)) {
-        if (!_isTruthyFlag(row['iscollectedbytreasurer'])) continue;
+        if (!shouldCountCurrentFundPayment(row)) continue;
         final amount = row['amount'];
         total += (amount is num)
             ? amount.toDouble()

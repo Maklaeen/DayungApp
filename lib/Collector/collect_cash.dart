@@ -70,6 +70,28 @@ class _CollectCashPageState extends State<CollectCashPage> {
 
   bool get _hasSelectedDeceased => _selectedDeceased != null;
 
+  DateTime? _parseDateTime(dynamic value) {
+    if (value == null) return null;
+    try {
+      return DateTime.tryParse(value.toString());
+    } catch (_) {
+      return null;
+    }
+  }
+
+  bool _isMemberEligibleForClaim(
+    Map<String, dynamic> member,
+    Map<String, dynamic>? selected,
+  ) {
+    if (selected == null) return true;
+
+    final approvedAt = _parseDateTime(member['approved_at']);
+    final claimDate = _parseDateTime(selected['datesetamount']);
+    if (approvedAt == null || claimDate == null) return true;
+
+    return !approvedAt.isAfter(claimDate);
+  }
+
   List<Map<String, dynamic>> get _filteredDeceasedOptions {
     if (_deceasedSearch.trim().isEmpty) return _deceasedOptions;
     final query = _deceasedSearch.trim().toLowerCase();
@@ -107,6 +129,9 @@ class _CollectCashPageState extends State<CollectCashPage> {
       final memberId = (member['id'] ?? '').toString();
       if (memberId.isEmpty) return false;
       if (excludedUserId.isNotEmpty && memberId == excludedUserId) {
+        return false;
+      }
+      if (!_isMemberEligibleForClaim(member, selected)) {
         return false;
       }
       if (query.isEmpty) return true;
@@ -186,7 +211,7 @@ class _CollectCashPageState extends State<CollectCashPage> {
       // other collectors won't see user_ids assigned to someone else or NULL.
       var applicationsQuery = sb
           .from('applications')
-          .select('user_id')
+          .select('user_id, approved_at')
           .eq('dayung_unit_id', widget.dayungUnitId)
           .eq('status', 'approved');
       if (collectorId.isNotEmpty) {
@@ -276,8 +301,16 @@ class _CollectCashPageState extends State<CollectCashPage> {
       };
 
       final approvedMembers =
-          memberIds
-              .map((id) => {'id': id, 'full_name': userMap[id] ?? 'Member'})
+          approvedApps
+              .where((row) => (row['user_id'] ?? '').toString().isNotEmpty)
+              .map((row) {
+                final userId = (row['user_id'] ?? '').toString();
+                return {
+                  'id': userId,
+                  'full_name': userMap[userId] ?? 'Member',
+                  'approved_at': row['approved_at'],
+                };
+              })
               .toList()
             ..sort((a, b) {
               return (a['full_name'] ?? '').toString().toLowerCase().compareTo(
@@ -322,6 +355,7 @@ class _CollectCashPageState extends State<CollectCashPage> {
           'display_name': displayName,
           'amount': _asDouble(claim['amount']),
           'required_amount': _asDouble(claim['amount']),
+          'datesetamount': claim['datesetamount'],
           'deceased_type': beneficiaryId.isNotEmpty ? 'beneficiary' : 'member',
         });
         existingKeys.add(key);
@@ -459,7 +493,7 @@ class _CollectCashPageState extends State<CollectCashPage> {
         'display_name': displayName,
         'amount': _asDouble(setAmount['amount']),
         'required_amount': _asDouble(setAmount['amount']),
-
+        'datesetamount': notice['datesetamount'],
         'deceased_type': (notice['deceased_type'] ?? 'member').toString(),
       });
     }
@@ -483,6 +517,7 @@ class _CollectCashPageState extends State<CollectCashPage> {
             : (userMap[userId] ?? 'Deceased Member'),
         'amount': _asDouble(setAmount['amount']),
         'required_amount': _asDouble(setAmount['amount']),
+        'datesetamount': setAmount['datesetamount'],
 
         'deceased_type': beneficiaryId.isNotEmpty ? 'beneficiary' : 'member',
       });
