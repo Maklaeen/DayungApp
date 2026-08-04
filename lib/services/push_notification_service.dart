@@ -69,16 +69,13 @@ class PushNotificationService {
       _authSubscription = Supabase.instance.client.auth.onAuthStateChange
           .listen((data) {
             if (data.event == AuthChangeEvent.signedIn ||
+                data.event == AuthChangeEvent.initialSession ||
                 data.event == AuthChangeEvent.tokenRefreshed) {
-              _subscribeToRealtime();
+              if (data.session != null) _subscribeToRealtime();
             } else if (data.event == AuthChangeEvent.signedOut) {
               _unsubscribeRealtime();
             }
           });
-
-      if (Supabase.instance.client.auth.currentUser != null) {
-        _subscribeToRealtime();
-      }
 
       _initialized = true;
     } catch (error, stackTrace) {
