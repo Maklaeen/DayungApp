@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:capstone_app/services/push_notification_service.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
@@ -29,8 +30,7 @@ class FirebasePushService {
 
       FirebaseMessaging.onMessage.listen((message) {
         final record = buildNotificationRecord(message);
-        // The app can later route this record to a local notification UI.
-        debugPrint('Foreground message received: ${record['title']}');
+        PushNotificationService.instance.showFromRecord(record);
       });
 
       final token = await FirebaseMessaging.instance.getToken();

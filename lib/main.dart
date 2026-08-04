@@ -234,6 +234,7 @@ Future<void> main() async {
   unawaited(FirebasePushService.instance.initialize());
   unawaited(
     PushNotificationService.instance.initialize(
+      navigatorKey: globalNavigatorKey,
       onTap: (payload) {
         if (payload != null) {
           debugPrint('Notification tapped with payload: $payload');

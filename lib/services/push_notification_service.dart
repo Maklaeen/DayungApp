@@ -1,6 +1,8 @@
 import 'dart:async';
 
+import 'package:capstone_app/Members/top_notification.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -20,8 +22,13 @@ class PushNotificationService {
   RealtimeChannel? _applicationChannel;
   bool _initialized = false;
   PushNotificationTapHandler? _onTap;
+  GlobalKey<NavigatorState>? _navigatorKey;
 
-  Future<void> initialize({required PushNotificationTapHandler onTap}) async {
+  Future<void> initialize({
+    required PushNotificationTapHandler onTap,
+    GlobalKey<NavigatorState>? navigatorKey,
+  }) async {
+    _navigatorKey = navigatorKey;
     if (kIsWeb) {
       _onTap = onTap;
       return;
@@ -192,6 +199,7 @@ class PushNotificationService {
     final notificationId =
         ((record['id']?.toString().hashCode ?? 0).abs() % 1000000);
 
+    // Show system tray notification
     final androidDetails = AndroidNotificationDetails(
       'dayung_notifications',
       'Dayung notifications',
@@ -220,6 +228,26 @@ class PushNotificationService {
       details,
       payload: 'open_notifications',
     );
+
+    // Show in-app banner when app is in foreground
+    _showInAppBanner(notificationTitle, notificationBody);
+  }
+
+  void _showInAppBanner(String title, String body) {
+    final context = _navigatorKey?.currentContext;
+    if (context == null) return;
+    TopNotificationBanner.show(
+      context,
+      title: title,
+      message: body,
+      icon: Icons.notifications_active_rounded,
+      backgroundColor: const Color(0xFF0D47A1),
+    );
+  }
+
+  /// Called by FirebasePushService for foreground FCM messages.
+  Future<void> showFromRecord(Map<String, dynamic> record) async {
+    await _showLocalNotification(record);
   }
 
   void _unsubscribeRealtime() {
