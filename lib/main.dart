@@ -1,5 +1,8 @@
 import 'dart:async';
 
+import 'package:capstone_app/Auth/pin_lock_page.dart';
+import 'package:capstone_app/Auth/pin_service.dart';
+import 'package:capstone_app/Providers/role_router.dart';
 import 'package:capstone_app/Secretary/dashboard.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'config/env.dart';
@@ -16,6 +19,8 @@ import 'package:capstone_app/Providers/route_observer.dart';
 import 'package:capstone_app/Providers/user_provider.dart';
 import 'package:capstone_app/SuperAdmin/dashboard.dart';
 import 'package:capstone_app/Treasurer/dashboard.dart';
+import 'package:capstone_app/services/firebase_push_service.dart';
+import 'package:capstone_app/services/push_notification_service.dart';
 import 'package:capstone_app/settings/custom_scroll_behavior.dart';
 import 'package:capstone_app/utils/network_error_dialog.dart';
 import 'package:flutter/material.dart';
@@ -31,24 +36,8 @@ import 'screens/splash_screen.dart';
 final GlobalKey<NavigatorState> globalNavigatorKey =
     GlobalKey<NavigatorState>();
 
-class _SupabaseConfig {
-  const _SupabaseConfig({required this.url, required this.anonKey});
-
-  final String url;
-  final String anonKey;
-}
-
-class _BootstrapException implements Exception {
-  const _BootstrapException(this.message);
-
-  final String message;
-
-  @override
-  String toString() => message;
-}
-
 ThemeData _buildAppTheme(Brightness brightness) {
-  final isDark = brightness == Brightness.dark;
+  final isDark = brightness == Brightness.light;
   final base = ThemeData(
     useMaterial3: true,
     brightness: brightness,
@@ -226,7 +215,7 @@ Future<void> main() async {
   supabaseAnonKey = Env.supabaseAnonKey;
 
   // If still placeholders, try dotenv (for mobile/desktop)
-  if (supabaseUrl == 'YOUR_SUPABASE_URL' ||
+  if (supabaseUrl == '  YOUR_SUPABASE_URL' ||
       supabaseAnonKey == 'YOUR_SUPABASE_ANON_KEY') {
     await dotenv.load(fileName: '.env');
     supabaseUrl = dotenv.env['SUPABASE_URL'] ?? '';
@@ -241,6 +230,17 @@ Future<void> main() async {
   await appTheme.load();
 
   await Supabase.initialize(url: supabaseUrl, anonKey: supabaseAnonKey);
+
+  unawaited(FirebasePushService.instance.initialize());
+  unawaited(
+    PushNotificationService.instance.initialize(
+      onTap: (payload) {
+        if (payload != null) {
+          debugPrint('Notification tapped with payload: $payload');
+        }
+      },
+    ),
+  );
 
   runApp(ProviderScope(child: MyApp(appTheme: appTheme)));
 }
@@ -524,7 +524,9 @@ class _MyAppState extends State<MyApp> {
               themeAnimationDuration: const Duration(milliseconds: 400),
               initialRoute: '/',
               routes: {
-                '/': (context) => SplashScreen(),
+                '/': (context) => const _AuthGate(),
+                '/splash': (context) => const SplashScreen(),
+                '/role-router': (context) => const RoleRouter(),
                 '/login': (context) => Login(),
                 '/register': (context) => Register(),
                 kPasswordRecoveryRoute: (context) =>
@@ -542,6 +544,67 @@ class _MyAppState extends State<MyApp> {
           },
         ),
       ),
+    );
+  }
+}
+
+class _AuthGate extends StatefulWidget {
+  const _AuthGate();
+
+  @override
+  State<_AuthGate> createState() => _AuthGateState();
+}
+
+class _AuthGateState extends State<_AuthGate> {
+  late final StreamSubscription<AuthState> _sub;
+
+  @override
+  void initState() {
+    super.initState();
+    _sub = Supabase.instance.client.auth.onAuthStateChange.listen((data) async {
+      if (!mounted) return;
+      if (data.event == AuthChangeEvent.initialSession) {
+        if (data.session != null) {
+          await context.read<DayungUnitProvider>().loadDayungUnit();
+          if (!mounted) return;
+          IdleTimeoutManager().start(context);
+          final uid = data.session!.user.id;
+          final hasPin = await PinService.hasPin(uid);
+          if (!mounted) return;
+          if (hasPin) {
+            final unlocked = await Navigator.push<bool>(
+              context,
+              MaterialPageRoute(builder: (_) => const PinLockPage()),
+            );
+            if (!mounted) return;
+            if (unlocked == true) {
+              Navigator.pushReplacementNamed(context, '/role-router');
+            } else {
+              // Forgot PIN — clear session and go to login
+              await Supabase.instance.client.auth.signOut();
+              if (!mounted) return;
+              Navigator.pushReplacementNamed(context, '/login');
+            }
+          } else {
+            Navigator.pushReplacementNamed(context, '/role-router');
+          }
+        } else {
+          Navigator.pushReplacementNamed(context, '/splash');
+        }
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _sub.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return const Scaffold(
+      body: Center(child: CircularProgressIndicator()),
     );
   }
 }

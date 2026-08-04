@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "629925404170",
+    "project_id": "dayung-app",
+    "storage_bucket": "dayung-app.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:629925404170:android:22349a5cbe6b27dc0949f3",
+        "android_client_info": {
+          "package_name": "com.example.capstone_app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCU9nPgl9xCh_UwbGmwR6XMeiKIgqtt7Fk"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

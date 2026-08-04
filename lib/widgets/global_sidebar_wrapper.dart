@@ -250,10 +250,10 @@ class _GlobalSidebarWrapperState extends State<GlobalSidebarWrapper> {
                     children: [
                       Text(
                         _fullName.isEmpty ? _roleName : _fullName,
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.w800,
-                          color: Color(0xFF1E40AF),
+                          color: Theme.of(context).colorScheme.primary,
                           fontFamily: 'Montserrat',
                         ),
                         maxLines: 1,
@@ -262,10 +262,10 @@ class _GlobalSidebarWrapperState extends State<GlobalSidebarWrapper> {
                       const SizedBox(height: 2),
                       Text(
                         _selectedDayungUnit,
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 12,
                           fontWeight: FontWeight.w600,
-                          color: Color(0xFF6B7280),
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
                           fontFamily: 'OpenSans',
                         ),
                         maxLines: 1,
@@ -285,12 +285,12 @@ class _GlobalSidebarWrapperState extends State<GlobalSidebarWrapper> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text(
+                  Text(
                     'Navigation',
                     style: TextStyle(
                       fontSize: 14,
                       fontWeight: FontWeight.w800,
-                      color: Color(0xFF1E40AF),
+                      color: Theme.of(context).colorScheme.primary,
                       fontFamily: 'Montserrat',
                     ),
                   ),
@@ -455,10 +455,10 @@ class DashboardSidebar extends StatelessWidget {
                     children: [
                       Text(
                         displayName,
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.w800,
-                          color: Color(0xFF1E40AF),
+                          color: Theme.of(context).colorScheme.primary,
                           fontFamily: 'Montserrat',
                         ),
                         maxLines: 1,
@@ -467,10 +467,10 @@ class DashboardSidebar extends StatelessWidget {
                       const SizedBox(height: 2),
                       Text(
                         selectedDayungUnit,
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 12,
                           fontWeight: FontWeight.w600,
-                          color: Color(0xFF6B7280),
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
                           fontFamily: 'OpenSans',
                         ),
                         maxLines: 1,
@@ -490,12 +490,12 @@ class DashboardSidebar extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text(
+                  Text(
                     'Navigation',
                     style: TextStyle(
                       fontSize: 14,
                       fontWeight: FontWeight.w800,
-                      color: Color(0xFF1E40AF),
+                      color: Theme.of(context).colorScheme.primary,
                       fontFamily: 'Montserrat',
                     ),
                   ),
@@ -583,13 +583,13 @@ class DashboardSidebar extends StatelessWidget {
                 Icon(
                   Icons.info_outline_rounded,
                   size: 14,
-                  color: const Color(0xFF6B7280).withValues(alpha: 0.7),
+                  color: Theme.of(context).colorScheme.onSurfaceVariant.withValues(alpha: 0.7),
                 ),
                 const SizedBox(width: 6),
                 Text(
                   'Version 1.5.0',
                   style: TextStyle(
-                    color: const Color(0xFF6B7280).withValues(alpha: 0.7),
+                    color: Theme.of(context).colorScheme.onSurfaceVariant.withValues(alpha: 0.7),
                     fontSize: 12,
                     fontWeight: FontWeight.w600,
                     fontFamily: 'OpenSans',
@@ -671,7 +671,7 @@ class _SidebarButton extends StatelessWidget {
                   style: TextStyle(
                     fontSize: 14,
                     fontWeight: selected ? FontWeight.w700 : FontWeight.w600,
-                    color: selected ? color : const Color(0xFF374151),
+                    color: selected ? color : Theme.of(context).colorScheme.onSurface,
                     fontFamily: 'Montserrat',
                   ),
                 ),

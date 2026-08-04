@@ -1,6 +1,8 @@
 import 'dart:convert';
 import 'package:bcrypt/bcrypt.dart';
 import 'package:capstone_app/Auth/force_password_change_page.dart';
+import 'package:capstone_app/Auth/pin_service.dart';
+import 'package:capstone_app/Auth/pin_setup_page.dart';
 import 'package:capstone_app/Providers/role_router.dart';
 import 'package:capstone_app/ui/theme/branding.dart';
 import 'package:capstone_app/Providers/dayung_provider.dart';
@@ -586,14 +588,20 @@ class _LoginState extends State<Login> {
   }
 
   InputDecoration _inputDecoration(String label, {IconData? icon}) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final subtleColor = Theme.of(context).colorScheme.onSurfaceVariant;
+    final fillColor = isDark ? const Color(0xFF1B2435) : Colors.white;
+    final borderColor = isDark
+        ? Theme.of(context).colorScheme.outline.withValues(alpha: 0.34)
+        : const Color(0xFFE5E7EB);
     return InputDecoration(
       labelText: label,
-      labelStyle: const TextStyle(
-        color: kSubtleText,
+      labelStyle: TextStyle(
+        color: subtleColor,
         fontSize: 14,
         fontWeight: FontWeight.w500,
       ),
-      hintStyle: const TextStyle(color: kSubtleText, fontSize: 16),
+      hintStyle: TextStyle(color: subtleColor, fontSize: 16),
       prefixIcon: icon != null
           ? Container(
               margin: const EdgeInsets.all(12),
@@ -606,11 +614,11 @@ class _LoginState extends State<Login> {
             )
           : null,
       filled: true,
-      fillColor: kCardBg,
+      fillColor: fillColor,
       contentPadding: const EdgeInsets.symmetric(vertical: 20, horizontal: 16),
       enabledBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(kEdge),
-        borderSide: const BorderSide(color: kBorderColor, width: 1.5),
+        borderSide: BorderSide(color: borderColor, width: 1.5),
       ),
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(kEdge),
@@ -821,10 +829,44 @@ class _LoginState extends State<Login> {
 
     if (!mounted) return;
 
+    // Offer PIN setup if not yet configured
+    if (!await PinService.hasPin(uid) && mounted) {
+      await _offerPinSetup();
+    }
+
+    if (!mounted) return;
     Navigator.pushReplacement(
       context,
       MaterialPageRoute(builder: (_) => const RoleRouter()),
     );
+  }
+
+  Future<void> _offerPinSetup() async {
+    final set = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Set up a PIN?'),
+        content: const Text(
+          'Use a 4-digit PIN next time instead of your password.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Skip'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Set PIN'),
+          ),
+        ],
+      ),
+    );
+    if (set == true && mounted) {
+      await Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => const PinSetupPage()),
+      );
+    }
   }
 
   @override
@@ -833,13 +875,15 @@ class _LoginState extends State<Login> {
     final isWide = size.width > 720;
 
     return Scaffold(
-      backgroundColor: kBg,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: Container(
-        decoration: const BoxDecoration(
+        decoration: BoxDecoration(
           gradient: LinearGradient(
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
-            colors: [Color(0xFFF8FAFC), Color(0xFFF1F5F9)],
+            colors: Theme.of(context).brightness == Brightness.dark
+                ? [const Color(0xFF0F172A), const Color(0xFF111827)]
+                : [const Color(0xFFF8FAFC), const Color(0xFFF1F5F9)],
           ),
         ),
         child: SafeArea(
@@ -884,7 +928,7 @@ class _LoginState extends State<Login> {
                                           fontSize: isWide ? 48 : 42,
                                           fontWeight: FontWeight.w900,
                                           letterSpacing: 1.0,
-                                          color: kNeutralText,
+                                          color: Theme.of(context).colorScheme.onSurface,
                                           fontFamily: 'Montserrat',
                                         ),
                                       ),
@@ -894,9 +938,8 @@ class _LoginState extends State<Login> {
                                           fontSize: isWide ? 48 : 42,
                                           fontWeight: FontWeight.w900,
                                           letterSpacing: 1.0,
-                                          color: kNeutralText,
+                                          color: Theme.of(context).colorScheme.onSurface,
                                           fontFamily: 'Montserrat',
-                                          // Add any special styling for the 'y' here
                                           decoration: TextDecoration.none,
                                         ),
                                       ),
@@ -906,7 +949,7 @@ class _LoginState extends State<Login> {
                                           fontSize: isWide ? 48 : 42,
                                           fontWeight: FontWeight.w900,
                                           letterSpacing: 1.0,
-                                          color: kNeutralText,
+                                          color: Theme.of(context).colorScheme.onSurface,
                                           fontFamily: 'Montserrat',
                                         ),
                                       ),
@@ -919,7 +962,7 @@ class _LoginState extends State<Login> {
                                   style: TextStyle(
                                     fontSize: isWide ? 22 : 18,
                                     fontWeight: FontWeight.w600,
-                                    color: kSubtleText,
+                                    color: Theme.of(context).colorScheme.onSurfaceVariant,
                                     fontFamily: 'OpenSans',
                                   ),
                                   maxLines: 1,
@@ -936,7 +979,7 @@ class _LoginState extends State<Login> {
                     Card(
                       elevation: 0,
                       shadowColor: Colors.transparent,
-                      color: kCardBg,
+                      color: Theme.of(context).colorScheme.surface,
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(24),
                       ),
@@ -987,7 +1030,7 @@ class _LoginState extends State<Login> {
 
   style: TextStyle(
     fontSize: isWide ? 20 : 18,
-    color: kNeutralText,
+    color: Theme.of(context).colorScheme.onSurface,
     fontWeight: FontWeight.w500,
   ),
   decoration: _inputDecoration(
@@ -1044,7 +1087,7 @@ class _LoginState extends State<Login> {
                                     _isLoading ? null : _handleLogin(),
                                 style: TextStyle(
                                   fontSize: isWide ? 20 : 18,
-                                  color: kNeutralText,
+                                  color: Theme.of(context).colorScheme.onSurface,
                                   fontWeight: FontWeight.w500,
                                 ),
                                 decoration:
@@ -1060,7 +1103,7 @@ class _LoginState extends State<Login> {
                                           _obscurePassword
                                               ? Icons.visibility_off_rounded
                                               : Icons.visibility_rounded,
-                                          color: kSubtleText,
+                                          color: Theme.of(context).colorScheme.onSurfaceVariant,
                                         ),
                                         onPressed: () {
                                           setState(() {

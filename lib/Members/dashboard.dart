@@ -972,10 +972,10 @@ class _MemberDashboardPageState extends State<MemberDashboardPage>
         children: [
           Text(
             'Overview',
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 20,
               fontWeight: FontWeight.w800,
-              color: Color(0xFF1E40AF),
+              color: Theme.of(context).colorScheme.primary,
               fontFamily: 'Montserrat',
             ),
           ),
@@ -1177,12 +1177,12 @@ class _MemberDashboardPageState extends State<MemberDashboardPage>
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text(
+        Text(
           'Quick Actions',
           style: TextStyle(
             fontSize: 18,
             fontWeight: FontWeight.w800,
-            color: Color(0xFF1E40AF),
+            color: Theme.of(context).colorScheme.primary,
             fontFamily: 'Montserrat',
           ),
         ),
@@ -1398,12 +1398,12 @@ class _MemberDashboardPageState extends State<MemberDashboardPage>
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text(
+        Text(
           'Recent Activity',
           style: TextStyle(
             fontSize: 18,
             fontWeight: FontWeight.w800,
-            color: Color(0xFF111827),
+            color: Theme.of(context).colorScheme.onSurface,
             fontFamily: 'Montserrat',
           ),
         ),
@@ -1441,8 +1441,8 @@ class _MemberDashboardPageState extends State<MemberDashboardPage>
                         _pendingPaymentMessages.isEmpty
                             ? 'No payment reminders right now.'
                             : '${_pendingPaymentMessages.length} reminder(s) need your attention.',
-                        style: const TextStyle(
-                          color: kText,
+                        style: TextStyle(
+                          color: Theme.of(context).colorScheme.onSurface,
                           fontWeight: FontWeight.w600,
                           fontSize: 13,
                           fontFamily: 'OpenSans',
@@ -1457,7 +1457,7 @@ class _MemberDashboardPageState extends State<MemberDashboardPage>
                 const Text(
                   'No recent activity',
                   style: TextStyle(
-                    color: kSubText,
+                    color: Color(0xFF6B7280),
                     fontWeight: FontWeight.w600,
                     fontSize: 14,
                     fontFamily: 'OpenSans',
@@ -1485,8 +1485,8 @@ class _MemberDashboardPageState extends State<MemberDashboardPage>
                             Expanded(
                               child: Text(
                                 msg,
-                                style: const TextStyle(
-                                  color: kText,
+                                style: TextStyle(
+                                  color: Theme.of(context).colorScheme.onSurface,
                                   fontWeight: FontWeight.w600,
                                   fontSize: 14,
                                   fontFamily: 'OpenSans',
@@ -1511,12 +1511,12 @@ class _MemberDashboardPageState extends State<MemberDashboardPage>
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text(
+        Text(
           'Quick Access',
           style: TextStyle(
             fontSize: 18,
             fontWeight: FontWeight.w800,
-            color: Color(0xFF111827),
+            color: Theme.of(context).colorScheme.onSurface,
             fontFamily: 'Montserrat',
           ),
         ),
@@ -1688,7 +1688,7 @@ class _MemberDashboardPageState extends State<MemberDashboardPage>
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
         decoration: BoxDecoration(
           color: selected
-              ? const Color(0xFF1E40AF).withValues(alpha: 0.1)
+              ? Theme.of(context).colorScheme.primary.withValues(alpha: 0.1)
               : Colors.transparent,
           borderRadius: BorderRadius.circular(16),
         ),
@@ -1700,8 +1700,8 @@ class _MemberDashboardPageState extends State<MemberDashboardPage>
               icon,
               size: 22,
               color: selected
-                  ? const Color(0xFF1E40AF)
-                  : const Color(0xFF6B7280),
+                  ? Theme.of(context).colorScheme.primary
+                  : Theme.of(context).colorScheme.onSurfaceVariant,
             ),
             const SizedBox(height: 3),
             Text(
@@ -1710,8 +1710,8 @@ class _MemberDashboardPageState extends State<MemberDashboardPage>
                 fontSize: 11,
                 fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
                 color: selected
-                    ? const Color(0xFF1E40AF)
-                    : const Color(0xFF6B7280),
+                    ? Theme.of(context).colorScheme.primary
+                    : Theme.of(context).colorScheme.onSurfaceVariant,
                 height: 1.0,
               ),
               textAlign: TextAlign.center,

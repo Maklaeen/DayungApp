@@ -2,13 +2,33 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:capstone_app/ui/theme/branding.dart';
 import 'package:capstone_app/utils/input_safety.dart';
-import 'package:http/http.dart' as http;
-import 'dart:convert';
 
-const _kAnnouncementServerBaseUrl = String.fromEnvironment(
-  'SUPERADMIN_BACKEND_URL',
-  defaultValue: '',
-);
+List<Map<String, dynamic>> buildAnnouncementNotificationRows({
+  required int announcementId,
+  required int dayungUnitId,
+  required String title,
+  required String body,
+  required String? senderId,
+  required Iterable<String> recipientIds,
+}) {
+  final createdAt = DateTime.now().toIso8601String();
+  return recipientIds
+      .where((recipientId) => recipientId.trim().isNotEmpty)
+      .map(
+        (recipientId) => {
+          'announcement_id': announcementId,
+          'recipient_id': recipientId,
+          'type': 'announcement',
+          'title': title,
+          'body': body,
+          'dayung_unit_id': dayungUnitId,
+          'sender_id': senderId,
+          'created_at': createdAt,
+          'read_at': null,
+        },
+      )
+      .toList();
+}
 
 // Additional colors for post announcement specific styling
 const kText = Color(0xFF111827);
@@ -60,77 +80,6 @@ class _PostAnnouncementPageState extends State<PostAnnouncementPage> {
     }
   }
 
-  Future<void> _sendSmsNotification(
-    int unitId,
-    String title,
-    String body,
-  ) async {
-    final accessToken = sb.auth.currentSession?.accessToken;
-    if (accessToken == null || accessToken.isEmpty) {
-      throw StateError('Your session has expired. Please sign in again.');
-    }
-
-    if (_kAnnouncementServerBaseUrl.trim().isEmpty) {
-      throw StateError(
-        'Announcement SMS is not configured. Point SUPERADMIN_BACKEND_URL to your Supabase Edge Function or server endpoint.',
-      );
-    }
-
-    final url = Uri.parse(
-      '${_kAnnouncementServerBaseUrl.trim()}/send-announcement-sms',
-    );
-
-    final resp = await http.post(
-      url,
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': 'Bearer $accessToken',
-      },
-      body: jsonEncode({
-        'dayung_unit_id': unitId,
-        'title': title.trim(),
-        'body': body.trim(),
-      }),
-    );
-
-    if (resp.statusCode == 401) {
-      throw StateError(
-        'Your session is no longer valid. Please sign in again.',
-      );
-    }
-
-    if (resp.statusCode == 403) {
-      throw StateError(
-        'You are not allowed to send announcements for this Dayung unit.',
-      );
-    }
-
-    if (resp.statusCode == 400) {
-      throw StateError('The announcement request was rejected by the server.');
-    }
-
-    if (resp.statusCode != 200) {
-      throw StateError('Failed to send SMS notifications.');
-    }
-  }
-
-  String _messageForPostError(Object error) {
-    final text = error.toString();
-    if (text.contains('session')) {
-      return 'Your session has expired. Please sign in again.';
-    }
-    if (text.contains('not allowed')) {
-      return 'You are not allowed to send announcements for this unit.';
-    }
-    if (text.contains('rejected')) {
-      return 'The server rejected the announcement. Please review the form and try again.';
-    }
-    if (text.contains('not configured')) {
-      return 'Announcement SMS is not configured yet.';
-    }
-    return 'Failed to post announcement. Please try again.';
-  }
-
   Future<void> _save() async {
     final title = AppInputSecurity.sanitizePlainText(
       _title.text,
@@ -167,20 +116,54 @@ class _PostAnnouncementPageState extends State<PostAnnouncementPage> {
     }
     setState(() => _loading = true);
     try {
-      await sb.from('announcements').insert({
-        'dayung_unit_id': _unitId,
-        'title': title,
-        'body': body,
-        'created_by': sb.auth.currentUser?.id,
-      });
-      await _sendSmsNotification(_unitId!, title, body);
+      final insertedAnnouncement = await sb
+          .from('announcements')
+          .insert({
+            'dayung_unit_id': _unitId,
+            'title': title,
+            'body': body,
+            'created_by': sb.auth.currentUser?.id,
+          })
+          .select('id')
+          .single();
+
+      final announcementId = (insertedAnnouncement['id'] as int?) ?? 0;
+      final recipientResponse = await sb
+          .from('applications')
+          .select('user_id')
+          .eq('dayung_unit_id', _unitId!)
+          .eq('status', 'approved');
+
+      final recipientIds = <String>{
+        for (final row in List<Map<String, dynamic>>.from(recipientResponse))
+          if (row['user_id'] != null)
+            row['user_id'].toString(),
+      }.toList();
+
+      if (recipientIds.isNotEmpty) {
+        final notificationRows = buildAnnouncementNotificationRows(
+          announcementId: announcementId,
+          dayungUnitId: _unitId!,
+          title: title,
+          body: body,
+          senderId: sb.auth.currentUser?.id,
+          recipientIds: recipientIds,
+        );
+
+        if (notificationRows.isNotEmpty) {
+          await sb.from('notifications').insert(notificationRows);
+        }
+      }
+
       if (!mounted) return;
       await _showAnnouncementPostedDialog(context);
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(_messageForPostError(e))));
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Failed to post announcement. Please try again.'),
+        ),
+      );
     } finally {
       if (mounted) setState(() => _loading = false);
     }
@@ -222,7 +205,7 @@ class _PostAnnouncementPageState extends State<PostAnnouncementPage> {
               ),
               const SizedBox(height: 12),
               const Text(
-                'Your announcement has been successfully posted and SMS notifications have been sent.',
+                'Your announcement has been successfully posted and push notifications will be sent.',
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   fontSize: 15,
