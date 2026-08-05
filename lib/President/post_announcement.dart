@@ -151,7 +151,15 @@ class _PostAnnouncementPageState extends State<PostAnnouncementPage> {
         );
 
         if (notificationRows.isNotEmpty) {
-          await sb.from('notifications').insert(notificationRows);
+          debugPrint('[Announcement] inserting ${notificationRows.length} notification rows. First row: ${notificationRows.first}');
+          try {
+            await sb.from('notifications').insert(notificationRows);
+            debugPrint('[Announcement] notifications insert SUCCESS: ${notificationRows.length} rows');
+          } catch (e, st) {
+            debugPrint('[Announcement] notifications insert FAILED: $e');
+            debugPrintStack(stackTrace: st);
+            rethrow;
+          }
         }
       }
 

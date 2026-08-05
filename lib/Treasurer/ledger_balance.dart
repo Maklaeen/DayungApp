@@ -70,6 +70,8 @@ class _LedgerBalancePageState extends State<LedgerBalancePage> {
   String? _error;
   List<Map<String, dynamic>> _collectorSummaries = [];
   double _treasurerCollectedTotal = 0.0;
+  double _currentCashCollected = 0.0;
+  double _totalDeceasedPaymentAmount = 0.0;
 
   @override
   void initState() {
@@ -113,6 +115,7 @@ class _LedgerBalancePageState extends State<LedgerBalancePage> {
         }
       }
 
+      final currentUserId = sb.auth.currentUser?.id ?? '';
       final rawPaymentRows = List<Map<String, dynamic>>.from(
         await sb
             .from('payments')
@@ -137,6 +140,21 @@ class _LedgerBalancePageState extends State<LedgerBalancePage> {
         }
         return true;
       }).toList();
+
+      final totalDeceasedPaymentAmount = paymentRows
+          .where((row) => row['type'] == 'deceased_payment')
+          .fold<double>(0.0, (sum, row) => sum + _asDouble(row['amount']));
+
+      final currentCashCollected = paymentRows.fold<double>(0.0, (sum, row) {
+        final typeValue = row['type']?.toString().toLowerCase();
+        final collectedBy = '${row['collected_by'] ?? ''}'.trim();
+
+        if (typeValue != 'deceased_payment' || collectedBy != currentUserId) {
+          return sum;
+        }
+
+        return sum + _asDouble(row['amount']);
+      });
 
       final memberNamesById = <String, String>{};
       final memberIds = paymentRows
@@ -273,6 +291,8 @@ class _LedgerBalancePageState extends State<LedgerBalancePage> {
       setState(() {
         _collectorSummaries = collectorSummaries;
         _treasurerCollectedTotal = treasurerCollectedTotal;
+        _currentCashCollected = currentCashCollected;
+        _totalDeceasedPaymentAmount = totalDeceasedPaymentAmount;
         _loading = false;
       });
     } catch (e) {
@@ -593,7 +613,7 @@ class _LedgerBalancePageState extends State<LedgerBalancePage> {
                     children: [
                       Expanded(
                         child: _summaryCard(
-                          title: 'Assigned collectors',
+                          title: 'Collectible Balance:',
                           value: '${_collectorSummaries.length}',
                           accent: const Color(0xFFF59E0B),
                         ),
@@ -604,6 +624,22 @@ class _LedgerBalancePageState extends State<LedgerBalancePage> {
                           title: 'Total Collected',
                           value: _formatCurrency(totalCollected),
                           accent: const Color(0xFF10B981),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: _summaryCard(
+                          title: 'Current Cash',
+                          value: _formatCurrency(_currentCashCollected),
+                          accent: const Color(0xFF10B981),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: _summaryCard(
+                          title: 'Ledger Balance',
+                          value: _formatCurrency(_totalDeceasedPaymentAmount),
+                          accent: const Color(0xFF3B82F6),
                         ),
                       ),
                     ],
