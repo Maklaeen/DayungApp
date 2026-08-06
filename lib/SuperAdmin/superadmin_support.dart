@@ -43,6 +43,7 @@ const Map<String, String> _kEdgeFunctionPostActions = {
   '/superadmin/create-user': 'create_user',
   '/superadmin/reset-user-password': 'reset_user_password',
   '/superadmin/set-user-disabled': 'set_user_disabled',
+  '/superadmin/confirm-application': 'confirm_application',
   '/superadmin/assign-unit-role': 'assign_unit_role',
   '/superadmin/remove-unit-role': 'remove_unit_role',
   '/superadmin/send-broadcast': 'send_broadcast',
@@ -72,11 +73,16 @@ Uri _buildBackendUri(String path) {
 
 bool get _hasExternalBackend => kSuperAdminBackendBaseUrl.trim().isNotEmpty;
 
+String _normalizeSuperAdminPath(String path) {
+  final trimmed = path.trim();
+  return trimmed.startsWith('/') ? trimmed : '/$trimmed';
+}
+
 bool _hasEdgeFunctionGet(String path) =>
-    _kEdgeFunctionGetActions.containsKey(path);
+    _kEdgeFunctionGetActions.containsKey(_normalizeSuperAdminPath(path));
 
 bool _hasEdgeFunctionPost(String path) =>
-    _kEdgeFunctionPostActions.containsKey(path);
+    _kEdgeFunctionPostActions.containsKey(_normalizeSuperAdminPath(path));
 
 bool _canFallbackToLocalPost(String path, Map<String, dynamic> body) {
   if (path != '/superadmin/send-broadcast') {
@@ -128,11 +134,18 @@ Future<Map<String, dynamic>> _invokeSuperAdminEdgeFunction(
   String action,
   Map<String, dynamic> payload,
 ) async {
-  await _currentAccessToken();
+  final token = await _currentAccessToken();
   try {
     final response = await Supabase.instance.client.functions.invoke(
       _kSuperAdminEdgeFunctionName,
-      body: {'action': action, ...payload},
+      // Send a JSON-encoded string to avoid JS interop type assertions
+      // when running on web (passing a raw Dart Map can trigger engine
+      // assertions in some environments).
+      body: jsonEncode({'action': action, ...payload}),
+      headers: {
+        'Authorization': 'Bearer $token',
+        'Content-Type': 'application/json',
+      },
     );
     return _coerceJsonMap(response.data);
   } catch (error) {
@@ -740,7 +753,7 @@ Future<Map<String, dynamic>> _handleLocalGet(String path) async {
       final users = List<Map<String, dynamic>>.from(
         await sb
             .from('users')
-            .select('id, full_name, email, role, is_deceased')
+            .select('id, full_name, email, role, is_deceased, created_at')
             .order('full_name'),
       );
       return {
@@ -934,6 +947,23 @@ Future<Map<String, dynamic>> _handleLocalPost(
         'unit': unitId,
       });
       return {'success': true};
+    case '/superadmin/confirm-application':
+      final userId = '${body['user_id'] ?? ''}';
+      final appliedAt = '${body['applied_at'] ?? ''}';
+      final approvedAt = '${body['approved_at'] ?? ''}';
+      if (userId.isEmpty) {
+        throw Exception('Missing user_id.');
+      }
+      if (appliedAt.isEmpty || approvedAt.isEmpty) {
+        throw Exception('Missing timestamps.');
+      }
+      await sb.from('applications').insert({
+        'user_id': userId,
+        'status': 'approved',
+        'applied_at': appliedAt,
+        'approved_at': approvedAt,
+      });
+      return {'success': true};
     case '/superadmin/send-broadcast':
       final settings = await _loadSystemSettings();
       final title = _sanitizeText(body['title'], maxLength: 120);
@@ -1088,10 +1118,14 @@ Future<Map<String, dynamic>> superAdminPostJson(
   Map<String, dynamic> body,
 ) async {
   if (!_hasExternalBackend) {
-    if (_hasEdgeFunctionPost(path)) {
+    final normalizedPath = _normalizeSuperAdminPath(path);
+    if (_hasEdgeFunctionPost(normalizedPath)) {
+      debugPrint(
+        'SuperAdmin POST invoke: path=$normalizedPath action=${_kEdgeFunctionPostActions[normalizedPath]} body=$body',
+      );
       try {
         return await _invokeSuperAdminEdgeFunction(
-          _kEdgeFunctionPostActions[path]!,
+          _kEdgeFunctionPostActions[normalizedPath]!,
           body,
         );
       } catch (error) {

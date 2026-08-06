@@ -760,7 +760,7 @@ class _ReportsPageState extends State<ReportsPage> {
 
 class _PaymentFlowSummaryTable extends StatelessWidget {
   final Map<String, dynamic> summary;
-  const _PaymentFlowSummaryTable({super.key, required this.summary});
+  const _PaymentFlowSummaryTable({required this.summary});
 
   @override
   Widget build(BuildContext context) {

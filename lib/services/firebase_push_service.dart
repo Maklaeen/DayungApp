@@ -33,12 +33,22 @@ class FirebasePushService {
         PushNotificationService.instance.showFromRecord(record);
       });
 
+      FirebaseMessaging.onMessageOpenedApp.listen((message) {
+        debugPrint(
+          '[FirebasePushService] onMessageOpenedApp: messageId=${message.messageId}, data=${message.data}',
+        );
+      });
+
       final token = await FirebaseMessaging.instance.getToken();
       if (token != null) {
+        debugPrint('[FirebasePushService] FCM token retrieved: $token');
         await _saveTokenToSupabase(token);
+      } else {
+        debugPrint('[FirebasePushService] FCM token is null');
       }
 
       FirebaseMessaging.instance.onTokenRefresh.listen((newToken) async {
+        debugPrint('[FirebasePushService] FCM token refreshed: $newToken');
         await _saveTokenToSupabase(newToken);
       });
     } catch (error, stackTrace) {
@@ -75,6 +85,9 @@ class FirebasePushService {
         'id': user.id,
         'fcm_token': token,
       });
+      debugPrint(
+        '[FirebasePushService] Saved FCM token to Supabase for user ${user.id}',
+      );
     } catch (error, stackTrace) {
       debugPrint('Failed to save FCM token: $error');
       debugPrintStack(stackTrace: stackTrace);

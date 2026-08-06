@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:capstone_app/ui/theme/branding.dart';
@@ -136,8 +137,7 @@ class _PostAnnouncementPageState extends State<PostAnnouncementPage> {
 
       final recipientIds = <String>{
         for (final row in List<Map<String, dynamic>>.from(recipientResponse))
-          if (row['user_id'] != null)
-            row['user_id'].toString(),
+          if (row['user_id'] != null) row['user_id'].toString(),
       }.toList();
 
       if (recipientIds.isNotEmpty) {
@@ -151,10 +151,28 @@ class _PostAnnouncementPageState extends State<PostAnnouncementPage> {
         );
 
         if (notificationRows.isNotEmpty) {
-          debugPrint('[Announcement] inserting ${notificationRows.length} notification rows. First row: ${notificationRows.first}');
+          debugPrint(
+            '[Announcement] inserting ${notificationRows.length} notification rows. First row: ${notificationRows.first}',
+          );
           try {
             await sb.from('notifications').insert(notificationRows);
-            debugPrint('[Announcement] notifications insert SUCCESS: ${notificationRows.length} rows');
+            debugPrint(
+              '[Announcement] notifications insert SUCCESS: ${notificationRows.length} rows',
+            );
+
+            try {
+              final notifyResponse = await sb.functions.invoke(
+                'notify-announcement',
+                body: jsonEncode({'notifications': notificationRows}),
+                headers: {'Content-Type': 'application/json'},
+              );
+              debugPrint(
+                '[Announcement] push function invoke SUCCESS: $notifyResponse',
+              );
+            } catch (e, st) {
+              debugPrint('[Announcement] push function invoke FAILED: $e');
+              debugPrintStack(stackTrace: st);
+            }
           } catch (e, st) {
             debugPrint('[Announcement] notifications insert FAILED: $e');
             debugPrintStack(stackTrace: st);

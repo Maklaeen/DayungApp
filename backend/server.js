@@ -585,7 +585,7 @@ function isAuthUserDisabled(authUser) {
 async function getPublicUserById(userId) {
   const { data, error } = await supabase
     .from('users')
-    .select('id, full_name, email, role, is_deceased')
+    .select('id, full_name, email, role, is_deceased, created_at')
     .eq('id', userId)
     .maybeSingle();
 
@@ -837,7 +837,7 @@ app.get(
       const authUsers = await getAllAuthUsers();
       const { data: publicUsers, error: publicUsersError } = await supabase
         .from('users')
-        .select('id, full_name, email, role, is_deceased')
+        .select('id, full_name, email, role, is_deceased, created_at')
         .order('full_name', { ascending: true });
 
       if (publicUsersError) {
@@ -969,6 +969,52 @@ app.post(
     } catch (error) {
       console.error('Failed to update user disabled status', error);
       return res.status(500).json({ error: 'Failed to update account status' });
+    }
+  }
+);
+
+app.post(
+  '/superadmin/confirm-application',
+  requireAuthenticatedUser,
+  requireSuperAdmin,
+  async (req, res) => {
+    try {
+      const userId = sanitizeText(req.body.user_id, { maxLength: 80 });
+      const appliedAt = sanitizeText(req.body.applied_at, { maxLength: 120 });
+      const approvedAt = sanitizeText(req.body.approved_at, { maxLength: 120 });
+
+      if (!userId) {
+        return res.status(400).json({ error: 'Missing user_id' });
+      }
+      if (!appliedAt || !approvedAt) {
+        return res.status(400).json({ error: 'Missing timestamps' });
+      }
+
+      const targetUser = await getPublicUserById(userId);
+      if (!targetUser) {
+        return res.status(404).json({ error: 'User not found' });
+      }
+
+      const { error } = await supabase.from('applications').insert({
+        user_id: userId,
+        status: 'approved',
+        applied_at: appliedAt,
+        approved_at: approvedAt,
+      });
+
+      if (error) {
+        console.error('Failed to create application', error);
+        return res.status(400).json({ error: error.message || 'Failed to create application record' });
+      }
+
+      await insertAuditLog(req.user.id, 'APPLICATION_CONFIRMED', {
+        target: targetUser.email || userId,
+      });
+
+      return res.json({ success: true });
+    } catch (error) {
+      console.error('Failed to confirm application', error);
+      return res.status(500).json({ error: 'Failed to confirm application' });
     }
   }
 );

@@ -1023,8 +1023,9 @@ class _GCashPaymentPageState extends State<GCashPaymentPage> {
                                                                     .isEmpty);
                                                         if (!hasDeceasedValue &&
                                                             !isMembershipPayment) {
-                                                          if (!context.mounted)
+                                                          if (!context.mounted) {
                                                             return;
+                                                          }
                                                           ScaffoldMessenger.of(
                                                             context,
                                                           ).showSnackBar(

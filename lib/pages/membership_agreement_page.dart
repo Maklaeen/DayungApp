@@ -197,7 +197,7 @@ class _MembershipAgreementPageState extends State<MembershipAgreementPage> {
           .match(matchMap)
           .limit(1);
 
-      if (checkResult is! List || checkResult.isEmpty) {
+      if (checkResult.isEmpty) {
         throw StateError('No application record was found after update.');
       }
 

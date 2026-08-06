@@ -500,7 +500,7 @@ class _GcashQrPageState extends State<GcashQrPage> {
       row['uploaded_by_name'] = userNameMap[uploadedBy] ?? '';
       row['userdeceased_name'] = userNameMap[deceasedId] ?? '';
       row['payment_id'] = paymentIdMap[paymentKey];
-      row['already_paid'] = paymentKey != null && paidKeys.contains(paymentKey);
+      row['already_paid'] = paidKeys.contains(paymentKey);
     }
     return data;
   }

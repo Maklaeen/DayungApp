@@ -31,6 +31,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'Auth/login.dart';
 import 'Auth/reapply.dart';
 import 'Auth/register.dart';
+
 import 'screens/splash_screen.dart';
 
 final GlobalKey<NavigatorState> globalNavigatorKey =

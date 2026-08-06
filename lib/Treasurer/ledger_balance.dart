@@ -120,10 +120,10 @@ class _LedgerBalancePageState extends State<LedgerBalancePage> {
         await sb
             .from('payments')
             .select(
-              'id, amount, collected_by, userdeceased, deceased_name, type, is_claimed, iscollectedbytreasurer, iscollectedbytreasurer_date',
+              'id, amount, collected_by, userdeceased, deceased_name, status, type, is_claimed, iscollectedbytreasurer, iscollectedbytreasurer_date',
             )
             .eq('dayung_unit_id', widget.dayungUnitId)
-            .eq('status', 'paid')
+            .inFilter('status', ['paid', 'unpaid'])
             .order('paid_at', ascending: false)
             .timeout(_queryTimeout),
       );
@@ -142,7 +142,12 @@ class _LedgerBalancePageState extends State<LedgerBalancePage> {
       }).toList();
 
       final totalDeceasedPaymentAmount = paymentRows
-          .where((row) => row['type'] == 'deceased_payment')
+          .where((row) {
+            if (row['type'] != 'deceased_payment') return false;
+
+            final statusValue = '${row['status'] ?? ''}'.trim().toLowerCase();
+            return statusValue == 'paid' || statusValue == 'unpaid';
+          })
           .fold<double>(0.0, (sum, row) => sum + _asDouble(row['amount']));
 
       final currentCashCollected = paymentRows.fold<double>(0.0, (sum, row) {
@@ -540,7 +545,7 @@ class _LedgerBalancePageState extends State<LedgerBalancePage> {
 
   @override
   Widget build(BuildContext context) {
-    final totalCollected = _treasurerCollectedTotal;
+    final totalCollected = _treasurerCollectedTotal + _currentCashCollected;
 
     return Scaffold(
       backgroundColor: _kPageBg,
@@ -613,7 +618,7 @@ class _LedgerBalancePageState extends State<LedgerBalancePage> {
                     children: [
                       Expanded(
                         child: _summaryCard(
-                          title: 'Collectible Balance:',
+                          title: 'Number of Userdeceased',
                           value: '${_collectorSummaries.length}',
                           accent: const Color(0xFFF59E0B),
                         ),

@@ -4,8 +4,7 @@ import 'package:capstone_app/utils/theme_surface.dart';
 
 class CollectionProgress extends StatefulWidget {
   final int dayungUnitId;
-  const CollectionProgress({required this.dayungUnitId, Key? key})
-    : super(key: key);
+  const CollectionProgress({required this.dayungUnitId, super.key});
 
   @override
   State<CollectionProgress> createState() => _CollectionProgressState();
@@ -57,12 +56,13 @@ class _CollectionProgressState extends State<CollectionProgress> {
         _loading = false;
       });
     } catch (_) {
-      if (mounted)
+      if (mounted) {
         setState(() {
           _paid = 0;
           _total = 0;
           _loading = false;
         });
+      }
     }
   }
 

@@ -358,9 +358,7 @@ class _RequiredApplicationsPageState extends State<RequiredApplicationsPage> {
       if (userId == null) return;
 
       var dayungUnitId = content.dayungUnitId;
-      if (dayungUnitId == null) {
-        dayungUnitId = await _resolveDayungUnitId(userId);
-      }
+      dayungUnitId ??= await _resolveDayungUnitId(userId);
 
       if (dayungUnitId == null) {
         if (!mounted) return;

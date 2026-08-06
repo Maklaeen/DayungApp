@@ -580,10 +580,17 @@ Deno.serve(async (req) => {
 
     const requester = authCheck.user!;
     const body = await req.json().catch(() => ({}));
-    const action = sanitizeText(body.action, 60)
+    const rawAction = typeof body.action === 'string' ? body.action : '';
+    const action = sanitizeText(rawAction, 60)
       .toLowerCase()
       .replace(/^\/?superadmin\//, '')
       .replace(/-/g, '_');
+
+    console.log('Superadmin action payload:', {
+      rawAction,
+      normalizedAction: action,
+      body,
+    });
 
     switch (action) {
       case 'list_users': {
@@ -791,6 +798,42 @@ Deno.serve(async (req) => {
         );
 
         return json(200, { success: true, disabled });
+      }
+
+      case 'confirm_application':
+      case 'confirm-application': {
+        const userId = sanitizeText(body.user_id, 80);
+        const appliedAt = sanitizeText(body.applied_at, 120);
+        const approvedAt = sanitizeText(body.approved_at, 120);
+
+        if (!userId) {
+          return json(400, { error: 'Missing user_id' });
+        }
+        if (!appliedAt || !approvedAt) {
+          return json(400, { error: 'Missing timestamps' });
+        }
+
+        const targetUser = await getPublicUserById(adminClient, userId);
+        if (!targetUser) {
+          return json(404, { error: 'User not found' });
+        }
+
+        const { error } = await adminClient.from('applications').insert({
+          user_id: userId,
+          status: 'approved',
+          applied_at: appliedAt,
+          approved_at: approvedAt,
+        });
+
+        if (error) {
+          return json(400, { error: error.message || 'Failed to create application record' });
+        }
+
+        await insertAuditLog(adminClient, requester.id, 'APPLICATION_CONFIRMED', {
+          target: targetUser.email || userId,
+        });
+
+        return json(200, { success: true });
       }
 
       case 'assign_unit_role': {
@@ -1050,7 +1093,11 @@ Deno.serve(async (req) => {
       }
 
       default:
-        return json(400, { error: 'Unsupported action.' });
+        return json(400, {
+          error: 'Unsupported action.',
+          action: action,
+          raw_action: rawAction,
+        });
     }
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Internal server error';

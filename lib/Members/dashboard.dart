@@ -188,8 +188,8 @@ class _MemberDashboardPageState extends State<MemberDashboardPage>
           .eq('user_id', userId)
           .limit(1);
 
-      final row = (applicationRows is List && applicationRows.isNotEmpty)
-          ? applicationRows.first as Map<String, dynamic>
+      final row = (applicationRows.isNotEmpty)
+          ? applicationRows.first
           : null;
       final status = row == null
           ? ''
@@ -1316,7 +1316,7 @@ class _MemberDashboardPageState extends State<MemberDashboardPage>
     final unitLabel = unitName != null && unitName.isNotEmpty
         ? unitName
         : _pendingApplicationDayungUnitId != null
-        ? 'Dayung unit #${_pendingApplicationDayungUnitId}'
+        ? 'Dayung unit #$_pendingApplicationDayungUnitId'
         : 'selected Dayung unit';
     return Container(
       width: double.infinity,
