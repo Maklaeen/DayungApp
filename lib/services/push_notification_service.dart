@@ -9,6 +9,13 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 typedef PushNotificationTapHandler = void Function(String? payload);
 
+class _PendingInAppBanner {
+  const _PendingInAppBanner({required this.title, required this.body});
+
+  final String title;
+  final String body;
+}
+
 class PushNotificationService {
   PushNotificationService._();
 
@@ -23,6 +30,8 @@ class PushNotificationService {
   bool _initialized = false;
   PushNotificationTapHandler? _onTap;
   GlobalKey<NavigatorState>? _navigatorKey;
+  final List<_PendingInAppBanner> _pendingInAppBanners = [];
+  bool _isFlushingPendingBanners = false;
 
   Future<void> initialize({
     required PushNotificationTapHandler onTap,
@@ -168,6 +177,16 @@ class PushNotificationService {
         .subscribe();
   }
 
+  static Map<String, dynamic> buildNotificationRecordFromRemoteMessage(
+    dynamic message,
+  ) {
+    final title = message.notification?.title ?? message.data['title'];
+    final body = message.notification?.body ?? message.data['body'];
+    final id = message.data['id']?.toString() ?? message.messageId;
+
+    return {'id': id, 'title': title, 'body': body, 'data': message.data};
+  }
+
   static String resolveTitle(Map<String, dynamic> record) {
     final title = (record['title'] ?? record['message'] ?? 'New notification')
         .toString()
@@ -231,20 +250,50 @@ class PushNotificationService {
   }
 
   void _showInAppBanner(String title, String body) {
-    final context = _navigatorKey?.currentContext;
-    if (context == null) return;
-    TopNotificationBanner.show(
-      context,
-      title: title,
-      message: body,
-      icon: Icons.notifications_active_rounded,
-      backgroundColor: const Color(0xFF0D47A1),
-    );
+    _pendingInAppBanners.add(_PendingInAppBanner(title: title, body: body));
+    _flushPendingInAppBanners();
   }
 
-  /// Called by FirebasePushService for foreground FCM messages.
+  void _flushPendingInAppBanners() {
+    if (_isFlushingPendingBanners) {
+      return;
+    }
+
+    _isFlushingPendingBanners = true;
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final context = _navigatorKey?.currentContext;
+      if (context == null) {
+        _isFlushingPendingBanners = false;
+        if (_pendingInAppBanners.isNotEmpty) {
+          _flushPendingInAppBanners();
+        }
+        return;
+      }
+
+      while (_pendingInAppBanners.isNotEmpty) {
+        final pendingBanner = _pendingInAppBanners.removeAt(0);
+        TopNotificationBanner.show(
+          context,
+          title: pendingBanner.title,
+          message: pendingBanner.body,
+          icon: Icons.notifications_active_rounded,
+          backgroundColor: const Color(0xFF0D47A1),
+        );
+      }
+
+      _isFlushingPendingBanners = false;
+    });
+  }
+
+  /// Called by FirebasePushService for foreground and background FCM messages.
   Future<void> showFromRecord(Map<String, dynamic> record) async {
     await _showLocalNotification(record);
+  }
+
+  Future<void> handleRemoteMessage(dynamic message) async {
+    final record = buildNotificationRecordFromRemoteMessage(message);
+    await showFromRecord(record);
   }
 
   void _unsubscribeRealtime() {

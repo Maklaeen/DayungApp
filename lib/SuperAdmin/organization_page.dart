@@ -228,6 +228,9 @@ class _SuperAdminOrganizationPageState
                                   subtitle: Text(
                                     '${location.isEmpty ? 'Location not set' : location}\nCoordinates: $coordinates',
                                   ),
+                                  onTap: () => _showUnitApplications(
+                                    (unit['id'] ?? '').toString(),
+                                  ),
                                 ),
                               );
                             }),
@@ -297,6 +300,33 @@ class _SuperAdminOrganizationPageState
     if (!mounted || result == null) return;
     _latitudeController.text = result.latitude.toStringAsFixed(6);
     _longitudeController.text = result.longitude.toStringAsFixed(6);
+  }
+
+  Future<void> _showUnitApplications(String dayungUnitId) async {
+    if (dayungUnitId.isEmpty) return;
+    final sb = Supabase.instance.client;
+    try {
+      final response = await sb
+          .from('applications')
+          .select('id, user_id, status, user:users(id, full_name, email)')
+          .eq('dayung_unit_id', dayungUnitId)
+          .order('applied_at', ascending: true);
+
+      final apps = List<Map<String, dynamic>>.from(response);
+
+      if (!mounted) return;
+      await showDialog<void>(
+        context: context,
+        builder: (context) {
+          return _ApplicationListDialog(applications: apps);
+        },
+      );
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(error.toString())));
+    }
   }
 }
 
@@ -630,6 +660,266 @@ class _CoordinatePickerDialogState extends State<_CoordinatePickerDialog> {
           ],
         ),
       ),
+    );
+  }
+}
+
+class _ApplicationListDialog extends StatefulWidget {
+  final List<Map<String, dynamic>> applications;
+
+  const _ApplicationListDialog({required this.applications});
+
+  @override
+  State<_ApplicationListDialog> createState() => _ApplicationListDialogState();
+}
+
+class _ApplicationListDialogState extends State<_ApplicationListDialog> {
+  final _searchController = TextEditingController();
+  String _searchQuery = '';
+  late List<Map<String, dynamic>> _applications;
+  bool _approving = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _applications = List.from(widget.applications);
+  }
+
+  List<Map<String, dynamic>> get _filteredApplications {
+    if (_searchQuery.isEmpty) return _applications;
+    return _applications.where((app) {
+      final user = app['user'] as Map<String, dynamic>?;
+      final userId = (app['user_id'] ?? user?['id'])?.toString() ?? '';
+      final name = user?['full_name']?.toString() ?? '';
+      final email = user?['email']?.toString() ?? '';
+      final status = app['status']?.toString() ?? '';
+      final searchableText = [
+        userId,
+        name,
+        email,
+        status,
+      ].where((value) => value.isNotEmpty).join(' ').toLowerCase();
+      return searchableText.contains(_searchQuery);
+    }).toList();
+  }
+
+  String _formatApprovedAt(DateTime value) {
+    return value
+        .toUtc()
+        .toIso8601String()
+        .replaceFirst('T', ' ')
+        .replaceFirst('Z', '+00');
+  }
+
+  Future<void> _confirmApprove(
+    String userId,
+    String applicationId,
+    int index,
+  ) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('Confirm approval'),
+          content: const Text(
+            'Are you sure you want to approve this application? This action cannot be undone.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('Approve'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (confirmed == true) {
+      await _approveApplication(userId, applicationId, index);
+    }
+  }
+
+  Future<void> _approveApplication(
+    String userId,
+    String applicationId,
+    int index,
+  ) async {
+    setState(() => _approving = true);
+    try {
+      if (applicationId.isEmpty) {
+        throw Exception('Application ID is missing.');
+      }
+
+      final applicationIdValue = int.tryParse(applicationId);
+      if (applicationIdValue == null) {
+        throw Exception('Invalid application ID.');
+      }
+
+      final approverId = Supabase.instance.client.auth.currentUser?.id;
+      if (approverId == null || approverId.isEmpty) {
+        throw Exception('Unable to identify the approving user.');
+      }
+
+      final approvedAt = _formatApprovedAt(DateTime.now());
+      await Supabase.instance.client.rpc(
+        'approve_application',
+        params: {
+          'p_application_id': applicationIdValue,
+          'p_approved_by': approverId,
+        },
+      );
+
+      if (!mounted) return;
+      setState(() {
+        _applications[index]['status'] = 'approved';
+        _applications[index]['is_agree'] = true;
+        _applications[index]['approved_at'] = approvedAt;
+        _applications[index]['approved_by'] = approverId;
+        _approving = false;
+      });
+    } catch (error) {
+      if (!mounted) return;
+      setState(() => _approving = false);
+      final message = error is PostgrestException
+          ? 'Approve failed: ${error.message}'
+          : error.toString().replaceFirst('Exception: ', '');
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(message)));
+    }
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  Widget _statusBadge(String status) {
+    final normalized = status.toLowerCase();
+    final color = normalized == 'approved'
+        ? Colors.green
+        : normalized == 'pending'
+        ? Colors.orange
+        : Colors.grey;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.16),
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Text(
+        status.toUpperCase(),
+        style: TextStyle(
+          color: color,
+          fontSize: 12,
+          fontWeight: FontWeight.w700,
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final apps = _filteredApplications;
+    return AlertDialog(
+      title: const Text('Unit Applications'),
+      content: SizedBox(
+        width: 560,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: _searchController,
+              onChanged: (value) => setState(() {
+                _searchQuery = value.trim().toLowerCase();
+              }),
+              decoration: InputDecoration(
+                hintText: 'Search by user name, email or status',
+                prefixIcon: const Icon(Icons.search_rounded),
+                suffixIcon: _searchQuery.isEmpty
+                    ? null
+                    : IconButton(
+                        tooltip: 'Clear search',
+                        onPressed: () => setState(() {
+                          _searchController.clear();
+                          _searchQuery = '';
+                        }),
+                        icon: const Icon(Icons.clear_rounded),
+                      ),
+              ),
+            ),
+            const SizedBox(height: 16),
+            if (apps.isEmpty)
+              const Padding(
+                padding: EdgeInsets.all(12),
+                child: Text('No applications match your search.'),
+              )
+            else
+              Flexible(
+                child: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: List.generate(_applications.length, (index) {
+                      if (!_filteredApplications.contains(
+                        _applications[index],
+                      )) {
+                        return const SizedBox.shrink();
+                      }
+                      final app = _applications[index];
+                      final user = app['user'] as Map<String, dynamic>?;
+                      final applicationId = app['id']?.toString() ?? '';
+                      final userId =
+                          (app['user_id'] ?? user?['id'])?.toString() ?? '';
+                      final name = user?['full_name']?.toString() ?? '';
+                      final email = user?['email']?.toString() ?? '';
+                      final status = app['status']?.toString() ?? 'unknown';
+                      final isPending = status.toLowerCase() == 'pending';
+                      return ListTile(
+                        title: Text(name.isNotEmpty ? name : 'Application'),
+                        subtitle: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [if (email.isNotEmpty) Text(email)],
+                        ),
+                        trailing: isPending
+                            ? OutlinedButton.icon(
+                                onPressed: _approving
+                                    ? null
+                                    : () => _confirmApprove(
+                                        userId,
+                                        applicationId,
+                                        index,
+                                      ),
+                                icon: _approving
+                                    ? const SizedBox(
+                                        width: 16,
+                                        height: 16,
+                                        child: CircularProgressIndicator(
+                                          strokeWidth: 2,
+                                        ),
+                                      )
+                                    : const Icon(Icons.check_rounded),
+                                label: const Text('Approve'),
+                              )
+                            : _statusBadge(status),
+                      );
+                    }).toList(),
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Close'),
+        ),
+      ],
     );
   }
 }

@@ -169,6 +169,48 @@ class DayungRecommendationService {
         .toSet();
   }
 
+  static List<Map<String, dynamic>> rankEligibleUnits(
+    List<Map<String, dynamic>> units, {
+    int limit = 5,
+    double similarityThreshold = similarityThreshold,
+  }) {
+    final ranked = List<Map<String, dynamic>>.from(units);
+
+    ranked.sort((left, right) {
+      final leftKm = (left['__km'] as num?)?.toDouble();
+      final rightKm = (right['__km'] as num?)?.toDouble();
+
+      if (leftKm != null && rightKm != null) {
+        final distanceCmp = leftKm.compareTo(rightKm);
+        if (distanceCmp != 0) return distanceCmp;
+      } else if (leftKm != null && rightKm == null) {
+        return -1;
+      } else if (leftKm == null && rightKm != null) {
+        return 1;
+      }
+
+      return ((right['__score'] as num?) ?? 0).compareTo(
+        (left['__score'] as num?) ?? 0,
+      );
+    });
+
+    final eligible = ranked
+        .where(
+          (unit) => ((unit['__score'] as num?) ?? 0) >= similarityThreshold,
+        )
+        .toList();
+
+    final preferredDistanceUnits = eligible
+        .where((unit) => unit['__withinRadius'] == true)
+        .toList();
+
+    final filtered = preferredDistanceUnits.isNotEmpty
+        ? preferredDistanceUnits
+        : eligible;
+
+    return filtered.take(limit).toList();
+  }
+
   static Future<List<Map<String, dynamic>>> loadRecommendations(
     SupabaseClient client, {
     required DayungPreferencesData preferences,
@@ -261,22 +303,11 @@ class DayungRecommendationService {
       });
     }
 
-    scoredUnits.sort(
-      (left, right) => ((right['__score'] as num?) ?? 0).compareTo(
-        (left['__score'] as num?) ?? 0,
-      ),
+    return rankEligibleUnits(
+      scoredUnits,
+      limit: limit,
+      similarityThreshold: similarityThreshold,
     );
-
-    final filtered = scoredUnits
-        .where(
-          (unit) =>
-              unit['__withinRadius'] == true &&
-              ((unit['__score'] as num?) ?? 0) >= similarityThreshold,
-        )
-        .take(limit)
-        .toList();
-
-    return filtered.isNotEmpty ? filtered : scoredUnits.take(limit).toList();
   }
 
   static List<double> _generatePreferenceVector(DayungPreferencesData prefs) {

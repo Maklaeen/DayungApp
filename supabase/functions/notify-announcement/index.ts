@@ -2,13 +2,26 @@
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
+};
+
 serve(async (req) => {
+  if (req.method === "OPTIONS") {
+    return new Response("ok", { headers: corsHeaders });
+  }
+
   try {
     const body = await req.json();
     const notifications = Array.isArray(body?.notifications) ? body.notifications : [];
 
     if (!notifications.length) {
-      return new Response(JSON.stringify({ ok: true, sent: 0 }), { status: 200 });
+      return new Response(JSON.stringify({ ok: true, sent: 0 }), {
+        status: 200,
+        headers: corsHeaders,
+      });
     }
 
     const supabase = createClient(
@@ -16,7 +29,7 @@ serve(async (req) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
     );
 
-    const serverKey = Deno.env.get("BOhXzlck1keSV4-vubk8sYdghQUB1DQBXwP52-7VBjfHBt1kYSyVTcJ6X-xHClbTlGo-vwZlOOy2nNu5GOobJ5M");
+    const serverKey = Deno.env.get("FIREBASE_SERVER_KEY") ?? "";
     if (!serverKey) {
       console.warn("FIREBASE_SERVER_KEY not configured; skipping push delivery");
       return new Response(
@@ -26,7 +39,7 @@ serve(async (req) => {
           skipped: notifications.length,
           warning: "FIREBASE_SERVER_KEY missing",
         }),
-        { status: 200 }
+        { status: 200, headers: corsHeaders }
       );
     }
 
@@ -52,9 +65,13 @@ serve(async (req) => {
         },
         body: JSON.stringify({
           to: profile.fcm_token,
+          priority: "high",
+          content_available: true,
           notification: {
             title: notification.title || "New announcement",
             body: notification.body || "You have a new update",
+            android_channel_id: "dayung_notifications",
+            click_action: "FLUTTER_NOTIFICATION_CLICK",
           },
           data: {
             type: notification.type || "announcement",
@@ -70,11 +87,14 @@ serve(async (req) => {
       }
     }
 
-    return new Response(JSON.stringify({ ok: true, sent }), { status: 200 });
+    return new Response(JSON.stringify({ ok: true, sent }), {
+      status: 200,
+      headers: corsHeaders,
+    });
   } catch (error) {
     return new Response(
       JSON.stringify({ ok: false, error: String(error) }),
-      { status: 500 }
+      { status: 500, headers: corsHeaders }
     );
   }
 });

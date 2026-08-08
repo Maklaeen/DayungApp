@@ -155,12 +155,10 @@ class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
     String? jsonFull = prefs.getString('selectedDayungUnitData');
     Map<String, dynamic>? parsed;
 
-    if (jsonFull != null) {
-      try {
-        parsed = jsonDecode(jsonFull);
-      } catch (_) {}
-    }
-    if (parsed == null &&
+    try {
+      if (jsonFull != null) parsed = jsonDecode(jsonFull);
+    } catch (_) {}
+      if (parsed == null &&
         label.trim().startsWith('{') &&
         label.contains('"name"')) {
       try {

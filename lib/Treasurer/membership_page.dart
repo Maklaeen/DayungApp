@@ -23,6 +23,7 @@ class _MembershipPageState extends State<MembershipPage> {
   List<Map<String, dynamic>> _payments = [];
   List<Map<String, dynamic>> _filteredPayments = [];
   bool _updating = false;
+  String _statusFilter = 'all';
   final TextEditingController _searchController = TextEditingController();
 
   @override
@@ -54,8 +55,8 @@ class _MembershipPageState extends State<MembershipPage> {
       if (mounted) {
         setState(() {
           _payments = List<Map<String, dynamic>>.from(rows as List);
-          _filteredPayments = List<Map<String, dynamic>>.from(_payments);
         });
+        _filterPayments();
       }
     } catch (e) {
       if (mounted) {
@@ -139,17 +140,48 @@ class _MembershipPageState extends State<MembershipPage> {
   void _filterPayments() {
     final query = _searchController.text.trim().toLowerCase();
     setState(() {
-      if (query.isEmpty) {
-        _filteredPayments = List<Map<String, dynamic>>.from(_payments);
-      } else {
-        _filteredPayments = _payments.where((payment) {
-          final userData = payment['users'] as Map<String, dynamic>?;
-          final fullName =
-              userData?['full_name']?.toString().toLowerCase() ?? '';
-          return fullName.contains(query);
-        }).toList();
-      }
+      _filteredPayments = _payments.where((payment) {
+        final status = payment['status']?.toString().toLowerCase() ?? '';
+        final matchesStatus = switch (_statusFilter) {
+          'paid' => status == 'paid' || status == 'approved',
+          'unpaid' => status != 'paid' && status != 'approved',
+          _ => true,
+        };
+
+        if (!matchesStatus) {
+          return false;
+        }
+
+        if (query.isEmpty) {
+          return true;
+        }
+
+        final userData = payment['users'] as Map<String, dynamic>?;
+        final fullName = userData?['full_name']?.toString().toLowerCase() ?? '';
+        return fullName.contains(query);
+      }).toList();
     });
+  }
+
+  Widget _buildFilterChip(String label, String value) {
+    final isSelected = _statusFilter == value;
+    return ChoiceChip(
+      label: Text(label),
+      selected: isSelected,
+      onSelected: (_) {
+        setState(() => _statusFilter = value);
+        _filterPayments();
+      },
+      selectedColor: const Color(0xFF0D47A1).withValues(alpha: 0.12),
+      labelStyle: TextStyle(
+        color: isSelected ? const Color(0xFF0D47A1) : const Color(0xFF475569),
+        fontWeight: FontWeight.w600,
+      ),
+      side: BorderSide(
+        color: isSelected ? const Color(0xFF0D47A1) : const Color(0xFFE2E8F0),
+      ),
+      backgroundColor: Colors.white,
+    );
   }
 
   @override
@@ -246,6 +278,16 @@ class _MembershipPageState extends State<MembershipPage> {
                           ),
                         ),
                       ),
+                    ),
+                    const SizedBox(height: 12),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        _buildFilterChip('All', 'all'),
+                        _buildFilterChip('Paid', 'paid'),
+                        _buildFilterChip('Unpaid', 'unpaid'),
+                      ],
                     ),
                     const SizedBox(height: 16),
                     Expanded(

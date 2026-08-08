@@ -135,7 +135,7 @@ class _GcashQrPageState extends State<GcashQrPage> {
         String? signedUrl;
         String? fileName = response[0]['qr_image_url'];
 
-        if (fileName!.isNotEmpty) {
+        if (fileName != null && fileName.isNotEmpty) {
           // If fileName is a full URL, extract the path after the bucket name
           final uri = Uri.parse(fileName);
           final segments = uri.pathSegments;

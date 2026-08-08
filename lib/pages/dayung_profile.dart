@@ -35,15 +35,25 @@ class _DayungProfilePageState extends State<DayungProfilePage> {
     _setStateSafe(() => _loading = true);
 
     // 1) Resolve unit id: prop -> prefs
-    int? unitId = widget.dayungUnitId;
+    final int? unitId = widget.dayungUnitId;
     _unitId = unitId;
+
+    if (unitId == null) {
+      if (!mounted) return;
+      _setStateSafe(() {
+        dayung = null;
+        members = [];
+        _loading = false;
+      });
+      return;
+    }
 
     try {
       // 2) Fetch dayung info
       final d = await supabase
           .from('dayung_units')
           .select('id,name,barangay,city,province,description')
-          .eq('id', unitId!)
+          .eq('id', unitId)
           .maybeSingle();
 
       // 3) Fetch approved members by applications join (NOT users.dayung_unit_id)

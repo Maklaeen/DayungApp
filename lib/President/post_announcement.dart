@@ -1,4 +1,3 @@
-import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:capstone_app/ui/theme/branding.dart';
@@ -81,6 +80,11 @@ class _PostAnnouncementPageState extends State<PostAnnouncementPage> {
     }
   }
 
+  bool get _hasAuthorizedUnit {
+    return _unitId != null &&
+        _units.any((unit) => int.tryParse('${unit['id']}') == _unitId);
+  }
+
   Future<void> _save() async {
     final title = AppInputSecurity.sanitizePlainText(
       _title.text,
@@ -92,7 +96,7 @@ class _PostAnnouncementPageState extends State<PostAnnouncementPage> {
       maxLength: 1000,
     );
 
-    if (_unitId == null ||
+    if (!_hasAuthorizedUnit ||
         AppInputSecurity.validateSafeText(
               title,
               fieldName: 'Title',
@@ -110,7 +114,9 @@ class _PostAnnouncementPageState extends State<PostAnnouncementPage> {
             null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Enter a valid title and announcement body'),
+          content: Text(
+            'You are not authorized to post announcements for this unit, or the announcement data is invalid.',
+          ),
         ),
       );
       return;
@@ -161,11 +167,13 @@ class _PostAnnouncementPageState extends State<PostAnnouncementPage> {
             );
 
             try {
+              debugPrint('[Announcement] calling notify-announcement');
+
               final notifyResponse = await sb.functions.invoke(
                 'notify-announcement',
-                body: jsonEncode({'notifications': notificationRows}),
-                headers: {'Content-Type': 'application/json'},
+                body: {'notifications': notificationRows},
               );
+
               debugPrint(
                 '[Announcement] push function invoke SUCCESS: $notifyResponse',
               );
@@ -347,6 +355,43 @@ class _PostAnnouncementPageState extends State<PostAnnouncementPage> {
                         child: CircularProgressIndicator(
                           color: kPrimary,
                           strokeWidth: 3,
+                        ),
+                      )
+                    : _units.isEmpty
+                    ? Center(
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 24),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Icon(
+                                Icons.lock_outline_rounded,
+                                size: 52,
+                                color: kAccentDark,
+                              ),
+                              const SizedBox(height: 16),
+                              const Text(
+                                'You are not authorized to post announcements.',
+                                textAlign: TextAlign.center,
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w600,
+                                  color: kText,
+                                  fontFamily: 'OpenSans',
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                              const Text(
+                                'Only the president assigned to a dayung unit can send announcements.',
+                                textAlign: TextAlign.center,
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  color: kSubText,
+                                  fontFamily: 'OpenSans',
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
                       )
                     : Padding(

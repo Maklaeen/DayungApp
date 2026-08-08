@@ -728,7 +728,7 @@ class _DayungMapPageState extends State<DayungMapPage> {
             .whereType<Map<String, dynamic>>()
             .map((row) => Map<String, dynamic>.from(row))
             .toList();
-            } catch (_) {}
+      } catch (_) {}
     }
     return [];
   }
@@ -1442,11 +1442,11 @@ class _DayungMapPageState extends State<DayungMapPage> {
         else if (rg is String)
           // ignore: curly_braces_in_flow_control_structures
           lng = double.tryParse(rg);
-        if (lng == null) continue;
+        if (lat == null || lng == null) continue;
         final dist = Geolocator.distanceBetween(
           _pos!.latitude,
           _pos!.longitude,
-          lat!,
+          lat,
           lng,
         );
         if (dist <= widget.nearbyRadiusMeters) {

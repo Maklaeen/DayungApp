@@ -70,6 +70,7 @@ class _LedgerBalancePageState extends State<LedgerBalancePage> {
   String? _error;
   List<Map<String, dynamic>> _collectorSummaries = [];
   double _treasurerCollectedTotal = 0.0;
+  double _collectedCollectedTotal = 0.0;
   double _currentCashCollected = 0.0;
   double _totalDeceasedPaymentAmount = 0.0;
 
@@ -155,6 +156,27 @@ class _LedgerBalancePageState extends State<LedgerBalancePage> {
         final collectedBy = '${row['collected_by'] ?? ''}'.trim();
 
         if (typeValue != 'deceased_payment' || collectedBy != currentUserId) {
+          return sum;
+        }
+
+        return sum + _asDouble(row['amount']);
+      });
+
+      final collectedCollectedTotal = paymentRows.fold<double>(0.0, (sum, row) {
+        final typeValue = row['type']?.toString().toLowerCase();
+        final statusValue = '${row['status'] ?? ''}'.trim().toLowerCase();
+        final collectedBy = '${row['collected_by'] ?? ''}'.trim();
+        final isTreasurerCollected = _isTruthyFlag(
+          row['iscollectedbytreasurer'],
+        );
+
+        if (typeValue != 'deceased_payment' || statusValue != 'paid') {
+          return sum;
+        }
+        if (collectedBy.isEmpty) {
+          return sum;
+        }
+        if (isTreasurerCollected) {
           return sum;
         }
 
@@ -296,6 +318,7 @@ class _LedgerBalancePageState extends State<LedgerBalancePage> {
       setState(() {
         _collectorSummaries = collectorSummaries;
         _treasurerCollectedTotal = treasurerCollectedTotal;
+        _collectedCollectedTotal = collectedCollectedTotal;
         _currentCashCollected = currentCashCollected;
         _totalDeceasedPaymentAmount = totalDeceasedPaymentAmount;
         _loading = false;
@@ -545,7 +568,9 @@ class _LedgerBalancePageState extends State<LedgerBalancePage> {
 
   @override
   Widget build(BuildContext context) {
-    final totalCollected = _treasurerCollectedTotal + _currentCashCollected;
+    final totalCollected = _treasurerCollectedTotal > _currentCashCollected
+        ? _treasurerCollectedTotal - _currentCashCollected
+        : 0.0;
 
     return Scaffold(
       backgroundColor: _kPageBg,
@@ -626,15 +651,24 @@ class _LedgerBalancePageState extends State<LedgerBalancePage> {
                       const SizedBox(width: 10),
                       Expanded(
                         child: _summaryCard(
-                          title: 'Total Collected',
-                          value: _formatCurrency(totalCollected),
+                          title: 'Collecters Collected',
+                          value: _formatCurrency(_collectedCollectedTotal),
                           accent: const Color(0xFF10B981),
                         ),
                       ),
                       const SizedBox(width: 10),
                       Expanded(
                         child: _summaryCard(
-                          title: 'Current Cash',
+                          title: 'Total Collected',
+                          value: _formatCurrency(totalCollected),
+                          accent: const Color(0xFF10B981),
+                        ),
+                      ),
+
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: _summaryCard(
+                          title: 'Current Cash Holdings',
                           value: _formatCurrency(_currentCashCollected),
                           accent: const Color(0xFF10B981),
                         ),

@@ -8,8 +8,9 @@ import 'package:capstone_app/pages/notification.dart';
 import 'package:capstone_app/pages/membership_agreement_page.dart';
 import 'package:capstone_app/pages/recentdeathnotices.dart';
 import 'package:capstone_app/Auth/login.dart';
+import 'package:capstone_app/profile/dayung_profile.dart';
+import 'package:capstone_app/settings/profsettings.dart';
 import 'package:capstone_app/utils/theme_surface.dart';
-// import 'package:capstone_app/profile/dayung_profile.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -55,6 +56,7 @@ class _MemberDashboardPageState extends State<MemberDashboardPage>
   bool _loadingActiveMembers = true;
   bool _handlingOverlay = false;
   bool _loadingPending = true;
+  bool _hasAppliedBefore = false;
 
   List<Map<String, dynamic>> _recentCertificates = [];
   final List<Map<String, dynamic>> _pendingPaymentsByDeathNotice = [];
@@ -184,13 +186,15 @@ class _MemberDashboardPageState extends State<MemberDashboardPage>
 
       final applicationRows = await supabase
           .from('applications')
-          .select('status, dayung_unit_id')
-          .eq('user_id', userId)
-          .limit(1);
+          .select('status, dayung_unit_id');
 
-      final row = (applicationRows.isNotEmpty)
-          ? applicationRows.first
-          : null;
+      final hasApplications = (applicationRows as List).isNotEmpty;
+      if (!mounted) return;
+      setState(() {
+        _hasAppliedBefore = hasApplications;
+      });
+
+      final row = hasApplications ? applicationRows.first : null;
       final status = row == null
           ? ''
           : (row['status'] ?? '').toString().toLowerCase().trim();
@@ -227,6 +231,7 @@ class _MemberDashboardPageState extends State<MemberDashboardPage>
       if (!mounted) return;
       setState(() {
         _hasPendingApplication = false;
+        _hasAppliedBefore = false;
         _pendingApplicationDayungName = null;
         _pendingApplicationDayungUnitId = null;
       });
@@ -824,6 +829,8 @@ class _MemberDashboardPageState extends State<MemberDashboardPage>
   }
 
   Widget _buildHomePage(BuildContext context) {
+    final showNoticeOnly = _hasPendingApplication || !_hasAppliedBefore;
+
     return RefreshIndicator(
       onRefresh: _load,
       edgeOffset: 68,
@@ -832,22 +839,22 @@ class _MemberDashboardPageState extends State<MemberDashboardPage>
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            _overviewSection(),
-            const SizedBox(height: 24),
-            if (_hasPendingApplication) ...[
-              _buildPendingApplicationNotice(),
+            if (showNoticeOnly)
+              _hasPendingApplication
+                  ? _buildPendingApplicationNotice()
+                  : _buildNoApplicationNotice()
+            else ...[
+              _overviewSection(),
               const SizedBox(height: 24),
+              _buildNextPaymentCard(false),
+              const SizedBox(height: 24),
+              _modernActionCards(),
+              const SizedBox(height: 24),
+              _modernRecentActivity(),
+              const SizedBox(height: 24),
+              _modernQuickActions(),
+              const SizedBox(height: 100),
             ],
-            _buildNextPaymentCard(
-              false,
-            ), // Keep your Next Payment Due card here
-            const SizedBox(height: 24),
-            _modernActionCards(),
-            const SizedBox(height: 24),
-            _modernRecentActivity(),
-            const SizedBox(height: 24),
-            _modernQuickActions(),
-            const SizedBox(height: 100), // Space for bottom nav
           ],
         ),
       ),
@@ -1354,7 +1361,7 @@ class _MemberDashboardPageState extends State<MemberDashboardPage>
           Text(
             'You are applying to $unitLabel. Please check the Membership Agreement and read the terms so your membership can continue.',
             style: const TextStyle(
-              fontSize: 15,
+              fontSize: 30,
               height: 1.5,
               color: Color(0xFF92400E),
               fontWeight: FontWeight.w600,
@@ -1388,6 +1395,114 @@ class _MemberDashboardPageState extends State<MemberDashboardPage>
                 ),
               ),
             ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildNoApplicationNotice() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 22),
+      decoration: BoxDecoration(
+        color: const Color(0xFFEFF6FF),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: const Color(0xFF3B82F6).withOpacity(0.28)),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF3B82F6).withOpacity(0.12),
+            blurRadius: 16,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.info_outline_rounded, color: Color(0xFF2563EB)),
+              const SizedBox(width: 10),
+              const Text(
+                'Not applying yet?',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w800,
+                  color: Color(0xFF1D4ED8),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          const Text(
+            'You have not applied to any Dayung yet. Go to Dayung Settings to choose a unit and start your application. Also don\'t forget to upload your documents in Certificates so the coordinator can review them.',
+            style: TextStyle(
+              fontSize: 30,
+              height: 1.5,
+              color: Color(0xFF1D4ED8),
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: 18),
+          Row(
+            children: [
+              Expanded(
+                child: ElevatedButton(
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => const DayungSettingsPage(),
+                      ),
+                    );
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF2563EB),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                  ),
+                  child: const Text(
+                    'Open Dayung Settings',
+                    style: TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w700,
+                      color: Colors.white,
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: OutlinedButton(
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => const ProfSettingsPage(),
+                      ),
+                    );
+                  },
+                  style: OutlinedButton.styleFrom(
+                    side: BorderSide(color: const Color(0xFF2563EB)),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                  ),
+                  child: const Text(
+                    'Open Certificates',
+                    style: TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w700,
+                      color: Color(0xFF2563EB),
+                    ),
+                  ),
+                ),
+              ),
+            ],
           ),
         ],
       ),
@@ -1486,7 +1601,9 @@ class _MemberDashboardPageState extends State<MemberDashboardPage>
                               child: Text(
                                 msg,
                                 style: TextStyle(
-                                  color: Theme.of(context).colorScheme.onSurface,
+                                  color: Theme.of(
+                                    context,
+                                  ).colorScheme.onSurface,
                                   fontWeight: FontWeight.w600,
                                   fontSize: 14,
                                   fontFamily: 'OpenSans',

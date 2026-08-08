@@ -20,6 +20,13 @@ const kSuperAdminDanger = Color(0xFFC73A2C);
 const kSuperAdminWarn = Color(0xFFE69F00);
 const _kSettingsTable = 'system_settings';
 
+String? normalizeApplicationStatus(Object? value) {
+  final normalized = '${value ?? ''}'.trim().toLowerCase();
+  if (normalized == 'approved') return 'approved';
+  if (normalized == 'pending') return 'pending';
+  return null;
+}
+
 const Map<String, dynamic> _kDefaultSystemSettings = {
   'id': 'global',
   'maintenance_mode': false,
@@ -331,20 +338,27 @@ Future<void> _sendAuditEventServerSide(
     if (token != null && token.isNotEmpty) {
       headers['Authorization'] = 'Bearer $token';
     }
-    final response = await http.post(
-      uri,
-      headers: headers,
-      body: jsonEncode({'event_name': eventName, 'fields': fields ?? const {}}),
-    );
+    final response = await http
+        .post(
+          uri,
+          headers: headers,
+          body: jsonEncode({
+            'event_name': eventName,
+            'fields': fields ?? const {},
+          }),
+        )
+        .timeout(const Duration(seconds: 10));
     await _decodeJsonResponse(response, uri);
     return;
   }
 
   try {
-    final response = await Supabase.instance.client.functions.invoke(
-      _kAuditEdgeFunctionName,
-      body: {'event_name': eventName, 'fields': fields ?? const {}},
-    );
+    final response = await Supabase.instance.client.functions
+        .invoke(
+          _kAuditEdgeFunctionName,
+          body: {'event_name': eventName, 'fields': fields ?? const {}},
+        )
+        .timeout(const Duration(seconds: 10));
     _coerceJsonMap(response.data);
   } catch (error) {
     if (_isAuditEdgeFunctionUnavailable(error)) {
@@ -756,11 +770,28 @@ Future<Map<String, dynamic>> _handleLocalGet(String path) async {
             .select('id, full_name, email, role, is_deceased, created_at')
             .order('full_name'),
       );
+      final appRows = List<Map<String, dynamic>>.from(
+        await sb
+            .from('applications')
+            .select('user_id, status')
+            .order('applied_at', ascending: false),
+      );
+      final latestApplicationStatusByUserId = <String, String>{};
+      for (final row in appRows) {
+        final userId = '${row['user_id'] ?? ''}'.trim();
+        final status = normalizeApplicationStatus(row['status']);
+        if (userId.isEmpty || status == null) continue;
+        latestApplicationStatusByUserId.putIfAbsent(userId, () => status);
+      }
       return {
         'users': users
             .map(
               (user) => {
                 ...user,
+                'application_status':
+                    latestApplicationStatusByUserId[(user['id'] ?? '')
+                        .toString()
+                        .trim()],
                 'is_disabled': false,
                 'banned_until': null,
                 'email_confirmed_at': null,
@@ -884,6 +915,22 @@ Future<Map<String, dynamic>> _handleLocalPost(
       if ('$unitId'.isEmpty || userId.isEmpty) {
         throw Exception('Missing required role assignment data.');
       }
+
+      final approvedApplication = await sb
+          .from('applications')
+          .select('id')
+          .eq('user_id', userId)
+          .eq('dayung_unit_id', unitId)
+          .eq('status', 'approved')
+          .limit(1)
+          .maybeSingle();
+      if (approvedApplication == null ||
+          (approvedApplication is List && approvedApplication.isEmpty)) {
+        throw Exception(
+          'User must have an approved application for this Dayung unit before assigning a role.',
+        );
+      }
+
       if (role == 'collector') {
         final latestCollector = await sb
             .from('dayung_collectors')
@@ -916,8 +963,9 @@ Future<Map<String, dynamic>> _handleLocalPost(
         'role': role,
         'target': userId,
         'unit': unitId,
+        'dayung_unit_id': unitId,
       });
-      return {'success': true};
+      return {'success': true, 'dayung_unit_id': unitId};
     case '/superadmin/remove-unit-role':
       final unitId = body['dayung_unit_id'];
       final role = '${body['role'] ?? ''}'.toLowerCase();
@@ -1188,10 +1236,10 @@ class _SuperAdminAccessGuardState extends State<SuperAdminAccessGuard> {
     final sb = Supabase.instance.client;
     final user = sb.auth.currentUser;
     if (user == null) {
-      await logAccessViolation(
+      logAccessViolation(
         resource: widget.title,
         reason: 'unauthenticated_session',
-      );
+      ).timeout(const Duration(seconds: 8)).catchError((_) {});
       return false;
     }
 
@@ -1200,36 +1248,37 @@ class _SuperAdminAccessGuardState extends State<SuperAdminAccessGuard> {
           .from('users')
           .select('role')
           .eq('id', user.id)
-          .maybeSingle();
+          .maybeSingle()
+          .timeout(const Duration(seconds: 12));
       final role = row?['role']?.toString();
       final allowed = role == 'superadmin';
 
       if (allowed && !_viewLogged) {
         _viewLogged = true;
-        await logAuditEvent(
+        logAuditEvent(
           'USER_ACTIVITY_SCREEN_VIEW',
           userId: user.id,
           fields: {'screen': widget.title, 'area': 'superadmin'},
-        );
+        ).timeout(const Duration(seconds: 8)).catchError((_) {});
       }
 
       if (!allowed) {
-        await logAccessViolation(
+        logAccessViolation(
           resource: widget.title,
           userId: user.id,
           reason: 'insufficient_role',
           attemptedRole: role,
-        );
+        ).timeout(const Duration(seconds: 8)).catchError((_) {});
       }
 
       return allowed;
     } catch (error) {
-      await logSystemError(
+      logSystemError(
         'superadmin_access_guard',
         error,
         userId: user.id,
         fields: {'screen': widget.title},
-      );
+      ).timeout(const Duration(seconds: 8)).catchError((_) {});
       return false;
     }
   }

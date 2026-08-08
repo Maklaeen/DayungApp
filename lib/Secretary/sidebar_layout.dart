@@ -57,8 +57,10 @@ class _SidebarLayoutState extends State<SidebarLayout> {
     Map<String, dynamic>? parsed;
     
     try {
-      parsed = jsonDecode(jsonFull!);
-        } catch (_) {}
+      if (jsonFull != null && jsonFull.trim().isNotEmpty) {
+        parsed = jsonDecode(jsonFull);
+      }
+    } catch (_) {}
     
     if (parsed == null &&
         dayungLabelRaw.trim().startsWith('{') &&

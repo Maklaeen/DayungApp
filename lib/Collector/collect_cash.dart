@@ -1789,7 +1789,8 @@ class _CollectCashPageState extends State<CollectCashPage> {
                                               .toString()
                                               .toLowerCase() ==
                                           'deceased_payment'
-                                  ? 'Ready for cash collection and receipt generation. User ID: ${payment['user_id'] ?? ''}'
+                                  ? 'Ready for cash collection and receipt generation.'
+                                        ''
                                   : 'Ready for cash collection and receipt generation.'),
                         style: const TextStyle(
                           fontSize: 13,

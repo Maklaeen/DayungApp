@@ -119,7 +119,9 @@ class _PresidentDashboardPageState extends State<PresidentDashboardPage> {
     String? jsonFull = prefs.getString('selectedDayungUnitData');
     Map<String, dynamic>? parsed;
     try {
-      parsed = jsonDecode(jsonFull!);
+      if (jsonFull != null) {
+        parsed = jsonDecode(jsonFull);
+      }
     } catch (_) {}
     if (parsed == null &&
         dayungLabelRaw.trim().startsWith('{') &&

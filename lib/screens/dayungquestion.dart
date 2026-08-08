@@ -5,6 +5,7 @@ import 'dart:math';
 import 'package:capstone_app/Members/dashboard.dart';
 import 'package:capstone_app/screens/dayung_map_page.dart';
 import 'package:capstone_app/utils/dayung_service_tags.dart';
+import 'package:capstone_app/utils/dayung_similarity.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart' as ll;
@@ -245,6 +246,25 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
     ];
   }
 
+  String _buildHybridDebugSummary({
+    required String unitId,
+    required List<double> userVector,
+    required List<double> unitVector,
+    required double threshold,
+  }) {
+    final hybrid = computeHybridScore(userVector, unitVector);
+    final passed = hybrid.finalScore >= threshold;
+    final reason = passed ? 'PASS' : 'REJECT (final score below threshold)';
+    return 'DEBUG: Unit ID:$unitId '
+        'UserVector=${userVector.join(",")} '
+        'UnitVector=${unitVector.join(",")} '
+        'Cosine=${hybrid.cosineSimilarity.toStringAsFixed(4)} '
+        'Boost=${hybrid.attributeMatchBoost.toStringAsFixed(4)} '
+        'Final=${hybrid.finalScore.toStringAsFixed(4)} '
+        'Matched=${hybrid.matchedSelectedCount}/${hybrid.selectedCount} '
+        '-> $reason';
+  }
+
   // Kini nga function mopangita og Dayung units, maghimo sa ilang vectors,
   // ug mosort base sa cosine similarity sa user preference vector.
   // Dinhi gyud mahitabo ang matching ug ranking.
@@ -284,8 +304,8 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
         // Build vector from rule columns
         m['__parsedVector'] = _buildRuleVector(m);
 
-        // ADD THIS DEBUG PRINT:
-        debugPrint('DEBUG: Unit ID:${m['dayung_unit_id'] ?? m['id']} Vector: ${m['__parsedVector']}');
+        final unitId = m['dayung_unit_id'] ?? m['id'];
+        debugPrint('DEBUG: Unit ID:$unitId Vector: ${m['__parsedVector']}');
 
         rules.add(m);
       }
@@ -296,13 +316,9 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
       rules.sort((a, b) {
         final va = (a['__parsedVector'] as List<double>? ?? const []);
         final vb = (b['__parsedVector'] as List<double>? ?? const []);
-        final simA =
-            cosineSimilarity(userVector, va) *
-            attributeMatchBoost(userVector, va);
-        final simB =
-            cosineSimilarity(userVector, vb) *
-            attributeMatchBoost(userVector, vb);
-        return simB.compareTo(simA);
+        final hybridA = computeHybridScore(userVector, va);
+        final hybridB = computeHybridScore(userVector, vb);
+        return hybridB.finalScore.compareTo(hybridA.finalScore);
       });
 
       setState(() => suggestedUnits = rules);
@@ -353,18 +369,12 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
             .from('user_preferences')
             .update(payload)
             .eq('user_id', widget.userId)
-            .timeout(
-              const Duration(seconds: 10),
-              onTimeout: () => <dynamic>[],
-            );
+            .timeout(const Duration(seconds: 10), onTimeout: () => <dynamic>[]);
       } else {
         await Supabase.instance.client
             .from('user_preferences')
             .insert(payload)
-            .timeout(
-              const Duration(seconds: 10),
-              onTimeout: () => <dynamic>[],
-            );
+            .timeout(const Duration(seconds: 10), onTimeout: () => <dynamic>[]);
       }
     } catch (e, st) {
       debugPrint('Save preferences failed: $e\n$st');
@@ -399,7 +409,9 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
       final resp = await Supabase.instance.client
           .from('user_preferences')
           .select(
-            dayungServiceTagLabels.map((label) => dayungServiceTagColumns[label]!).join(','),
+            dayungServiceTagLabels
+                .map((label) => dayungServiceTagColumns[label]!)
+                .join(','),
           )
           .eq('user_id', widget.userId)
           .maybeSingle();
@@ -636,54 +648,85 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
     return 1.0 + lambda * (matched / selected);
   }
 
+  List<dynamic> _rankPassingUnits(
+    List<dynamic> units,
+    List<double> userVector,
+  ) {
+    const double similarityThreshold = 0.300;
+    final eligible = <Map<String, dynamic>>[];
+
+    for (final unit in units) {
+      final unitVector =
+          (unit['__parsedVector'] as List<double>? ?? const <double>[]);
+      final hybrid = computeHybridScore(userVector, unitVector);
+      if (hybrid.finalScore < similarityThreshold) {
+        debugPrint(
+          _buildHybridDebugSummary(
+            unitId: '${unit['dayung_unit_id'] ?? unit['id']}',
+            userVector: userVector,
+            unitVector: unitVector,
+            threshold: similarityThreshold,
+          ),
+        );
+        continue;
+      }
+
+      final lat = double.tryParse('${unit['latitude']}');
+      final lng = double.tryParse('${unit['longitude']}');
+      double? distanceKm;
+      if (userLat != null && userLng != null && lat != null && lng != null) {
+        distanceKm = _distanceKm(userLat!, userLng!, lat, lng);
+      }
+
+      eligible.add({
+        ...Map<String, dynamic>.from(unit as Map),
+        '__hybridScore': hybrid.finalScore,
+        '__distanceKm': distanceKm,
+      });
+    }
+
+    final nearEligible = selectedDistanceKm != null && selectedDistanceKm! > 0
+        ? eligible.where((unit) {
+            final distance = unit['__distanceKm'] as double?;
+            return distance != null && distance <= selectedDistanceKm!;
+          }).toList()
+        : <Map<String, dynamic>>[];
+
+    final rankedSource = nearEligible.isNotEmpty ? nearEligible : eligible;
+
+    rankedSource.sort((a, b) {
+      final distanceA = (a['__distanceKm'] as num?)?.toDouble();
+      final distanceB = (b['__distanceKm'] as num?)?.toDouble();
+
+      if (distanceA != null && distanceB != null) {
+        final distanceCmp = distanceA.compareTo(distanceB);
+        if (distanceCmp != 0) return distanceCmp;
+      } else if (distanceA != null && distanceB == null) {
+        return -1;
+      } else if (distanceA == null && distanceB != null) {
+        return 1;
+      }
+
+      final scoreCmp = ((b['__hybridScore'] as num?) ?? 0).compareTo(
+        (a['__hybridScore'] as num?) ?? 0,
+      );
+      if (scoreCmp != 0) return scoreCmp;
+
+      return (a['dayung_unit_name'] ?? a['id'] ?? '').toString().compareTo(
+        (b['dayung_unit_name'] ?? b['id'] ?? '').toString(),
+      );
+    });
+
+    return rankedSource.take(3).toList();
+  }
+
   Widget _buildBody(BuildContext context, bool isWide) {
     if (isLoading) {
       return const Center(child: CircularProgressIndicator(color: kPrimary));
     }
 
-    // Filter units by distance if user location and filter are set
-    List<dynamic> filteredUnits = suggestedUnits;
-    if (userLat != null &&
-        userLng != null &&
-        selectedDistanceKm != null &&
-        selectedDistanceKm! > 0) {
-      filteredUnits = suggestedUnits.where((unit) {
-        final lat = double.tryParse('${unit['latitude']}');
-        final lng = double.tryParse('${unit['longitude']}');
-        if (lat == null || lng == null) return false;
-        final dist = _distanceKm(userLat!, userLng!, lat, lng);
-
-        // DEBUG: Show distance computation for each unit
-        debugPrint(
-          'DEBUG: Distance filter: User (${userLat!.toStringAsFixed(6)}, ${userLng!.toStringAsFixed(6)}) '
-          '→ Unit ID:${unit['dayung_unit_id'] ?? unit['id']} (${lat.toStringAsFixed(6)}, ${lng.toStringAsFixed(6)}) = '
-          '${dist.toStringAsFixed(2)} km (threshold: ${selectedDistanceKm!.toStringAsFixed(2)} km) '
-          '${dist <= selectedDistanceKm! ? "[INCLUDED]" : "[EXCLUDED]"}',
-        );
-
-        return dist <= selectedDistanceKm!;
-      }).toList();
-    }
-
-    // Filter out units with similarity below threshold
-    // Dinhi gigamit ang cosine similarity ug attributeMatchBoost para maapil ra ang units nga taas og combined score.
-    const double similarityThreshold = 0.300; // mao ni ang threshold
-    filteredUnits = filteredUnits.where((unit) {
-      final sim = cosineSimilarity(
-        _generatePreferenceVector(),
-        (unit['__parsedVector'] as List<double>? ?? []),
-      );
-      final boost = attributeMatchBoost(
-        _generatePreferenceVector(),
-        (unit['__parsedVector'] as List<double>? ?? []),
-      );
-      final combinedScore = sim * boost;
-      // Ipakita sa debug console ang similarity, boost, ug combined score para sa matag unit
-      debugPrint(
-        'DEBUG: Unit ID:${unit['dayung_unit_id'] ?? unit['id']} Similarity=${sim.toStringAsFixed(3)} Boost=${boost.toStringAsFixed(3)} Combined=${combinedScore.toStringAsFixed(3)}',
-      );
-      return combinedScore >= similarityThreshold;
-    }).toList();
+    final userVector = _generatePreferenceVector();
+    final filteredUnits = _rankPassingUnits(suggestedUnits, userVector);
 
     return RefreshIndicator(
       onRefresh: () async => _fetchSuggestions(),
@@ -999,7 +1042,7 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    'Try adjusting your preferences or distance filter.',
+                    'Units may disappear when their hybrid score is below 0.3 or when they fall outside the selected distance range.',
                     style: TextStyle(
                       color: kSubText.withValues(alpha: 0.7),
                       fontSize: 14,

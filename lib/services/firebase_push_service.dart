@@ -6,6 +6,16 @@ import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+@pragma('vm:entry-point')
+Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
+  await Firebase.initializeApp();
+  await PushNotificationService.instance.initialize(
+    onTap: (_) {},
+    navigatorKey: null,
+  );
+  await PushNotificationService.instance.handleRemoteMessage(message);
+}
+
 class FirebasePushService {
   FirebasePushService._();
 
@@ -28,15 +38,17 @@ class FirebasePushService {
       await Firebase.initializeApp();
       await _requestPermission();
 
-      FirebaseMessaging.onMessage.listen((message) {
-        final record = buildNotificationRecord(message);
-        PushNotificationService.instance.showFromRecord(record);
+      FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
+
+      FirebaseMessaging.onMessage.listen((message) async {
+        await PushNotificationService.instance.handleRemoteMessage(message);
       });
 
-      FirebaseMessaging.onMessageOpenedApp.listen((message) {
+      FirebaseMessaging.onMessageOpenedApp.listen((message) async {
         debugPrint(
           '[FirebasePushService] onMessageOpenedApp: messageId=${message.messageId}, data=${message.data}',
         );
+        await PushNotificationService.instance.handleRemoteMessage(message);
       });
 
       final token = await FirebaseMessaging.instance.getToken();

@@ -43,6 +43,34 @@ class _SuperAdminAdminsPageState extends State<SuperAdminAdminsPage> {
         .from('dayung_collectors')
         .select('dayung_unit_id, user_id, user:user_id(id, full_name, email)');
 
+    final approvedApplications = List<Map<String, dynamic>>.from(
+      await sb
+          .from('applications')
+          .select('dayung_unit_id, user_id')
+          .eq('status', 'approved'),
+    );
+
+    final approvedUserIds = approvedApplications
+        .map((app) => app['user_id']?.toString())
+        .whereType<String>()
+        .toSet();
+
+    final approvedUsersById = <String, Map<String, dynamic>>{};
+    if (approvedUserIds.isNotEmpty) {
+      final approvedUsers = List<Map<String, dynamic>>.from(
+        await sb
+            .from('users')
+            .select('id, full_name, email, role, is_deceased')
+            .filter('id', 'in', approvedUserIds.toList()),
+      );
+      for (final user in approvedUsers) {
+        final id = user['id']?.toString();
+        if (id != null) {
+          approvedUsersById[id] = Map<String, dynamic>.from(user);
+        }
+      }
+    }
+
     final users = await sb
         .from('users')
         .select('id, full_name, email, role, is_deceased')
@@ -62,12 +90,30 @@ class _SuperAdminAdminsPageState extends State<SuperAdminAdminsPage> {
       collectorsByUnit[unitId]!.add(Map<String, dynamic>.from(user as Map));
     }
 
+    final applicantsByUnit = <String, List<Map<String, dynamic>>>{};
+    for (final app in approvedApplications) {
+      final unitId = app['dayung_unit_id']?.toString();
+      final userId = app['user_id']?.toString();
+      if (unitId == null || userId == null) continue;
+      final userMap = approvedUsersById[userId];
+      if (userMap == null) continue;
+      if (userMap['is_deceased'] == true) continue;
+      applicantsByUnit.putIfAbsent(unitId, () => []);
+      if (!applicantsByUnit[unitId]!.any((u) => u['id'] == userMap['id'])) {
+        applicantsByUnit[unitId]!.add(userMap);
+      }
+    }
+
     final normalizedUnits = List<Map<String, dynamic>>.from(units).map((unit) {
       unit['collectors'] = collectorsByUnit[unit['id']?.toString()] ?? [];
       return unit;
     }).toList();
 
-    return _AdminScreenData(units: normalizedUnits, users: selectableUsers);
+    return _AdminScreenData(
+      units: normalizedUnits,
+      users: selectableUsers,
+      applicantsByUnit: applicantsByUnit,
+    );
   }
 
   Future<void> _refresh() async {
@@ -130,25 +176,26 @@ class _SuperAdminAdminsPageState extends State<SuperAdminAdminsPage> {
       payload['user_id'] = userId;
     }
 
-    final ok = await _postAction(
-      '/superadmin/remove-unit-role',
-      payload,
-      successMessage: '${_labelForRole(role)} removed from ${unit['name']}.',
-    );
+    final ok = await _postAction('/superadmin/remove-unit-role', payload);
     if (ok) await _refresh();
   }
 
   Future<bool> _postAction(
     String path,
     Map<String, dynamic> payload, {
-    required String successMessage,
+    String? successMessage,
   }) async {
     try {
       await superAdminPostJson(path, payload);
-      _showSnack(successMessage);
+      if (successMessage != null && successMessage.isNotEmpty) {
+        _showSnack(successMessage);
+      }
       return true;
     } catch (error) {
-      _showSnack(error.toString().replaceFirst('Exception: ', ''));
+      final message = error.toString().replaceFirst('Exception: ', '').trim();
+      if (message.isNotEmpty) {
+        _showSnack(message);
+      }
       return false;
     }
   }
@@ -296,7 +343,9 @@ class _SuperAdminAdminsPageState extends State<SuperAdminAdminsPage> {
                                 onAssignRole: (role) async {
                                   final selected = await _pickUser(
                                     'Assign ${_labelForRole(role)}',
-                                    data.users,
+                                    data.applicantsByUnit[unit['id']
+                                            ?.toString()] ??
+                                        [],
                                   );
                                   if (selected == null) return;
                                   await _assignRole(
@@ -310,7 +359,9 @@ class _SuperAdminAdminsPageState extends State<SuperAdminAdminsPage> {
                                 onAddCollector: () async {
                                   final selected = await _pickUser(
                                     'Add Collector',
-                                    data.users,
+                                    data.applicantsByUnit[unit['id']
+                                            ?.toString()] ??
+                                        [],
                                   );
                                   if (selected == null) return;
                                   await _assignRole(
@@ -344,8 +395,13 @@ class _SuperAdminAdminsPageState extends State<SuperAdminAdminsPage> {
 class _AdminScreenData {
   final List<Map<String, dynamic>> units;
   final List<Map<String, dynamic>> users;
+  final Map<String, List<Map<String, dynamic>>> applicantsByUnit;
 
-  const _AdminScreenData({required this.units, required this.users});
+  const _AdminScreenData({
+    required this.units,
+    required this.users,
+    required this.applicantsByUnit,
+  });
 }
 
 class _AdminsHero extends StatelessWidget {

@@ -273,21 +273,31 @@ class SetAmountsTab extends StatelessWidget {
 
                             if (uuidRegExp.hasMatch(userDeceasedIdStr) &&
                                 uuidRegExp.hasMatch(userIdStr)) {
-                              // Show loading dialog
-                              showDialog(
-                                context: context,
-                                barrierDismissible: false,
-                                builder: (context) => const Center(
-                                  child: CircularProgressIndicator(),
-                                ),
-                              );
+                              if (amount != null) {
+                                // Show loading dialog
+                                showDialog(
+                                  context: context,
+                                  barrierDismissible: false,
+                                  builder: (context) => const Center(
+                                    child: CircularProgressIndicator(),
+                                  ),
+                                );
 
-                              try {
-                                onSetAmount(i, amount!, item['id'].toString());
-                              } catch (e) {
-                                rootNavigator.pop();
+                                try {
+                                  onSetAmount(i, amount, item['id'].toString());
+                                } catch (e) {
+                                  rootNavigator.pop();
+                                  messenger.showSnackBar(
+                                    SnackBar(content: Text('Error: $e')),
+                                  );
+                                }
+                              } else {
                                 messenger.showSnackBar(
-                                  SnackBar(content: Text('Error: $e')),
+                                  const SnackBar(
+                                    content: Text(
+                                      'No amount provided. Cannot save payment.',
+                                    ),
+                                  ),
                                 );
                               }
                             } else {

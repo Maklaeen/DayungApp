@@ -847,10 +847,32 @@ app.get(
       const usersRows = Array.isArray(publicUsers) ? publicUsers : [];
       const authById = new Map(authUsers.map((user) => [user.id, user]));
 
+      const { data: applicationsRows, error: applicationsError } = await supabase
+        .from('applications')
+        .select('user_id, status')
+        .order('applied_at', { ascending: false });
+
+      if (applicationsError) {
+        throw applicationsError;
+      }
+
+      const latestApplicationStatusByUserId = new Map();
+      for (const row of Array.isArray(applicationsRows) ? applicationsRows : []) {
+        const userId = String(row?.user_id ?? '').trim();
+        const status = String(row?.status ?? '').trim().toLowerCase();
+        if (!userId || !['approved', 'pending'].includes(status)) {
+          continue;
+        }
+        if (!latestApplicationStatusByUserId.has(userId)) {
+          latestApplicationStatusByUserId.set(userId, status);
+        }
+      }
+
       const users = usersRows.map((user) => {
         const authUser = authById.get(user.id);
         return {
           ...user,
+          application_status: latestApplicationStatusByUserId.get(String(user.id).trim()) || null,
           is_disabled: isAuthUserDisabled(authUser),
           banned_until: authUser?.banned_until || null,
           email_confirmed_at: authUser?.email_confirmed_at || null,
@@ -1062,6 +1084,25 @@ app.post(
         return res.status(404).json({ error: 'User not found' });
       }
 
+      const { error: applicationError, data: approvedApplication } = await supabase
+        .from('applications')
+        .select('id')
+        .eq('user_id', userId)
+        .eq('dayung_unit_id', dayungUnitId)
+        .eq('status', 'approved')
+        .limit(1)
+        .maybeSingle();
+
+      if (applicationError) {
+        console.error('Failed to validate application status', applicationError);
+        return res.status(400).json({ error: applicationError.message || 'Failed to validate application status' });
+      }
+      if (!approvedApplication) {
+        return res.status(400).json({
+          error: 'User must have an approved application for this Dayung unit before assigning a role.',
+        });
+      }
+
       if (role === 'collector') {
         await supabase
           .from('dayung_collectors')
@@ -1094,6 +1135,13 @@ app.post(
           console.error('Failed to assign collector', error);
           return res.status(400).json({ error: error.message || 'Failed to assign collector' });
         }
+        await insertAuditLog(req.user.id, 'UNIT_ROLE_ASSIGNED', {
+          role,
+          unit: unit.name || `unit ${dayungUnitId}`,
+          target: targetUser.email || userId,
+          dayung_unit_id: dayungUnitId,
+        });
+        return res.json({ success: true, dayung_unit_id: dayungUnitId });
       } else {
         const column = UNIT_ROLE_COLUMNS[role];
         const { data: updatedUnit, error } = await supabase
@@ -1116,9 +1164,10 @@ app.post(
         role,
         unit: unit.name || `unit ${dayungUnitId}`,
         target: targetUser.email || userId,
+        dayung_unit_id: dayungUnitId,
       });
 
-      return res.json({ success: true });
+      return res.json({ success: true, dayung_unit_id: dayungUnitId });
     } catch (error) {
       console.error('Failed to assign unit role', error);
       return res.status(500).json({ error: 'Failed to assign role' });

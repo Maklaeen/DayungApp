@@ -1001,9 +1001,17 @@ class _SecretaryApplicationsPageState extends State<SecretaryApplicationsPage> {
           .eq('id', applicationId)
           .maybeSingle();
 
+      final approverId = _supabase.auth.currentUser?.id;
+      if (approverId == null || approverId.isEmpty) {
+        throw Exception('Unable to identify the approving user.');
+      }
+
       await _supabase.rpc(
         'approve_application',
-        params: {'p_application_id': applicationId},
+        params: {
+          'p_application_id': applicationId,
+          'p_approved_by': approverId,
+        },
       );
 
       final userId = applicationRow?['user_id']?.toString();

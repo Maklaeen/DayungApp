@@ -310,7 +310,9 @@ class _SecretaryDashboardPageState extends State<SecretaryDashboardPage> {
     String? jsonFull = prefs.getString('selectedDayungUnitData');
     Map<String, dynamic>? parsed;
     try {
-      parsed = jsonDecode(jsonFull!);
+      if (jsonFull != null) {
+        parsed = jsonDecode(jsonFull);
+      }
     } catch (_) {}
     if (parsed == null &&
         dayungLabelRaw.trim().startsWith('{') &&
@@ -1198,39 +1200,9 @@ class _SecretaryDashboardPageState extends State<SecretaryDashboardPage> {
             ),
           ),
           const SizedBox(height: 16),
-          // First row - 3 main actions
+          // First row - 2 main actions
           Row(
             children: [
-              Expanded(
-                child: SizedBox(
-                  height: 140,
-                  child: _modernActionCard(
-                    icon: Icons.add_circle_rounded,
-                    title: 'Create Death Notice',
-                    subtitle: 'Record new death',
-                    color: const Color(0xFFEF4444),
-                    onTap: () {
-                      if (_dayungUnitId == null) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('Select a Dayung first'),
-                          ),
-                        );
-                        return;
-                      }
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => CreateDeathNoticePage(
-                            dayungUnitId: _dayungUnitId!,
-                          ),
-                        ),
-                      );
-                    },
-                  ),
-                ),
-              ),
-              const SizedBox(width: 12),
               Expanded(
                 child: SizedBox(
                   height: 140,

@@ -232,17 +232,15 @@ Future<void> main() async {
 
   await Supabase.initialize(url: supabaseUrl, anonKey: supabaseAnonKey);
 
-  unawaited(FirebasePushService.instance.initialize());
-  unawaited(
-    PushNotificationService.instance.initialize(
-      navigatorKey: globalNavigatorKey,
-      onTap: (payload) {
-        if (payload != null) {
-          debugPrint('Notification tapped with payload: $payload');
-        }
-      },
-    ),
+  await PushNotificationService.instance.initialize(
+    navigatorKey: globalNavigatorKey,
+    onTap: (payload) {
+      if (payload != null) {
+        debugPrint('Notification tapped with payload: $payload');
+      }
+    },
   );
+  unawaited(FirebasePushService.instance.initialize());
 
   runApp(ProviderScope(child: MyApp(appTheme: appTheme)));
 }
