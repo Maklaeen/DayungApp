@@ -1,5 +1,6 @@
 import 'package:capstone_app/shared/collectors_manage_page.dart';
 import 'package:capstone_app/shared/removed_members_page.dart';
+import 'package:capstone_app/shared/active_members_page.dart';
 import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -99,15 +100,35 @@ class _PresSecDashboardOverviewState extends State<PresSecDashboardOverview> {
         .eq('dayung_unit_id', unitId);
 
     final appList = List<Map<String, dynamic>>.from(apps);
-    final approvedCount = appList.where((r) {
-      final status = (r['status'] ?? '').toString();
-      final removedInDayung = r['isRemovedInDayung'] == true;
-      return status == 'approved' && !removedInDayung;
-    }).length;
     final removedCount = appList
         .where((r) => r['isRemovedInDayung'] == true)
         .length;
 
+    final paymentRows = await _sb
+        .from('payments')
+        .select('user_id')
+        .eq('dayung_unit_id', unitId)
+        .eq('type', 'membership_payment')
+        .eq('status', 'paid');
+    final activeMemberIds = <String>{};
+    for (final row in List<Map<String, dynamic>>.from(paymentRows)) {
+      final id = (row['user_id'] ?? '').toString().trim();
+      if (id.isNotEmpty) activeMemberIds.add(id);
+    }
+
+    final unitRow = await _sb
+        .from('dayung_units')
+        .select('president_id, secretary_id, treasurer_id')
+        .eq('id', unitId)
+        .maybeSingle();
+    if (unitRow != null) {
+      for (final key in ['president_id', 'secretary_id', 'treasurer_id']) {
+        final value = unitRow[key];
+        if (value != null) activeMemberIds.add(value.toString().trim());
+      }
+    }
+
+    final approvedCount = activeMemberIds.length;
     int deceasedCount = 0;
     final claims = await _sb
         .from('claims')
@@ -346,7 +367,15 @@ class _PresSecDashboardOverviewState extends State<PresSecDashboardOverview> {
                 title: 'Active Members',
                 value: '$_activeMembers',
                 color: _kPrimary,
-                onTap: widget.onNavigateToMembers,
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) =>
+                          ActiveMembersPage(dayungUnitId: widget.dayungUnitId),
+                    ),
+                  ).then((_) => _load());
+                },
               ),
             ),
             const SizedBox(width: 12),

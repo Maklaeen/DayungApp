@@ -46,7 +46,8 @@ class _CollectorsManagePageState extends State<CollectorsManagePage> {
       for (final row in List<Map<String, dynamic>>.from(colRows)) {
         final userId = (row['user_id'] ?? '').toString();
         if (userId.isEmpty) continue;
-        final collectorId = (row['collectors_id'] ?? row['user_id'] ?? '').toString();
+        final collectorId = (row['collectors_id'] ?? row['user_id'] ?? '')
+            .toString();
         collectorUserIds.add(userId);
         collectorIdByUser[userId] = collectorId;
       }
@@ -63,7 +64,8 @@ class _CollectorsManagePageState extends State<CollectorsManagePage> {
         collectors = userRows.map((user) {
           final userId = (user['id'] ?? '').toString();
           final collectorId = collectorIdByUser[userId] ?? userId;
-          collectorNamesById[collectorId] = (user['full_name'] ?? 'Collector').toString();
+          collectorNamesById[collectorId] = (user['full_name'] ?? 'Collector')
+              .toString();
           return {
             'id': userId,
             'collectors_id': collectorId,
@@ -74,44 +76,65 @@ class _CollectorsManagePageState extends State<CollectorsManagePage> {
         }).toList();
       }
 
-      // Load active members (approved, not deceased) and current assignment.
-      final apps = await _sb
-          .from('applications')
-          .select('user_id, assigned_collector, user:users(id, full_name, profile_url, is_deceased)')
+      // Load active members from paid membership payments and current assignment.
+      final payments = await _sb
+          .from('payments')
+          .select(
+            'user_id, users!payments_user_id_fkey(id, full_name, profile_url, is_deceased)',
+          )
           .eq('dayung_unit_id', widget.dayungUnitId)
-          .eq('status', 'approved');
+          .eq('type', 'membership_payment')
+          .eq('status', 'paid');
 
       final memberMap = <String, Map<String, dynamic>>{};
-      for (final r in List<Map<String, dynamic>>.from(apps)) {
-        final u = r['user'] as Map?;
+      for (final r in List<Map<String, dynamic>>.from(payments)) {
+        final u = r['users'] as Map?;
         if (u == null) continue;
         if (u['is_deceased'] == true) continue;
         final userId = (u['id'] ?? '').toString();
         if (userId.isEmpty) continue;
-        final assignedCollector = (r['assigned_collector'] ?? '').toString();
         final member = {
           'id': userId,
           'full_name': (u['full_name'] ?? '').toString(),
           'profile_url': (u['profile_url'] ?? '').toString(),
-          'assigned_collector': assignedCollector,
+          'assigned_collector': '',
         };
+        memberMap[userId] = member;
+      }
 
-        if (!memberMap.containsKey(userId) ||
-            (memberMap[userId]!['assigned_collector'] as String).isEmpty && assignedCollector.isNotEmpty) {
-          memberMap[userId] = member;
+      final userIds = memberMap.keys.toList();
+      if (userIds.isNotEmpty) {
+        final applications = await _sb
+            .from('applications')
+            .select('user_id, assigned_collector')
+            .eq('dayung_unit_id', widget.dayungUnitId)
+            .inFilter('user_id', userIds);
+
+        for (final app in List<Map<String, dynamic>>.from(applications)) {
+          final userId = (app['user_id'] ?? '').toString();
+          if (userId.isEmpty) continue;
+          final assignedCollector = (app['assigned_collector'] ?? '')
+              .toString();
+          if (assignedCollector.isEmpty) continue;
+          if (memberMap.containsKey(userId)) {
+            memberMap[userId]!['assigned_collector'] = assignedCollector;
+          }
         }
       }
 
       final members = memberMap.values.toList();
       members.sort(
-        (a, b) => (a['full_name'] as String).compareTo(b['full_name'] as String),
+        (a, b) =>
+            (a['full_name'] as String).compareTo(b['full_name'] as String),
       );
 
       final assignedCounts = <String, int>{};
       for (final member in members) {
-        final assignedCollector = (member['assigned_collector'] ?? '').toString();
+        final assignedCollector = (member['assigned_collector'] ?? '')
+            .toString();
         if (assignedCollector.isNotEmpty) {
-          assignedCounts[assignedCollector] = (assignedCounts[assignedCollector] ?? 0) + 1;
+          assignedCounts[assignedCollector] =
+              (assignedCounts[assignedCollector] ?? 0) + 1;
         }
       }
 
@@ -163,9 +186,6 @@ class _CollectorsManagePageState extends State<CollectorsManagePage> {
         'added_by': _sb.auth.currentUser?.id,
       });
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Collector added.')),
-        );
         _load();
       }
     } catch (e) {
@@ -184,9 +204,9 @@ class _CollectorsManagePageState extends State<CollectorsManagePage> {
         'user_id': userId,
       });
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Collector removed.')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('Collector removed.')));
         _load();
       }
     } catch (e) {
@@ -213,9 +233,9 @@ class _CollectorsManagePageState extends State<CollectorsManagePage> {
           final filtered = search.isEmpty
               ? nonCollectors
               : nonCollectors.where((m) {
-                  return (m['full_name'] as String)
-                      .toLowerCase()
-                      .contains(search.toLowerCase());
+                  return (m['full_name'] as String).toLowerCase().contains(
+                    search.toLowerCase(),
+                  );
                 }).toList();
 
           return Container(
@@ -318,10 +338,13 @@ class _CollectorsManagePageState extends State<CollectorsManagePage> {
                                   fontFamily: 'Montserrat',
                                 ),
                               ),
-                                trailing: ElevatedButton(
+                              trailing: ElevatedButton(
                                 onPressed: () {
                                   Navigator.pop(context);
-                                  _confirmAndAddCollector(m['id'] as String, name);
+                                  _confirmAndAddCollector(
+                                    m['id'] as String,
+                                    name,
+                                  );
                                 },
                                 style: ElevatedButton.styleFrom(
                                   backgroundColor: _kPrimary,
@@ -508,9 +531,7 @@ class _CollectorsManagePageState extends State<CollectorsManagePage> {
                                     ),
                                   )
                                 else
-                                  ..._collectors.map(
-                                    (c) => _collectorTile(c),
-                                  ),
+                                  ..._collectors.map((c) => _collectorTile(c)),
                               ],
                             ),
                           ),
@@ -564,7 +585,7 @@ class _CollectorsManagePageState extends State<CollectorsManagePage> {
                                 ),
                                 const SizedBox(height: 4),
                                 const Text(
-                                  'Showing approved members for this dayung unit. Tap a member to assign or change their collector.',
+                                  'Showing active members with paid membership payments. Tap a member to assign or change their collector.',
                                   style: TextStyle(
                                     fontSize: 12,
                                     color: _kSubText,
@@ -592,7 +613,10 @@ class _CollectorsManagePageState extends State<CollectorsManagePage> {
         icon: const Icon(Icons.person_add_rounded),
         label: const Text(
           'Assign Collector',
-          style: TextStyle(fontWeight: FontWeight.w700, fontFamily: 'Montserrat'),
+          style: TextStyle(
+            fontWeight: FontWeight.w700,
+            fontFamily: 'Montserrat',
+          ),
         ),
       ),
     );
@@ -725,10 +749,7 @@ class _CollectorsManagePageState extends State<CollectorsManagePage> {
           onPressed: () => _showAssignMemberSheet(m),
           style: TextButton.styleFrom(
             foregroundColor: _kPrimary,
-            padding: const EdgeInsets.symmetric(
-              horizontal: 12,
-              vertical: 6,
-            ),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
           ),
           child: const Text(
             'Assign',
@@ -850,34 +871,50 @@ class _CollectorsManagePageState extends State<CollectorsManagePage> {
                       ),
                     )
                   : ListView.builder(
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 8,
+                      ),
                       itemCount: _collectors.length + 1,
                       itemBuilder: (_, index) {
                         if (index == 0) {
                           return ListTile(
                             title: const Text('Unassign collector'),
-                            subtitle: const Text('Leave this member without an assigned collector.'),
+                            subtitle: const Text(
+                              'Leave this member without an assigned collector.',
+                            ),
                             leading: const Icon(Icons.clear, color: _kDanger),
                             selected: currentCollectorId.isEmpty,
                             onTap: () {
                               Navigator.pop(context);
-                              _assignMemberToCollector(member['id'] as String, '');
+                              _assignMemberToCollector(
+                                member['id'] as String,
+                                '',
+                              );
                             },
                           );
                         }
                         final collector = _collectors[index - 1];
-                        final collectorId = (collector['collectors_id'] ?? '').toString();
-                        final collectorName = (collector['full_name'] ?? 'Collector').toString();
+                        final collectorId = (collector['collectors_id'] ?? '')
+                            .toString();
+                        final collectorName =
+                            (collector['full_name'] ?? 'Collector').toString();
                         return ListTile(
                           title: Text(collectorName),
                           subtitle: Text('Collector for this unit'),
-                          leading: const Icon(Icons.badge_rounded, color: _kPrimary),
+                          leading: const Icon(
+                            Icons.badge_rounded,
+                            color: _kPrimary,
+                          ),
                           trailing: currentCollectorId == collectorId
                               ? const Icon(Icons.check_circle, color: _kSuccess)
                               : null,
                           onTap: () {
                             Navigator.pop(context);
-                            _assignMemberToCollector(member['id'] as String, collectorId);
+                            _assignMemberToCollector(
+                              member['id'] as String,
+                              collectorId,
+                            );
                           },
                         );
                       },
@@ -889,13 +926,18 @@ class _CollectorsManagePageState extends State<CollectorsManagePage> {
     );
   }
 
-  Future<void> _assignMemberToCollector(String userId, String collectorsId) async {
+  Future<void> _assignMemberToCollector(
+    String userId,
+    String collectorsId,
+  ) async {
     try {
-      final payload = collectorsId.isEmpty ? {'assigned_collector': null} : {'assigned_collector': collectorsId};
+      final payload = collectorsId.isEmpty
+          ? {'assigned_collector': null}
+          : {'assigned_collector': collectorsId};
       await _sb.from('applications').update(payload).match({
-            'user_id': userId,
-            'dayung_unit_id': widget.dayungUnitId,
-          });
+        'user_id': userId,
+        'dayung_unit_id': widget.dayungUnitId,
+      });
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(

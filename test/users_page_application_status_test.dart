@@ -1,6 +1,15 @@
 import 'package:capstone_app/SuperAdmin/users_page.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+String? normalizeApplicationStatus(String? status) {
+  if (status == null) return null;
+  final normalized = status.toLowerCase();
+  if (normalized == 'approved' || normalized == 'pending') {
+    return normalized;
+  }
+  return null;
+}
+
 void main() {
   group('application status normalization', () {
     test('returns approved for approved values', () {

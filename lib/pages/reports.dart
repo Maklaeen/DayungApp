@@ -38,7 +38,9 @@ class ReportsService {
   Future<Map<String, dynamic>> fetchPaymentFlowSummary({int? unitId}) async {
     var query = sb
         .from('payments')
-        .select('amount, iscollectedbytreasurer, is_claimed, is_claimed_date');
+        .select(
+          'amount, iscollectedbytreasurer, iscollectedbytreasurer_date, is_claimed, is_claimed_date, membership_released, membershipreleased_date, paid_at, created_at',
+        );
     if (unitId != null) query.eq('dayung_unit_id', unitId);
 
     final rows = List<Map<String, dynamic>>.from(await query);
@@ -183,7 +185,19 @@ bool _isTruthyFlag(Object? value) {
 Map<String, dynamic> summarizePaymentFlowRows(List<Map<String, dynamic>> rows) {
   double inTotal = 0;
   double outTotal = 0;
+  double membershipReleasedTotal = 0;
   String? latestClaimDate;
+  String? latestMembershipReleasedDate;
+
+  String? _normalizeDate(Object? value) {
+    final dateValue = value?.toString();
+    if (dateValue == null || dateValue.trim().isEmpty) {
+      return null;
+    }
+    final parsedDate = DateTime.tryParse(dateValue);
+    if (parsedDate == null) return null;
+    return parsedDate.toUtc().toIso8601String();
+  }
 
   for (final row in rows) {
     final amount = double.tryParse(row['amount']?.toString() ?? '') ?? 0.0;
@@ -193,25 +207,41 @@ Map<String, dynamic> summarizePaymentFlowRows(List<Map<String, dynamic>> rows) {
 
     if (_isTruthyFlag(row['is_claimed'])) {
       outTotal += amount;
-      final dateValue = row['is_claimed_date']?.toString();
-      if (dateValue != null && dateValue.isNotEmpty) {
-        final parsedDate = DateTime.tryParse(dateValue);
-        if (parsedDate != null) {
-          final normalizedDate = parsedDate
-              .toLocal()
-              .toIso8601String()
-              .split('T')
-              .first;
-          if (latestClaimDate == null ||
-              normalizedDate.compareTo(latestClaimDate) > 0) {
-            latestClaimDate = normalizedDate;
-          }
-        }
+      final normalizedDate = _normalizeDate(row['is_claimed_date']);
+      if (normalizedDate != null &&
+          (latestClaimDate == null ||
+              normalizedDate.compareTo(latestClaimDate) > 0)) {
+        latestClaimDate = normalizedDate;
+      }
+    }
+
+    if (_isTruthyFlag(row['membership_released'])) {
+      membershipReleasedTotal += amount;
+      final normalizedDate = _normalizeDate(row['membershipreleased_date']);
+      if (normalizedDate != null &&
+          (latestMembershipReleasedDate == null ||
+              normalizedDate.compareTo(latestMembershipReleasedDate) > 0)) {
+        latestMembershipReleasedDate = normalizedDate;
       }
     }
   }
 
-  return {'in': inTotal, 'out': outTotal, 'date': latestClaimDate ?? '—'};
+  String? latestActivityDate;
+  if (latestClaimDate != null && latestMembershipReleasedDate != null) {
+    latestActivityDate =
+        latestClaimDate.compareTo(latestMembershipReleasedDate) >= 0
+        ? latestClaimDate
+        : latestMembershipReleasedDate;
+  } else {
+    latestActivityDate = latestClaimDate ?? latestMembershipReleasedDate;
+  }
+
+  return {
+    'in': inTotal,
+    'out': outTotal,
+    'membershipReleased': membershipReleasedTotal,
+    'latestActivity': latestActivityDate ?? '—',
+  };
 }
 
 class ReportsPage extends StatefulWidget {
@@ -766,7 +796,9 @@ class _PaymentFlowSummaryTable extends StatelessWidget {
   Widget build(BuildContext context) {
     final inValue = (summary['in'] as num?)?.toDouble() ?? 0.0;
     final outValue = (summary['out'] as num?)?.toDouble() ?? 0.0;
-    final dateValue = summary['date']?.toString() ?? '—';
+    final membershipReleasedValue =
+        (summary['membershipReleased'] as num?)?.toDouble() ?? 0.0;
+    final latestActivity = summary['latestActivity']?.toString() ?? '—';
 
     return Container(
       decoration: BoxDecoration(
@@ -779,21 +811,24 @@ class _PaymentFlowSummaryTable extends StatelessWidget {
           0: FlexColumnWidth(),
           1: FlexColumnWidth(),
           2: FlexColumnWidth(),
+          3: FlexColumnWidth(),
         },
         children: [
           TableRow(
             decoration: BoxDecoration(color: kPrimary.withValues(alpha: 0.06)),
             children: [
               _buildHeaderCell('IN'),
-              _buildHeaderCell('OUT'),
-              _buildHeaderCell('DATE/TIME'),
+              _buildHeaderCell('CLAIMED'),
+              _buildHeaderCell('MEMBERSHIP RELEASED'),
+              _buildHeaderCell('LATEST ACTIVITY'),
             ],
           ),
           TableRow(
             children: [
               _buildValueCell('₱${inValue.toStringAsFixed(2)}'),
               _buildValueCell('₱${outValue.toStringAsFixed(2)}'),
-              _buildValueCell(formatPhilippineDateTime(dateValue)),
+              _buildValueCell('₱${membershipReleasedValue.toStringAsFixed(2)}'),
+              _buildValueCell(formatPhilippineDateTime(latestActivity)),
             ],
           ),
         ],

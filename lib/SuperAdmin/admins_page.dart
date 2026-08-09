@@ -127,12 +127,11 @@ class _SuperAdminAdminsPageState extends State<SuperAdminAdminsPage> {
     required String role,
     required Map<String, dynamic> user,
   }) async {
-    final ok = await _postAction(
-      '/superadmin/assign-unit-role',
-      {'dayung_unit_id': unit['id'], 'role': role, 'user_id': user['id']},
-      successMessage:
-          '${_labelForRole(role)} assigned to ${user['full_name']} for ${unit['name']}.',
-    );
+    final ok = await _postAction('/superadmin/assign-unit-role', {
+      'dayung_unit_id': unit['id'],
+      'role': role,
+      'user_id': user['id'],
+    });
     if (ok) await _refresh();
   }
 

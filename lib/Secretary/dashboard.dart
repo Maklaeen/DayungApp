@@ -6,7 +6,6 @@ import 'package:capstone_app/Secretary/beneficiaries_tab.dart';
 import 'package:capstone_app/Secretary/certificates.dart';
 import 'package:capstone_app/Secretary/secclaims.dart';
 import 'package:capstone_app/Secretary/seccontributions.dart';
-import 'package:capstone_app/Secretary/deathnotice.dart';
 import 'package:capstone_app/Secretary/manage_applications.dart';
 import 'package:capstone_app/Secretary/secretary_payment_page.dart';
 import 'package:capstone_app/Secretary/secretarymemberspage.dart';
@@ -1403,6 +1402,8 @@ class _SecretaryDashboardPageState extends State<SecretaryDashboardPage> {
                   ),
                 ),
               ),
+              // Certificates quick-access removed (kept as comment for reference)
+              /*
               const SizedBox(width: 12),
               Expanded(
                 child: SizedBox(
@@ -1424,6 +1425,7 @@ class _SecretaryDashboardPageState extends State<SecretaryDashboardPage> {
                 ),
               ),
               const SizedBox(width: 12),
+              */
               const Expanded(child: SizedBox()),
             ],
           ),

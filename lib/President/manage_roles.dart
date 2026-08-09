@@ -186,7 +186,6 @@ class _ManageRolesPageState extends State<ManageRolesPagePres> {
     });
     _collectors.add(userId);
     setState(() {});
-    _snack('Collector added.');
   }
 
   Future<void> _removeCollector(String userId) async {

@@ -1408,9 +1408,7 @@ class _PresidentMembersPageState extends State<PresidentMembersPage>
       if (!mounted) return;
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(
-        SnackBar(content: Text('Failed to remove member: $e')),
-      );
+      ).showSnackBar(SnackBar(content: Text('Failed to remove member: $e')));
     }
   }
 
