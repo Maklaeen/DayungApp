@@ -91,14 +91,16 @@ class RequiredApplicationContent {
       });
     }
 
-    for (final section in sections) {
+    for (var i = 0; i < sections.length; i++) {
+      final section = sections[i];
       final title = section.title.trim();
       final description = section.description.trim();
       if (title.isEmpty && description.isEmpty) {
         continue;
       }
+      final normalizedTitle = (i == 0 && title.isEmpty) ? 'NO TITLE' : title;
       rows.add({
-        'title': title,
+        'title': normalizedTitle,
         'description': description,
         'user_id': userId,
         'dayung_unit_id': resolvedUnitId,
@@ -288,7 +290,7 @@ class _RequiredApplicationsPageState extends State<RequiredApplicationsPage> {
       final description = AppInputSecurity.sanitizePlainText(
         _descControllers[i].text,
         allowNewLines: true,
-        maxLength: 500,
+        maxLength: 2000,
       );
       sections.add(
         RequiredApplicationSection(title: title, description: description),
@@ -324,17 +326,19 @@ class _RequiredApplicationsPageState extends State<RequiredApplicationsPage> {
 
     for (var i = 0; i < content.sections.length; i++) {
       final section = content.sections[i];
-      final titleError = AppInputSecurity.validateSafeText(
-        section.title,
-        fieldName: 'Section title ${i + 1}',
-        minLength: 2,
-        maxLength: 120,
-      );
+      final titleError = i == 0
+          ? null
+          : AppInputSecurity.validateSafeText(
+              section.title,
+              fieldName: 'Section title ${i + 1}',
+              minLength: 2,
+              maxLength: 120,
+            );
       final descriptionError = AppInputSecurity.validateSafeText(
         section.description,
         fieldName: 'Section description ${i + 1}',
         minLength: 8,
-        maxLength: 500,
+        maxLength: 2000,
         allowNewLines: true,
       );
 
@@ -577,7 +581,7 @@ class _RequiredApplicationsPageState extends State<RequiredApplicationsPage> {
           TextField(
             controller: _descControllers[index],
             inputFormatters: AppInputSecurity.multiLineFormatters(
-              maxLength: 500,
+              maxLength: 2000,
             ),
             decoration: InputDecoration(
               labelText: 'Description',
@@ -668,7 +672,7 @@ class _RequiredApplicationsPageState extends State<RequiredApplicationsPage> {
                           children: [
                             Text(
                               _editing || _content.isEmpty
-                                  ? 'Add your required application'
+                                  ? 'Add your required application details and rules'
                                   : 'Your application',
                               style: const TextStyle(
                                 fontWeight: FontWeight.bold,

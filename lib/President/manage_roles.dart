@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:capstone_app/ui/theme/branding.dart';
 
-// Additional colors for manage roles specific styling
+
 const kText = Color(0xFF111827);
 const kSubText = Color(0xFF6B7280);
 const kPrimaryLight = Color(0xFF3B82F6);

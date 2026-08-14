@@ -1694,7 +1694,7 @@ class _ProfilePageState extends State<ProfilePage>
             if (roles.isPresident)
               _buildActionButton(
                 icon: Icons.rule_rounded,
-                label: 'ferences',
+                label: 'Preferences',
                 color: const Color(0xFF4338CA),
                 onTap: () => Navigator.push(
                   context,

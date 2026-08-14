@@ -1085,7 +1085,11 @@ class _CollectCashPageState extends State<CollectCashPage> {
             icon: Icons.payments_rounded,
             label: 'Paid Cash',
             value:
-                '${_payments.where((row) => (row['status'] ?? '').toString().toLowerCase() == 'paid').length}',
+                '${_payments.where((row) {
+                      final status = (row['status'] ?? '').toString().toLowerCase();
+                      final collectorId = (row['collected_by'] ?? '').toString();
+                      return status == 'paid' && collectorId == _currentUserId;
+                    }).length}',
             tone: const Color(0xFF0F766E),
           ),
           _statCard(

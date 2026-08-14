@@ -12,6 +12,23 @@ const Color kCard = Colors.white;
 const Color kBorder = Color(0xFFE5E7EB);
 const Color kSurface = Color(0xFFF8FAFC);
 
+bool shouldCountDeceasedCollectionPayment(Map<String, dynamic> payment) {
+  final status = (payment['status'] ?? '').toString().toLowerCase();
+  final rawFlag = payment['iscollectedbytreasurer'];
+  bool isTreasurerCollected;
+
+  if (rawFlag is bool) {
+    isTreasurerCollected = rawFlag;
+  } else if (rawFlag is num) {
+    isTreasurerCollected = rawFlag != 0;
+  } else {
+    final value = (rawFlag ?? '').toString().trim().toLowerCase();
+    isTreasurerCollected = value == 'true' || value == '1' || value == 'yes';
+  }
+
+  return status == 'paid' && isTreasurerCollected;
+}
+
 class ManageFundPage extends StatefulWidget {
   final int dayungUnitId;
   const ManageFundPage({super.key, required this.dayungUnitId});
@@ -38,6 +55,11 @@ class _ManageFundPageState extends State<ManageFundPage> {
   double _totalPaid = 0.0;
   double _totalGoal = 0.0;
   int _approvedMemberCount = 0;
+  
+  // Deceased Payment Tracking - Per Deceased Person
+  double _deceasedPaymentPaid = 0.0;
+  double _deceasedPaymentTotal = 0.0;
+  List<Map<String, dynamic>> _deceasedPayments = [];
 
   bool get _hasActiveFilters {
     return _search.isNotEmpty ||
@@ -226,6 +248,78 @@ class _ManageFundPageState extends State<ManageFundPage> {
         return bd.compareTo(ad);
       });
 
+      // --- DECEASED PAYMENT TRACKING (Per Deceased Person) ---
+      final deceasedRes = await sb
+          .from('payments')
+          .select(
+            'id, amount, status, userdeceased, deceased_name, iscollectedbytreasurer',
+          )
+          .eq('dayung_unit_id', widget.dayungUnitId)
+          .eq('type', 'deceased_payment')
+          .timeout(_queryTimeout);
+
+      // Group payments by deceased user snapshot
+      final paymentsByNotice = <String, List<Map<String, dynamic>>>{};
+      final deceasedNameLookup = <String, String>{};
+      for (final r in List<Map<String, dynamic>>.from(deceasedRes)) {
+        final dnId = (r['userdeceased'] ?? '').toString();
+        if (dnId.isEmpty) continue;
+        final deceasedName = (r['deceased_name'] ?? '').toString();
+        if (deceasedName.isNotEmpty) {
+          deceasedNameLookup[dnId] = deceasedName;
+        }
+        paymentsByNotice.putIfAbsent(dnId, () => []).add(r);
+      }
+
+      final deceasedPaymentsList = <Map<String, dynamic>>[];
+      double deceasedPaid = 0.0;
+      double deceasedTotal = 0.0;
+
+      for (final entry in paymentsByNotice.entries) {
+        final dnId = entry.key;
+        final payments = entry.value;
+
+        final noticeName = deceasedNameLookup[dnId] ?? 'Death Notice';
+
+        double paidAmount = 0.0;
+        double totalAmount = 0.0;
+
+        for (final p in payments) {
+          final amt = (p['amount'] is num)
+              ? (p['amount'] as num).toDouble()
+              : double.tryParse('${p['amount']}') ?? 0.0;
+          totalAmount += amt;
+          if (shouldCountDeceasedCollectionPayment(
+            Map<String, dynamic>.from(p),
+          )) {
+            paidAmount += amt;
+          }
+        }
+
+        deceasedPaid += paidAmount;
+        deceasedTotal += totalAmount;
+
+        deceasedPaymentsList.add({
+          'id': dnId,
+          'name': noticeName.isNotEmpty ? noticeName : 'Death Notice',
+          'date': '',
+          'paid': paidAmount,
+          'total': totalAmount,
+          'progress':
+              totalAmount > 0 ? (paidAmount / totalAmount).clamp(0.0, 1.0) : 0.0,
+        });
+      }
+
+      // Sort by date (newest first)
+      deceasedPaymentsList.sort((a, b) {
+        final ad = DateTime.tryParse((a['date'] ?? '').toString());
+        final bd = DateTime.tryParse((b['date'] ?? '').toString());
+        if (ad == null && bd == null) return 0;
+        if (ad == null) return 1;
+        if (bd == null) return -1;
+        return bd.compareTo(ad);
+      });
+
       // --- ADVANCE FUND LOGIC ---
       final advanceRes = await sb
           .from('payments')
@@ -278,6 +372,9 @@ class _ManageFundPageState extends State<ManageFundPage> {
         _totalPaid = treasurerCollected;
         _totalGoal = totalGoal;
         _approvedMemberCount = approvedUserIds.length;
+        _deceasedPaymentPaid = deceasedPaid;
+        _deceasedPaymentTotal = deceasedTotal;
+        _deceasedPayments = deceasedPaymentsList;
         _loading = false;
       });
     } on PostgrestException catch (e) {
@@ -287,6 +384,9 @@ class _ManageFundPageState extends State<ManageFundPage> {
         _totalPaid = 0.0;
         _totalGoal = 0.0;
         _approvedMemberCount = 0;
+        _deceasedPaymentPaid = 0.0;
+        _deceasedPaymentTotal = 0.0;
+        _deceasedPayments = [];
         _error = e.message;
         _loading = false;
       });
@@ -297,6 +397,9 @@ class _ManageFundPageState extends State<ManageFundPage> {
         _totalPaid = 0.0;
         _totalGoal = 0.0;
         _approvedMemberCount = 0;
+        _deceasedPaymentPaid = 0.0;
+        _deceasedPaymentTotal = 0.0;
+        _deceasedPayments = [];
         _error = e.toString();
         _loading = false;
       });
@@ -625,65 +728,368 @@ class _ManageFundPageState extends State<ManageFundPage> {
   }
 
   Widget _buildEmptyState() {
-    return Container(
-      margin: const EdgeInsets.only(top: 28),
-      padding: const EdgeInsets.all(28),
-      decoration: BoxDecoration(
-        color: kSurface,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: kBorder),
-      ),
-      child: Column(
-        children: [
-          Container(
-            width: 64,
-            height: 64,
-            decoration: BoxDecoration(
-              color: kPrimary.withValues(alpha: 0.08),
-              borderRadius: BorderRadius.circular(20),
-            ),
-            child: const Icon(
-              Icons.account_balance_wallet_outlined,
-              size: 32,
-              color: kPrimary,
-            ),
+    final hasDeceasedPayments = _deceasedPayments.isNotEmpty;
+    
+    return Column(
+      children: [
+        Container(
+          margin: const EdgeInsets.only(top: 28),
+          padding: const EdgeInsets.all(28),
+          decoration: BoxDecoration(
+            color: kSurface,
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: kBorder),
           ),
-          const SizedBox(height: 16),
-          Text(
-            'No matching funds found',
-            style: const TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.w800,
-              color: kNeutralText,
-              fontFamily: 'Montserrat',
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            _hasActiveFilters
-                ? 'Try a different search term or reset the current filters.'
-                : 'No fund records are available for this unit yet.',
-            textAlign: TextAlign.center,
-            style: const TextStyle(
-              color: kSubtleText,
-              fontWeight: FontWeight.w600,
-              fontFamily: 'OpenSans',
-            ),
-          ),
-          if (_hasActiveFilters) ...[
-            const SizedBox(height: 18),
-            OutlinedButton.icon(
-              onPressed: _resetFilters,
-              icon: const Icon(Icons.filter_alt_off_rounded),
-              label: const Text('Reset filters'),
-              style: OutlinedButton.styleFrom(
-                minimumSize: const Size.fromHeight(46),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(14),
+          child: Column(
+            children: [
+              Container(
+                width: 64,
+                height: 64,
+                decoration: BoxDecoration(
+                  color: kPrimary.withValues(alpha: 0.08),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: const Icon(
+                  Icons.account_balance_wallet_outlined,
+                  size: 32,
+                  color: kPrimary,
                 ),
               ),
+              const SizedBox(height: 16),
+              Text(
+                'No matching funds found',
+                style: const TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w800,
+                  color: kNeutralText,
+                  fontFamily: 'Montserrat',
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                _hasActiveFilters
+                    ? 'Try a different search term or reset the current filters.'
+                    : 'No fund records are available for this unit yet.',
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  color: kSubtleText,
+                  fontWeight: FontWeight.w600,
+                  fontFamily: 'OpenSans',
+                ),
+              ),
+              if (_hasActiveFilters) ...[
+                const SizedBox(height: 18),
+                OutlinedButton.icon(
+                  onPressed: _resetFilters,
+                  icon: const Icon(Icons.filter_alt_off_rounded),
+                  label: const Text('Reset filters'),
+                  style: OutlinedButton.styleFrom(
+                    minimumSize: const Size.fromHeight(46),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+        // Deceased Payment Progress - Per Person
+        if (hasDeceasedPayments) ...[
+          const SizedBox(height: 20),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Deceased Payment Status',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w800,
+                    color: kNeutralText,
+                    fontFamily: 'Montserrat',
+                  ),
+                ),
+                const SizedBox(height: 14),
+                ...List.generate(
+                  _deceasedPayments.length,
+                  (i) => Padding(
+                    padding: const EdgeInsets.only(bottom: 12),
+                    child: _buildDeceasedPaymentCard(_deceasedPayments[i]),
+                  ),
+                ),
+              ],
             ),
-          ],
+          ),
+        ],
+      ],
+    );
+  }
+
+  Widget _buildDeceasedPaymentCard(Map<String, dynamic> deceased) {
+    final paid = (deceased['paid'] as double?) ?? 0.0;
+    final total = (deceased['total'] as double?) ?? 0.0;
+    final progress = (deceased['progress'] as double?) ?? 0.0;
+    final name = (deceased['name'] ?? 'Death Notice').toString();
+    final percentage = (progress * 100).round();
+    final remaining = (total - paid).clamp(0.0, double.infinity);
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFF59E0B).withValues(alpha: 0.3)),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x0A000000),
+            blurRadius: 8,
+            offset: Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: 44,
+                height: 44,
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF59E0B).withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Icon(
+                  Icons.person_rounded,
+                  color: Color(0xFFF59E0B),
+                  size: 24,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w800,
+                        color: kNeutralText,
+                        fontFamily: 'Montserrat',
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Death Fund Collection',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: kSubtleText,
+                        fontFamily: 'OpenSans',
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF59E0B).withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Text(
+                  '$percentage%',
+                  style: const TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w900,
+                    color: Color(0xFFA16207),
+                    fontFamily: 'Montserrat',
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Collected',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        color: kSubtleText,
+                        fontFamily: 'OpenSans',
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      _currency(paid),
+                      style: const TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w900,
+                        color: kNeutralText,
+                        fontFamily: 'Montserrat',
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Total Goal',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        color: kSubtleText,
+                        fontFamily: 'OpenSans',
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      _currency(total),
+                      style: const TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w900,
+                        color: kNeutralText,
+                        fontFamily: 'Montserrat',
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Remaining',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        color: kSubtleText,
+                        fontFamily: 'OpenSans',
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      _currency(remaining),
+                      style: const TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w900,
+                        color: Color(0xFFF59E0B),
+                        fontFamily: 'Montserrat',
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(8),
+            child: LinearProgressIndicator(
+              value: progress.clamp(0.0, 1.0),
+              minHeight: 10,
+              backgroundColor: const Color(0xFFF59E0B).withValues(alpha: 0.15),
+              valueColor: const AlwaysStoppedAnimation(Color(0xFFF59E0B)),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDeceasedPaymentCompactCard(Map<String, dynamic> deceased) {
+    final paid = (deceased['paid'] as double?) ?? 0.0;
+    final total = (deceased['total'] as double?) ?? 0.0;
+    final progress = (deceased['progress'] as double?) ?? 0.0;
+    final name = (deceased['name'] ?? 'Death Notice').toString();
+    final percentage = (progress * 100).round();
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFEF3C7),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFFF59E0B).withValues(alpha: 0.3)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  name,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                    color: Color(0xFFA16207),
+                    fontFamily: 'Montserrat',
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF59E0B).withValues(alpha: 0.2),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Text(
+                  '$percentage%',
+                  style: const TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w900,
+                    color: Color(0xFFA16207),
+                    fontFamily: 'Montserrat',
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  '${_currency(paid)} / ${_currency(total)}',
+                  style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    color: Color(0xFFA16207),
+                    fontFamily: 'Montserrat',
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(4),
+            child: LinearProgressIndicator(
+              value: progress.clamp(0.0, 1.0),
+              minHeight: 6,
+              backgroundColor: const Color(0xFFF59E0B).withValues(alpha: 0.15),
+              valueColor: const AlwaysStoppedAnimation(Color(0xFFF59E0B)),
+            ),
+          ),
         ],
       ),
     );
@@ -797,6 +1203,34 @@ class _ManageFundPageState extends State<ManageFundPage> {
               );
             },
           ),
+          // Deceased Payment Progress Section - Per Deceased
+          if (_deceasedPayments.isNotEmpty) ...[
+            const SizedBox(height: 20),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Deceased Payment Status',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w800,
+                    color: kNeutralText,
+                    fontFamily: 'Montserrat',
+                  ),
+                ),
+                const SizedBox(height: 12),
+                ...List.generate(
+                  _deceasedPayments.length,
+                  (i) => Padding(
+                    padding: const EdgeInsets.only(bottom: 10),
+                    child: _buildDeceasedPaymentCompactCard(
+                      _deceasedPayments[i],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
         ],
       ),
     );

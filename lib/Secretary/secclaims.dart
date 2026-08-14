@@ -440,11 +440,11 @@ class _SecretaryClaimsPageState extends State<SecretaryClaimsPage>
     try {
       final row = await supabase
           .from('dayung_rules')
-          .select('exactamountformembership')
+          .select('exactamountforcollection')
           .eq('dayung_unit_id', unitId)
           .maybeSingle();
 
-      return _formatDefaultContributionAmount(row?['exactamountformembership']);
+      return _formatDefaultContributionAmount(row?['exactamountforcollection']);
     } catch (_) {
       return '';
     }

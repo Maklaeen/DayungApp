@@ -61,6 +61,20 @@ void main() {
       expect(updatedContent.mainTitle, 'Main Title');
     });
 
+    test('uses NO TITLE for a blank first section title when saving', () {
+      const content = RequiredApplicationContent(
+        mainTitle: 'Main Title',
+        sections: [
+          RequiredApplicationSection(title: '', description: 'Emergency support'),
+        ],
+      );
+
+      final rows = content.toRows(userId: 'user-123', dayungUnitId: 7);
+
+      expect(rows[1]['title'], 'NO TITLE');
+      expect(rows[1]['description'], 'Emergency support');
+    });
+
     test(
       'shows the agreement notice only when the user already has an application record',
       () {

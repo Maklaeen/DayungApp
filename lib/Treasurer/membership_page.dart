@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:intl/intl.dart';
 
 const Color _kPageBg = Color(0xFFF8FAFC);
 const Color _kHeaderGradientStart = Color(0xFF083366);
@@ -91,7 +92,17 @@ class _MembershipPageState extends State<MembershipPage> {
     if (value == null || value.isEmpty) {
       return 'No date';
     }
-    return value;
+    try {
+      // Parse the incoming timestamp and normalize to UTC, then convert to
+      // Philippines Time (UTC+8) for display.
+      final parsed = DateTime.parse(value).toUtc();
+      final ph = parsed.add(const Duration(hours: 8));
+      final formatter = DateFormat('MMMM d, yyyy h:mm a');
+      return '${formatter.format(ph)}';
+    } catch (e) {
+      // If parsing fails, just return the original value.
+      return value;
+    }
   }
 
   Future<void> _updatePaymentStatus(String paymentId) async {
@@ -105,7 +116,6 @@ class _MembershipPageState extends State<MembershipPage> {
       return;
     }
 
-    final messenger = ScaffoldMessenger.of(context);
     setState(() => _updating = true);
     try {
       final paidAt = DateTime.now().toUtc().toIso8601String();
@@ -120,9 +130,6 @@ class _MembershipPageState extends State<MembershipPage> {
 
       if (mounted) {
         await _fetchPayments();
-        messenger.showSnackBar(
-          const SnackBar(content: Text('Payment marked as paid')),
-        );
       }
     } catch (e) {
       if (mounted) {
@@ -134,6 +141,32 @@ class _MembershipPageState extends State<MembershipPage> {
       if (mounted) {
         setState(() => _updating = false);
       }
+    }
+  }
+
+  Future<void> _confirmMarkPaid(String paymentId) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('Confirm Payment'),
+          content: const Text('Are you sure you want to mark this payment as paid?'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text('Cancel'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              child: const Text('Confirm'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (confirmed == true) {
+      await _updatePaymentStatus(paymentId);
     }
   }
 
@@ -216,17 +249,34 @@ class _MembershipPageState extends State<MembershipPage> {
               padding: const EdgeInsets.fromLTRB(16, 20, 16, 24),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
-                children: const [
-                  Text(
-                    'Membership Payments',
-                    style: TextStyle(
-                      fontSize: 24,
-                      fontWeight: FontWeight.w800,
-                      color: Colors.white,
-                    ),
+                children: [
+                  Row(
+                    children: [
+                      IconButton(
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(),
+                        onPressed: () => Navigator.of(context).pop(),
+                        icon: const Icon(
+                          Icons.arrow_back_ios_new_rounded,
+                          color: Colors.white,
+                        ),
+                        splashRadius: 24,
+                      ),
+                      const SizedBox(width: 8),
+                      const Expanded(
+                        child: Text(
+                          'Membership Payments',
+                          style: TextStyle(
+                            fontSize: 24,
+                            fontWeight: FontWeight.w800,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
-                  SizedBox(height: 6),
-                  Text(
+                  const SizedBox(height: 6),
+                  const Text(
                     'Review membership payment records and update status from one place.',
                     style: TextStyle(
                       color: Colors.white70,
@@ -382,7 +432,7 @@ class _MembershipPageState extends State<MembershipPage> {
                             ),
                             const SizedBox(height: 6),
                             Text(
-                              'ID: ${payment['user_id'] ?? 'N/A'}',
+                              '',
                               style: const TextStyle(
                                 color: _kTextSub,
                                 fontSize: 12,
@@ -419,7 +469,7 @@ class _MembershipPageState extends State<MembershipPage> {
                       ),
                       Expanded(
                         child: _infoRow(
-                          label: 'Created',
+                          label: 'Date Approved',
                           value: _formatDate(createdAt),
                         ),
                       ),
@@ -431,8 +481,7 @@ class _MembershipPageState extends State<MembershipPage> {
                     child: ElevatedButton.icon(
                       onPressed: _updating || status.toLowerCase() == 'paid'
                           ? null
-                          : () =>
-                                _updatePaymentStatus(payment['id'].toString()),
+                          : () => _confirmMarkPaid(payment['id'].toString()),
                       icon: Icon(
                         status.toLowerCase() == 'paid'
                             ? Icons.check_circle

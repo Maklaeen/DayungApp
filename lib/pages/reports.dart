@@ -189,7 +189,7 @@ Map<String, dynamic> summarizePaymentFlowRows(List<Map<String, dynamic>> rows) {
   String? latestClaimDate;
   String? latestMembershipReleasedDate;
 
-  String? _normalizeDate(Object? value) {
+  String? normalizeDate(Object? value) {
     final dateValue = value?.toString();
     if (dateValue == null || dateValue.trim().isEmpty) {
       return null;
@@ -207,7 +207,7 @@ Map<String, dynamic> summarizePaymentFlowRows(List<Map<String, dynamic>> rows) {
 
     if (_isTruthyFlag(row['is_claimed'])) {
       outTotal += amount;
-      final normalizedDate = _normalizeDate(row['is_claimed_date']);
+      final normalizedDate = normalizeDate(row['is_claimed_date']);
       if (normalizedDate != null &&
           (latestClaimDate == null ||
               normalizedDate.compareTo(latestClaimDate) > 0)) {
@@ -217,7 +217,7 @@ Map<String, dynamic> summarizePaymentFlowRows(List<Map<String, dynamic>> rows) {
 
     if (_isTruthyFlag(row['membership_released'])) {
       membershipReleasedTotal += amount;
-      final normalizedDate = _normalizeDate(row['membershipreleased_date']);
+      final normalizedDate = normalizeDate(row['membershipreleased_date']);
       if (normalizedDate != null &&
           (latestMembershipReleasedDate == null ||
               normalizedDate.compareTo(latestMembershipReleasedDate) > 0)) {

@@ -632,11 +632,7 @@ class _AssignCollectorsPageState extends State<AssignCollectorsPage> {
         subtitle: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const SizedBox(height: 4),
-            Text(
-              'Status: ${member['status']}',
-              style: const TextStyle(color: Color(0xFF6B7280)),
-            ),
+            
             const SizedBox(height: 2),
             Text(
               'Collector: $collectorName',

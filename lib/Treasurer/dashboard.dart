@@ -14,6 +14,7 @@ import 'package:capstone_app/Collector/gcash_qr_page.dart';
 import 'package:capstone_app/pages/notification.dart';
 import 'package:capstone_app/pages/recentdeathnotices.dart';
 import 'package:capstone_app/Treasurer/assign_collectors_page.dart';
+import 'package:capstone_app/shared/active_members_page.dart';
 import 'package:capstone_app/shared/names_only_members_page.dart';
 import 'package:capstone_app/utils/theme_surface.dart';
 import 'package:fl_chart/fl_chart.dart';
@@ -269,28 +270,89 @@ class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
         _activeMembers = 0;
         return;
       }
-      final apps = await sb
-          .from('applications')
-          .select('user_id')
+      
+      // Get paid membership payments and deduplicate by user_id
+      final rows = await sb
+          .from('payments')
+          .select(
+            'id, user_id, amount, paid_at, created_at, status, type, '
+            'user:users!payments_user_id_fkey(id, full_name, profile_url, email)',
+          )
           .inFilter('dayung_unit_id', ids)
-          .eq('status', 'approved');
-      final usersSet = <String>{};
-      for (final r in List<Map<String, dynamic>>.from(apps)) {
-        final id = (r['user_id'] ?? '').toString();
-        if (id.isNotEmpty) usersSet.add(id);
+          .eq('type', 'membership_payment')
+          .eq('status', 'paid')
+          .order('paid_at', ascending: false)
+          .order('created_at', ascending: false);
+
+      final paymentRows = List<Map<String, dynamic>>.from(rows);
+      final uniqueMembers = <String, Map<String, dynamic>>{};
+
+      for (final row in paymentRows) {
+        final userId = (row['user_id'] ?? '').toString().trim();
+        if (userId.isEmpty) continue;
+
+        final existing = uniqueMembers[userId];
+        if (existing == null) {
+          uniqueMembers[userId] = row;
+          continue;
+        }
+
+        final currentPaidAt = DateTime.tryParse(
+          (row['paid_at'] ?? row['created_at'] ?? '').toString(),
+        );
+        final existingPaidAt = DateTime.tryParse(
+          (existing['paid_at'] ?? existing['created_at'] ?? '').toString(),
+        );
+        if (currentPaidAt != null &&
+            (existingPaidAt == null || currentPaidAt.isAfter(existingPaidAt))) {
+          uniqueMembers[userId] = row;
+        }
       }
-      if (usersSet.isEmpty) {
-        _activeMembers = 0;
-        return;
+
+      // Add missing officers
+      if (ids.isNotEmpty) {
+        final unitRow = await sb
+            .from('dayung_units')
+            .select('president_id, secretary_id, treasurer_id')
+            .eq('id', ids.first)
+            .maybeSingle();
+
+        if (unitRow != null) {
+          final officerIds = <String>{};
+          for (final key in ['president_id', 'secretary_id', 'treasurer_id']) {
+            final value = unitRow[key];
+            if (value != null) officerIds.add(value.toString().trim());
+          }
+
+          final missingOfficerIds = officerIds
+              .where((id) => id.isNotEmpty && !uniqueMembers.containsKey(id))
+              .toList();
+
+          if (missingOfficerIds.isNotEmpty) {
+            for (final id in missingOfficerIds) {
+              final userRow = await sb
+                  .from('users')
+                  .select('id, full_name, profile_url, email')
+                  .eq('id', id)
+                  .maybeSingle();
+
+              if (userRow == null) continue;
+              final userId = (userRow['id'] ?? '').toString().trim();
+              if (userId.isEmpty) continue;
+              uniqueMembers[userId] = {
+                'user_id': userId,
+                'paid_at': null,
+                'created_at': null,
+                'status': 'officer',
+                'type': 'membership_payment',
+                'user': userRow,
+              };
+            }
+          }
+        }
       }
-      final users = await sb
-          .from('users')
-          .select('id,is_deceased')
-          .inFilter('id', usersSet.toList());
-      final alive = List<Map<String, dynamic>>.from(
-        users,
-      ).where((u) => (u['is_deceased'] ?? false) == false).length;
-      _activeMembers = alive;
+
+      _activeMembers = uniqueMembers.length;
     } catch (_) {
       _activeMembers = 0;
     }
@@ -636,6 +698,16 @@ class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
           title: title,
           statuses: statuses,
         ),
+      ),
+    );
+  }
+
+  void _openActiveMembersPage() {
+    if (_dayungUnitId == null) return;
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => ActiveMembersPage(dayungUnitId: _dayungUnitId!),
       ),
     );
   }
@@ -2326,7 +2398,7 @@ class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
         title: 'Active Members',
         value: _loading ? '—' : '$_activeMembers',
         color: const Color(0xFF3B82F6),
-        onTap: () => _openNamesOnlyMembersPage('Active Members', ['approved']),
+        onTap: _openActiveMembersPage,
       ),
       _buildStatCard(
         title: 'Removed / Inactive',

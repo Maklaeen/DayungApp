@@ -3,6 +3,7 @@ import 'package:capstone_app/ui/loading/page_skeleton.dart';
 import 'package:capstone_app/utils/input_safety.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 const kOfficialPaymentBg = Color(0xFFFAFAF7);
@@ -12,6 +13,27 @@ const kOfficialPaymentPrimary = Color(0xFF0D47A1);
 const kOfficialPaymentPrimaryDark = Color(0xFF083366);
 const kOfficialPaymentAccent = Color(0xFF2E7D32);
 const kOfficialPaymentWarn = Color(0xFFF57C00);
+
+String normalizeStoragePath(String? value) {
+  final raw = (value ?? '').trim();
+  if (raw.isEmpty) return '';
+
+  if (!raw.startsWith('http')) {
+    return raw.replaceAll(RegExp(r'^/+'), '');
+  }
+
+  try {
+    final uri = Uri.parse(raw);
+    final segments = uri.pathSegments;
+    final bucketIndex = segments.indexOf('gcash_qr_images');
+    if (bucketIndex != -1 && bucketIndex + 1 < segments.length) {
+      return segments.sublist(bucketIndex + 1).join('/');
+    }
+    return uri.path.replaceAll(RegExp(r'^/+'), '');
+  } catch (_) {
+    return raw.replaceAll(RegExp(r'^/+'), '');
+  }
+}
 
 class OfficialPaymentPage extends StatefulWidget {
   final int dayungUnitId;
@@ -40,6 +62,7 @@ class _OfficialPaymentPageState extends State<OfficialPaymentPage> {
   String? _selectedCollectorId;
   Map<int, Map<String, dynamic>> _noticeMeta = {};
   Map<String, String> _memberNames = {};
+  Map<String, List<Map<String, dynamic>>> _gcashUploadsByPayment = {};
 
   @override
   void initState() {
@@ -78,6 +101,7 @@ class _OfficialPaymentPageState extends State<OfficialPaymentPage> {
 
       final collectors = await _loadCollectors();
       final meta = await _loadNoticeMeta(rows);
+      final uploads = await _loadGcashUploads(rows);
 
       if (!mounted) return;
       setState(() {
@@ -89,6 +113,7 @@ class _OfficialPaymentPageState extends State<OfficialPaymentPage> {
             : null;
         _noticeMeta = meta.item1;
         _memberNames = meta.item2;
+        _gcashUploadsByPayment = uploads;
         _loading = false;
       });
     } catch (e) {
@@ -128,6 +153,38 @@ class _OfficialPaymentPageState extends State<OfficialPaymentPage> {
       return List<Map<String, dynamic>>.from(users);
     } catch (_) {
       return [];
+    }
+  }
+
+  Future<Map<String, List<Map<String, dynamic>>>> _loadGcashUploads(
+    List<Map<String, dynamic>> rows,
+  ) async {
+    final paymentIds = rows
+        .map((row) => (row['id'] ?? '').toString())
+        .where((value) => value.isNotEmpty)
+        .toList();
+
+    if (paymentIds.isEmpty) return {};
+
+    try {
+      final response = await sb
+          .from('gcash_qr_codes')
+          .select(
+            'id, set_amount_id, image_url, refno, created_at, amount, userdeceased, uploaded_by, type',
+          )
+          .inFilter('set_amount_id', paymentIds)
+          .order('created_at', ascending: false);
+
+      final uploads = List<Map<String, dynamic>>.from(response);
+      final grouped = <String, List<Map<String, dynamic>>>{};
+      for (final upload in uploads) {
+        final key = (upload['set_amount_id'] ?? '').toString();
+        if (key.isEmpty) continue;
+        grouped.putIfAbsent(key, () => []).add(upload);
+      }
+      return grouped;
+    } catch (_) {
+      return {};
     }
   }
 
@@ -323,204 +380,144 @@ class _OfficialPaymentPageState extends State<OfficialPaymentPage> {
 
   Future<void> _openGCashModal(Map<String, dynamic> paymentRow) async {
     final amount = _amountOf(paymentRow['amount']);
-    final referenceCtrl = TextEditingController();
-    bool hasSentPayment = false;
+    final paymentId = (paymentRow['id'] ?? '').toString();
 
-    await showModalBottomSheet(
+    if ((_gcashUploadsByPayment[paymentId] ?? []).isNotEmpty) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('A receipt has already been uploaded for this payment.'),
+        ),
+      );
+      return;
+    }
+
+    final picker = ImagePicker();
+    final pickedFile = await picker.pickImage(source: ImageSource.gallery);
+    if (pickedFile == null) return;
+
+    final imageBytes = await pickedFile.readAsBytes();
+    if (!mounted) return;
+
+    final refNoController = TextEditingController();
+    bool isValidRefNo(String refNo) {
+      final cleaned = refNo.replaceAll(' ', '');
+      return cleaned.length >= 9 &&
+          cleaned.length <= 13 &&
+          RegExp(r'^\d+$').hasMatch(cleaned);
+    }
+
+    final confirm = await showDialog<Map<String, dynamic>>(
       context: context,
-      isScrollControlled: true,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
-      builder: (_) {
-        final bottomInset = MediaQuery.of(context).viewInsets.bottom;
+      builder: (context) {
         return StatefulBuilder(
-          builder: (context, setModalState) {
-            return Padding(
-              padding: EdgeInsets.fromLTRB(20, 20, 20, bottomInset + 20),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    'GCash Payment',
-                    style: TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.w800,
-                      color: kOfficialPaymentText,
-                    ),
+          builder: (context, setDialogState) => AlertDialog(
+            title: const Text('Upload GCash Receipt'),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text('Amount due: ₱${amount.toStringAsFixed(2)}'),
+                const SizedBox(height: 12),
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(14),
+                  child: Image.memory(imageBytes, height: 180, fit: BoxFit.cover),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: refNoController,
+                  keyboardType: TextInputType.number,
+                  inputFormatters: [
+                    FilteringTextInputFormatter.allow(RegExp(r'[0-9 ]')),
+                    LengthLimitingTextInputFormatter(15),
+                  ],
+                  decoration: const InputDecoration(
+                    labelText: 'Reference No.',
+                    border: OutlineInputBorder(),
+                    helperText:
+                        'Please input the exact reference number shown on your GCash receipt.',
                   ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Amount due: ₱${amount.toStringAsFixed(2)}',
-                    style: const TextStyle(
-                      fontSize: 15,
-                      fontWeight: FontWeight.w700,
-                      color: kOfficialPaymentPrimary,
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  Container(
-                    padding: const EdgeInsets.all(14),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(18),
-                      border: Border.all(
-                        color: kOfficialPaymentPrimary.withValues(alpha: 0.12),
-                      ),
-                    ),
-                    child: const Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        _ProofStepRow(
-                          index: 1,
-                          title: 'Open the unit GCash QR',
-                          subtitle:
-                              'Review the official QR before sending payment.',
+                  onChanged: (value) {
+                    String digits = value.replaceAll(RegExp(r'\D'), '');
+                    if (digits.length > 13) {
+                      digits = digits.substring(0, 13);
+                    }
+                    String formatted = digits;
+                    if (digits.length > 4 && digits.length <= 7) {
+                      formatted = '${digits.substring(0, 4)} ${digits.substring(4)}';
+                    } else if (digits.length > 7) {
+                      formatted =
+                          '${digits.substring(0, 4)} ${digits.substring(4, 7)} ${digits.substring(7)}';
+                    }
+                    if (formatted != value) {
+                      refNoController.value = TextEditingValue(
+                        text: formatted,
+                        selection: TextSelection.collapsed(
+                          offset: formatted.length,
                         ),
-                        SizedBox(height: 10),
-                        _ProofStepRow(
-                          index: 2,
-                          title: 'Send the exact amount',
-                          subtitle:
-                              'Make sure the transfer matches the due amount exactly.',
-                        ),
-                        SizedBox(height: 10),
-                        _ProofStepRow(
-                          index: 3,
-                          title: 'Submit your proof details',
-                          subtitle:
-                              'Enter the GCash reference so the collector can verify it quickly.',
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 14),
-                  SizedBox(
-                    width: double.infinity,
-                    child: OutlinedButton.icon(
-                      onPressed: () {
-                        Navigator.of(context).push(
-                          MaterialPageRoute(
-                            builder: (_) =>
-                                GcashQrPage(dayungUnitId: widget.dayungUnitId),
-                          ),
-                        );
-                      },
-                      icon: const Icon(Icons.qr_code_2_rounded),
-                      label: const Text('Open GCash QR'),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  TextFormField(
-                    controller: referenceCtrl,
-                    inputFormatters: AppInputSecurity.singleLineFormatters(
-                      maxLength: 120,
-                    ),
-                    decoration: const InputDecoration(
-                      labelText: 'GCash reference number',
-                      hintText: 'Enter the transfer reference or proof note',
-                      helperText: 'Use the number from your GCash receipt.',
-                      border: OutlineInputBorder(),
-                    ),
-                  ),
-                  const SizedBox(height: 10),
-                  CheckboxListTile(
-                    value: hasSentPayment,
-                    onChanged: (value) {
-                      setModalState(() => hasSentPayment = value ?? false);
-                    },
-                    contentPadding: EdgeInsets.zero,
-                    controlAffinity: ListTileControlAffinity.leading,
-                    title: const Text(
-                      'I already reviewed the QR and sent this GCash payment.',
-                      style: TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
-                        color: kOfficialPaymentText,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton.icon(
-                      onPressed: () async {
-                        final reference = AppInputSecurity.sanitizePlainText(
-                          referenceCtrl.text,
-                          maxLength: 120,
-                        ).trim();
-                        final navigator = Navigator.of(context);
-
-                        if (!hasSentPayment) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text(
-                                'Confirm that you sent the payment before submitting proof.',
-                              ),
-                            ),
-                          );
-                          return;
-                        }
-
-                        if (reference.length < 4) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text(
-                                'Enter a valid GCash reference number first.',
-                              ),
-                            ),
-                          );
-                          return;
-                        }
-
-                        final confirm = await showDialog<bool>(
-                          context: context,
-                          builder: (context) => AlertDialog(
-                            title: const Text('Submit GCash Proof'),
-                            content: Text(
-                              'Submit ₱${amount.toStringAsFixed(2)} with reference "$reference" for verification?',
-                            ),
-                            actions: [
-                              TextButton(
-                                onPressed: () =>
-                                    Navigator.of(context).pop(false),
-                                child: const Text('Cancel'),
-                              ),
-                              ElevatedButton(
-                                onPressed: () =>
-                                    Navigator.of(context).pop(true),
-                                child: const Text('Submit'),
-                              ),
-                            ],
-                          ),
-                        );
-
-                        if (confirm != true) return;
-                        if (!mounted) return;
-
-                        navigator.pop();
-                        await _markPaymentAsGCashPending(
-                          paymentRow['id'],
-                          reference,
-                        );
-                      },
-                      icon: const Icon(Icons.verified_rounded),
-                      label: const Text('Submit For Verification'),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: kOfficialPaymentPrimary,
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                      ),
-                    ),
-                  ),
-                ],
+                      );
+                    }
+                    setDialogState(() {});
+                  },
+                ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(null),
+                child: const Text('Cancel'),
               ),
-            );
-          },
+              ElevatedButton(
+                onPressed: isValidRefNo(refNoController.text)
+                    ? () => Navigator.of(context).pop({
+                        'confirm': true,
+                        'refNo': refNoController.text.replaceAll(' ', ''),
+                      })
+                    : null,
+                child: const Text('Upload'),
+              ),
+            ],
+          ),
         );
       },
     );
+
+    if (confirm == null || confirm['confirm'] != true) return;
+
+    final refNo = (confirm['refNo'] ?? '').toString();
+    final fileName = 'gcash_${DateTime.now().millisecondsSinceEpoch}_${pickedFile.name}';
+
+    try {
+      final storageResponse = await sb.storage
+          .from('gcash_qr_images')
+          .uploadBinary(fileName, imageBytes);
+      if (storageResponse.isEmpty) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Receipt upload failed.')),
+        );
+        return;
+      }
+
+      await sb.from('gcash_qr_codes').insert({
+        'set_amount_id': paymentId,
+        'userdeceased': paymentRow['userdeceased'] ?? null,
+        'amount': amount,
+        'image_url': fileName,
+        'uploaded_by': sb.auth.currentUser?.id,
+        'type': 'for_membership',
+        'created_at': DateTime.now().toIso8601String().substring(0, 19),
+        'dayung_unit_id': widget.dayungUnitId,
+        'refno': refNo,
+      });
+
+      if (!mounted) return;
+      await _markPaymentAsGCashPending(paymentRow['id'], refNo);
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error uploading receipt: $e')),
+      );
+    }
   }
 
   Future<void> _markPaymentAsPaid(dynamic paymentId, String collectorId) async {
@@ -567,6 +564,112 @@ class _OfficialPaymentPageState extends State<OfficialPaymentPage> {
         SnackBar(content: Text('Failed to submit GCash payment: $e')),
       );
     }
+  }
+
+  Future<String?> _signedImageUrl(String? rawImageUrl) async {
+    final imageValue = (rawImageUrl ?? '').toString().trim();
+    if (imageValue.isEmpty) return null;
+    if (imageValue.startsWith('http')) return imageValue;
+
+    try {
+      final cleanPath = normalizeStoragePath(imageValue);
+      if (cleanPath.isEmpty) return null;
+      return sb.storage.from('gcash_qr_images').createSignedUrl(cleanPath, 3600);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Widget _gcashReceiptTile(Map<String, dynamic> upload) {
+    final reference = (upload['refno'] ?? '').toString();
+    final createdAt = (upload['created_at'] ?? '').toString();
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: kOfficialPaymentBg,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: kOfficialPaymentPrimary.withValues(alpha: 0.12)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.receipt_long_rounded, color: kOfficialPaymentPrimary),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  reference.isEmpty ? 'Receipt uploaded' : 'Ref. $reference',
+                  style: const TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                    color: kOfficialPaymentText,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          if (createdAt.isNotEmpty) ...[
+            const SizedBox(height: 6),
+            Text(
+              createdAt,
+              style: const TextStyle(
+                fontSize: 12,
+                color: kOfficialPaymentSubText,
+              ),
+            ),
+          ],
+          const SizedBox(height: 10),
+          FutureBuilder<String?>(
+            future: _signedImageUrl(upload['image_url']),
+            builder: (context, snapshot) {
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return const SizedBox(
+                  height: 120,
+                  child: Center(child: CircularProgressIndicator()),
+                );
+              }
+
+              final signedUrl = snapshot.data;
+              if (signedUrl == null || signedUrl.isEmpty) {
+                return Container(
+                  height: 120,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: kOfficialPaymentPrimary.withValues(alpha: 0.12)),
+                  ),
+                  child: const Text('Receipt preview unavailable'),
+                );
+              }
+
+              return ClipRRect(
+                borderRadius: BorderRadius.circular(12),
+                child: Image.network(
+                  signedUrl,
+                  height: 160,
+                  width: double.infinity,
+                  fit: BoxFit.cover,
+                  errorBuilder: (_, __, ___) => Container(
+                    height: 160,
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: kOfficialPaymentPrimary.withValues(alpha: 0.12)),
+                    ),
+                    child: const Text('Receipt preview unavailable'),
+                  ),
+                ),
+              );
+            },
+          ),
+        ],
+      ),
+    );
   }
 
   Widget _summaryCard({
@@ -621,6 +724,9 @@ class _OfficialPaymentPageState extends State<OfficialPaymentPage> {
 
   Widget _paymentCard(Map<String, dynamic> row) {
     final amount = _amountOf(row['amount']);
+    final paymentId = (row['id'] ?? '').toString();
+    final uploads = (_gcashUploadsByPayment[paymentId] ?? [])
+        .cast<Map<String, dynamic>>();
 
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
@@ -725,6 +831,19 @@ class _OfficialPaymentPageState extends State<OfficialPaymentPage> {
                 ),
               ],
             ),
+            if (uploads.isNotEmpty) ...[
+              const SizedBox(height: 12),
+              Text(
+                'Uploaded GCash receipts (${uploads.length})',
+                style: const TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w800,
+                  color: kOfficialPaymentPrimary,
+                ),
+              ),
+              const SizedBox(height: 8),
+              ...uploads.map(_gcashReceiptTile),
+            ],
             if (_collectors.isEmpty) ...[
               const SizedBox(height: 10),
               const Text(

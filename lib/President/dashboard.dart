@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:capstone_app/shared/pres_sec_dashboard_overview.dart';
 import 'package:capstone_app/shared/collector_progress_page.dart';
 import 'package:capstone_app/President/manage_roles.dart';
+import 'package:capstone_app/President/manage_rules.dart';
 import 'package:capstone_app/President/president_payment_page.dart';
 import 'package:capstone_app/President/post_announcement.dart';
 import 'package:capstone_app/President/presclaims.dart' hide kPrimary;
@@ -12,13 +13,14 @@ import 'package:capstone_app/President/presidentmemberspage.dart'
 import 'package:capstone_app/Providers/dayung_provider.dart';
 import 'package:capstone_app/Providers/dayung_role_provider.dart';
 import 'package:capstone_app/pages/recentdeathnotices.dart';
-import 'package:capstone_app/ui/theme/branding.dart';
+import 'package:capstone_app/ui/theme/branding.dart' hide kPrimary;
 import 'package:capstone_app/utils/theme_surface.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:capstone_app/pages/notification.dart';
+import 'package:capstone_app/profile/required_application_page.dart';
 import 'package:fl_chart/fl_chart.dart';
 
 // Palette aligned with Secretary
@@ -1025,16 +1027,18 @@ class _PresidentDashboardPageState extends State<PresidentDashboardPage> {
                 child: SizedBox(
                   height: 140,
                   child: _modernActionCard(
-                    icon: Icons.manage_accounts_rounded,
-                    title: 'Manage Roles',
-                    subtitle: 'Assign officers',
-                    color: const Color(0xFF8B5CF6),
-                    onTap: () => Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => const ManageRolesPagePres(),
-                      ),
-                    ),
+                    icon: Icons.rule_rounded,
+                    title: 'Manage User Preferences',
+                    subtitle: 'User-specific choices/configuration',
+                    color: const Color(0xFF6366F1),
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const ManageRulesPagePres(),
+                        ),
+                      );
+                    },
                   ),
                 ),
               ),
@@ -1104,7 +1108,25 @@ class _PresidentDashboardPageState extends State<PresidentDashboardPage> {
                 ),
               ),
               const SizedBox(width: 12),
-              const Expanded(child: SizedBox()),
+              Expanded(
+                child: SizedBox(
+                  height: 110,
+                  child: _modernActionCard(
+                    icon: Icons.description_rounded,
+                    title: 'Required Application',
+                    subtitle: 'policies, regulations and guidelines',
+                    color: const Color(0xFF6366F1),
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const RequiredApplicationsPage(),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ),
             ],
           ),
           const SizedBox(height: 16),

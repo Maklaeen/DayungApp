@@ -1,19 +1,18 @@
 import 'package:capstone_app/President/president_payment_page.dart';
-import 'package:capstone_app/ui/loading/page_skeleton.dart';
 import 'package:capstone_app/utils/theme_surface.dart';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
-const kBg = Color(0xFFF8FAFC);
 const kText = Color(0xFF111827);
 const kSubText = Color(0xFF6B7280);
 const kPrimary = Color(0xFF0D47A1);
 const kPrimaryDark = Color(0xFF083366);
-const kAccentDark = Color(0xFF059669);
-const kWarn = Color(0xFFF59E0B);
-const kDanger = Color(0xFFEF4444);
 const kCardBg = Color(0xFFFFFFFF);
 const kBorderColor = Color(0xFFE5E7EB);
+const kSuccess = Color(0xFF10B981);
+const kDanger = Color(0xFFEF4444);
+const kPaid = Color(0xFF2E7D32);
+const kPending = Color(0xFFF57C00);
 
 class PresidentContributionsPage extends StatefulWidget {
   final int dayungUnitId;
@@ -27,243 +26,114 @@ class PresidentContributionsPage extends StatefulWidget {
 
 class _PresidentContributionsPageState
     extends State<PresidentContributionsPage> {
-  final _sb = Supabase.instance.client;
-
   bool _loading = true;
-  String _search = '';
   List<Map<String, dynamic>> _payments = [];
-  Map<String, String> _userNames = {};
-  Map<String, Map<String, dynamic>> _claims = {};
-  double _paidTotal = 0;
-  double _pendingTotal = 0;
-  int _paidCount = 0;
-  int _pendingCount = 0;
+  Map<String, dynamic> _users = {};
 
   @override
   void initState() {
     super.initState();
-    _loadContributions();
+    _fetchContributions();
   }
 
-  Future<void> _loadContributions() async {
-    setState(() => _loading = true);
+  String _fmtDateTime(dynamic v) {
+    if (v == null) return '';
+    final s = v.toString();
+    final dt = DateTime.tryParse(s)?.toLocal();
+    if (dt == null) return '';
+    String two(int n) => n.toString().padLeft(2, '0');
+    return '${dt.year}-${two(dt.month)}-${two(dt.day)} ${two(dt.hour)}:${two(dt.minute)}';
+  }
+
+  String _formatAmount(dynamic amount) {
+    if (amount is num) {
+      return amount.toStringAsFixed(2);
+    }
+    final parsed = double.tryParse(amount.toString());
+    if (parsed != null) {
+      return parsed.toStringAsFixed(2);
+    }
+    return amount?.toString() ?? '0.00';
+  }
+
+  Future<void> _fetchContributions() async {
+    if (mounted) setState(() => _loading = true);
+
+    final sb = Supabase.instance.client;
 
     try {
-      final rows = await _sb
+      final currentUser = sb.auth.currentUser;
+      if (currentUser == null) {
+        if (!mounted) return;
+        setState(() {
+          _payments = [];
+          _users = {};
+          _loading = false;
+        });
+        return;
+      }
+
+      final payments = await sb
           .from('payments')
           .select(
-            'id, user_id, userdeceased, claim_id, amount, status, created_at, paid_at, collected_by',
+            'id, user_id, amount, status, paid_at, collected_by, userdeceased, deceased_name, '
+            'collector:users!payments_collected_by_fkey(full_name)',
           )
           .eq('dayung_unit_id', widget.dayungUnitId)
-          .order('created_at', ascending: false)
-          .limit(300);
+          .eq('user_id', currentUser.id)
+          .order('paid_at', ascending: false);
 
-      final payments = List<Map<String, dynamic>>.from(rows);
-      final userIds = <String>{};
-      final claimIds = <String>{};
+      final deceasedIds = payments
+          .map((p) => p['userdeceased'])
+          .where((value) => value != null && value.toString().isNotEmpty)
+          .map((value) => value.toString())
+          .toSet()
+          .toList();
 
-      for (final payment in payments) {
-        final userId = (payment['user_id'] ?? '').toString();
-        final collectorId = (payment['collected_by'] ?? '').toString();
-        final deceasedId = (payment['userdeceased'] ?? '').toString();
-        final claimId = (payment['claim_id'] ?? '').toString();
-        if (userId.isNotEmpty) userIds.add(userId);
-        if (collectorId.isNotEmpty) userIds.add(collectorId);
-        if (deceasedId.isNotEmpty) userIds.add(deceasedId);
-        if (claimId.isNotEmpty) claimIds.add(claimId);
-      }
+      final usersRes = deceasedIds.isEmpty
+          ? <dynamic>[]
+          : await sb
+                .from('users')
+                .select('id, full_name')
+                .inFilter('id', deceasedIds);
 
-      final userNames = <String, String>{};
-      if (userIds.isNotEmpty) {
-        final users = await _sb
-            .from('users')
-            .select('id, full_name')
-            .inFilter('id', userIds.toList());
-
-        for (final user in List<Map<String, dynamic>>.from(users)) {
-          final id = (user['id'] ?? '').toString();
-          final name = (user['full_name'] ?? '').toString().trim();
-          if (id.isNotEmpty && name.isNotEmpty) {
-            userNames[id] = name;
-          }
-        }
-      }
-
-      final claims = <String, Map<String, dynamic>>{};
-      if (claimIds.isNotEmpty) {
-        final notices = await _sb
-            .from('claims')
-            .select('id, user_id, title, date_of_death, status')
-            .inFilter('id', claimIds.toList());
-
-        for (final notice in List<Map<String, dynamic>>.from(notices)) {
-          final id = (notice['id'] ?? '').toString();
-          if (id.isNotEmpty) {
-            claims[id] = notice;
-          }
-        }
-      }
-
-      double paidTotal = 0;
-      double pendingTotal = 0;
-      int paidCount = 0;
-      int pendingCount = 0;
-
-      for (final payment in payments) {
-        final amount = _amountOf(payment);
-        final status = (payment['status'] ?? '').toString().toLowerCase();
-        if (status == 'paid') {
-          paidTotal += amount;
-          paidCount++;
-        } else {
-          pendingTotal += amount;
-          pendingCount++;
-        }
-      }
+      final usersMap = <String, dynamic>{
+        for (final user in usersRes)
+          user['id'].toString(): user['full_name'] ?? 'Unknown',
+      };
 
       if (!mounted) return;
       setState(() {
-        _payments = payments;
-        _userNames = userNames;
-        _claims = claims;
-        _paidTotal = paidTotal;
-        _pendingTotal = pendingTotal;
-        _paidCount = paidCount;
-        _pendingCount = pendingCount;
+        _payments = List<Map<String, dynamic>>.from(payments);
+        _users = usersMap;
         _loading = false;
       });
     } catch (e) {
       if (!mounted) return;
       setState(() => _loading = false);
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to load contributions: $e')),
+        SnackBar(content: Text('Error loading contributions: $e')),
       );
     }
   }
 
-  double _amountOf(Map<String, dynamic> payment) {
-    final value = payment['amount'];
-    if (value is num) return value.toDouble();
-    return double.tryParse('$value') ?? 0;
-  }
-
-  String _memberName(Map<String, dynamic> payment) {
-    final userId = (payment['user_id'] ?? '').toString();
-    return _userNames[userId] ?? 'Unknown member';
-  }
-
-  String _collectorName(Map<String, dynamic> payment) {
-    final collectorId = (payment['collected_by'] ?? '').toString();
-    if (collectorId.isEmpty) return 'Not assigned';
-    return _userNames[collectorId] ?? 'Unknown collector';
-  }
-
-  String _deceasedName(Map<String, dynamic> payment) {
-    final claimId = (payment['claim_id'] ?? '').toString();
-    final deceasedId = (payment['userdeceased'] ?? '').toString();
-    if (claimId.isNotEmpty && _claims.containsKey(claimId)) {
-      final claim = _claims[claimId]!;
-      final claimName = (claim['title'] ?? '').toString().trim();
-      if (claimName.isNotEmpty) return claimName;
-    }
-    if (deceasedId.isNotEmpty) {
-      return _userNames[deceasedId] ?? 'Unknown deceased';
-    }
-    return 'No deceased linked';
-  }
-
-  String _dateOf(Map<String, dynamic> payment) {
-    final raw = (payment['paid_at'] ?? payment['created_at'] ?? '').toString();
-    if (raw.isEmpty) return 'No date';
-    final parsed = DateTime.tryParse(raw);
-    if (parsed == null) return raw.split('T').first;
-    return '${parsed.year}-${parsed.month.toString().padLeft(2, '0')}-${parsed.day.toString().padLeft(2, '0')}';
-  }
-
-  Color _statusColor(String status) {
-    switch (status.toLowerCase()) {
-      case 'paid':
-        return kAccentDark;
-      case 'pending':
-      case 'unpaid':
-        return kWarn;
-      default:
-        return kDanger;
-    }
-  }
-
-  List<Map<String, dynamic>> get _filteredPayments {
-    final query = _search.trim().toLowerCase();
-    if (query.isEmpty) return _payments;
-
+  int _countByStatus(String status) {
     return _payments.where((payment) {
-      return _memberName(payment).toLowerCase().contains(query) ||
-          _collectorName(payment).toLowerCase().contains(query) ||
-          _deceasedName(payment).toLowerCase().contains(query) ||
-          (payment['status'] ?? '').toString().toLowerCase().contains(query) ||
-          _dateOf(payment).toLowerCase().contains(query);
-    }).toList();
-  }
-
-  Widget _summaryCard({
-    required String title,
-    required String value,
-    required String subtitle,
-    required Color color,
-    required IconData icon,
-  }) {
-    return Expanded(
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(18),
-          border: Border.all(color: color.withValues(alpha: 0.18)),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Icon(icon, color: color, size: 24),
-            const SizedBox(height: 12),
-            Text(
-              value,
-              style: const TextStyle(
-                fontSize: 24,
-                fontWeight: FontWeight.w900,
-                color: kText,
-              ),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              title,
-              style: const TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.w700,
-                color: kText,
-              ),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              subtitle,
-              style: const TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
-                color: kSubText,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
+      final value = payment['status']?.toString().toLowerCase() ?? '';
+      if (status.toLowerCase() == 'pending') {
+        return value == 'pending' || value == 'unpaid';
+      }
+      return value == status.toLowerCase();
+    }).length;
   }
 
   Widget _paymentShortcutCard() {
     return Container(
-      margin: const EdgeInsets.only(bottom: 16),
+      margin: const EdgeInsets.fromLTRB(20, 20, 20, 0),
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
         gradient: const LinearGradient(
-          colors: [kPrimaryDark, kPrimary],
+          colors: [Color(0xFF083366), Color(0xFF0D47A1)],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
@@ -272,15 +142,6 @@ class _PresidentContributionsPageState
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            'Contribution Overview',
-            style: TextStyle(
-              color: Colors.white,
-              fontSize: 18,
-              fontWeight: FontWeight.w800,
-            ),
-          ),
-          const SizedBox(height: 8),
           const Text(
             'Open your payment page to review your pending records and choose cash or GCash.',
             style: TextStyle(
@@ -298,7 +159,7 @@ class _PresidentContributionsPageState
                   builder: (_) =>
                       PresidentPaymentPage(dayungUnitId: widget.dayungUnitId),
                 ),
-              ).then((_) => _loadContributions());
+              ).then((_) => _fetchContributions());
             },
             icon: const Icon(Icons.arrow_forward_rounded),
             label: const Text('Open Payment Page'),
@@ -312,223 +173,393 @@ class _PresidentContributionsPageState
     );
   }
 
-  Widget _infoChip(IconData icon, String label) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-      decoration: BoxDecoration(
-        color: kBg,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: kBorderColor),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 14, color: kPrimary),
-          const SizedBox(width: 6),
-          Text(
-            label,
-            style: const TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
-              color: kText,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
-    return Container(
-      color: dayungPageBackground(context),
-      child: _loading
-          ? const DayungPageSkeleton(
-              layout: DayungSkeletonLayout.list,
-              itemCount: 5,
-            )
-          : RefreshIndicator(
-              onRefresh: _loadContributions,
-              child: ListView(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 12,
-                ),
+    return Scaffold(
+      backgroundColor: dayungPageBackground(context),
+      body: Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [dayungPageBackground(context), dayungSoftSurface(context)],
+          ),
+        ),
+        child: Column(
+          children: [
+            _paymentShortcutCard(),
+            Container(
+              padding: const EdgeInsets.fromLTRB(20, 40, 20, 12),
+              child: Row(
                 children: [
-                  _paymentShortcutCard(),
-                  Row(
-                    children: [
-                      _summaryCard(
-                        title: 'Paid',
-                        value: '₱${_paidTotal.toStringAsFixed(0)}',
-                        subtitle: '$_paidCount records',
-                        color: kAccentDark,
-                        icon: Icons.check_circle_rounded,
+                  Expanded(
+                    child: Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(12),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.08),
+                            blurRadius: 8,
+                            offset: const Offset(0, 2),
+                          ),
+                        ],
                       ),
-                      const SizedBox(width: 12),
-                      _summaryCard(
-                        title: 'Pending',
-                        value: '₱${_pendingTotal.toStringAsFixed(0)}',
-                        subtitle: '$_pendingCount records',
-                        color: kWarn,
-                        icon: Icons.schedule_rounded,
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-                  TextField(
-                    decoration: InputDecoration(
-                      hintText: 'Search member, deceased, collector, or status',
-                      prefixIcon: const Icon(Icons.search_rounded),
-                      filled: true,
-                      fillColor: Colors.white,
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(16),
-                        borderSide: BorderSide.none,
+                      child: Column(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(6),
+                            decoration: BoxDecoration(
+                              color: kSuccess.withValues(alpha: 0.1),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: const Icon(
+                              Icons.check_circle_rounded,
+                              color: kSuccess,
+                              size: 16,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          const Text(
+                            'Paid',
+                            style: TextStyle(
+                              color: kSubText,
+                              fontSize: 10,
+                              fontFamily: 'OpenSans',
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          const SizedBox(height: 1),
+                          Text(
+                            '${_countByStatus('paid')}',
+                            style: const TextStyle(
+                              color: kText,
+                              fontSize: 14,
+                              fontFamily: 'Montserrat',
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
-                    onChanged: (value) => setState(() => _search = value),
                   ),
-                  const SizedBox(height: 16),
-                  if (_filteredPayments.isEmpty)
-                    Center(
-                      child: Padding(
-                        padding: const EdgeInsets.only(top: 80),
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            const Icon(
-                              Icons.info_outline,
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(12),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.08),
+                            blurRadius: 8,
+                            offset: const Offset(0, 2),
+                          ),
+                        ],
+                      ),
+                      child: Column(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(6),
+                            decoration: BoxDecoration(
+                              color: kPending.withValues(alpha: 0.1),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: const Icon(
+                              Icons.schedule_rounded,
+                              color: kPending,
+                              size: 16,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          const Text(
+                            'Pending',
+                            style: TextStyle(
                               color: kSubText,
-                              size: 48,
+                              fontSize: 10,
+                              fontFamily: 'OpenSans',
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          const SizedBox(height: 1),
+                          Text(
+                            '${_countByStatus('pending')}',
+                            style: const TextStyle(
+                              color: kText,
+                              fontSize: 14,
+                              fontFamily: 'Montserrat',
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Expanded(
+              child: _loading
+                  ? Center(
+                      child: Container(
+                        padding: const EdgeInsets.all(24),
+                        decoration: BoxDecoration(
+                          color: kCardBg,
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(color: kBorderColor, width: 1),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withValues(alpha: 0.05),
+                              blurRadius: 15,
+                              offset: const Offset(0, 6),
+                            ),
+                          ],
+                        ),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const CircularProgressIndicator(
+                              color: kPrimary,
+                              strokeWidth: 3,
                             ),
                             const SizedBox(height: 16),
-                            Text(
-                              _payments.isEmpty
-                                  ? 'No contributions found.'
-                                  : 'No contribution matches your search.',
-                              style: const TextStyle(
+                            const Text(
+                              'Loading contributions...',
+                              style: TextStyle(
                                 color: kSubText,
-                                fontSize: 18,
+                                fontSize: 16,
+                                fontFamily: 'OpenSans',
+                                fontWeight: FontWeight.w600,
                               ),
                             ),
                           ],
                         ),
                       ),
                     )
-                  else
-                    ..._filteredPayments.map((payment) {
-                      final status = (payment['status'] ?? 'unknown')
-                          .toString();
-                      final amount = _amountOf(payment);
-
-                      return Card(
-                        margin: const EdgeInsets.symmetric(vertical: 8),
-                        elevation: 1,
-                        color: kCardBg,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(18),
-                        ),
-                        child: Padding(
-                          padding: const EdgeInsets.all(16),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Row(
-                                children: [
-                                  Container(
-                                    padding: const EdgeInsets.all(12),
-                                    decoration: BoxDecoration(
-                                      color: _statusColor(
-                                        status,
-                                      ).withValues(alpha: 0.12),
-                                      borderRadius: BorderRadius.circular(14),
-                                    ),
-                                    child: Icon(
-                                      status.toLowerCase() == 'paid'
-                                          ? Icons.check_circle_rounded
-                                          : Icons.pending_actions_rounded,
-                                      color: _statusColor(status),
-                                    ),
+                  : (_payments.isEmpty
+                        ? Center(
+                            child: Container(
+                              margin: const EdgeInsets.all(20),
+                              padding: const EdgeInsets.all(24),
+                              decoration: BoxDecoration(
+                                color: kCardBg,
+                                borderRadius: BorderRadius.circular(20),
+                                border: Border.all(
+                                  color: kBorderColor,
+                                  width: 1,
+                                ),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.black.withValues(alpha: 0.05),
+                                    blurRadius: 15,
+                                    offset: const Offset(0, 6),
                                   ),
-                                  const SizedBox(width: 12),
-                                  Expanded(
-                                    child: Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
-                                      children: [
-                                        Text(
-                                          '₱${amount.toStringAsFixed(2)}',
-                                          style: const TextStyle(
-                                            fontWeight: FontWeight.w800,
-                                            fontSize: 18,
-                                            color: kPrimary,
+                                ],
+                              ),
+                              child: const Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(
+                                    Icons.account_balance_wallet_rounded,
+                                    size: 48,
+                                    color: kSubText,
+                                  ),
+                                  SizedBox(height: 16),
+                                  Text(
+                                    'No contributions found',
+                                    style: TextStyle(
+                                      fontSize: 18,
+                                      fontWeight: FontWeight.w700,
+                                      color: kText,
+                                      fontFamily: 'Montserrat',
+                                    ),
+                                    textAlign: TextAlign.center,
+                                  ),
+                                  SizedBox(height: 8),
+                                  Text(
+                                    'No contributions have been made yet',
+                                    style: TextStyle(
+                                      fontSize: 14,
+                                      color: kSubText,
+                                      fontFamily: 'OpenSans',
+                                    ),
+                                    textAlign: TextAlign.center,
+                                  ),
+                                ],
+                              ),
+                            ),
+                          )
+                        : Padding(
+                            padding: const EdgeInsets.all(16),
+                            child: RefreshIndicator(
+                              onRefresh: _fetchContributions,
+                              child: ListView.separated(
+                                itemCount: _payments.length,
+                                separatorBuilder: (_, __) =>
+                                    const SizedBox(height: 8),
+                                itemBuilder: (context, index) {
+                                  final payment = _payments[index];
+                                  final userDeceasedId =
+                                      (payment['userdeceased'] ?? '')
+                                          .toString();
+                                  final userDeceased =
+                                      (payment['deceased_name']
+                                              ?.toString()
+                                              .isNotEmpty ==
+                                          true)
+                                      ? payment['deceased_name'].toString()
+                                      : (userDeceasedId.isNotEmpty
+                                            ? _users[userDeceasedId] ??
+                                                  userDeceasedId
+                                            : 'Membership Payment');
+                                  final paidAtStr = _fmtDateTime(
+                                    payment['paid_at'],
+                                  );
+                                  final paid =
+                                      (payment['status']
+                                          ?.toString()
+                                          .toLowerCase() ==
+                                      'paid');
+
+                                  return Container(
+                                    padding: const EdgeInsets.all(8),
+                                    decoration: BoxDecoration(
+                                      color: kCardBg,
+                                      borderRadius: BorderRadius.circular(12),
+                                      border: Border.all(
+                                        color: kBorderColor,
+                                        width: 1,
+                                      ),
+                                      boxShadow: [
+                                        BoxShadow(
+                                          color: Colors.black.withValues(
+                                            alpha: 0.03,
                                           ),
-                                        ),
-                                        const SizedBox(height: 4),
-                                        Text(
-                                          _memberName(payment),
-                                          style: const TextStyle(
-                                            fontSize: 15,
-                                            fontWeight: FontWeight.w700,
-                                            color: kText,
-                                          ),
+                                          blurRadius: 8,
+                                          offset: const Offset(0, 2),
                                         ),
                                       ],
                                     ),
-                                  ),
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 10,
-                                      vertical: 6,
+                                    child: Column(
+                                      children: [
+                                        Row(
+                                          children: [
+                                            Container(
+                                              padding: const EdgeInsets.all(8),
+                                              decoration: BoxDecoration(
+                                                color: paid
+                                                    ? kPaid.withValues(
+                                                        alpha: 0.1,
+                                                      )
+                                                    : kPending.withValues(
+                                                        alpha: 0.1,
+                                                      ),
+                                                borderRadius:
+                                                    BorderRadius.circular(10),
+                                              ),
+                                              child: Icon(
+                                                paid
+                                                    ? Icons.check_circle_rounded
+                                                    : Icons.schedule_rounded,
+                                                color: paid ? kPaid : kPending,
+                                                size: 18,
+                                              ),
+                                            ),
+                                            const SizedBox(width: 12),
+                                            Expanded(
+                                              child: Column(
+                                                crossAxisAlignment:
+                                                    CrossAxisAlignment.start,
+                                                children: [
+                                                  Text(
+                                                    userDeceased,
+                                                    style: const TextStyle(
+                                                      fontSize: 14,
+                                                      fontWeight:
+                                                          FontWeight.w700,
+                                                      color: kText,
+                                                      fontFamily: 'Montserrat',
+                                                    ),
+                                                  ),
+                                                ],
+                                              ),
+                                            ),
+                                            Container(
+                                              padding:
+                                                  const EdgeInsets.symmetric(
+                                                    horizontal: 8,
+                                                    vertical: 4,
+                                                  ),
+                                              decoration: BoxDecoration(
+                                                color: paid
+                                                    ? kPaid.withValues(
+                                                        alpha: 0.1,
+                                                      )
+                                                    : kPending.withValues(
+                                                        alpha: 0.1,
+                                                      ),
+                                                borderRadius:
+                                                    BorderRadius.circular(8),
+                                                border: Border.all(
+                                                  color: paid
+                                                      ? kPaid
+                                                      : kPending,
+                                                  width: 1,
+                                                ),
+                                              ),
+                                              child: Text(
+                                                paid ? 'PAID' : 'PENDING',
+                                                style: TextStyle(
+                                                  color: paid
+                                                      ? kPaid
+                                                      : kPending,
+                                                  fontWeight: FontWeight.w700,
+                                                  fontSize: 10,
+                                                  letterSpacing: 0.5,
+                                                  fontFamily: 'Montserrat',
+                                                ),
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                        const SizedBox(height: 8),
+                                        Row(
+                                          mainAxisAlignment:
+                                              MainAxisAlignment.spaceBetween,
+                                          children: [
+                                            Text(
+                                              'Amount: ₱${_formatAmount(payment['amount'])}',
+                                              style: TextStyle(
+                                                fontSize: 11,
+                                                color: paid ? kPaid : kPending,
+                                                fontWeight: FontWeight.w700,
+                                                fontFamily: 'Montserrat',
+                                              ),
+                                            ),
+                                            if (paidAtStr.isNotEmpty)
+                                              Text(
+                                                'Paid: $paidAtStr',
+                                                style: const TextStyle(
+                                                  fontSize: 10,
+                                                  color: kSubText,
+                                                  fontFamily: 'OpenSans',
+                                                ),
+                                              ),
+                                          ],
+                                        ),
+                                      ],
                                     ),
-                                    decoration: BoxDecoration(
-                                      color: _statusColor(
-                                        status,
-                                      ).withValues(alpha: 0.12),
-                                      borderRadius: BorderRadius.circular(999),
-                                    ),
-                                    child: Text(
-                                      status,
-                                      style: TextStyle(
-                                        color: _statusColor(status),
-                                        fontWeight: FontWeight.w700,
-                                      ),
-                                    ),
-                                  ),
-                                ],
+                                  );
+                                },
                               ),
-                              const SizedBox(height: 12),
-                              Wrap(
-                                spacing: 8,
-                                runSpacing: 8,
-                                children: [
-                                  _infoChip(
-                                    Icons.person_rounded,
-                                    'Member: ${_memberName(payment)}',
-                                  ),
-                                  _infoChip(
-                                    Icons.volunteer_activism_rounded,
-                                    'Deceased: ${_deceasedName(payment)}',
-                                  ),
-                                  _infoChip(
-                                    Icons.badge_rounded,
-                                    'Collector: ${_collectorName(payment)}',
-                                  ),
-                                  _infoChip(
-                                    Icons.calendar_today_rounded,
-                                    _dateOf(payment),
-                                  ),
-                                ],
-                              ),
-                            ],
-                          ),
-                        ),
-                      );
-                    }),
-                ],
-              ),
+                            ),
+                          )),
             ),
+          ],
+        ),
+      ),
     );
   }
 }

@@ -308,7 +308,7 @@ class _SuperAdminOrganizationPageState
     try {
       final response = await sb
           .from('applications')
-          .select('id, user_id, status, user:users(id, full_name, email)')
+          .select('id, user_id, status, dayung_unit_id, user:users(id, full_name, email)')
           .eq('dayung_unit_id', dayungUnitId)
           .order('applied_at', ascending: true);
 
@@ -711,18 +711,77 @@ class _ApplicationListDialogState extends State<_ApplicationListDialog> {
         .replaceFirst('Z', '+00');
   }
 
+  Future<double> _getMembershipAmount(int dayungUnitId) async {
+    try {
+      final rulesRow = await Supabase.instance.client
+          .from('dayung_rules')
+          .select('exactamountformembership')
+          .eq('dayung_unit_id', dayungUnitId)
+          .maybeSingle();
+
+      final rawValue = '${rulesRow?['exactamountformembership'] ?? ''}';
+      final parsed = double.tryParse(
+        rawValue.replaceAll(RegExp(r'[^0-9.-]'), ''),
+      );
+      return parsed ?? 0.0;
+    } catch (_) {
+      return 0.0;
+    }
+  }
+
   Future<void> _confirmApprove(
     String userId,
     String applicationId,
     int index,
+    int dayungUnitId,
   ) async {
+    final amount = await _getMembershipAmount(dayungUnitId);
+    final amountController = TextEditingController(
+      text: amount.toStringAsFixed(2),
+    );
+    String paymentStatus = 'unpaid';
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) {
         return AlertDialog(
           title: const Text('Confirm approval'),
-          content: const Text(
-            'Are you sure you want to approve this application? This action cannot be undone.',
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Enter the membership payment amount and choose the payment status.',
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: amountController,
+                keyboardType: const TextInputType.numberWithOptions(
+                  decimal: true,
+                ),
+                decoration: const InputDecoration(
+                  labelText: 'Amount',
+                  hintText: '0.00',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+              const SizedBox(height: 12),
+              DropdownButtonFormField<String>(
+                value: paymentStatus,
+                decoration: const InputDecoration(
+                  labelText: 'Payment status',
+                  border: OutlineInputBorder(),
+                ),
+                items: const [
+                  DropdownMenuItem(value: 'unpaid', child: Text('Unpaid')),
+                  DropdownMenuItem(value: 'paid', child: Text('Paid')),
+                ],
+                onChanged: (value) {
+                  if (value != null) {
+                    paymentStatus = value;
+                  }
+                },
+              ),
+            ],
           ),
           actions: [
             TextButton(
@@ -739,14 +798,30 @@ class _ApplicationListDialogState extends State<_ApplicationListDialog> {
     );
 
     if (confirmed == true) {
-      await _approveApplication(userId, applicationId, index);
+      final enteredAmount = double.tryParse(
+            amountController.text.trim().replaceAll(RegExp(r'[^0-9.-]'), ''),
+          ) ??
+          0.0;
+      await _approveApplication(
+        userId,
+        applicationId,
+        index,
+        dayungUnitId,
+        enteredAmount,
+        paymentStatus,
+      );
     }
+
+    amountController.dispose();
   }
 
   Future<void> _approveApplication(
     String userId,
     String applicationId,
     int index,
+    int dayungUnitId,
+    double amount,
+    String paymentStatus,
   ) async {
     setState(() => _approving = true);
     try {
@@ -773,6 +848,13 @@ class _ApplicationListDialogState extends State<_ApplicationListDialog> {
         },
       );
 
+      await _createMembershipPaymentRecord(
+        userId,
+        dayungUnitId,
+        amount,
+        paymentStatus,
+      );
+
       if (!mounted) return;
       setState(() {
         _applications[index]['status'] = 'approved';
@@ -797,6 +879,48 @@ class _ApplicationListDialogState extends State<_ApplicationListDialog> {
   void dispose() {
     _searchController.dispose();
     super.dispose();
+  }
+
+  Future<void> _createMembershipPaymentRecord(
+    String userId,
+    int dayungUnitId,
+    double amount,
+    String paymentStatus,
+  ) async {
+    try {
+      final existing = await Supabase.instance.client
+          .from('payments')
+          .select('id')
+          .eq('user_id', userId)
+          .eq('dayung_unit_id', dayungUnitId)
+          .eq('type', 'membership_payment')
+          .maybeSingle();
+      if (existing != null) return;
+
+      final paidAt = paymentStatus == 'paid'
+          ? DateTime.now().toIso8601String()
+          : null;
+      final collectedBy = Supabase.instance.client.auth.currentUser?.id;
+
+      await Supabase.instance.client.from('payments').insert({
+        'user_id': userId,
+        'amount': amount,
+        'status': paymentStatus,
+        'dayung_unit_id': dayungUnitId,
+        'created_at': DateTime.now().toIso8601String(),
+        'paid_at': paidAt,
+        'collected_by': collectedBy,
+        'userdeceased': null,
+        'deceased_name': null,
+        'message': null,
+        'claim_id': null,
+        'is_due': null,
+        'due_date': null,
+        'type': 'membership_payment',
+      });
+    } catch (_) {
+      // Ignore payment insert errors so approval still succeeds.
+    }
   }
 
   Widget _statusBadge(String status) {
@@ -889,11 +1013,18 @@ class _ApplicationListDialogState extends State<_ApplicationListDialog> {
                             ? OutlinedButton.icon(
                                 onPressed: _approving
                                     ? null
-                                    : () => _confirmApprove(
-                                        userId,
-                                        applicationId,
-                                        index,
-                                      ),
+                                    : () {
+                                        final unitId = int.tryParse(
+                                          '${app['dayung_unit_id']}',
+                                        );
+                                        if (unitId == null) return;
+                                        _confirmApprove(
+                                          userId,
+                                          applicationId,
+                                          index,
+                                          unitId,
+                                        );
+                                      },
                                 icon: _approving
                                     ? const SizedBox(
                                         width: 16,

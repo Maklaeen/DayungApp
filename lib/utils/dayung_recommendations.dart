@@ -223,7 +223,7 @@ class DayungRecommendationService {
         .from('dayung_rules')
         .select(
           'id, dayung_unit_id, dayung_unit_name, meeting_frequency, '
-          'registration_fee_range, membership_payment, penalty_payment, '
+          'collection_fee_range, membership_payment, penalty_payment, '
           'payment_method, open_for_all, ${dayungServiceTagLabels.map((label) => dayungServiceTagColumns[label]!).join(', ')}, dayung_units('
           'id, name, latitude, longitude, barangay, city, province)',
         );
@@ -268,8 +268,8 @@ class DayungRecommendationService {
 
       final withinRadius = km == null || km <= maxDistanceKm;
       final tags = <String>[
-        if ((data['registration_fee_range'] ?? '').toString().isNotEmpty)
-          'Registration ${data['registration_fee_range']}',
+        if ((data['collection_fee_range'] ?? '').toString().isNotEmpty)
+          'Collection ${data['collection_fee_range']}',
         if ((data['membership_payment'] ?? '').toString().isNotEmpty)
           'Membership ${data['membership_payment']}',
         if ((data['payment_method'] ?? '').toString().isNotEmpty)
@@ -292,7 +292,7 @@ class DayungRecommendationService {
         'latitude': lat,
         'longitude': lng,
         'meeting_frequency': data['meeting_frequency'],
-        'registration_fee_range': data['registration_fee_range'],
+        'collection_fee_range': data['collection_fee_range'],
         'membership_payment': data['membership_payment'],
         'payment_method': data['payment_method'],
         'open_for_all': data['open_for_all'],
@@ -385,7 +385,7 @@ class DayungRecommendationService {
       paymentMethod == 'cash' ? 1.0 : 0.0,
       paymentMethod == 'gcash' ? 1.0 : 0.0,
       paymentMethod == 'both' ? 1.0 : 0.0,
-      ...bucket(data['registration_fee_range']),
+      ...bucket(data['collection_fee_range']),
       ...bucket(data['membership_payment']),
       ...bucket(data['penalty_payment']),
       norm('${data['open_for_all']}') == 'yes' ? 1.0 : 0.0,

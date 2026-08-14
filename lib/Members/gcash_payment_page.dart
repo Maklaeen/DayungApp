@@ -24,22 +24,36 @@ class _GCashPaymentPageState extends State<GCashPaymentPage> {
   String _searchQuery = "";
 
   Future<List<Map<String, dynamic>>> fetchPayments() async {
-    final data = await Supabase.instance.client
-        .from('payments')
-        .select(
+    final currentUser = Supabase.instance.client.auth.currentUser;
+    if (currentUser == null) return [];
+
+    final query = Supabase.instance.client.from('payments').select(
           'id, userdeceased, deceased_name, amount, status, user_id, users!payments_user_id_fkey(full_name)',
         )
-        .then((value) => value as List<dynamic>);
+      .eq('user_id', currentUser.id);
+
+    if (widget.dayungUnitId != null) {
+      query.eq('dayung_unit_id', widget.dayungUnitId as Object);
+    }
+
+    final data = await query.then((value) => value as List<dynamic>);
     return data.cast<Map<String, dynamic>>();
   }
 
   Future<List<Map<String, dynamic>>> fetchSetAmounts() async {
-    final data = await Supabase.instance.client
-        .from('payments')
-        .select(
+    final currentUser = Supabase.instance.client.auth.currentUser;
+    if (currentUser == null) return [];
+
+    final query = Supabase.instance.client.from('payments').select(
           'id, userdeceased, deceased_name, amount, status, user_id, users!payments_user_id_fkey(full_name)',
         )
-        .then((value) => value as List<dynamic>);
+      .eq('user_id', currentUser.id);
+
+    if (widget.dayungUnitId != null) {
+      query.eq('dayung_unit_id', widget.dayungUnitId as Object);
+    }
+
+    final data = await query.then((value) => value as List<dynamic>);
     return data.cast<Map<String, dynamic>>();
   }
 

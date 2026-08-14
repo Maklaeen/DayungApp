@@ -40,6 +40,7 @@ class _ManageRulesPagePresState extends State<ManageRulesPagePres> {
   String? _selectedPenaltyPayment;
   String? _selectedPaymentMethodDropdown;
   String? _exactAmountForMembership;
+  String? _exactAmountForCollection;
   bool _openForAll = false;
   bool _hasService = false;
   final Map<String, bool> _selectedServiceTags = {};
@@ -48,17 +49,20 @@ class _ManageRulesPagePresState extends State<ManageRulesPagePres> {
   List<Map<String, dynamic>> _units = [];
   int? _unitId;
   late TextEditingController _exactAmountController;
+  late TextEditingController _exactCollectionAmountController;
 
   @override
   void initState() {
     super.initState();
     _exactAmountController = TextEditingController(text: _exactAmountForMembership ?? '');
+    _exactCollectionAmountController = TextEditingController(text: _exactAmountForCollection ?? '');
     _init();
   }
 
   @override
   void dispose() {
     _exactAmountController.dispose();
+    _exactCollectionAmountController.dispose();
     super.dispose();
   }
 
@@ -97,13 +101,13 @@ class _ManageRulesPagePresState extends State<ManageRulesPagePres> {
       final row = await sb
           .from('dayung_rules')
           .select('''
-            meeting_frequency, registration_fee_range, membership_payment, penalty_payment, payment_method, open_for_all, has_service, exactamountformembership, ${dayungServiceTagLabels.map((label) => dayungServiceTagColumns[label]!).join(', ')}
+            meeting_frequency, collection_fee_range, membership_payment, penalty_payment, payment_method, open_for_all, has_service, exactamountformembership, exactamountforcollection, ${dayungServiceTagLabels.map((label) => dayungServiceTagColumns[label]!).join(', ')}
             ''')
           .eq('dayung_unit_id', unitId)
           .maybeSingle();
 
       _selectedMeetingFrequency = row?['meeting_frequency'];
-      _selectedRegistrationFeeRange = row?['registration_fee_range'];
+      _selectedRegistrationFeeRange = row?['collection_fee_range'];
       _selectedMembershipPayment = row?['membership_payment'];
       _selectedPenaltyPayment = row?['penalty_payment'];
       _selectedPaymentMethodDropdown = row?['payment_method'];
@@ -114,7 +118,9 @@ class _ManageRulesPagePresState extends State<ManageRulesPagePres> {
         _selectedServiceTags[label] = row?[column] == true;
       }
       _exactAmountForMembership = row?['exactamountformembership'];
+      _exactAmountForCollection = row?['exactamountforcollection'];
       _exactAmountController.text = _exactAmountForMembership ?? '';
+      _exactCollectionAmountController.text = _exactAmountForCollection ?? '';
 
       setState(() {});
     } catch (_) {}
@@ -135,13 +141,14 @@ class _ManageRulesPagePresState extends State<ManageRulesPagePres> {
         'dayung_unit_id': _unitId,
         'dayung_unit_name': unitName,
         'meeting_frequency': _selectedMeetingFrequency,
-        'registration_fee_range': _selectedRegistrationFeeRange,
+        'collection_fee_range': _selectedRegistrationFeeRange,
         'membership_payment': _selectedMembershipPayment,
         'penalty_payment': _selectedPenaltyPayment,
         'payment_method': _selectedPaymentMethodDropdown,
         'open_for_all': _openForAll,
         'has_service': _hasService,
         'exactamountformembership': _exactAmountForMembership,
+        'exactamountforcollection': _exactAmountForCollection,
         for (final label in dayungServiceTagLabels)
           dayungServiceTagColumns[label]!: _selectedServiceTags[label] ?? false,
         'updated_by': uid,
@@ -317,13 +324,14 @@ class _ManageRulesPagePresState extends State<ManageRulesPagePres> {
                                     ),
                                   ),
                                   _dropdownField(
-                                    'Registration Fee Range',
+                                    'Collection Fee Range',
                                     _feeRanges,
                                     _selectedRegistrationFeeRange,
                                     (v) => setState(
                                       () => _selectedRegistrationFeeRange = v,
                                     ),
                                   ),
+                                  _exactAmountCollectionTextField(),
                                   _dropdownField(
                                     'Membership Payment',
                                     _feeRanges,
@@ -679,6 +687,60 @@ class _ManageRulesPagePresState extends State<ManageRulesPagePres> {
           prefixIconConstraints: const BoxConstraints(minWidth: 0, minHeight: 0),
         ),
         onChanged: (value) => setState(() => _exactAmountForMembership = value),
+        style: const TextStyle(
+          fontFamily: 'OpenSans',
+          fontWeight: FontWeight.w600,
+        ),
+      ),
+    );
+  }
+
+  Widget _exactAmountCollectionTextField() {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: TextField(
+        controller: _exactCollectionAmountController,
+        keyboardType: TextInputType.number,
+        decoration: InputDecoration(
+          labelText: 'Exact Amount for Collection',
+          labelStyle: const TextStyle(
+            color: kText,
+            fontWeight: FontWeight.w700,
+            fontFamily: 'Montserrat',
+          ),
+          hintText: 'Enter exact amount',
+          hintStyle: TextStyle(
+            color: kSubText.withValues(alpha: 0.5),
+            fontFamily: 'OpenSans',
+          ),
+          filled: true,
+          fillColor: kCardBg,
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: const BorderSide(color: kBorderColor, width: 1),
+          ),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: const BorderSide(color: kBorderColor, width: 1),
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: const BorderSide(color: kPrimary, width: 2),
+          ),
+          prefixIcon: const Padding(
+            padding: EdgeInsets.only(left: 12),
+            child: Text(
+              '₱',
+              style: TextStyle(
+                fontSize: 18,
+                color: kPrimary,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+          prefixIconConstraints: const BoxConstraints(minWidth: 0, minHeight: 0),
+        ),
+        onChanged: (value) => setState(() => _exactAmountForCollection = value),
         style: const TextStyle(
           fontFamily: 'OpenSans',
           fontWeight: FontWeight.w600,

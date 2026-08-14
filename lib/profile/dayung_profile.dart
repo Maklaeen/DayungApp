@@ -350,7 +350,7 @@ class _DayungSettingsPageState extends State<DayungSettingsPage> {
                 DropdownButtonFormField<String>(
                   initialValue: contributionAmount,
                   decoration: const InputDecoration(
-                    labelText: 'Registration Fee Range',
+                    labelText: 'Collection Fee Range',
                     border: OutlineInputBorder(),
                   ),
                   items:

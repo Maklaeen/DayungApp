@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:flutter/services.dart';
+// Clipboard copy removed; no services import needed
 
 const Color _kPrimary = Color(0xFF0D47A1);
 const Color _kPrimaryDark = Color(0xFF083366);
@@ -134,17 +134,19 @@ class _ActiveMembersPageState extends State<ActiveMembersPage> {
         });
       }
     } on PostgrestException catch (e) {
-      if (mounted)
+      if (mounted) {
         setState(() {
           _error = e.message;
           _loading = false;
         });
+      }
     } catch (e) {
-      if (mounted)
+      if (mounted) {
         setState(() {
           _error = e.toString();
           _loading = false;
         });
+      }
     }
   }
 
@@ -464,16 +466,7 @@ class _ActiveMembersPageState extends State<ActiveMembersPage> {
                 ),
               )
             : null,
-        trailing: IconButton(
-          onPressed: () {
-            Clipboard.setData(ClipboardData(text: userId));
-            ScaffoldMessenger.of(
-              context,
-            ).showSnackBar(const SnackBar(content: Text('User ID copied')));
-          },
-          icon: const Icon(Icons.copy, size: 18),
-          color: _kPrimary,
-        ),
+        // trailing action removed (copy UID)
       ),
     );
   }

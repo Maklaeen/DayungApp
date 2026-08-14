@@ -96,7 +96,7 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
     double payGcash = payment_method == 'GCash' ? 1.0 : 0.0;
     double payBoth = payment_method == 'Both' ? 1.0 : 0.0;
 
-    // Registration Fee Range (7 positions)
+    
     List<String> feeRanges = [
       '50-100',
       '100-150',
@@ -195,7 +195,7 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
     double payGcash = pay == 'gcash' ? 1.0 : 0.0;
     double payBoth = pay == 'both' ? 1.0 : 0.0;
 
-    // Registration Fee Range (7 positions)
+
     List<String> feeRanges = [
       '50-100',
       '100-150',
@@ -207,7 +207,7 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
     ];
     List<double> regFee = List.filled(feeRanges.length, 0.0);
     for (int i = 0; i < feeRanges.length; i++) {
-      if (norm(m['registration_fee_range']) == feeRanges[i]) regFee[i] = 1.0;
+      if (norm(m['collection_fee_range']) == feeRanges[i]) regFee[i] = 1.0;
     }
 
     // Membership Payment (same buckets)
@@ -283,7 +283,7 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
       final resp = await Supabase.instance.client
           .from('dayung_rules')
           .select(
-            'id,dayung_unit_id,dayung_unit_name,meeting_frequency,registration_fee_range,membership_payment,penalty_payment,payment_method,open_for_all,${dayungServiceTagLabels.map((label) => dayungServiceTagColumns[label]!).join(',')},'
+            'id,dayung_unit_id,dayung_unit_name,meeting_frequency,collection_fee_range,membership_payment,penalty_payment,payment_method,open_for_all,${dayungServiceTagLabels.map((label) => dayungServiceTagColumns[label]!).join(',')},'
             'dayung_units(latitude,longitude,barangay,city,province)',
           );
 
@@ -759,7 +759,7 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
                       onChanged: (v) => setState(() => payment_method = v),
                     ),
                     _buildDropdown(
-                      label: 'Registration Fee',
+                      label: 'Collection Fee',
                       items: [
                         '50-100',
                         '100-150',

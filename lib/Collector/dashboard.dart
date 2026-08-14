@@ -7,6 +7,7 @@ import 'package:capstone_app/Providers/dayung_provider.dart';
 import 'package:capstone_app/Providers/dayung_role_provider.dart';
 import 'package:capstone_app/pages/members_page.dart';
 import 'package:capstone_app/pages/notification.dart';
+import 'package:capstone_app/shared/active_members_page.dart';
 import 'package:capstone_app/shared/names_only_members_page.dart';
 import 'package:capstone_app/ui/theme/branding.dart';
 import 'package:capstone_app/utils/theme_surface.dart';
@@ -608,6 +609,16 @@ class _CollectorDashboardPageState extends State<CollectorDashboardPage> {
           title: title,
           statuses: statuses,
         ),
+      ),
+    );
+  }
+
+  void _openActiveMembersPage() {
+    if (_dayungUnitId == null) return;
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => ActiveMembersPage(dayungUnitId: _dayungUnitId!),
       ),
     );
   }
@@ -1435,7 +1446,7 @@ class _CollectorDashboardPageState extends State<CollectorDashboardPage> {
         title: 'Active Members',
         value: _loading ? '—' : '$_activeMembers',
         color: const Color(0xFF3B82F6),
-        onTap: () => _openNamesOnlyMembersPage('Active Members', ['approved']),
+        onTap: _openActiveMembersPage,
       ),
       _buildStatCard(
         title: 'Removed / Inactive',
