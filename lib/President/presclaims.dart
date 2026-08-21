@@ -265,9 +265,7 @@ class _PresidentClaimsPageState extends State<PresidentClaimsPage> {
           .eq('dayung_unit_id', unitId)
           .maybeSingle();
 
-      return _formatDefaultContributionAmount(
-        row?['exactamountformembership'],
-      );
+      return _formatDefaultContributionAmount(row?['exactamountformembership']);
     } catch (_) {
       return '';
     }
@@ -819,14 +817,14 @@ class _PresidentClaimsPageState extends State<PresidentClaimsPage> {
                           ),
                         ),
                         const SizedBox(height: 6),
-                        const Text(
-                          'Review filed claims, then approve with a contribution amount or reject them.',
-                          style: TextStyle(
-                            fontSize: 14,
-                            color: kSubText,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
+                        // const Text(
+                        //   'Review filed claims, then approve with a contribution amount or reject them.',
+                        //   style: TextStyle(
+                        //     fontSize: 14,
+                        //     color: kSubText,
+                        //     fontWeight: FontWeight.w600,
+                        //   ),
+                        // ),
                         const SizedBox(height: 16),
                         Row(
                           children: [

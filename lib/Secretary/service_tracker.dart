@@ -70,8 +70,7 @@ class ServiceTrackerPage extends StatefulWidget {
     this.allowManage = true,
     this.allowJoin = false,
     this.title = 'Service Tracker',
-    this.subtitle =
-        'Monitor scheduled services and coordinate active death notices.',
+    this.subtitle = '',
   });
 
   @override
@@ -831,7 +830,7 @@ class _ServiceTrackerPageState extends State<ServiceTrackerPage> {
           const SizedBox(height: 12),
           TextField(
             decoration: InputDecoration(
-              hintText: 'Search by deceased name, barangay, or service',
+              hintText: 'Search...',
               prefixIcon: const Icon(Icons.search_rounded),
               filled: true,
               fillColor: const Color(0xFFF8FAFC),
@@ -1009,7 +1008,6 @@ class _ServiceTrackerPageState extends State<ServiceTrackerPage> {
           children: [
             SecretaryPageHeader(
               title: widget.title,
-              subtitle: widget.subtitle,
               icon: Icons.track_changes_rounded,
               usePaymentStyle: true,
             ),
@@ -1252,7 +1250,7 @@ class _ServiceTrackerPageState extends State<ServiceTrackerPage> {
                                                 Expanded(
                                                   child: Text(
                                                     widget.allowManage
-                                                        ? 'No services added yet. Tap "Add" to schedule a service for this Service Tracker.'
+                                                        ? 'No services added yet.'
                                                         : 'No services scheduled yet for this notice.',
                                                     style: const TextStyle(
                                                       fontSize: 13,

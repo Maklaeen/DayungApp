@@ -1208,7 +1208,6 @@ class _SecretaryDashboardPageState extends State<SecretaryDashboardPage> {
                   child: _modernActionCard(
                     icon: Icons.family_restroom_rounded,
                     title: 'Manage Beneficiaries',
-                    subtitle: 'View & manage',
                     color: const Color(0xFF3B82F6),
                     onTap: () {
                       if (_dayungUnitId == null) {
@@ -1238,7 +1237,6 @@ class _SecretaryDashboardPageState extends State<SecretaryDashboardPage> {
                   child: _modernActionCard(
                     icon: Icons.assignment_rounded,
                     title: 'Manage Applications',
-                    subtitle: 'Review requests',
                     color: const Color(0xFF10B981),
                     badgeCount: _unseenAppNotifs,
                     onTap: () async {
@@ -1267,7 +1265,6 @@ class _SecretaryDashboardPageState extends State<SecretaryDashboardPage> {
                   child: _modernActionCard(
                     icon: Icons.track_changes_rounded,
                     title: 'Service Tracking',
-                    subtitle: 'Monitor services',
                     color: const Color(0xFF8B5CF6),
                     onTap: () {
                       if (_dayungUnitId == null) {
@@ -1296,7 +1293,6 @@ class _SecretaryDashboardPageState extends State<SecretaryDashboardPage> {
                   child: _modernActionCard(
                     icon: Icons.payments_rounded,
                     title: 'My Payment Page',
-                    subtitle: 'Pay contributions',
                     color: const Color(0xFF2563EB),
                     onTap: () {
                       if (_dayungUnitId == null) {
@@ -1326,7 +1322,6 @@ class _SecretaryDashboardPageState extends State<SecretaryDashboardPage> {
                   child: _modernActionCard(
                     icon: Icons.bar_chart_rounded,
                     title: 'Collector Progress',
-                    subtitle: 'View collection status',
                     color: const Color(0xFF8B5CF6),
                     onTap: () {
                       if (_dayungUnitId == null) {
@@ -1381,7 +1376,6 @@ class _SecretaryDashboardPageState extends State<SecretaryDashboardPage> {
                   child: _modernActionCard(
                     icon: Icons.bar_chart_rounded,
                     title: 'Reports',
-                    subtitle: 'View analytics',
                     color: branding.kPrimary,
                     onTap: () {
                       if (_dayungUnitId == null) {
@@ -1411,7 +1405,6 @@ class _SecretaryDashboardPageState extends State<SecretaryDashboardPage> {
                   child: _modernActionCard(
                     icon: Icons.folder_copy_rounded,
                     title: 'Certificates',
-                    subtitle: 'Review queue',
                     color: const Color(0xFF10B981),
                     onTap: () {
                       Navigator.push(
@@ -1437,14 +1430,12 @@ class _SecretaryDashboardPageState extends State<SecretaryDashboardPage> {
   Widget _modernActionCard({
     required IconData icon,
     required String title,
-    required String subtitle,
     required Color color,
     VoidCallback? onTap,
     int badgeCount = 0,
   }) {
     final isCompact = MediaQuery.of(context).size.width < 360;
     final titleFontSize = isCompact ? 12.0 : 14.0;
-    final subtitleFontSize = isCompact ? 10.0 : 12.0;
     final contentGap = isCompact ? 6.0 : 8.0;
 
     return Material(
@@ -1491,20 +1482,6 @@ class _SecretaryDashboardPageState extends State<SecretaryDashboardPage> {
                           fontWeight: FontWeight.w700,
                           color: Theme.of(context).colorScheme.onSurface,
                           fontFamily: 'Montserrat',
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Flexible(
-                      child: Text(
-                        subtitle,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        softWrap: true,
-                        style: TextStyle(
-                          fontSize: subtitleFontSize,
-                          color: Theme.of(context).colorScheme.onSurfaceVariant,
-                          fontFamily: 'OpenSans',
                         ),
                       ),
                     ),

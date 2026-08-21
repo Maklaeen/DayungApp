@@ -42,7 +42,6 @@ class _SecretaryBeneficiariesTabState extends State<SecretaryBeneficiariesTab> {
     setState(() => _loading = true);
     final supabase = Supabase.instance.client;
     try {
-
       final apps = await supabase
           .from('applications')
           .select('user_id')
@@ -281,7 +280,7 @@ class _SecretaryBeneficiariesTabState extends State<SecretaryBeneficiariesTab> {
           const SizedBox(height: 12),
           TextField(
             decoration: InputDecoration(
-              hintText: 'Search member, beneficiary, relationship, or status',
+              hintText: 'Search...',
               prefixIcon: const Icon(Icons.search_rounded),
               filled: true,
               fillColor: kBg,
@@ -611,21 +610,27 @@ class _SecretaryBeneficiariesTabState extends State<SecretaryBeneficiariesTab> {
                                     ),
                                   ),
                                   onPressed: () async {
-                                    final userName = _users[item['user_id']] ?? 'this member';
+                                    final userName =
+                                        _users[item['user_id']] ??
+                                        'this member';
                                     final confirm = await showDialog<bool>(
                                       context: context,
                                       builder: (ctx) => AlertDialog(
-                                        title: const Text('Approve Beneficiary'),
+                                        title: const Text(
+                                          'Approve Beneficiary',
+                                        ),
                                         content: Text(
                                           "Do you want to approve this beneficiary for the member of '$userName'?",
                                         ),
                                         actions: [
                                           TextButton(
-                                            onPressed: () => Navigator.of(ctx).pop(false),
+                                            onPressed: () =>
+                                                Navigator.of(ctx).pop(false),
                                             child: const Text('Cancel'),
                                           ),
                                           FilledButton(
-                                            onPressed: () => Navigator.of(ctx).pop(true),
+                                            onPressed: () =>
+                                                Navigator.of(ctx).pop(true),
                                             child: const Text('Approve'),
                                           ),
                                         ],
@@ -801,8 +806,6 @@ class _SecretaryBeneficiariesTabState extends State<SecretaryBeneficiariesTab> {
           children: [
             const SecretaryPageHeader(
               title: 'Manage Beneficiaries',
-              subtitle:
-                  'Review, verify, and approve beneficiary records for your unit.',
               icon: Icons.family_restroom_rounded,
               usePaymentStyle: true,
             ),

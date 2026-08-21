@@ -1532,7 +1532,6 @@ class _CollectorDashboardPageState extends State<CollectorDashboardPage> {
                 child: _modernActionCardGrid(
                   icon: Icons.receipt_long_rounded,
                   title: 'View Receipts',
-                  subtitle: 'Open payment receipts',
                   color: kSuccess,
                   onTap: _showReceipts,
                 ),
@@ -1545,7 +1544,6 @@ class _CollectorDashboardPageState extends State<CollectorDashboardPage> {
                 child: _modernActionCardGrid(
                   icon: Icons.qr_code_rounded,
                   title: 'Collect Cash',
-                  subtitle: 'Record a new collection',
                   color: kPrimary,
                   onTap: () {
                     if (_dayungUnitId == null) return;
@@ -1571,7 +1569,6 @@ class _CollectorDashboardPageState extends State<CollectorDashboardPage> {
           child: _modernActionCardGrid(
             icon: Icons.people_rounded,
             title: 'Members',
-            subtitle: 'View member directory',
             color: kAccent,
             onTap: _showMembers,
           ),
@@ -1583,13 +1580,11 @@ class _CollectorDashboardPageState extends State<CollectorDashboardPage> {
   Widget _modernActionCardGrid({
     required IconData icon,
     required String title,
-    required String subtitle,
     required Color color,
     VoidCallback? onTap,
   }) {
     final isCompact = MediaQuery.of(context).size.width < 360;
     final titleFontSize = isCompact ? 12.0 : 14.0;
-    final subtitleFontSize = isCompact ? 10.0 : 12.0;
     final contentGap = isCompact ? 6.0 : 8.0;
 
     return Material(
@@ -1634,20 +1629,6 @@ class _CollectorDashboardPageState extends State<CollectorDashboardPage> {
                       fontWeight: FontWeight.w700,
                       color: Theme.of(context).colorScheme.onSurface,
                       fontFamily: 'Montserrat',
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Flexible(
-                  child: Text(
-                    subtitle,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    softWrap: true,
-                    style: TextStyle(
-                      fontSize: subtitleFontSize,
-                      color: Theme.of(context).colorScheme.onSurfaceVariant,
-                      fontFamily: 'OpenSans',
                     ),
                   ),
                 ),

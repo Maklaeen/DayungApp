@@ -326,15 +326,6 @@ class _PresSecDashboardOverviewState extends State<PresSecDashboardOverview> {
 
         // ── ROW 3: Incomplete collections ──
         _sectionTitle('Ongoing Collections'),
-        const SizedBox(height: 4),
-        const Text(
-          'Shows only collections that are still incomplete on the dashboard.',
-          style: TextStyle(
-            fontSize: 12,
-            color: _kSubText,
-            fontFamily: 'OpenSans',
-          ),
-        ),
         const SizedBox(height: 12),
         _incompleteCollectionsList(),
         const SizedBox(height: 100),
@@ -568,15 +559,6 @@ class _PresSecDashboardOverviewState extends State<PresSecDashboardOverview> {
                       fontFamily: 'Montserrat',
                     ),
                   ),
-                  const SizedBox(height: 2),
-                  const Text(
-                    'Total collected from all death notices',
-                    style: TextStyle(
-                      fontSize: 11,
-                      color: Colors.white60,
-                      fontFamily: 'OpenSans',
-                    ),
-                  ),
                 ],
               ),
             ),
@@ -615,14 +597,6 @@ class _PresSecDashboardOverviewState extends State<PresSecDashboardOverview> {
                     ),
                   ),
                   const SizedBox(height: 2),
-                  const Text(
-                    'Total collected from membership payments',
-                    style: TextStyle(
-                      fontSize: 11,
-                      color: Colors.white60,
-                      fontFamily: 'OpenSans',
-                    ),
-                  ),
                 ],
               ),
             ),

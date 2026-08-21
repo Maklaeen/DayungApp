@@ -776,7 +776,6 @@ class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
         _buildModernActionCard(
           icon: Icons.account_balance_wallet_rounded,
           title: 'Ledger Balance',
-          subtitle: 'Confirm remitted funds before posting to the ledger',
           color: const Color(0xFF3B82F6),
           onTap: () {
             if (_dayungUnitId == null) {
@@ -797,7 +796,6 @@ class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
         _buildModernActionCard(
           icon: Icons.account_balance_wallet_rounded,
           title: 'Manage Fund',
-          subtitle: 'View and manage fund details',
           color: const Color(0xFF3B82F6),
           onTap: () {
             if (_dayungUnitId == null) {
@@ -818,7 +816,6 @@ class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
         _buildModernActionCard(
           icon: Icons.history_rounded,
           title: 'Payment Release History',
-          subtitle: 'View claimed payments and release dates',
           color: const Color(0xFF0D9488),
           onTap: () {
             if (_dayungUnitId == null) {
@@ -840,7 +837,6 @@ class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
         _buildModernActionCard(
           icon: Icons.payments_rounded,
           title: 'My Payment Page',
-          subtitle: 'Pay your own contribution records',
           color: const Color(0xFF2563EB),
           onTap: () {
             if (_dayungUnitId == null) {
@@ -862,7 +858,6 @@ class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
         _buildModernActionCard(
           icon: Icons.verified_user_rounded,
           title: 'Paid & Unpaid Members',
-          subtitle: 'View paid and unpaid member records in one place',
           color: const Color(0xFF10B981),
           onTap: () {
             if (_dayungUnitId == null) {
@@ -884,7 +879,6 @@ class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
         _buildModernActionCard(
           icon: Icons.qr_code_2_rounded,
           title: 'Open GCash QR',
-          subtitle: 'Show payment QR',
           color: const Color(0xFFF59E0B),
           onTap: () {
             if (_dayungUnitId == null) {
@@ -905,7 +899,6 @@ class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
         _buildModernActionCard(
           icon: Icons.group_add_rounded,
           title: 'Assign Collectors',
-          subtitle: 'Assign collectors to members',
           color: const Color(0xFF8B5CF6),
           onTap: () {
             if (_dayungUnitId == null) {
@@ -927,7 +920,6 @@ class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
         _buildModernActionCard(
           icon: Icons.people_alt_rounded,
           title: 'Membership',
-          subtitle: 'View and manage membership',
           color: const Color(0xFF8B5CF6),
           onTap: () {
             if (_dayungUnitId == null) {
@@ -951,7 +943,6 @@ class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
   Widget _buildModernActionCard({
     required IconData icon,
     required String title,
-    required String subtitle,
     required Color color,
     required VoidCallback onTap,
   }) {
@@ -993,16 +984,7 @@ class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
                           color: Color(0xFF1F2937),
                         ),
                       ),
-                      const SizedBox(height: 2),
-                      Text(
-                        subtitle,
-                        style: const TextStyle(
-                          fontSize: 12,
-                          color: Color(0xFF6B7280),
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                    ],
+                      ],
                   ),
                 ),
                 Icon(

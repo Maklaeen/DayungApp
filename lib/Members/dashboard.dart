@@ -1198,7 +1198,6 @@ class _MemberDashboardPageState extends State<MemberDashboardPage>
         _modernActionCard(
           icon: Icons.receipt_long_rounded,
           title: 'View Receipts',
-          subtitle: 'See your payment receipts',
           color: const Color(0xFF10B981),
           onTap: () {
             Navigator.push(
@@ -1211,7 +1210,6 @@ class _MemberDashboardPageState extends State<MemberDashboardPage>
         _modernActionCard(
           icon: Icons.qr_code_rounded,
           title: 'Pay via GCash',
-          subtitle: 'Quick GCash payment',
           color: const Color(0xFF3B82F6),
           onTap: () {
             final user = Supabase.instance.client.auth.currentUser;
@@ -1240,13 +1238,11 @@ class _MemberDashboardPageState extends State<MemberDashboardPage>
   Widget _modernActionCard({
     required IconData icon,
     required String title,
-    required String subtitle,
     required Color color,
     required VoidCallback onTap,
   }) {
     final isCompact = MediaQuery.of(context).size.width < 360;
     final titleFontSize = isCompact ? 14.0 : 16.0;
-    final subtitleFontSize = isCompact ? 11.0 : 12.0;
 
     return Container(
       width: double.infinity,
@@ -1287,18 +1283,6 @@ class _MemberDashboardPageState extends State<MemberDashboardPage>
                           fontSize: titleFontSize,
                           fontWeight: FontWeight.w700,
                           color: dayungTextColor(context),
-                        ),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        subtitle,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        softWrap: true,
-                        style: TextStyle(
-                          fontSize: subtitleFontSize,
-                          color: dayungSubtextColor(context),
-                          fontWeight: FontWeight.w500,
                         ),
                       ),
                     ],
@@ -1641,7 +1625,6 @@ class _MemberDashboardPageState extends State<MemberDashboardPage>
         _modernActionCard(
           icon: Icons.receipt_long_rounded,
           title: 'Receipts',
-          subtitle: 'Open your payment history and official receipts',
           color: const Color(0xFF10B981),
           onTap: () {
             Navigator.push(
@@ -1654,7 +1637,6 @@ class _MemberDashboardPageState extends State<MemberDashboardPage>
         _modernActionCard(
           icon: Icons.qr_code_rounded,
           title: 'GCash Payment',
-          subtitle: 'Continue payment using the unit QR page',
           color: const Color(0xFF3B82F6),
           onTap: () {
             Navigator.push(
@@ -1669,7 +1651,6 @@ class _MemberDashboardPageState extends State<MemberDashboardPage>
         _modernActionCard(
           icon: Icons.family_restroom_rounded,
           title: 'Recent Death Notices',
-          subtitle: 'Check the latest notices that affect contributions',
           color: const Color(0xFFF59E0B),
           onTap: () {
             if (id == null) return;

@@ -185,14 +185,14 @@ class _CollectorProgressPageState extends State<CollectorProgressPage> {
                       ),
                     ),
                     const SizedBox(height: 16),
-                    const Text(
-                      'Shows how many members have paid for each deceased member.',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: _kSubText,
-                        fontFamily: 'OpenSans',
-                      ),
-                    ),
+                    // const Text(
+                    //   'Shows how many members have paid for each deceased member.',
+                    //   style: TextStyle(
+                    //     fontSize: 12,
+                    //     color: _kSubText,
+                    //     fontFamily: 'OpenSans',
+                    //   ),
+                    // ),
                     const SizedBox(height: 12),
                     if (_items.isEmpty)
                       Expanded(

@@ -842,44 +842,44 @@ class _DayungSettingsPageState extends State<DayungSettingsPage> {
                         ),
                       ],
                     ),
-                    const SizedBox(height: 18),
-                    Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 14,
-                        vertical: 12,
-                      ),
-                      decoration: BoxDecoration(
-                        color: Colors.white.withValues(alpha: 0.14),
-                        borderRadius: BorderRadius.circular(16),
-                        border: Border.all(
-                          color: Colors.white.withValues(alpha: 0.12),
-                        ),
-                      ),
-                      child: Row(
-                        children: [
-                          const Icon(
-                            Icons.info_outline_rounded,
-                            color: Colors.white,
-                            size: 20,
-                          ),
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: Text(
-                              hasCurrentDayung
-                                  ? 'Your current Dayung is active below. Use Change Dayung if you want to switch units.'
-                                  : 'No Dayung is assigned yet. Start by tapping Change Dayung or Apply a Dayung.',
-                              style: TextStyle(
-                                color: Colors.white.withValues(alpha: 0.94),
-                                fontSize: 12,
-                                height: 1.4,
-                                fontFamily: 'OpenSans',
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
+                    // const SizedBox(height: 18),
+                    // Container(
+                    //   width: double.infinity,
+                    //   padding: const EdgeInsets.symmetric(
+                    //     horizontal: 14,
+                    //     vertical: 12,
+                    //   ),
+                    //   decoration: BoxDecoration(
+                    //     color: Colors.white.withValues(alpha: 0.14),
+                    //     borderRadius: BorderRadius.circular(16),
+                    //     border: Border.all(
+                    //       color: Colors.white.withValues(alpha: 0.12),
+                    //     ),
+                    //   ),
+                    //   child: Row(
+                    //     children: [
+                    //       const Icon(
+                    //         Icons.info_outline_rounded,
+                    //         color: Colors.white,
+                    //         size: 20,
+                    //       ),
+                    //       const SizedBox(width: 10),
+                    //       Expanded(
+                    //         child: Text(
+                    //           hasCurrentDayung
+                    //               ? 'Your current Dayung is active below. Use Change Dayung if you want to switch units.'
+                    //               : 'No Dayung is assigned yet. Start by tapping Change Dayung or Apply a Dayung.',
+                    //           style: TextStyle(
+                    //             color: Colors.white.withValues(alpha: 0.94),
+                    //             fontSize: 12,
+                    //             height: 1.4,
+                    //             fontFamily: 'OpenSans',
+                    //           ),
+                    //         ),
+                    //       ),
+                    //     ],
+                    //   ),
+                    // ),
                   ],
                 ),
               ),

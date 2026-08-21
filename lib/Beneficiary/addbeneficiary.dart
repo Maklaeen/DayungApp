@@ -276,78 +276,24 @@ class _AddBeneficiaryPageState extends State<AddBeneficiaryPage> {
     );
   }
 
-  Widget _buildSectionHeader({
-    required IconData icon,
-    required String title,
-    required String description,
-  }) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final isCompact = constraints.maxWidth < 320;
-
-        return isCompact
-            ? Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _sectionIcon(icon),
-                  const SizedBox(height: 12),
-                  Text(
-                    title,
-                    style: const TextStyle(
-                      fontSize: 17,
-                      fontWeight: FontWeight.w800,
-                      color: kText,
-                      fontFamily: 'Montserrat',
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    description,
-                    style: const TextStyle(
-                      fontSize: 13,
-                      color: kSubText,
-                      fontFamily: 'OpenSans',
-                      fontWeight: FontWeight.w600,
-                      height: 1.4,
-                    ),
-                  ),
-                ],
-              )
-            : Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _sectionIcon(icon),
-                  const SizedBox(width: 14),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          title,
-                          style: const TextStyle(
-                            fontSize: 17,
-                            fontWeight: FontWeight.w800,
-                            color: kText,
-                            fontFamily: 'Montserrat',
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          description,
-                          style: const TextStyle(
-                            fontSize: 13,
-                            color: kSubText,
-                            fontFamily: 'OpenSans',
-                            fontWeight: FontWeight.w600,
-                            height: 1.4,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              );
-      },
+  Widget _buildSectionHeader({required IconData icon, required String title}) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _sectionIcon(icon),
+        const SizedBox(width: 14),
+        Expanded(
+          child: Text(
+            title,
+            style: const TextStyle(
+              fontSize: 17,
+              fontWeight: FontWeight.w800,
+              color: kText,
+              fontFamily: 'Montserrat',
+            ),
+          ),
+        ),
+      ],
     );
   }
 
@@ -800,8 +746,6 @@ class _AddBeneficiaryPageState extends State<AddBeneficiaryPage> {
                               _buildSectionHeader(
                                 icon: Icons.person_add_alt_1_rounded,
                                 title: 'Create a beneficiary record',
-                                description:
-                                    'Complete the form and attach the required documents before submitting.',
                               ),
                               const SizedBox(height: 12),
                               Wrap(
@@ -855,8 +799,6 @@ class _AddBeneficiaryPageState extends State<AddBeneficiaryPage> {
                                 _buildSectionHeader(
                                   icon: Icons.badge_outlined,
                                   title: 'Basic Details',
-                                  description:
-                                      'Enter the beneficiary information exactly as it appears on official documents.',
                                 ),
                                 const SizedBox(height: 18),
                                 TextFormField(
@@ -940,8 +882,6 @@ class _AddBeneficiaryPageState extends State<AddBeneficiaryPage> {
                                 _buildSectionHeader(
                                   icon: Icons.file_copy_rounded,
                                   title: 'Supporting Documents',
-                                  description:
-                                      'Upload the required proof files. Valid ID is mandatory before submission.',
                                 ),
                                 const SizedBox(height: 18),
                                 _fileUploadSection(
@@ -1195,7 +1135,7 @@ class _AddBeneficiaryPageState extends State<AddBeneficiaryPage> {
         const SizedBox(height: 4),
         Text(
           fileUrl == null
-              ? 'Accepted: JPG, PNG, PDF'
+              ? 'JPG, PNG, PDF'
               : 'Document uploaded and ready for review.',
           style: const TextStyle(
             color: kSubText,

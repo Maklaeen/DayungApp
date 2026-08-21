@@ -475,16 +475,16 @@ class _ProfSettingsPageState extends State<ProfSettingsPage> {
                                   fontFamily: 'Montserrat',
                                 ),
                               ),
-                              const SizedBox(height: 4),
-                              Text(
-                                'Manage certificates and update your Dayung access from one clean dashboard.',
-                                style: TextStyle(
-                                  color: Colors.white.withValues(alpha: 0.9),
-                                  fontSize: isWide ? 14 : 12,
-                                  height: 1.4,
-                                  fontFamily: 'OpenSans',
-                                ),
-                              ),
+                              // const SizedBox(height: 4),
+                              // Text(
+                              //   'Manage certificates and update your Dayung access from one clean dashboard.',
+                              //   style: TextStyle(
+                              //     color: Colors.white.withValues(alpha: 0.9),
+                              //     fontSize: isWide ? 14 : 12,
+                              //     height: 1.4,
+                              //     fontFamily: 'OpenSans',
+                              //   ),
+                              // ),
                             ],
                           ),
                         ),
@@ -554,11 +554,11 @@ class _ProfSettingsPageState extends State<ProfSettingsPage> {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text('Certificates', style: titleStyle),
-                              const SizedBox(height: 4),
-                              Text(
-                                'Upload and review the documents needed for your membership profile.',
-                                style: bodyStyle,
-                              ),
+                              // const SizedBox(height: 4),
+                              // Text(
+                              //   'Upload and review the documents needed for your membership profile.',
+                              //   style: bodyStyle,
+                              // ),
                             ],
                           ),
                         ),
@@ -603,7 +603,9 @@ class _ProfSettingsPageState extends State<ProfSettingsPage> {
                   ],
                 ),
               ),
+
               const SizedBox(height: 18),
+              
               _buildSectionCard(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -628,38 +630,38 @@ class _ProfSettingsPageState extends State<ProfSettingsPage> {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text('Manage Dayung', style: titleStyle),
-                              const SizedBox(height: 4),
-                              Text(
-                                'Open your Dayung page to review your current unit, switch, or apply to another one.',
-                                style: bodyStyle,
-                              ),
+                              // const SizedBox(height: 4),
+                              // Text(
+                              //   'Open your Dayung page to review your current unit, switch, or apply to another one.',
+                              //   style: bodyStyle,
+                              // ),
                             ],
                           ),
                         ),
                       ],
                     ),
-                    const SizedBox(height: 16),
-                    Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.all(14),
-                      decoration: BoxDecoration(
-                        color: _softColor,
-                        borderRadius: BorderRadius.circular(16),
-                        border: Border.all(color: _borderColor),
-                      ),
-                      child: Row(
-                        children: [
-                          Icon(Icons.swap_horiz_rounded, color: _primaryColor),
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: Text(
-                              'This section includes Change Dayung, recommendations, and map access.',
-                              style: bodyStyle.copyWith(color: _textColor),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
+                    // const SizedBox(height: 16),
+                    // Container(
+                    //   width: double.infinity,
+                    //   padding: const EdgeInsets.all(14),
+                    //   decoration: BoxDecoration(
+                    //     color: _softColor,
+                    //     borderRadius: BorderRadius.circular(16),
+                    //     border: Border.all(color: _borderColor),
+                    //   ),
+                    //   child: Row(
+                    //     children: [
+                    //       Icon(Icons.swap_horiz_rounded, color: _primaryColor),
+                    //       const SizedBox(width: 10),
+                    //       Expanded(
+                    //         child: Text(
+                    //           'This section includes Change Dayung, recommendations, and map access.',
+                    //           style: bodyStyle.copyWith(color: _textColor),
+                    //         ),
+                    //       ),
+                    //     ],
+                    //   ),
+                    // ),
                     const SizedBox(height: 16),
                     SizedBox(
                       width: double.infinity,

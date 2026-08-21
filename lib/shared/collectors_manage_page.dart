@@ -89,8 +89,7 @@ class _CollectorsManagePageState extends State<CollectorsManagePage> {
         final userRows = List<Map<String, dynamic>>.from(users);
 
         final usersById = {
-          for (final user in userRows)
-            ((user['id'] ?? '').toString()): user,
+          for (final user in userRows) ((user['id'] ?? '').toString()): user,
         };
 
         if (_secretaryId.isNotEmpty && usersById.containsKey(_secretaryId)) {
@@ -281,10 +280,10 @@ class _CollectorsManagePageState extends State<CollectorsManagePage> {
   Future<void> _assignUnitRole(String role, String? userId) async {
     try {
       final column = role == 'secretary' ? 'secretary_id' : 'treasurer_id';
-      await _sb.from('dayung_units').update({column: userId}).eq(
-            'id',
-            widget.dayungUnitId,
-          );
+      await _sb
+          .from('dayung_units')
+          .update({column: userId})
+          .eq('id', widget.dayungUnitId);
 
       if (role == 'secretary') {
         _secretaryId = userId ?? '';
@@ -295,9 +294,11 @@ class _CollectorsManagePageState extends State<CollectorsManagePage> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(userId == null
-                ? '${role[0].toUpperCase()}${role.substring(1)} unassigned.'
-                : '${role[0].toUpperCase()}${role.substring(1)} updated.'),
+            content: Text(
+              userId == null
+                  ? '${role[0].toUpperCase()}${role.substring(1)} unassigned.'
+                  : '${role[0].toUpperCase()}${role.substring(1)} updated.',
+            ),
           ),
         );
         _load();
@@ -305,7 +306,9 @@ class _CollectorsManagePageState extends State<CollectorsManagePage> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to update ${role.replaceAll('_', ' ')}: $e')),
+          SnackBar(
+            content: Text('Failed to update ${role.replaceAll('_', ' ')}: $e'),
+          ),
         );
       }
     }
@@ -384,7 +387,9 @@ class _CollectorsManagePageState extends State<CollectorsManagePage> {
                         if (index == 0) {
                           return ListTile(
                             title: Text('Unassign $roleLabel'),
-                            subtitle: Text('Remove the current $roleLabel assignment.'),
+                            subtitle: Text(
+                              'Remove the current $roleLabel assignment.',
+                            ),
                             leading: const Icon(Icons.clear, color: _kDanger),
                             selected: currentId.isEmpty,
                             onTap: () {
@@ -405,7 +410,9 @@ class _CollectorsManagePageState extends State<CollectorsManagePage> {
                             backgroundColor: _kPrimary.withValues(alpha: 0.1),
                             child: profileUrl.isEmpty
                                 ? Text(
-                                    name.isNotEmpty ? name[0].toUpperCase() : 'M',
+                                    name.isNotEmpty
+                                        ? name[0].toUpperCase()
+                                        : 'M',
                                     style: const TextStyle(
                                       color: _kPrimary,
                                       fontWeight: FontWeight.bold,
@@ -452,8 +459,9 @@ class _CollectorsManagePageState extends State<CollectorsManagePage> {
         children: [
           CircleAvatar(
             radius: 20,
-            backgroundImage:
-                profileUrl.isNotEmpty ? NetworkImage(profileUrl) : null,
+            backgroundImage: profileUrl.isNotEmpty
+                ? NetworkImage(profileUrl)
+                : null,
             backgroundColor: _kPrimary.withValues(alpha: 0.1),
             child: profileUrl.isEmpty
                 ? Text(
@@ -713,7 +721,7 @@ class _CollectorsManagePageState extends State<CollectorsManagePage> {
                   const SizedBox(width: 12),
                   const Expanded(
                     child: Text(
-                      'Manage Unit Roles',
+                      'Manage Collectors',
                       style: TextStyle(
                         fontSize: 20,
                         fontWeight: FontWeight.w800,
@@ -722,25 +730,25 @@ class _CollectorsManagePageState extends State<CollectorsManagePage> {
                       ),
                     ),
                   ),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 10,
-                      vertical: 6,
-                    ),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.2),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Text(
-                      '${_collectors.length}',
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.w800,
-                        fontSize: 14,
-                        fontFamily: 'Montserrat',
-                      ),
-                    ),
-                  ),
+                  // Container(
+                  //   padding: const EdgeInsets.symmetric(
+                  //     horizontal: 10,
+                  //     vertical: 6,
+                  //   ),
+                  //   decoration: BoxDecoration(
+                  //     color: Colors.white.withValues(alpha: 0.2),
+                  //     borderRadius: BorderRadius.circular(12),
+                  //   ),
+                  //   child: Text(
+                  //     '${_collectors.length}',
+                  //     style: const TextStyle(
+                  //       color: Colors.white,
+                  //       fontWeight: FontWeight.w800,
+                  //       fontSize: 14,
+                  //       fontFamily: 'Montserrat',
+                  //     ),
+                  //   ),
+                  // ),
                 ],
               ),
             ),
@@ -875,15 +883,15 @@ class _CollectorsManagePageState extends State<CollectorsManagePage> {
                                     ),
                                   ],
                                 ),
-                                const SizedBox(height: 4),
-                                const Text(
-                                  'Showing active members with paid membership payments. Tap a member to assign or change their collector or officer roles.',
-                                  style: TextStyle(
-                                    fontSize: 12,
-                                    color: _kSubText,
-                                    fontFamily: 'OpenSans',
-                                  ),
-                                ),
+                                // const SizedBox(height: 4),
+                                // const Text(
+                                //   'Showing active members with paid membership payments. Tap a member to assign or change their collector or officer roles.',
+                                //   style: TextStyle(
+                                //     fontSize: 12,
+                                //     color: _kSubText,
+                                //     fontFamily: 'OpenSans',
+                                //   ),
+                                // ),
                                 const SizedBox(height: 16),
                                 _roleTile(
                                   'Secretary',
@@ -1052,7 +1060,6 @@ class _CollectorsManagePageState extends State<CollectorsManagePage> {
             fontFamily: 'OpenSans',
           ),
         ),
-
       ),
     );
   }

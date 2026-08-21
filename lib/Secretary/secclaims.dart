@@ -545,8 +545,7 @@ class _SecretaryClaimsPageState extends State<SecretaryClaimsPage>
   Widget build(BuildContext context) {
     final currentStatus = _tabs[_tabController.index];
     final claims = _filteredClaims;
-    final dayungName =
-        context.watch<DayungUnitProvider>().dayungUnit ?? 'Dayung';
+    // final dayungName = context.watch<DayungUnitProvider>().dayungUnit ?? 'Dayung';
 
     return Scaffold(
       backgroundColor: dayungPageBackground(context),
@@ -615,43 +614,43 @@ class _SecretaryClaimsPageState extends State<SecretaryClaimsPage>
                 ),
               ),
               // Current Dayung banner (read-only, from provider)
-              Padding(
-                padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
-                child: Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 14,
-                    vertical: 12,
-                  ),
-                  decoration: BoxDecoration(
-                    color: Colors.grey.shade100,
-                    borderRadius: BorderRadius.circular(14),
-                    border: Border.all(color: Colors.grey.shade200),
-                  ),
-                  child: Row(
-                    children: [
-                      const Icon(
-                        Icons.home_work_outlined,
-                        size: 16,
-                        color: kSubtleText,
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          dayungName,
-                          style: const TextStyle(
-                            fontSize: 13,
-                            fontFamily: 'OpenSans',
-                            fontWeight: FontWeight.w600,
-                            color: kSubtleText,
-                          ),
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
+              // Padding(
+              //   padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
+              //   child: Container(
+              //     width: double.infinity,
+              //     padding: const EdgeInsets.symmetric(
+              //       horizontal: 14,
+              //       vertical: 12,
+              //     ),
+              //     decoration: BoxDecoration(
+              //       color: Colors.grey.shade100,
+              //       borderRadius: BorderRadius.circular(14),
+              //       border: Border.all(color: Colors.grey.shade200),
+              //     ),
+              //     child: Row(
+              //       children: [
+              //         const Icon(
+              //           Icons.home_work_outlined,
+              //           size: 16,
+              //           color: kSubtleText,
+              //         ),
+              //         const SizedBox(width: 8),
+              //         Expanded(
+              //           child: Text(
+              //             dayungName,
+              //             style: const TextStyle(
+              //               fontSize: 13,
+              //               fontFamily: 'OpenSans',
+              //               fontWeight: FontWeight.w600,
+              //               color: kSubtleText,
+              //             ),
+              //             overflow: TextOverflow.ellipsis,
+              //           ),
+              //         ),
+              //       ],
+              //     ),
+              //   ),
+              // ),
               // List content
               Expanded(
                 child: _loading

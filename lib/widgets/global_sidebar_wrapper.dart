@@ -569,35 +569,39 @@ class DashboardSidebar extends StatelessWidget {
               ),
             ),
           ),
-          Container(
-            margin: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: dayungSurface(context),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: dayungBorder(context)),
-            ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(
-                  Icons.info_outline_rounded,
-                  size: 14,
-                  color: Theme.of(context).colorScheme.onSurfaceVariant.withValues(alpha: 0.7),
-                ),
-                const SizedBox(width: 6),
-                Text(
-                  'Version 1.5.0',
-                  style: TextStyle(
-                    color: Theme.of(context).colorScheme.onSurfaceVariant.withValues(alpha: 0.7),
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                    fontFamily: 'OpenSans',
-                  ),
-                ),
-              ],
-            ),
-          ),
+          // Container(
+          //   margin: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+          //   padding: const EdgeInsets.all(12),
+          //   decoration: BoxDecoration(
+          //     color: dayungSurface(context),
+          //     borderRadius: BorderRadius.circular(12),
+          //     border: Border.all(color: dayungBorder(context)),
+          //   ),
+          //   child: Row(
+          //     mainAxisAlignment: MainAxisAlignment.center,
+          //     children: [
+          //       Icon(
+          //         Icons.info_outline_rounded,
+          //         size: 14,
+          //         color: Theme.of(
+          //           context,
+          //         ).colorScheme.onSurfaceVariant.withValues(alpha: 0.7),
+          //       ),
+          //       const SizedBox(width: 6),
+          //       Text(
+          //         'Version 1.5.0',
+          //         style: TextStyle(
+          //           color: Theme.of(
+          //             context,
+          //           ).colorScheme.onSurfaceVariant.withValues(alpha: 0.7),
+          //           fontSize: 12,
+          //           fontWeight: FontWeight.w600,
+          //           fontFamily: 'OpenSans',
+          //         ),
+          //       ),
+          //     ],
+          //   ),
+          // ),
         ],
       ),
     );
@@ -671,7 +675,9 @@ class _SidebarButton extends StatelessWidget {
                   style: TextStyle(
                     fontSize: 14,
                     fontWeight: selected ? FontWeight.w700 : FontWeight.w600,
-                    color: selected ? color : Theme.of(context).colorScheme.onSurface,
+                    color: selected
+                        ? color
+                        : Theme.of(context).colorScheme.onSurface,
                     fontFamily: 'Montserrat',
                   ),
                 ),

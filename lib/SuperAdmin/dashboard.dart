@@ -73,8 +73,7 @@ class SuperAdminDashboardPage extends StatelessWidget {
                 const SizedBox(height: 18),
                 const _SectionHeader(
                   title: 'Quick Actions',
-                  subtitle:
-                      'Everything important is grouped into larger cards with a quieter, more consistent visual style.',
+                  subtitle: '',
                 ),
                 const SizedBox(height: 14),
                 LayoutBuilder(

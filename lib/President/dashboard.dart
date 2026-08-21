@@ -988,7 +988,6 @@ class _PresidentDashboardPageState extends State<PresidentDashboardPage> {
                   child: _modernActionCard(
                     icon: Icons.campaign_rounded,
                     title: 'Post Announcement',
-                    subtitle: 'Notify members',
                     color: const Color(0xFF3B82F6),
                     onTap: () => Navigator.push(
                       context,
@@ -1006,7 +1005,6 @@ class _PresidentDashboardPageState extends State<PresidentDashboardPage> {
                   child: _modernActionCard(
                     icon: Icons.payments_rounded,
                     title: 'Pay Contribution',
-                    subtitle: 'Pay your dues',
                     color: const Color(0xFF10B981),
                     onTap: () async {
                       final ids = await _managedDayungIds();
@@ -1029,7 +1027,6 @@ class _PresidentDashboardPageState extends State<PresidentDashboardPage> {
                   child: _modernActionCard(
                     icon: Icons.rule_rounded,
                     title: 'Manage User Preferences',
-                    subtitle: 'User-specific choices/configuration',
                     color: const Color(0xFF6366F1),
                     onTap: () {
                       Navigator.push(
@@ -1050,7 +1047,6 @@ class _PresidentDashboardPageState extends State<PresidentDashboardPage> {
             child: _modernActionCard(
               icon: Icons.bar_chart_rounded,
               title: 'Collector Progress',
-              subtitle: 'View collection status',
               color: const Color(0xFF8B5CF6),
               onTap: () {
                 final unitId = _effectiveUnitId(context);
@@ -1088,7 +1084,6 @@ class _PresidentDashboardPageState extends State<PresidentDashboardPage> {
                   child: _modernActionCard(
                     icon: Icons.bar_chart_rounded,
                     title: 'Contributions',
-                    subtitle: 'View records',
                     color: kPrimary,
                     onTap: () => setState(() => _currentIndex = 1),
                   ),
@@ -1101,7 +1096,6 @@ class _PresidentDashboardPageState extends State<PresidentDashboardPage> {
                   child: _modernActionCard(
                     icon: Icons.assignment_rounded,
                     title: 'Claims',
-                    subtitle: 'View claims',
                     color: const Color(0xFFEF4444),
                     onTap: () => setState(() => _currentIndex = 2),
                   ),
@@ -1114,7 +1108,6 @@ class _PresidentDashboardPageState extends State<PresidentDashboardPage> {
                   child: _modernActionCard(
                     icon: Icons.description_rounded,
                     title: 'Required Application',
-                    subtitle: 'policies, regulations and guidelines',
                     color: const Color(0xFF6366F1),
                     onTap: () {
                       Navigator.push(
@@ -1144,14 +1137,12 @@ class _PresidentDashboardPageState extends State<PresidentDashboardPage> {
   Widget _modernActionCard({
     required IconData icon,
     required String title,
-    required String subtitle,
     required Color color,
     VoidCallback? onTap,
     int badgeCount = 0,
   }) {
     final isCompact = MediaQuery.of(context).size.width < 360;
     final titleFontSize = isCompact ? 12.0 : 14.0;
-    final subtitleFontSize = isCompact ? 10.0 : 12.0;
     final contentGap = isCompact ? 6.0 : 8.0;
 
     return Material(
@@ -1198,20 +1189,6 @@ class _PresidentDashboardPageState extends State<PresidentDashboardPage> {
                           fontWeight: FontWeight.w700,
                           color: Theme.of(context).colorScheme.onSurface,
                           fontFamily: 'Montserrat',
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Flexible(
-                      child: Text(
-                        subtitle,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        softWrap: true,
-                        style: TextStyle(
-                          fontSize: subtitleFontSize,
-                          color: Theme.of(context).colorScheme.onSurfaceVariant,
-                          fontFamily: 'OpenSans',
                         ),
                       ),
                     ),
@@ -1453,18 +1430,18 @@ class _ContributionBarChartCardState extends State<_ContributionBarChartCard> {
                 ),
               ],
             ),
-            const SizedBox(height: 8),
-            Text(
-              hasUnits
-                  ? 'Paid contributions across your managed Dayung members and officers.'
-                  : 'No managed Dayung units available yet.',
-              style: const TextStyle(
-                fontFamily: 'OpenSans',
-                fontSize: 13,
-                color: kSubText,
-                height: 1.4,
-              ),
-            ),
+            // const SizedBox(height: 8),
+            // Text(
+            //   hasUnits
+            //       ? 'Paid contributions across your managed Dayung members and officers.'
+            //       : 'No managed Dayung units available yet.',
+            //   style: const TextStyle(
+            //     fontFamily: 'OpenSans',
+            //     fontSize: 13,
+            //     color: kSubText,
+            //     height: 1.4,
+            //   ),
+            // ),
             const SizedBox(height: 16),
             Container(
               width: double.infinity,

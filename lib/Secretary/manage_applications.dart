@@ -329,7 +329,7 @@ class _SecretaryApplicationsPageState extends State<SecretaryApplicationsPage> {
           const SizedBox(height: 14),
           TextField(
             decoration: InputDecoration(
-              hintText: 'Search member, email, or application date',
+              hintText: 'Search...',
               prefixIcon: const Icon(Icons.search_rounded),
               filled: true,
               fillColor: const Color(0xFFF8FAFC),
@@ -1537,8 +1537,6 @@ class _SecretaryApplicationsPageState extends State<SecretaryApplicationsPage> {
               children: [
                 SecretaryPageHeader(
                   title: 'Manage Applications',
-                  subtitle:
-                      'Review member applications and keep approvals moving for your unit.',
                   icon: Icons.assignment_rounded,
                   usePaymentStyle: true,
                   padding: EdgeInsets.fromLTRB(

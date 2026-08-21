@@ -1075,19 +1075,7 @@ class _NotificationPageState extends State<NotificationPage> {
                               fontFamily: 'Montserrat',
                             ),
                           ),
-                          const SizedBox(height: 4),
-                          Text(
-                            _currentUnitId == null
-                                ? 'Showing your account notifications.'
-                                : 'Showing your account notifications and the current unit updates.',
-                            style: TextStyle(
-                              fontSize: isWide ? 14 : 13,
-                              color: kSubText,
-                              fontFamily: 'OpenSans',
-                              fontWeight: FontWeight.w600,
-                              height: 1.4,
-                            ),
-                          ),
+
                           const SizedBox(height: 12),
                           Wrap(
                             spacing: 8,
