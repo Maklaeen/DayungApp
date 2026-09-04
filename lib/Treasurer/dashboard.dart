@@ -14,6 +14,8 @@ import 'package:capstone_app/Collector/gcash_qr_page.dart';
 import 'package:capstone_app/pages/notification.dart';
 import 'package:capstone_app/pages/recentdeathnotices.dart';
 import 'package:capstone_app/Treasurer/assign_collectors_page.dart';
+import 'package:capstone_app/Treasurer/treasurer_collector_view.dart';
+import 'package:capstone_app/Treasurer/treasurer_overall_reports.dart';
 import 'package:capstone_app/shared/active_members_page.dart';
 import 'package:capstone_app/shared/names_only_members_page.dart';
 import 'package:capstone_app/utils/theme_surface.dart';
@@ -159,7 +161,7 @@ class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
     try {
       if (jsonFull != null) parsed = jsonDecode(jsonFull);
     } catch (_) {}
-      if (parsed == null &&
+    if (parsed == null &&
         label.trim().startsWith('{') &&
         label.contains('"name"')) {
       try {
@@ -270,7 +272,7 @@ class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
         _activeMembers = 0;
         return;
       }
-      
+
       // Get paid membership payments and deduplicate by user_id
       final rows = await sb
           .from('payments')
@@ -936,6 +938,38 @@ class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
             );
           },
         ),
+        const SizedBox(height: 8),
+        _buildModernActionCard(
+          icon: Icons.groups_rounded,
+          title: 'Collector Records',
+          color: const Color(0xFF0D47A1),
+          onTap: () {
+            if (_dayungUnitId == null) return;
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) =>
+                    TreasurerCollectorListPage(dayungUnitId: _dayungUnitId!),
+              ),
+            );
+          },
+        ),
+        const SizedBox(height: 8),
+        _buildModernActionCard(
+          icon: Icons.assessment_rounded,
+          title: 'Overall Reports',
+          color: const Color(0xFF2E7D32),
+          onTap: () {
+            if (_dayungUnitId == null) return;
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) =>
+                    TreasurerOverallReportsPage(dayungUnitId: _dayungUnitId!),
+              ),
+            );
+          },
+        ),
       ],
     );
   }
@@ -984,7 +1018,7 @@ class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
                           color: Color(0xFF1F2937),
                         ),
                       ),
-                      ],
+                    ],
                   ),
                 ),
                 Icon(

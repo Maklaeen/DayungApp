@@ -3,6 +3,8 @@ import 'package:capstone_app/Collector/collclaims.dart' hide kPrimary;
 import 'package:capstone_app/Collector/collcontributions.dart';
 import 'package:capstone_app/Collector/collector_receipts_page.dart';
 import 'package:capstone_app/Collector/collect_cash.dart';
+import 'package:capstone_app/Collector/collector_overall_reports_page.dart';
+import 'package:capstone_app/Collector/collector_records_page.dart';
 import 'package:capstone_app/Providers/dayung_provider.dart';
 import 'package:capstone_app/Providers/dayung_role_provider.dart';
 import 'package:capstone_app/pages/members_page.dart';
@@ -1572,6 +1574,53 @@ class _CollectorDashboardPageState extends State<CollectorDashboardPage> {
             color: kAccent,
             onTap: _showMembers,
           ),
+        ),
+        const SizedBox(height: 12),
+        Row(
+          children: [
+            Expanded(
+              child: SizedBox(
+                height: 120,
+                child: _modernActionCardGrid(
+                  icon: Icons.table_rows_rounded,
+                  title: 'Collector Records',
+                  color: const Color(0xFF0D47A1),
+                  onTap: () {
+                    if (_dayungUnitId == null) return;
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) =>
+                            CollectorRecordsPage(dayungUnitId: _dayungUnitId!),
+                      ),
+                    );
+                  },
+                ),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: SizedBox(
+                height: 120,
+                child: _modernActionCardGrid(
+                  icon: Icons.assessment_rounded,
+                  title: 'Overall Reports',
+                  color: const Color(0xFF2E7D32),
+                  onTap: () {
+                    if (_dayungUnitId == null) return;
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => CollectorOverallReportsPage(
+                          dayungUnitId: _dayungUnitId!,
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ),
+            ),
+          ],
         ),
       ],
     );

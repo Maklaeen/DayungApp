@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:capstone_app/shared/president_secretary_member_reports.dart';
 
 const Color kBg = Color(0xFFFAFAF7);
 const Color kPrimary = Color(0xFF0D47A1);
@@ -248,6 +249,14 @@ class _SecretaryMembersPageState extends State<SecretaryMembersPage>
               ),
 
               // Search
+              PresidentSecretaryMemberReports(
+                addedMembers: _approved.length,
+                removedMembers: _rows
+                    .where((r) => r['isRemovedInDayung'] == true)
+                    .length,
+                deceasedMembers: _deceased.length,
+                deceasedBeneficiaries: 0,
+              ),
               Container(
                 padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
                 child: TextField(
