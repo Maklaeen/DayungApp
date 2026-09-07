@@ -1,7 +1,9 @@
+import 'package:capstone_app/Treasurer/treasurer_payment_page.dart';
 import 'package:capstone_app/ui/theme/branding.dart';
 import 'package:capstone_app/utils/theme_surface.dart';
 import 'package:capstone_app/shared/treasurer_report_header.dart';
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 class _DeathNoticeReport {
   final String id;
@@ -10,6 +12,7 @@ class _DeathNoticeReport {
 }
 
 class _MemberOverallRow {
+  final String userId;
   final String name;
   final double amount;
   final Map<String, String> patayStatus;
@@ -17,12 +20,116 @@ class _MemberOverallRow {
   final String dropStatus;
 
   const _MemberOverallRow({
+    required this.userId,
     required this.name,
     required this.amount,
     required this.patayStatus,
     required this.advanceAmount,
     required this.dropStatus,
   });
+}
+
+class TreasurerOverallReportsMemberBuilder {
+  static List<_MemberOverallRow> fromPaymentRows(
+    List<Map<String, dynamic>> rows, [
+    List<_DeathNoticeReport> notices = const [],
+    Map<String, double> advanceTotals = const {},
+  ]) {
+    final latestByUser = <String, Map<String, dynamic>>{};
+
+    for (final row in rows) {
+      final rowType = (row['type'] ?? '').toString().trim();
+      if (rowType.isNotEmpty && rowType != 'deceased_payment') {
+        continue;
+      }
+
+      final userId = (row['user_id'] ?? '').toString().trim();
+      if (userId.isEmpty) continue;
+
+      final existing = latestByUser[userId];
+      if (existing == null) {
+        latestByUser[userId] = row;
+        continue;
+      }
+
+      final currentDate = _parseDate(row['paid_at'] ?? row['created_at']);
+      final existingDate = _parseDate(
+        existing['paid_at'] ?? existing['created_at'],
+      );
+      if (currentDate != null &&
+          (existingDate == null || currentDate.isAfter(existingDate))) {
+        latestByUser[userId] = row;
+      }
+    }
+
+    final members = latestByUser.values.map((row) {
+      final fullName = ((row['users'] as Map?)?['full_name'] ?? '')
+          .toString()
+          .trim();
+
+      final userId = (row['user_id'] ?? '').toString().trim();
+
+      // Determine drop status based on the latest row for this user
+      final latestStatus =
+          ((row['status'] ?? 'unpaid').toString().toLowerCase() == 'paid')
+              ? 'paid'
+              : 'unpaid';
+      final isUnpaid = latestStatus == 'unpaid';
+
+      // Build patayStatus by checking all payment rows for this user
+      final patayStatus = <String, String>{};
+      final userPayments = _paymentsByUserAndDeceased(rows, userId);
+      for (final notice in notices) {
+        patayStatus[notice.id] = userPayments[notice.id] ?? 'unpaid';
+      }
+
+      return _MemberOverallRow(
+        userId: userId,
+        name: fullName.isEmpty ? 'Member' : fullName,
+        amount: _toDouble(row['amount']),
+        patayStatus: patayStatus,
+        advanceAmount: advanceTotals[userId] ?? 0,
+        dropStatus: isUnpaid ? 'Yes' : 'No',
+      );
+    }).toList();
+
+    members.sort(
+      (a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()),
+    );
+    return members;
+  }
+
+  static DateTime? _parseDate(dynamic value) {
+    if (value == null) return null;
+    return DateTime.tryParse(value.toString());
+  }
+
+  static double _toDouble(dynamic value) {
+    if (value is num) return value.toDouble();
+    return double.tryParse(value.toString()) ?? 0;
+  }
+
+  static Map<String, String> _paymentsByUserAndDeceased(
+    List<Map<String, dynamic>> rows,
+    String userId,
+  ) {
+    final map = <String, String>{};
+    for (final row in rows) {
+      final uid = (row['user_id'] ?? '').toString().trim();
+      if (uid != userId) continue;
+      final deceasedId = (row['userdeceased'] ?? '').toString().trim();
+      if (deceasedId.isEmpty) continue;
+      final status =
+          ((row['status'] ?? 'unpaid').toString().toLowerCase() == 'paid')
+              ? 'paid'
+              : 'unpaid';
+      // once paid for a given deceased, keep it as paid
+      if (map[deceasedId] != 'paid') {
+        map[deceasedId] = status;
+      }
+    }
+    return map;
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -33,6 +140,22 @@ class TreasurerOverallReportsPage extends StatefulWidget {
   final int dayungUnitId;
   const TreasurerOverallReportsPage({super.key, required this.dayungUnitId});
 
+  static int safeActiveTabIndex(int activeTab, int noticesLength) {
+    if (noticesLength <= 0 || activeTab < 0) {
+      return 0;
+    }
+    return activeTab >= noticesLength ? noticesLength - 1 : activeTab;
+  }
+
+  static void openAdvancePayment(BuildContext context, int dayungUnitId) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => TreasurerPaymentPage(dayungUnitId: dayungUnitId),
+      ),
+    );
+  }
+
   @override
   State<TreasurerOverallReportsPage> createState() =>
       _TreasurerOverallReportsPageState();
@@ -41,46 +164,143 @@ class TreasurerOverallReportsPage extends StatefulWidget {
 class _TreasurerOverallReportsPageState
     extends State<TreasurerOverallReportsPage> {
   int _activeTab = 0;
+  bool _loadingMembers = true;
+  String? _membersError;
 
-  final _notices = const [
-    _DeathNoticeReport(id: 'd1', name: 'Deceased 1'),
-    _DeathNoticeReport(id: 'd2', name: 'Deceased 2'),
-  ];
+  List<_DeathNoticeReport> _notices = [];
+  Map<String, double> _totalCashPerNotice = {};
+  Map<String, double> _totalCashlessPerNotice = {};
+  Map<String, double> _neededPerNotice = {};
 
-  final _totalCashPerNotice = const {'d1': 400.0, 'd2': 0.0};
-  final _totalCashlessPerNotice = const {'d1': 800.0, 'd2': 0.0};
-  final _neededPerNotice = const {'d1': 1200.0, 'd2': 1200.0};
+  List<_MemberOverallRow> _memberRows = [];
 
-  final _memberRows = const [
-    _MemberOverallRow(
-      name: 'Member 1',
-      amount: 300,
-      patayStatus: {'d1': 'paid', 'd2': 'paid'},
-      advanceAmount: 100,
-      dropStatus: 'No',
-    ),
-    _MemberOverallRow(
-      name: 'Member 2',
-      amount: 500,
-      patayStatus: {'d1': 'paid', 'd2': 'paid'},
-      advanceAmount: 300,
-      dropStatus: 'No',
-    ),
-    _MemberOverallRow(
-      name: 'Member 3',
-      amount: 100,
-      patayStatus: {'d1': 'paid', 'd2': 'unpaid'},
-      advanceAmount: 0,
-      dropStatus: 'warning',
-    ),
-    _MemberOverallRow(
-      name: 'Member 4',
-      amount: 0,
-      patayStatus: {'d1': 'unpaid', 'd2': 'unpaid'},
-      advanceAmount: 0,
-      dropStatus: 'yes',
-    ),
-  ];
+  @override
+  void initState() {
+    super.initState();
+    _loadMembers();
+  }
+
+  Future<void> _loadMembers() async {
+    setState(() {
+      _loadingMembers = true;
+      _membersError = null;
+    });
+
+    try {
+      final rows = await Supabase.instance.client
+          .from('payments')
+          .select(
+            'user_id, amount, status, paid_at, created_at, type, userdeceased, '
+            'users!payments_user_id_fkey(full_name)',
+          )
+          .eq('dayung_unit_id', widget.dayungUnitId)
+          .eq('type', 'deceased_payment')
+          .order('paid_at', ascending: false)
+          .order('created_at', ascending: false);
+
+      // Extract distinct deceased user IDs and fetch their names
+      final deceasedIds = <String>{};
+      for (final row in rows) {
+        final userDeceasedId = (row['userdeceased'] ?? '').toString().trim();
+        if (userDeceasedId.isNotEmpty) {
+          deceasedIds.add(userDeceasedId);
+        }
+      }
+
+      List<_DeathNoticeReport> notices = [];
+      Map<String, double> totalCash = {};
+      Map<String, double> totalCashless = {};
+      Map<String, double> needed = {};
+
+      if (deceasedIds.isNotEmpty) {
+        // Fetch deceased user details
+        final deceasedUsers = await Supabase.instance.client
+            .from('users')
+            .select('id, full_name')
+            .inFilter('id', deceasedIds.toList());
+
+        // Build notices from deceased users
+        for (final deceasedUser in deceasedUsers) {
+          final id = (deceasedUser['id'] ?? '').toString();
+          final name = (deceasedUser['full_name'] ?? '').toString().trim();
+          notices.add(_DeathNoticeReport(id: id, name: name));
+
+          // Initialize totals for each deceased
+          totalCash[id] = 0.0;
+          totalCashless[id] = 0.0;
+          needed[id] = 1200.0; // Default needed amount
+        }
+
+        // Sort notices by name
+        notices.sort((a, b) => a.name.compareTo(b.name));
+      }
+
+      // Calculate totals from payment rows
+      for (final row in rows) {
+        final userDeceasedId = (row['userdeceased'] ?? '').toString().trim();
+        final amount = _toDouble(row['amount']);
+        final status = (row['status'] ?? 'unpaid').toString().toLowerCase();
+
+        if (userDeceasedId.isNotEmpty) {
+          if (status == 'paid') {
+            totalCash[userDeceasedId] =
+                (totalCash[userDeceasedId] ?? 0) + amount;
+          } else {
+            totalCashless[userDeceasedId] =
+                (totalCashless[userDeceasedId] ?? 0) + amount;
+          }
+        }
+      }
+
+      final advanceRows = await Supabase.instance.client
+          .from('advance_payments')
+          .select('user_id, amount');
+
+      final advanceTotals = <String, double>{};
+      for (final row in advanceRows) {
+        final userId = (row['user_id'] ?? '').toString().trim();
+        if (userId.isEmpty) continue;
+        advanceTotals[userId] =
+            (advanceTotals[userId] ?? 0) + _toDouble(row['amount']);
+      }
+
+      final members = TreasurerOverallReportsMemberBuilder.fromPaymentRows(
+        List<Map<String, dynamic>>.from(rows),
+        notices,
+        advanceTotals,
+      );
+
+      if (!mounted) return;
+      setState(() {
+        _notices = notices;
+        _totalCashPerNotice = totalCash;
+        _totalCashlessPerNotice = totalCashless;
+        _neededPerNotice = needed;
+        _memberRows = members;
+        _loadingMembers = false;
+        _activeTab = TreasurerOverallReportsPage.safeActiveTabIndex(
+          _activeTab,
+          _notices.length,
+        );
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _notices = [];
+        _totalCashPerNotice = {};
+        _totalCashlessPerNotice = {};
+        _neededPerNotice = {};
+        _memberRows = [];
+        _loadingMembers = false;
+        _membersError = 'Failed to load members: $e';
+      });
+    }
+  }
+
+  static double _toDouble(dynamic value) {
+    if (value is num) return value.toDouble();
+    return double.tryParse(value.toString()) ?? 0;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -210,7 +430,30 @@ class _TreasurerOverallReportsPageState
   }
 
   Widget _summaryDataRow() {
-    final notice = _notices[_activeTab];
+    if (_notices.isEmpty) {
+      return Container(
+        decoration: const BoxDecoration(
+          border: Border(top: BorderSide(color: Color(0xFFE5E7EB))),
+        ),
+        padding: const EdgeInsets.symmetric(vertical: 20),
+        child: const Center(
+          child: Text(
+            'No death notice data available yet.',
+            style: TextStyle(
+              fontFamily: 'OpenSans',
+              fontSize: 12,
+              color: Color(0xFF4B5563),
+            ),
+          ),
+        ),
+      );
+    }
+
+    final noticeIndex = TreasurerOverallReportsPage.safeActiveTabIndex(
+      _activeTab,
+      _notices.length,
+    );
+    final notice = _notices[noticeIndex];
     final cash = _totalCashPerNotice[notice.id] ?? 0;
     final cashless = _totalCashlessPerNotice[notice.id] ?? 0;
     final needed = _neededPerNotice[notice.id] ?? 0;
@@ -269,6 +512,38 @@ class _TreasurerOverallReportsPageState
   // ---------------------------------------------------------------------------
 
   Widget _membersTable() {
+    if (_loadingMembers) {
+      return Container(
+        padding: const EdgeInsets.all(24),
+        decoration: BoxDecoration(
+          border: Border.all(color: const Color(0xFF9CA3AF)),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: const Center(child: CircularProgressIndicator()),
+      );
+    }
+
+    if (_membersError != null) {
+      return Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          border: Border.all(color: const Color(0xFF9CA3AF)),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Text(
+          _membersError!,
+          style: const TextStyle(
+            color: Colors.red,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+      );
+    }
+
+    final members = _memberRows.isEmpty
+        ? const <_MemberOverallRow>[]
+        : _memberRows;
+
     return Container(
       decoration: BoxDecoration(
         border: Border.all(color: const Color(0xFF9CA3AF)),
@@ -287,63 +562,88 @@ class _TreasurerOverallReportsPageState
                 ..._notices.map(
                   (n) => Expanded(flex: 2, child: _hCell(n.name)),
                 ),
-                Expanded(flex: 2, child: _hCell('Advance\nPayment')),
+                Expanded(
+                  flex: 2,
+                  child: GestureDetector(
+                    onTap: () => TreasurerOverallReportsPage.openAdvancePayment(
+                      context,
+                      widget.dayungUnitId,
+                    ),
+                    child: _hCell('Advance\nPayment'),
+                  ),
+                ),
                 Expanded(flex: 2, child: _hCell('Suggest\nto drop\nstatus')),
               ],
             ),
           ),
-          ..._memberRows.asMap().entries.map((e) {
-            final i = e.key;
-            final m = e.value;
-            return Container(
-              decoration: BoxDecoration(
-                color: i % 2 == 0
-                    ? Colors.transparent
-                    : kPrimary.withValues(alpha: 0.025),
-                border: Border(top: BorderSide(color: Color(0xFFE5E7EB))),
+          if (members.isEmpty)
+            const Padding(
+              padding: EdgeInsets.all(18),
+              child: Text(
+                'No members found for this dayung unit.',
+                style: TextStyle(
+                  fontFamily: 'OpenSans',
+                  fontSize: 12,
+                  color: Color(0xFF4B5563),
+                ),
               ),
-              child: Row(
-                children: [
-                  Expanded(flex: 3, child: _dCell(m.name)),
-                  Expanded(flex: 2, child: _dCell(m.amount.toStringAsFixed(0))),
-                  ..._notices.map((n) {
-                    final status = m.patayStatus[n.id] ?? 'unpaid';
-                    return Expanded(
+            )
+          else
+            ...members.asMap().entries.map((e) {
+              final i = e.key;
+              final m = e.value;
+              return Container(
+                decoration: BoxDecoration(
+                  color: i % 2 == 0
+                      ? Colors.transparent
+                      : kPrimary.withValues(alpha: 0.025),
+                  border: Border(top: BorderSide(color: Color(0xFFE5E7EB))),
+                ),
+                child: Row(
+                  children: [
+                    Expanded(flex: 3, child: _dCell(m.name)),
+                    Expanded(
+                      flex: 2,
+                      child: _dCell(m.amount.toStringAsFixed(0)),
+                    ),
+                    ..._notices.map((n) {
+                      final status = m.patayStatus[n.id] ?? 'unpaid';
+                      return Expanded(
+                        flex: 2,
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 6,
+                            vertical: 8,
+                          ),
+                          child: _statusChip(status),
+                        ),
+                      );
+                    }),
+                    Expanded(
+                      flex: 2,
+                      child: _dCell(
+                        m.advanceAmount > 0
+                            ? m.advanceAmount.toStringAsFixed(0)
+                            : '0',
+                        color: m.advanceAmount > 0
+                            ? const Color(0xFFF59E0B)
+                            : null,
+                      ),
+                    ),
+                    Expanded(
                       flex: 2,
                       child: Padding(
                         padding: const EdgeInsets.symmetric(
                           horizontal: 6,
                           vertical: 8,
                         ),
-                        child: _statusChip(status),
+                        child: _dropChip(m.dropStatus),
                       ),
-                    );
-                  }),
-                  Expanded(
-                    flex: 2,
-                    child: _dCell(
-                      m.advanceAmount > 0
-                          ? m.advanceAmount.toStringAsFixed(0)
-                          : '0',
-                      color: m.advanceAmount > 0
-                          ? const Color(0xFFF59E0B)
-                          : null,
                     ),
-                  ),
-                  Expanded(
-                    flex: 2,
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 6,
-                        vertical: 8,
-                      ),
-                      child: _dropChip(m.dropStatus),
-                    ),
-                  ),
-                ],
-              ),
-            );
-          }),
+                  ],
+                ),
+              );
+            }),
         ],
       ),
     );

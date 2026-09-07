@@ -2,6 +2,7 @@ import 'package:capstone_app/ui/theme/branding.dart';
 import 'package:capstone_app/utils/theme_surface.dart';
 import 'package:capstone_app/shared/treasurer_report_header.dart';
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 // ---------------------------------------------------------------------------
 // Models
@@ -10,7 +11,12 @@ import 'package:flutter/material.dart';
 class CollectorSummary {
   final String id;
   final String name;
-  const CollectorSummary({required this.id, required this.name});
+  final int dayungUnitId;
+  const CollectorSummary({
+    required this.id,
+    required this.name,
+    required this.dayungUnitId,
+  });
 }
 
 class _CollectorMemberRow {
@@ -46,13 +52,81 @@ class _CollectorMemberRow {
 // Collector list page
 // ---------------------------------------------------------------------------
 
-class TreasurerCollectorListPage extends StatelessWidget {
+class TreasurerCollectorListPage extends StatefulWidget {
   final int dayungUnitId;
   const TreasurerCollectorListPage({super.key, required this.dayungUnitId});
 
-  static const List<CollectorSummary> _collectors = [
-    CollectorSummary(id: 'sample-collector', name: 'Sample collector'),
-  ];
+  @override
+  State<TreasurerCollectorListPage> createState() =>
+      _TreasurerCollectorListPageState();
+}
+
+class _TreasurerCollectorListPageState
+    extends State<TreasurerCollectorListPage> {
+  final _sb = Supabase.instance.client;
+  List<CollectorSummary> _collectors = [];
+  bool _loading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadCollectors();
+  }
+
+  Future<void> _loadCollectors() async {
+    try {
+      setState(() {
+        _loading = true;
+      });
+
+      final collectorRows = List<Map<String, dynamic>>.from(
+        await _sb
+            .from('dayung_collectors')
+            .select('collectors_id, user_id')
+            .eq('dayung_unit_id', widget.dayungUnitId),
+      );
+
+      final userIds = <String>{};
+      for (final row in collectorRows) {
+        final userId = (row['user_id'] ?? '').toString();
+        if (userId.isNotEmpty) userIds.add(userId);
+      }
+
+      final users = userIds.isEmpty
+          ? <Map<String, dynamic>>[]
+          : List<Map<String, dynamic>>.from(
+              await _sb
+                  .from('users')
+                  .select('id, full_name')
+                  .inFilter('id', userIds.toList()),
+            );
+
+      final userMap = {for (final u in users) (u['id'] ?? '').toString(): u};
+
+      _collectors = collectorRows
+          .map((row) {
+            final userId = (row['user_id'] ?? '').toString();
+            final collectorId = (row['collectors_id'] ?? '').toString();
+            final user = userMap[userId] ?? <String, dynamic>{};
+            final name = (user['full_name'] ?? 'Collector').toString();
+            return CollectorSummary(
+              id: collectorId,
+              name: name,
+              dayungUnitId: widget.dayungUnitId,
+            );
+          })
+          .where((c) => c.id.isNotEmpty)
+          .toList();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to load collectors: $e')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -63,7 +137,9 @@ class TreasurerCollectorListPage extends StatelessWidget {
           children: [
             const TreasurerReportHeader(title: 'Collectors'),
             Expanded(
-              child: _collectors.isEmpty
+              child: _loading
+                  ? const Center(child: CircularProgressIndicator())
+                  : _collectors.isEmpty
                   ? const Center(child: Text('No collectors found.'))
                   : ListView.separated(
                       padding: const EdgeInsets.fromLTRB(16, 18, 16, 20),
@@ -150,8 +226,165 @@ class _TreasurerCollectorDetailPageState
     extends State<TreasurerCollectorDetailPage> {
   int _activeTab = 0; // 0=Cash 1=NotPaid 2=Cashless 3=Totals
   final Set<int> _recordedTabs = <int>{};
+  bool _loading = true;
 
-  static const List<_CollectorMemberRow> _allRows = [];
+  List<_CollectorMemberRow> _allRows = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _loadMembers();
+  }
+
+  Future<void> _loadMembers() async {
+    try {
+      final applicationRows = List<Map<String, dynamic>>.from(
+        await Supabase.instance.client
+            .from('applications')
+            .select('user_id')
+            .eq('dayung_unit_id', widget.collector.dayungUnitId)
+            .eq('status', 'approved')
+            .eq('assigned_collector', widget.collector.id),
+      );
+      final memberIds = applicationRows
+          .map((row) => (row['user_id'] ?? '').toString())
+          .where((id) => id.isNotEmpty)
+          .toSet();
+
+      if (memberIds.isEmpty) {
+        if (mounted) setState(() => _loading = false);
+        return;
+      }
+
+      final userRows = List<Map<String, dynamic>>.from(
+        await Supabase.instance.client
+            .from('users')
+            .select('id, full_name')
+            .inFilter('id', memberIds.toList()),
+      );
+      final names = {
+        for (final row in userRows)
+          (row['id'] ?? '').toString(): (row['full_name'] ?? 'Member')
+              .toString(),
+      };
+
+      final paymentRows = List<Map<String, dynamic>>.from(
+        await Supabase.instance.client
+            .from('payments')
+            .select('user_id, amount, status, type, paid_at, created_at')
+            .eq('dayung_unit_id', widget.collector.dayungUnitId)
+            .eq('type', 'deceased_payment')
+            .eq('status', 'paid')
+            .inFilter('user_id', memberIds.toList()),
+      );
+
+      final unclaimedDeceasedRows = List<Map<String, dynamic>>.from(
+        await Supabase.instance.client
+            .from('payments')
+            .select('userdeceased, is_claimed')
+            .eq('dayung_unit_id', widget.collector.dayungUnitId)
+            .eq('type', 'deceased_payment'),
+      );
+      final unclaimedDeceasedIds = unclaimedDeceasedRows
+          .where(
+            (row) => row['is_claimed'] == null || row['is_claimed'] == false,
+          )
+          .map((row) => (row['userdeceased'] ?? '').toString().trim())
+          .where((id) => id.isNotEmpty)
+          .toSet();
+      final claimRows = unclaimedDeceasedIds.isEmpty
+          ? <Map<String, dynamic>>[]
+          : List<Map<String, dynamic>>.from(
+              await Supabase.instance.client
+                  .from('claims')
+                  .select('user_id, amount')
+                  .eq('dayung_unit_id', widget.collector.dayungUnitId)
+                  .inFilter('user_id', unclaimedDeceasedIds.toList()),
+            );
+      final amountNeeded = claimRows.fold<double>(
+        0,
+        (total, row) => total + _toDouble(row['amount']),
+      );
+
+      List<Map<String, dynamic>> gcashRows = [];
+      try {
+        gcashRows = List<Map<String, dynamic>>.from(
+          await Supabase.instance.client
+              .from('gcash_payments')
+              .select('user_id, uploaded_by, amount, status, created_at')
+              .eq('dayung_unit_id', widget.collector.dayungUnitId)
+              .inFilter('user_id', memberIds.toList()),
+        );
+      } catch (_) {
+        // Older projects may not have the optional GCash table.
+      }
+
+      final advanceRows = List<Map<String, dynamic>>.from(
+        await Supabase.instance.client
+            .from('advance_payments')
+            .select('user_id, amount')
+            .inFilter('user_id', memberIds.toList()),
+      );
+      final cashTotals = <String, double>{};
+      final gcashTotals = <String, double>{};
+      final advanceTotals = <String, double>{};
+      for (final row in paymentRows) {
+        final userId = (row['user_id'] ?? '').toString();
+        cashTotals[userId] =
+            (cashTotals[userId] ?? 0) + _toDouble(row['amount']);
+      }
+      for (final row in gcashRows) {
+        final userId = (row['user_id'] ?? row['uploaded_by'] ?? '').toString();
+        if ((row['status'] ?? 'paid').toString().toLowerCase() != 'paid') {
+          continue;
+        }
+        gcashTotals[userId] =
+            (gcashTotals[userId] ?? 0) + _toDouble(row['amount']);
+      }
+      for (final row in advanceRows) {
+        final userId = (row['user_id'] ?? '').toString();
+        advanceTotals[userId] =
+            (advanceTotals[userId] ?? 0) + _toDouble(row['amount']);
+      }
+
+      final rows = memberIds.map((userId) {
+        final cash = cashTotals[userId] ?? 0;
+        final gcash = gcashTotals[userId] ?? 0;
+        final method = cash > 0
+            ? 'Cash'
+            : gcash > 0
+            ? 'GCash'
+            : 'N/Y';
+        return _CollectorMemberRow(
+          memberName: names[userId] ?? 'Member',
+          paymentMethod: method,
+          amountPaid: cash + gcash,
+          amountNeeded: amountNeeded,
+          advanceAmount: advanceTotals[userId] ?? 0,
+          dropStatus: '',
+        );
+      }).toList()..sort((a, b) => a.memberName.compareTo(b.memberName));
+
+      if (mounted) {
+        setState(() {
+          _allRows = rows;
+          _loading = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _loading = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to load assigned members: $e')),
+        );
+      }
+    }
+  }
+
+  static double _toDouble(dynamic value) {
+    if (value is num) return value.toDouble();
+    return double.tryParse(value.toString()) ?? 0;
+  }
 
   List<_CollectorMemberRow> get _cashRows =>
       _allRows.where((r) => r.paymentMethod == 'Cash').toList();
@@ -184,19 +417,28 @@ class _TreasurerCollectorDetailPageState
           children: [
             TreasurerReportHeader(title: widget.collector.name),
             Expanded(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.fromLTRB(16, 18, 16, 24),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    SingleChildScrollView(
-                      scrollDirection: Axis.horizontal,
-                      child: SizedBox(width: 820, child: _tableWithTabs()),
+              child: _loading
+                  ? const Center(child: CircularProgressIndicator())
+                  : SingleChildScrollView(
+                      padding: const EdgeInsets.fromLTRB(16, 18, 16, 24),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Padding(
+                            padding: const EdgeInsets.only(bottom: 12.0),
+                            child: _sectionLabel(widget.collector.name),
+                          ),
+                          SingleChildScrollView(
+                            scrollDirection: Axis.horizontal,
+                            child: SizedBox(
+                              width: 820,
+                              child: _tableWithTabs(),
+                            ),
+                          ),
+                          const SizedBox(height: 24),
+                        ],
+                      ),
                     ),
-                    const SizedBox(height: 24),
-                  ],
-                ),
-              ),
             ),
           ],
         ),

@@ -1,5 +1,6 @@
 import 'package:capstone_app/shared/treasurer_report_header.dart';
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 class _DeathNotice {
   final String id;
@@ -48,93 +49,214 @@ class CollectorRecordsPage extends StatefulWidget {
 }
 
 class _CollectorRecordsPageState extends State<CollectorRecordsPage> {
-  final List<_DeathNotice> _notices = const [
-    _DeathNotice(id: 'd1', name: 'Deceased\n1', amountPerMember: 200),
-    _DeathNotice(id: 'd2', name: 'Deceased\n2', amountPerMember: 200),
-  ];
-  late final List<_MemberRecord> _members;
+  List<_DeathNotice> _notices = const [];
+  List<_MemberRecord> _records = const [];
   final Set<String> _paidNoticeOverrides = <String>{};
   final Map<String, String> _paymentMethodOverrides = <String, String>{};
   bool _uploaded = false;
+  bool _loading = true;
+  String? _error;
 
   @override
   void initState() {
     super.initState();
-    _members = const [
-      _MemberRecord(
-        memberId: 'm1',
-        memberName: 'Member 1',
-        amountPaid: 300,
-        amountNeeded: 200,
-        paymentMethod: 'Cash',
-        advanceAmount: 100,
-        advanceDeathCount: 1,
-        noticePaid: {'d1': true, 'd2': true},
-      ),
-      _MemberRecord(
-        memberId: 'm2',
-        memberName: 'Member 2',
-        amountPaid: 100,
-        amountNeeded: 200,
-        paymentMethod: 'Cash',
-        advanceAmount: 0,
-        advanceDeathCount: 0,
-        noticePaid: {'d1': true, 'd2': true},
-      ),
-      _MemberRecord(
-        memberId: 'm3',
-        memberName: 'Member 3',
-        amountPaid: 200,
-        amountNeeded: 200,
-        paymentMethod: 'GCash',
-        advanceAmount: 0,
-        advanceDeathCount: 0,
-        noticePaid: {'d1': true, 'd2': true},
-      ),
-      _MemberRecord(
-        memberId: 'm4',
-        memberName: 'Member 4',
-        amountPaid: 100,
-        amountNeeded: 200,
-        paymentMethod: 'GCash',
-        advanceAmount: 0,
-        advanceDeathCount: 0,
-        noticePaid: {'d1': true, 'd2': true},
-      ),
-      _MemberRecord(
-        memberId: 'm5',
-        memberName: 'Member 5',
-        amountPaid: 500,
-        amountNeeded: 200,
-        paymentMethod: 'GCash',
-        advanceAmount: 300,
-        advanceDeathCount: 3,
-        noticePaid: {'d1': true, 'd2': true},
-      ),
-      _MemberRecord(
-        memberId: 'm6',
-        memberName: 'Member 6',
-        amountPaid: 0,
-        amountNeeded: 200,
-        paymentMethod: 'N/Y',
-        advanceAmount: 0,
-        advanceDeathCount: 0,
-        noticePaid: {'d1': false, 'd2': false},
-      ),
-    ];
+    _loadRecords();
   }
 
-  double get _totalCash => _members
+  Future<void> _loadRecords() async {
+    try {
+      final client = Supabase.instance.client;
+      final currentUserId = client.auth.currentUser?.id;
+      if (currentUserId == null) {
+        throw StateError('No signed-in collector found.');
+      }
+
+      final collectorRows = List<Map<String, dynamic>>.from(
+        await client
+            .from('dayung_collectors')
+            .select('collectors_id')
+            .eq('dayung_unit_id', widget.dayungUnitId)
+            .eq('user_id', currentUserId)
+            .limit(1),
+      );
+      if (collectorRows.isEmpty) {
+        throw StateError('This user is not assigned as a collector.');
+      }
+      final collectorId = collectorRows.first['collectors_id'];
+
+      final applicationRows = List<Map<String, dynamic>>.from(
+        await client
+            .from('applications')
+            .select('user_id')
+            .eq('dayung_unit_id', widget.dayungUnitId)
+            .eq('status', 'approved')
+            .eq('assigned_collector', collectorId),
+      );
+      final memberIds = applicationRows
+          .map((row) => (row['user_id'] ?? '').toString())
+          .where((id) => id.isNotEmpty)
+          .toSet()
+          .toList();
+
+      final paymentRows = memberIds.isEmpty
+          ? <Map<String, dynamic>>[]
+          : List<Map<String, dynamic>>.from(
+              await client
+                  .from('payments')
+                  .select(
+                    'user_id, userdeceased, amount, status, type, is_claimed',
+                  )
+                  .eq('dayung_unit_id', widget.dayungUnitId)
+                  .inFilter('user_id', memberIds),
+            );
+      final advanceRows = memberIds.isEmpty
+          ? <Map<String, dynamic>>[]
+          : List<Map<String, dynamic>>.from(
+              await client
+                  .from('advance_payments')
+                  .select('user_id, amount')
+                  .inFilter('user_id', memberIds),
+            );
+      final advanceAmountsByUser = <String, double>{};
+      for (final row in advanceRows) {
+        final userId = (row['user_id'] ?? '').toString();
+        if (userId.isEmpty) continue;
+        advanceAmountsByUser[userId] =
+            (advanceAmountsByUser[userId] ?? 0) +
+            (double.tryParse('${row['amount']}') ?? 0);
+      }
+      paymentRows.removeWhere((row) {
+        final type = (row['type'] ?? '').toString().toLowerCase();
+        return type == 'deceased_payment' && row['is_claimed'] == true;
+      });
+      final deceasedIds = paymentRows
+          .where((row) {
+            final type = (row['type'] ?? '').toString().toLowerCase();
+            return type == 'deceased_payment' &&
+                (row['is_claimed'] == null || row['is_claimed'] == false);
+          })
+          .map((row) => (row['userdeceased'] ?? '').toString())
+          .where((id) => id.isNotEmpty)
+          .toSet()
+          .toList();
+      final claimRows = deceasedIds.isEmpty
+          ? <Map<String, dynamic>>[]
+          : List<Map<String, dynamic>>.from(
+              await client
+                  .from('claims')
+                  .select('user_id, amount')
+                  .eq('dayung_unit_id', widget.dayungUnitId)
+                  .inFilter('user_id', deceasedIds),
+            );
+      final claimAmountsByDeceased = <String, double>{};
+      for (final row in claimRows) {
+        final deceasedId = (row['user_id'] ?? '').toString();
+        claimAmountsByDeceased[deceasedId] =
+            (claimAmountsByDeceased[deceasedId] ?? 0) +
+            (double.tryParse('${row['amount']}') ?? 0);
+      }
+      final deceasedUsers = deceasedIds.isEmpty
+          ? <Map<String, dynamic>>[]
+          : List<Map<String, dynamic>>.from(
+              await client
+                  .from('users')
+                  .select('id, full_name')
+                  .inFilter('id', deceasedIds),
+            );
+      final deceasedNames = {
+        for (final row in deceasedUsers)
+          (row['id'] ?? '').toString(): (row['full_name'] ?? 'Deceased')
+              .toString(),
+      };
+      final notices = <_DeathNotice>[
+        for (final deceasedId in deceasedIds.take(2))
+          _DeathNotice(
+            id: deceasedId,
+            name: deceasedNames[deceasedId] ?? 'Deceased',
+            amountPerMember: claimAmountsByDeceased[deceasedId] ?? 0,
+          ),
+      ];
+      while (notices.length < 2) {
+        notices.add(
+          _DeathNotice(
+            id: 'missing-${notices.length}',
+            name: 'Deceased\n${notices.length + 1}',
+            amountPerMember: 0,
+          ),
+        );
+      }
+
+      final memberUsers = memberIds.isEmpty
+          ? <Map<String, dynamic>>[]
+          : List<Map<String, dynamic>>.from(
+              await client
+                  .from('users')
+                  .select('id, full_name')
+                  .inFilter('id', memberIds),
+            );
+      final memberNames = {
+        for (final row in memberUsers)
+          (row['id'] ?? '').toString(): (row['full_name'] ?? 'Member')
+              .toString(),
+      };
+      final records = memberIds.map((memberId) {
+        final memberPayments = paymentRows.where(
+          (row) => (row['user_id'] ?? '').toString() == memberId,
+        );
+        final noticePaid = {
+          for (final notice in notices)
+            notice.id: memberPayments.any(
+              (row) =>
+                  (row['userdeceased'] ?? '').toString() == notice.id &&
+                  (row['status'] ?? '').toString().toLowerCase() == 'paid',
+            ),
+        };
+        return _MemberRecord(
+          memberId: memberId,
+          memberName: memberNames[memberId] ?? 'Member',
+          amountPaid: memberPayments.fold<double>(0, (sum, row) {
+            final status = (row['status'] ?? '').toString().toLowerCase();
+            final type = (row['type'] ?? '').toString().toLowerCase();
+            if (status != 'paid' || type != 'deceased_payment') return sum;
+            return sum + (double.tryParse('${row['amount']}') ?? 0);
+          }),
+          amountNeeded: notices.fold(
+            0,
+            (sum, notice) => sum + notice.amountPerMember,
+          ),
+          paymentMethod: 'N/Y',
+          advanceAmount: advanceAmountsByUser[memberId] ?? 0,
+          advanceDeathCount: 0,
+          noticePaid: noticePaid,
+        );
+      }).toList();
+
+      if (!mounted) return;
+      setState(() {
+        _notices = notices;
+        _records = records;
+        _loading = false;
+      });
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _loading = false;
+        _error = error.toString();
+      });
+    }
+  }
+
+  double get _totalCash => _records
       .where((m) => m.paymentMethod == 'Cash')
       .fold(0.0, (s, m) => s + m.amountPaid);
 
-  double get _totalCashless => _members
+  double get _totalCashless => _records
       .where((m) => m.paymentMethod == 'GCash')
       .fold(0.0, (s, m) => s + m.amountPaid);
 
-  double get _totalAdvance => _members.fold(0.0, (s, m) => s + m.advanceAmount);
+  double get _totalAdvance => _records.fold(0.0, (s, m) => s + m.advanceAmount);
 
-  double get _totalNeeded => _members.fold(0.0, (s, m) => s + m.amountNeeded);
+  double get _totalNeeded => _records.fold(0.0, (s, m) => s + m.amountNeeded);
 
   double get _overallWithoutAdvance => _totalCash + _totalCashless;
   double get _overallWithAdvance => _overallWithoutAdvance + _totalAdvance;
@@ -163,10 +285,21 @@ class _CollectorRecordsPageState extends State<CollectorRecordsPage> {
                   children: [
                     _sectionTitle('COLLECTORS RECORDS'),
                     const SizedBox(height: 10),
-                    SingleChildScrollView(
-                      scrollDirection: Axis.horizontal,
-                      child: _buildTable(),
-                    ),
+                    if (_loading)
+                      const Center(child: CircularProgressIndicator())
+                    else if (_error != null)
+                      Text(
+                        _error!,
+                        style: const TextStyle(
+                          fontFamily: 'OpenSans',
+                          color: Color(0xFFB91C1C),
+                        ),
+                      )
+                    else
+                      SingleChildScrollView(
+                        scrollDirection: Axis.horizontal,
+                        child: _buildTable(),
+                      ),
                     const SizedBox(height: 14),
                   ],
                 ),
@@ -221,8 +354,8 @@ class _CollectorRecordsPageState extends State<CollectorRecordsPage> {
             decoration: const BoxDecoration(color: Color(0xFFEAF7EA)),
             children: [
               _headerCell('Member of Collector 1'),
-              _headerCell('Deceased 1'),
-              _headerCell('Deceased 2'),
+              _headerCell(_notices[0].name),
+              _headerCell(_notices[1].name),
               _headerCell('Amount paid / Amount needed'),
               _headerCell('Payment Method'),
               _headerCell('Advance Payment'),
@@ -233,7 +366,7 @@ class _CollectorRecordsPageState extends State<CollectorRecordsPage> {
               _headerCell('Overall total with advance received'),
             ],
           ),
-          ..._members.asMap().entries.map((entry) {
+          ..._records.asMap().entries.map((entry) {
             final index = entry.key;
             final m = entry.value;
             final isFirst = index == 0;
@@ -244,13 +377,13 @@ class _CollectorRecordsPageState extends State<CollectorRecordsPage> {
                 _bodyCell(m.memberName),
                 _checkCell(
                   memberId: m.memberId,
-                  noticeId: 'd1',
-                  checked: _isNoticePaid(m, 'd1'),
+                  noticeId: _notices[0].id,
+                  checked: _isNoticePaid(m, _notices[0].id),
                 ),
                 _checkCell(
                   memberId: m.memberId,
-                  noticeId: 'd2',
-                  checked: _isNoticePaid(m, 'd2'),
+                  noticeId: _notices[1].id,
+                  checked: _isNoticePaid(m, _notices[1].id),
                 ),
                 _bodyCell(m.displayAmount),
                 _paymentMethodCell(m),
@@ -285,7 +418,7 @@ class _CollectorRecordsPageState extends State<CollectorRecordsPage> {
                   const SizedBox.shrink(),
               ],
             );
-          }).toList(),
+          }),
           TableRow(
             decoration: const BoxDecoration(color: Color(0xFFD9F0D4)),
             children: [

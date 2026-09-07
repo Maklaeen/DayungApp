@@ -1,5 +1,6 @@
 import 'package:capstone_app/shared/treasurer_report_header.dart';
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 class _ReportMember {
   final String name;
@@ -7,6 +8,7 @@ class _ReportMember {
   final String? proofUrl;
   final double advanceAmount;
   final int advanceDeathCount;
+  final String status;
 
   const _ReportMember({
     required this.name,
@@ -14,6 +16,7 @@ class _ReportMember {
     this.proofUrl,
     this.advanceAmount = 0,
     this.advanceDeathCount = 0,
+    this.status = '',
   });
 }
 
@@ -30,6 +33,10 @@ class CollectorOverallReportsPage extends StatefulWidget {
 class _CollectorOverallReportsPageState
     extends State<CollectorOverallReportsPage> {
   int _activeTab = 3;
+  bool _loadingCashMembers = false;
+  String? _cashMembersError;
+  bool _loadingNotPaidMembers = false;
+  String? _notPaidMembersError;
 
   final _cashlessMembers = const [
     _ReportMember(
@@ -49,17 +56,185 @@ class _CollectorOverallReportsPageState
     ),
   ];
 
-  final _cashMembers = const [
-    _ReportMember(name: 'Member 1', amount: 300),
-    _ReportMember(name: 'Member 2', amount: 100),
-  ];
+  List<_ReportMember> _cashMembers = [];
 
-  final _notPaidMembers = const [_ReportMember(name: 'Member 1', amount: 200)];
+  List<_ReportMember> _notPaidMembers = [];
 
   final _advanceMembers = const [
     _ReportMember(name: 'Member 1', amount: 100, advanceDeathCount: 1),
     _ReportMember(name: 'Member 2', amount: 300, advanceDeathCount: 3),
   ];
+
+  @override
+  void initState() {
+    super.initState();
+    _loadCashMembers();
+    _loadNotPaidMembers();
+  }
+
+  Future<List<String>> _assignedUserIdsForCurrentCollector() async {
+    final currentUserId = Supabase.instance.client.auth.currentUser?.id;
+    if (currentUserId == null || currentUserId.isEmpty) return [];
+
+    final collectorRows = await Supabase.instance.client
+        .from('dayung_collectors')
+        .select('collectors_id')
+        .eq('dayung_unit_id', widget.dayungUnitId)
+        .eq('user_id', currentUserId)
+        .limit(1);
+    if (collectorRows.isEmpty) return [];
+
+    final applicationRows = await Supabase.instance.client
+        .from('applications')
+        .select('user_id')
+        .eq('dayung_unit_id', widget.dayungUnitId)
+        .eq('assigned_collector', collectorRows.first['collectors_id'])
+        .eq('status', 'approved');
+    return applicationRows
+        .map((row) => (row['user_id'] ?? '').toString())
+        .where((userId) => userId.isNotEmpty)
+        .toSet()
+        .toList();
+  }
+
+  Future<void> _loadCashMembers() async {
+    setState(() {
+      _loadingCashMembers = true;
+      _cashMembersError = null;
+    });
+
+    try {
+      final assignedUserIds = await _assignedUserIdsForCurrentCollector();
+
+      if (assignedUserIds.isEmpty) {
+        if (!mounted) return;
+        setState(() {
+          _cashMembers = [];
+          _loadingCashMembers = false;
+        });
+        return;
+      }
+
+      final rows = await Supabase.instance.client
+          .from('payments')
+          .select(
+            'amount, status, userdeceased, is_claimed, user_id, '
+            'users!payments_user_id_fkey(full_name)',
+          )
+          .eq('dayung_unit_id', widget.dayungUnitId)
+          .eq('type', 'deceased_payment')
+          .eq('status', 'paid')
+          .inFilter('user_id', assignedUserIds)
+          .order('created_at', ascending: false);
+
+      final members = <_ReportMember>[];
+      for (final row in List<Map<String, dynamic>>.from(rows)) {
+        if (_isTrueFlag(row['is_claimed'])) continue;
+
+        final user = row['users'];
+        final name = user is Map
+            ? (user['full_name'] ?? 'Member').toString()
+            : 'Member';
+        members.add(
+          _ReportMember(
+            name: name,
+            amount: _toDouble(row['amount']),
+            status: (row['status'] ?? '').toString().toLowerCase(),
+          ),
+        );
+      }
+
+      if (!mounted) return;
+      setState(() {
+        _cashMembers = members;
+        _loadingCashMembers = false;
+      });
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _cashMembers = [];
+        _loadingCashMembers = false;
+        _cashMembersError = 'Failed to load cash payments: $error';
+      });
+    }
+  }
+
+  Future<void> _loadNotPaidMembers() async {
+    setState(() {
+      _loadingNotPaidMembers = true;
+      _notPaidMembersError = null;
+    });
+
+    try {
+      final assignedUserIds = await _assignedUserIdsForCurrentCollector();
+      if (assignedUserIds.isEmpty) {
+        if (!mounted) return;
+        setState(() {
+          _notPaidMembers = [];
+          _loadingNotPaidMembers = false;
+        });
+        return;
+      }
+
+      final rows = await Supabase.instance.client
+          .from('payments')
+          .select(
+            'amount, status, user_id, is_claimed, '
+            'users!payments_user_id_fkey(full_name)',
+          )
+          .eq('dayung_unit_id', widget.dayungUnitId)
+          .eq('type', 'deceased_payment')
+          .eq('status', 'unpaid')
+          .inFilter('user_id', assignedUserIds)
+          .order('created_at', ascending: false);
+
+      final membersByUserId = <String, _ReportMember>{};
+      for (final row in List<Map<String, dynamic>>.from(rows)) {
+        if (row['is_claimed'] != null && _isTrueFlag(row['is_claimed'])) {
+          continue;
+        }
+
+        final userId = (row['user_id'] ?? '').toString();
+        if (userId.isEmpty) continue;
+        final user = row['users'];
+        final name = user is Map
+            ? (user['full_name'] ?? 'Member').toString()
+            : 'Member';
+        final existingMember = membersByUserId[userId];
+        membersByUserId[userId] = _ReportMember(
+          name: existingMember?.name ?? name,
+          amount: (existingMember?.amount ?? 0) + _toDouble(row['amount']),
+          status: 'unpaid',
+        );
+      }
+      final members = membersByUserId.values.toList();
+
+      if (!mounted) return;
+      setState(() {
+        _notPaidMembers = members;
+        _loadingNotPaidMembers = false;
+      });
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _notPaidMembers = [];
+        _loadingNotPaidMembers = false;
+        _notPaidMembersError = 'Failed to load unpaid payments: $error';
+      });
+    }
+  }
+
+  static bool _isTrueFlag(dynamic value) {
+    if (value is bool) return value;
+    if (value is num) return value != 0;
+    final normalized = (value ?? '').toString().trim().toLowerCase();
+    return normalized == 'true' || normalized == '1' || normalized == 'yes';
+  }
+
+  static double _toDouble(dynamic value) {
+    if (value is num) return value.toDouble();
+    return double.tryParse(value.toString()) ?? 0;
+  }
 
   static const _tabLabels = [
     'Who pay\ncashless',
@@ -81,10 +256,26 @@ class _CollectorOverallReportsPageState
     }
   }
 
+  double _currentTotal(List<_ReportMember> members) {
+    if (_activeTab == 1) {
+      return members
+          .where((member) => member.status == 'paid')
+          .fold<double>(0, (sum, member) => sum + member.amount);
+    }
+    return members.fold<double>(0, (sum, member) => sum + member.amount);
+  }
+
+  int _unpaidDeceasedCount(List<_ReportMember> members) {
+    return members.fold<int>(
+      0,
+      (count, member) => count + (member.amount / 100).round(),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final members = _currentMembers;
-    final total = members.fold<double>(0, (sum, m) => sum + m.amount);
+    final total = _currentTotal(members);
 
     return Scaffold(
       backgroundColor: const Color(0xFFF8FAFC),
@@ -114,15 +305,37 @@ class _CollectorOverallReportsPageState
                                   bottom: BorderSide(color: Color(0xFF111827)),
                                 ),
                               ),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.stretch,
-                                children: [
-                                  _contentHeader(),
-                                  ..._rowsForActiveTab(members),
-                                  _totalRow(total),
-                                  _uploadButton(),
-                                ],
-                              ),
+                              child:
+                                  _activeTab == 1 && _loadingCashMembers ||
+                                      _activeTab == 2 && _loadingNotPaidMembers
+                                  ? const Padding(
+                                      padding: EdgeInsets.all(24),
+                                      child: Center(
+                                        child: CircularProgressIndicator(),
+                                      ),
+                                    )
+                                  : _activeTab == 1 &&
+                                            _cashMembersError != null ||
+                                        _activeTab == 2 &&
+                                            _notPaidMembersError != null
+                                  ? Padding(
+                                      padding: const EdgeInsets.all(24),
+                                      child: Text(
+                                        _activeTab == 1
+                                            ? _cashMembersError!
+                                            : _notPaidMembersError!,
+                                      ),
+                                    )
+                                  : Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.stretch,
+                                      children: [
+                                        _contentHeader(),
+                                        ..._rowsForActiveTab(members),
+                                        _totalRow(total),
+                                        _uploadButton(),
+                                      ],
+                                    ),
                             ),
                           ],
                         ),
@@ -204,7 +417,7 @@ class _CollectorOverallReportsPageState
       );
     }
 
-    if (_activeTab == 1 || _activeTab == 2) {
+    if (_activeTab == 1) {
       return Container(
         decoration: const BoxDecoration(
           border: Border(
@@ -219,6 +432,30 @@ class _CollectorOverallReportsPageState
               child: _HeaderCell('List of members who pay cash'),
             ),
             Expanded(flex: 2, child: _HeaderCell('Amount')),
+          ],
+        ),
+      );
+    }
+
+    if (_activeTab == 2) {
+      return Container(
+        decoration: const BoxDecoration(
+          border: Border(
+            top: BorderSide(color: Color(0xFF111827)),
+            bottom: BorderSide(color: Color(0xFF111827)),
+          ),
+        ),
+        child: Row(
+          children: const [
+            Expanded(
+              flex: 5,
+              child: _HeaderCell('List of members who did not pay'),
+            ),
+            Expanded(flex: 2, child: _HeaderCell('Amount')),
+            Expanded(
+              flex: 3,
+              child: _HeaderCell('Number of deceased that unpaid'),
+            ),
           ],
         ),
       );
@@ -284,7 +521,7 @@ class _CollectorOverallReportsPageState
       }).toList();
     }
 
-    if (_activeTab == 1 || _activeTab == 2) {
+    if (_activeTab == 1) {
       return members.map((member) {
         return Container(
           decoration: const BoxDecoration(
@@ -300,6 +537,38 @@ class _CollectorOverallReportsPageState
                 flex: 2,
                 child: _DataCell(
                   member.amount.toStringAsFixed(0),
+                  align: TextAlign.center,
+                ),
+              ),
+            ],
+          ),
+        );
+      }).toList();
+    }
+
+    if (_activeTab == 2) {
+      return members.map((member) {
+        return Container(
+          decoration: const BoxDecoration(
+            border: Border(bottom: BorderSide(color: Color(0xFF111827))),
+          ),
+          child: Row(
+            children: [
+              Expanded(
+                flex: 5,
+                child: _DataCell(member.name, align: TextAlign.left),
+              ),
+              Expanded(
+                flex: 2,
+                child: _DataCell(
+                  member.amount.toStringAsFixed(0),
+                  align: TextAlign.center,
+                ),
+              ),
+              Expanded(
+                flex: 3,
+                child: _DataCell(
+                  (member.amount / 100).round().toString(),
                   align: TextAlign.center,
                 ),
               ),
@@ -389,7 +658,25 @@ class _CollectorOverallReportsPageState
             ),
           ),
           if (_activeTab == 2)
-            const Expanded(flex: 0, child: SizedBox())
+            Expanded(
+              flex: 3,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(
+                  vertical: 18,
+                  horizontal: 12,
+                ),
+                child: Text(
+                  _unpaidDeceasedCount(_notPaidMembers).toString(),
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    fontFamily: 'Montserrat',
+                    fontSize: 26,
+                    fontWeight: FontWeight.w800,
+                    color: Color(0xFF111827),
+                  ),
+                ),
+              ),
+            )
           else if (_activeTab == 0)
             const Expanded(flex: 0, child: SizedBox())
           else
