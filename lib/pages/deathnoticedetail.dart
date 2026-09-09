@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:math';
 import 'dart:async';
+import 'package:capstone_app/Secretary/secretary_ui.dart';
 import 'package:capstone_app/ui/loading/page_skeleton.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -462,7 +463,11 @@ class _DeathNoticeDetailState extends State<DeathNoticeDetail> {
         return;
       }
 
-      _fName = (notice['PassedAway'] ?? _fName)?.toString();
+      final fetchedName = (notice['PassedAway'] ?? '').toString().trim();
+      if ((_fName == null || _fName!.trim().isEmpty) &&
+          fetchedName.isNotEmpty) {
+        _fName = fetchedName;
+      }
       _fBirthDate = (notice['dob'] ?? _fBirthDate)?.toString();
       _fDateOfDeath = (notice['date_of_death'] ?? _fDateOfDeath)?.toString();
       // Prefer vigil_barangay, fallback to vigil_address, fallback to _fBarangay
@@ -753,7 +758,7 @@ class _DeathNoticeDetailState extends State<DeathNoticeDetail> {
   @override
   Widget build(BuildContext context) {
     final screenHeight = MediaQuery.of(context).size.height;
-    final name = _fName ?? 'Death Notice';
+    final name = (_fName ?? '').trim().isEmpty ? 'Unknown' : _fName!.trim();
     final dDate = _fDateOfDeath;
     final bDate = _fBirthDate;
     final age = _fStoredAge ?? _computeAge(bDate, dDate);
@@ -763,353 +768,334 @@ class _DeathNoticeDetailState extends State<DeathNoticeDetail> {
       top: false,
       child: Container(
         height: screenHeight * 0.75,
+        clipBehavior: Clip.antiAlias,
         decoration: const BoxDecoration(
-          color: Colors.white,
+          color: Color(0xFFF8FAFC),
           borderRadius: BorderRadius.only(
             topLeft: Radius.circular(20),
             topRight: Radius.circular(20),
           ),
         ),
-        child: Column(
-          children: [
-            // Drag handle
-            Container(
-              margin: const EdgeInsets.only(top: 8),
-              width: 40,
-              height: 4,
-              decoration: BoxDecoration(
-                color: Colors.grey.shade300,
-                borderRadius: BorderRadius.circular(2),
+        child: DefaultTextStyle.merge(
+          style: const TextStyle(decoration: TextDecoration.none),
+          child: Column(
+            children: [
+              const SecretaryPageHeader(
+                title: 'Vigil Details',
+                subtitle: 'Location and remembrance details',
+                icon: Icons.location_on_rounded,
+                usePaymentStyle: true,
               ),
-            ),
-            // Header
-            Container(
-              padding: const EdgeInsets.all(20),
-              child: Row(
-                children: [
-                  IconButton(
-                    tooltip: 'Close',
-                    icon: const Icon(Icons.close, color: Colors.grey),
-                    onPressed: () => Navigator.pop(context),
-                  ),
-                  const Spacer(),
-                  Text(
-                    'In Loving Memory',
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w600,
-                      color: Colors.grey.shade800,
-                    ),
-                  ),
-                  const Spacer(),
-                  const SizedBox(width: 48), // Balance the close button
-                ],
-              ),
-            ),
-            // Content
-            Expanded(
-              child: _loading
-                  ? const DayungPageSkeleton(
-                      layout: DayungSkeletonLayout.detail,
-                      itemCount: 3,
-                    )
-                  : _error != null
-                  ? Center(
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(
-                            Icons.error_outline,
-                            color: Colors.red,
-                            size: 48,
-                          ),
-                          const SizedBox(height: 16),
-                          Text(
-                            _error!,
-                            style: const TextStyle(color: Colors.red),
-                          ),
-                        ],
-                      ),
-                    )
-                  : SingleChildScrollView(
-                      padding: const EdgeInsets.symmetric(horizontal: 20),
-                      child: Column(
-                        children: [
-                          // Memorial Card
-                          Container(
-                            width: double.infinity,
-                            padding: const EdgeInsets.all(20),
-                            decoration: BoxDecoration(
-                              gradient: const LinearGradient(
-                                colors: [Color(0xFF0D47A1), Color(0xFF3B82F6)],
-                                begin: Alignment.topLeft,
-                                end: Alignment.bottomRight,
-                              ),
-                              borderRadius: BorderRadius.circular(16),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: const Color(
-                                    0xFF0D47A1,
-                                  ).withValues(alpha: 0.3),
-                                  blurRadius: 10,
-                                  offset: const Offset(0, 4),
-                                ),
-                              ],
+              // Content
+              Expanded(
+                child: _loading
+                    ? const DayungPageSkeleton(
+                        layout: DayungSkeletonLayout.detail,
+                        itemCount: 3,
+                      )
+                    : _error != null
+                    ? Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(
+                              Icons.error_outline,
+                              color: Colors.red,
+                              size: 48,
                             ),
-                            child: Column(
-                              children: [
-                                Icon(
-                                  Icons.favorite,
-                                  color: Colors.white,
-                                  size: 32,
-                                ),
-                                const SizedBox(height: 12),
-                                Text(
-                                  'In Loving Memory Of',
-                                  style: TextStyle(
-                                    fontSize: 14,
-                                    color: Colors.white.withValues(alpha: 0.9),
-                                    fontWeight: FontWeight.w500,
-                                  ),
-                                ),
-                                const SizedBox(height: 8),
-                                Text(
-                                  name,
-                                  textAlign: TextAlign.center,
-                                  style: const TextStyle(
-                                    fontSize: 24,
-                                    fontWeight: FontWeight.w700,
-                                    color: Colors.white,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                          const SizedBox(height: 20),
-                          // Date Card
-                          _buildInfoCard(
-                            icon: Icons.calendar_today,
-                            title: 'Date of Death',
-                            value: _fmtDate(dDate),
-                            subtitle: age != null ? 'Aged $age years' : null,
-                          ),
-                          const SizedBox(height: 16),
-                          // Location Card
-                          _buildInfoCard(
-                            icon: Icons.location_on,
-                            title: 'Vigil Location',
-                            value:
-                                _fBarangay ??
-                                _locationName ??
-                                _locationWarning ??
-                                'Location unavailable',
-                            showMapButton: hasMapLocation,
-                          ),
-                          const SizedBox(height: 16),
-                          if (!hasMapLocation && _locationWarning != null)
-                            _buildLocationWarningCard(),
-                          if (hasMapLocation) ...[
-                            SizedBox(
-                              height: 240,
-                              width: double.infinity,
-                              child: ClipRRect(
-                                borderRadius: BorderRadius.circular(12),
-                                child: Stack(
-                                  children: [
-                                    _buildModernMap(_fLat!, _fLng!),
-                                    // ml.MapLibreMap(
-                                    //   key: ValueKey('map_${_fLat}_$_fLng'),
-                                    //   styleString:
-                                    //       'https://api.maptiler.com/maps/basic-v2/style.json?key=ZgS5pYNNGTrRGUAnlS71',
-                                    //   initialCameraPosition: ml.CameraPosition(
-                                    //     target: ml.LatLng(_fLat!, _fLng!),
-                                    //     zoom: 16,
-                                    //   ),
-                                    //   onMapCreated: _onMapCreated,
-                                    //   onStyleLoadedCallback: _onStyleLoaded,
-                                    //   myLocationEnabled: false,
-                                    //   rotateGesturesEnabled: true,
-                                    //   tiltGesturesEnabled: false,
-                                    //   compassEnabled: false,
-                                    //   attributionButtonMargins: const Point(
-                                    //     6,
-                                    //     6,
-                                    //   ),
-                                    //   logoViewMargins: const Point(6, 6),
-                                    // ),
-                                    if (_autoFollow)
-                                      Positioned(
-                                        top: 16,
-                                        left: 16,
-                                        child: Container(
-                                          padding: const EdgeInsets.symmetric(
-                                            horizontal: 16,
-                                            vertical: 7,
-                                          ),
-                                          decoration: BoxDecoration(
-                                            color: Colors.black.withValues(
-                                              alpha: 0.65,
-                                            ),
-                                            borderRadius: BorderRadius.circular(
-                                              20,
-                                            ),
-                                          ),
-                                          child: Row(
-                                            mainAxisSize: MainAxisSize.min,
-                                            children: const [
-                                              Icon(
-                                                Icons.center_focus_strong,
-                                                color: Colors.white,
-                                                size: 18,
-                                              ),
-                                              SizedBox(width: 8),
-                                              Text(
-                                                'Following',
-                                                style: TextStyle(
-                                                  color: Colors.white,
-                                                  fontWeight: FontWeight.w600,
-                                                  fontSize: 13.5,
-                                                  letterSpacing: 0.2,
-                                                ),
-                                              ),
-                                            ],
-                                          ),
-                                        ),
-                                      ),
-                                    Positioned(
-                                      left: 12,
-                                      bottom: 12,
-                                      child: _locPermissionDenied
-                                          ? _pillChip(
-                                              'Location denied',
-                                              Icons.location_off,
-                                              Colors.red,
-                                            )
-                                          : (_distanceMeters != null
-                                                ? _pillChip(
-                                                    _formatDistance(
-                                                      _distanceMeters!,
-                                                    ),
-                                                    Icons.route,
-                                                    const Color(0xFF0D47A1),
-                                                  )
-                                                : _pillChip(
-                                                    'Locating...',
-                                                    Icons.gps_fixed,
-                                                    const Color(0xFF0D47A1),
-                                                  )),
-                                    ),
-                                    // Route button
-                                    Positioned(
-                                      right: 12,
-                                      bottom: 12,
-                                      child: ElevatedButton.icon(
-                                        style: ElevatedButton.styleFrom(
-                                          backgroundColor: Colors.white,
-                                          foregroundColor: const Color(
-                                            0xFF0D47A1,
-                                          ),
-                                          padding: const EdgeInsets.symmetric(
-                                            horizontal: 14,
-                                            vertical: 8,
-                                          ),
-                                          shape: RoundedRectangleBorder(
-                                            borderRadius: BorderRadius.circular(
-                                              10,
-                                            ),
-                                          ),
-                                        ),
-                                        onPressed: _openRouteInMaps,
-                                        icon: const Icon(
-                                          Icons.directions,
-                                          size: 18,
-                                        ),
-                                        label: const Text(
-                                          'Route',
-                                          style: TextStyle(
-                                            fontSize: 13,
-                                            fontWeight: FontWeight.w600,
-                                          ),
-                                        ),
-                                      ),
-                                    ),
-                                    // Center buttons (vigil + user)
-                                    // Positioned(
-                                    //   right: 12,
-                                    //   top: 12,
-                                    //   child: Column(
-                                    //     children: [
-                                    //       _CenterBtn(
-                                    //         tooltip: 'Center on vigil',
-                                    //         icon: Icons.location_on,
-                                    //         enabled:
-                                    //             _fLat != null && _fLng != null,
-                                    //         onTap: _centerOnVigil,
-                                    //       ),
-                                    //       const SizedBox(height: 10),
-                                    //       _CenterBtn(
-                                    //         tooltip: 'Center on you',
-                                    //         icon: Icons.my_location,
-                                    //         enabled:
-                                    //             _userLat != null &&
-                                    //             _userLng != null,
-                                    //         onTap: _centerOnUser,
-                                    //       ),
-                                    //       const SizedBox(height: 10),
-                                    //       _CenterBtn(
-                                    //         tooltip: _autoFollow
-                                    //             ? 'Disable follow'
-                                    //             : 'Enable follow',
-                                    //         icon: _autoFollow
-                                    //             ? Icons.center_focus_strong
-                                    //             : Icons.center_focus_weak,
-                                    //         enabled: true,
-                                    //         onTap: _toggleFollow,
-                                    //       ),
-                                    //     ],
-                                    //   ),
-                                    // ),
-                                  ],
-                                ),
-                              ),
+                            const SizedBox(height: 16),
+                            Text(
+                              _error!,
+                              style: const TextStyle(color: Colors.red),
                             ),
                           ],
-                          const SizedBox(height: 20),
-                          // Memorial Message
-                          Container(
-                            width: double.infinity,
-                            padding: const EdgeInsets.all(16),
-                            decoration: BoxDecoration(
-                              color: Colors.grey.shade50,
-                              borderRadius: BorderRadius.circular(12),
-                              border: Border.all(color: Colors.grey.shade200),
-                            ),
-                            child: Column(
-                              children: [
-                                Icon(
-                                  Icons.favorite,
-                                  color: const Color(0xFF0D47A1),
-                                  size: 24,
+                        ),
+                      )
+                    : SingleChildScrollView(
+                        padding: const EdgeInsets.fromLTRB(20, 18, 20, 24),
+                        child: Column(
+                          children: [
+                            // Memorial Card
+                            Container(
+                              width: double.infinity,
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 20,
+                                vertical: 24,
+                              ),
+                              decoration: BoxDecoration(
+                                gradient: const LinearGradient(
+                                  colors: [
+                                    Color(0xFF0D47A1),
+                                    Color(0xFF3B82F6),
+                                  ],
+                                  begin: Alignment.topLeft,
+                                  end: Alignment.bottomRight,
                                 ),
-                                const SizedBox(height: 8),
-                                Text(
-                                  'With deepest respect and remembrance.',
-                                  textAlign: TextAlign.center,
-                                  style: TextStyle(
-                                    fontSize: 14,
-                                    color: Colors.grey.shade700,
-                                    fontStyle: FontStyle.italic,
+                                borderRadius: BorderRadius.circular(22),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: const Color(
+                                      0xFF0D47A1,
+                                    ).withValues(alpha: 0.3),
+                                    blurRadius: 10,
+                                    offset: const Offset(0, 4),
+                                  ),
+                                ],
+                              ),
+                              child: Column(
+                                children: [
+                                  Icon(
+                                    Icons.favorite,
+                                    color: Colors.white,
+                                    size: 32,
+                                  ),
+                                  const SizedBox(height: 12),
+                                  Text(
+                                    'In Loving Memory Of',
+                                    style: TextStyle(
+                                      fontSize: 14,
+                                      color: Colors.white.withValues(
+                                        alpha: 0.9,
+                                      ),
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 8),
+                                  Text(
+                                    name,
+                                    textAlign: TextAlign.center,
+                                    style: const TextStyle(
+                                      fontSize: 24,
+                                      fontWeight: FontWeight.w700,
+                                      color: Colors.white,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(height: 20),
+                            // Date Card
+                            _buildInfoCard(
+                              icon: Icons.calendar_today,
+                              title: 'Date of Death',
+                              value: _fmtDate(dDate),
+                              subtitle: age != null ? 'Aged $age years' : null,
+                            ),
+                            const SizedBox(height: 16),
+                            // Location Card
+                            _buildInfoCard(
+                              icon: Icons.location_on,
+                              title: 'Vigil Location',
+                              value:
+                                  _fBarangay ??
+                                  _locationName ??
+                                  _locationWarning ??
+                                  'Location unavailable',
+                            ),
+                            const SizedBox(height: 16),
+                            if (!hasMapLocation && _locationWarning != null)
+                              _buildLocationWarningCard(),
+                            if (hasMapLocation) ...[
+                              SizedBox(
+                                height: 240,
+                                width: double.infinity,
+                                child: ClipRRect(
+                                  borderRadius: BorderRadius.circular(20),
+                                  child: Stack(
+                                    children: [
+                                      _buildModernMap(_fLat!, _fLng!),
+                                      // ml.MapLibreMap(
+                                      //   key: ValueKey('map_${_fLat}_$_fLng'),
+                                      //   styleString:
+                                      //       'https://api.maptiler.com/maps/basic-v2/style.json?key=ZgS5pYNNGTrRGUAnlS71',
+                                      //   initialCameraPosition: ml.CameraPosition(
+                                      //     target: ml.LatLng(_fLat!, _fLng!),
+                                      //     zoom: 16,
+                                      //   ),
+                                      //   onMapCreated: _onMapCreated,
+                                      //   onStyleLoadedCallback: _onStyleLoaded,
+                                      //   myLocationEnabled: false,
+                                      //   rotateGesturesEnabled: true,
+                                      //   tiltGesturesEnabled: false,
+                                      //   compassEnabled: false,
+                                      //   attributionButtonMargins: const Point(
+                                      //     6,
+                                      //     6,
+                                      //   ),
+                                      //   logoViewMargins: const Point(6, 6),
+                                      // ),
+                                      if (_autoFollow)
+                                        Positioned(
+                                          top: 16,
+                                          left: 16,
+                                          child: Container(
+                                            padding: const EdgeInsets.symmetric(
+                                              horizontal: 16,
+                                              vertical: 7,
+                                            ),
+                                            decoration: BoxDecoration(
+                                              color: Colors.black.withValues(
+                                                alpha: 0.65,
+                                              ),
+                                              borderRadius:
+                                                  BorderRadius.circular(20),
+                                            ),
+                                            child: Row(
+                                              mainAxisSize: MainAxisSize.min,
+                                              children: const [
+                                                Icon(
+                                                  Icons.center_focus_strong,
+                                                  color: Colors.white,
+                                                  size: 18,
+                                                ),
+                                                SizedBox(width: 8),
+                                                Text(
+                                                  'Following',
+                                                  style: TextStyle(
+                                                    color: Colors.white,
+                                                    fontWeight: FontWeight.w600,
+                                                    fontSize: 13.5,
+                                                    letterSpacing: 0.2,
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                        ),
+                                      Positioned(
+                                        left: 12,
+                                        bottom: 12,
+                                        child: _locPermissionDenied
+                                            ? _pillChip(
+                                                'Location denied',
+                                                Icons.location_off,
+                                                Colors.red,
+                                              )
+                                            : (_distanceMeters != null
+                                                  ? _pillChip(
+                                                      _formatDistance(
+                                                        _distanceMeters!,
+                                                      ),
+                                                      Icons.route,
+                                                      const Color(0xFF0D47A1),
+                                                    )
+                                                  : _pillChip(
+                                                      'Locating...',
+                                                      Icons.gps_fixed,
+                                                      const Color(0xFF0D47A1),
+                                                    )),
+                                      ),
+                                      // Route button
+                                      Positioned(
+                                        right: 12,
+                                        bottom: 12,
+                                        child: ElevatedButton.icon(
+                                          style: ElevatedButton.styleFrom(
+                                            backgroundColor: Colors.white,
+                                            foregroundColor: const Color(
+                                              0xFF0D47A1,
+                                            ),
+                                            padding: const EdgeInsets.symmetric(
+                                              horizontal: 14,
+                                              vertical: 8,
+                                            ),
+                                            shape: RoundedRectangleBorder(
+                                              borderRadius:
+                                                  BorderRadius.circular(10),
+                                            ),
+                                          ),
+                                          onPressed: _openRouteInMaps,
+                                          icon: const Icon(
+                                            Icons.directions,
+                                            size: 18,
+                                          ),
+                                          label: const Text(
+                                            'Route',
+                                            style: TextStyle(
+                                              fontSize: 13,
+                                              fontWeight: FontWeight.w600,
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                      // Center buttons (vigil + user)
+                                      // Positioned(
+                                      //   right: 12,
+                                      //   top: 12,
+                                      //   child: Column(
+                                      //     children: [
+                                      //       _CenterBtn(
+                                      //         tooltip: 'Center on vigil',
+                                      //         icon: Icons.location_on,
+                                      //         enabled:
+                                      //             _fLat != null && _fLng != null,
+                                      //         onTap: _centerOnVigil,
+                                      //       ),
+                                      //       const SizedBox(height: 10),
+                                      //       _CenterBtn(
+                                      //         tooltip: 'Center on you',
+                                      //         icon: Icons.my_location,
+                                      //         enabled:
+                                      //             _userLat != null &&
+                                      //             _userLng != null,
+                                      //         onTap: _centerOnUser,
+                                      //       ),
+                                      //       const SizedBox(height: 10),
+                                      //       _CenterBtn(
+                                      //         tooltip: _autoFollow
+                                      //             ? 'Disable follow'
+                                      //             : 'Enable follow',
+                                      //         icon: _autoFollow
+                                      //             ? Icons.center_focus_strong
+                                      //             : Icons.center_focus_weak,
+                                      //         enabled: true,
+                                      //         onTap: _toggleFollow,
+                                      //       ),
+                                      //     ],
+                                      //   ),
+                                      // ),
+                                    ],
                                   ),
                                 ),
-                              ],
+                              ),
+                            ],
+                            const SizedBox(height: 20),
+                            // Memorial Message
+                            Container(
+                              width: double.infinity,
+                              padding: const EdgeInsets.all(16),
+                              decoration: BoxDecoration(
+                                color: Colors.grey.shade50,
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(color: Colors.grey.shade200),
+                              ),
+                              child: Column(
+                                children: [
+                                  Icon(
+                                    Icons.favorite,
+                                    color: const Color(0xFF0D47A1),
+                                    size: 24,
+                                  ),
+                                  const SizedBox(height: 8),
+                                  Text(
+                                    'With deepest respect and remembrance.',
+                                    textAlign: TextAlign.center,
+                                    style: TextStyle(
+                                      fontSize: 14,
+                                      color: Colors.grey.shade700,
+                                      fontStyle: FontStyle.italic,
+                                    ),
+                                  ),
+                                ],
+                              ),
                             ),
-                          ),
-                          const SizedBox(height: 20),
-                        ],
+                            const SizedBox(height: 20),
+                          ],
+                        ),
                       ),
-                    ),
-            ),
-          ],
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -1306,20 +1292,19 @@ class _DeathNoticeDetailState extends State<DeathNoticeDetail> {
     required String title,
     required String value,
     String? subtitle,
-    bool showMapButton = false,
   }) {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.grey.shade200),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: const Color(0xFFE5E7EB)),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.05),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
+            color: const Color(0x12000000),
+            blurRadius: 14,
+            offset: const Offset(0, 5),
           ),
         ],
       ),
@@ -1328,14 +1313,14 @@ class _DeathNoticeDetailState extends State<DeathNoticeDetail> {
         children: [
           Row(
             children: [
-              Icon(icon, color: const Color(0xFF0D47A1), size: 20),
+              Icon(icon, color: const Color(0xFF0D47A1), size: 21),
               const SizedBox(width: 8),
               Text(
                 title,
                 style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                  color: Colors.grey.shade700,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w800,
+                  color: Colors.grey.shade600,
                 ),
               ),
             ],
@@ -1344,16 +1329,20 @@ class _DeathNoticeDetailState extends State<DeathNoticeDetail> {
           Text(
             value,
             style: const TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.w600,
-              color: Colors.black87,
+              fontSize: 18,
+              fontWeight: FontWeight.w800,
+              color: Color(0xFF111827),
             ),
           ),
           if (subtitle != null) ...[
             const SizedBox(height: 4),
             Text(
               subtitle,
-              style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: Colors.grey.shade600,
+              ),
             ),
           ],
         ],

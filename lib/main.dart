@@ -590,6 +590,7 @@ class _AuthGateState extends State<_AuthGate> {
     });
   }
 
+
   @override
   void dispose() {
     _sub.cancel();

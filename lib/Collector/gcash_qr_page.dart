@@ -582,18 +582,24 @@ class _GcashQrPageState extends State<GcashQrPage> {
                 children: [
                   Row(
                     children: [
-                      IconButton(
-                        onPressed: () => Navigator.pop(context),
-                        icon: Container(
-                          padding: const EdgeInsets.all(8),
-                          decoration: BoxDecoration(
-                            color: Colors.white.withOpacity(0.16),
-                            borderRadius: BorderRadius.circular(14),
+                      Container(
+                        width: 44,
+                        height: 44,
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.2),
+                          borderRadius: BorderRadius.circular(13),
+                          border: Border.all(
+                            color: Colors.white.withValues(alpha: 0.3),
                           ),
-                          child: const Icon(
-                            Icons.arrow_back_ios_new_rounded,
+                        ),
+                        child: IconButton(
+                          tooltip: 'Back',
+                          padding: EdgeInsets.zero,
+                          onPressed: () => Navigator.of(context).maybePop(),
+                          icon: const Icon(
+                            Icons.arrow_back_rounded,
                             color: Colors.white,
-                            size: 18,
+                            size: 21,
                           ),
                         ),
                       ),

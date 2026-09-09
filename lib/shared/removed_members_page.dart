@@ -127,7 +127,8 @@ class _RemovedMembersPageState extends State<RemovedMembersPage> {
     final second = now.second.toString().padLeft(2, '0');
     final milliseconds = now.millisecond.toString().padLeft(3, '0');
     final microseconds = now.microsecond.toString().padLeft(3, '0');
-    return '$year-$month-$day''T$hour:$minute:$second.$milliseconds$microseconds+08:00';
+    return '$year-$month-$day'
+        'T$hour:$minute:$second.$milliseconds$microseconds+08:00';
   }
 
   Future<void> _confirmRemove(Map<String, dynamic> member) async {
@@ -174,7 +175,9 @@ class _RemovedMembersPageState extends State<RemovedMembersPage> {
   Future<void> _removeMember(Map<String, dynamic> member) async {
     final applicationId = member['id'];
     final userId = (member['user_id'] ?? '').toString();
-    if (applicationId == null || userId.isEmpty || _removingUserIds.contains(userId)) {
+    if (applicationId == null ||
+        userId.isEmpty ||
+        _removingUserIds.contains(userId)) {
       return;
     }
 
@@ -195,7 +198,8 @@ class _RemovedMembersPageState extends State<RemovedMembersPage> {
           ? Map<String, dynamic>.from(updatedRows.first)
           : null;
 
-      if (updatedApplication == null || updatedApplication['isRemovedInDayung'] != true) {
+      if (updatedApplication == null ||
+          updatedApplication['isRemovedInDayung'] != true) {
         throw StateError(
           'No applications row was updated. Check the applications update policy and the isRemovedInDayung column name in Supabase.',
         );
@@ -214,9 +218,9 @@ class _RemovedMembersPageState extends State<RemovedMembersPage> {
         }
       });
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Member removed.')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Member removed.')));
       _load();
     } on PostgrestException catch (e) {
       if (!mounted) return;
@@ -227,9 +231,9 @@ class _RemovedMembersPageState extends State<RemovedMembersPage> {
     } catch (e) {
       if (!mounted) return;
       setState(() => _removingUserIds.remove(userId));
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to remove member: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Failed to remove member: $e')));
     }
   }
 
@@ -277,7 +281,9 @@ class _RemovedMembersPageState extends State<RemovedMembersPage> {
   Future<void> _restoreMember(Map<String, dynamic> member) async {
     final applicationId = member['id'];
     final userId = (member['user_id'] ?? '').toString();
-    if (applicationId == null || userId.isEmpty || _restoringUserIds.contains(userId)) {
+    if (applicationId == null ||
+        userId.isEmpty ||
+        _restoringUserIds.contains(userId)) {
       return;
     }
 
@@ -298,7 +304,8 @@ class _RemovedMembersPageState extends State<RemovedMembersPage> {
           ? Map<String, dynamic>.from(updatedRows.first)
           : null;
 
-      if (updatedApplication == null || updatedApplication['isRemovedInDayung'] != false) {
+      if (updatedApplication == null ||
+          updatedApplication['isRemovedInDayung'] != false) {
         throw StateError(
           'No applications row was restored. Check the applications update policy and the isRemovedInDayung column name in Supabase.',
         );
@@ -315,9 +322,9 @@ class _RemovedMembersPageState extends State<RemovedMembersPage> {
         _restoringUserIds.remove(userId);
       });
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Member restored.')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Member restored.')));
       _load();
     } on PostgrestException catch (e) {
       if (!mounted) return;
@@ -328,9 +335,9 @@ class _RemovedMembersPageState extends State<RemovedMembersPage> {
     } catch (e) {
       if (!mounted) return;
       setState(() => _restoringUserIds.remove(userId));
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to restore member: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Failed to restore member: $e')));
     }
   }
 
@@ -359,13 +366,26 @@ class _RemovedMembersPageState extends State<RemovedMembersPage> {
               ),
               child: Row(
                 children: [
-                  IconButton(
-                    icon: const Icon(
-                      Icons.arrow_back_rounded,
-                      color: Colors.white,
-                      size: 26,
+                  Container(
+                    width: 44,
+                    height: 44,
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.2),
+                      borderRadius: BorderRadius.circular(13),
+                      border: Border.all(
+                        color: Colors.white.withValues(alpha: 0.3),
+                      ),
                     ),
-                    onPressed: () => Navigator.pop(context),
+                    child: IconButton(
+                      tooltip: 'Back',
+                      padding: EdgeInsets.zero,
+                      onPressed: () => Navigator.of(context).maybePop(),
+                      icon: const Icon(
+                        Icons.arrow_back_rounded,
+                        color: Colors.white,
+                        size: 21,
+                      ),
+                    ),
                   ),
                   const SizedBox(width: 4),
                   const Icon(
@@ -520,7 +540,8 @@ class _RemovedMembersPageState extends State<RemovedMembersPage> {
                             child: ListView.builder(
                               padding: const EdgeInsets.all(16),
                               itemCount: _pagedFiltered.length,
-                              itemBuilder: (_, i) => _memberCard(_pagedFiltered[i]),
+                              itemBuilder: (_, i) =>
+                                  _memberCard(_pagedFiltered[i]),
                             ),
                           ),
                         ),
@@ -531,8 +552,12 @@ class _RemovedMembersPageState extends State<RemovedMembersPage> {
                               mainAxisAlignment: MainAxisAlignment.spaceBetween,
                               children: [
                                 IconButton(
-                                  onPressed: _pageIndex == 0 ? null : _goToPreviousPage,
-                                  icon: const Icon(Icons.arrow_back_ios_new_rounded),
+                                  onPressed: _pageIndex == 0
+                                      ? null
+                                      : _goToPreviousPage,
+                                  icon: const Icon(
+                                    Icons.arrow_back_ios_new_rounded,
+                                  ),
                                   color: _kPrimary,
                                 ),
                                 Text(
@@ -544,8 +569,12 @@ class _RemovedMembersPageState extends State<RemovedMembersPage> {
                                   ),
                                 ),
                                 IconButton(
-                                  onPressed: _pageIndex >= _pageCount - 1 ? null : _goToNextPage,
-                                  icon: const Icon(Icons.arrow_forward_ios_rounded),
+                                  onPressed: _pageIndex >= _pageCount - 1
+                                      ? null
+                                      : _goToNextPage,
+                                  icon: const Icon(
+                                    Icons.arrow_forward_ios_rounded,
+                                  ),
                                   color: _kPrimary,
                                 ),
                               ],
@@ -580,11 +609,12 @@ class _RemovedMembersPageState extends State<RemovedMembersPage> {
                                   children: _removedMembers.map((row) {
                                     final user = row['user'] as Map?;
                                     final fullName =
-                                        (user?['full_name'] ?? 'Member').toString();
-                                    final userId =
-                                        (row['user_id'] ?? '').toString();
-                                    final isRestoring =
-                                        _restoringUserIds.contains(userId);
+                                        (user?['full_name'] ?? 'Member')
+                                            .toString();
+                                    final userId = (row['user_id'] ?? '')
+                                        .toString();
+                                    final isRestoring = _restoringUserIds
+                                        .contains(userId);
                                     return Container(
                                       padding: const EdgeInsets.symmetric(
                                         horizontal: 12,
@@ -592,7 +622,9 @@ class _RemovedMembersPageState extends State<RemovedMembersPage> {
                                       ),
                                       decoration: BoxDecoration(
                                         color: _kDanger.withValues(alpha: 0.08),
-                                        borderRadius: BorderRadius.circular(999),
+                                        borderRadius: BorderRadius.circular(
+                                          999,
+                                        ),
                                       ),
                                       child: Row(
                                         mainAxisSize: MainAxisSize.min,
@@ -611,7 +643,9 @@ class _RemovedMembersPageState extends State<RemovedMembersPage> {
                                             onTap: isRestoring
                                                 ? null
                                                 : () => _confirmRestore(row),
-                                            borderRadius: BorderRadius.circular(999),
+                                            borderRadius: BorderRadius.circular(
+                                              999,
+                                            ),
                                             child: Padding(
                                               padding: const EdgeInsets.all(2),
                                               child: isRestoring
@@ -620,8 +654,8 @@ class _RemovedMembersPageState extends State<RemovedMembersPage> {
                                                       height: 14,
                                                       child:
                                                           CircularProgressIndicator(
-                                                        strokeWidth: 2,
-                                                      ),
+                                                            strokeWidth: 2,
+                                                          ),
                                                     )
                                                   : const Icon(
                                                       Icons.undo_rounded,
@@ -653,8 +687,7 @@ class _RemovedMembersPageState extends State<RemovedMembersPage> {
     final profileUrl = (u?['profile_url'] ?? '').toString();
     final userId = (r['user_id'] ?? '').toString();
     final isRemoving = _removingUserIds.contains(userId);
-    final approvedAt =
-        (r['approved_at'] ?? r['updated_at'] ?? '').toString();
+    final approvedAt = (r['approved_at'] ?? r['updated_at'] ?? '').toString();
     String dateStr = '';
     if (approvedAt.isNotEmpty) {
       final dt = DateTime.tryParse(approvedAt);

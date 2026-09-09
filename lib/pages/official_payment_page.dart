@@ -386,7 +386,9 @@ class _OfficialPaymentPageState extends State<OfficialPaymentPage> {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('A receipt has already been uploaded for this payment.'),
+          content: Text(
+            'A receipt has already been uploaded for this payment.',
+          ),
         ),
       );
       return;
@@ -420,7 +422,11 @@ class _OfficialPaymentPageState extends State<OfficialPaymentPage> {
                 const SizedBox(height: 12),
                 ClipRRect(
                   borderRadius: BorderRadius.circular(14),
-                  child: Image.memory(imageBytes, height: 180, fit: BoxFit.cover),
+                  child: Image.memory(
+                    imageBytes,
+                    height: 180,
+                    fit: BoxFit.cover,
+                  ),
                 ),
                 const SizedBox(height: 12),
                 TextField(
@@ -443,7 +449,8 @@ class _OfficialPaymentPageState extends State<OfficialPaymentPage> {
                     }
                     String formatted = digits;
                     if (digits.length > 4 && digits.length <= 7) {
-                      formatted = '${digits.substring(0, 4)} ${digits.substring(4)}';
+                      formatted =
+                          '${digits.substring(0, 4)} ${digits.substring(4)}';
                     } else if (digits.length > 7) {
                       formatted =
                           '${digits.substring(0, 4)} ${digits.substring(4, 7)} ${digits.substring(7)}';
@@ -484,7 +491,8 @@ class _OfficialPaymentPageState extends State<OfficialPaymentPage> {
     if (confirm == null || confirm['confirm'] != true) return;
 
     final refNo = (confirm['refNo'] ?? '').toString();
-    final fileName = 'gcash_${DateTime.now().millisecondsSinceEpoch}_${pickedFile.name}';
+    final fileName =
+        'gcash_${DateTime.now().millisecondsSinceEpoch}_${pickedFile.name}';
 
     try {
       final storageResponse = await sb.storage
@@ -492,9 +500,9 @@ class _OfficialPaymentPageState extends State<OfficialPaymentPage> {
           .uploadBinary(fileName, imageBytes);
       if (storageResponse.isEmpty) {
         if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Receipt upload failed.')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('Receipt upload failed.')));
         return;
       }
 
@@ -514,9 +522,9 @@ class _OfficialPaymentPageState extends State<OfficialPaymentPage> {
       await _markPaymentAsGCashPending(paymentRow['id'], refNo);
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error uploading receipt: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Error uploading receipt: $e')));
     }
   }
 
@@ -574,7 +582,9 @@ class _OfficialPaymentPageState extends State<OfficialPaymentPage> {
     try {
       final cleanPath = normalizeStoragePath(imageValue);
       if (cleanPath.isEmpty) return null;
-      return sb.storage.from('gcash_qr_images').createSignedUrl(cleanPath, 3600);
+      return sb.storage
+          .from('gcash_qr_images')
+          .createSignedUrl(cleanPath, 3600);
     } catch (_) {
       return null;
     }
@@ -590,14 +600,19 @@ class _OfficialPaymentPageState extends State<OfficialPaymentPage> {
       decoration: BoxDecoration(
         color: kOfficialPaymentBg,
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: kOfficialPaymentPrimary.withValues(alpha: 0.12)),
+        border: Border.all(
+          color: kOfficialPaymentPrimary.withValues(alpha: 0.12),
+        ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              const Icon(Icons.receipt_long_rounded, color: kOfficialPaymentPrimary),
+              const Icon(
+                Icons.receipt_long_rounded,
+                color: kOfficialPaymentPrimary,
+              ),
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
@@ -640,7 +655,9 @@ class _OfficialPaymentPageState extends State<OfficialPaymentPage> {
                   decoration: BoxDecoration(
                     color: Colors.white,
                     borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: kOfficialPaymentPrimary.withValues(alpha: 0.12)),
+                    border: Border.all(
+                      color: kOfficialPaymentPrimary.withValues(alpha: 0.12),
+                    ),
                   ),
                   child: const Text('Receipt preview unavailable'),
                 );
@@ -659,7 +676,9 @@ class _OfficialPaymentPageState extends State<OfficialPaymentPage> {
                     decoration: BoxDecoration(
                       color: Colors.white,
                       borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: kOfficialPaymentPrimary.withValues(alpha: 0.12)),
+                      border: Border.all(
+                        color: kOfficialPaymentPrimary.withValues(alpha: 0.12),
+                      ),
                     ),
                     child: const Text('Receipt preview unavailable'),
                   ),
@@ -886,12 +905,25 @@ class _OfficialPaymentPageState extends State<OfficialPaymentPage> {
               ),
               child: Row(
                 children: [
-                  IconButton(
-                    onPressed: () => Navigator.pop(context),
-                    icon: const Icon(
-                      Icons.chevron_left_rounded,
-                      color: Colors.white,
-                      size: 28,
+                  Container(
+                    width: 44,
+                    height: 44,
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.2),
+                      borderRadius: BorderRadius.circular(13),
+                      border: Border.all(
+                        color: Colors.white.withValues(alpha: 0.3),
+                      ),
+                    ),
+                    child: IconButton(
+                      tooltip: 'Back',
+                      padding: EdgeInsets.zero,
+                      onPressed: () => Navigator.of(context).maybePop(),
+                      icon: const Icon(
+                        Icons.arrow_back_rounded,
+                        color: Colors.white,
+                        size: 21,
+                      ),
                     ),
                   ),
                   const SizedBox(width: 8),

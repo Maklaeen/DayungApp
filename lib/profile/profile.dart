@@ -15,6 +15,7 @@ import 'package:capstone_app/ui/loading/page_skeleton.dart';
 import 'package:capstone_app/utils/input_safety.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:capstone_app/shared/dayung_back_button.dart';
 import 'package:image_cropper/image_cropper.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:path_provider/path_provider.dart';
@@ -1126,15 +1127,7 @@ class _ProfilePageState extends State<ProfilePage>
       ),
       child: Row(
         children: [
-          if (showBackButton)
-            IconButton(
-              icon: const Icon(
-                Icons.arrow_back_rounded,
-                color: Colors.white,
-                size: 26,
-              ),
-              onPressed: widget.onBack,
-            ),
+          if (showBackButton) DayungBackButton(onPressed: widget.onBack!),
           if (showBackButton) const SizedBox(width: 16),
           Expanded(
             child: Text(

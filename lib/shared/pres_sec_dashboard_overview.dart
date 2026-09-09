@@ -328,7 +328,6 @@ class _PresSecDashboardOverviewState extends State<PresSecDashboardOverview> {
         _sectionTitle('Ongoing Collections'),
         const SizedBox(height: 12),
         _incompleteCollectionsList(),
-        const SizedBox(height: 100),
       ],
     );
   }

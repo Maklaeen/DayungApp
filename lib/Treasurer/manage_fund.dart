@@ -55,7 +55,7 @@ class _ManageFundPageState extends State<ManageFundPage> {
   double _totalPaid = 0.0;
   double _totalGoal = 0.0;
   int _approvedMemberCount = 0;
-  
+
   // Deceased Payment Tracking - Per Deceased Person
   double _deceasedPaymentPaid = 0.0;
   double _deceasedPaymentTotal = 0.0;
@@ -305,8 +305,9 @@ class _ManageFundPageState extends State<ManageFundPage> {
           'date': '',
           'paid': paidAmount,
           'total': totalAmount,
-          'progress':
-              totalAmount > 0 ? (paidAmount / totalAmount).clamp(0.0, 1.0) : 0.0,
+          'progress': totalAmount > 0
+              ? (paidAmount / totalAmount).clamp(0.0, 1.0)
+              : 0.0,
         });
       }
 
@@ -580,13 +581,24 @@ class _ManageFundPageState extends State<ManageFundPage> {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          IconButton(
-            icon: const Icon(
-              Icons.chevron_left_rounded,
-              color: Colors.white,
-              size: 28,
+          Container(
+            width: 44,
+            height: 44,
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.2),
+              borderRadius: BorderRadius.circular(13),
+              border: Border.all(color: Colors.white.withValues(alpha: 0.3)),
             ),
-            onPressed: () => Navigator.pop(context),
+            child: IconButton(
+              tooltip: 'Back',
+              padding: EdgeInsets.zero,
+              onPressed: () => Navigator.of(context).maybePop(),
+              icon: const Icon(
+                Icons.arrow_back_rounded,
+                color: Colors.white,
+                size: 21,
+              ),
+            ),
           ),
           const SizedBox(width: 8),
           Expanded(
@@ -729,7 +741,7 @@ class _ManageFundPageState extends State<ManageFundPage> {
 
   Widget _buildEmptyState() {
     final hasDeceasedPayments = _deceasedPayments.isNotEmpty;
-    
+
     return Column(
       children: [
         Container(
@@ -840,7 +852,9 @@ class _ManageFundPageState extends State<ManageFundPage> {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFF59E0B).withValues(alpha: 0.3)),
+        border: Border.all(
+          color: const Color(0xFFF59E0B).withValues(alpha: 0.3),
+        ),
         boxShadow: const [
           BoxShadow(
             color: Color(0x0A000000),
@@ -898,7 +912,10 @@ class _ManageFundPageState extends State<ManageFundPage> {
                 ),
               ),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 5,
+                ),
                 decoration: BoxDecoration(
                   color: const Color(0xFFF59E0B).withValues(alpha: 0.15),
                   borderRadius: BorderRadius.circular(8),
@@ -1025,7 +1042,9 @@ class _ManageFundPageState extends State<ManageFundPage> {
       decoration: BoxDecoration(
         color: const Color(0xFFFEF3C7),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0xFFF59E0B).withValues(alpha: 0.3)),
+        border: Border.all(
+          color: const Color(0xFFF59E0B).withValues(alpha: 0.3),
+        ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,

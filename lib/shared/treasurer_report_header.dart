@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:capstone_app/shared/dayung_back_button.dart';
 
 class TreasurerReportHeader extends StatelessWidget {
   final String title;
@@ -38,15 +39,7 @@ class TreasurerReportHeader extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          IconButton(
-            tooltip: 'Back',
-            icon: const Icon(
-              Icons.chevron_left_rounded,
-              color: Colors.white,
-              size: 28,
-            ),
-            onPressed: () => Navigator.of(context).maybePop(),
-          ),
+          DayungBackButton(onPressed: () => Navigator.of(context).maybePop()),
           const SizedBox(width: 8),
           Expanded(
             child: Column(

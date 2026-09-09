@@ -4,6 +4,7 @@ import 'package:capstone_app/ui/loading/page_skeleton.dart';
 import 'package:capstone_app/ui/theme/branding.dart';
 import 'package:capstone_app/utils/theme_surface.dart';
 import 'package:flutter/material.dart';
+import 'package:capstone_app/shared/dayung_back_button.dart';
 import 'package:auto_size_text/auto_size_text.dart';
 import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -966,14 +967,10 @@ class _NotificationPageState extends State<NotificationPage> {
               child: Row(
                 children: [
                   if (widget.showBackButton)
-                    IconButton(
-                      icon: const Icon(
-                        Icons.arrow_back_rounded,
-                        color: Colors.white,
-                        size: 26,
-                      ),
-                      onPressed: widget.onBack ?? () => Navigator.pop(context),
-                      tooltip: 'Back',
+                    DayungBackButton(
+                      onPressed:
+                          widget.onBack ??
+                          () => Navigator.of(context).maybePop(),
                     ),
                   if (widget.showBackButton) const SizedBox(width: 16),
                   Expanded(

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:capstone_app/profile/required_application_page.dart';
 import 'package:capstone_app/utils/theme_surface.dart';
+import 'package:capstone_app/shared/dayung_back_button.dart';
 
 class MembershipAgreementPage extends StatefulWidget {
   final VoidCallback? onBack;
@@ -252,19 +253,9 @@ class _MembershipAgreementPageState extends State<MembershipAgreementPage> {
               if (widget.showBackButton)
                 Padding(
                   padding: const EdgeInsets.only(bottom: 16),
-                  child: IconButton(
+                  child: DayungBackButton(
                     onPressed:
-                        widget.onBack ??
-                        () {
-                          Navigator.of(context).pop();
-                        },
-                    icon: const Icon(Icons.arrow_back_rounded),
-                    style: IconButton.styleFrom(
-                      backgroundColor: Colors.white,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                    ),
+                        widget.onBack ?? () => Navigator.of(context).maybePop(),
                   ),
                 ),
               Container(

@@ -54,8 +54,12 @@ class _ManageRulesPagePresState extends State<ManageRulesPagePres> {
   @override
   void initState() {
     super.initState();
-    _exactAmountController = TextEditingController(text: _exactAmountForMembership ?? '');
-    _exactCollectionAmountController = TextEditingController(text: _exactAmountForCollection ?? '');
+    _exactAmountController = TextEditingController(
+      text: _exactAmountForMembership ?? '',
+    );
+    _exactCollectionAmountController = TextEditingController(
+      text: _exactAmountForCollection ?? '',
+    );
     _init();
   }
 
@@ -217,15 +221,26 @@ class _ManageRulesPagePresState extends State<ManageRulesPagePres> {
               ),
               child: Row(
                 children: [
-                  IconButton(
-                    icon: const Icon(
-                      Icons.arrow_back_ios_new,
-                      color: Colors.white,
-                      size: 24,
+                  Container(
+                    width: 44,
+                    height: 44,
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.2),
+                      borderRadius: BorderRadius.circular(13),
+                      border: Border.all(
+                        color: Colors.white.withValues(alpha: 0.3),
+                      ),
                     ),
-                    onPressed: () => Navigator.pop(context),
-                    padding: EdgeInsets.zero,
-                    constraints: const BoxConstraints(),
+                    child: IconButton(
+                      tooltip: 'Back',
+                      padding: EdgeInsets.zero,
+                      onPressed: () => Navigator.of(context).maybePop(),
+                      icon: const Icon(
+                        Icons.arrow_back_rounded,
+                        color: Colors.white,
+                        size: 21,
+                      ),
+                    ),
                   ),
                   const SizedBox(width: 16),
                   const Expanded(
@@ -377,17 +392,25 @@ class _ManageRulesPagePresState extends State<ManageRulesPagePres> {
                                   Wrap(
                                     spacing: 8,
                                     runSpacing: 8,
-                                    children: dayungServiceTagLabels.map((label) {
+                                    children: dayungServiceTagLabels.map((
+                                      label,
+                                    ) {
                                       return FilterChip(
                                         label: Text(label),
-                                        selected: _selectedServiceTags[label] ?? false,
+                                        selected:
+                                            _selectedServiceTags[label] ??
+                                            false,
                                         onSelected: (value) {
                                           setState(() {
                                             _selectedServiceTags[label] = value;
                                           });
                                         },
-                                        side: const BorderSide(color: kBorderColor),
-                                        selectedColor: kPrimary.withValues(alpha: 0.16),
+                                        side: const BorderSide(
+                                          color: kBorderColor,
+                                        ),
+                                        selectedColor: kPrimary.withValues(
+                                          alpha: 0.16,
+                                        ),
                                         checkmarkColor: kPrimary,
                                       );
                                     }).toList(),
@@ -684,7 +707,10 @@ class _ManageRulesPagePresState extends State<ManageRulesPagePres> {
               ),
             ),
           ),
-          prefixIconConstraints: const BoxConstraints(minWidth: 0, minHeight: 0),
+          prefixIconConstraints: const BoxConstraints(
+            minWidth: 0,
+            minHeight: 0,
+          ),
         ),
         onChanged: (value) => setState(() => _exactAmountForMembership = value),
         style: const TextStyle(
@@ -738,7 +764,10 @@ class _ManageRulesPagePresState extends State<ManageRulesPagePres> {
               ),
             ),
           ),
-          prefixIconConstraints: const BoxConstraints(minWidth: 0, minHeight: 0),
+          prefixIconConstraints: const BoxConstraints(
+            minWidth: 0,
+            minHeight: 0,
+          ),
         ),
         onChanged: (value) => setState(() => _exactAmountForCollection = value),
         style: const TextStyle(

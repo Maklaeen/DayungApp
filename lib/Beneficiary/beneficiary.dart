@@ -4,6 +4,7 @@ import 'package:capstone_app/utils/supabase_storage.dart';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:capstone_app/shared/dayung_back_button.dart';
 
 const kBg = Color(0xFFFAFAF7);
 const kText = Color(0xFF1F2937);
@@ -768,12 +769,7 @@ class _BeneficiaryPageState extends State<BeneficiaryPage>
               child: Row(
                 children: [
                   if (widget.showBackButton)
-                    IconButton(
-                      icon: const Icon(
-                        Icons.arrow_back_rounded,
-                        color: Colors.white,
-                        size: 26,
-                      ),
+                    DayungBackButton(
                       onPressed: widget.onBack ?? () => Navigator.pop(context),
                     ),
                   if (widget.showBackButton) const SizedBox(width: 16),

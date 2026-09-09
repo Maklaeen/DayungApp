@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:capstone_app/shared/dayung_back_button.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:capstone_app/utils/theme_surface.dart';
 
 const Color _kPrimary = Color(0xFF0D47A1);
-const Color _kPrimaryDark = Color(0xFF083366);
 const Color _kNeutralText = Color(0xFF1F2937);
 const Color _kSubText = Color(0xFF4B5563);
 const Color _kSuccess = Color(0xFF10B981);
@@ -133,221 +134,394 @@ class _CollectorProgressPageState extends State<CollectorProgressPage> {
   @override
   Widget build(BuildContext context) {
     final completedCount = _items.where((item) => item.isComplete).length;
+    final totalPaid = _items.fold<double>(
+      0,
+      (total, item) => total + item.paid,
+    );
+    final totalGoal = _items.fold<double>(
+      0,
+      (total, item) => total + item.goal,
+    );
+    final overallProgress = totalGoal == 0
+        ? 0.0
+        : (totalPaid / totalGoal).clamp(0.0, 1.0);
 
     return Scaffold(
       backgroundColor: const Color(0xFFF8FAFC),
-      appBar: AppBar(
-        title: const Text('Collector Progress'),
-        backgroundColor: _kPrimary,
-        foregroundColor: Colors.white,
-      ),
-      body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: _loading
-              ? const Center(child: CircularProgressIndicator(color: _kPrimary))
-              : Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+      body: Container(
+        decoration: BoxDecoration(gradient: dayungDashboardGradient(context)),
+        child: SafeArea(
+          child: Column(
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 16, 16, 20),
+                child: Row(
                   children: [
-                    Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.all(16),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(16),
-                        border: Border.all(color: Colors.grey.shade200),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withValues(alpha: 0.04),
-                            blurRadius: 10,
-                            offset: const Offset(0, 4),
-                          ),
-                        ],
-                      ),
-                      child: Row(
+                    DayungBackButton(
+                      onPressed: () => Navigator.of(context).maybePop(),
+                    ),
+                    const SizedBox(width: 14),
+                    const Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Expanded(
-                            child: _summaryTile(
-                              label: 'Collections',
-                              value: '${_items.length}',
-                              color: _kPrimary,
+                          Text(
+                            'Collector Progress',
+                            style: TextStyle(
+                              fontFamily: 'Montserrat',
+                              fontSize: 24,
+                              fontWeight: FontWeight.w900,
+                              color: Colors.white,
                             ),
                           ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: _summaryTile(
-                              label: 'Completed',
-                              value: '$completedCount',
-                              color: _kSuccess,
-                            ),
-                          ),
+                          SizedBox(height: 3),
+                          // Text(
+                          //   'Collection status by death notice',
+                          //   style: TextStyle(
+                          //     fontFamily: 'OpenSans',
+                          //     fontSize: 13,
+                          //     fontWeight: FontWeight.w600,
+                          //     color: Colors.white70,
+                          //   ),
+                          // ),
                         ],
                       ),
                     ),
-                    const SizedBox(height: 16),
-                    // const Text(
-                    //   'Shows how many members have paid for each deceased member.',
-                    //   style: TextStyle(
-                    //     fontSize: 12,
-                    //     color: _kSubText,
-                    //     fontFamily: 'OpenSans',
-                    //   ),
+                    // _headerIconButton(
+                    //   icon: Icons.refresh_rounded,
+                    //   tooltip: 'Refresh progress',
+                    //   onPressed: _loading ? null : _load,
                     // ),
-                    const SizedBox(height: 12),
-                    if (_items.isEmpty)
-                      Expanded(
-                        child: Container(
-                          width: double.infinity,
-                          padding: const EdgeInsets.all(24),
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            borderRadius: BorderRadius.circular(16),
-                            border: Border.all(color: Colors.grey.shade200),
-                          ),
-                          child: const Center(
-                            child: Text(
-                              'No collection data found.',
-                              style: TextStyle(
-                                color: _kSubText,
-                                fontFamily: 'OpenSans',
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ),
-                        ),
-                      )
-                    else
-                      Expanded(
-                        child: ListView.builder(
-                          itemCount: _items.length,
-                          itemBuilder: (context, index) {
-                            final item = _items[index];
-                            return Container(
-                              margin: const EdgeInsets.only(bottom: 12),
-                              padding: const EdgeInsets.all(16),
-                              decoration: BoxDecoration(
-                                color: Colors.white,
-                                borderRadius: BorderRadius.circular(16),
-                                border: Border.all(color: Colors.grey.shade200),
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: Colors.black.withValues(alpha: 0.04),
-                                    blurRadius: 10,
-                                    offset: const Offset(0, 4),
+                  ],
+                ),
+              ),
+              Expanded(
+                child: Container(
+                  width: double.infinity,
+                  decoration: BoxDecoration(
+                    color: dayungSurface(context),
+                    borderRadius: const BorderRadius.only(
+                      topLeft: Radius.circular(28),
+                      topRight: Radius.circular(28),
+                    ),
+                    boxShadow: [dayungTopShadow(context)],
+                  ),
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+                    child: _loading
+                        ? const Center(
+                            child: CircularProgressIndicator(color: _kPrimary),
+                          )
+                        : Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Container(
+                                width: double.infinity,
+                                padding: const EdgeInsets.all(16),
+                                decoration: BoxDecoration(
+                                  color: Colors.white,
+                                  borderRadius: BorderRadius.circular(16),
+                                  border: Border.all(
+                                    color: Colors.grey.shade200,
                                   ),
-                                ],
-                              ),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Row(
-                                    children: [
-                                      Container(
-                                        padding: const EdgeInsets.all(8),
-                                        decoration: BoxDecoration(
-                                          color: _kPurple.withValues(
-                                            alpha: 0.1,
-                                          ),
-                                          borderRadius: BorderRadius.circular(
-                                            10,
-                                          ),
-                                        ),
-                                        child: const Icon(
-                                          Icons.local_florist_rounded,
-                                          color: _kPurple,
-                                          size: 18,
-                                        ),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: Colors.black.withValues(
+                                        alpha: 0.04,
                                       ),
-                                      const SizedBox(width: 10),
-                                      Expanded(
-                                        child: Text(
-                                          item.name,
+                                      blurRadius: 10,
+                                      offset: const Offset(0, 4),
+                                    ),
+                                  ],
+                                ),
+                                child: Row(
+                                  children: [
+                                    Expanded(
+                                      child: _summaryTile(
+                                        label: 'Collections',
+                                        value: '${_items.length}',
+                                        color: _kPrimary,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 12),
+                                    Expanded(
+                                      child: _summaryTile(
+                                        label: 'Completed',
+                                        value: '$completedCount',
+                                        color: _kSuccess,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              const SizedBox(height: 16),
+                              Container(
+                                width: double.infinity,
+                                padding: const EdgeInsets.fromLTRB(
+                                  16,
+                                  14,
+                                  16,
+                                  16,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: _kPrimary.withValues(alpha: 0.06),
+                                  borderRadius: BorderRadius.circular(16),
+                                  border: Border.all(
+                                    color: _kPrimary.withValues(alpha: 0.12),
+                                  ),
+                                ),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Row(
+                                      children: [
+                                        const Expanded(
+                                          child: Text(
+                                            'Overall collection progress',
+                                            style: TextStyle(
+                                              fontSize: 13,
+                                              fontWeight: FontWeight.w800,
+                                              color: _kNeutralText,
+                                              fontFamily: 'Montserrat',
+                                            ),
+                                          ),
+                                        ),
+                                        Text(
+                                          '${(overallProgress * 100).round()}%',
                                           style: const TextStyle(
-                                            fontSize: 15,
+                                            fontSize: 13,
                                             fontWeight: FontWeight.w800,
-                                            color: _kNeutralText,
-                                            fontFamily: 'Montserrat',
-                                          ),
-                                          maxLines: 1,
-                                          overflow: TextOverflow.ellipsis,
-                                        ),
-                                      ),
-                                      Container(
-                                        padding: const EdgeInsets.symmetric(
-                                          horizontal: 8,
-                                          vertical: 4,
-                                        ),
-                                        decoration: BoxDecoration(
-                                          color: item.isComplete
-                                              ? _kSuccess.withValues(
-                                                  alpha: 0.12,
-                                                )
-                                              : _kWarn.withValues(alpha: 0.12),
-                                          borderRadius: BorderRadius.circular(
-                                            8,
-                                          ),
-                                        ),
-                                        child: Text(
-                                          item.isComplete
-                                              ? 'Completed'
-                                              : 'In progress',
-                                          style: TextStyle(
-                                            fontSize: 12,
-                                            fontWeight: FontWeight.w800,
-                                            color: item.isComplete
-                                                ? _kSuccess
-                                                : _kWarn,
+                                            color: _kPrimary,
                                             fontFamily: 'Montserrat',
                                           ),
                                         ),
+                                      ],
+                                    ),
+                                    const SizedBox(height: 10),
+                                    ClipRRect(
+                                      borderRadius: BorderRadius.circular(8),
+                                      child: LinearProgressIndicator(
+                                        value: overallProgress,
+                                        minHeight: 8,
+                                        backgroundColor: Colors.white,
+                                        valueColor:
+                                            const AlwaysStoppedAnimation(
+                                              _kPrimary,
+                                            ),
                                       ),
-                                    ],
-                                  ),
-                                  const SizedBox(height: 12),
-                                  ClipRRect(
-                                    borderRadius: BorderRadius.circular(8),
-                                    child: LinearProgressIndicator(
-                                      value: item.progress,
-                                      minHeight: 10,
-                                      backgroundColor: Colors.grey.shade100,
-                                      valueColor: AlwaysStoppedAnimation(
-                                        item.isComplete ? _kSuccess : _kPrimary,
+                                    ),
+                                    const SizedBox(height: 7),
+                                    Text(
+                                      '${totalPaid.toStringAsFixed(0)} of ${totalGoal.toStringAsFixed(0)} members paid across all notices',
+                                      style: const TextStyle(
+                                        fontSize: 12,
+                                        color: _kSubText,
+                                        fontFamily: 'OpenSans',
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              const SizedBox(height: 16),
+                              if (_items.isEmpty)
+                                Expanded(
+                                  child: Container(
+                                    width: double.infinity,
+                                    padding: const EdgeInsets.all(24),
+                                    decoration: BoxDecoration(
+                                      color: Colors.white,
+                                      borderRadius: BorderRadius.circular(16),
+                                      border: Border.all(
+                                        color: Colors.grey.shade200,
+                                      ),
+                                    ),
+                                    child: const Center(
+                                      child: Text(
+                                        'No collection data found.',
+                                        style: TextStyle(
+                                          color: _kSubText,
+                                          fontFamily: 'OpenSans',
+                                          fontWeight: FontWeight.w600,
+                                        ),
                                       ),
                                     ),
                                   ),
-                                  const SizedBox(height: 8),
-                                  Row(
-                                    mainAxisAlignment:
-                                        MainAxisAlignment.spaceBetween,
-                                    children: [
-                                      Text(
-                                        '${item.paid.toStringAsFixed(0)} of ${item.goal.toStringAsFixed(0)} members paid',
-                                        style: const TextStyle(
-                                          fontSize: 12,
-                                          fontWeight: FontWeight.w700,
-                                          color: _kSuccess,
-                                          fontFamily: 'OpenSans',
-                                        ),
-                                      ),
-                                      Text(
-                                        '${(item.goal - item.paid).toStringAsFixed(0)} remaining',
-                                        style: const TextStyle(
-                                          fontSize: 12,
-                                          fontWeight: FontWeight.w600,
-                                          color: _kSubText,
-                                          fontFamily: 'OpenSans',
-                                        ),
-                                      ),
-                                    ],
+                                )
+                              else
+                                Expanded(
+                                  child: RefreshIndicator(
+                                    color: _kPrimary,
+                                    onRefresh: _load,
+                                    child: ListView.builder(
+                                      physics:
+                                          const AlwaysScrollableScrollPhysics(),
+                                      itemCount: _items.length,
+                                      itemBuilder: (context, index) {
+                                        final item = _items[index];
+                                        return Container(
+                                          margin: const EdgeInsets.only(
+                                            bottom: 12,
+                                          ),
+                                          padding: const EdgeInsets.all(16),
+                                          decoration: BoxDecoration(
+                                            color: Colors.white,
+                                            borderRadius: BorderRadius.circular(
+                                              16,
+                                            ),
+                                            border: Border.all(
+                                              color: Colors.grey.shade200,
+                                            ),
+                                            boxShadow: [
+                                              BoxShadow(
+                                                color: Colors.black.withValues(
+                                                  alpha: 0.04,
+                                                ),
+                                                blurRadius: 10,
+                                                offset: const Offset(0, 4),
+                                              ),
+                                            ],
+                                          ),
+                                          child: Column(
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.start,
+                                            children: [
+                                              Row(
+                                                children: [
+                                                  Container(
+                                                    padding:
+                                                        const EdgeInsets.all(8),
+                                                    decoration: BoxDecoration(
+                                                      color: _kPurple
+                                                          .withValues(
+                                                            alpha: 0.1,
+                                                          ),
+                                                      borderRadius:
+                                                          BorderRadius.circular(
+                                                            10,
+                                                          ),
+                                                    ),
+                                                    child: const Icon(
+                                                      Icons
+                                                          .local_florist_rounded,
+                                                      color: _kPurple,
+                                                      size: 18,
+                                                    ),
+                                                  ),
+                                                  const SizedBox(width: 10),
+                                                  Expanded(
+                                                    child: Text(
+                                                      item.name,
+                                                      style: const TextStyle(
+                                                        fontSize: 15,
+                                                        fontWeight:
+                                                            FontWeight.w800,
+                                                        color: _kNeutralText,
+                                                        fontFamily:
+                                                            'Montserrat',
+                                                      ),
+                                                      maxLines: 1,
+                                                      overflow:
+                                                          TextOverflow.ellipsis,
+                                                    ),
+                                                  ),
+                                                  const SizedBox(width: 8),
+                                                  Container(
+                                                    padding:
+                                                        const EdgeInsets.symmetric(
+                                                          horizontal: 8,
+                                                          vertical: 4,
+                                                        ),
+                                                    decoration: BoxDecoration(
+                                                      color: item.isComplete
+                                                          ? _kSuccess
+                                                                .withValues(
+                                                                  alpha: 0.12,
+                                                                )
+                                                          : _kWarn.withValues(
+                                                              alpha: 0.12,
+                                                            ),
+                                                      borderRadius:
+                                                          BorderRadius.circular(
+                                                            8,
+                                                          ),
+                                                    ),
+                                                    child: Text(
+                                                      item.isComplete
+                                                          ? 'Completed'
+                                                          : 'In progress',
+                                                      style: TextStyle(
+                                                        fontSize: 12,
+                                                        fontWeight:
+                                                            FontWeight.w800,
+                                                        color: item.isComplete
+                                                            ? _kSuccess
+                                                            : _kWarn,
+                                                        fontFamily:
+                                                            'Montserrat',
+                                                      ),
+                                                    ),
+                                                  ),
+                                                ],
+                                              ),
+                                              const SizedBox(height: 12),
+                                              ClipRRect(
+                                                borderRadius:
+                                                    BorderRadius.circular(8),
+                                                child: LinearProgressIndicator(
+                                                  value: item.progress,
+                                                  minHeight: 10,
+                                                  backgroundColor:
+                                                      Colors.grey.shade100,
+                                                  valueColor:
+                                                      AlwaysStoppedAnimation(
+                                                        item.isComplete
+                                                            ? _kSuccess
+                                                            : _kPrimary,
+                                                      ),
+                                                ),
+                                              ),
+                                              const SizedBox(height: 8),
+                                              Row(
+                                                children: [
+                                                  Expanded(
+                                                    child: Text(
+                                                      '${item.paid.toStringAsFixed(0)} of ${item.goal.toStringAsFixed(0)} members paid',
+                                                      style: const TextStyle(
+                                                        fontSize: 12,
+                                                        fontWeight:
+                                                            FontWeight.w700,
+                                                        color: _kSuccess,
+                                                        fontFamily: 'OpenSans',
+                                                      ),
+                                                    ),
+                                                  ),
+                                                  const SizedBox(width: 8),
+                                                  Text(
+                                                    '${(item.goal - item.paid).toStringAsFixed(0)} remaining',
+                                                    style: const TextStyle(
+                                                      fontSize: 12,
+                                                      fontWeight:
+                                                          FontWeight.w600,
+                                                      color: _kSubText,
+                                                      fontFamily: 'OpenSans',
+                                                    ),
+                                                  ),
+                                                ],
+                                              ),
+                                            ],
+                                          ),
+                                        );
+                                      },
+                                    ),
                                   ),
-                                ],
-                              ),
-                            );
-                          },
-                        ),
-                      ),
-                  ],
+                                ),
+                            ],
+                          ),
+                  ),
                 ),
+              ),
+            ],
+          ),
         ),
       ),
     );

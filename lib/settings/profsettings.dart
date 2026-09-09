@@ -4,6 +4,7 @@ import 'package:encrypt/encrypt.dart' as encrypt;
 import 'package:capstone_app/profile/dayung_profile.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:capstone_app/shared/dayung_back_button.dart';
 import 'package:capstone_app/utils/supabase_storage.dart';
 import 'package:photo_view/photo_view.dart';
 import 'package:http/http.dart' as http;
@@ -447,19 +448,9 @@ class _ProfSettingsPageState extends State<ProfSettingsPage> {
                     Row(
                       children: [
                         if (widget.showBackButton)
-                          Container(
-                            decoration: BoxDecoration(
-                              color: Colors.white.withValues(alpha: 0.18),
-                              borderRadius: BorderRadius.circular(14),
-                            ),
-                            child: IconButton(
-                              onPressed:
-                                  widget.onBack ?? () => Navigator.pop(context),
-                              icon: const Icon(
-                                Icons.arrow_back_ios_new_rounded,
-                                color: Colors.white,
-                              ),
-                            ),
+                          DayungBackButton(
+                            onPressed:
+                                widget.onBack ?? () => Navigator.pop(context),
                           ),
                         if (widget.showBackButton) const SizedBox(width: 16),
                         Expanded(
@@ -605,7 +596,7 @@ class _ProfSettingsPageState extends State<ProfSettingsPage> {
               ),
 
               const SizedBox(height: 18),
-              
+
               _buildSectionCard(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,

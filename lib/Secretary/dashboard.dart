@@ -1183,6 +1183,9 @@ class _SecretaryDashboardPageState extends State<SecretaryDashboardPage> {
   }
 
   Widget _quickActionsSection() {
+    final isMobile = MediaQuery.of(context).size.width < 600;
+    final actionCardHeight = isMobile ? 156.0 : 140.0;
+
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: dayungSectionCardDecoration(context),
@@ -1204,7 +1207,7 @@ class _SecretaryDashboardPageState extends State<SecretaryDashboardPage> {
             children: [
               Expanded(
                 child: SizedBox(
-                  height: 140,
+                  height: actionCardHeight,
                   child: _modernActionCard(
                     icon: Icons.family_restroom_rounded,
                     title: 'Manage Beneficiaries',
@@ -1233,7 +1236,7 @@ class _SecretaryDashboardPageState extends State<SecretaryDashboardPage> {
               const SizedBox(width: 12),
               Expanded(
                 child: SizedBox(
-                  height: 140,
+                  height: actionCardHeight,
                   child: _modernActionCard(
                     icon: Icons.assignment_rounded,
                     title: 'Manage Applications',
@@ -1261,7 +1264,7 @@ class _SecretaryDashboardPageState extends State<SecretaryDashboardPage> {
             children: [
               Expanded(
                 child: SizedBox(
-                  height: 140,
+                  height: actionCardHeight,
                   child: _modernActionCard(
                     icon: Icons.track_changes_rounded,
                     title: 'Service Tracking',
@@ -1289,7 +1292,7 @@ class _SecretaryDashboardPageState extends State<SecretaryDashboardPage> {
               const SizedBox(width: 12),
               Expanded(
                 child: SizedBox(
-                  height: 140,
+                  height: actionCardHeight,
                   child: _modernActionCard(
                     icon: Icons.payments_rounded,
                     title: 'My Payment Page',
@@ -1318,7 +1321,7 @@ class _SecretaryDashboardPageState extends State<SecretaryDashboardPage> {
               const SizedBox(width: 12),
               Expanded(
                 child: SizedBox(
-                  height: 140,
+                  height: actionCardHeight,
                   child: _modernActionCard(
                     icon: Icons.bar_chart_rounded,
                     title: 'Collector Progress',
@@ -1352,6 +1355,9 @@ class _SecretaryDashboardPageState extends State<SecretaryDashboardPage> {
   }
 
   Widget _quickAccessSection() {
+    final isMobile = MediaQuery.of(context).size.width < 600;
+    final cardHeight = isMobile ? 142.0 : 110.0;
+
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: dayungSectionCardDecoration(context),
@@ -1372,7 +1378,7 @@ class _SecretaryDashboardPageState extends State<SecretaryDashboardPage> {
             children: [
               Expanded(
                 child: SizedBox(
-                  height: 110,
+                  height: cardHeight,
                   child: _modernActionCard(
                     icon: Icons.bar_chart_rounded,
                     title: 'Reports',
@@ -1435,6 +1441,7 @@ class _SecretaryDashboardPageState extends State<SecretaryDashboardPage> {
     int badgeCount = 0,
   }) {
     final isCompact = MediaQuery.of(context).size.width < 360;
+    final isMobile = MediaQuery.of(context).size.width < 600;
     final titleFontSize = isCompact ? 12.0 : 14.0;
     final contentGap = isCompact ? 6.0 : 8.0;
 
@@ -1474,7 +1481,7 @@ class _SecretaryDashboardPageState extends State<SecretaryDashboardPage> {
                     Flexible(
                       child: Text(
                         title,
-                        maxLines: 2,
+                        maxLines: isMobile ? 3 : 2,
                         overflow: TextOverflow.ellipsis,
                         softWrap: true,
                         style: TextStyle(

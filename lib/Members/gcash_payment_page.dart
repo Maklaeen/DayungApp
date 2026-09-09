@@ -27,10 +27,12 @@ class _GCashPaymentPageState extends State<GCashPaymentPage> {
     final currentUser = Supabase.instance.client.auth.currentUser;
     if (currentUser == null) return [];
 
-    final query = Supabase.instance.client.from('payments').select(
+    final query = Supabase.instance.client
+        .from('payments')
+        .select(
           'id, userdeceased, deceased_name, amount, status, user_id, users!payments_user_id_fkey(full_name)',
         )
-      .eq('user_id', currentUser.id);
+        .eq('user_id', currentUser.id);
 
     if (widget.dayungUnitId != null) {
       query.eq('dayung_unit_id', widget.dayungUnitId as Object);
@@ -44,10 +46,12 @@ class _GCashPaymentPageState extends State<GCashPaymentPage> {
     final currentUser = Supabase.instance.client.auth.currentUser;
     if (currentUser == null) return [];
 
-    final query = Supabase.instance.client.from('payments').select(
+    final query = Supabase.instance.client
+        .from('payments')
+        .select(
           'id, userdeceased, deceased_name, amount, status, user_id, users!payments_user_id_fkey(full_name)',
         )
-      .eq('user_id', currentUser.id);
+        .eq('user_id', currentUser.id);
 
     if (widget.dayungUnitId != null) {
       query.eq('dayung_unit_id', widget.dayungUnitId as Object);
@@ -312,13 +316,26 @@ class _GCashPaymentPageState extends State<GCashPaymentPage> {
               ),
               child: Row(
                 children: [
-                  IconButton(
-                    icon: const Icon(
-                      Icons.chevron_left,
-                      color: Colors.white,
-                      size: 24,
+                  Container(
+                    width: 44,
+                    height: 44,
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.2),
+                      borderRadius: BorderRadius.circular(13),
+                      border: Border.all(
+                        color: Colors.white.withValues(alpha: 0.3),
+                      ),
                     ),
-                    onPressed: () => Navigator.pop(context),
+                    child: IconButton(
+                      tooltip: 'Back',
+                      padding: EdgeInsets.zero,
+                      onPressed: () => Navigator.of(context).maybePop(),
+                      icon: const Icon(
+                        Icons.arrow_back_rounded,
+                        color: Colors.white,
+                        size: 21,
+                      ),
+                    ),
                   ),
                   const Icon(Icons.qr_code_2, color: Colors.white, size: 24),
                   const SizedBox(width: 16),
@@ -1037,7 +1054,8 @@ class _GCashPaymentPageState extends State<GCashPaymentPage> {
                                                                     .isEmpty);
                                                         if (!hasDeceasedValue &&
                                                             !isMembershipPayment) {
-                                                          if (!context.mounted) {
+                                                          if (!context
+                                                              .mounted) {
                                                             return;
                                                           }
                                                           ScaffoldMessenger.of(

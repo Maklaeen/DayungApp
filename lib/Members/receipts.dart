@@ -30,15 +30,23 @@ class ReceiptsPage extends StatelessWidget {
                 child: Row(
                   children: [
                     Container(
+                      width: 44,
+                      height: 44,
                       decoration: BoxDecoration(
-                        color: Colors.white.withValues(alpha: 0.18),
-                        borderRadius: BorderRadius.circular(14),
+                        color: Colors.white.withValues(alpha: 0.2),
+                        borderRadius: BorderRadius.circular(13),
+                        border: Border.all(
+                          color: Colors.white.withValues(alpha: 0.3),
+                        ),
                       ),
                       child: IconButton(
-                        onPressed: () => Navigator.pop(context),
+                        tooltip: 'Back',
+                        padding: EdgeInsets.zero,
+                        onPressed: () => Navigator.of(context).maybePop(),
                         icon: const Icon(
-                          Icons.arrow_back_ios_new_rounded,
+                          Icons.arrow_back_rounded,
                           color: Colors.white,
+                          size: 21,
                         ),
                       ),
                     ),

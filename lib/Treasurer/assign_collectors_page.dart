@@ -383,13 +383,26 @@ class _AssignCollectorsPageState extends State<AssignCollectorsPage> {
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              IconButton(
-                icon: const Icon(
-                  Icons.chevron_left_rounded,
-                  color: Colors.white,
-                  size: 28,
+              Container(
+                width: 44,
+                height: 44,
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.2),
+                  borderRadius: BorderRadius.circular(13),
+                  border: Border.all(
+                    color: Colors.white.withValues(alpha: 0.3),
+                  ),
                 ),
-                onPressed: () => Navigator.of(context).pop(),
+                child: IconButton(
+                  tooltip: 'Back',
+                  padding: EdgeInsets.zero,
+                  onPressed: () => Navigator.of(context).maybePop(),
+                  icon: const Icon(
+                    Icons.arrow_back_rounded,
+                    color: Colors.white,
+                    size: 21,
+                  ),
+                ),
               ),
               const SizedBox(width: 8),
               Expanded(
@@ -632,7 +645,6 @@ class _AssignCollectorsPageState extends State<AssignCollectorsPage> {
         subtitle: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            
             const SizedBox(height: 2),
             Text(
               'Collector: $collectorName',

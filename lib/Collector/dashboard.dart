@@ -1513,6 +1513,9 @@ class _CollectorDashboardPageState extends State<CollectorDashboardPage> {
   }
 
   Widget _modernActionCards() {
+    final isMobile = MediaQuery.of(context).size.width < 600;
+    final cardHeight = isMobile ? 146.0 : 120.0;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -1530,7 +1533,7 @@ class _CollectorDashboardPageState extends State<CollectorDashboardPage> {
           children: [
             Expanded(
               child: SizedBox(
-                height: 120,
+                height: cardHeight,
                 child: _modernActionCardGrid(
                   icon: Icons.receipt_long_rounded,
                   title: 'View Receipts',
@@ -1542,7 +1545,7 @@ class _CollectorDashboardPageState extends State<CollectorDashboardPage> {
             const SizedBox(width: 12),
             Expanded(
               child: SizedBox(
-                height: 120,
+                height: cardHeight,
                 child: _modernActionCardGrid(
                   icon: Icons.qr_code_rounded,
                   title: 'Collect Cash',
@@ -1567,7 +1570,7 @@ class _CollectorDashboardPageState extends State<CollectorDashboardPage> {
         ),
         const SizedBox(height: 12),
         SizedBox(
-          height: 120,
+          height: cardHeight,
           child: _modernActionCardGrid(
             icon: Icons.people_rounded,
             title: 'Members',
@@ -1580,7 +1583,7 @@ class _CollectorDashboardPageState extends State<CollectorDashboardPage> {
           children: [
             Expanded(
               child: SizedBox(
-                height: 120,
+                height: cardHeight,
                 child: _modernActionCardGrid(
                   icon: Icons.table_rows_rounded,
                   title: 'Collector Records',
@@ -1601,7 +1604,7 @@ class _CollectorDashboardPageState extends State<CollectorDashboardPage> {
             const SizedBox(width: 12),
             Expanded(
               child: SizedBox(
-                height: 120,
+                height: cardHeight,
                 child: _modernActionCardGrid(
                   icon: Icons.assessment_rounded,
                   title: 'Overall Reports',
@@ -1633,6 +1636,7 @@ class _CollectorDashboardPageState extends State<CollectorDashboardPage> {
     VoidCallback? onTap,
   }) {
     final isCompact = MediaQuery.of(context).size.width < 360;
+    final isMobile = MediaQuery.of(context).size.width < 600;
     final titleFontSize = isCompact ? 12.0 : 14.0;
     final contentGap = isCompact ? 6.0 : 8.0;
 
@@ -1670,7 +1674,7 @@ class _CollectorDashboardPageState extends State<CollectorDashboardPage> {
                 Flexible(
                   child: Text(
                     title,
-                    maxLines: 2,
+                    maxLines: isMobile ? 3 : 2,
                     overflow: TextOverflow.ellipsis,
                     softWrap: true,
                     style: TextStyle(

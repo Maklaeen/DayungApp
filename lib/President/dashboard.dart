@@ -964,6 +964,10 @@ class _PresidentDashboardPageState extends State<PresidentDashboardPage> {
   }
 
   Widget _buildQuickActions() {
+    final isMobile = MediaQuery.of(context).size.width < 600;
+    final actionCardHeight = isMobile ? 156.0 : 140.0;
+    final quickAccessCardHeight = isMobile ? 142.0 : 110.0;
+
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: dayungSectionCardDecoration(context),
@@ -984,7 +988,7 @@ class _PresidentDashboardPageState extends State<PresidentDashboardPage> {
             children: [
               Expanded(
                 child: SizedBox(
-                  height: 140,
+                  height: actionCardHeight,
                   child: _modernActionCard(
                     icon: Icons.campaign_rounded,
                     title: 'Post Announcement',
@@ -1001,7 +1005,7 @@ class _PresidentDashboardPageState extends State<PresidentDashboardPage> {
               const SizedBox(width: 12),
               Expanded(
                 child: SizedBox(
-                  height: 140,
+                  height: actionCardHeight,
                   child: _modernActionCard(
                     icon: Icons.payments_rounded,
                     title: 'Pay Contribution',
@@ -1023,7 +1027,7 @@ class _PresidentDashboardPageState extends State<PresidentDashboardPage> {
               const SizedBox(width: 12),
               Expanded(
                 child: SizedBox(
-                  height: 140,
+                  height: actionCardHeight,
                   child: _modernActionCard(
                     icon: Icons.rule_rounded,
                     title: 'Manage User Preferences',
@@ -1043,7 +1047,7 @@ class _PresidentDashboardPageState extends State<PresidentDashboardPage> {
           ),
           const SizedBox(height: 16),
           SizedBox(
-            height: 140,
+            height: actionCardHeight,
             child: _modernActionCard(
               icon: Icons.bar_chart_rounded,
               title: 'Collector Progress',
@@ -1080,7 +1084,7 @@ class _PresidentDashboardPageState extends State<PresidentDashboardPage> {
             children: [
               Expanded(
                 child: SizedBox(
-                  height: 110,
+                  height: quickAccessCardHeight,
                   child: _modernActionCard(
                     icon: Icons.bar_chart_rounded,
                     title: 'Contributions',
@@ -1092,7 +1096,7 @@ class _PresidentDashboardPageState extends State<PresidentDashboardPage> {
               const SizedBox(width: 12),
               Expanded(
                 child: SizedBox(
-                  height: 110,
+                  height: quickAccessCardHeight,
                   child: _modernActionCard(
                     icon: Icons.assignment_rounded,
                     title: 'Claims',
@@ -1104,7 +1108,7 @@ class _PresidentDashboardPageState extends State<PresidentDashboardPage> {
               const SizedBox(width: 12),
               Expanded(
                 child: SizedBox(
-                  height: 110,
+                  height: quickAccessCardHeight,
                   child: _modernActionCard(
                     icon: Icons.description_rounded,
                     title: 'Required Application',
@@ -1142,6 +1146,7 @@ class _PresidentDashboardPageState extends State<PresidentDashboardPage> {
     int badgeCount = 0,
   }) {
     final isCompact = MediaQuery.of(context).size.width < 360;
+    final isMobile = MediaQuery.of(context).size.width < 600;
     final titleFontSize = isCompact ? 12.0 : 14.0;
     final contentGap = isCompact ? 6.0 : 8.0;
 
@@ -1181,7 +1186,7 @@ class _PresidentDashboardPageState extends State<PresidentDashboardPage> {
                     Flexible(
                       child: Text(
                         title,
-                        maxLines: 2,
+                        maxLines: isMobile ? 3 : 2,
                         overflow: TextOverflow.ellipsis,
                         softWrap: true,
                         style: TextStyle(

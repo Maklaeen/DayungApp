@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:capstone_app/Secretary/add_service_dialog.dart';
 import 'package:capstone_app/Secretary/secretary_ui.dart';
+import 'package:capstone_app/pages/deathnoticedetail.dart';
 import 'package:flutter_riverpod/legacy.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:intl/intl.dart';
@@ -902,6 +903,80 @@ class _ServiceTrackerPageState extends State<ServiceTrackerPage> {
     );
   }
 
+  Widget _buildVigilLocation(Map<String, dynamic> notice) {
+    final address = (notice['vigil_barangay'] ?? notice['vigil_address'] ?? '')
+        .toString()
+        .trim();
+
+    return Container(
+      padding: const EdgeInsets.fromLTRB(14, 12, 10, 12),
+      decoration: BoxDecoration(
+        color: const Color(0xFFEFF6FF),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFBFDBFE)),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.location_on_rounded, color: kPrimary, size: 20),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              address.isEmpty ? 'Vigil location' : address,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w700,
+                color: kPrimaryDark,
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
+          OutlinedButton.icon(
+            onPressed: () => _openVigilLocation(notice),
+            icon: const Icon(Icons.map_outlined, size: 17),
+            label: const Text('View Map'),
+            style: OutlinedButton.styleFrom(
+              foregroundColor: kPrimary,
+              side: const BorderSide(color: kPrimary),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
+              visualDensity: VisualDensity.compact,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(11),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _openVigilLocation(Map<String, dynamic> notice) {
+    final noticeId = _noticeKey(notice);
+    if (noticeId.isEmpty) return;
+
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => DeathNoticeDetail.byNoticeId(
+          noticeId: noticeId,
+          dayungUnitId: widget.dayungUnitId,
+          name: notice['display_name']?.toString(),
+          date: notice['date_of_death']?.toString(),
+          birthDate: notice['dob']?.toString(),
+          latitude: _toDouble(notice['vigil_latitude']),
+          longitude: _toDouble(notice['vigil_longitude']),
+          barangay: (notice['vigil_barangay'] ?? notice['vigil_address'])
+              ?.toString(),
+        ),
+      ),
+    );
+  }
+
+  double? _toDouble(dynamic value) {
+    if (value is num) return value.toDouble();
+    return double.tryParse('$value');
+  }
+
   Widget _buildErrorState() {
     return ListView(
       padding: const EdgeInsets.all(24),
@@ -1215,6 +1290,8 @@ class _ServiceTrackerPageState extends State<ServiceTrackerPage> {
                                               ),
                                           ],
                                         ),
+                                        const SizedBox(height: 16),
+                                        _buildVigilLocation(notice),
                                         const SizedBox(height: 16),
                                         const Text(
                                           'Scheduled Services',

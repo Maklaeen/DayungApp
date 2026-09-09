@@ -229,36 +229,24 @@ class _RecentDeathNoticesState extends State<RecentDeathNotices> {
                   child: Row(
                     children: [
                       Container(
-                        padding: const EdgeInsets.all(12),
+                        width: 44,
+                        height: 44,
                         decoration: BoxDecoration(
-                          gradient: const LinearGradient(
-                            colors: [Color(0xFFFFFFFF), Color(0xFFE0E7FF)],
-                            begin: Alignment.topLeft,
-                            end: Alignment.bottomRight,
+                          color: Colors.white.withValues(alpha: 0.2),
+                          borderRadius: BorderRadius.circular(13),
+                          border: Border.all(
+                            color: Colors.white.withValues(alpha: 0.3),
                           ),
-                          borderRadius: BorderRadius.circular(16),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.white.withValues(alpha: 0.4),
-                              blurRadius: 20,
-                              offset: const Offset(0, 8),
-                            ),
-                            BoxShadow(
-                              color: const Color(
-                                0xFF1E40AF,
-                              ).withValues(alpha: 0.2),
-                              blurRadius: 12,
-                              offset: const Offset(0, 4),
-                            ),
-                          ],
                         ),
                         child: IconButton(
+                          tooltip: 'Back',
+                          padding: EdgeInsets.zero,
+                          onPressed: () => Navigator.of(context).maybePop(),
                           icon: const Icon(
                             Icons.arrow_back_rounded,
-                            color: Color(0xFF1E40AF),
-                            size: 24,
+                            color: Colors.white,
+                            size: 21,
                           ),
-                          onPressed: () => Navigator.pop(context),
                         ),
                       ),
                       const SizedBox(width: 20),
@@ -460,75 +448,106 @@ class _RecentDeathNoticesState extends State<RecentDeathNotices> {
               children: [
                 // Modern Header
                 Container(
-                  padding: const EdgeInsets.fromLTRB(20, 20, 20, 30),
+                  padding: EdgeInsets.fromLTRB(
+                    isWide ? 28 : 16,
+                    isWide ? 24 : 16,
+                    isWide ? 28 : 16,
+                    isWide ? 22 : 16,
+                  ),
                   child: Row(
                     children: [
                       Container(
-                        padding: const EdgeInsets.all(8),
+                        width: 44,
+                        height: 44,
                         decoration: BoxDecoration(
-                          gradient: const LinearGradient(
-                            colors: [Color(0xFFFFFFFF), Color(0xFFE0E7FF)],
-                            begin: Alignment.topLeft,
-                            end: Alignment.bottomRight,
+                          color: Colors.white.withValues(alpha: 0.2),
+                          borderRadius: BorderRadius.circular(13),
+                          border: Border.all(
+                            color: Colors.white.withValues(alpha: 0.3),
                           ),
-                          borderRadius: BorderRadius.circular(16),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.white.withValues(alpha: 0.4),
-                              blurRadius: 20,
-                              offset: const Offset(0, 8),
-                            ),
-                            BoxShadow(
-                              color: const Color(
-                                0xFF1E40AF,
-                              ).withValues(alpha: 0.2),
-                              blurRadius: 12,
-                              offset: const Offset(0, 4),
-                            ),
-                          ],
                         ),
                         child: IconButton(
+                          tooltip: 'Back',
+                          padding: EdgeInsets.zero,
+                          onPressed: () => Navigator.of(context).maybePop(),
                           icon: const Icon(
                             Icons.arrow_back_rounded,
-                            color: Color(0xFF1E40AF),
-                            size: 24,
-                          ),
-                          onPressed: () => Navigator.pop(context),
-                        ),
-                      ),
-                      const SizedBox(width: 20),
-                      Expanded(
-                        child: Text(
-                          'Deaths and Vigil locations',
-                          style: TextStyle(
-                            fontSize: isWide ? 32 : 23,
-                            fontWeight: FontWeight.w900,
                             color: Colors.white,
-                            fontFamily: 'Montserrat',
-                            letterSpacing: 0.5,
-                            shadows: [
-                              const Shadow(
-                                color: Colors.black26,
-                                offset: Offset(0, 2),
-                                blurRadius: 4,
-                              ),
-                            ],
+                            size: 21,
                           ),
                         ),
                       ),
+                      SizedBox(width: isWide ? 20 : 14),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Death Notices',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                fontSize: isWide ? 30 : 24,
+                                fontWeight: FontWeight.w900,
+                                color: Colors.white,
+                                fontFamily: 'Montserrat',
+                              ),
+                            ),
+                            const SizedBox(height: 3),
+                            // Text(
+                            //   'Vigil locations',
+                            //   style: TextStyle(
+                            //     fontSize: isWide ? 15 : 13,
+                            //     fontWeight: FontWeight.w600,
+                            //     color: Colors.white.withValues(alpha: 0.78),
+                            //     fontFamily: 'OpenSans',
+                            //   ),
+                            // ),
+                          ],
+                        ),
+                      ),
+                      if (isWide)
+                        const SizedBox(width: 64)
+                      else
+                        const SizedBox(width: 48),
                     ],
                   ),
                 ),
                 // Tabs
-                const TabBar(
-                  labelColor: kPrimary,
-                  unselectedLabelColor: Colors.black54,
-                  indicatorColor: kPrimary,
-                  tabs: [
-                    Tab(text: 'Members'),
-                    Tab(text: 'Beneficiaries'),
-                  ],
+                Padding(
+                  padding: EdgeInsets.symmetric(horizontal: isWide ? 28 : 16),
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      color: Colors.black.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    child: TabBar(
+                      labelColor: Colors.white,
+                      unselectedLabelColor: Colors.white.withValues(
+                        alpha: 0.68,
+                      ),
+                      indicatorColor: Colors.white,
+                      indicatorSize: TabBarIndicatorSize.label,
+                      indicatorWeight: 3,
+                      dividerColor: Colors.transparent,
+                      labelStyle: const TextStyle(
+                        fontFamily: 'Montserrat',
+                        fontSize: 14,
+                        fontWeight: FontWeight.w800,
+                      ),
+                      unselectedLabelStyle: const TextStyle(
+                        fontFamily: 'Montserrat',
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                      ),
+                      tabs: const [
+                        Tab(text: 'Members'),
+                        Tab(text: 'Beneficiaries'),
+                      ],
+                    ),
+                  ),
                 ),
+                const SizedBox(height: 14),
                 // Content
                 Expanded(
                   child: Container(
@@ -662,10 +681,12 @@ class _RecentDeathNoticesState extends State<RecentDeathNotices> {
           // Show real name for all users, both members and beneficiaries
           String name = (notice['full_name'] ?? notice['PassedAway'] ?? '')
               .toString();
+          if (name.trim().isEmpty) name = 'Unknown';
           final dod = (notice['date_of_death'] ?? '').toString();
           final barangay =
               notice['vigil_barangay']?.toString() ??
               notice['vigil_address']?.toString();
+          final isBeneficiary = notice['deceased_type'] == 'beneficiary';
 
           return Container(
             margin: const EdgeInsets.only(bottom: 16),
@@ -700,7 +721,7 @@ class _RecentDeathNoticesState extends State<RecentDeathNotices> {
                     builder: (_) => DeathNoticeDetail.byNoticeId(
                       noticeId: notice['id']?.toString(),
                       dayungUnitId: widget.dayungUnitId,
-                      name: notice['PassedAway']?.toString(),
+                      name: name,
                       date: notice['date_of_death']?.toString(),
                       barangay:
                           notice['vigil_barangay']?.toString() ??
@@ -709,7 +730,7 @@ class _RecentDeathNoticesState extends State<RecentDeathNotices> {
                   );
                 },
                 child: Padding(
-                  padding: const EdgeInsets.all(20),
+                  padding: const EdgeInsets.all(16),
                   child: Row(
                     children: [
                       Container(
@@ -740,8 +761,36 @@ class _RecentDeathNoticesState extends State<RecentDeathNotices> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                                vertical: 4,
+                              ),
+                              decoration: BoxDecoration(
+                                color:
+                                    (isBeneficiary
+                                            ? const Color(0xFF7C3AED)
+                                            : kPrimary)
+                                        .withValues(alpha: 0.1),
+                                borderRadius: BorderRadius.circular(999),
+                              ),
+                              child: Text(
+                                isBeneficiary ? 'Beneficiary' : 'Member',
+                                style: TextStyle(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w800,
+                                  color: isBeneficiary
+                                      ? const Color(0xFF7C3AED)
+                                      : kPrimary,
+                                  fontFamily: 'OpenSans',
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 7),
                             Text(
                               name,
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
                               style: TextStyle(
                                 fontSize: isWide ? 18 : 16,
                                 fontWeight: FontWeight.w700,
@@ -751,7 +800,13 @@ class _RecentDeathNoticesState extends State<RecentDeathNotices> {
                             ),
                             const SizedBox(height: 4),
                             Text(
-                              '$dod${barangay != null && barangay.isNotEmpty ? ' • $barangay' : ''}',
+                              [
+                                if (dod.isNotEmpty) dod,
+                                if (barangay != null && barangay.isNotEmpty)
+                                  barangay,
+                              ].join(' • '),
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
                               style: TextStyle(
                                 fontSize: isWide ? 14 : 12,
                                 color: kSubText,
@@ -769,7 +824,7 @@ class _RecentDeathNoticesState extends State<RecentDeathNotices> {
                           borderRadius: BorderRadius.circular(12),
                         ),
                         child: Icon(
-                          Icons.arrow_forward_ios_rounded,
+                          Icons.chevron_right_rounded,
                           size: 16,
                           color: kSubText,
                         ),
