@@ -71,6 +71,28 @@ class _RegisterState extends State<Register> {
 
   bool _obscurePassword = true;
   bool _isSubmitting = false;
+  int _currentStep = 0;
+
+  static const _stepTitles = [
+    'Personal Details',
+    'Contact & Address',
+    'Account Setup',
+    'Review & Submit',
+  ];
+
+  static const _stepSubtitles = [
+    'Tell us who you are.',
+    'Help us locate you.',
+    'Secure your account.',
+    'Check your details.',
+  ];
+
+  static const _stepIcons = [
+    Icons.person_rounded,
+    Icons.location_on_rounded,
+    Icons.lock_rounded,
+    Icons.check_circle_rounded,
+  ];
 
   bool _looksOffline(Object e) {
     final s = e.toString().toLowerCase();
@@ -895,8 +917,689 @@ class _RegisterState extends State<Register> {
     contentPadding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
   );
 
+  bool _validateCurrentStep() {
+    if (!_formKey.currentState!.validate()) return false;
+    if (_currentStep == 1 && (_latitude == null || _longitude == null)) {
+      _showTopErrorDialog(
+        context,
+        'Please select an address so we can continue.',
+      );
+      return false;
+    }
+    return true;
+  }
+
+  void _goToNextStep() {
+    if (!_validateCurrentStep()) return;
+    setState(() => _currentStep++);
+  }
+
+  void _goToPreviousStep() {
+    if (_currentStep == 0) return;
+    setState(() => _currentStep--);
+  }
+
+  Widget _sectionHeader({
+    required IconData icon,
+    required String title,
+    required String subtitle,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 20),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: kPrimary.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Icon(icon, color: kPrimary, size: 24),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: const TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.w700,
+                    color: kNeutralText,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  subtitle,
+                  style: const TextStyle(color: kSubtleText, fontSize: 14),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildProgressTracker() {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(12, 16, 12, 14),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF3F6FA),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: kBorderColor),
+      ),
+      child: Row(
+        children: List.generate(_stepTitles.length * 2 - 1, (index) {
+          if (index.isOdd) {
+            return Expanded(
+              child: Container(
+                height: 2,
+                color: index ~/ 2 < _currentStep ? kPrimary : kBorderColor,
+              ),
+            );
+          }
+
+          final step = index ~/ 2;
+          final isComplete = step < _currentStep;
+          final isActive = step == _currentStep;
+          return SizedBox(
+            width: 66,
+            child: Column(
+              children: [
+                Container(
+                  width: 38,
+                  height: 38,
+                  decoration: BoxDecoration(
+                    color: isComplete || isActive ? kPrimary : Colors.white,
+                    shape: BoxShape.circle,
+                    border: Border.all(
+                      color: isComplete || isActive ? kPrimary : kBorderColor,
+                      width: 2,
+                    ),
+                  ),
+                  child: Icon(
+                    isComplete ? Icons.check_rounded : _stepIcons[step],
+                    size: 20,
+                    color: isComplete || isActive ? Colors.white : kSubtleText,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  _stepTitles[step],
+                  textAlign: TextAlign.center,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: isActive ? kPrimary : kSubtleText,
+                    fontSize: 10,
+                    height: 1.15,
+                    fontWeight: isActive ? FontWeight.w700 : FontWeight.w500,
+                  ),
+                ),
+              ],
+            ),
+          );
+        }),
+      ),
+    );
+  }
+
+  Widget _buildPersonalStep(bool isWide) {
+    return Column(
+      children: [
+        _sectionHeader(
+          icon: _stepIcons[0],
+          title: _stepTitles[0],
+          subtitle: _stepSubtitles[0],
+        ),
+        TextFormField(
+          controller: fullNameController,
+          textInputAction: TextInputAction.next,
+          textCapitalization: TextCapitalization.words,
+          inputFormatters: [
+            ...AppInputSecurity.singleLineFormatters(maxLength: 120),
+            TextInputFormatter.withFunction((oldValue, newValue) {
+              final formatted = _formatFullName(newValue.text);
+              return newValue.copyWith(
+                text: formatted,
+                selection: TextSelection.collapsed(offset: formatted.length),
+              );
+            }),
+          ],
+          style: TextStyle(
+            fontSize: isWide ? 18 : 16,
+            color: kNeutralText,
+            fontWeight: FontWeight.w500,
+          ),
+          decoration: _dec(
+            'Full Name',
+            hint: 'Juan Dela Cruz',
+            icon: Icons.person_rounded,
+          ),
+          validator: (v) => AppInputSecurity.validateSafeText(
+            v,
+            fieldName: 'Full Name',
+            minLength: 2,
+            maxLength: 120,
+          ),
+        ),
+        const SizedBox(height: 16),
+        DropdownButtonFormField2<String>(
+          isExpanded: true,
+          decoration: _dropdownDec('Sex'),
+          value: selectedSex,
+          style: const TextStyle(
+            fontSize: 16,
+            color: kNeutralText,
+            fontWeight: FontWeight.w500,
+          ),
+          items: ['Male', 'Female', 'Prefer not to say']
+              .map(
+                (sex) => DropdownMenuItem<String>(value: sex, child: Text(sex)),
+              )
+              .toList(),
+          onChanged: (value) => setState(() => selectedSex = value),
+          validator: (value) => value == null ? 'Sex is required' : null,
+        ),
+        const SizedBox(height: 16),
+        _dobField(context),
+      ],
+    );
+  }
+
+  Widget _buildContactStep() {
+    return Column(
+      children: [
+        _sectionHeader(
+          icon: _stepIcons[1],
+          title: _stepTitles[1],
+          subtitle: _stepSubtitles[1],
+        ),
+        TextFormField(
+          controller: mobileController,
+          decoration: _dec(
+            'Mobile Number',
+            hint: '9123456789',
+            icon: Icons.phone_rounded,
+          ).copyWith(prefixText: '+63 '),
+          keyboardType: TextInputType.number,
+          maxLength: 10,
+          inputFormatters: AppInputSecurity.phoneFormatters(maxLength: 10),
+          validator: (value) {
+            final err = AppInputSecurity.validatePhone(value);
+            if (err != null) return err;
+            final v = AppInputSecurity.sanitizePhone(
+              value ?? '',
+            ).replaceAll('+', '');
+            if (v.length != 10) return 'Enter 10 digits (e.g., 9123456789)';
+            if (!RegExp(r'^9\d{9}$').hasMatch(v)) return 'Must start with 9';
+            return null;
+          },
+        ),
+        const SizedBox(height: 16),
+        GestureDetector(
+          onTap: _openAddressPicker,
+          child: AbsorbPointer(
+            child: TextFormField(
+              controller: addressController,
+              readOnly: true,
+              decoration: _dec(
+                'Address',
+                hint: 'Select Region, Province, City, Barangay',
+                icon: Icons.location_on_rounded,
+              ),
+              validator: (v) => AppInputSecurity.validateSafeText(
+                v,
+                fieldName: 'Address',
+                minLength: 6,
+                maxLength: 200,
+              ),
+            ),
+          ),
+        ),
+        if (addressController.text.isNotEmpty) ...[
+          const SizedBox(height: 10),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: Text(
+              _latitude == null
+                  ? 'Address selected. Location still being verified.'
+                  : 'Location verified successfully.',
+              style: TextStyle(
+                color: _latitude == null ? kWarn : kSuccess,
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+
+  Widget _buildAccountStep(bool isWide) {
+    return Column(
+      children: [
+        _sectionHeader(
+          icon: _stepIcons[2],
+          title: _stepTitles[2],
+          subtitle: _stepSubtitles[2],
+        ),
+        TextFormField(
+          controller: emailController,
+          keyboardType: TextInputType.emailAddress,
+          textCapitalization: TextCapitalization.none,
+          inputFormatters: [
+            ...AppInputSecurity.singleLineFormatters(maxLength: 120),
+            FilteringTextInputFormatter.deny(RegExp(r'[A-Z]')),
+          ],
+          onChanged: (value) {
+            final lowered = value.toLowerCase();
+            if (value != lowered) {
+              emailController.value = emailController.value.copyWith(
+                text: lowered,
+                selection: TextSelection.collapsed(offset: lowered.length),
+              );
+            }
+          },
+          style: TextStyle(
+            fontSize: isWide ? 18 : 16,
+            color: kNeutralText,
+            fontWeight: FontWeight.w500,
+          ),
+          decoration: _dec(
+            'Email',
+            hint: 'example@email.com',
+            icon: Icons.email_rounded,
+          ),
+          validator: AppInputSecurity.validateEmail,
+        ),
+        const SizedBox(height: 16),
+        TextFormField(
+          controller: passwordController,
+          obscureText: _obscurePassword,
+          style: TextStyle(
+            fontSize: isWide ? 18 : 16,
+            color: kNeutralText,
+            fontWeight: FontWeight.w500,
+          ),
+          decoration:
+              _dec(
+                'Create Password',
+                hint: '********',
+                icon: Icons.lock_rounded,
+              ).copyWith(
+                helperText:
+                    'At least 8 chars with upper, lower, number, and symbol',
+                helperStyle: const TextStyle(color: kSubtleText, fontSize: 12),
+              ),
+          validator: (v) {
+            if (v == null || v.trim().isEmpty) return 'Password is required';
+            final value = v.trim();
+            if (value.length < 8) {
+              return 'Password must be at least 8 characters';
+            }
+            if (!RegExp(r'[A-Z]').hasMatch(value)) {
+              return 'Password must include an uppercase letter';
+            }
+            if (!RegExp(r'[a-z]').hasMatch(value)) {
+              return 'Password must include a lowercase letter';
+            }
+            if (!RegExp(r'\d').hasMatch(value)) {
+              return 'Password must include a number';
+            }
+            if (!RegExp(r'[^A-Za-z0-9]').hasMatch(value)) {
+              return 'Password must include a special character';
+            }
+            return null;
+          },
+        ),
+        const SizedBox(height: 16),
+        TextFormField(
+          controller: confirmPasswordController,
+          obscureText: _obscurePassword,
+          textInputAction: TextInputAction.done,
+          style: TextStyle(
+            fontSize: isWide ? 18 : 16,
+            color: kNeutralText,
+            fontWeight: FontWeight.w500,
+          ),
+          decoration: _dec(
+            'Confirm Password',
+            hint: '********',
+            icon: Icons.lock_person_rounded,
+          ).copyWith(errorText: _confirmPasswordError),
+          validator: (v) {
+            if (v == null || v.trim().isEmpty) return 'Confirm your password';
+            if (v != passwordController.text) return 'Passwords do not match';
+            return null;
+          },
+        ),
+        Align(
+          alignment: Alignment.centerRight,
+          child: TextButton.icon(
+            icon: Icon(
+              _obscurePassword
+                  ? Icons.visibility_off_rounded
+                  : Icons.visibility_rounded,
+              color: kSubtleText,
+            ),
+            label: Text(
+              _obscurePassword ? 'Show password' : 'Hide password',
+              style: const TextStyle(
+                color: kSubtleText,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            onPressed: () =>
+                setState(() => _obscurePassword = !_obscurePassword),
+            style: TextButton.styleFrom(
+              foregroundColor: kSubtleText,
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+              minimumSize: const Size(0, 36),
+              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildReviewStep() {
+    Widget reviewRow(String label, String value, IconData icon) {
+      return Padding(
+        padding: const EdgeInsets.only(bottom: 14),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(icon, size: 19, color: kPrimary),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    label,
+                    style: const TextStyle(color: kSubtleText, fontSize: 12),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    value.isEmpty ? 'Not provided' : value,
+                    style: const TextStyle(
+                      color: kNeutralText,
+                      fontSize: 15,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return Column(
+      children: [
+        _sectionHeader(
+          icon: _stepIcons[3],
+          title: _stepTitles[3],
+          subtitle: _stepSubtitles[3],
+        ),
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: const Color(0xFFF8FAFC),
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: kBorderColor),
+          ),
+          child: Column(
+            children: [
+              reviewRow(
+                'Full name',
+                fullNameController.text,
+                Icons.person_rounded,
+              ),
+              reviewRow('Sex', selectedSex ?? '', Icons.wc_rounded),
+              reviewRow(
+                'Date of birth',
+                _selectedDob == null
+                    ? ''
+                    : '${_selectedDob!.year}-${_selectedDob!.month.toString().padLeft(2, '0')}-${_selectedDob!.day.toString().padLeft(2, '0')}',
+                Icons.calendar_today_rounded,
+              ),
+              reviewRow(
+                'Mobile number',
+                mobileController.text,
+                Icons.phone_rounded,
+              ),
+              reviewRow(
+                'Address',
+                addressController.text,
+                Icons.location_on_rounded,
+              ),
+              reviewRow('Email', emailController.text, Icons.email_rounded),
+            ],
+          ),
+        ),
+        const SizedBox(height: 16),
+        const Text(
+          'Your information is kept private and secure.',
+          textAlign: TextAlign.center,
+          style: TextStyle(color: kSuccess, fontWeight: FontWeight.w600),
+        ),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    final width = MediaQuery.of(context).size.width;
+    final isWide = width > 720;
+    final isSmall = width < 350;
+
+    return Scaffold(
+      backgroundColor: kBg,
+      resizeToAvoidBottomInset: true,
+      body: SafeArea(
+        child: Center(
+          child: SingleChildScrollView(
+            padding: EdgeInsets.symmetric(
+              horizontal: isSmall ? 16 : 24,
+              vertical: isSmall ? 12 : 20,
+            ),
+            child: ConstrainedBox(
+              constraints: BoxConstraints(maxWidth: isWide ? 640 : 420),
+              child: Column(
+                children: [
+                  Padding(
+                    padding: EdgeInsets.only(bottom: isSmall ? 12 : 20),
+                    child: Column(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(20),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(20),
+                            boxShadow: [
+                              BoxShadow(
+                                color: kPrimary.withValues(alpha: 0.1),
+                                blurRadius: 20,
+                                offset: const Offset(0, 8),
+                              ),
+                            ],
+                          ),
+                          child: Image.asset(
+                            'assets/images/dayunglogo.jpeg',
+                            width: isWide ? 280 : (isSmall ? 120 : 220),
+                            height: isWide ? 100 : (isSmall ? 40 : 80),
+                            fit: BoxFit.contain,
+                          ),
+                        ),
+                        SizedBox(height: isSmall ? 8 : 12),
+                        AutoSizeText(
+                          'Create your Dayung account',
+                          maxLines: 1,
+                          minFontSize: 10,
+                          style: TextStyle(
+                            fontSize: isWide ? 20 : (isSmall ? 12 : 16),
+                            fontWeight: FontWeight.w700,
+                            color: kNeutralText,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        const Text(
+                          'Tabang sa Kalisud, Sa Isa ka Tap.',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(color: kSubtleText, fontSize: 13),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Card(
+                    elevation: 0,
+                    color: kCardBg,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(24),
+                      side: BorderSide(
+                        color: kBorderColor.withValues(alpha: 0.5),
+                      ),
+                    ),
+                    child: Padding(
+                      padding: EdgeInsets.all(isSmall ? 14 : 22),
+                      child: Form(
+                        key: _formKey,
+                        child: Column(
+                          children: [
+                            _buildProgressTracker(),
+                            const SizedBox(height: 26),
+                            if (_isSubmitting)
+                              Container(
+                                margin: const EdgeInsets.only(bottom: 16),
+                                padding: const EdgeInsets.all(14),
+                                decoration: BoxDecoration(
+                                  color: kPrimary.withValues(alpha: 0.1),
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                child: const Row(
+                                  children: [
+                                    SizedBox(
+                                      width: 20,
+                                      height: 20,
+                                      child: CircularProgressIndicator(
+                                        color: kPrimary,
+                                        strokeWidth: 2,
+                                      ),
+                                    ),
+                                    SizedBox(width: 12),
+                                    Text(
+                                      'Creating your account...',
+                                      style: TextStyle(
+                                        color: kPrimary,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            if (_currentStep == 0) _buildPersonalStep(isWide),
+                            if (_currentStep == 1) _buildContactStep(),
+                            if (_currentStep == 2) _buildAccountStep(isWide),
+                            if (_currentStep == 3) _buildReviewStep(),
+                            const SizedBox(height: 24),
+                            Row(
+                              children: [
+                                if (_currentStep > 0)
+                                  Expanded(
+                                    child: OutlinedButton.icon(
+                                      onPressed: _isSubmitting
+                                          ? null
+                                          : _goToPreviousStep,
+                                      icon: const Icon(
+                                        Icons.arrow_back_rounded,
+                                      ),
+                                      label: const Text('Back'),
+                                      style: OutlinedButton.styleFrom(
+                                        minimumSize: const Size.fromHeight(54),
+                                        foregroundColor: kPrimary,
+                                        side: const BorderSide(
+                                          color: kBorderColor,
+                                        ),
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius: BorderRadius.circular(
+                                            kEdge,
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                if (_currentStep > 0) const SizedBox(width: 12),
+                                Expanded(
+                                  flex: 2,
+                                  child: ElevatedButton.icon(
+                                    onPressed: _isSubmitting
+                                        ? null
+                                        : _currentStep == _stepTitles.length - 1
+                                        ? _registerUser
+                                        : _goToNextStep,
+                                    icon: Icon(
+                                      _currentStep == _stepTitles.length - 1
+                                          ? Icons.check_rounded
+                                          : Icons.arrow_forward_rounded,
+                                    ),
+                                    label: Text(
+                                      _currentStep == _stepTitles.length - 1
+                                          ? 'Create Account'
+                                          : 'Continue',
+                                    ),
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: kPrimary,
+                                      foregroundColor: Colors.white,
+                                      minimumSize: const Size.fromHeight(54),
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(
+                                          kEdge,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 12),
+                            TextButton(
+                              onPressed: _isSubmitting
+                                  ? null
+                                  : () => Navigator.pushReplacement(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (_) => const Login(),
+                                      ),
+                                    ),
+                              child: const Text(
+                                'Already have an account? Login',
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ignore: unused_element
+  Widget _buildLegacyRegister(BuildContext context) {
     final width = MediaQuery.of(context).size.width;
     final isWide = width > 720;
     final isSmall = width < 350;
@@ -1053,19 +1756,20 @@ class _RegisterState extends State<Register> {
                                     ...AppInputSecurity.singleLineFormatters(
                                       maxLength: 120,
                                     ),
-                                    TextInputFormatter.withFunction(
-                                      (oldValue, newValue) {
-                                        final formatted = _formatFullName(
-                                          newValue.text,
-                                        );
-                                        return newValue.copyWith(
-                                          text: formatted,
-                                          selection: TextSelection.collapsed(
-                                            offset: formatted.length,
-                                          ),
-                                        );
-                                      },
-                                    ),
+                                    TextInputFormatter.withFunction((
+                                      oldValue,
+                                      newValue,
+                                    ) {
+                                      final formatted = _formatFullName(
+                                        newValue.text,
+                                      );
+                                      return newValue.copyWith(
+                                        text: formatted,
+                                        selection: TextSelection.collapsed(
+                                          offset: formatted.length,
+                                        ),
+                                      );
+                                    }),
                                   ],
                                   style: TextStyle(
                                     fontSize: isWide ? 18 : 16,
@@ -1269,13 +1973,13 @@ class _RegisterState extends State<Register> {
                                   onChanged: (value) {
                                     final lowered = value.toLowerCase();
                                     if (value != lowered) {
-                                      emailController.value =
-                                          emailController.value.copyWith(
+                                      emailController.value = emailController
+                                          .value
+                                          .copyWith(
                                             text: lowered,
-                                            selection:
-                                                TextSelection.collapsed(
-                                                  offset: lowered.length,
-                                                ),
+                                            selection: TextSelection.collapsed(
+                                              offset: lowered.length,
+                                            ),
                                           );
                                     }
                                   },
