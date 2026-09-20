@@ -991,58 +991,69 @@ class _RegisterState extends State<Register> {
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: kBorderColor),
       ),
-      child: Row(
-        children: List.generate(_stepTitles.length * 2 - 1, (index) {
-          if (index.isOdd) {
-            return Expanded(
-              child: Container(
-                height: 2,
-                color: index ~/ 2 < _currentStep ? kPrimary : kBorderColor,
-              ),
-            );
-          }
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final itemWidth = constraints.maxWidth < 360 ? 52.0 : 66.0;
+          return Row(
+            children: List.generate(_stepTitles.length * 2 - 1, (index) {
+              if (index.isOdd) {
+                return Expanded(
+                  child: Container(
+                    height: 2,
+                    color: index ~/ 2 < _currentStep ? kPrimary : kBorderColor,
+                  ),
+                );
+              }
 
-          final step = index ~/ 2;
-          final isComplete = step < _currentStep;
-          final isActive = step == _currentStep;
-          return SizedBox(
-            width: 66,
-            child: Column(
-              children: [
-                Container(
-                  width: 38,
-                  height: 38,
-                  decoration: BoxDecoration(
-                    color: isComplete || isActive ? kPrimary : Colors.white,
-                    shape: BoxShape.circle,
-                    border: Border.all(
-                      color: isComplete || isActive ? kPrimary : kBorderColor,
-                      width: 2,
+              final step = index ~/ 2;
+              final isComplete = step < _currentStep;
+              final isActive = step == _currentStep;
+              return SizedBox(
+                width: itemWidth,
+                child: Column(
+                  children: [
+                    Container(
+                      width: 38,
+                      height: 38,
+                      decoration: BoxDecoration(
+                        color: isComplete || isActive ? kPrimary : Colors.white,
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color: isComplete || isActive
+                              ? kPrimary
+                              : kBorderColor,
+                          width: 2,
+                        ),
+                      ),
+                      child: Icon(
+                        isComplete ? Icons.check_rounded : _stepIcons[step],
+                        size: 20,
+                        color: isComplete || isActive
+                            ? Colors.white
+                            : kSubtleText,
+                      ),
                     ),
-                  ),
-                  child: Icon(
-                    isComplete ? Icons.check_rounded : _stepIcons[step],
-                    size: 20,
-                    color: isComplete || isActive ? Colors.white : kSubtleText,
-                  ),
+                    const SizedBox(height: 8),
+                    Text(
+                      _stepTitles[step],
+                      textAlign: TextAlign.center,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: isActive ? kPrimary : kSubtleText,
+                        fontSize: 10,
+                        height: 1.15,
+                        fontWeight: isActive
+                            ? FontWeight.w700
+                            : FontWeight.w500,
+                      ),
+                    ),
+                  ],
                 ),
-                const SizedBox(height: 8),
-                Text(
-                  _stepTitles[step],
-                  textAlign: TextAlign.center,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    color: isActive ? kPrimary : kSubtleText,
-                    fontSize: 10,
-                    height: 1.15,
-                    fontWeight: isActive ? FontWeight.w700 : FontWeight.w500,
-                  ),
-                ),
-              ],
-            ),
+              );
+            }),
           );
-        }),
+        },
       ),
     );
   }
@@ -1180,6 +1191,69 @@ class _RegisterState extends State<Register> {
     );
   }
 
+  Widget _passwordRequirement({
+    required String label,
+    required bool satisfied,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 8),
+      child: Row(
+        children: [
+          Icon(
+            satisfied
+                ? Icons.check_circle_rounded
+                : Icons.radio_button_unchecked_rounded,
+            size: 20,
+            color: satisfied ? kSuccess : kSubtleText,
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              label,
+              style: TextStyle(
+                color: satisfied ? kSuccess : kSubtleText,
+                fontSize: 14,
+                fontWeight: satisfied ? FontWeight.w600 : FontWeight.w500,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _passwordRequirements() {
+    final value = passwordController.text;
+    return Padding(
+      padding: const EdgeInsets.only(left: 4, top: 2),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _passwordRequirement(
+            label: 'At least 8 characters',
+            satisfied: value.length >= 8,
+          ),
+          _passwordRequirement(
+            label: 'One uppercase letter (A-Z)',
+            satisfied: RegExp(r'[A-Z]').hasMatch(value),
+          ),
+          _passwordRequirement(
+            label: 'One lowercase letter (a-z)',
+            satisfied: RegExp(r'[a-z]').hasMatch(value),
+          ),
+          _passwordRequirement(
+            label: 'One digit (0-9)',
+            satisfied: RegExp(r'\d').hasMatch(value),
+          ),
+          _passwordRequirement(
+            label: 'One special character (!@#\$%...)',
+            satisfied: RegExp(r'[^A-Za-z0-9]').hasMatch(value),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildAccountStep(bool isWide) {
     return Column(
       children: [
@@ -1232,9 +1306,17 @@ class _RegisterState extends State<Register> {
                 hint: '********',
                 icon: Icons.lock_rounded,
               ).copyWith(
-                helperText:
-                    'At least 8 chars with upper, lower, number, and symbol',
-                helperStyle: const TextStyle(color: kSubtleText, fontSize: 12),
+                suffixIcon: IconButton(
+                  tooltip: _obscurePassword ? 'Show password' : 'Hide password',
+                  icon: Icon(
+                    _obscurePassword
+                        ? Icons.visibility_off_rounded
+                        : Icons.visibility_rounded,
+                    color: kSubtleText,
+                  ),
+                  onPressed: () =>
+                      setState(() => _obscurePassword = !_obscurePassword),
+                ),
               ),
           validator: (v) {
             if (v == null || v.trim().isEmpty) return 'Password is required';
@@ -1257,6 +1339,7 @@ class _RegisterState extends State<Register> {
             return null;
           },
         ),
+        _passwordRequirements(),
         const SizedBox(height: 16),
         TextFormField(
           controller: confirmPasswordController,
@@ -1267,42 +1350,30 @@ class _RegisterState extends State<Register> {
             color: kNeutralText,
             fontWeight: FontWeight.w500,
           ),
-          decoration: _dec(
-            'Confirm Password',
-            hint: '********',
-            icon: Icons.lock_person_rounded,
-          ).copyWith(errorText: _confirmPasswordError),
+          decoration:
+              _dec(
+                'Confirm Password',
+                hint: '********',
+                icon: Icons.lock_person_rounded,
+              ).copyWith(
+                errorText: _confirmPasswordError,
+                suffixIcon: IconButton(
+                  tooltip: _obscurePassword ? 'Show password' : 'Hide password',
+                  icon: Icon(
+                    _obscurePassword
+                        ? Icons.visibility_off_rounded
+                        : Icons.visibility_rounded,
+                    color: kSubtleText,
+                  ),
+                  onPressed: () =>
+                      setState(() => _obscurePassword = !_obscurePassword),
+                ),
+              ),
           validator: (v) {
             if (v == null || v.trim().isEmpty) return 'Confirm your password';
             if (v != passwordController.text) return 'Passwords do not match';
             return null;
           },
-        ),
-        Align(
-          alignment: Alignment.centerRight,
-          child: TextButton.icon(
-            icon: Icon(
-              _obscurePassword
-                  ? Icons.visibility_off_rounded
-                  : Icons.visibility_rounded,
-              color: kSubtleText,
-            ),
-            label: Text(
-              _obscurePassword ? 'Show password' : 'Hide password',
-              style: const TextStyle(
-                color: kSubtleText,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-            onPressed: () =>
-                setState(() => _obscurePassword = !_obscurePassword),
-            style: TextButton.styleFrom(
-              foregroundColor: kSubtleText,
-              padding: const EdgeInsets.symmetric(horizontal: 8),
-              minimumSize: const Size(0, 36),
-              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-            ),
-          ),
         ),
       ],
     );
@@ -1401,6 +1472,53 @@ class _RegisterState extends State<Register> {
     final width = MediaQuery.of(context).size.width;
     final isWide = width > 720;
     final isSmall = width < 350;
+    final stackActions = width < 420;
+
+    Widget backButton() {
+      return OutlinedButton.icon(
+        onPressed: _isSubmitting ? null : _goToPreviousStep,
+        icon: const Icon(Icons.arrow_back_rounded),
+        label: const Text('Back'),
+        style: OutlinedButton.styleFrom(
+          minimumSize: const Size.fromHeight(54),
+          foregroundColor: kPrimary,
+          side: const BorderSide(color: kBorderColor),
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(kEdge),
+          ),
+        ),
+      );
+    }
+
+    Widget primaryButton() {
+      return ElevatedButton.icon(
+        onPressed: _isSubmitting
+            ? null
+            : _currentStep == _stepTitles.length - 1
+            ? _registerUser
+            : _goToNextStep,
+        icon: Icon(
+          _currentStep == _stepTitles.length - 1
+              ? Icons.check_rounded
+              : Icons.arrow_forward_rounded,
+        ),
+        label: Text(
+          _currentStep == _stepTitles.length - 1
+              ? 'Create Account'
+              : 'Continue',
+        ),
+        style: ElevatedButton.styleFrom(
+          backgroundColor: kPrimary,
+          foregroundColor: Colors.white,
+          minimumSize: const Size.fromHeight(54),
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(kEdge),
+          ),
+        ),
+      );
+    }
 
     return Scaffold(
       backgroundColor: kBg,
@@ -1442,7 +1560,7 @@ class _RegisterState extends State<Register> {
                         ),
                         SizedBox(height: isSmall ? 8 : 12),
                         AutoSizeText(
-                          'Create your Dayung account',
+                          'Dayung account registration',
                           maxLines: 1,
                           minFontSize: 10,
                           style: TextStyle(
@@ -1451,12 +1569,12 @@ class _RegisterState extends State<Register> {
                             color: kNeutralText,
                           ),
                         ),
-                        const SizedBox(height: 4),
-                        const Text(
-                          'Tabang sa Kalisud, Sa Isa ka Tap.',
-                          textAlign: TextAlign.center,
-                          style: TextStyle(color: kSubtleText, fontSize: 13),
-                        ),
+                        // const SizedBox(height: 4),
+                        // const Text(
+                        //   'Tabang sa Kalisud, Sa Isa ka Tap.',
+                        //   textAlign: TextAlign.center,
+                        //   style: TextStyle(color: kSubtleText, fontSize: 13),
+                        // ),
                       ],
                     ),
                   ),
@@ -1511,65 +1629,27 @@ class _RegisterState extends State<Register> {
                             if (_currentStep == 2) _buildAccountStep(isWide),
                             if (_currentStep == 3) _buildReviewStep(),
                             const SizedBox(height: 24),
-                            Row(
-                              children: [
-                                if (_currentStep > 0)
-                                  Expanded(
-                                    child: OutlinedButton.icon(
-                                      onPressed: _isSubmitting
-                                          ? null
-                                          : _goToPreviousStep,
-                                      icon: const Icon(
-                                        Icons.arrow_back_rounded,
-                                      ),
-                                      label: const Text('Back'),
-                                      style: OutlinedButton.styleFrom(
-                                        minimumSize: const Size.fromHeight(54),
-                                        foregroundColor: kPrimary,
-                                        side: const BorderSide(
-                                          color: kBorderColor,
-                                        ),
-                                        shape: RoundedRectangleBorder(
-                                          borderRadius: BorderRadius.circular(
-                                            kEdge,
-                                          ),
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                if (_currentStep > 0) const SizedBox(width: 12),
-                                Expanded(
-                                  flex: 2,
-                                  child: ElevatedButton.icon(
-                                    onPressed: _isSubmitting
-                                        ? null
-                                        : _currentStep == _stepTitles.length - 1
-                                        ? _registerUser
-                                        : _goToNextStep,
-                                    icon: Icon(
-                                      _currentStep == _stepTitles.length - 1
-                                          ? Icons.check_rounded
-                                          : Icons.arrow_forward_rounded,
-                                    ),
-                                    label: Text(
-                                      _currentStep == _stepTitles.length - 1
-                                          ? 'Create Account'
-                                          : 'Continue',
-                                    ),
-                                    style: ElevatedButton.styleFrom(
-                                      backgroundColor: kPrimary,
-                                      foregroundColor: Colors.white,
-                                      minimumSize: const Size.fromHeight(54),
-                                      shape: RoundedRectangleBorder(
-                                        borderRadius: BorderRadius.circular(
-                                          kEdge,
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
+                            if (stackActions)
+                              Column(
+                                crossAxisAlignment: CrossAxisAlignment.stretch,
+                                children: [
+                                  if (_currentStep > 0) ...[
+                                    backButton(),
+                                    const SizedBox(height: 12),
+                                  ],
+                                  primaryButton(),
+                                ],
+                              )
+                            else
+                              Row(
+                                children: [
+                                  if (_currentStep > 0)
+                                    Expanded(child: backButton()),
+                                  if (_currentStep > 0)
+                                    const SizedBox(width: 12),
+                                  Expanded(flex: 2, child: primaryButton()),
+                                ],
+                              ),
                             const SizedBox(height: 12),
                             TextButton(
                               onPressed: _isSubmitting
