@@ -56,6 +56,7 @@ class _MemberDashboardPageState extends State<MemberDashboardPage>
   bool _loadingActiveMembers = true;
   bool _handlingOverlay = false;
   bool _loadingPending = true;
+  bool _loadingApplicationStatus = true;
   bool _hasAppliedBefore = false;
 
   List<Map<String, dynamic>> _recentCertificates = [];
@@ -172,6 +173,9 @@ class _MemberDashboardPageState extends State<MemberDashboardPage>
   //   _subscribeNotificationsRealtime();
 
   Future<void> _fetchPendingApplication() async {
+    if (mounted) {
+      setState(() => _loadingApplicationStatus = true);
+    }
     try {
       final userId = supabase.auth.currentUser?.id;
       if (userId == null) {
@@ -186,7 +190,8 @@ class _MemberDashboardPageState extends State<MemberDashboardPage>
 
       final applicationRows = await supabase
           .from('applications')
-          .select('status, dayung_unit_id');
+          .select('status, dayung_unit_id')
+          .eq('user_id', userId);
 
       final hasApplications = (applicationRows as List).isNotEmpty;
       if (!mounted) return;
@@ -235,6 +240,10 @@ class _MemberDashboardPageState extends State<MemberDashboardPage>
         _pendingApplicationDayungName = null;
         _pendingApplicationDayungUnitId = null;
       });
+    } finally {
+      if (mounted) {
+        setState(() => _loadingApplicationStatus = false);
+      }
     }
   }
 
@@ -839,7 +848,14 @@ class _MemberDashboardPageState extends State<MemberDashboardPage>
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            if (showNoticeOnly)
+            if (_loadingApplicationStatus)
+              const Center(
+                child: Padding(
+                  padding: EdgeInsets.symmetric(vertical: 48),
+                  child: CircularProgressIndicator(),
+                ),
+              )
+            else if (showNoticeOnly)
               _hasPendingApplication
                   ? _buildPendingApplicationNotice()
                   : _buildNoApplicationNotice()

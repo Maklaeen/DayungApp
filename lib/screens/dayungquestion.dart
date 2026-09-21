@@ -96,7 +96,6 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
     double payGcash = payment_method == 'GCash' ? 1.0 : 0.0;
     double payBoth = payment_method == 'Both' ? 1.0 : 0.0;
 
-    
     List<String> feeRanges = [
       '50-100',
       '100-150',
@@ -194,7 +193,6 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
     double payCash = pay == 'cash' ? 1.0 : 0.0;
     double payGcash = pay == 'gcash' ? 1.0 : 0.0;
     double payBoth = pay == 'both' ? 1.0 : 0.0;
-
 
     List<String> feeRanges = [
       '50-100',

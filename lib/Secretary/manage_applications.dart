@@ -1001,6 +1001,29 @@ class _SecretaryApplicationsPageState extends State<SecretaryApplicationsPage> {
           .eq('id', applicationId)
           .maybeSingle();
 
+      final userId = applicationRow?['user_id']?.toString();
+      if (userId == null || userId.isEmpty) {
+        throw Exception('Unable to identify the applicant.');
+      }
+
+      final beneficiaryRows = await _supabase
+          .from('beneficiaries')
+          .select('id')
+          .eq('user_id', userId)
+          .limit(1);
+
+      if (beneficiaryRows.isEmpty) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Approval requires at least one beneficiary. Ask the applicant to add one first.',
+            ),
+          ),
+        );
+        return;
+      }
+
       final approverId = _supabase.auth.currentUser?.id;
       if (approverId == null || approverId.isEmpty) {
         throw Exception('Unable to identify the approving user.');
@@ -1014,9 +1037,8 @@ class _SecretaryApplicationsPageState extends State<SecretaryApplicationsPage> {
         },
       );
 
-      final userId = applicationRow?['user_id']?.toString();
       final unitId = int.tryParse('${applicationRow?['dayung_unit_id']}');
-      if (userId != null && userId.isNotEmpty && unitId != null) {
+      if (userId.isNotEmpty && unitId != null) {
         await _createMembershipPaymentRecord(
           userId: userId,
           dayungUnitId: unitId,
@@ -1155,6 +1177,21 @@ class _SecretaryApplicationsPageState extends State<SecretaryApplicationsPage> {
     return null;
   }
 
+  Future<List<Map<String, dynamic>>> _getApprovedBeneficiaries(
+    String userId,
+  ) async {
+    final rows = await _supabase
+        .from('beneficiaries')
+        .select(
+          'full_name, dob, marital_status, relationship, birth_certificate, valid_id',
+        )
+        .eq('user_id', userId)
+        .eq('status', 'Approved')
+        .order('full_name', ascending: true);
+
+    return List<Map<String, dynamic>>.from(rows);
+  }
+
   // New: open tracking sheet for a user
   Future<void> _openUserTracking({
     required String userId,
@@ -1209,7 +1246,12 @@ class _SecretaryApplicationsPageState extends State<SecretaryApplicationsPage> {
               ]);
               final user = await userFuture;
               final docs = await docsFuture;
-              return {'user': user, 'docs': docs};
+              final beneficiaries = await _getApprovedBeneficiaries(userId);
+              return {
+                'user': user,
+                'docs': docs,
+                'beneficiaries': beneficiaries,
+              };
             }(),
             builder: (context, snap) {
               final user = snap.data != null
@@ -1218,6 +1260,13 @@ class _SecretaryApplicationsPageState extends State<SecretaryApplicationsPage> {
               final docs = snap.data != null
                   ? (snap.data!['docs'] as List<String?>? ?? [])
                   : [];
+              final beneficiaries = snap.data != null
+                  ? List<Map<String, dynamic>>.from(
+                      (snap.data!['beneficiaries'] as List<dynamic>? ?? []).map(
+                        (item) => Map<String, dynamic>.from(item as Map),
+                      ),
+                    )
+                  : <Map<String, dynamic>>[];
               final birthUrl = docs.isNotEmpty ? docs[0] : null;
               final validIdUrl = docs.length > 1 ? docs[1] : null;
               final residencyUrl = docs.length > 2 ? docs[2] : null;
@@ -1414,6 +1463,60 @@ class _SecretaryApplicationsPageState extends State<SecretaryApplicationsPage> {
                                     fontWeight: FontWeight.w700,
                                   ),
                                 ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+                          Container(
+                            padding: const EdgeInsets.all(16),
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(18),
+                              border: Border.all(color: kBorderColor),
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  children: [
+                                    const Expanded(
+                                      child: Text(
+                                        'Approved Beneficiaries',
+                                        style: TextStyle(
+                                          fontSize: 16,
+                                          fontWeight: FontWeight.w800,
+                                          color: kText,
+                                          fontFamily: 'Montserrat',
+                                        ),
+                                      ),
+                                    ),
+                                    Text(
+                                      '${beneficiaries.length}',
+                                      style: const TextStyle(
+                                        color: kSuccess,
+                                        fontWeight: FontWeight.w800,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 12),
+                                if (beneficiaries.isEmpty)
+                                  const Text(
+                                    'No approved beneficiaries recorded.',
+                                    style: TextStyle(
+                                      color: kSubText,
+                                      fontFamily: 'OpenSans',
+                                    ),
+                                  )
+                                else
+                                  ...beneficiaries.map(
+                                    (beneficiary) => Padding(
+                                      padding: const EdgeInsets.only(
+                                        bottom: 10,
+                                      ),
+                                      child: _buildBeneficiaryCard(beneficiary),
+                                    ),
+                                  ),
                               ],
                             ),
                           ),
@@ -1979,6 +2082,68 @@ class _SecretaryApplicationsPageState extends State<SecretaryApplicationsPage> {
                 fontFamily: 'OpenSans',
               ),
             ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildBeneficiaryCard(Map<String, dynamic> beneficiary) {
+    final name = (beneficiary['full_name'] ?? 'Unnamed beneficiary').toString();
+    final birthCertificate = (beneficiary['birth_certificate'] ?? '')
+        .toString()
+        .trim();
+    final validId = (beneficiary['valid_id'] ?? '').toString().trim();
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF8FAFC),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: kBorderColor),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            name,
+            style: const TextStyle(
+              fontWeight: FontWeight.w800,
+              color: kPrimaryDark,
+              fontFamily: 'Montserrat',
+            ),
+          ),
+          const SizedBox(height: 8),
+          _sheetDetailRow(
+            Icons.cake_rounded,
+            'DOB: ${(beneficiary['dob'] ?? 'Not provided').toString()}',
+          ),
+          _sheetDetailRow(
+            Icons.favorite_border_rounded,
+            'Marital status: ${(beneficiary['marital_status'] ?? 'Not provided').toString()}',
+          ),
+          _sheetDetailRow(
+            Icons.family_restroom_rounded,
+            'Relationship: ${(beneficiary['relationship'] ?? 'Not provided').toString()}',
+          ),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              if (birthCertificate.isNotEmpty)
+                OutlinedButton.icon(
+                  icon: const Icon(Icons.description_outlined, size: 16),
+                  label: const Text('Birth certificate'),
+                  onPressed: () => _openCertificateViewer(birthCertificate),
+                ),
+              if (validId.isNotEmpty)
+                OutlinedButton.icon(
+                  icon: const Icon(Icons.badge_outlined, size: 16),
+                  label: const Text('Valid ID'),
+                  onPressed: () => _openCertificateViewer(validId),
+                ),
+            ],
           ),
         ],
       ),

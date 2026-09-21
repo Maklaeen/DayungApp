@@ -14,8 +14,13 @@ import 'package:capstone_app/Providers/dayung_role_provider.dart';
 
 class GlobalSidebarWrapper extends StatefulWidget {
   final Widget dashboard;
+  final bool openBeneficiariesInitially;
 
-  const GlobalSidebarWrapper({super.key, required this.dashboard});
+  const GlobalSidebarWrapper({
+    super.key,
+    required this.dashboard,
+    this.openBeneficiariesInitially = false,
+  });
 
   @override
   State<GlobalSidebarWrapper> createState() => _GlobalSidebarWrapperState();
@@ -26,7 +31,9 @@ class _GlobalSidebarWrapperState extends State<GlobalSidebarWrapper> {
   String _roleName = '';
   String _selectedDayungUnit = 'Dayung Unit';
   int _unreadNotifCount = 0;
-  String _currentPage = 'dashboard';
+  late String _currentPage = widget.openBeneficiariesInitially
+      ? 'beneficiaries'
+      : 'dashboard';
 
   @override
   void initState() {
@@ -131,6 +138,9 @@ class _GlobalSidebarWrapperState extends State<GlobalSidebarWrapper> {
       case 'beneficiaries':
         return BeneficiaryPage(
           onBack: () => _navigate('dashboard'),
+          onFirstBeneficiaryAdded: widget.openBeneficiariesInitially
+              ? () => _navigate('dashboard')
+              : null,
           showBackButton: !isDesktop,
         );
       case 'notifications':

@@ -1232,7 +1232,7 @@ class _DayungSettingsPageState extends State<DayungSettingsPage> {
                               messenger.showSnackBar(
                                 SnackBar(
                                   content: Text(
-                                    'Application sent to ${result['name']}!',
+                                    'Application sent to1 ${result['name']}!',
                                   ),
                                 ),
                               );

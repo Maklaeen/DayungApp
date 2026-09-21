@@ -745,7 +745,8 @@ class _AddBeneficiaryPageState extends State<AddBeneficiaryPage> {
                             children: [
                               _buildSectionHeader(
                                 icon: Icons.person_add_alt_1_rounded,
-                                title: 'Create a beneficiary record',
+                                title:
+                                    'Please add your beneficiaries. This is required for Dayung.',
                               ),
                               const SizedBox(height: 12),
                               Wrap(

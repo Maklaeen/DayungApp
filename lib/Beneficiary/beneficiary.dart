@@ -19,9 +19,15 @@ const kBorderColor = Color(0xFFE5E7EB);
 
 class BeneficiaryPage extends StatefulWidget {
   final VoidCallback? onBack;
+  final VoidCallback? onFirstBeneficiaryAdded;
   final bool showBackButton;
 
-  const BeneficiaryPage({super.key, this.onBack, this.showBackButton = true});
+  const BeneficiaryPage({
+    super.key,
+    this.onBack,
+    this.onFirstBeneficiaryAdded,
+    this.showBackButton = true,
+  });
 
   @override
   State<BeneficiaryPage> createState() => _BeneficiaryPageState();
@@ -78,7 +84,10 @@ class _BeneficiaryPageState extends State<BeneficiaryPage>
       context,
       MaterialPageRoute(builder: (context) => const add.AddBeneficiaryPage()),
     );
-    fetchBeneficiaries();
+    await fetchBeneficiaries();
+    if (beneficiaries.isNotEmpty && widget.onFirstBeneficiaryAdded != null) {
+      widget.onFirstBeneficiaryAdded!();
+    }
   }
 
   Color _statusColor(String? status) {
@@ -839,7 +848,7 @@ class _BeneficiaryPageState extends State<BeneficiaryPage>
                             children: [
                               Text(
                                 totalCount == 0
-                                    ? 'No beneficiaries added yet'
+                                    ? 'No beneficiaries have been added yet. Please add at least one beneficiary, as this is a required part of your Dayung application. Applications without beneficiaries may not be approved.'
                                     : '$totalCount beneficiary${totalCount == 1 ? '' : 'ies'} on record',
                                 style: TextStyle(
                                   fontSize: isWide ? 18 : 16,

@@ -14,7 +14,7 @@ class _ReportMember {
     required this.name,
     required this.amount,
     this.proofUrl,
-    this.advanceAmount = 0,
+    required this.advanceAmount,
     this.advanceDeathCount = 0,
     this.status = '',
   });
@@ -42,16 +42,19 @@ class _CollectorOverallReportsPageState
     _ReportMember(
       name: 'Member 1',
       amount: 200,
+      advanceAmount: 0,
       proofUrl: 'https://placeholder.com/r1.jpg',
     ),
     _ReportMember(
       name: 'Member 2',
       amount: 100,
+      advanceAmount: 0,
       proofUrl: 'https://placeholder.com/r2.jpg',
     ),
     _ReportMember(
       name: 'Member 3',
       amount: 500,
+      advanceAmount: 0,
       proofUrl: 'https://placeholder.com/r3.jpg',
     ),
   ];
@@ -61,8 +64,18 @@ class _CollectorOverallReportsPageState
   List<_ReportMember> _notPaidMembers = [];
 
   final _advanceMembers = const [
-    _ReportMember(name: 'Member 1', amount: 100, advanceDeathCount: 1),
-    _ReportMember(name: 'Member 2', amount: 300, advanceDeathCount: 3),
+    _ReportMember(
+      name: 'Member 1',
+      amount: 100,
+      advanceAmount: 100,
+      advanceDeathCount: 1,
+    ),
+    _ReportMember(
+      name: 'Member 2',
+      amount: 300,
+      advanceAmount: 300,
+      advanceDeathCount: 3,
+    ),
   ];
 
   @override
@@ -139,6 +152,7 @@ class _CollectorOverallReportsPageState
           _ReportMember(
             name: name,
             amount: _toDouble(row['amount']),
+            advanceAmount: 0,
             status: (row['status'] ?? '').toString().toLowerCase(),
           ),
         );
@@ -204,6 +218,7 @@ class _CollectorOverallReportsPageState
         membersByUserId[userId] = _ReportMember(
           name: existingMember?.name ?? name,
           amount: (existingMember?.amount ?? 0) + _toDouble(row['amount']),
+          advanceAmount: 0,
           status: 'unpaid',
         );
       }

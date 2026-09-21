@@ -4,6 +4,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:math';
+import 'package:capstone_app/Beneficiary/beneficiary.dart';
 import 'package:capstone_app/config/app_config.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -1667,8 +1668,11 @@ class _DayungMapPageState extends State<DayungMapPage> {
       setState(() => _applied = true);
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(SnackBar(content: Text('Application sent to $unitName.')));
-      Navigator.pop(context, {'applied': true, 'dayung_id': dayungUnitId});
+      ).showSnackBar(SnackBar(content: Text('Application sent to2 $unitName.')));
+      await Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (_) => const BeneficiaryPage()),
+      );
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(
