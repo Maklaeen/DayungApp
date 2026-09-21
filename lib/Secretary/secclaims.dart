@@ -68,6 +68,22 @@ double calculateTreasurerCollectedAmount({
   return total;
 }
 
+Map<String, dynamic> applyAdvancePaymentDeduction({
+  required double remainingAmount,
+  required double currentAdvanceAmount,
+}) {
+  final safeRemaining = remainingAmount < 0 ? 0.0 : remainingAmount;
+  final safeAdvance = currentAdvanceAmount < 0 ? 0.0 : currentAdvanceAmount;
+  final deduction = safeRemaining <= safeAdvance ? safeRemaining : safeAdvance;
+  final updatedAmount = safeAdvance - deduction;
+
+  return {
+    'deduction': deduction,
+    'updatedAmount': updatedAmount,
+    'hasRemaining': updatedAmount > 0,
+  };
+}
+
 class SecretaryClaimsPage extends StatefulWidget {
   const SecretaryClaimsPage({super.key});
   @override
@@ -457,6 +473,95 @@ class _SecretaryClaimsPageState extends State<SecretaryClaimsPage>
     return parsedClaimUnitId ??
         _lastUnitId ??
         context.read<DayungUnitProvider>().currentUnitId;
+  }
+
+  Future<void> _applyAdvancePaymentDeductionForClaim({
+    required int dayungUnitId,
+    required String deceasedUserId,
+    required double contributionAmount,
+  }) async {
+    if (contributionAmount <= 0 || deceasedUserId.isEmpty) return;
+
+    final rows = await supabase
+        .from('advance_payments')
+        .select(
+          'id, user_id, amount, has_remaining, deducted_amount, created_at',
+        )
+        .eq('dayung_unit_id', dayungUnitId)
+        .eq('has_remaining', true)
+        .order('created_at', ascending: true);
+
+    final advanceRows = List<Map<String, dynamic>>.from(rows ?? const []);
+    if (advanceRows.isEmpty) return;
+
+    double remainingContribution = contributionAmount;
+    final nowIso = DateTime.now().toUtc().toIso8601String();
+
+    for (final row in advanceRows) {
+      final payerUserId = (row['user_id'] ?? '').toString();
+      if (payerUserId.isEmpty) continue;
+
+      final currentAdvanceAmount =
+          double.tryParse('${row['amount'] ?? 0}') ?? 0;
+      final alreadyDeducted =
+          double.tryParse('${row['deducted_amount'] ?? 0}') ?? 0;
+      final availableAdvance = currentAdvanceAmount - alreadyDeducted;
+
+      if (availableAdvance <= 0) {
+        await supabase
+            .from('advance_payments')
+            .update({
+              'has_remaining': false,
+              'deducted_amount': currentAdvanceAmount,
+            })
+            .eq('id', row['id']);
+        continue;
+      }
+
+      final result = applyAdvancePaymentDeduction(
+        remainingAmount: remainingContribution,
+        currentAdvanceAmount: availableAdvance,
+      );
+      final deduction = (result['deduction'] as num).toDouble();
+      final updatedAmount = (result['updatedAmount'] as num).toDouble();
+      final hasRemaining = result['hasRemaining'] as bool;
+
+      if (deduction <= 0) break;
+
+      await supabase
+          .from('advance_payments')
+          .update({
+            'deducted_amount': alreadyDeducted + deduction,
+            'has_remaining': hasRemaining,
+          })
+          .eq('id', row['id']);
+
+      await supabase
+          .from('payments')
+          .update({
+            'status': 'paid',
+            'paid_at': nowIso,
+            'iscollectedbytreasurer': true,
+            'iscollectedbytreasurer_date': nowIso,
+          })
+          .eq('dayung_unit_id', dayungUnitId)
+          .eq('user_id', payerUserId)
+          .eq('userdeceased', deceasedUserId)
+          .eq('status', 'unpaid');
+
+      remainingContribution -= deduction;
+      if (remainingContribution <= 0) break;
+
+      if (!hasRemaining) {
+        continue;
+      }
+      if (updatedAmount <= 0) {
+        await supabase
+            .from('advance_payments')
+            .update({'has_remaining': false})
+            .eq('id', row['id']);
+      }
+    }
   }
 
   Future<void> _updateClaimed(
@@ -1745,6 +1850,19 @@ class _SecretaryClaimsPageState extends State<SecretaryClaimsPage>
                               'type': 'deceased_payment',
                               'created_at': now,
                             });
+                          }
+
+                          final resolvedClaimUnitId =
+                              int.tryParse('${claim['dayung_unit_id']}') ??
+                              _lastUnitId ??
+                              context.read<DayungUnitProvider>().currentUnitId;
+                          if (resolvedClaimUnitId != null) {
+                            await _applyAdvancePaymentDeductionForClaim(
+                              dayungUnitId: resolvedClaimUnitId,
+                              deceasedUserId: (claim['user_id'] ?? '')
+                                  .toString(),
+                              contributionAmount: result,
+                            );
                           }
 
                           rootNavigator.pop();

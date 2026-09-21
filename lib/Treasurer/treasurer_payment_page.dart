@@ -93,8 +93,9 @@ class _TreasurerPaymentPageState extends State<TreasurerPaymentPage> {
       final rows = await sb
           .from('advance_payments')
           .select(
-            'id, user_id, amount, type, created_at, added_by, users!advance_payments_user_id_fkey(full_name)',
+            'id, user_id, amount, type, created_at, added_by, dayung_unit_id, users!advance_payments_user_id_fkey(full_name)',
           )
+          .eq('dayung_unit_id', widget.dayungUnitId)
           .order('created_at', ascending: false);
 
       if (!mounted) return;
@@ -211,6 +212,8 @@ class _TreasurerPaymentPageState extends State<TreasurerPaymentPage> {
         'type': _paymentType.toLowerCase(),
         'created_at': now,
         'added_by': sb.auth.currentUser?.id,
+        'dayung_unit_id': widget.dayungUnitId,
+        'has_remaining': true,
       });
 
       if (!mounted) return;

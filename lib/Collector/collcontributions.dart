@@ -1,5 +1,4 @@
 import 'package:capstone_app/Members/gcash_payment_page.dart';
-import 'package:capstone_app/ui/theme/branding.dart' hide kPrimary;
 import 'package:capstone_app/utils/theme_surface.dart';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';

@@ -82,6 +82,11 @@ class _GcashQrPageState extends State<GcashQrPage> {
       return deceasedName;
     }
 
+    final paymentPurpose = row['payment_purpose']?.toString().trim();
+    if (paymentPurpose != null && paymentPurpose.isNotEmpty) {
+      return paymentPurpose;
+    }
+
     final type = row['type']?.toString().trim().toLowerCase();
     if (type == 'for_membership') {
       return 'For Membership';
@@ -321,7 +326,7 @@ class _GcashQrPageState extends State<GcashQrPage> {
     final response = await sb
         .from('gcash_qr_codes')
         .select(
-          'id, set_amount_id, image_url, uploaded_by, created_at, userdeceased, dayung_unit_id, amount, refno, type',
+          'id, set_amount_id, image_url, uploaded_by, created_at, userdeceased, dayung_unit_id, amount, refno, type, payment_purpose',
         )
         .eq('dayung_unit_id', widget.dayungUnitId)
         .order('created_at', ascending: false)
@@ -477,6 +482,13 @@ class _GcashQrPageState extends State<GcashQrPage> {
       }
     }
 
+    final advanceRows = await sb
+        .from('advance_payments')
+        .select('user_id, amount, type')
+        .eq('dayung_unit_id', widget.dayungUnitId)
+        .eq('type', 'gcash')
+        .timeout(_queryTimeout);
+
     // ...existing code...
     for (final row in data) {
       final uploadedBy = row['uploaded_by']?.toString() ?? '';
@@ -500,7 +512,23 @@ class _GcashQrPageState extends State<GcashQrPage> {
       row['uploaded_by_name'] = userNameMap[uploadedBy] ?? '';
       row['userdeceased_name'] = userNameMap[deceasedId] ?? '';
       row['payment_id'] = paymentIdMap[paymentKey];
-      row['already_paid'] = paidKeys.contains(paymentKey);
+      final isAdvancePayment =
+          row['payment_purpose']?.toString().trim().toLowerCase() ==
+          'advance payments';
+      final hasAdvanceRecord =
+          isAdvancePayment &&
+          List<Map<String, dynamic>>.from(advanceRows).any((advanceRow) {
+            final advanceUserId = advanceRow['user_id']?.toString();
+            final advanceAmount = double.tryParse(
+              advanceRow['amount']?.toString() ?? '',
+            );
+            final rowAmount = double.tryParse(row['amount']?.toString() ?? '');
+            return advanceUserId == uploadedBy &&
+                advanceAmount != null &&
+                rowAmount != null &&
+                advanceAmount == rowAmount;
+          });
+      row['already_paid'] = paidKeys.contains(paymentKey) || hasAdvanceRecord;
     }
     return data;
   }
@@ -1622,6 +1650,10 @@ class _GcashQrPageState extends State<GcashQrPage> {
   }
 
   Widget _buildMarkPaidButton(Map<String, dynamic> row) {
+    final isAdvancePayment =
+        row['payment_purpose']?.toString().trim().toLowerCase() ==
+        'advance payments';
+
     return ElevatedButton(
       style: ElevatedButton.styleFrom(
         backgroundColor: kAccent,
@@ -1684,6 +1716,54 @@ class _GcashQrPageState extends State<GcashQrPage> {
                                     .auth
                                     .currentUser
                                     ?.id;
+                                final amount = double.tryParse(
+                                  row['amount']?.toString() ?? '',
+                                );
+
+                                if (isAdvancePayment) {
+                                  final userId = row['uploaded_by']
+                                      ?.toString()
+                                      .trim();
+                                  if (userId == null ||
+                                      userId.isEmpty ||
+                                      amount == null ||
+                                      amount <= 0) {
+                                    messenger.showSnackBar(
+                                      const SnackBar(
+                                        content: Text(
+                                          'Unable to save advance payment: missing member or amount.',
+                                        ),
+                                      ),
+                                    );
+                                    setState(() => isLoading = false);
+                                    return;
+                                  }
+
+                                  await Supabase.instance.client
+                                      .from('advance_payments')
+                                      .insert({
+                                        'user_id': userId,
+                                        'amount': amount,
+                                        'type': 'gcash',
+                                        'created_at': DateTime.now()
+                                            .toUtc()
+                                            .toIso8601String(),
+                                        'added_b  y': currentUserId,
+                                        'dayung_unit_id': widget.dayungUnitId,
+                                        'has_remaining': true,
+                                        'deducted_amount': 0,
+                                      });
+
+                                  if (mounted) {
+                                    this.setState(() {
+                                      row['already_paid'] = true;
+                                    });
+                                  }
+                                  navigator.pop();
+                                  _refreshQrData();
+                                  return;
+                                }
+
                                 final updateData = {
                                   'status': 'paid',
                                   'paid_at': DateTime.now()

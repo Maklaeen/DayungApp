@@ -98,7 +98,7 @@ class _MembershipPageState extends State<MembershipPage> {
       final parsed = DateTime.parse(value).toUtc();
       final ph = parsed.add(const Duration(hours: 8));
       final formatter = DateFormat('MMMM d, yyyy h:mm a');
-      return '${formatter.format(ph)}';
+      return formatter.format(ph);
     } catch (e) {
       // If parsing fails, just return the original value.
       return value;

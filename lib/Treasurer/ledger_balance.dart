@@ -440,7 +440,7 @@ class _LedgerBalancePageState extends State<LedgerBalancePage> {
                     ),
                     const SizedBox(height: 12),
                     if (members.isEmpty)
-                      const Text('No member breakdown available yet.')
+                      const Text('No member available yet.')
                     else
                       Flexible(
                         child: SingleChildScrollView(

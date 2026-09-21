@@ -1,6 +1,4 @@
-import 'package:capstone_app/Collector/gcash_qr_page.dart';
 import 'package:capstone_app/ui/loading/page_skeleton.dart';
-import 'package:capstone_app/utils/input_safety.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
@@ -508,7 +506,7 @@ class _OfficialPaymentPageState extends State<OfficialPaymentPage> {
 
       await sb.from('gcash_qr_codes').insert({
         'set_amount_id': paymentId,
-        'userdeceased': paymentRow['userdeceased'] ?? null,
+        'userdeceased': paymentRow['userdeceased'],
         'amount': amount,
         'image_url': fileName,
         'uploaded_by': sb.auth.currentUser?.id,

@@ -738,7 +738,7 @@ class _CollectorOverallReportsPageState
 class _HeaderCell extends StatelessWidget {
   final String text;
 
-  const _HeaderCell(this.text, {super.key});
+  const _HeaderCell(this.text);
 
   @override
   Widget build(BuildContext context) {
@@ -772,7 +772,6 @@ class _DataCell extends StatelessWidget {
 
   const _DataCell(
     this.text, {
-    super.key,
     this.align = TextAlign.left,
     this.color = const Color(0xFF111827),
     this.isLink = false,

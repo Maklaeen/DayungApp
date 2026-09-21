@@ -1,4 +1,3 @@
-import 'package:capstone_app/President/president_payment_page.dart';
 import 'package:capstone_app/utils/theme_surface.dart';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';

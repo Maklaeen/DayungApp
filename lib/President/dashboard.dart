@@ -13,7 +13,6 @@ import 'package:capstone_app/President/presidentmemberspage.dart'
 import 'package:capstone_app/Providers/dayung_provider.dart';
 import 'package:capstone_app/Providers/dayung_role_provider.dart';
 import 'package:capstone_app/pages/recentdeathnotices.dart';
-import 'package:capstone_app/ui/theme/branding.dart' hide kPrimary;
 import 'package:capstone_app/utils/theme_surface.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';

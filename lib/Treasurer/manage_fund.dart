@@ -744,68 +744,21 @@ class _ManageFundPageState extends State<ManageFundPage> {
 
     return Column(
       children: [
-        Container(
-          margin: const EdgeInsets.only(top: 28),
-          padding: const EdgeInsets.all(28),
-          decoration: BoxDecoration(
-            color: kSurface,
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: kBorder),
+        if (_hasActiveFilters)
+          Padding(
+            padding: const EdgeInsets.only(top: 16),
+            child: OutlinedButton.icon(
+              onPressed: _resetFilters,
+              icon: const Icon(Icons.filter_alt_off_rounded),
+              label: const Text('Reset filters'),
+              style: OutlinedButton.styleFrom(
+                minimumSize: const Size.fromHeight(46),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(14),
+                ),
+              ),
+            ),
           ),
-          child: Column(
-            children: [
-              Container(
-                width: 64,
-                height: 64,
-                decoration: BoxDecoration(
-                  color: kPrimary.withValues(alpha: 0.08),
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: const Icon(
-                  Icons.account_balance_wallet_outlined,
-                  size: 32,
-                  color: kPrimary,
-                ),
-              ),
-              const SizedBox(height: 16),
-              Text(
-                'No matching funds found',
-                style: const TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w800,
-                  color: kNeutralText,
-                  fontFamily: 'Montserrat',
-                ),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                _hasActiveFilters
-                    ? 'Try a different search term or reset the current filters.'
-                    : 'No fund records are available for this unit yet.',
-                textAlign: TextAlign.center,
-                style: const TextStyle(
-                  color: kSubtleText,
-                  fontWeight: FontWeight.w600,
-                  fontFamily: 'OpenSans',
-                ),
-              ),
-              if (_hasActiveFilters) ...[
-                const SizedBox(height: 18),
-                OutlinedButton.icon(
-                  onPressed: _resetFilters,
-                  icon: const Icon(Icons.filter_alt_off_rounded),
-                  label: const Text('Reset filters'),
-                  style: OutlinedButton.styleFrom(
-                    minimumSize: const Size.fromHeight(46),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(14),
-                    ),
-                  ),
-                ),
-              ],
-            ],
-          ),
-        ),
         // Deceased Payment Progress - Per Person
         if (hasDeceasedPayments) ...[
           const SizedBox(height: 20),
@@ -1222,34 +1175,6 @@ class _ManageFundPageState extends State<ManageFundPage> {
               );
             },
           ),
-          // Deceased Payment Progress Section - Per Deceased
-          if (_deceasedPayments.isNotEmpty) ...[
-            const SizedBox(height: 20),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'Deceased Payment Status',
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w800,
-                    color: kNeutralText,
-                    fontFamily: 'Montserrat',
-                  ),
-                ),
-                const SizedBox(height: 12),
-                ...List.generate(
-                  _deceasedPayments.length,
-                  (i) => Padding(
-                    padding: const EdgeInsets.only(bottom: 10),
-                    child: _buildDeceasedPaymentCompactCard(
-                      _deceasedPayments[i],
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ],
         ],
       ),
     );

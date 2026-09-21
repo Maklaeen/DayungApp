@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:capstone_app/ui/theme/branding.dart';
-import 'package:capstone_app/Secretary/secretary_payment_page.dart';
 import 'package:capstone_app/utils/theme_surface.dart';
 
 // Additional colors for secretary contributions specific styling (new UI)

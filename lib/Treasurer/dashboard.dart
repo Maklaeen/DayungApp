@@ -4,7 +4,6 @@ import 'package:capstone_app/Providers/dayung_role_provider.dart';
 import 'package:capstone_app/Treasurer/collected.dart';
 import 'package:capstone_app/Treasurer/manage_fund.dart';
 import 'package:capstone_app/Treasurer/membership_page.dart';
-import 'package:capstone_app/Treasurer/paid_unpaid_members_page.dart';
 import 'package:capstone_app/Treasurer/treasclaims.dart';
 import 'package:capstone_app/Treasurer/treascontributions.dart';
 import 'package:capstone_app/Treasurer/ledger_balance.dart';
@@ -838,7 +837,7 @@ class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
         const SizedBox(height: 8),
         _buildModernActionCard(
           icon: Icons.payments_rounded,
-          title: 'My Payment Page',
+          title: 'Advance Payment',
           color: const Color(0xFF2563EB),
           onTap: () {
             if (_dayungUnitId == null) {
@@ -854,27 +853,6 @@ class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
                     TreasurerPaymentPage(dayungUnitId: _dayungUnitId!),
               ),
             ).then((_) => _fetchAll());
-          },
-        ),
-        const SizedBox(height: 8),
-        _buildModernActionCard(
-          icon: Icons.verified_user_rounded,
-          title: 'Paid & Unpaid Members',
-          color: const Color(0xFF10B981),
-          onTap: () {
-            if (_dayungUnitId == null) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Select a Dayung first')),
-              );
-              return;
-            }
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (_) =>
-                    PaidUnpaidMembersPage(dayungUnitId: _dayungUnitId!),
-              ),
-            );
           },
         ),
         const SizedBox(height: 8),
@@ -2395,7 +2373,8 @@ class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
             const SizedBox(height: 24),
             _buildRecentActivity(),
             const SizedBox(height: 24),
-            _buildCollectedSection(),
+            // Temporarily hidden; keep the section implementation for easy restoration.
+            // _buildCollectedSection(),
             const SizedBox(height: 24),
             _monthlyCollectionCard(),
             const SizedBox(height: 24),

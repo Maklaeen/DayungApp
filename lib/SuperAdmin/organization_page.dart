@@ -766,7 +766,7 @@ class _ApplicationListDialogState extends State<_ApplicationListDialog> {
               ),
               const SizedBox(height: 12),
               DropdownButtonFormField<String>(
-                value: paymentStatus,
+                initialValue: paymentStatus,
                 decoration: const InputDecoration(
                   labelText: 'Payment status',
                   border: OutlineInputBorder(),
