@@ -56,6 +56,7 @@ class _MemberDashboardPageState extends State<MemberDashboardPage>
   bool _loadingActiveMembers = true;
   bool _handlingOverlay = false;
   bool _loadingPending = true;
+  bool _isBootstrapping = true;
   bool _loadingApplicationStatus = true;
   bool _hasAppliedBefore = false;
 
@@ -79,7 +80,6 @@ class _MemberDashboardPageState extends State<MemberDashboardPage>
   @override
   void initState() {
     super.initState();
-    _reloadDayungFromPrefs();
     _scrollController.addListener(() {
       if (!_scrollController.hasClients || !mounted) return;
       final maxScroll = _scrollController.position.maxScrollExtent;
@@ -97,8 +97,23 @@ class _MemberDashboardPageState extends State<MemberDashboardPage>
       _subscribeNotificationsRealtime();
       _subscribeAnnouncementsRealtime();
     });
-    _load();
-    _initLoad();
+    _bootstrapDashboard();
+  }
+
+  Future<void> _bootstrapDashboard() async {
+    try {
+      await _reloadDayungFromPrefs();
+      await _loadUserData();
+      if (!mounted) return;
+      await Future.wait([
+        _fetchActiveMembers(),
+        _fetchRecentDeaths(),
+        _fetchPendingPayments(),
+        _fetchPendingApplication(),
+      ]);
+    } finally {
+      if (mounted) setState(() => _isBootstrapping = false);
+    }
   }
 
   void _maybeOnProviderUnitChanged(int? newUnitId) async {
@@ -154,16 +169,6 @@ class _MemberDashboardPageState extends State<MemberDashboardPage>
     }
   }
 
-  Future<void> _initLoad() async {
-    await _loadUserData();
-    await Future.wait([
-      _fetchActiveMembers(),
-      _fetchRecentDeaths(),
-      _fetchPendingPayments(),
-      _fetchPendingApplication(),
-    ]);
-  }
-
   // Future<void> _bootstrapOnce() async {
   //   await _loadUserData();
   //   await _reloadDayungFromPrefs();
@@ -191,7 +196,8 @@ class _MemberDashboardPageState extends State<MemberDashboardPage>
       final applicationRows = await supabase
           .from('applications')
           .select('status, dayung_unit_id')
-          .eq('user_id', userId);
+          .eq('user_id', userId)
+          .order('id', ascending: false);
 
       final hasApplications = (applicationRows as List).isNotEmpty;
       if (!mounted) return;
@@ -838,8 +844,6 @@ class _MemberDashboardPageState extends State<MemberDashboardPage>
   }
 
   Widget _buildHomePage(BuildContext context) {
-    final showNoticeOnly = _hasPendingApplication || !_hasAppliedBefore;
-
     return RefreshIndicator(
       onRefresh: _load,
       edgeOffset: 68,
@@ -848,18 +852,17 @@ class _MemberDashboardPageState extends State<MemberDashboardPage>
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            if (_loadingApplicationStatus)
+            if (_isBootstrapping || _loadingApplicationStatus)
               const Center(
                 child: Padding(
                   padding: EdgeInsets.symmetric(vertical: 48),
                   child: CircularProgressIndicator(),
                 ),
               )
-            else if (showNoticeOnly)
-              _hasPendingApplication
-                  ? _buildPendingApplicationNotice()
-                  : _buildNoApplicationNotice()
             else ...[
+              if (_hasPendingApplication) _buildPendingApplicationNotice(),
+              if (!_hasAppliedBefore && !_hasPendingApplication)
+                _buildNoApplicationNotice(),
               _overviewSection(),
               const SizedBox(height: 24),
               _buildNextPaymentCard(false),
@@ -1325,79 +1328,84 @@ class _MemberDashboardPageState extends State<MemberDashboardPage>
         : _pendingApplicationDayungUnitId != null
         ? 'Dayung unit #$_pendingApplicationDayungUnitId'
         : 'selected Dayung unit';
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 22),
-      decoration: BoxDecoration(
-        color: const Color(0xFFFFF7ED),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: const Color(0xFFF59E0B).withOpacity(0.28)),
-        boxShadow: [
-          BoxShadow(
-            color: const Color(0xFFF59E0B).withOpacity(0.12),
-            blurRadius: 16,
-            offset: const Offset(0, 8),
-          ),
-        ],
+    final reviewButton = ElevatedButton.icon(
+      onPressed: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => const MembershipAgreementPage()),
+        );
+      },
+      icon: const Icon(Icons.arrow_forward_rounded, size: 18),
+      label: const Text('Review agreement'),
+      style: ElevatedButton.styleFrom(
+        backgroundColor: const Color(0xFFB45309),
+        foregroundColor: Colors.white,
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
+    );
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isCompact = constraints.maxWidth < 620;
+        return Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(18),
+          decoration: dayungAccentCardDecoration(
+            context,
+            accent: const Color(0xFFF59E0B),
+            lightAlpha: 0.10,
+            darkAlpha: 0.16,
+          ),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Icon(Icons.info_outline_rounded, color: Color(0xFFB45309)),
-              const SizedBox(width: 10),
-              const Text(
-                'Application in progress',
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w800,
-                  color: Color(0xFF92400E),
+              Container(
+                width: 42,
+                height: 42,
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF59E0B).withValues(alpha: 0.16),
+                  borderRadius: BorderRadius.circular(13),
+                ),
+                child: const Icon(
+                  Icons.hourglass_top_rounded,
+                  color: Color(0xFFB45309),
+                  size: 22,
                 ),
               ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Application submitted',
+                      style: TextStyle(
+                        color: dayungTextColor(context),
+                        fontSize: 17,
+                        fontWeight: FontWeight.w800,
+                        fontFamily: 'Montserrat',
+                      ),
+                    ),
+                    const SizedBox(height: 5),
+                    Text(
+                      'Your request to $unitLabel is being reviewed.',
+                      style: TextStyle(
+                        color: dayungSubtextColor(context),
+                        fontSize: 14,
+                        height: 1.35,
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    if (isCompact) reviewButton,
+                  ],
+                ),
+              ),
+              if (!isCompact) ...[const SizedBox(width: 16), reviewButton],
             ],
           ),
-          const SizedBox(height: 16),
-          Text(
-            'You are applying to $unitLabel. Please check the Membership Agreement and read the terms so your membership can continue.',
-            style: const TextStyle(
-              fontSize: 30,
-              height: 1.5,
-              color: Color(0xFF92400E),
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-          const SizedBox(height: 18),
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton(
-              onPressed: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => const MembershipAgreementPage(),
-                  ),
-                );
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFFB45309),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(14),
-                ),
-                padding: const EdgeInsets.symmetric(vertical: 14),
-              ),
-              child: const Text(
-                'Open Membership Agreement',
-                style: TextStyle(
-                  fontSize: 15,
-                  fontWeight: FontWeight.w700,
-                  color: Colors.white,
-                ),
-              ),
-            ),
-          ),
-        ],
-      ),
+        );
+      },
     );
   }
 
