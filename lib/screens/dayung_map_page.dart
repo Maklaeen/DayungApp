@@ -4,8 +4,8 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:math';
-import 'package:capstone_app/Beneficiary/beneficiary.dart';
 import 'package:capstone_app/config/app_config.dart';
+import 'package:capstone_app/pages/apply_membership.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
@@ -1630,48 +1630,24 @@ class _DayungMapPageState extends State<DayungMapPage> {
         return;
       }
 
-      // Fetch dayung name + secretary_id from dayung_units using 'id'
       final unit = await sb
           .from('dayung_units')
-          .select('name, secretary_id')
+          .select('name')
           .eq('id', dayungUnitId)
           .maybeSingle();
 
       final unitName = (unit?['name'] ?? widget.dayung['name'] ?? 'Dayung')
           .toString();
-      final secretaryId = unit?['secretary_id'];
-
-      // Insert application WITH name
-      final inserted = await sb
-          .from('applications')
-          .insert({
-            'user_id': uid,
-            'dayung_unit_id': dayungUnitId,
-            'status': 'pending',
-            'name': unitName,
-          })
-          .select('id')
-          .single();
-
-      // OPTIONAL secretary notification (create table first, see SQL below)
-      if (secretaryId != null) {
-        try {
-          await sb.from('dayung_application_notifications').insert({
-            'application_id': inserted['id'],
-            'dayung_unit_id': dayungUnitId,
-            'secretary_id': secretaryId,
-          });
-        } catch (_) {}
-      }
 
       if (!mounted) return;
-      setState(() => _applied = true);
-      ScaffoldMessenger.of(
+      await Navigator.push(
         context,
-      ).showSnackBar(SnackBar(content: Text('Application sent to2 $unitName.')));
-      await Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (_) => const BeneficiaryPage()),
+        MaterialPageRoute(
+          builder: (_) => ApplyMembershipWizard(
+            dayungUnitId: dayungUnitId,
+            dayungName: unitName,
+          ),
+        ),
       );
     } catch (e) {
       if (mounted) {
