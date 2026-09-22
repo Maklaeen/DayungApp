@@ -867,9 +867,11 @@ class _SecretaryApplicationsPageState extends State<SecretaryApplicationsPage> {
           )
           .eq('dayung_unit_id', unitId); // single authoritative filter
 
-      final data = await query
-          .eq('status', _filter)
-          .order('applied_at', ascending: false);
+      final data =
+          await (_filter == 'approved'
+                  ? query.inFilter('status', ['approved', 'pending'])
+                  : query.eq('status', _filter))
+              .order('applied_at', ascending: false);
 
       final list = List<Map<String, dynamic>>.from(data).where((r) {
         final v = r['dayung_unit_id'];

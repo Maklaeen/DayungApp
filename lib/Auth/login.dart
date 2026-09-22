@@ -706,12 +706,14 @@ class _LoginState extends State<Login> {
     // 2. Proceed with your existing logic for officers/members
     final approvedApps = await sb
         .from('applications')
-        .select('dayung_unit_id, approved_at')
+        .select('dayung_unit_id, approved_at, status')
         .eq('user_id', uid as Object)
-        .eq('status', 'approved')
+        .inFilter('status', ['approved', 'pending'])
         .order('approved_at', ascending: false);
     final appList = List<Map<String, dynamic>>.from(approvedApps);
-    final approvedIds = appList.map((a) => a['dayung_unit_id'] as int).toSet();
+    final applicationIds = appList
+        .map((a) => a['dayung_unit_id'] as int)
+        .toSet();
 
     final officerUnits = await sb
         .from('dayung_units')
@@ -733,7 +735,7 @@ class _LoginState extends State<Login> {
     } catch (_) {}
 
     final allIds = <int>{
-      ...approvedIds,
+      ...applicationIds,
       ...officerIds,
       ...collectorIds,
     }.toList();
@@ -928,7 +930,9 @@ class _LoginState extends State<Login> {
                                           fontSize: isWide ? 48 : 42,
                                           fontWeight: FontWeight.w900,
                                           letterSpacing: 1.0,
-                                          color: Theme.of(context).colorScheme.onSurface,
+                                          color: Theme.of(
+                                            context,
+                                          ).colorScheme.onSurface,
                                           fontFamily: 'Montserrat',
                                         ),
                                       ),
@@ -938,7 +942,9 @@ class _LoginState extends State<Login> {
                                           fontSize: isWide ? 48 : 42,
                                           fontWeight: FontWeight.w900,
                                           letterSpacing: 1.0,
-                                          color: Theme.of(context).colorScheme.onSurface,
+                                          color: Theme.of(
+                                            context,
+                                          ).colorScheme.onSurface,
                                           fontFamily: 'Montserrat',
                                           decoration: TextDecoration.none,
                                         ),
@@ -949,7 +955,9 @@ class _LoginState extends State<Login> {
                                           fontSize: isWide ? 48 : 42,
                                           fontWeight: FontWeight.w900,
                                           letterSpacing: 1.0,
-                                          color: Theme.of(context).colorScheme.onSurface,
+                                          color: Theme.of(
+                                            context,
+                                          ).colorScheme.onSurface,
                                           fontFamily: 'Montserrat',
                                         ),
                                       ),
@@ -962,7 +970,9 @@ class _LoginState extends State<Login> {
                                   style: TextStyle(
                                     fontSize: isWide ? 22 : 18,
                                     fontWeight: FontWeight.w600,
-                                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                                    color: Theme.of(
+                                      context,
+                                    ).colorScheme.onSurfaceVariant,
                                     fontFamily: 'OpenSans',
                                   ),
                                   maxLines: 1,
@@ -1020,25 +1030,29 @@ class _LoginState extends State<Login> {
                                   // ),
                                 ),
 
-                           TextFormField(
-  controller: emailController,
-  keyboardType: TextInputType.emailAddress,
-  textInputAction: TextInputAction.next,
-  inputFormatters: AppInputSecurity.singleLineFormatters(
-    maxLength: 40,
-  ),
+                              TextFormField(
+                                controller: emailController,
+                                keyboardType: TextInputType.emailAddress,
+                                textInputAction: TextInputAction.next,
+                                inputFormatters:
+                                    AppInputSecurity.singleLineFormatters(
+                                      maxLength: 40,
+                                    ),
 
-  style: TextStyle(
-    fontSize: isWide ? 20 : 18,
-    color: Theme.of(context).colorScheme.onSurface,
-    fontWeight: FontWeight.w500,
-  ),
-  decoration: _inputDecoration(
-    'Email',
-    icon: Icons.phone_rounded,
-  ),
-  validator: AppInputSecurity.validateEmailOrPhone,
-),
+                                style: TextStyle(
+                                  fontSize: isWide ? 20 : 18,
+                                  color: Theme.of(
+                                    context,
+                                  ).colorScheme.onSurface,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                                decoration: _inputDecoration(
+                                  'Email',
+                                  icon: Icons.phone_rounded,
+                                ),
+                                validator:
+                                    AppInputSecurity.validateEmailOrPhone,
+                              ),
                               // const SizedBox(height: 10),
                               // Container(
                               //   width: double.infinity,
@@ -1087,7 +1101,9 @@ class _LoginState extends State<Login> {
                                     _isLoading ? null : _handleLogin(),
                                 style: TextStyle(
                                   fontSize: isWide ? 20 : 18,
-                                  color: Theme.of(context).colorScheme.onSurface,
+                                  color: Theme.of(
+                                    context,
+                                  ).colorScheme.onSurface,
                                   fontWeight: FontWeight.w500,
                                 ),
                                 decoration:
@@ -1103,7 +1119,9 @@ class _LoginState extends State<Login> {
                                           _obscurePassword
                                               ? Icons.visibility_off_rounded
                                               : Icons.visibility_rounded,
-                                          color: Theme.of(context).colorScheme.onSurfaceVariant,
+                                          color: Theme.of(
+                                            context,
+                                          ).colorScheme.onSurfaceVariant,
                                         ),
                                         onPressed: () {
                                           setState(() {

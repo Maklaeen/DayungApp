@@ -5,6 +5,7 @@ import 'package:capstone_app/pages/membership_agreement_page.dart';
 import 'package:capstone_app/pages/notification.dart';
 import 'package:capstone_app/profile/profile.dart';
 import 'package:capstone_app/settings/profsettings.dart';
+import 'package:capstone_app/screens/selectdayung.dart';
 import 'package:capstone_app/utils/theme_surface.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -128,6 +129,30 @@ class _GlobalSidebarWrapperState extends State<GlobalSidebarWrapper> {
     setState(() => _currentPage = pageKey);
   }
 
+  Future<void> _switchAccount() async {
+    final selected = await Navigator.push<Map<String, dynamic>>(
+      context,
+      MaterialPageRoute(builder: (_) => const SelectDayungPage()),
+    );
+    if (!mounted || selected == null || selected['id'] == null) return;
+
+    final userId = Supabase.instance.client.auth.currentUser?.id;
+    if (userId == null) return;
+
+    try {
+      await Supabase.instance.client
+          .from('users')
+          .update({'dayung_unit_id': selected['id']})
+          .eq('id', userId);
+      await _loadUserInfo();
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Failed to switch Dayung account.')),
+      );
+    }
+  }
+
   Widget _buildCurrentContent(bool isDesktop) {
     switch (_currentPage) {
       case 'profile':
@@ -207,6 +232,7 @@ class _GlobalSidebarWrapperState extends State<GlobalSidebarWrapper> {
                     onSettingsTap: () => _navigate('settings'),
                     onMembershipAgreementTap: () =>
                         _navigate('membershipAgreement'),
+                    onSwitchAccountTap: _switchAccount,
                     onLogoutTap: () => showLogoutDialog(context),
                   ),
                 ),
@@ -368,7 +394,7 @@ class _GlobalSidebarWrapperState extends State<GlobalSidebarWrapper> {
                         const SizedBox(height: 8),
                         _SidebarButton(
                           icon: Icons.description_rounded,
-                          label: 'Membership Agreement',
+                          label: 'Membership Agreement1',
                           color: const Color(0xFF2563EB),
                           selected: _currentPage == 'membershipAgreement',
                           onTap: () {
@@ -379,6 +405,17 @@ class _GlobalSidebarWrapperState extends State<GlobalSidebarWrapper> {
                         const SizedBox(height: 16),
                         Container(height: 1, color: dayungBorder(context)),
                         const SizedBox(height: 16),
+                        _SidebarButton(
+                          icon: Icons.swap_horiz_rounded,
+                          label: 'Switch Account',
+                          color: const Color(0xFF2563EB),
+                          selected: false,
+                          onTap: () {
+                            Navigator.pop(context);
+                            _switchAccount();
+                          },
+                        ),
+                        const SizedBox(height: 8),
                         _SidebarButton(
                           icon: Icons.logout_rounded,
                           label: 'Logout',
@@ -414,6 +451,7 @@ class DashboardSidebar extends StatelessWidget {
   final VoidCallback onNotificationsTap;
   final VoidCallback onSettingsTap;
   final VoidCallback onMembershipAgreementTap;
+  final VoidCallback onSwitchAccountTap;
   final VoidCallback onLogoutTap;
 
   const DashboardSidebar({
@@ -429,6 +467,7 @@ class DashboardSidebar extends StatelessWidget {
     required this.onNotificationsTap,
     required this.onSettingsTap,
     required this.onMembershipAgreementTap,
+    required this.onSwitchAccountTap,
     required this.onLogoutTap,
   });
 
@@ -565,6 +604,14 @@ class DashboardSidebar extends StatelessWidget {
                         const SizedBox(height: 16),
                         Container(height: 1, color: dayungBorder(context)),
                         const SizedBox(height: 16),
+                        _SidebarButton(
+                          icon: Icons.swap_horiz_rounded,
+                          label: 'Switch Account',
+                          color: const Color(0xFF2563EB),
+                          selected: false,
+                          onTap: onSwitchAccountTap,
+                        ),
+                        const SizedBox(height: 8),
                         _SidebarButton(
                           icon: Icons.logout_rounded,
                           label: 'Logout',

@@ -4,34 +4,31 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  test(
-    'agreement content is only shown when the user has an application record',
-    () {
-      expect(
-        MembershipAgreementPage.shouldShowAgreementContent(
-          hasApplicationRecord: true,
-          hasRequiredApplicationContent: true,
-        ),
-        isTrue,
-      );
+  test('agreement content is only shown for an approved application', () {
+    expect(
+      MembershipAgreementPage.shouldShowAgreementContent(
+        hasApprovedApplication: true,
+        hasRequiredApplicationContent: true,
+      ),
+      isTrue,
+    );
 
-      expect(
-        MembershipAgreementPage.shouldShowAgreementContent(
-          hasApplicationRecord: false,
-          hasRequiredApplicationContent: true,
-        ),
-        isFalse,
-      );
+    expect(
+      MembershipAgreementPage.shouldShowAgreementContent(
+        hasApprovedApplication: false,
+        hasRequiredApplicationContent: true,
+      ),
+      isFalse,
+    );
 
-      expect(
-        MembershipAgreementPage.shouldShowAgreementContent(
-          hasApplicationRecord: true,
-          hasRequiredApplicationContent: false,
-        ),
-        isFalse,
-      );
-    },
-  );
+    expect(
+      MembershipAgreementPage.shouldShowAgreementContent(
+        hasApprovedApplication: true,
+        hasRequiredApplicationContent: false,
+      ),
+      isFalse,
+    );
+  });
 
   testWidgets(
     'Membership agreement page shows content from required applications',

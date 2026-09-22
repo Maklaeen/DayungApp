@@ -129,22 +129,41 @@ class _ProfilePageState extends State<ProfilePage>
       final response = await supabase
           .from('users')
           .select(
-            'full_name, mobile_number, address, sex, email, dob, barangay, city, province, profile_url, birth_certificate_url, marriage_certificate_url, valid_id, proof_of_residency_url',
+            'dayung_unit_id, full_name, mobile_number, address, sex, email, dob, barangay, city, province, profile_url, birth_certificate_url, marriage_certificate_url, valid_id, proof_of_residency_url',
           )
           .eq('id', currentUser.id)
           .maybeSingle();
 
-      final application = await supabase
+      final applications = await supabase
           .from('applications')
           .select('dayung_unit_id, status, approved_at')
           .eq('user_id', currentUser.id)
-          .eq('status', 'approved')
-          .order('approved_at', ascending: false)
-          .limit(1)
-          .maybeSingle();
+          .inFilter('status', ['approved', 'pending'])
+          .order('approved_at', ascending: false);
 
       Map<String, dynamic>? dayungUnit;
-      final dayungId = application?['dayung_unit_id'] as int?;
+      final approvedApplications = List<Map<String, dynamic>>.from(
+        applications,
+      );
+      final savedDayungId = response?['dayung_unit_id'];
+      final savedDayungIdInt = savedDayungId is int
+          ? savedDayungId
+          : int.tryParse('$savedDayungId');
+      final activeApplication = approvedApplications.firstWhere(
+        (application) {
+          final applicationDayungId = application['dayung_unit_id'];
+          final applicationDayungIdInt = applicationDayungId is int
+              ? applicationDayungId
+              : int.tryParse('$applicationDayungId');
+          return applicationDayungIdInt == savedDayungIdInt;
+        },
+        orElse: () => approvedApplications.isNotEmpty
+            ? approvedApplications.first
+            : <String, dynamic>{},
+      );
+      final dayungId = activeApplication['dayung_unit_id'] is int
+          ? activeApplication['dayung_unit_id'] as int
+          : int.tryParse('${activeApplication['dayung_unit_id']}');
       if (dayungId != null) {
         dayungUnit = await supabase
             .from('dayung_units')
@@ -191,7 +210,7 @@ class _ProfilePageState extends State<ProfilePage>
         city = (response['city'] as String?)?.trim();
         province = (response['province'] as String?)?.trim();
         activeDayungUnitId = dayungId;
-        activeApplicationStatus = application?['status']?.toString();
+        activeApplicationStatus = activeApplication['status']?.toString();
         activeDayungName = dayungUnit?['name']?.toString();
         profileUrl = response['profile_url'] as String?;
         birthCertificateUrl = response['birth_certificate_url'] as String?;

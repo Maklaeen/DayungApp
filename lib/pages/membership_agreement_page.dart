@@ -17,10 +17,10 @@ class MembershipAgreementPage extends StatefulWidget {
   });
 
   static bool shouldShowAgreementContent({
-    required bool hasApplicationRecord,
+    required bool hasApprovedApplication,
     required bool hasRequiredApplicationContent,
   }) {
-    return hasApplicationRecord && hasRequiredApplicationContent;
+    return hasApprovedApplication && hasRequiredApplicationContent;
   }
 
   @override
@@ -57,16 +57,18 @@ class _MembershipAgreementPageState extends State<MembershipAgreementPage> {
 
       final applicationRows = await Supabase.instance.client
           .from('applications')
-          .select('id, dayung_unit_id, is_agree')
+          .select('id, dayung_unit_id, is_agree, status, approved_at')
           .eq('user_id', userId)
+          .eq('status', 'approved')
+          .order('approved_at', ascending: false)
           .limit(1);
 
       final applicationRow = applicationRows.isNotEmpty
           ? applicationRows.first
           : null;
-      final hasApplicationRecord = applicationRow != null;
+      final hasApprovedApplication = applicationRow != null;
 
-      if (!hasApplicationRecord) {
+      if (!hasApprovedApplication) {
         if (!mounted) return;
         setState(() => _content = RequiredApplicationContent.empty());
         return;
@@ -127,7 +129,7 @@ class _MembershipAgreementPageState extends State<MembershipAgreementPage> {
       setState(() {
         _content =
             MembershipAgreementPage.shouldShowAgreementContent(
-              hasApplicationRecord: hasApplicationRecord,
+              hasApprovedApplication: hasApprovedApplication,
               hasRequiredApplicationContent: hasRequiredApplicationContent,
             )
             ? RequiredApplicationContent.fromRows(parsedRows)

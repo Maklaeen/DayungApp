@@ -130,13 +130,13 @@ class _SelectDayungPageState extends State<SelectDayungPage> {
     try {
       final apps = await _sb
           .from('applications')
-          .select('dayung_unit_id, approved_at')
+          .select('dayung_unit_id, approved_at, status')
           .eq('user_id', user.id)
-          .eq('status', 'approved')
+          .inFilter('status', ['approved', 'pending'])
           .order('approved_at', ascending: false);
 
       final List<dynamic> appsList = apps as List<dynamic>;
-      final approvedIds = appsList
+      final applicationIds = appsList
           .map((r) => (r as Map)['dayung_unit_id'] as int)
           .toList();
       final officerRows = await _sb
@@ -163,7 +163,7 @@ class _SelectDayungPageState extends State<SelectDayungPage> {
       } catch (_) {}
 
       final ids = <int>{
-        ...approvedIds,
+        ...applicationIds,
         ...officerIds,
         ...collectorIds,
       }.toList();
@@ -187,7 +187,10 @@ class _SelectDayungPageState extends State<SelectDayungPage> {
           .toList();
 
       // Tag each as member if in approved list
-      final approvedSet = approvedIds.toSet();
+      final approvedSet = appsList
+          .where((r) => (r as Map)['status'] == 'approved')
+          .map((r) => (r as Map)['dayung_unit_id'] as int)
+          .toSet();
       for (final j in joined) {
         final jid = j['id'] is int
             ? j['id'] as int
