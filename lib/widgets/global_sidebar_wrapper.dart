@@ -298,7 +298,7 @@ class _GlobalSidebarWrapperState extends State<GlobalSidebarWrapper> {
                   Text(
                     'Navigation',
                     style: TextStyle(
-                      fontSize: 14,
+                      fontSize: 16,
                       fontWeight: FontWeight.w800,
                       color: Theme.of(context).colorScheme.primary,
                       fontFamily: 'Montserrat',
@@ -503,7 +503,7 @@ class DashboardSidebar extends StatelessWidget {
                   Text(
                     'Navigation',
                     style: TextStyle(
-                      fontSize: 14,
+                      fontSize: 16,
                       fontWeight: FontWeight.w800,
                       color: Theme.of(context).colorScheme.primary,
                       fontFamily: 'Montserrat',
@@ -645,7 +645,8 @@ class _SidebarButton extends StatelessWidget {
         splashColor: color.withValues(alpha: 0.1),
         highlightColor: color.withValues(alpha: 0.05),
         child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+          constraints: const BoxConstraints(minHeight: 58),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
           decoration: BoxDecoration(
             color: selected
                 ? color.withValues(alpha: 0.08)
@@ -658,7 +659,7 @@ class _SidebarButton extends StatelessWidget {
           child: Row(
             children: [
               Container(
-                padding: const EdgeInsets.all(8),
+                padding: const EdgeInsets.all(9),
                 decoration: BoxDecoration(
                   color: selected ? color : color.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(8),
@@ -675,7 +676,7 @@ class _SidebarButton extends StatelessWidget {
                 child: Icon(
                   icon,
                   color: selected ? Colors.white : color,
-                  size: 18,
+                  size: 21,
                 ),
               ),
               const SizedBox(width: 12),
@@ -683,7 +684,7 @@ class _SidebarButton extends StatelessWidget {
                 child: Text(
                   label,
                   style: TextStyle(
-                    fontSize: 14,
+                    fontSize: 16,
                     fontWeight: selected ? FontWeight.w700 : FontWeight.w600,
                     color: selected
                         ? color

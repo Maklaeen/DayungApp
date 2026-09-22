@@ -42,6 +42,7 @@ ThemeData _buildAppTheme(Brightness brightness) {
   final base = ThemeData(
     useMaterial3: true,
     brightness: brightness,
+    visualDensity: VisualDensity.standard,
     colorScheme: ColorScheme.fromSeed(
       seedColor: const Color(0xFF2563EB),
       brightness: brightness,
@@ -58,15 +59,29 @@ ThemeData _buildAppTheme(Brightness brightness) {
   return base.copyWith(
     canvasColor: isDark ? const Color(0xFF111827) : Colors.white,
     cardColor: isDark ? const Color(0xFF162033) : Colors.white,
-    textTheme: base.textTheme.apply(
-      bodyColor: colors.onSurface,
-      displayColor: colors.onSurface,
-    ),
+    textTheme: base.textTheme
+        .apply(bodyColor: colors.onSurface, displayColor: colors.onSurface)
+        .copyWith(
+          bodyLarge: base.textTheme.bodyLarge?.copyWith(
+            fontSize: 17,
+            height: 1.45,
+          ),
+          bodyMedium: base.textTheme.bodyMedium?.copyWith(
+            fontSize: 16,
+            height: 1.4,
+          ),
+          bodySmall: base.textTheme.bodySmall?.copyWith(
+            fontSize: 14,
+            height: 1.35,
+          ),
+          labelLarge: base.textTheme.labelLarge?.copyWith(fontSize: 16),
+        ),
     appBarTheme: AppBarTheme(
       backgroundColor: Colors.transparent,
       foregroundColor: colors.onSurface,
       elevation: 0,
       centerTitle: false,
+      toolbarHeight: 72,
       surfaceTintColor: Colors.transparent,
       titleTextStyle: base.textTheme.titleLarge?.copyWith(
         color: colors.onSurface,
@@ -111,6 +126,8 @@ ThemeData _buildAppTheme(Brightness brightness) {
     inputDecorationTheme: InputDecorationTheme(
       filled: true,
       fillColor: isDark ? const Color(0xFF1B2435) : Colors.white,
+      isDense: false,
+      contentPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 18),
       labelStyle: TextStyle(color: colors.onSurfaceVariant),
       hintStyle: TextStyle(color: colors.onSurfaceVariant),
       prefixIconColor: colors.primary,
@@ -131,6 +148,7 @@ ThemeData _buildAppTheme(Brightness brightness) {
     elevatedButtonTheme: ElevatedButtonThemeData(
       style: ElevatedButton.styleFrom(
         elevation: 0,
+        minimumSize: const Size(48, 52),
         padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
         textStyle: const TextStyle(
@@ -141,6 +159,7 @@ ThemeData _buildAppTheme(Brightness brightness) {
     ),
     filledButtonTheme: FilledButtonThemeData(
       style: FilledButton.styleFrom(
+        minimumSize: const Size(48, 52),
         padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
         textStyle: const TextStyle(
@@ -151,6 +170,7 @@ ThemeData _buildAppTheme(Brightness brightness) {
     ),
     outlinedButtonTheme: OutlinedButtonThemeData(
       style: OutlinedButton.styleFrom(
+        minimumSize: const Size(48, 52),
         padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
         side: BorderSide(color: outlineColor),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
@@ -179,7 +199,33 @@ ThemeData _buildAppTheme(Brightness brightness) {
     listTileTheme: ListTileThemeData(
       iconColor: colors.primary,
       textColor: colors.onSurface,
+      minVerticalPadding: 12,
+      contentPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 6),
+      titleTextStyle: TextStyle(
+        color: colors.onSurface,
+        fontSize: 16,
+        fontWeight: FontWeight.w600,
+        height: 1.3,
+      ),
+      subtitleTextStyle: TextStyle(
+        color: colors.onSurfaceVariant,
+        fontSize: 14,
+        height: 1.35,
+      ),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+    ),
+    iconButtonTheme: IconButtonThemeData(
+      style: IconButton.styleFrom(
+        minimumSize: const Size(48, 48),
+        tapTargetSize: MaterialTapTargetSize.padded,
+      ),
+    ),
+    checkboxTheme: CheckboxThemeData(
+      materialTapTargetSize: MaterialTapTargetSize.padded,
+      visualDensity: VisualDensity.standard,
+    ),
+    radioTheme: RadioThemeData(
+      materialTapTargetSize: MaterialTapTargetSize.padded,
     ),
     chipTheme: base.chipTheme.copyWith(
       backgroundColor: isDark
@@ -589,7 +635,6 @@ class _AuthGateState extends State<_AuthGate> {
       }
     });
   }
-
 
   @override
   void dispose() {

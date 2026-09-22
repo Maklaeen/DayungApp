@@ -1023,206 +1023,223 @@ class _NotificationPageState extends State<NotificationPage> {
                 ],
               ),
             ),
-            Padding(
-              padding: EdgeInsets.fromLTRB(
-                isWide ? 24 : 16,
-                16,
-                isWide ? 24 : 16,
-                0,
-              ),
-              child: Container(
-                width: double.infinity,
-                padding: EdgeInsets.symmetric(
-                  horizontal: isWide ? 20 : 16,
-                  vertical: isWide ? 18 : 16,
-                ),
-                decoration: BoxDecoration(
-                  color: dayungSurface(context),
-                  borderRadius: BorderRadius.circular(18),
-                  border: Border.all(color: dayungBorder(context)),
-                  boxShadow: [dayungElevatedShadow(context)],
-                ),
-                child: Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(10),
-                      decoration: BoxDecoration(
-                        color: kPrimary.withValues(alpha: 0.10),
-                        borderRadius: BorderRadius.circular(14),
-                      ),
-                      child: const Icon(
-                        Icons.notifications_active_rounded,
-                        color: kPrimary,
-                        size: 24,
-                      ),
-                    ),
-                    const SizedBox(width: 14),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            unreadCount == 0
-                                ? 'All caught up'
-                                : '$unreadCount unread notification${unreadCount == 1 ? '' : 's'}',
-                            style: TextStyle(
-                              fontSize: isWide ? 18 : 16,
-                              fontWeight: FontWeight.w800,
-                              color: kText,
-                              fontFamily: 'Montserrat',
-                            ),
+            Expanded(
+              child: RefreshIndicator(
+                color: kPrimary,
+                onRefresh: () => _fetchAll(unitId: _currentUnitId),
+                child: SingleChildScrollView(
+                  physics: const AlwaysScrollableScrollPhysics(),
+                  padding: const EdgeInsets.only(bottom: 24),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Padding(
+                        padding: EdgeInsets.fromLTRB(
+                          isWide ? 24 : 16,
+                          16,
+                          isWide ? 24 : 16,
+                          0,
+                        ),
+                        child: Container(
+                          width: double.infinity,
+                          padding: EdgeInsets.symmetric(
+                            horizontal: isWide ? 20 : 16,
+                            vertical: isWide ? 18 : 16,
                           ),
-
-                          const SizedBox(height: 12),
-                          Wrap(
-                            spacing: 8,
-                            runSpacing: 8,
+                          decoration: BoxDecoration(
+                            color: dayungSurface(context),
+                            borderRadius: BorderRadius.circular(18),
+                            border: Border.all(color: dayungBorder(context)),
+                            boxShadow: [dayungElevatedShadow(context)],
+                          ),
+                          child: Row(
                             children: [
-                              _buildTopCategoryChip(
-                                label: 'Pending Payment',
-                                count: pendingPaymentCount,
-                                color: const Color(0xFFB45309),
-                                background: const Color(0xFFFFFBEB),
+                              Container(
+                                padding: const EdgeInsets.all(10),
+                                decoration: BoxDecoration(
+                                  color: kPrimary.withValues(alpha: 0.10),
+                                  borderRadius: BorderRadius.circular(14),
+                                ),
+                                child: const Icon(
+                                  Icons.notifications_active_rounded,
+                                  color: kPrimary,
+                                  size: 24,
+                                ),
                               ),
-                              _buildTopCategoryChip(
-                                label: 'Announcement',
-                                count: announcementCount,
-                                color: kPrimary,
-                                background: const Color(0xFFF5F9FF),
-                              ),
-                              _buildTopCategoryChip(
-                                label: 'Recent Death',
-                                count: recentDeathCount,
-                                color: const Color(0xFFBE123C),
-                                background: const Color(0xFFFFF1F2),
+                              const SizedBox(width: 14),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      unreadCount == 0
+                                          ? 'All caught up'
+                                          : '$unreadCount unread notification${unreadCount == 1 ? '' : 's'}',
+                                      style: TextStyle(
+                                        fontSize: isWide ? 18 : 16,
+                                        fontWeight: FontWeight.w800,
+                                        color: kText,
+                                        fontFamily: 'Montserrat',
+                                      ),
+                                    ),
+
+                                    const SizedBox(height: 12),
+                                    Wrap(
+                                      spacing: 8,
+                                      runSpacing: 8,
+                                      children: [
+                                        _buildTopCategoryChip(
+                                          label: 'Pending Payment',
+                                          count: pendingPaymentCount,
+                                          color: const Color(0xFFB45309),
+                                          background: const Color(0xFFFFFBEB),
+                                        ),
+                                        _buildTopCategoryChip(
+                                          label: 'Announcement',
+                                          count: announcementCount,
+                                          color: kPrimary,
+                                          background: const Color(0xFFF5F9FF),
+                                        ),
+                                        _buildTopCategoryChip(
+                                          label: 'Recent Death',
+                                          count: recentDeathCount,
+                                          color: const Color(0xFFBE123C),
+                                          background: const Color(0xFFFFF1F2),
+                                        ),
+                                      ],
+                                    ),
+                                  ],
+                                ),
                               ),
                             ],
                           ),
-                        ],
+                        ),
                       ),
-                    ),
-                  ],
+                      _loading
+                          ? const DayungPageSkeleton(
+                              layout: DayungSkeletonLayout.list,
+                              itemCount: 6,
+                              padding: EdgeInsets.fromLTRB(0, 20, 0, 24),
+                            )
+                          : _items.isEmpty
+                          ? NotificationPage._emptyState(isWide: isWide)
+                          : ListView.separated(
+                              shrinkWrap: true,
+                              physics: const NeverScrollableScrollPhysics(),
+                              padding: EdgeInsets.fromLTRB(0, 20, 0, 24),
+                              itemCount: _items.length,
+                              separatorBuilder: (_, __) =>
+                                  const SizedBox(height: 14),
+                              itemBuilder: (context, i) {
+                                final n = _items[i];
+                                final isDirect = _isDirectAnnouncement(n);
+                                final isApplication =
+                                    _isApplicationNotification(n);
+                                final isUnread = _isUnread(n);
+                                final iconColor = _itemAccent(n);
+                                final category = _categoryLabel(n);
+
+                                return Material(
+                                  color: Colors.transparent,
+                                  child: InkWell(
+                                    borderRadius: BorderRadius.circular(22),
+                                    onTap: () async {
+                                      if (isUnread && mounted) {
+                                        setState(() {
+                                          _items[i] = {
+                                            ...n,
+                                            if (isApplication || isDirect)
+                                              'is_read': true
+                                            else
+                                              'read_at': DateTime.now()
+                                                  .toIso8601String(),
+                                          };
+                                        });
+                                      }
+
+                                      final messenger = ScaffoldMessenger.of(
+                                        context,
+                                      );
+                                      bool ok = true;
+                                      try {
+                                        if (isApplication && isUnread) {
+                                          final id = n['app_notif_id'];
+                                          if (id != null) {
+                                            await _markApplicationNotifSeen(
+                                              id is num
+                                                  ? id.toInt()
+                                                  : int.parse('$id'),
+                                            );
+                                          }
+                                        } else if (isDirect && isUnread) {
+                                          final id = n['id'];
+                                          if (id is int) {
+                                            ok = await _markAnnouncementRead(
+                                              id,
+                                            );
+                                          } else if (id is num) {
+                                            ok = await _markAnnouncementRead(
+                                              id.toInt(),
+                                            );
+                                          }
+                                        } else if (isUnread) {
+                                          final sb = Supabase.instance.client;
+                                          await sb
+                                              .from('notifications')
+                                              .update({
+                                                'read_at': DateTime.now()
+                                                    .toIso8601String(),
+                                              })
+                                              .eq('id', n['id'])
+                                              .isFilter('read_at', null);
+                                        }
+                                      } catch (_) {
+                                        ok = false;
+                                      }
+
+                                      _showNotificationModal(
+                                        title: _itemTitle(n),
+                                        message: _itemMessage(n),
+                                        category: category,
+                                        time: _formatTime(n['created_at']),
+                                        icon: _itemIcon(n),
+                                        iconColor: iconColor,
+                                      );
+
+                                      // ignore: unawaited_futures
+                                      _fetchAll(unitId: _currentUnitId);
+
+                                      if (!ok && mounted) {
+                                        messenger.showSnackBar(
+                                          const SnackBar(
+                                            content: Text(
+                                              'Could not update the notification status.',
+                                            ),
+                                          ),
+                                        );
+                                      }
+                                    },
+                                    child: NotificationPage._notificationCard(
+                                      title: _itemTitle(n),
+                                      message: _itemMessage(n),
+                                      category: category,
+                                      time: _formatTime(n['created_at']),
+                                      icon: _itemIcon(n),
+                                      accentColor: iconColor,
+                                      surfaceColor: _itemSurface(n),
+                                      iconBg: iconColor.withValues(alpha: 0.12),
+                                      iconColor: iconColor,
+                                      isWide: isWide,
+                                      isUnread: isUnread,
+                                    ),
+                                  ),
+                                );
+                              },
+                            ),
+                    ],
+                  ),
                 ),
               ),
-            ),
-            Expanded(
-              child: _loading
-                  ? const DayungPageSkeleton(
-                      layout: DayungSkeletonLayout.list,
-                      itemCount: 6,
-                      padding: EdgeInsets.fromLTRB(0, 20, 0, 24),
-                    )
-                  : _items.isEmpty
-                  ? NotificationPage._emptyState(isWide: isWide)
-                  : RefreshIndicator(
-                      color: kPrimary,
-                      onRefresh: () => _fetchAll(unitId: _currentUnitId),
-                      child: ListView.separated(
-                        padding: EdgeInsets.fromLTRB(0, 20, 0, 24),
-                        itemCount: _items.length,
-                        separatorBuilder: (_, __) => const SizedBox(height: 14),
-                        itemBuilder: (context, i) {
-                          final n = _items[i];
-                          final isDirect = _isDirectAnnouncement(n);
-                          final isApplication = _isApplicationNotification(n);
-                          final isUnread = _isUnread(n);
-                          final iconColor = _itemAccent(n);
-                          final category = _categoryLabel(n);
-
-                          return Material(
-                            color: Colors.transparent,
-                            child: InkWell(
-                              borderRadius: BorderRadius.circular(22),
-                              onTap: () async {
-                                if (isUnread && mounted) {
-                                  setState(() {
-                                    _items[i] = {
-                                      ...n,
-                                      if (isApplication || isDirect)
-                                        'is_read': true
-                                      else
-                                        'read_at': DateTime.now()
-                                            .toIso8601String(),
-                                    };
-                                  });
-                                }
-
-                                final messenger = ScaffoldMessenger.of(context);
-                                bool ok = true;
-                                try {
-                                  if (isApplication && isUnread) {
-                                    final id = n['app_notif_id'];
-                                    if (id != null) {
-                                      await _markApplicationNotifSeen(
-                                        id is num
-                                            ? id.toInt()
-                                            : int.parse('$id'),
-                                      );
-                                    }
-                                  } else if (isDirect && isUnread) {
-                                    final id = n['id'];
-                                    if (id is int) {
-                                      ok = await _markAnnouncementRead(id);
-                                    } else if (id is num) {
-                                      ok = await _markAnnouncementRead(
-                                        id.toInt(),
-                                      );
-                                    }
-                                  } else if (isUnread) {
-                                    final sb = Supabase.instance.client;
-                                    await sb
-                                        .from('notifications')
-                                        .update({
-                                          'read_at': DateTime.now()
-                                              .toIso8601String(),
-                                        })
-                                        .eq('id', n['id'])
-                                        .isFilter('read_at', null);
-                                  }
-                                } catch (_) {
-                                  ok = false;
-                                }
-
-                                _showNotificationModal(
-                                  title: _itemTitle(n),
-                                  message: _itemMessage(n),
-                                  category: category,
-                                  time: _formatTime(n['created_at']),
-                                  icon: _itemIcon(n),
-                                  iconColor: iconColor,
-                                );
-
-                                // ignore: unawaited_futures
-                                _fetchAll(unitId: _currentUnitId);
-
-                                if (!ok && mounted) {
-                                  messenger.showSnackBar(
-                                    const SnackBar(
-                                      content: Text(
-                                        'Could not update the notification status.',
-                                      ),
-                                    ),
-                                  );
-                                }
-                              },
-                              child: NotificationPage._notificationCard(
-                                title: _itemTitle(n),
-                                message: _itemMessage(n),
-                                category: category,
-                                time: _formatTime(n['created_at']),
-                                icon: _itemIcon(n),
-                                accentColor: iconColor,
-                                surfaceColor: _itemSurface(n),
-                                iconBg: iconColor.withValues(alpha: 0.12),
-                                iconColor: iconColor,
-                                isWide: isWide,
-                                isUnread: isUnread,
-                              ),
-                            ),
-                          );
-                        },
-                      ),
-                    ),
             ),
           ],
         ),

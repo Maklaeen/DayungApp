@@ -1130,16 +1130,18 @@ class _CollectorDashboardPageState extends State<CollectorDashboardPage> {
           // Greeting section
           Row(
             children: [
-              const Expanded(
-                child: Text(
-                  'Maayung buntag,\nCollector!',
-                  style: TextStyle(
-                    fontFamily: 'Montserrat',
-                    fontSize: 28,
-                    fontWeight: FontWeight.w900,
-                    height: 1.1,
-                    color: Colors.white,
-                    letterSpacing: 0.5,
+              Expanded(
+                child: dayungGreetingPanel(
+                  child: const Text(
+                    'Maayung buntag,\nCollector!',
+                    style: TextStyle(
+                      fontFamily: 'Montserrat',
+                      fontSize: 28,
+                      fontWeight: FontWeight.w900,
+                      height: 1.1,
+                      color: Colors.white,
+                      letterSpacing: 0.5,
+                    ),
                   ),
                 ),
               ),

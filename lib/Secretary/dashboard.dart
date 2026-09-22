@@ -697,15 +697,17 @@ class _SecretaryDashboardPageState extends State<SecretaryDashboardPage> {
           Row(
             children: [
               Expanded(
-                child: Text(
-                  'Good Morning,\n${_fullName.isEmpty ? 'Secretary' : _fullName}!',
-                  style: TextStyle(
-                    fontFamily: 'Montserrat',
-                    fontSize: 28,
-                    fontWeight: FontWeight.w900,
-                    height: 1.1,
-                    color: Colors.white,
-                    letterSpacing: 0.5,
+                child: dayungGreetingPanel(
+                  child: Text(
+                    'Good Morning,\n${_fullName.isEmpty ? 'Secretary' : _fullName}!',
+                    style: TextStyle(
+                      fontFamily: 'Montserrat',
+                      fontSize: 28,
+                      fontWeight: FontWeight.w900,
+                      height: 1.1,
+                      color: Colors.white,
+                      letterSpacing: 0.5,
+                    ),
                   ),
                 ),
               ),

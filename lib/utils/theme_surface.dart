@@ -62,6 +62,19 @@ BoxShadow dayungTopShadow(BuildContext context) {
   );
 }
 
+Widget dayungGreetingPanel({required Widget child}) {
+  return Container(
+    width: double.infinity,
+    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+    decoration: BoxDecoration(
+      color: Colors.black.withValues(alpha: 0.24),
+      borderRadius: BorderRadius.circular(18),
+      border: Border.all(color: Colors.white.withValues(alpha: 0.18)),
+    ),
+    child: child,
+  );
+}
+
 BoxDecoration dayungSectionCardDecoration(
   BuildContext context, {
   double radius = 20,

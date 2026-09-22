@@ -2139,16 +2139,18 @@ class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
           const SizedBox(height: 24),
           Row(
             children: [
-              const Expanded(
-                child: Text(
-                  'Maayung buntag,\nTreasurer!',
-                  style: TextStyle(
-                    fontFamily: 'Montserrat',
-                    fontSize: 28,
-                    fontWeight: FontWeight.w900,
-                    height: 1.1,
-                    color: Colors.white,
-                    letterSpacing: 0.5,
+              Expanded(
+                child: dayungGreetingPanel(
+                  child: const Text(
+                    'Maayung buntag,\nTreasurer!',
+                    style: TextStyle(
+                      fontFamily: 'Montserrat',
+                      fontSize: 28,
+                      fontWeight: FontWeight.w900,
+                      height: 1.1,
+                      color: Colors.white,
+                      letterSpacing: 0.5,
+                    ),
                   ),
                 ),
               ),

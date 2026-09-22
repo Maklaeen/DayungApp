@@ -939,15 +939,17 @@ class _MemberDashboardPageState extends State<MemberDashboardPage>
           Row(
             children: [
               Expanded(
-                child: Text(
-                  'Good Morning!\n$_fullName',
-                  style: const TextStyle(
-                    fontFamily: 'Montserrat',
-                    fontSize: 28,
-                    fontWeight: FontWeight.w900,
-                    height: 1.1,
-                    color: Colors.white,
-                    letterSpacing: 0.5,
+                child: dayungGreetingPanel(
+                  child: Text(
+                    'Good Morning!\n$_fullName',
+                    style: const TextStyle(
+                      fontFamily: 'Montserrat',
+                      fontSize: 28,
+                      fontWeight: FontWeight.w900,
+                      height: 1.1,
+                      color: Colors.white,
+                      letterSpacing: 0.5,
+                    ),
                   ),
                 ),
               ),

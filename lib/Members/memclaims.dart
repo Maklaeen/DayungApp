@@ -855,7 +855,6 @@ class _MembersClaimsPageState extends State<MembersClaimsPage>
       body: SafeArea(
         child: Column(
           children: [
-            _buildHeader(isWide),
             Expanded(
               child: Container(
                 width: double.infinity,
@@ -868,45 +867,40 @@ class _MembersClaimsPageState extends State<MembersClaimsPage>
                 ),
                 child: Column(
                   children: [
-                    Padding(
-                      padding: EdgeInsets.fromLTRB(
-                        isWide ? 24 : 16,
-                        18,
-                        isWide ? 24 : 16,
-                        0,
-                      ),
-                      child: _buildOverviewCard(
-                        pendingCount: ongoingList.length,
-                        historyCount: historyList.length,
-                        trackingCount: trackingList.length,
-                      ),
-                    ),
-                    Padding(
-                      padding: EdgeInsets.fromLTRB(
-                        isWide ? 24 : 16,
-                        16,
-                        isWide ? 24 : 16,
-                        0,
-                      ),
-                      child: _searchField(),
-                    ),
-                    Padding(
-                      padding: EdgeInsets.fromLTRB(
-                        isWide ? 24 : 16,
-                        12,
-                        isWide ? 24 : 16,
-                        12,
-                      ),
-                      child: _buildTabShell(),
-                    ),
                     Expanded(
-                      child: TabBarView(
-                        controller: _tabController,
-                        children: [
-                          _claimListView(ongoingList, true),
-                          _claimListView(historyList, false),
-                          _trackingListView(trackingList),
+                      child: NestedScrollView(
+                        headerSliverBuilder: (context, innerBoxIsScrolled) => [
+                          SliverToBoxAdapter(
+                            child: Padding(
+                              padding: EdgeInsets.fromLTRB(
+                                isWide ? 24 : 16,
+                                18,
+                                isWide ? 24 : 16,
+                                0,
+                              ),
+                              child: _searchField(),
+                            ),
+                          ),
+                          SliverToBoxAdapter(
+                            child: Padding(
+                              padding: EdgeInsets.fromLTRB(
+                                isWide ? 24 : 16,
+                                12,
+                                isWide ? 24 : 16,
+                                12,
+                              ),
+                              child: _buildTabShell(),
+                            ),
+                          ),
                         ],
+                        body: TabBarView(
+                          controller: _tabController,
+                          children: [
+                            _claimListView(ongoingList, true),
+                            _claimListView(historyList, false),
+                            _trackingListView(trackingList),
+                          ],
+                        ),
                       ),
                     ),
                   ],
@@ -917,7 +911,10 @@ class _MembersClaimsPageState extends State<MembersClaimsPage>
         ),
       ),
       floatingActionButton: Padding(
-        padding: const EdgeInsets.only(bottom: 60),
+        padding: EdgeInsets.only(
+          bottom: isWide ? 104 : 124,
+          right: isWide ? 24 : 0,
+        ),
         child: FloatingActionButton.extended(
           backgroundColor: kPrimaryDark,
           foregroundColor: Colors.white,
@@ -940,148 +937,9 @@ class _MembersClaimsPageState extends State<MembersClaimsPage>
           onPressed: _openSubmitSheet,
         ),
       ),
-      floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
-    );
-  }
-
-  Widget _buildHeader(bool isWide) {
-    return Container(
-      width: double.infinity,
-      padding: EdgeInsets.fromLTRB(
-        isWide ? 24 : 20,
-        20,
-        isWide ? 24 : 20,
-        isWide ? 36 : 30,
-      ),
-      decoration: const BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [Color(0xFF1E40AF), Color(0xFF3B82F6), Color(0xFF60A5FA)],
-        ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Container(
-          //   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
-          //   decoration: BoxDecoration(
-          //     color: Colors.white.withValues(alpha: 0.16),
-          //     borderRadius: BorderRadius.circular(999),
-          //   ),
-          //   child: const Text(
-          //     'Member Claims',
-          //     style: TextStyle(
-          //       color: Colors.white,
-          //       fontSize: 12,
-          //       fontWeight: FontWeight.w700,
-          //       fontFamily: 'Montserrat',
-          //       letterSpacing: 0.2,
-          //     ),
-          //   ),
-          // ),
-          // const SizedBox(height: 14),
-          // Text(
-          //   'Track, review, and submit your claims in one place.',
-          //   style: TextStyle(
-          //     color: Colors.white,
-          //     fontSize: isWide ? 28 : 24,
-          //     fontWeight: FontWeight.w800,
-          //     fontFamily: 'Montserrat',
-          //     height: 1.15,
-          //   ),
-          // ),
-          // const SizedBox(height: 10),
-          // Text(
-          //   'Claims overview and submission portal for members.',
-          //   style: TextStyle(
-          //     color: Colors.white.withValues(alpha: 0.88),
-          //     fontSize: isWide ? 15 : 14,
-          //     fontWeight: FontWeight.w600,
-          //     fontFamily: 'OpenSans',
-          //     height: 1.4,
-          //   ),
-          // ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildOverviewCard({
-    required int pendingCount,
-    required int historyCount,
-    required int trackingCount,
-  }) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        color: const Color(0xFFF8FBFF),
-        borderRadius: BorderRadius.circular(22),
-        border: Border.all(color: const Color(0xFFD8E6F8)),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x12000000),
-            blurRadius: 14,
-            offset: Offset(0, 6),
-          ),
-        ],
-      ),
-      child: Wrap(
-        spacing: 10,
-        runSpacing: 10,
-        children: [
-          _buildSummaryChip(
-            icon: Icons.pending_actions_rounded,
-            label: '$pendingCount pending',
-            color: kWarn,
-            background: const Color(0xFFFFF7E8),
-          ),
-          _buildSummaryChip(
-            icon: Icons.history_rounded,
-            label: '$historyCount in history',
-            color: kPrimaryDark,
-            background: const Color(0xFFEFF6FF),
-          ),
-          _buildSummaryChip(
-            icon: Icons.track_changes_rounded,
-            label: '$trackingCount tracking',
-            color: const Color(0xFF059669),
-            background: const Color(0xFFECFDF5),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildSummaryChip({
-    required IconData icon,
-    required String label,
-    required Color color,
-    required Color background,
-  }) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-      decoration: BoxDecoration(
-        color: background,
-        borderRadius: BorderRadius.circular(14),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 16, color: color),
-          const SizedBox(width: 8),
-          Text(
-            label,
-            style: TextStyle(
-              color: color,
-              fontSize: 13,
-              fontWeight: FontWeight.w700,
-              fontFamily: 'OpenSans',
-            ),
-          ),
-        ],
-      ),
+      floatingActionButtonLocation: isWide
+          ? FloatingActionButtonLocation.endFloat
+          : FloatingActionButtonLocation.centerFloat,
     );
   }
 

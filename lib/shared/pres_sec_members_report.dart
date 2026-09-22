@@ -6,7 +6,13 @@ import 'package:flutter/material.dart';
 // Placeholder models
 // ---------------------------------------------------------------------------
 
-enum _MemberChangeType { added, removed, deceased, beneficiaryAdded, beneficiaryRemoved }
+enum _MemberChangeType {
+  added,
+  removed,
+  deceased,
+  beneficiaryAdded,
+  beneficiaryRemoved,
+}
 
 class _MemberChange {
   final String memberName;
@@ -163,10 +169,7 @@ class _PresSecMembersReportPageState extends State<PresSecMembersReportPage>
       ),
       body: TabBarView(
         controller: _tabController,
-        children: [
-          _updatesTab(),
-          _paymentStatusTab(),
-        ],
+        children: [_updatesTab(), _paymentStatusTab()],
       ),
     );
   }
@@ -201,16 +204,21 @@ class _PresSecMembersReportPageState extends State<PresSecMembersReportPage>
   }
 
   Widget _summaryChips() {
-    final added =
-        _changes.where((c) => c.type == _MemberChangeType.added).length;
-    final removed =
-        _changes.where((c) => c.type == _MemberChangeType.removed).length;
-    final deceased =
-        _changes.where((c) => c.type == _MemberChangeType.deceased).length;
+    final added = _changes
+        .where((c) => c.type == _MemberChangeType.added)
+        .length;
+    final removed = _changes
+        .where((c) => c.type == _MemberChangeType.removed)
+        .length;
+    final deceased = _changes
+        .where((c) => c.type == _MemberChangeType.deceased)
+        .length;
     final beneficiary = _changes
-        .where((c) =>
-            c.type == _MemberChangeType.beneficiaryAdded ||
-            c.type == _MemberChangeType.beneficiaryRemoved)
+        .where(
+          (c) =>
+              c.type == _MemberChangeType.beneficiaryAdded ||
+              c.type == _MemberChangeType.beneficiaryRemoved,
+        )
         .length;
 
     return Wrap(
@@ -310,14 +318,16 @@ class _PresSecMembersReportPageState extends State<PresSecMembersReportPage>
                         style: TextStyle(
                           fontFamily: 'Montserrat',
                           fontWeight: FontWeight.w700,
-                          fontSize: 14,
+                          fontSize: 16,
                           color: dayungTextColor(context),
                         ),
                       ),
                     ),
                     Container(
                       padding: const EdgeInsets.symmetric(
-                          horizontal: 8, vertical: 3),
+                        horizontal: 8,
+                        vertical: 3,
+                      ),
                       decoration: BoxDecoration(
                         color: color.withValues(alpha: 0.1),
                         borderRadius: BorderRadius.circular(6),
@@ -326,7 +336,7 @@ class _PresSecMembersReportPageState extends State<PresSecMembersReportPage>
                         label,
                         style: TextStyle(
                           fontFamily: 'Montserrat',
-                          fontSize: 10,
+                          fontSize: 13,
                           fontWeight: FontWeight.w800,
                           color: color,
                         ),
@@ -339,7 +349,7 @@ class _PresSecMembersReportPageState extends State<PresSecMembersReportPage>
                   change.date,
                   style: TextStyle(
                     fontFamily: 'OpenSans',
-                    fontSize: 11,
+                    fontSize: 14,
                     color: dayungSubtextColor(context),
                   ),
                 ),
@@ -349,7 +359,7 @@ class _PresSecMembersReportPageState extends State<PresSecMembersReportPage>
                     change.note!,
                     style: TextStyle(
                       fontFamily: 'OpenSans',
-                      fontSize: 12,
+                      fontSize: 14,
                       color: dayungSubtextColor(context),
                       fontStyle: FontStyle.italic,
                     ),
@@ -427,11 +437,14 @@ class _PresSecMembersReportPageState extends State<PresSecMembersReportPage>
                 // Header
                 Container(
                   padding: const EdgeInsets.symmetric(
-                      horizontal: 16, vertical: 12),
+                    horizontal: 16,
+                    vertical: 12,
+                  ),
                   decoration: BoxDecoration(
                     color: kPrimary.withValues(alpha: 0.06),
                     borderRadius: const BorderRadius.vertical(
-                        top: Radius.circular(20)),
+                      top: Radius.circular(20),
+                    ),
                   ),
                   child: Row(
                     children: [
@@ -498,7 +511,9 @@ class _PresSecMembersReportPageState extends State<PresSecMembersReportPage>
                         ? Colors.transparent
                         : kPrimary.withValues(alpha: 0.025),
                     padding: const EdgeInsets.symmetric(
-                        horizontal: 16, vertical: 10),
+                      horizontal: 16,
+                      vertical: 10,
+                    ),
                     child: Row(
                       children: [
                         Expanded(
@@ -551,7 +566,8 @@ class _PresSecMembersReportPageState extends State<PresSecMembersReportPage>
                   decoration: BoxDecoration(
                     color: kPrimary.withValues(alpha: 0.03),
                     borderRadius: const BorderRadius.vertical(
-                        bottom: Radius.circular(20)),
+                      bottom: Radius.circular(20),
+                    ),
                   ),
                 ),
               ],
@@ -650,9 +666,7 @@ class _PresSecMembersReportPageState extends State<PresSecMembersReportPage>
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
       decoration: BoxDecoration(
-        color: isPaid
-            ? const Color(0xFFD1FAE5)
-            : const Color(0xFFFEE2E2),
+        color: isPaid ? const Color(0xFFD1FAE5) : const Color(0xFFFEE2E2),
         borderRadius: BorderRadius.circular(6),
       ),
       child: Text(
@@ -661,9 +675,7 @@ class _PresSecMembersReportPageState extends State<PresSecMembersReportPage>
           fontFamily: 'Montserrat',
           fontSize: 9,
           fontWeight: FontWeight.w800,
-          color: isPaid
-              ? const Color(0xFF065F46)
-              : const Color(0xFF991B1B),
+          color: isPaid ? const Color(0xFF065F46) : const Color(0xFF991B1B),
         ),
       ),
     );
