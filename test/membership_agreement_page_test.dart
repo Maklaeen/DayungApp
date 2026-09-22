@@ -51,7 +51,7 @@ void main() {
 
       await tester.pumpAndSettle();
 
-      expect(find.text('Membership Agreement'), findsOneWidget);
+      expect(find.text('Membership Agreement4'), findsOneWidget);
       expect(find.text('Membership Terms'), findsOneWidget);
       expect(find.text('Eligibility'), findsOneWidget);
       expect(find.text('Members must be active and verified.'), findsOneWidget);

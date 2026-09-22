@@ -23,7 +23,9 @@ const kCardBg = Color(0xFFFFFFFF);
 const kBorderColor = Color(0xFFE5E7EB);
 
 class AddBeneficiaryPage extends StatefulWidget {
-  const AddBeneficiaryPage({super.key});
+  final bool embedded;
+
+  const AddBeneficiaryPage({super.key, this.embedded = false});
 
   @override
   State<AddBeneficiaryPage> createState() => _AddBeneficiaryPageState();
@@ -662,7 +664,7 @@ class _AddBeneficiaryPageState extends State<AddBeneficiaryPage> {
           birthCertificateFile = null;
           validIdFile = null;
         });
-        navigator.pop();
+        if (!widget.embedded) navigator.pop();
       }
     } catch (e) {
       if (!mounted) return;
@@ -679,34 +681,33 @@ class _AddBeneficiaryPageState extends State<AddBeneficiaryPage> {
     final isCompact = width < 380;
     final horizontal = isCompact ? 16.0 : 24.0;
 
-    return Scaffold(
-      backgroundColor: kBg,
-      body: SafeArea(
-        child: Column(
-          children: [
-            Container(
-              padding: EdgeInsets.fromLTRB(
-                8,
-                isWide ? 36 : 28,
-                isWide ? 24 : 16,
-                isWide ? 32 : 24,
+    final content = SafeArea(
+      child: Column(
+        children: [
+          Container(
+            padding: EdgeInsets.fromLTRB(
+              8,
+              isWide ? 36 : 28,
+              isWide ? 24 : 16,
+              isWide ? 32 : 24,
+            ),
+            decoration: const BoxDecoration(
+              color: kPrimary,
+              borderRadius: BorderRadius.only(
+                bottomLeft: Radius.circular(28),
+                bottomRight: Radius.circular(28),
               ),
-              decoration: const BoxDecoration(
-                color: kPrimary,
-                borderRadius: BorderRadius.only(
-                  bottomLeft: Radius.circular(28),
-                  bottomRight: Radius.circular(28),
+              boxShadow: [
+                BoxShadow(
+                  color: Color(0xFF1E40AF),
+                  blurRadius: 18,
+                  offset: Offset(0, 8),
                 ),
-                boxShadow: [
-                  BoxShadow(
-                    color: Color(0xFF1E40AF),
-                    blurRadius: 18,
-                    offset: Offset(0, 8),
-                  ),
-                ],
-              ),
-              child: Row(
-                children: [
+              ],
+            ),
+            child: Row(
+              children: [
+                if (!widget.embedded) ...[
                   IconButton(
                     icon: const Icon(
                       Icons.arrow_back_rounded,
@@ -716,238 +717,241 @@ class _AddBeneficiaryPageState extends State<AddBeneficiaryPage> {
                     onPressed: () => Navigator.pop(context),
                   ),
                   const SizedBox(width: 16),
-                  Expanded(
-                    child: Text(
-                      'Add Beneficiary',
-                      style: TextStyle(
-                        fontSize: isWide ? 24 : 17,
-                        fontWeight: FontWeight.w800,
-                        color: Colors.white,
-                        fontFamily: 'Montserrat',
-                        letterSpacing: 0.3,
-                      ),
+                ],
+                Expanded(
+                  child: Text(
+                    widget.embedded ? 'My Beneficiaries' : 'Add Beneficiary',
+                    style: TextStyle(
+                      fontSize: isWide ? 24 : 17,
+                      fontWeight: FontWeight.w800,
+                      color: Colors.white,
+                      fontFamily: 'Montserrat',
+                      letterSpacing: 0.3,
                     ),
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
-            Expanded(
-              child: SingleChildScrollView(
-                padding: EdgeInsets.fromLTRB(horizontal, 16, horizontal, 24),
-                child: Center(
-                  child: ConstrainedBox(
-                    constraints: BoxConstraints(maxWidth: isWide ? 720 : 480),
-                    child: Column(
-                      children: [
-                        _buildSectionCard(
+          ),
+          Expanded(
+            child: SingleChildScrollView(
+              padding: EdgeInsets.fromLTRB(horizontal, 16, horizontal, 24),
+              child: Center(
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(maxWidth: isWide ? 720 : 480),
+                  child: Column(
+                    children: [
+                      _buildSectionCard(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            _buildSectionHeader(
+                              icon: Icons.person_add_alt_1_rounded,
+                              title:
+                                  'Please add your beneficiaries. This is required for Dayung.',
+                            ),
+                            const SizedBox(height: 12),
+                            Wrap(
+                              spacing: 8,
+                              runSpacing: 8,
+                              children: [
+                                _buildTopCategoryChip(
+                                  label: 'Status',
+                                  value: 'Pending',
+                                  color: kWarn,
+                                  background: const Color(0xFFFFFBEB),
+                                ),
+                                _buildTopCategoryChip(
+                                  label: 'Required',
+                                  value: 'ID',
+                                  color: kPrimary,
+                                  background: const Color(0xFFF5F9FF),
+                                ),
+                                _buildTopCategoryChip(
+                                  label: 'Optional',
+                                  value: 'BC',
+                                  color: kSuccess,
+                                  background: const Color(0xFFF0FDF4),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      _buildSectionCard(
+                        child: Form(
+                          key: _formKey,
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
+                              if (_isSubmitting)
+                                Container(
+                                  margin: const EdgeInsets.only(bottom: 20),
+                                  padding: const EdgeInsets.all(16),
+                                  decoration: BoxDecoration(
+                                    color: kAccent.withValues(alpha: 0.08),
+                                    borderRadius: BorderRadius.circular(16),
+                                  ),
+                                  child: const LinearProgressIndicator(
+                                    color: kAccent,
+                                    backgroundColor: Color(0xFFEFF2F7),
+                                    minHeight: 4,
+                                  ),
+                                ),
                               _buildSectionHeader(
-                                icon: Icons.person_add_alt_1_rounded,
-                                title:
-                                    'Please add your beneficiaries. This is required for Dayung.',
+                                icon: Icons.badge_outlined,
+                                title: 'Basic Details',
                               ),
-                              const SizedBox(height: 12),
-                              Wrap(
-                                spacing: 8,
-                                runSpacing: 8,
-                                children: [
-                                  _buildTopCategoryChip(
-                                    label: 'Status',
-                                    value: 'Pending',
-                                    color: kWarn,
-                                    background: const Color(0xFFFFFBEB),
+                              const SizedBox(height: 18),
+                              TextFormField(
+                                controller: fullNameController,
+                                textInputAction: TextInputAction.next,
+                                inputFormatters:
+                                    AppInputSecurity.singleLineFormatters(
+                                      maxLength: 120,
+                                    ),
+                                style: const TextStyle(
+                                  fontSize: 14,
+                                  color: kText,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                                decoration: _dec(
+                                  'Full Name',
+                                  hint: 'e.g., Jane Doe',
+                                  icon: Icons.badge_outlined,
+                                ),
+                                validator: (v) =>
+                                    AppInputSecurity.validateSafeText(
+                                      v,
+                                      fieldName: 'Full Name',
+                                      minLength: 2,
+                                      maxLength: 120,
+                                    ),
+                              ),
+                              const SizedBox(height: 14),
+                              _dobField(context),
+                              const SizedBox(height: 14),
+                              DropdownButtonFormField2<String>(
+                                isExpanded: true,
+                                decoration: _dropdownDec('Relationship'),
+                                value: selectedRelationship,
+                                style: const TextStyle(
+                                  fontSize: 16,
+                                  color: kText,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                                items: _relationships
+                                    .map(
+                                      (rel) => DropdownMenuItem<String>(
+                                        value: rel,
+                                        child: Text(rel),
+                                      ),
+                                    )
+                                    .toList(),
+                                onChanged: (value) => setState(
+                                  () => selectedRelationship = value,
+                                ),
+                                validator: (value) => value == null
+                                    ? 'Relationship is required'
+                                    : null,
+                              ),
+                              const SizedBox(height: 14),
+                              DropdownButtonFormField2<String>(
+                                isExpanded: true,
+                                decoration: _dropdownDec('Marital Status'),
+                                value: selectedMaritalStatus,
+                                style: const TextStyle(
+                                  color: kText,
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                                items: _maritalStatuses
+                                    .map(
+                                      (status) => DropdownMenuItem<String>(
+                                        value: status,
+                                        child: Text(status),
+                                      ),
+                                    )
+                                    .toList(),
+                                onChanged: (value) => setState(
+                                  () => selectedMaritalStatus = value,
+                                ),
+                                validator: (value) => value == null
+                                    ? 'Marital status is required'
+                                    : null,
+                              ),
+                              const SizedBox(height: 24),
+                              _buildSectionHeader(
+                                icon: Icons.file_copy_rounded,
+                                title: 'Supporting Documents',
+                              ),
+                              const SizedBox(height: 18),
+                              _fileUploadSection(
+                                label: 'Birth Certificate (optional)',
+                                isUploading: _isUploadingFile,
+                                fileUrl: birthCertificateFile,
+                                onUpload: _pickAndUploadFile,
+                                onClear: () =>
+                                    setState(() => birthCertificateFile = null),
+                              ),
+                              const SizedBox(height: 16),
+                              _fileUploadSection(
+                                label: 'Valid ID (required)',
+                                isUploading: _isUploadingValidId,
+                                fileUrl: validIdFile,
+                                onUpload: _pickAndUploadValidId,
+                                onClear: () =>
+                                    setState(() => validIdFile = null),
+                                required: true,
+                              ),
+                              const SizedBox(height: 24),
+                              SizedBox(
+                                width: double.infinity,
+                                height: 50,
+                                child: ElevatedButton.icon(
+                                  icon: const Icon(
+                                    Icons.check_circle_rounded,
+                                    size: 20,
                                   ),
-                                  _buildTopCategoryChip(
-                                    label: 'Required',
-                                    value: 'ID',
-                                    color: kPrimary,
-                                    background: const Color(0xFFF5F9FF),
+                                  label: const Text(
+                                    'Submit Beneficiary',
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.w700,
+                                      fontSize: 16,
+                                      fontFamily: 'Montserrat',
+                                    ),
                                   ),
-                                  _buildTopCategoryChip(
-                                    label: 'Optional',
-                                    value: 'BC',
-                                    color: kSuccess,
-                                    background: const Color(0xFFF0FDF4),
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: kAccent,
+                                    foregroundColor: Colors.white,
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(14),
+                                    ),
+                                    elevation: 0,
                                   ),
-                                ],
+                                  onPressed: _isSubmitting
+                                      ? null
+                                      : _submitBeneficiary,
+                                ),
                               ),
                             ],
                           ),
                         ),
-                        const SizedBox(height: 16),
-                        _buildSectionCard(
-                          child: Form(
-                            key: _formKey,
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                if (_isSubmitting)
-                                  Container(
-                                    margin: const EdgeInsets.only(bottom: 20),
-                                    padding: const EdgeInsets.all(16),
-                                    decoration: BoxDecoration(
-                                      color: kAccent.withValues(alpha: 0.08),
-                                      borderRadius: BorderRadius.circular(16),
-                                    ),
-                                    child: const LinearProgressIndicator(
-                                      color: kAccent,
-                                      backgroundColor: Color(0xFFEFF2F7),
-                                      minHeight: 4,
-                                    ),
-                                  ),
-                                _buildSectionHeader(
-                                  icon: Icons.badge_outlined,
-                                  title: 'Basic Details',
-                                ),
-                                const SizedBox(height: 18),
-                                TextFormField(
-                                  controller: fullNameController,
-                                  textInputAction: TextInputAction.next,
-                                  inputFormatters:
-                                      AppInputSecurity.singleLineFormatters(
-                                        maxLength: 120,
-                                      ),
-                                  style: const TextStyle(
-                                    fontSize: 14,
-                                    color: kText,
-                                    fontWeight: FontWeight.w500,
-                                  ),
-                                  decoration: _dec(
-                                    'Full Name',
-                                    hint: 'e.g., Jane Doe',
-                                    icon: Icons.badge_outlined,
-                                  ),
-                                  validator: (v) =>
-                                      AppInputSecurity.validateSafeText(
-                                        v,
-                                        fieldName: 'Full Name',
-                                        minLength: 2,
-                                        maxLength: 120,
-                                      ),
-                                ),
-                                const SizedBox(height: 14),
-                                _dobField(context),
-                                const SizedBox(height: 14),
-                                DropdownButtonFormField2<String>(
-                                  isExpanded: true,
-                                  decoration: _dropdownDec('Relationship'),
-                                  value: selectedRelationship,
-                                  style: const TextStyle(
-                                    fontSize: 16,
-                                    color: kText,
-                                    fontWeight: FontWeight.w500,
-                                  ),
-                                  items: _relationships
-                                      .map(
-                                        (rel) => DropdownMenuItem<String>(
-                                          value: rel,
-                                          child: Text(rel),
-                                        ),
-                                      )
-                                      .toList(),
-                                  onChanged: (value) => setState(
-                                    () => selectedRelationship = value,
-                                  ),
-                                  validator: (value) => value == null
-                                      ? 'Relationship is required'
-                                      : null,
-                                ),
-                                const SizedBox(height: 14),
-                                DropdownButtonFormField2<String>(
-                                  isExpanded: true,
-                                  decoration: _dropdownDec('Marital Status'),
-                                  value: selectedMaritalStatus,
-                                  style: const TextStyle(
-                                    color: kText,
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.w500,
-                                  ),
-                                  items: _maritalStatuses
-                                      .map(
-                                        (status) => DropdownMenuItem<String>(
-                                          value: status,
-                                          child: Text(status),
-                                        ),
-                                      )
-                                      .toList(),
-                                  onChanged: (value) => setState(
-                                    () => selectedMaritalStatus = value,
-                                  ),
-                                  validator: (value) => value == null
-                                      ? 'Marital status is required'
-                                      : null,
-                                ),
-                                const SizedBox(height: 24),
-                                _buildSectionHeader(
-                                  icon: Icons.file_copy_rounded,
-                                  title: 'Supporting Documents',
-                                ),
-                                const SizedBox(height: 18),
-                                _fileUploadSection(
-                                  label: 'Birth Certificate (optional)',
-                                  isUploading: _isUploadingFile,
-                                  fileUrl: birthCertificateFile,
-                                  onUpload: _pickAndUploadFile,
-                                  onClear: () => setState(
-                                    () => birthCertificateFile = null,
-                                  ),
-                                ),
-                                const SizedBox(height: 16),
-                                _fileUploadSection(
-                                  label: 'Valid ID (required)',
-                                  isUploading: _isUploadingValidId,
-                                  fileUrl: validIdFile,
-                                  onUpload: _pickAndUploadValidId,
-                                  onClear: () =>
-                                      setState(() => validIdFile = null),
-                                  required: true,
-                                ),
-                                const SizedBox(height: 24),
-                                SizedBox(
-                                  width: double.infinity,
-                                  height: 50,
-                                  child: ElevatedButton.icon(
-                                    icon: const Icon(
-                                      Icons.check_circle_rounded,
-                                      size: 20,
-                                    ),
-                                    label: const Text(
-                                      'Submit Beneficiary',
-                                      style: TextStyle(
-                                        fontWeight: FontWeight.w700,
-                                        fontSize: 16,
-                                        fontFamily: 'Montserrat',
-                                      ),
-                                    ),
-                                    style: ElevatedButton.styleFrom(
-                                      backgroundColor: kAccent,
-                                      foregroundColor: Colors.white,
-                                      shape: RoundedRectangleBorder(
-                                        borderRadius: BorderRadius.circular(14),
-                                      ),
-                                      elevation: 0,
-                                    ),
-                                    onPressed: _isSubmitting
-                                        ? null
-                                        : _submitBeneficiary,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
+                      ),
+                    ],
                   ),
                 ),
               ),
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
+
+    if (widget.embedded) return content;
+
+    return Scaffold(backgroundColor: kBg, body: content);
   }
 
   Widget _fileUploadSection({

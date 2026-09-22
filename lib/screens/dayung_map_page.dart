@@ -1632,12 +1632,35 @@ class _DayungMapPageState extends State<DayungMapPage> {
 
       final unit = await sb
           .from('dayung_units')
-          .select('name')
+          .select('name, secretary_id')
           .eq('id', dayungUnitId)
           .maybeSingle();
 
       final unitName = (unit?['name'] ?? widget.dayung['name'] ?? 'Dayung')
           .toString();
+
+      final inserted = await sb
+          .from('applications')
+          .insert({
+            'user_id': uid,
+            'dayung_unit_id': dayungUnitId,
+            'status': 'for_confirmation',
+            'name': unitName,
+            'is_agree': false,
+          })
+          .select('id')
+          .single();
+      final secretaryId = unit?['secretary_id'];
+      if (secretaryId != null) {
+        try {
+          await sb.from('dayung_application_notifications').insert({
+            'application_id': inserted['id'],
+            'dayung_unit_id': dayungUnitId,
+            'secretary_id': secretaryId,
+          });
+        } catch (_) {}
+      }
+      if (mounted) setState(() => _applied = true);
 
       if (!mounted) return;
       await Navigator.push(

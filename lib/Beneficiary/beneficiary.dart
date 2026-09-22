@@ -21,12 +21,14 @@ class BeneficiaryPage extends StatefulWidget {
   final VoidCallback? onBack;
   final VoidCallback? onFirstBeneficiaryAdded;
   final bool showBackButton;
+  final bool embedded;
 
   const BeneficiaryPage({
     super.key,
     this.onBack,
     this.onFirstBeneficiaryAdded,
     this.showBackButton = true,
+    this.embedded = false,
   });
 
   @override
@@ -749,326 +751,318 @@ class _BeneficiaryPageState extends State<BeneficiaryPage>
     final isCompact = width < 380;
     final totalCount = beneficiaries.length;
 
-    return Scaffold(
-      backgroundColor: kBg,
-      body: SafeArea(
-        child: Column(
-          children: [
-            Container(
-              padding: EdgeInsets.fromLTRB(
-                30,
-                isWide ? 36 : 28,
-                isWide ? 24 : 16,
-                isWide ? 32 : 24,
+    final content = SafeArea(
+      child: Column(
+        children: [
+          Container(
+            padding: EdgeInsets.fromLTRB(
+              30,
+              isWide ? 36 : 28,
+              isWide ? 24 : 16,
+              isWide ? 32 : 24,
+            ),
+            decoration: const BoxDecoration(
+              color: kPrimary,
+              borderRadius: BorderRadius.only(
+                bottomLeft: Radius.circular(28),
+                bottomRight: Radius.circular(28),
               ),
-              decoration: const BoxDecoration(
-                color: kPrimary,
-                borderRadius: BorderRadius.only(
-                  bottomLeft: Radius.circular(28),
-                  bottomRight: Radius.circular(28),
+              boxShadow: [
+                BoxShadow(
+                  color: Color(0xFF1E40AF),
+                  blurRadius: 18,
+                  offset: Offset(0, 8),
                 ),
+              ],
+            ),
+            child: Row(
+              children: [
+                if (widget.showBackButton)
+                  DayungBackButton(
+                    onPressed: widget.onBack ?? () => Navigator.pop(context),
+                  ),
+                if (widget.showBackButton) const SizedBox(width: 16),
+                Expanded(
+                  child: Text(
+                    'My Beneficiaries',
+                    style: TextStyle(
+                      fontSize: isWide ? 24 : 17,
+                      fontWeight: FontWeight.w800,
+                      color: Colors.white,
+                      fontFamily: 'Montserrat',
+                      letterSpacing: 0.3,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Padding(
+            padding: EdgeInsets.fromLTRB(
+              isWide ? 24 : 16,
+              16,
+              isWide ? 24 : 16,
+              0,
+            ),
+            child: Container(
+              width: double.infinity,
+              padding: EdgeInsets.symmetric(
+                horizontal: isWide ? 20 : 16,
+                vertical: isWide ? 18 : 16,
+              ),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(18),
+                border: Border.all(color: kBorderColor.withValues(alpha: 0.45)),
                 boxShadow: [
                   BoxShadow(
-                    color: Color(0xFF1E40AF),
-                    blurRadius: 18,
-                    offset: Offset(0, 8),
+                    color: Colors.black.withValues(alpha: 0.04),
+                    blurRadius: 14,
+                    offset: const Offset(0, 6),
                   ),
                 ],
               ),
-              child: Row(
+              child: Column(
                 children: [
-                  if (widget.showBackButton)
-                    DayungBackButton(
-                      onPressed: widget.onBack ?? () => Navigator.pop(context),
-                    ),
-                  if (widget.showBackButton) const SizedBox(width: 16),
-                  Expanded(
-                    child: Text(
-                      'My Beneficiaries',
-                      style: TextStyle(
-                        fontSize: isWide ? 24 : 17,
-                        fontWeight: FontWeight.w800,
-                        color: Colors.white,
-                        fontFamily: 'Montserrat',
-                        letterSpacing: 0.3,
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          color: kPrimary.withValues(alpha: 0.10),
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                        child: const Icon(
+                          Icons.groups_rounded,
+                          color: kPrimary,
+                          size: 24,
+                        ),
                       ),
-                    ),
+                      const SizedBox(width: 14),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              totalCount == 0
+                                  ? 'No beneficiaries have been added yet. Please add at least one beneficiary, as this is a required part of your Dayung application. Applications without beneficiaries may not be approved.'
+                                  : '$totalCount beneficiary${totalCount == 1 ? '' : 'ies'} on record',
+                              style: TextStyle(
+                                fontSize: isWide ? 18 : 16,
+                                fontWeight: FontWeight.w800,
+                                color: kText,
+                                fontFamily: 'Montserrat',
+                              ),
+                            ),
+                            // const SizedBox(height: 4),
+                            // const Text(
+                            //   'Track approved and pending beneficiaries in one place.',
+                            //   style: TextStyle(
+                            //     fontSize: 13,
+                            //     color: kSubText,
+                            //     fontFamily: 'OpenSans',
+                            //     fontWeight: FontWeight.w600,
+                            //     height: 1.4,
+                            //   ),
+                            // ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      _buildTopCategoryChip(
+                        label: 'Approved',
+                        count: activeBeneficiaries.length,
+                        color: kSuccess,
+                        background: const Color(0xFFF0FDF4),
+                      ),
+                      _buildTopCategoryChip(
+                        label: 'Pending',
+                        count: pendingBeneficiaries.length,
+                        color: kWarn,
+                        background: const Color(0xFFFFFBEB),
+                      ),
+                      _buildTopCategoryChip(
+                        label: 'Total',
+                        count: totalCount,
+                        color: kPrimary,
+                        background: const Color(0xFFF5F9FF),
+                      ),
+                    ],
                   ),
                 ],
               ),
             ),
-            Padding(
-              padding: EdgeInsets.fromLTRB(
-                isWide ? 24 : 16,
-                16,
-                isWide ? 24 : 16,
-                0,
-              ),
-              child: Container(
-                width: double.infinity,
-                padding: EdgeInsets.symmetric(
-                  horizontal: isWide ? 20 : 16,
-                  vertical: isWide ? 18 : 16,
-                ),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(18),
-                  border: Border.all(
-                    color: kBorderColor.withValues(alpha: 0.45),
-                  ),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.04),
-                      blurRadius: 14,
-                      offset: const Offset(0, 6),
-                    ),
-                  ],
-                ),
-                child: Column(
-                  children: [
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.all(10),
-                          decoration: BoxDecoration(
-                            color: kPrimary.withValues(alpha: 0.10),
-                            borderRadius: BorderRadius.circular(14),
-                          ),
-                          child: const Icon(
-                            Icons.groups_rounded,
-                            color: kPrimary,
-                            size: 24,
-                          ),
-                        ),
-                        const SizedBox(width: 14),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                totalCount == 0
-                                    ? 'No beneficiaries have been added yet. Please add at least one beneficiary, as this is a required part of your Dayung application. Applications without beneficiaries may not be approved.'
-                                    : '$totalCount beneficiary${totalCount == 1 ? '' : 'ies'} on record',
-                                style: TextStyle(
-                                  fontSize: isWide ? 18 : 16,
-                                  fontWeight: FontWeight.w800,
-                                  color: kText,
-                                  fontFamily: 'Montserrat',
-                                ),
-                              ),
-                              // const SizedBox(height: 4),
-                              // const Text(
-                              //   'Track approved and pending beneficiaries in one place.',
-                              //   style: TextStyle(
-                              //     fontSize: 13,
-                              //     color: kSubText,
-                              //     fontFamily: 'OpenSans',
-                              //     fontWeight: FontWeight.w600,
-                              //     height: 1.4,
-                              //   ),
-                              // ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 12),
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
-                      children: [
-                        _buildTopCategoryChip(
-                          label: 'Approved',
-                          count: activeBeneficiaries.length,
-                          color: kSuccess,
-                          background: const Color(0xFFF0FDF4),
-                        ),
-                        _buildTopCategoryChip(
-                          label: 'Pending',
-                          count: pendingBeneficiaries.length,
-                          color: kWarn,
-                          background: const Color(0xFFFFFBEB),
-                        ),
-                        _buildTopCategoryChip(
-                          label: 'Total',
-                          count: totalCount,
-                          color: kPrimary,
-                          background: const Color(0xFFF5F9FF),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
+          ),
+          Padding(
+            padding: EdgeInsets.fromLTRB(
+              isWide ? 24 : 16,
+              16,
+              isWide ? 24 : 16,
+              0,
             ),
-            Padding(
-              padding: EdgeInsets.fromLTRB(
-                isWide ? 24 : 16,
-                16,
-                isWide ? 24 : 16,
-                0,
-              ),
-              child: AnimatedBuilder(
-                animation: _tabController,
-                builder: (context, child) {
-                  return Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 12,
+            child: AnimatedBuilder(
+              animation: _tabController,
+              builder: (context, child) {
+                return Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 12,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(18),
+                    border: Border.all(
+                      color: kBorderColor.withValues(alpha: 0.45),
                     ),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(18),
-                      border: Border.all(
-                        color: kBorderColor.withValues(alpha: 0.45),
-                      ),
-                    ),
-                    child: isCompact
-                        ? Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              const Row(
-                                children: [
-                                  Icon(
-                                    Icons.filter_list_rounded,
-                                    size: 16,
+                  ),
+                  child: isCompact
+                      ? Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Row(
+                              children: [
+                                Icon(
+                                  Icons.filter_list_rounded,
+                                  size: 16,
+                                  color: kSubText,
+                                ),
+                                SizedBox(width: 8),
+                                Text(
+                                  'Filter beneficiaries',
+                                  style: TextStyle(
                                     color: kSubText,
+                                    fontFamily: 'OpenSans',
+                                    fontWeight: FontWeight.w600,
+                                    fontSize: 13,
                                   ),
-                                  SizedBox(width: 8),
-                                  Text(
-                                    'Filter beneficiaries',
-                                    style: TextStyle(
-                                      color: kSubText,
-                                      fontFamily: 'OpenSans',
-                                      fontWeight: FontWeight.w600,
-                                      fontSize: 13,
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 12),
+                            _NavTab(
+                              label: 'Active',
+                              icon: Icons.check_circle_rounded,
+                              selected: _tabController.index == 0,
+                              onTap: () => _tabController.animateTo(0),
+                            ),
+                            const SizedBox(height: 8),
+                            _NavTab(
+                              label: 'Pending',
+                              icon: Icons.schedule_rounded,
+                              selected: _tabController.index == 1,
+                              onTap: () => _tabController.animateTo(1),
+                            ),
+                          ],
+                        )
+                      : Row(
+                          children: [
+                            const Icon(
+                              Icons.filter_list_rounded,
+                              size: 16,
+                              color: kSubText,
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Row(
+                                children: [
+                                  Expanded(
+                                    child: _NavTab(
+                                      label: 'Active',
+                                      icon: Icons.check_circle_rounded,
+                                      selected: _tabController.index == 0,
+                                      onTap: () => _tabController.animateTo(0),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: _NavTab(
+                                      label: 'Pending',
+                                      icon: Icons.schedule_rounded,
+                                      selected: _tabController.index == 1,
+                                      onTap: () => _tabController.animateTo(1),
                                     ),
                                   ),
                                 ],
                               ),
-                              const SizedBox(height: 12),
-                              _NavTab(
-                                label: 'Active',
-                                icon: Icons.check_circle_rounded,
-                                selected: _tabController.index == 0,
-                                onTap: () => _tabController.animateTo(0),
-                              ),
-                              const SizedBox(height: 8),
-                              _NavTab(
-                                label: 'Pending',
-                                icon: Icons.schedule_rounded,
-                                selected: _tabController.index == 1,
-                                onTap: () => _tabController.animateTo(1),
-                              ),
-                            ],
-                          )
-                        : Row(
-                            children: [
-                              const Icon(
-                                Icons.filter_list_rounded,
-                                size: 16,
-                                color: kSubText,
-                              ),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: Row(
-                                  children: [
-                                    Expanded(
-                                      child: _NavTab(
-                                        label: 'Active',
-                                        icon: Icons.check_circle_rounded,
-                                        selected: _tabController.index == 0,
-                                        onTap: () =>
-                                            _tabController.animateTo(0),
-                                      ),
-                                    ),
-                                    const SizedBox(width: 8),
-                                    Expanded(
-                                      child: _NavTab(
-                                        label: 'Pending',
-                                        icon: Icons.schedule_rounded,
-                                        selected: _tabController.index == 1,
-                                        onTap: () =>
-                                            _tabController.animateTo(1),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ],
-                          ),
-                  );
-                },
-              ),
-            ),
-            Expanded(
-              child: isLoading
-                  ? const Center(
-                      child: CircularProgressIndicator(color: kAccent),
-                    )
-                  : TabBarView(
-                      controller: _tabController,
-                      children: [
-                        _buildBeneficiariesList(activeBeneficiaries, 'active'),
-                        _buildBeneficiariesList(
-                          pendingBeneficiaries,
-                          'pending',
+                            ),
+                          ],
                         ),
-                      ],
-                    ),
+                );
+              },
             ),
-            Padding(
-              padding: EdgeInsets.fromLTRB(
-                isWide ? 24 : 16,
-                0,
-                isWide ? 24 : 16,
-                16,
-              ),
-              child: Container(
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(18),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.04),
-                      blurRadius: 14,
-                      offset: const Offset(0, 6),
-                    ),
-                  ],
-                ),
-                padding: const EdgeInsets.all(12),
-                child: SizedBox(
-                  width: double.infinity,
-                  height: 50,
-                  child: ElevatedButton.icon(
-                    icon: const Icon(Icons.person_add_alt_1_rounded, size: 20),
-                    label: const Text(
-                      'Add Beneficiary',
-                      style: TextStyle(
-                        fontWeight: FontWeight.w700,
-                        fontSize: 16,
-                        fontFamily: 'Montserrat',
-                      ),
-                    ),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: kAccent,
-                      foregroundColor: Colors.white,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(14),
-                      ),
-                      elevation: 0,
-                    ),
-                    onPressed: () => _navigateToAddBeneficiary(context),
+          ),
+          Expanded(
+            child: isLoading
+                ? const Center(child: CircularProgressIndicator(color: kAccent))
+                : TabBarView(
+                    controller: _tabController,
+                    children: [
+                      _buildBeneficiariesList(activeBeneficiaries, 'active'),
+                      _buildBeneficiariesList(pendingBeneficiaries, 'pending'),
+                    ],
                   ),
+          ),
+          Padding(
+            padding: EdgeInsets.fromLTRB(
+              isWide ? 24 : 16,
+              0,
+              isWide ? 24 : 16,
+              16,
+            ),
+            child: Container(
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(18),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.04),
+                    blurRadius: 14,
+                    offset: const Offset(0, 6),
+                  ),
+                ],
+              ),
+              padding: const EdgeInsets.all(12),
+              child: SizedBox(
+                width: double.infinity,
+                height: 50,
+                child: ElevatedButton.icon(
+                  icon: const Icon(Icons.person_add_alt_1_rounded, size: 20),
+                  label: const Text(
+                    'Add Beneficiary',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w700,
+                      fontSize: 16,
+                      fontFamily: 'Montserrat',
+                    ),
+                  ),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: kAccent,
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    elevation: 0,
+                  ),
+                  onPressed: () => _navigateToAddBeneficiary(context),
                 ),
               ),
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
+
+    if (widget.embedded) return content;
+
+    return Scaffold(backgroundColor: kBg, body: content);
   }
 }
 

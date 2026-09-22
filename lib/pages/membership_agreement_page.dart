@@ -6,13 +6,17 @@ import 'package:capstone_app/shared/dayung_back_button.dart';
 
 class MembershipAgreementPage extends StatefulWidget {
   final VoidCallback? onBack;
+  final VoidCallback? onAgreementAccepted;
   final bool showBackButton;
+  final bool persistAgreement;
   final RequiredApplicationContent? initialContent;
 
   const MembershipAgreementPage({
     super.key,
     this.onBack,
+    this.onAgreementAccepted,
     this.showBackButton = true,
+    this.persistAgreement = true,
     this.initialContent,
   });
 
@@ -57,10 +61,12 @@ class _MembershipAgreementPageState extends State<MembershipAgreementPage> {
 
       final applicationRows = await Supabase.instance.client
           .from('applications')
-          .select('id, dayung_unit_id, is_agree, status, approved_at')
+          .select(
+            'id, dayung_unit_id, is_agree, status, approved_at, applied_at',
+          )
           .eq('user_id', userId)
-          .eq('status', 'approved')
-          .order('approved_at', ascending: false)
+          .inFilter('status', ['approved', 'for_confirmation'])
+          .order('applied_at', ascending: false)
           .limit(1);
 
       final applicationRow = applicationRows.isNotEmpty
@@ -109,8 +115,9 @@ class _MembershipAgreementPageState extends State<MembershipAgreementPage> {
 
       final rows = await Supabase.instance.client
           .from('required_applications')
-          .select('title, description, dayung_unit_id')
+          .select('title, description, dayung_unit_id, created_at')
           .eq('dayung_unit_id', dayungUnitId)
+          .order('created_at', ascending: true)
           .order('id', ascending: true);
 
       if (!mounted) return;
@@ -171,6 +178,12 @@ class _MembershipAgreementPageState extends State<MembershipAgreementPage> {
     );
 
     if (confirmed != true) return;
+    if (!widget.persistAgreement) {
+      if (!mounted) return;
+      setState(() => _hasAgreed = true);
+      widget.onAgreementAccepted?.call();
+      return;
+    }
     await _saveAgreement();
   }
 
@@ -223,6 +236,7 @@ class _MembershipAgreementPageState extends State<MembershipAgreementPage> {
           backgroundColor: Color(0xFF16A34A),
         ),
       );
+      widget.onAgreementAccepted?.call();
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(
@@ -268,7 +282,7 @@ class _MembershipAgreementPageState extends State<MembershipAgreementPage> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Membership Agreement',
+                      'Membership Agreement4',
                       style: TextStyle(
                         fontSize: isWide ? 24 : 20,
                         fontWeight: FontWeight.w800,

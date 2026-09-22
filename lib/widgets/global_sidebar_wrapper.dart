@@ -596,7 +596,7 @@ class DashboardSidebar extends StatelessWidget {
                         const SizedBox(height: 8),
                         _SidebarButton(
                           icon: Icons.description_rounded,
-                          label: 'Membership Agreement',
+                          label: 'Membership Agreement3',
                           color: const Color(0xFF2563EB),
                           selected: currentPage == 'membershipAgreement',
                           onTap: onMembershipAgreementTap,
