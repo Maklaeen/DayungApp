@@ -51,10 +51,29 @@ void main() {
 
       await tester.pumpAndSettle();
 
-      expect(find.text('Membership Agreement4'), findsOneWidget);
+      expect(find.text('Membership Agreement4.1'), findsOneWidget);
       expect(find.text('Membership Terms'), findsOneWidget);
       expect(find.text('Eligibility'), findsOneWidget);
       expect(find.text('Members must be active and verified.'), findsOneWidget);
     },
   );
+
+  testWidgets('shows agreed state for an existing agreement', (tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: MembershipAgreementPage(
+          initialAgreed: true,
+          initialContent: const RequiredApplicationContent(
+            mainTitle: 'Membership Terms',
+            sections: [],
+          ),
+        ),
+      ),
+    );
+
+    await tester.pumpAndSettle();
+
+    expect(find.text('Agreed ✓'), findsOneWidget);
+    expect(find.text('I Agree'), findsNothing);
+  });
 }

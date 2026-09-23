@@ -35,6 +35,8 @@ class _CollectorMemberRow {
     required this.amountPaid,
     required this.amountNeeded,
     this.advanceAmount = 0,
+    this.advanceDeathCount = 0,
+    this.proofUrl,
     required this.dropStatus,
   });
 

@@ -4,6 +4,7 @@ import 'package:capstone_app/Beneficiary/beneficiary.dart';
 import 'package:capstone_app/Members/dashboard.dart';
 import 'package:capstone_app/pages/membership_agreement_page.dart';
 import 'package:capstone_app/profile/required_application_page.dart';
+import 'package:capstone_app/settings/profsettings.dart';
 import 'package:capstone_app/utils/supabase_storage.dart';
 import 'package:encrypt/encrypt.dart' as encrypt;
 import 'package:file_picker/file_picker.dart';
@@ -43,12 +44,28 @@ class _ApplyMembershipWizardState extends State<ApplyMembershipWizard> {
 
   Future<void> _loadAgreement() async {
     try {
+      final userId = _supabase.auth.currentUser?.id;
+      final application = userId == null
+          ? null
+          : await _supabase
+                .from('applications')
+                .select('is_agree')
+                .eq('user_id', userId)
+                .eq('dayung_unit_id', widget.dayungUnitId)
+                .maybeSingle();
       final rows = await _supabase
           .from('required_applications')
           .select('title, description, created_at')
           .eq('dayung_unit_id', widget.dayungUnitId)
           .order('created_at', ascending: true)
           .order('id', ascending: true);
+      final documents = userId == null
+          ? null
+          : await _supabase
+                .from('users')
+                .select('birth_certificate_url, valid_id')
+                .eq('id', userId)
+                .maybeSingle();
       final content = RequiredApplicationContent.fromRows(
         rows.map((row) => Map<String, dynamic>.from(row)).toList(),
       );
@@ -56,6 +73,9 @@ class _ApplyMembershipWizardState extends State<ApplyMembershipWizard> {
       setState(() {
         _agreementTitle = content.mainTitle;
         _agreementSections = content.sections;
+        _agreed = application?['is_agree'] == true;
+        _birthCertificate = documents?['birth_certificate_url'] as String?;
+        _validId = documents?['valid_id'] as String?;
         _loading = false;
       });
     } catch (_) {
@@ -127,13 +147,87 @@ class _ApplyMembershipWizardState extends State<ApplyMembershipWizard> {
     return rows.isNotEmpty;
   }
 
+  Future<bool> _hasRequiredProfileDocuments() async {
+    final userId = _supabase.auth.currentUser?.id;
+    if (userId == null) return false;
+    final documents = await _supabase
+        .from('users')
+        .select(
+          'birth_certificate_url, marriage_certificate_url, '
+          'proof_of_residency_url, valid_id',
+        )
+        .eq('id', userId)
+        .maybeSingle();
+    if (documents == null) return false;
+
+    return [
+      documents['birth_certificate_url'],
+      documents['marriage_certificate_url'],
+      documents['proof_of_residency_url'],
+      documents['valid_id'],
+    ].every((value) => value is String && value.trim().isNotEmpty);
+  }
+
+  Future<void> _showBeneficiaryRequiredMessage() async {
+    if (!mounted) return;
+    await showDialog<void>(
+      context: context,
+      barrierDismissible: true,
+      builder: (context) => Dialog(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.info_outline, size: 40),
+              const SizedBox(height: 12),
+              const Text(
+                'Add at least one beneficiary first.',
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 20),
+              FilledButton(
+                onPressed: () => Navigator.of(context).pop(),
+                child: const Text('OK'),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _showDocumentsRequiredMessage() async {
+    if (!mounted) return;
+    await showDialog<void>(
+      context: context,
+      barrierDismissible: true,
+      builder: (context) => Dialog(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.upload_file_outlined, size: 40),
+              const SizedBox(height: 12),
+              const Text(
+                'Upload all 4 profile documents before continuing.',
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 20),
+              FilledButton(
+                onPressed: () => Navigator.of(context).pop(),
+                child: const Text('OK'),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   Future<void> _handleAgreementAccepted() async {
     if (!mounted) return;
-    setState(() {
-      _agreed = true;
-      _step = 1;
-    });
-
     final userId = _supabase.auth.currentUser?.id;
     if (userId == null) return;
 
@@ -149,6 +243,13 @@ class _ApplyMembershipWizardState extends State<ApplyMembershipWizard> {
             .from('applications')
             .update({'is_agree': true})
             .eq('id', existing['id']);
+        final updated = await _supabase
+            .from('applications')
+            .select('is_agree')
+            .eq('id', existing['id'])
+            .maybeSingle();
+        if (!mounted) return;
+        setState(() => _agreed = updated?['is_agree'] == true);
       }
     } catch (e) {
       if (mounted) {
@@ -160,22 +261,19 @@ class _ApplyMembershipWizardState extends State<ApplyMembershipWizard> {
   }
 
   Future<void> _confirmApplication() async {
-    if (_birthCertificate == null || _validId == null) {
+    final userId = _supabase.auth.currentUser?.id;
+    if (userId == null) return;
+
+    if (!await _hasRequiredProfileDocuments()) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Upload your birth certificate and valid ID first.'),
-        ),
+        const SnackBar(content: Text('Upload all 4 profile documents first.')),
       );
       return;
     }
     if (!await _hasBeneficiary()) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Add at least one beneficiary first.')),
-      );
+      await _showBeneficiaryRequiredMessage();
       return;
     }
-    final userId = _supabase.auth.currentUser?.id;
-    if (userId == null) return;
     setState(() => _saving = true);
     try {
       final existing = await _supabase
@@ -195,7 +293,7 @@ class _ApplyMembershipWizardState extends State<ApplyMembershipWizard> {
             .insert({
               'user_id': userId,
               'dayung_unit_id': widget.dayungUnitId,
-              'status': 'for_confirmation',
+              'status': 'pending',
               'name': widget.dayungName,
               'is_agree': _agreed,
             })
@@ -211,10 +309,10 @@ class _ApplyMembershipWizardState extends State<ApplyMembershipWizard> {
             });
           } catch (_) {}
         }
-      } else if (_agreed) {
+      } else {
         await _supabase
             .from('applications')
-            .update({'is_agree': true})
+            .update({'status': 'pending', 'is_agree': true})
             .eq('id', existing['id']);
       }
       if (!mounted) return;
@@ -234,7 +332,83 @@ class _ApplyMembershipWizardState extends State<ApplyMembershipWizard> {
     }
   }
 
-  void _next() {
+  Future<void> _showApplicationConfirmation() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) {
+        var isBisaya = false;
+
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            final message = isBisaya
+                ? 'Gikumpirma nako nga akong nasusi ug nasiguro ang tanang impormasyon '
+                      'nga akong gihatag ug sakto ug kompleto kini. Nasabtan ug '
+                      'giuyonan nako nga ang akong kasabutan, impormasyon sa '
+                      'beneficiary, ug mga sertipiko nga akong gi-upload kay i-save '
+                      'ug isumite para sa review.'
+                : 'I acknowledge that I have reviewed all the information provided and '
+                      'confirm that it is accurate and complete. I understand and agree '
+                      'that my agreement, beneficiary information and uploaded '
+                      'certificates will be securely saved and submitted for review.';
+
+            return AlertDialog(
+              insetPadding: const EdgeInsets.symmetric(
+                horizontal: 32,
+                vertical: 24,
+              ),
+              title: Center(
+                child: Text(
+                  isBisaya ? 'Kumpirma ang Aplikasyon' : 'Confirm Application',
+                ),
+              ),
+              content: SizedBox(
+                width: 520,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Align(
+                      alignment: Alignment.centerRight,
+                      child: TextButton.icon(
+                        onPressed: () =>
+                            setDialogState(() => isBisaya = !isBisaya),
+                        icon: const Icon(Icons.translate),
+                        label: Text(
+                          isBisaya ? 'Show English' : 'Translate to Bisaya',
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      message,
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(fontSize: 25, height: 1.5),
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(dialogContext).pop(false),
+                  child: Text(isBisaya ? 'Dili' : 'Cancel'),
+                ),
+                ElevatedButton(
+                  onPressed: () => Navigator.of(dialogContext).pop(true),
+                  child: Text(isBisaya ? 'Kumpirma' : 'Confirm'),
+                ),
+              ],
+              actionsAlignment: MainAxisAlignment.center,
+            );
+          },
+        );
+      },
+    );
+
+    if (confirmed == true && mounted) {
+      await _confirmApplication();
+    }
+  }
+
+  Future<void> _next() async {
     if (_step == 0 && !_agreed) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -243,14 +417,34 @@ class _ApplyMembershipWizardState extends State<ApplyMembershipWizard> {
       );
       return;
     }
+
+    if (_step == 1 && !await _hasBeneficiary()) {
+      if (!mounted) return;
+      await _showBeneficiaryRequiredMessage();
+      return;
+    }
+
+    if (_step == 2 && !await _hasRequiredProfileDocuments()) {
+      if (!mounted) return;
+      await _showDocumentsRequiredMessage();
+      return;
+    }
+
     if (_step < 3) setState(() => _step++);
+  }
+
+  void _goToLogin() {
+    Navigator.of(context).pushNamedAndRemoveUntil('/login', (route) => false);
   }
 
   @override
   Widget build(BuildContext context) {
     const titles = ['Agreement', 'Beneficiary', 'Certificates', 'Confirm'];
     return Scaffold(
-      appBar: AppBar(title: Text('Apply to ${widget.dayungName}')),
+      appBar: AppBar(
+        title: Text('Apply to ${widget.dayungName}'),
+        actions: [TextButton(onPressed: _goToLogin, child: const Text('BACK'))],
+      ),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
           : SafeArea(
@@ -296,35 +490,61 @@ class _ApplyMembershipWizardState extends State<ApplyMembershipWizard> {
   Widget _buildStep() {
     switch (_step) {
       case 0:
-        return MembershipAgreementPage(
-          showBackButton: false,
-          persistAgreement: false,
-          initialContent: RequiredApplicationContent(
-            mainTitle: _agreementTitle ?? '',
-            sections: _agreementSections,
-          ),
-          onAgreementAccepted: () => _handleAgreementAccepted(),
+        return Column(
+          children: [
+            Expanded(
+              child: MembershipAgreementPage(
+                showBackButton: false,
+                persistAgreement: false,
+                initialContent: RequiredApplicationContent(
+                  mainTitle: _agreementTitle ?? '',
+                  sections: _agreementSections,
+                ),
+                initialAgreed: _agreed,
+                onAgreementAccepted: _handleAgreementAccepted,
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(18, 0, 18, 16),
+              child: FilledButton(
+                onPressed: _agreed && !_saving ? _next : null,
+                child: const Text('Next'),
+              ),
+            ),
+          ],
         );
       case 1:
-        return const BeneficiaryPage(embedded: true, showBackButton: false);
+        return Column(
+          children: [
+            Expanded(
+              child: BeneficiaryPage(embedded: true, showBackButton: false),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(18, 0, 18, 16),
+              child: FilledButton(
+                onPressed: _saving ? null : _next,
+                child: const Text('Continue'),
+              ),
+            ),
+          ],
+        );
       case 2:
-        return _stepCard(
-          'Upload Certificates',
-          Column(
-            children: [
-              _uploadTile(
-                'Birth certificate',
-                _birthCertificate,
-                () => _uploadDocument(type: 'birth'),
+        return Column(
+          children: [
+            const Expanded(
+              child: ProfSettingsPage(
+                showBackButton: false,
+                showManageDayung: false,
               ),
-              const SizedBox(height: 12),
-              _uploadTile(
-                'Valid ID',
-                _validId,
-                () => _uploadDocument(type: 'valid'),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(18, 0, 18, 16),
+              child: FilledButton(
+                onPressed: _saving ? null : _next,
+                child: const Text('Continue'),
               ),
-            ],
-          ),
+            ),
+          ],
         );
       default:
         return _stepCard(
@@ -345,7 +565,7 @@ class _ApplyMembershipWizardState extends State<ApplyMembershipWizard> {
               ),
               const SizedBox(height: 20),
               FilledButton.icon(
-                onPressed: _saving ? null : _confirmApplication,
+                onPressed: _saving ? null : _showApplicationConfirmation,
                 icon: const Icon(Icons.check_circle_outline),
                 label: const Text('Confirm and submit application'),
               ),

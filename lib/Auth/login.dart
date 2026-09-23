@@ -4,6 +4,7 @@ import 'package:capstone_app/Auth/force_password_change_page.dart';
 import 'package:capstone_app/Auth/pin_service.dart';
 import 'package:capstone_app/Auth/pin_setup_page.dart';
 import 'package:capstone_app/Providers/role_router.dart';
+import 'package:capstone_app/pages/apply_membership.dart';
 import 'package:capstone_app/ui/theme/branding.dart';
 import 'package:capstone_app/Providers/dayung_provider.dart';
 import 'package:capstone_app/Providers/dayung_role_provider.dart';
@@ -29,6 +30,11 @@ const Color kBorderColor = Color(0xFFE5E7EB);
 const Color kSuccess = Color(0xFF10B981);
 const double kEdge = 16;
 const String kSelectedDayungUnitOwnerIdKey = 'selectedDayungUnitOwnerId';
+
+bool shouldOpenApplyMembershipWizard(String? status) {
+  final normalized = status?.trim().toLowerCase();
+  return normalized == 'for_confirmation';
+}
 
 class Login extends StatefulWidget {
   const Login({super.key});
@@ -697,6 +703,41 @@ class _LoginState extends State<Login> {
         MaterialPageRoute(builder: (_) => const RoleRouter()),
       );
       return;
+    }
+
+    try {
+      final application = await sb
+          .from('applications')
+          .select('id, dayung_unit_id, status, name')
+          .eq('user_id', uid)
+          .eq('status', 'for_confirmation')
+          .order('applied_at', ascending: false)
+          .limit(1)
+          .maybeSingle();
+
+      final shouldOpen = shouldOpenApplyMembershipWizard(
+        application?['status']?.toString(),
+      );
+
+      if (shouldOpen && application != null && mounted) {
+        final dayungUnitId = application['dayung_unit_id'];
+        final dayungName = (application['name'] ?? 'Dayung').toString();
+
+        if (dayungUnitId is int) {
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(
+              builder: (_) => ApplyMembershipWizard(
+                dayungUnitId: dayungUnitId,
+                dayungName: dayungName,
+              ),
+            ),
+          );
+          return;
+        }
+      }
+    } catch (_) {
+      // Fall back to the normal dashboard routing if the status check fails.
     }
 
     // Clear any stale SuperAdmin/officer flags from a previous session before

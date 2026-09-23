@@ -26,8 +26,14 @@ const kSoftBg = Color(0xFFF8FAFC);
 class ProfSettingsPage extends StatefulWidget {
   final VoidCallback? onBack;
   final bool showBackButton;
+  final bool showManageDayung;
 
-  const ProfSettingsPage({super.key, this.onBack, this.showBackButton = true});
+  const ProfSettingsPage({
+    super.key,
+    this.onBack,
+    this.showBackButton = true,
+    this.showManageDayung = true,
+  });
 
   @override
   State<ProfSettingsPage> createState() => _ProfSettingsPageState();
@@ -595,96 +601,97 @@ class _ProfSettingsPageState extends State<ProfSettingsPage> {
                 ),
               ),
 
-              const SizedBox(height: 18),
-
-              _buildSectionCard(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.all(12),
-                          decoration: BoxDecoration(
-                            color: _successColor.withValues(alpha: 0.10),
-                            borderRadius: BorderRadius.circular(16),
-                          ),
-                          child: Icon(
-                            Icons.groups_rounded,
-                            color: _successColor,
-                            size: 24,
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text('Manage Dayung', style: titleStyle),
-                              // const SizedBox(height: 4),
-                              // Text(
-                              //   'Open your Dayung page to review your current unit, switch, or apply to another one.',
-                              //   style: bodyStyle,
-                              // ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                    // const SizedBox(height: 16),
-                    // Container(
-                    //   width: double.infinity,
-                    //   padding: const EdgeInsets.all(14),
-                    //   decoration: BoxDecoration(
-                    //     color: _softColor,
-                    //     borderRadius: BorderRadius.circular(16),
-                    //     border: Border.all(color: _borderColor),
-                    //   ),
-                    //   child: Row(
-                    //     children: [
-                    //       Icon(Icons.swap_horiz_rounded, color: _primaryColor),
-                    //       const SizedBox(width: 10),
-                    //       Expanded(
-                    //         child: Text(
-                    //           'This section includes Change Dayung, recommendations, and map access.',
-                    //           style: bodyStyle.copyWith(color: _textColor),
-                    //         ),
-                    //       ),
-                    //     ],
-                    //   ),
-                    // ),
-                    const SizedBox(height: 16),
-                    SizedBox(
-                      width: double.infinity,
-                      child: ElevatedButton.icon(
-                        onPressed: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) => const DayungSettingsPage(),
+              if (widget.showManageDayung) ...[
+                const SizedBox(height: 18),
+                _buildSectionCard(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: _successColor.withValues(alpha: 0.10),
+                              borderRadius: BorderRadius.circular(16),
                             ),
-                          );
-                        },
-                        icon: const Icon(Icons.arrow_forward_rounded),
-                        label: const Text('Open Dayung Settings'),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: _primaryColor,
-                          foregroundColor: Colors.white,
-                          minimumSize: const Size.fromHeight(52),
-                          elevation: 0,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(16),
+                            child: Icon(
+                              Icons.groups_rounded,
+                              color: _successColor,
+                              size: 24,
+                            ),
                           ),
-                          textStyle: const TextStyle(
-                            fontWeight: FontWeight.w700,
-                            fontFamily: 'Montserrat',
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text('Manage Dayung', style: titleStyle),
+                                // const SizedBox(height: 4),
+                                // Text(
+                                //   'Open your Dayung page to review your current unit, switch, or apply to another one.',
+                                //   style: bodyStyle,
+                                // ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                      // const SizedBox(height: 16),
+                      // Container(
+                      //   width: double.infinity,
+                      //   padding: const EdgeInsets.all(14),
+                      //   decoration: BoxDecoration(
+                      //     color: _softColor,
+                      //     borderRadius: BorderRadius.circular(16),
+                      //     border: Border.all(color: _borderColor),
+                      //   ),
+                      //   child: Row(
+                      //     children: [
+                      //       Icon(Icons.swap_horiz_rounded, color: _primaryColor),
+                      //       const SizedBox(width: 10),
+                      //       Expanded(
+                      //         child: Text(
+                      //           'This section includes Change Dayung, recommendations, and map access.',
+                      //           style: bodyStyle.copyWith(color: _textColor),
+                      //         ),
+                      //       ),
+                      //     ],
+                      //   ),
+                      // ),
+                      const SizedBox(height: 16),
+                      SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton.icon(
+                          onPressed: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => const DayungSettingsPage(),
+                              ),
+                            );
+                          },
+                          icon: const Icon(Icons.arrow_forward_rounded),
+                          label: const Text('Open Dayung Settings'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: _primaryColor,
+                            foregroundColor: Colors.white,
+                            minimumSize: const Size.fromHeight(52),
+                            elevation: 0,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(16),
+                            ),
+                            textStyle: const TextStyle(
+                              fontWeight: FontWeight.w700,
+                              fontFamily: 'Montserrat',
+                            ),
                           ),
                         ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
-              ),
+              ],
             ],
           ),
         ),

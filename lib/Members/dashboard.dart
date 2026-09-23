@@ -5,7 +5,6 @@ import 'package:capstone_app/Members/memcontributions.dart';
 import 'package:capstone_app/Members/receipts.dart';
 import 'package:capstone_app/Providers/dayung_provider.dart';
 import 'package:capstone_app/pages/notification.dart';
-import 'package:capstone_app/pages/membership_agreement_page.dart';
 import 'package:capstone_app/pages/recentdeathnotices.dart';
 import 'package:capstone_app/Auth/login.dart';
 import 'package:capstone_app/profile/dayung_profile.dart';
@@ -70,6 +69,7 @@ class _MemberDashboardPageState extends State<MemberDashboardPage>
   int _unreadNotifCount = 0;
   int _activeMembersCount = 0;
   bool _hasPendingApplication = false;
+  bool _hasApprovedApplication = false;
   String? _pendingApplicationDayungName;
   int? _pendingApplicationDayungUnitId;
   int? _asInt(dynamic v) => v == null ? null : int.tryParse(v.toString());
@@ -200,9 +200,15 @@ class _MemberDashboardPageState extends State<MemberDashboardPage>
           .order('id', ascending: false);
 
       final hasApplications = (applicationRows as List).isNotEmpty;
+      final hasApprovedApplication = applicationRows.any(
+        (application) =>
+            (application['status'] ?? '').toString().toLowerCase().trim() ==
+            'approved',
+      );
       if (!mounted) return;
       setState(() {
         _hasAppliedBefore = hasApplications;
+        _hasApprovedApplication = hasApprovedApplication;
       });
 
       final row = hasApplications ? applicationRows.first : null;
@@ -242,6 +248,7 @@ class _MemberDashboardPageState extends State<MemberDashboardPage>
       if (!mounted) return;
       setState(() {
         _hasPendingApplication = false;
+        _hasApprovedApplication = false;
         _hasAppliedBefore = false;
         _pendingApplicationDayungName = null;
         _pendingApplicationDayungUnitId = null;
@@ -939,15 +946,17 @@ class _MemberDashboardPageState extends State<MemberDashboardPage>
           Row(
             children: [
               Expanded(
-                child: Text(
-                  'Good Morning!\n$_fullName',
-                  style: const TextStyle(
-                    fontFamily: 'Montserrat',
-                    fontSize: 28,
-                    fontWeight: FontWeight.w900,
-                    height: 1.1,
-                    color: Colors.white,
-                    letterSpacing: 0.5,
+                child: dayungGreetingPanel(
+                  child: Text(
+                    'Good Morning!\n$_fullName',
+                    style: const TextStyle(
+                      fontFamily: 'Montserrat',
+                      fontSize: 28,
+                      fontWeight: FontWeight.w900,
+                      height: 1.1,
+                      color: Colors.white,
+                      letterSpacing: 0.5,
+                    ),
                   ),
                 ),
               ),
@@ -1244,7 +1253,9 @@ class _MemberDashboardPageState extends State<MemberDashboardPage>
               context,
               MaterialPageRoute(
                 builder: (_) => GCashPaymentPage(
-                  dayungUnitId: _asInt(_selectedDayungUnitObj?['id']),
+                  dayungUnitId:
+                      context.read<DayungUnitProvider>().currentUnitId ??
+                      _asInt(_selectedDayungUnitObj?['id']),
                 ),
               ),
             );
@@ -1328,15 +1339,15 @@ class _MemberDashboardPageState extends State<MemberDashboardPage>
         : _pendingApplicationDayungUnitId != null
         ? 'Dayung unit #$_pendingApplicationDayungUnitId'
         : 'selected Dayung unit';
-    final reviewButton = ElevatedButton.icon(
+    final findMoreDayungButton = ElevatedButton.icon(
       onPressed: () {
         Navigator.push(
           context,
-          MaterialPageRoute(builder: (_) => const MembershipAgreementPage()),
+          MaterialPageRoute(builder: (_) => const DayungSettingsPage()),
         );
       },
-      icon: const Icon(Icons.arrow_forward_rounded, size: 18),
-      label: const Text('Review agreement'),
+      icon: const Icon(Icons.search_rounded, size: 18),
+      label: const Text('Find More Dayung'),
       style: ElevatedButton.styleFrom(
         backgroundColor: const Color(0xFFB45309),
         foregroundColor: Colors.white,
@@ -1397,11 +1408,15 @@ class _MemberDashboardPageState extends State<MemberDashboardPage>
                       ),
                     ),
                     const SizedBox(height: 10),
-                    if (isCompact) reviewButton,
+                    if (isCompact && !_hasApprovedApplication)
+                      findMoreDayungButton,
                   ],
                 ),
               ),
-              if (!isCompact) ...[const SizedBox(width: 16), reviewButton],
+              if (!isCompact && !_hasApprovedApplication) ...[
+                const SizedBox(width: 16),
+                findMoreDayungButton,
+              ],
             ],
           ),
         );
@@ -1631,7 +1646,9 @@ class _MemberDashboardPageState extends State<MemberDashboardPage>
   }
 
   Widget _modernQuickActions() {
-    final id = _asInt(_selectedDayungUnitObj?['id']);
+    final id =
+        context.read<DayungUnitProvider>().currentUnitId ??
+        _asInt(_selectedDayungUnitObj?['id']);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1965,7 +1982,9 @@ class _MemberDashboardPageState extends State<MemberDashboardPage>
               onPressed: loading
                   ? null
                   : () {
-                      final id = _asInt(_selectedDayungUnitObj?['id']);
+                      final id =
+                          context.read<DayungUnitProvider>().currentUnitId ??
+                          _asInt(_selectedDayungUnitObj?['id']);
                       if (id == null) {
                         return;
                       }

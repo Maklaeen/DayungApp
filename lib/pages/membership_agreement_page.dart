@@ -9,6 +9,7 @@ class MembershipAgreementPage extends StatefulWidget {
   final VoidCallback? onAgreementAccepted;
   final bool showBackButton;
   final bool persistAgreement;
+  final bool initialAgreed;
   final RequiredApplicationContent? initialContent;
 
   const MembershipAgreementPage({
@@ -17,6 +18,7 @@ class MembershipAgreementPage extends StatefulWidget {
     this.onAgreementAccepted,
     this.showBackButton = true,
     this.persistAgreement = true,
+    this.initialAgreed = false,
     this.initialContent,
   });
 
@@ -44,6 +46,7 @@ class _MembershipAgreementPageState extends State<MembershipAgreementPage> {
     super.initState();
     if (widget.initialContent != null) {
       _content = widget.initialContent!;
+      _hasAgreed = widget.initialAgreed;
       return;
     }
     _fetchAgreementContent();
@@ -282,7 +285,7 @@ class _MembershipAgreementPageState extends State<MembershipAgreementPage> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Membership Agreement4',
+                      'Membership Agreement',
                       style: TextStyle(
                         fontSize: isWide ? 24 : 20,
                         fontWeight: FontWeight.w800,
@@ -398,7 +401,7 @@ class _MembershipAgreementPageState extends State<MembershipAgreementPage> {
                                     ),
                                   )
                                 : Text(
-                                    _hasAgreed ? 'Already Agreed' : 'I Agree',
+                                    _hasAgreed ? 'Agreed ✓' : 'I Agree',
                                     style: const TextStyle(
                                       color: Colors.white,
                                       fontSize: 16,

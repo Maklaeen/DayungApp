@@ -571,19 +571,22 @@ class _SecretaryMembersPageState extends State<SecretaryMembersPage>
         ),
       ),
       child: ListTile(
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 16,
+          vertical: 10,
+        ),
         leading: CircleAvatar(
           backgroundImage: (profileUrl != null && profileUrl.isNotEmpty)
               ? NetworkImage(profileUrl)
               : null,
           backgroundColor: kBg,
-          radius: 16,
+          radius: 22,
           child: (profileUrl == null || profileUrl.isEmpty)
               ? Text(
                   _initialOf(u?['full_name']),
                   style: const TextStyle(
                     fontWeight: FontWeight.bold,
-                    fontSize: 12,
+                    fontSize: 15,
                     color: kPrimaryDark,
                   ),
                 )
@@ -595,7 +598,7 @@ class _SecretaryMembersPageState extends State<SecretaryMembersPage>
           overflow: TextOverflow.ellipsis,
           style: const TextStyle(
             fontWeight: FontWeight.w600,
-            fontSize: 12,
+            fontSize: 16,
             color: kPrimaryDark,
             fontFamily: 'Montserrat',
           ),
@@ -605,13 +608,13 @@ class _SecretaryMembersPageState extends State<SecretaryMembersPage>
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
           style: const TextStyle(
-            fontSize: 10,
+            fontSize: 14,
             color: kSubtleText,
             fontFamily: 'OpenSans',
           ),
         ),
         trailing: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
           decoration: BoxDecoration(
             color: chipColor.withValues(alpha: .15),
             borderRadius: BorderRadius.circular(12),
@@ -620,7 +623,7 @@ class _SecretaryMembersPageState extends State<SecretaryMembersPage>
           child: Text(
             chipText,
             style: TextStyle(
-              fontSize: 8,
+              fontSize: 13,
               fontWeight: FontWeight.w600,
               color: chipColor,
             ),

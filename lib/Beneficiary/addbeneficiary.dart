@@ -720,7 +720,7 @@ class _AddBeneficiaryPageState extends State<AddBeneficiaryPage> {
                 ],
                 Expanded(
                   child: Text(
-                    widget.embedded ? 'My Beneficiaries' : 'Add Beneficiary',
+                    widget.embedded ? 'My Beneficiaries1' : 'Add Beneficiary',
                     style: TextStyle(
                       fontSize: isWide ? 24 : 17,
                       fontWeight: FontWeight.w800,

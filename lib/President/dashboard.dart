@@ -497,16 +497,18 @@ class _PresidentDashboardPageState extends State<PresidentDashboardPage> {
           const SizedBox(height: 24),
           Row(
             children: [
-              const Expanded(
-                child: Text(
-                  'Good Morning,\nPresident!',
-                  style: TextStyle(
-                    fontFamily: 'Montserrat',
-                    fontSize: 28,
-                    fontWeight: FontWeight.w900,
-                    height: 1.1,
-                    color: Colors.white,
-                    letterSpacing: 0.5,
+              Expanded(
+                child: dayungGreetingPanel(
+                  child: const Text(
+                    'Good Morning,\nPresident!',
+                    style: TextStyle(
+                      fontFamily: 'Montserrat',
+                      fontSize: 28,
+                      fontWeight: FontWeight.w900,
+                      height: 1.1,
+                      color: Colors.white,
+                      letterSpacing: 0.5,
+                    ),
                   ),
                 ),
               ),
