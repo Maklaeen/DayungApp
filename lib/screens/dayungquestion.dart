@@ -2,8 +2,8 @@
 
 import 'dart:math';
 
-import 'package:capstone_app/Members/dashboard.dart';
 import 'package:capstone_app/screens/dayung_map_page.dart';
+import 'package:capstone_app/Providers/role_router.dart';
 import 'package:capstone_app/utils/dayung_service_tags.dart';
 import 'package:capstone_app/utils/dayung_similarity.dart';
 import 'package:flutter/material.dart';
@@ -1082,7 +1082,7 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
                       if (!mounted) return;
                       navigator.pushReplacement(
                         MaterialPageRoute(
-                          builder: (_) => const MemberDashboardPage(),
+                          builder: (_) => const RoleRouter(),
                         ),
                       );
                     },

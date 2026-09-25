@@ -1,7 +1,7 @@
 import 'dart:typed_data';
 
 import 'package:capstone_app/Beneficiary/beneficiary.dart';
-import 'package:capstone_app/Members/dashboard.dart';
+import 'package:capstone_app/Providers/role_router.dart';
 import 'package:capstone_app/pages/membership_agreement_page.dart';
 import 'package:capstone_app/profile/required_application_page.dart';
 import 'package:capstone_app/settings/profsettings.dart';
@@ -318,7 +318,7 @@ class _ApplyMembershipWizardState extends State<ApplyMembershipWizard> {
       if (!mounted) return;
       Navigator.pushAndRemoveUntil(
         context,
-        MaterialPageRoute(builder: (_) => const MemberDashboardPage()),
+        MaterialPageRoute(builder: (_) => const RoleRouter()),
         (_) => false,
       );
     } catch (e) {

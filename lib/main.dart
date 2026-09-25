@@ -10,7 +10,6 @@ import 'package:capstone_app/Auth/auth_redirects.dart';
 import 'package:capstone_app/Auth/idle_timeout_manage.dart';
 import 'package:capstone_app/Auth/password_recovery_page.dart';
 import 'package:capstone_app/Collector/dashboard.dart';
-import 'package:capstone_app/Members/dashboard.dart';
 import 'package:capstone_app/President/dashboard.dart';
 import 'package:capstone_app/Providers/apptheme_provider.dart';
 import 'package:capstone_app/Providers/dayung_provider.dart';
@@ -573,7 +572,7 @@ class _MyAppState extends State<MyApp> {
                 kPasswordRecoveryRoute: (context) =>
                     const PasswordRecoveryPage(),
                 '/reapply': (context) => Reapply(),
-                '/dashboard': (context) => MemberDashboardPage(),
+                '/dashboard': (context) => const RoleRouter(),
                 '/president-dashboard': (context) => PresidentDashboardPage(),
                 '/secretary-dashboard': (context) =>
                     const SecretaryDashboardPage(),

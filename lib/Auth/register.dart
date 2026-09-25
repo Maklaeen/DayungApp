@@ -1172,20 +1172,20 @@ class _RegisterState extends State<Register> {
           ),
         ),
         if (addressController.text.isNotEmpty) ...[
-          const SizedBox(height: 10),
-          Align(
-            alignment: Alignment.centerLeft,
-            child: Text(
-              _latitude == null
-                  ? 'Address selected. Location still being verified.'
-                  : 'Location verified successfully.',
-              style: TextStyle(
-                color: _latitude == null ? kWarn : kSuccess,
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ),
+          // const SizedBox(height: 10),
+          // Align(
+          //   alignment: Alignment.centerLeft,
+          //   child: Text(
+          //     _latitude == null
+          //         ? 'Address selected. Location still being verified.'
+          //         : 'Location verified successfully.',
+          //     style: TextStyle(
+          //       color: _latitude == null ? kWarn : kSuccess,
+          //       fontSize: 12,
+          //       fontWeight: FontWeight.w600,
+          //     ),
+          //   ),
+          // ),
         ],
       ],
     );

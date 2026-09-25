@@ -127,15 +127,6 @@ class _MemberDashboardPageState extends State<MemberDashboardPage>
     await _load();
   }
 
-  // Future<void> _load() async {
-  //   await Future.wait([
-  //     _fetchActiveMembers(),
-  //     _fetchRecentDeaths(),
-  //     _fetchPendingPayments(),
-  //     _fetchRecentActivity(),
-  //   ]);
-  // }
-
   Future<List<int>> _managedDayungIds() async {
     final uid = supabase.auth.currentUser?.id;
     if (uid == null) return <int>[];
@@ -168,14 +159,6 @@ class _MemberDashboardPageState extends State<MemberDashboardPage>
       debugPrint('Failed to load member dashboard data: $e');
     }
   }
-
-  // Future<void> _bootstrapOnce() async {
-  //   await _loadUserData();
-  //   await _reloadDayungFromPrefs();
-  //   if (!mounted) return;
-  //   await _fetchUnreadNotifCount();
-  //   await _fetchAllStats();
-  //   _subscribeNotificationsRealtime();
 
   Future<void> _fetchPendingApplication() async {
     if (mounted) {
@@ -376,7 +359,7 @@ class _MemberDashboardPageState extends State<MemberDashboardPage>
                       if (!mounted) return;
                       Navigator.of(context).pop();
                       _handlingOverlay = false;
-                      await _fetchUnreadNotifCount(); // light update only
+                      await _fetchUnreadNotifCount();
                     },
                     child: const Text(
                       'Continue',
@@ -428,93 +411,6 @@ class _MemberDashboardPageState extends State<MemberDashboardPage>
       debugPrint('Failed to reload Dayung from prefs: $e');
     }
   }
-
-  // Future<void> _loadOrAskDayung() async {
-  //   final prefs = await SharedPreferences.getInstance();
-  //   final unitJson = prefs.getString('selectedDayungUnit');
-  //   if (unitJson != null) {
-  //     try {
-  //       final unit = jsonDecode(unitJson);
-  //       final id = _asInt((unit as Map)['id']);
-  //       if (id != null && await _isApprovedForUnit(id)) {
-  //         if (!mounted) return;
-  //         setState(() {
-  //           _selectedDayungUnit = (unit['name'] ?? 'Dayung Unit').toString();
-  //           _selectedDayungUnitObj = Map<String, dynamic>.from(unit);
-  //           _unitBarangay = (unit['barangay'] ?? '').toString().trim().isEmpty
-  //               ? null
-  //               : unit['barangay'].toString();
-  //           _unitCity = (unit['city'] ?? '').toString().trim().isEmpty
-  //               ? null
-  //               : unit['city'].toString();
-  //           _dayungUnitId = id;
-  //         });
-  //         return;
-  //       } else {
-  //         await prefs.setString('selectedDayungUnit', jsonEncode(unit));
-  //         if (!mounted) return;
-  //         setState(() {
-  //           _selectedDayungUnitObj = Map<String, dynamic>.from(unit);
-  //           _selectedDayungUnit = (unit['name'] ?? 'Dayung Unit').toString();
-  //           _dayungUnitId = _asInt(unit['id']);
-  //           _unitBarangay = (unit['barangay'] ?? '').toString().trim().isEmpty
-  //               ? null
-  //               : unit['barangay'].toString();
-  //           _unitCity = (unit['city'] ?? '').toString().trim().isEmpty
-  //               ? null
-  //               : unit['city'].toString();
-  //         });
-  //         return;
-  //       }
-  //     } catch (_) {
-  //       await prefs.remove('selectedDayungUnit');
-  //     }
-  //   }
-  //   try {
-  //     final uid = supabase.auth.currentUser?.id;
-  //     if (uid != null) {
-  //       final apps = await supabase
-  //           .from('applications')
-  //           .select('dayung_unit_id, approved_at')
-  //           .eq('user_id', uid)
-  //           .eq('status', 'approved')
-  //           .order('approved_at', ascending: false)
-  //           .limit(1);
-
-  //       final list = (apps as List);
-  //       if (list.isNotEmpty) {
-  //         final dId = _asInt((list.first as Map)['dayung_unit_id']);
-  //         if (dId != null) {
-  //           final unit = await supabase
-  //               .from('dayung_units')
-  //               .select('id, name, barangay, city')
-  //               .eq('id', dId)
-  //               .maybeSingle();
-  //           if (unit != null) {
-  //             await prefs.setString('selectedDayungUnit', jsonEncode(unit));
-  //             if (!mounted) return;
-  //             setState(() {
-  //               _selectedDayungUnitObj = Map<String, dynamic>.from(unit);
-  //               _selectedDayungUnit = (unit['name'] ?? 'Dayung Unit')
-  //                   .toString();
-  //               _unitBarangay =
-  //                   (unit['barangay'] ?? '').toString().trim().isEmpty
-  //                   ? null
-  //                   : unit['barangay'].toString();
-  //               _unitCity = (unit['city'] ?? '').toString().trim().isEmpty
-  //                   ? null
-  //                   : unit['city'].toString();
-  //               _dayungUnitId = dId;
-  //             });
-  //             return;
-  //           }
-  //         }
-  //       }
-  //     }
-  //   } catch (_) {}
-  //   if (!mounted) return;
-  //   await _navigateAndPickUnit();
-  // }
 
   Future<void> _fetchAllStats() async {
     await Future.wait([
@@ -960,37 +856,6 @@ class _MemberDashboardPageState extends State<MemberDashboardPage>
                   ),
                 ),
               ),
-              // GestureDetector(
-              //   onTap: () {
-              //     Navigator.push(
-              //       context,
-              //       MaterialPageRoute(builder: (_) => const ProfilePage()),
-              //     );
-              //   },
-              //   child: Container(
-              //     padding: const EdgeInsets.all(4),
-              //     decoration: BoxDecoration(
-              //       color: Colors.white.withOpacity(0.2),
-              //       borderRadius: BorderRadius.circular(32),
-              //       boxShadow: [
-              //         BoxShadow(
-              //           color: Colors.black.withOpacity(0.1),
-              //           blurRadius: 8,
-              //           offset: const Offset(0, 2),
-              //         ),
-              //       ],
-              //     ),
-              //     child: const CircleAvatar(
-              //       radius: 28,
-              //       backgroundColor: Colors.white,
-              //       child: Icon(
-              //         Icons.person,
-              //         size: 34,
-              //         color: Color(0xFF1E40AF),
-              //       ),
-              //     ),
-              //   ),
-              // ),
             ],
           ),
         ],
