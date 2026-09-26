@@ -636,7 +636,6 @@ class _AddBeneficiaryPageState extends State<AddBeneficiaryPage> {
               'relationship': relationship,
               'birth_certificate': birthCertificateFile,
               'valid_id': validIdFile,
-              'status': 'Pending',
               'dayung_unit_id': unitText,
             },
           ])

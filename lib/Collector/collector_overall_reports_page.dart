@@ -9,6 +9,8 @@ class _ReportMember {
   final double advanceAmount;
   final int advanceDeathCount;
   final String status;
+  final String reference;
+  final String receiptId;
 
   const _ReportMember({
     required this.name,
@@ -17,6 +19,8 @@ class _ReportMember {
     required this.advanceAmount,
     this.advanceDeathCount = 0,
     this.status = '',
+    this.reference = '',
+    this.receiptId = 'N/A',
   });
 }
 
@@ -37,52 +41,26 @@ class _CollectorOverallReportsPageState
   String? _cashMembersError;
   bool _loadingNotPaidMembers = false;
   String? _notPaidMembersError;
+  bool _loadingAdvanceMembers = false;
+  String? _advanceMembersError;
 
-  final _cashlessMembers = const [
-    _ReportMember(
-      name: 'Member 1',
-      amount: 200,
-      advanceAmount: 0,
-      proofUrl: 'https://placeholder.com/r1.jpg',
-    ),
-    _ReportMember(
-      name: 'Member 2',
-      amount: 100,
-      advanceAmount: 0,
-      proofUrl: 'https://placeholder.com/r2.jpg',
-    ),
-    _ReportMember(
-      name: 'Member 3',
-      amount: 500,
-      advanceAmount: 0,
-      proofUrl: 'https://placeholder.com/r3.jpg',
-    ),
-  ];
+  List<_ReportMember> _cashlessMembers = [];
+  bool _loadingCashlessMembers = false;
+  String? _cashlessMembersError;
 
   List<_ReportMember> _cashMembers = [];
 
   List<_ReportMember> _notPaidMembers = [];
 
-  final _advanceMembers = const [
-    _ReportMember(
-      name: 'Member 1',
-      amount: 100,
-      advanceAmount: 100,
-      advanceDeathCount: 1,
-    ),
-    _ReportMember(
-      name: 'Member 2',
-      amount: 300,
-      advanceAmount: 300,
-      advanceDeathCount: 3,
-    ),
-  ];
+  List<_ReportMember> _advanceMembers = [];
 
   @override
   void initState() {
     super.initState();
+    _loadCashlessMembers();
     _loadCashMembers();
     _loadNotPaidMembers();
+    _loadAdvanceMembers();
   }
 
   Future<List<String>> _assignedUserIdsForCurrentCollector() async {
@@ -173,6 +151,95 @@ class _CollectorOverallReportsPageState
     }
   }
 
+  Future<void> _loadCashlessMembers() async {
+    setState(() {
+      _loadingCashlessMembers = true;
+      _cashlessMembersError = null;
+    });
+
+    try {
+      final assignedUserIds = await _assignedUserIdsForCurrentCollector();
+      if (assignedUserIds.isEmpty) {
+        if (!mounted) return;
+        setState(() {
+          _cashlessMembers = [];
+          _loadingCashlessMembers = false;
+        });
+        return;
+      }
+
+      final paymentRows = await Supabase.instance.client
+          .from('payments')
+          .select(
+            'amount, qr_id, user_id, users!payments_user_id_fkey(full_name)',
+          )
+          .eq('dayung_unit_id', widget.dayungUnitId)
+          .inFilter('user_id', assignedUserIds)
+          .not('qr_id', 'is', null)
+          .order('created_at', ascending: false);
+
+      final qrIds = List<Map<String, dynamic>>.from(paymentRows)
+          .map((row) => (row['qr_id'] ?? '').toString())
+          .where((qrId) => qrId.isNotEmpty)
+          .toSet()
+          .toList();
+      if (qrIds.isEmpty) {
+        if (!mounted) return;
+        setState(() {
+          _cashlessMembers = [];
+          _loadingCashlessMembers = false;
+        });
+        return;
+      }
+
+      final qrRows = await Supabase.instance.client
+          .from('gcash_qr_codes')
+          .select('id, image_url, refno')
+          .inFilter('id', qrIds);
+      final qrById = {
+        for (final row in List<Map<String, dynamic>>.from(qrRows))
+          (row['id'] ?? '').toString(): row,
+      };
+
+      final members = <_ReportMember>[];
+      for (final row in List<Map<String, dynamic>>.from(paymentRows)) {
+        final qrId = (row['qr_id'] ?? '').toString();
+        final qr = qrById[qrId];
+        if (qr == null) continue;
+
+        final user = row['users'];
+        final name = user is Map
+            ? (user['full_name'] ?? 'Member').toString()
+            : 'Member';
+        final proofUrl = (qr['image_url'] ?? '').toString();
+        members.add(
+          _ReportMember(
+            name: name,
+            amount: _toDouble(row['amount']),
+            advanceAmount: 0,
+            proofUrl: proofUrl.isEmpty ? null : proofUrl,
+            status: (row['status'] ?? 'paid').toString().toLowerCase(),
+            reference: (qr['refno'] ?? '').toString(),
+            receiptId: qrId,
+          ),
+        );
+      }
+
+      if (!mounted) return;
+      setState(() {
+        _cashlessMembers = members;
+        _loadingCashlessMembers = false;
+      });
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _cashlessMembers = [];
+        _loadingCashlessMembers = false;
+        _cashlessMembersError = 'Failed to load cashless payments: $error';
+      });
+    }
+  }
+
   Future<void> _loadNotPaidMembers() async {
     setState(() {
       _loadingNotPaidMembers = true;
@@ -235,6 +302,77 @@ class _CollectorOverallReportsPageState
         _notPaidMembers = [];
         _loadingNotPaidMembers = false;
         _notPaidMembersError = 'Failed to load unpaid payments: $error';
+      });
+    }
+  }
+
+  Future<void> _loadAdvanceMembers() async {
+    setState(() {
+      _loadingAdvanceMembers = true;
+      _advanceMembersError = null;
+    });
+
+    try {
+      final assignedUserIds = await _assignedUserIdsForCurrentCollector();
+      if (assignedUserIds.isEmpty) {
+        if (!mounted) return;
+        setState(() {
+          _advanceMembers = [];
+          _loadingAdvanceMembers = false;
+        });
+        return;
+      }
+
+      final ruleRow = await Supabase.instance.client
+          .from('dayung_rules')
+          .select('exactamountforcollection')
+          .eq('dayung_unit_id', widget.dayungUnitId)
+          .maybeSingle();
+      final collectionAmount = _toDouble(ruleRow?['exactamountforcollection']);
+      if (collectionAmount <= 0) {
+        throw StateError('The collection amount is not configured.');
+      }
+
+      final rows = await Supabase.instance.client
+          .from('advance_payments')
+          .select(
+            'user_id, amount, '
+            'users!advance_payments_user_id_fkey(full_name)',
+          )
+          .eq('dayung_unit_id', widget.dayungUnitId)
+          .inFilter('user_id', assignedUserIds)
+          .order('created_at', ascending: false);
+
+      final membersByUserId = <String, _ReportMember>{};
+      for (final row in List<Map<String, dynamic>>.from(rows)) {
+        final userId = (row['user_id'] ?? '').toString();
+        if (userId.isEmpty) continue;
+
+        final user = row['users'];
+        final name = user is Map
+            ? (user['full_name'] ?? 'Member').toString()
+            : 'Member';
+        final existingMember = membersByUserId[userId];
+        final amount = (existingMember?.amount ?? 0) + _toDouble(row['amount']);
+        membersByUserId[userId] = _ReportMember(
+          name: existingMember?.name ?? name,
+          amount: amount,
+          advanceAmount: amount,
+          advanceDeathCount: (amount / collectionAmount).floor(),
+        );
+      }
+
+      if (!mounted) return;
+      setState(() {
+        _advanceMembers = membersByUserId.values.toList();
+        _loadingAdvanceMembers = false;
+      });
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _advanceMembers = [];
+        _loadingAdvanceMembers = false;
+        _advanceMembersError = 'Failed to load advance payments: $error';
       });
     }
   }
@@ -321,24 +459,35 @@ class _CollectorOverallReportsPageState
                                 ),
                               ),
                               child:
-                                  _activeTab == 1 && _loadingCashMembers ||
-                                      _activeTab == 2 && _loadingNotPaidMembers
+                                  _activeTab == 0 && _loadingCashlessMembers ||
+                                      _activeTab == 1 && _loadingCashMembers ||
+                                      _activeTab == 2 &&
+                                          _loadingNotPaidMembers ||
+                                      _activeTab == 3 && _loadingAdvanceMembers
                                   ? const Padding(
                                       padding: EdgeInsets.all(24),
                                       child: Center(
                                         child: CircularProgressIndicator(),
                                       ),
                                     )
-                                  : _activeTab == 1 &&
+                                  : _activeTab == 0 &&
+                                            _cashlessMembersError != null ||
+                                        _activeTab == 1 &&
                                             _cashMembersError != null ||
                                         _activeTab == 2 &&
-                                            _notPaidMembersError != null
+                                            _notPaidMembersError != null ||
+                                        _activeTab == 3 &&
+                                            _advanceMembersError != null
                                   ? Padding(
                                       padding: const EdgeInsets.all(24),
                                       child: Text(
                                         _activeTab == 1
                                             ? _cashMembersError!
-                                            : _notPaidMembersError!,
+                                            : _activeTab == 2
+                                            ? _notPaidMembersError!
+                                            : _activeTab == 3
+                                            ? _advanceMembersError!
+                                            : _cashlessMembersError!,
                                       ),
                                     )
                                   : Column(
@@ -512,14 +661,12 @@ class _CollectorOverallReportsPageState
               Expanded(
                 flex: 3,
                 child: GestureDetector(
-                  onTap: () => member.proofUrl != null
-                      ? _viewTransaction(member.proofUrl!)
-                      : null,
+                  onTap: () => _showReceiptDetails(member),
                   child: _DataCell(
-                    member.proofUrl != null ? '(View Transaction)' : '',
+                    '(View Transaction)',
                     align: TextAlign.center,
                     color: const Color(0xFF111827),
-                    isLink: member.proofUrl != null,
+                    isLink: true,
                   ),
                 ),
               ),
@@ -717,6 +864,184 @@ class _CollectorOverallReportsPageState
           color: Color(0xFF111827),
           height: 1.05,
         ),
+      ),
+    );
+  }
+
+  Future<void> _showReceiptDetails(_ReportMember member) async {
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (sheetContext) {
+        final hasProof = member.proofUrl != null;
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
+            child: Container(
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(28),
+              ),
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Center(
+                      child: Container(
+                        width: 42,
+                        height: 5,
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFD1D5DB),
+                          borderRadius: BorderRadius.circular(999),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 18),
+                    const Text(
+                      'Receipt Details',
+                      style: TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.w900,
+                        color: Color(0xFF1F2937),
+                        fontFamily: 'Montserrat',
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(18),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF8FAFC),
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(color: const Color(0xFFFDE68A)),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  member.name,
+                                  style: const TextStyle(
+                                    fontSize: 20,
+                                    fontWeight: FontWeight.w900,
+                                    color: Color(0xFF1F2937),
+                                    fontFamily: 'Montserrat',
+                                  ),
+                                ),
+                              ),
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 10,
+                                  vertical: 6,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: const Color(
+                                    0xFFF59E0B,
+                                  ).withValues(alpha: 0.12),
+                                  borderRadius: BorderRadius.circular(999),
+                                ),
+                                child: const Text(
+                                  'GCash',
+                                  style: TextStyle(
+                                    color: Color(0xFFF59E0B),
+                                    fontWeight: FontWeight.w800,
+                                    fontSize: 11,
+                                    fontFamily: 'Montserrat',
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            'PHP ${member.amount.toStringAsFixed(2)}',
+                            style: const TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.w900,
+                              color: Color(0xFFF59E0B),
+                              fontFamily: 'Montserrat',
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+                          _receiptDetailRow('Member', member.name),
+                          _receiptDetailRow(
+                            'Amount',
+                            'PHP ${member.amount.toStringAsFixed(2)}',
+                          ),
+                          _receiptDetailRow('Source', 'GCash'),
+                          _receiptDetailRow(
+                            'Status',
+                            member.status.isEmpty ? 'paid' : member.status,
+                          ),
+                          _receiptDetailRow(
+                            'Reference',
+                            member.reference.isEmpty ? 'N/A' : member.reference,
+                          ),
+                        ],
+                      ),
+                    ),
+                    if (hasProof) ...[
+                      const SizedBox(height: 16),
+                      SizedBox(
+                        width: double.infinity,
+                        child: OutlinedButton.icon(
+                          onPressed: () => _viewTransaction(member.proofUrl!),
+                          icon: const Icon(Icons.photo_library_outlined),
+                          label: const Text('Preview GCash proof'),
+                          style: OutlinedButton.styleFrom(
+                            minimumSize: const Size.fromHeight(48),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(14),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _receiptDetailRow(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 88,
+            child: Text(
+              label,
+              style: const TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w800,
+                color: Color(0xFF4B5563),
+                fontFamily: 'Montserrat',
+              ),
+            ),
+          ),
+          Expanded(
+            child: Text(
+              value,
+              style: const TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w700,
+                color: Color(0xFF1F2937),
+                fontFamily: 'OpenSans',
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

@@ -1,13 +1,11 @@
 import 'dart:convert';
 import 'package:capstone_app/shared/pres_sec_dashboard_overview.dart';
-import 'package:capstone_app/shared/collector_progress_page.dart';
 import 'package:capstone_app/Providers/dayung_role_provider.dart';
-import 'package:capstone_app/Secretary/beneficiaries_tab.dart';
 import 'package:capstone_app/Secretary/certificates.dart';
 import 'package:capstone_app/Secretary/secclaims.dart';
 import 'package:capstone_app/Secretary/seccontributions.dart';
 import 'package:capstone_app/Secretary/manage_applications.dart';
-import 'package:capstone_app/Secretary/secretary_payment_page.dart';
+import 'package:capstone_app/Treasurer/manage_fund.dart';
 import 'package:capstone_app/Secretary/secretarymemberspage.dart';
 import 'package:capstone_app/Secretary/service_tracker.dart';
 import 'package:capstone_app/pages/notification.dart';
@@ -941,7 +939,9 @@ class _SecretaryDashboardPageState extends State<SecretaryDashboardPage> {
           const SizedBox(height: 24),
           _quickAccessSection(),
           const SizedBox(height: 24),
+          /* Temporarily hidden.
           _modernRecentActivity(),
+          */
           const SizedBox(height: 100),
         ],
       ),
@@ -1207,6 +1207,7 @@ class _SecretaryDashboardPageState extends State<SecretaryDashboardPage> {
           // First row - 2 main actions
           Row(
             children: [
+              /* Temporarily hidden.
               Expanded(
                 child: SizedBox(
                   height: actionCardHeight,
@@ -1236,12 +1237,13 @@ class _SecretaryDashboardPageState extends State<SecretaryDashboardPage> {
                 ),
               ),
               const SizedBox(width: 12),
+              */
               Expanded(
                 child: SizedBox(
                   height: actionCardHeight,
                   child: _modernActionCard(
                     icon: Icons.assignment_rounded,
-                    title: 'Manage Applications',
+                    title: 'Manage Applications1',
                     color: const Color(0xFF10B981),
                     badgeCount: _unseenAppNotifs,
                     onTap: () async {
@@ -1254,6 +1256,36 @@ class _SecretaryDashboardPageState extends State<SecretaryDashboardPage> {
                         await _markAllAppNotifsSeen();
                         await _fetchUnseenAppNotifs();
                       });
+                    },
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: SizedBox(
+                  height: actionCardHeight,
+                  child: _modernActionCard(
+                    icon: Icons.account_balance_wallet_rounded,
+                    title: 'Manage Funds',
+                    color: const Color(0xFFF59E0B),
+                    onTap: () {
+                      if (_dayungUnitId == null) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Select a Dayung first'),
+                          ),
+                        );
+                        return;
+                      }
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => ManageFundPage(
+                            dayungUnitId: _dayungUnitId!,
+                            hideTreasurerMetrics: true,
+                          ),
+                        ),
+                      );
                     },
                   ),
                 ),
@@ -1291,6 +1323,7 @@ class _SecretaryDashboardPageState extends State<SecretaryDashboardPage> {
                   ),
                 ),
               ),
+              /* Temporarily hidden.
               const SizedBox(width: 12),
               Expanded(
                 child: SizedBox(
@@ -1320,6 +1353,8 @@ class _SecretaryDashboardPageState extends State<SecretaryDashboardPage> {
                   ),
                 ),
               ),
+              */
+              /* Temporarily hidden.
               const SizedBox(width: 12),
               Expanded(
                 child: SizedBox(
@@ -1349,6 +1384,7 @@ class _SecretaryDashboardPageState extends State<SecretaryDashboardPage> {
                   ),
                 ),
               ),
+              */
             ],
           ),
         ],

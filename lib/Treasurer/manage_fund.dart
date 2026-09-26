@@ -31,7 +31,13 @@ bool shouldCountDeceasedCollectionPayment(Map<String, dynamic> payment) {
 
 class ManageFundPage extends StatefulWidget {
   final int dayungUnitId;
-  const ManageFundPage({super.key, required this.dayungUnitId});
+  final bool hideTreasurerMetrics;
+
+  const ManageFundPage({
+    super.key,
+    required this.dayungUnitId,
+    this.hideTreasurerMetrics = false,
+  });
 
   @override
   State<ManageFundPage> createState() => _ManageFundPageState();
@@ -631,10 +637,11 @@ class _ManageFundPageState extends State<ManageFundPage> {
                   spacing: 8,
                   runSpacing: 8,
                   children: [
-                    _headerPill(
-                      icon: Icons.groups_rounded,
-                      label: '$_approvedMemberCount active members',
-                    ),
+                    if (!widget.hideTreasurerMetrics)
+                      _headerPill(
+                        icon: Icons.groups_rounded,
+                        label: '$_approvedMemberCount active members',
+                      ),
                     _headerPill(
                       icon: Icons.receipt_long_rounded,
                       label: '${_visibleFunds.length} visible funds',
@@ -1123,58 +1130,64 @@ class _ManageFundPageState extends State<ManageFundPage> {
               ),
             ],
           ),
-          const SizedBox(height: 14),
-          LayoutBuilder(
-            builder: (context, constraints) {
-              final compact = constraints.maxWidth < 520;
-              if (compact) {
-                return Column(
+          if (!widget.hideTreasurerMetrics) ...[
+            const SizedBox(height: 14),
+            LayoutBuilder(
+              builder: (context, constraints) {
+                final compact = constraints.maxWidth < 520;
+                if (compact) {
+                  return Column(
+                    children: [
+                      Row(
+                        children: [
+                          _kpi(
+                            'Collected',
+                            _currency(_totalPaid),
+                            color: Colors.teal,
+                          ),
+                          const SizedBox(width: 12),
+                          _kpi(
+                            'Goal',
+                            _currency(_totalGoal),
+                            color: Colors.indigo,
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      Row(
+                        children: [
+                          _kpi(
+                            'Remaining',
+                            _currency(remaining),
+                            color: Colors.orange,
+                          ),
+                          const Spacer(),
+                        ],
+                      ),
+                    ],
+                  );
+                }
+
+                return Row(
                   children: [
-                    Row(
-                      children: [
-                        _kpi(
-                          'Collected',
-                          _currency(_totalPaid),
-                          color: Colors.teal,
-                        ),
-                        const SizedBox(width: 12),
-                        _kpi(
-                          'Goal',
-                          _currency(_totalGoal),
-                          color: Colors.indigo,
-                        ),
-                      ],
+                    _kpi(
+                      'Own Collected',
+                      _currency(_totalPaid),
+                      color: Colors.teal,
                     ),
-                    const SizedBox(height: 12),
-                    Row(
-                      children: [
-                        _kpi(
-                          'Remaining',
-                          _currency(remaining),
-                          color: Colors.orange,
-                        ),
-                        const Spacer(),
-                      ],
+                    const SizedBox(width: 12),
+                    _kpi('Goal', _currency(_totalGoal), color: Colors.indigo),
+                    const SizedBox(width: 12),
+                    _kpi(
+                      'Remaining',
+                      _currency(remaining),
+                      color: Colors.orange,
                     ),
                   ],
                 );
-              }
-
-              return Row(
-                children: [
-                  _kpi(
-                    'Own Collected',
-                    _currency(_totalPaid),
-                    color: Colors.teal,
-                  ),
-                  const SizedBox(width: 12),
-                  _kpi('Goal', _currency(_totalGoal), color: Colors.indigo),
-                  const SizedBox(width: 12),
-                  _kpi('Remaining', _currency(remaining), color: Colors.orange),
-                ],
-              );
-            },
-          ),
+              },
+            ),
+          ],
         ],
       ),
     );

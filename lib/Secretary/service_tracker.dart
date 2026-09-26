@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:capstone_app/Secretary/add_service_dialog.dart';
 import 'package:capstone_app/Secretary/secretary_ui.dart';
 import 'package:capstone_app/pages/deathnoticedetail.dart';
+import 'package:capstone_app/shared/active_members_page.dart';
 import 'package:flutter_riverpod/legacy.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:intl/intl.dart';
@@ -545,6 +546,14 @@ class _ServiceTrackerPageState extends State<ServiceTrackerPage> {
     );
   }
 
+  void _openActiveMembersPage() {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => ActiveMembersPage(dayungUnitId: widget.dayungUnitId),
+      ),
+    );
+  }
+
   Widget _buildMetaChip(IconData icon, String label) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
@@ -825,6 +834,22 @@ class _ServiceTrackerPageState extends State<ServiceTrackerPage> {
                 label: 'Today',
                 value: '$_scheduledToday',
                 tone: const Color(0xFFF59E0B),
+              ),
+              OutlinedButton.icon(
+                onPressed: _openActiveMembersPage,
+                icon: const Icon(Icons.groups_rounded, size: 17),
+                label: const Text('Active Members'),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: kPrimary,
+                  side: const BorderSide(color: kPrimary),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 10,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                ),
               ),
             ],
           ),

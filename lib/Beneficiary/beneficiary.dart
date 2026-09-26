@@ -35,25 +35,14 @@ class BeneficiaryPage extends StatefulWidget {
   State<BeneficiaryPage> createState() => _BeneficiaryPageState();
 }
 
-class _BeneficiaryPageState extends State<BeneficiaryPage>
-    with SingleTickerProviderStateMixin {
-  late TabController _tabController;
+class _BeneficiaryPageState extends State<BeneficiaryPage> {
   List<dynamic> beneficiaries = [];
-  List<dynamic> pendingBeneficiaries = [];
-  List<dynamic> activeBeneficiaries = [];
   bool isLoading = true;
 
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 2, vsync: this);
     fetchBeneficiaries();
-  }
-
-  @override
-  void dispose() {
-    _tabController.dispose();
-    super.dispose();
   }
 
   Future<void> fetchBeneficiaries() async {
@@ -66,17 +55,8 @@ class _BeneficiaryPageState extends State<BeneficiaryPage>
         .eq('user_id', user!.id);
 
     final List<dynamic> allBeneficiaries = response;
-    final List<dynamic> pending = allBeneficiaries
-        .where((b) => b['status'] == 'Pending' || b['status'] == null)
-        .toList();
-    final List<dynamic> active = allBeneficiaries
-        .where((b) => b['status'] == 'Approved')
-        .toList();
-
     setState(() {
       beneficiaries = allBeneficiaries;
-      pendingBeneficiaries = pending;
-      activeBeneficiaries = active;
       isLoading = false;
     });
   }
@@ -89,28 +69,6 @@ class _BeneficiaryPageState extends State<BeneficiaryPage>
     await fetchBeneficiaries();
     if (beneficiaries.isNotEmpty && widget.onFirstBeneficiaryAdded != null) {
       widget.onFirstBeneficiaryAdded!();
-    }
-  }
-
-  Color _statusColor(String? status) {
-    switch ((status ?? '').toLowerCase()) {
-      case 'approved':
-        return kSuccess;
-      case 'rejected':
-        return kDanger;
-      default:
-        return kWarn;
-    }
-  }
-
-  IconData _statusIcon(String? status) {
-    switch ((status ?? '').toLowerCase()) {
-      case 'approved':
-        return Icons.verified_rounded;
-      case 'rejected':
-        return Icons.cancel_rounded;
-      default:
-        return Icons.schedule_rounded;
     }
   }
 
@@ -174,8 +132,6 @@ class _BeneficiaryPageState extends State<BeneficiaryPage>
         final width = MediaQuery.of(sheetContext).size.width;
         final isWide = width > 700;
         final isCompact = width < 360;
-        final status = item['status']?.toString();
-        final statusColor = _statusColor(status);
 
         return Container(
           decoration: const BoxDecoration(
@@ -210,12 +166,12 @@ class _BeneficiaryPageState extends State<BeneficiaryPage>
                       Container(
                         padding: const EdgeInsets.all(12),
                         decoration: BoxDecoration(
-                          color: statusColor.withValues(alpha: 0.12),
+                          color: kAccent.withValues(alpha: 0.12),
                           borderRadius: BorderRadius.circular(14),
                         ),
                         child: Icon(
-                          _statusIcon(status),
-                          color: statusColor,
+                          Icons.person_rounded,
+                          color: kAccent,
                           size: 28,
                         ),
                       ),
@@ -236,25 +192,6 @@ class _BeneficiaryPageState extends State<BeneficiaryPage>
                               ),
                             ),
                             const SizedBox(height: 8),
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 10,
-                                vertical: 6,
-                              ),
-                              decoration: BoxDecoration(
-                                color: statusColor.withValues(alpha: 0.12),
-                                borderRadius: BorderRadius.circular(999),
-                              ),
-                              child: Text(
-                                status ?? 'Pending',
-                                style: TextStyle(
-                                  fontFamily: 'Montserrat',
-                                  fontWeight: FontWeight.w700,
-                                  fontSize: 12,
-                                  color: statusColor,
-                                ),
-                              ),
-                            ),
                           ],
                         ),
                       ),
@@ -280,7 +217,6 @@ class _BeneficiaryPageState extends State<BeneficiaryPage>
                         _detailRow('Relationship', item['relationship']),
                         _detailRow('Date of Birth', item['dob']),
                         _detailRow('Marital Status', item['marital_status']),
-                        _detailRow('Status', status),
                       ],
                     ),
                   ),
@@ -486,7 +422,7 @@ class _BeneficiaryPageState extends State<BeneficiaryPage>
     );
   }
 
-  Widget _buildBeneficiariesList(List<dynamic> items, String type) {
+  Widget _buildBeneficiariesList(List<dynamic> items) {
     final width = MediaQuery.of(context).size.width;
     final isWide = width > 700;
 
@@ -533,16 +469,14 @@ class _BeneficiaryPageState extends State<BeneficiaryPage>
                         borderRadius: BorderRadius.circular(20),
                       ),
                       child: Icon(
-                        type == 'active'
-                            ? Icons.verified_user_rounded
-                            : Icons.schedule_rounded,
+                        Icons.family_restroom_rounded,
                         size: isWide ? 64 : 56,
                         color: kPrimary,
                       ),
                     ),
                     const SizedBox(height: 20),
                     Text(
-                      'No $type beneficiaries found',
+                      'No beneficiaries found',
                       style: TextStyle(
                         fontSize: isWide ? 22 : 20,
                         fontWeight: FontWeight.w800,
@@ -575,8 +509,6 @@ class _BeneficiaryPageState extends State<BeneficiaryPage>
       itemCount: items.length,
       itemBuilder: (context, index) {
         final item = items[index];
-        final status = item['status']?.toString();
-        final statusColor = _statusColor(status);
         final hasDocuments =
             (item['birth_certificate'] != null &&
                 item['birth_certificate'].toString().isNotEmpty) ||
@@ -589,12 +521,12 @@ class _BeneficiaryPageState extends State<BeneficiaryPage>
             color: kCardBg,
             borderRadius: BorderRadius.circular(20),
             border: Border.all(
-              color: statusColor.withValues(alpha: 0.18),
+              color: kAccent.withValues(alpha: 0.18),
               width: 1.2,
             ),
             boxShadow: [
               BoxShadow(
-                color: statusColor.withValues(alpha: 0.08),
+                color: kAccent.withValues(alpha: 0.08),
                 blurRadius: 18,
                 offset: const Offset(0, 8),
               ),
@@ -619,12 +551,12 @@ class _BeneficiaryPageState extends State<BeneficiaryPage>
                       width: isWide ? 56 : 52,
                       height: isWide ? 56 : 52,
                       decoration: BoxDecoration(
-                        color: statusColor.withValues(alpha: 0.12),
+                        color: kAccent.withValues(alpha: 0.12),
                         borderRadius: BorderRadius.circular(16),
                       ),
                       child: Icon(
                         Icons.person_rounded,
-                        color: statusColor,
+                        color: kAccent,
                         size: isWide ? 30 : 28,
                       ),
                     ),
@@ -637,25 +569,6 @@ class _BeneficiaryPageState extends State<BeneficiaryPage>
                             spacing: 8,
                             runSpacing: 8,
                             children: [
-                              Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 10,
-                                  vertical: 6,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: statusColor.withValues(alpha: 0.12),
-                                  borderRadius: BorderRadius.circular(999),
-                                ),
-                                child: Text(
-                                  status ?? 'Pending',
-                                  style: TextStyle(
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w700,
-                                    color: statusColor,
-                                    fontFamily: 'Montserrat',
-                                  ),
-                                ),
-                              ),
                               if (hasDocuments)
                                 Container(
                                   padding: const EdgeInsets.symmetric(
@@ -877,18 +790,6 @@ class _BeneficiaryPageState extends State<BeneficiaryPage>
                     runSpacing: 8,
                     children: [
                       _buildTopCategoryChip(
-                        label: 'Approved',
-                        count: activeBeneficiaries.length,
-                        color: kSuccess,
-                        background: const Color(0xFFF0FDF4),
-                      ),
-                      _buildTopCategoryChip(
-                        label: 'Pending',
-                        count: pendingBeneficiaries.length,
-                        color: kWarn,
-                        background: const Color(0xFFFFFBEB),
-                      ),
-                      _buildTopCategoryChip(
                         label: 'Total',
                         count: totalCount,
                         color: kPrimary,
@@ -900,115 +801,10 @@ class _BeneficiaryPageState extends State<BeneficiaryPage>
               ),
             ),
           ),
-          Padding(
-            padding: EdgeInsets.fromLTRB(
-              isWide ? 24 : 16,
-              16,
-              isWide ? 24 : 16,
-              0,
-            ),
-            child: AnimatedBuilder(
-              animation: _tabController,
-              builder: (context, child) {
-                return Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 12,
-                  ),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(18),
-                    border: Border.all(
-                      color: kBorderColor.withValues(alpha: 0.45),
-                    ),
-                  ),
-                  child: isCompact
-                      ? Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const Row(
-                              children: [
-                                Icon(
-                                  Icons.filter_list_rounded,
-                                  size: 16,
-                                  color: kSubText,
-                                ),
-                                SizedBox(width: 8),
-                                Text(
-                                  'Filter beneficiaries',
-                                  style: TextStyle(
-                                    color: kSubText,
-                                    fontFamily: 'OpenSans',
-                                    fontWeight: FontWeight.w600,
-                                    fontSize: 13,
-                                  ),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 12),
-                            _NavTab(
-                              label: 'Active',
-                              icon: Icons.check_circle_rounded,
-                              selected: _tabController.index == 0,
-                              onTap: () => _tabController.animateTo(0),
-                            ),
-                            const SizedBox(height: 8),
-                            _NavTab(
-                              label: 'Pending',
-                              icon: Icons.schedule_rounded,
-                              selected: _tabController.index == 1,
-                              onTap: () => _tabController.animateTo(1),
-                            ),
-                          ],
-                        )
-                      : Row(
-                          children: [
-                            const Icon(
-                              Icons.filter_list_rounded,
-                              size: 16,
-                              color: kSubText,
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Row(
-                                children: [
-                                  Expanded(
-                                    child: _NavTab(
-                                      label: 'Active',
-                                      icon: Icons.check_circle_rounded,
-                                      selected: _tabController.index == 0,
-                                      onTap: () => _tabController.animateTo(0),
-                                    ),
-                                  ),
-                                  const SizedBox(width: 8),
-                                  Expanded(
-                                    child: _NavTab(
-                                      label: 'Pending',
-                                      icon: Icons.schedule_rounded,
-                                      selected: _tabController.index == 1,
-                                      onTap: () => _tabController.animateTo(1),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ],
-                        ),
-                );
-              },
-            ),
-          ),
           Expanded(
             child: isLoading
                 ? const Center(child: CircularProgressIndicator(color: kAccent))
-                : TabBarView(
-                    controller: _tabController,
-                    children: [
-                      _buildBeneficiariesList(activeBeneficiaries, 'active'),
-                      _buildBeneficiariesList(pendingBeneficiaries, 'pending'),
-                    ],
-                  ),
+                : _buildBeneficiariesList(beneficiaries),
           ),
           Padding(
             padding: EdgeInsets.fromLTRB(
@@ -1063,58 +859,5 @@ class _BeneficiaryPageState extends State<BeneficiaryPage>
     if (widget.embedded) return content;
 
     return Scaffold(backgroundColor: kBg, body: content);
-  }
-}
-
-class _NavTab extends StatelessWidget {
-  final String label;
-  final IconData icon;
-  final bool selected;
-  final VoidCallback onTap;
-
-  const _NavTab({
-    required this.label,
-    required this.icon,
-    required this.selected,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        width: double.infinity,
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-        decoration: BoxDecoration(
-          color: selected
-              ? kAccent.withValues(alpha: 0.12)
-              : const Color(0xFFF8FAFC),
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(
-            color: selected
-                ? kAccent.withValues(alpha: 0.18)
-                : kBorderColor.withValues(alpha: 0.45),
-          ),
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(icon, size: 16, color: selected ? kAccent : kSubText),
-            const SizedBox(width: 6),
-            Text(
-              label,
-              style: TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.w700,
-                color: selected ? kAccent : kSubText,
-                fontFamily: 'Montserrat',
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
   }
 }

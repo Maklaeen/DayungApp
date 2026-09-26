@@ -25,7 +25,6 @@ class _CollectorMemberRow {
   final double amountPaid;
   final double amountNeeded;
   final double advanceAmount;
-  final int advanceDeathCount;
   final String? proofUrl;
   final String dropStatus;
 
@@ -35,7 +34,6 @@ class _CollectorMemberRow {
     required this.amountPaid,
     required this.amountNeeded,
     this.advanceAmount = 0,
-    this.advanceDeathCount = 0,
     this.proofUrl,
     required this.dropStatus,
   });
@@ -536,10 +534,6 @@ class _TreasurerCollectorDetailPageState
                 Expanded(flex: 2, child: _hCell('PROOF OF\nTRANSACTION')),
               Expanded(flex: 2, child: _hCell('AMOUNT')),
               Expanded(flex: 2, child: _hCell('ADVANCE')),
-              Expanded(
-                flex: 2,
-                child: _hCell('PATAY NA\nILANG NA\nADVANCE\nOG BAYAD'),
-              ),
               Expanded(flex: 2, child: _hCell('SUGGEST\nTO DROP')),
             ],
           ),
@@ -593,7 +587,6 @@ class _TreasurerCollectorDetailPageState
                           : '0',
                     ),
                   ),
-                  Expanded(flex: 2, child: _dCell('${r.advanceDeathCount}')),
                   Expanded(
                     flex: 2,
                     child: Padding(

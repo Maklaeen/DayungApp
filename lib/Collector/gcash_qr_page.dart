@@ -34,6 +34,7 @@ class _GcashQrPageState extends State<GcashQrPage> {
       TextEditingController(); // <-- Add this
   final TextEditingController _searchController = TextEditingController();
   String _searchQuery = '';
+  int _selectedPaymentTab = 0;
   List<Map<String, dynamic>> _qrRows = const [];
   bool _qrRowsLoading = false;
   String? _qrRowsError;
@@ -93,6 +94,17 @@ class _GcashQrPageState extends State<GcashQrPage> {
     }
 
     return 'Unknown';
+  }
+
+  bool _matchesSelectedPaymentTab(Map<String, dynamic> row) {
+    final paymentPurpose = row['payment_purpose']
+        ?.toString()
+        .trim()
+        .toLowerCase();
+    if (_selectedPaymentTab == 1) {
+      return paymentPurpose == 'advance_payments';
+    }
+    return paymentPurpose == 'for_userdeceased';
   }
 
   void _refreshQrData() {
@@ -326,7 +338,7 @@ class _GcashQrPageState extends State<GcashQrPage> {
     final response = await sb
         .from('gcash_qr_codes')
         .select(
-          'id, set_amount_id, image_url, uploaded_by, created_at, userdeceased, dayung_unit_id, amount, refno, type, payment_purpose',
+          'id, set_amount_id, image_url, uploaded_by, created_at, userdeceased, dayung_unit_id, amount, refno, type, payment_purpose, status',
         )
         .eq('dayung_unit_id', widget.dayungUnitId)
         .order('created_at', ascending: false)
@@ -419,7 +431,7 @@ class _GcashQrPageState extends State<GcashQrPage> {
     }
 
     final qrIds = data
-        .map((row) => row['qr_id'])
+        .map((row) => row['id'])
         .where((value) => value != null)
         .map((value) => value.toString())
         .where((value) => value.isNotEmpty && _isUuid(value))
@@ -494,7 +506,7 @@ class _GcashQrPageState extends State<GcashQrPage> {
       final uploadedBy = row['uploaded_by']?.toString() ?? '';
       final deceasedId = row['userdeceased']?.toString() ?? '';
       final setAmountId = row['set_amount_id']?.toString();
-      final qrId = row['qr_id']?.toString();
+      final qrId = row['id']?.toString();
 
       String? paymentKey;
       if (setAmountId != null &&
@@ -528,7 +540,10 @@ class _GcashQrPageState extends State<GcashQrPage> {
                 rowAmount != null &&
                 advanceAmount == rowAmount;
           });
-      row['already_paid'] = paidKeys.contains(paymentKey) || hasAdvanceRecord;
+      row['already_paid'] =
+          row['status']?.toString().toLowerCase() == 'paid' ||
+          paidKeys.contains(paymentKey) ||
+          hasAdvanceRecord;
     }
     return data;
   }
@@ -1217,8 +1232,10 @@ class _GcashQrPageState extends State<GcashQrPage> {
                       ),
                     ),
                     const SizedBox(height: 18),
-                    const Text(
-                      'Payments collected via GCash',
+                    Text(
+                      _selectedPaymentTab == 1
+                          ? 'GCash advance payments'
+                          : 'GCash payments for deceased members',
                       style: TextStyle(
                         fontWeight: FontWeight.w800,
                         fontSize: 18,
@@ -1227,14 +1244,56 @@ class _GcashQrPageState extends State<GcashQrPage> {
                       ),
                     ),
                     const SizedBox(height: 6),
-                    const Text(
-                      'Search uploaded proofs, review payer details, and confirm paid records.',
+                    Text(
+                      _selectedPaymentTab == 1
+                          ? 'Review advance payment proofs separately from deceased-related collections.'
+                          : 'Review deceased-related proofs and confirm the correct payment records.',
                       style: TextStyle(
                         color: kSubText,
                         fontSize: 13,
                         fontWeight: FontWeight.w600,
                         fontFamily: 'OpenSans',
                       ),
+                    ),
+                    const SizedBox(height: 12),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        ChoiceChip(
+                          avatar: const Icon(Icons.person_outline, size: 18),
+                          label: const Text('For deceased'),
+                          selected: _selectedPaymentTab == 0,
+                          onSelected: (_) {
+                            setState(() => _selectedPaymentTab = 0);
+                          },
+                          selectedColor: const Color(0xFFDCEAFE),
+                          labelStyle: TextStyle(
+                            color: _selectedPaymentTab == 0
+                                ? kPrimary
+                                : kSubText,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                        ChoiceChip(
+                          avatar: const Icon(
+                            Icons.account_balance_wallet_outlined,
+                            size: 18,
+                          ),
+                          label: const Text('Advance payments'),
+                          selected: _selectedPaymentTab == 1,
+                          onSelected: (_) {
+                            setState(() => _selectedPaymentTab = 1);
+                          },
+                          selectedColor: const Color(0xFFDCFCE7),
+                          labelStyle: TextStyle(
+                            color: _selectedPaymentTab == 1
+                                ? Colors.green.shade800
+                                : kSubText,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ],
                     ),
                     const SizedBox(height: 12),
                     Text(
@@ -1326,9 +1385,12 @@ class _GcashQrPageState extends State<GcashQrPage> {
                     else ...[
                       Builder(
                         builder: (context) {
+                          final selectedRows = _qrRows
+                              .where(_matchesSelectedPaymentTab)
+                              .toList();
                           final filteredData = _searchQuery.isEmpty
-                              ? _qrRows
-                              : _qrRows.where((row) {
+                              ? selectedRows
+                              : selectedRows.where((row) {
                                   final uploadedByName =
                                       row['uploaded_by_name']
                                           ?.toString()
@@ -1359,7 +1421,7 @@ class _GcashQrPageState extends State<GcashQrPage> {
                                   color: const Color(0xFFE5E7EB),
                                 ),
                               ),
-                              child: const Column(
+                              child: Column(
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
                                   Icon(
@@ -1369,7 +1431,9 @@ class _GcashQrPageState extends State<GcashQrPage> {
                                   ),
                                   SizedBox(height: 12),
                                   Text(
-                                    'No QR codes found',
+                                    _selectedPaymentTab == 1
+                                        ? 'No advance payment uploads found'
+                                        : 'No deceased payment uploads found',
                                     style: TextStyle(
                                       fontSize: 16,
                                       fontWeight: FontWeight.w800,
@@ -1649,6 +1713,43 @@ class _GcashQrPageState extends State<GcashQrPage> {
     );
   }
 
+  Future<void> _markGcashQrAndPaymentsPaid(
+    Map<String, dynamic> row,
+    String? collectorId,
+    dynamic paymentId,
+  ) async {
+    final qrId = row['id']?.toString().trim() ?? '';
+    if (qrId.isEmpty) {
+      throw Exception('Unable to mark payment as paid: missing QR identifier.');
+    }
+
+    final now = DateTime.now().toUtc().toIso8601String();
+    final paidData = {
+      'status': 'paid',
+      'type': 'gcash',
+      'qr_id': qrId,
+      'paid_at': now,
+      'collected_by': collectorId,
+    };
+
+    await Supabase.instance.client
+        .from('gcash_qr_codes')
+        .update({'status': 'paid'})
+        .eq('id', qrId)
+        .eq('dayung_unit_id', widget.dayungUnitId);
+
+    var paymentUpdate = Supabase.instance.client
+        .from('payments')
+        .update(paidData)
+        .eq('dayung_unit_id', widget.dayungUnitId);
+    if (paymentId != null && paymentId.toString().isNotEmpty) {
+      paymentUpdate = paymentUpdate.eq('id', paymentId);
+    } else {
+      paymentUpdate = paymentUpdate.eq('qr_id', qrId);
+    }
+    await paymentUpdate;
+  }
+
   Widget _buildMarkPaidButton(Map<String, dynamic> row) {
     final isAdvancePayment =
         row['payment_purpose']?.toString().trim().toLowerCase() ==
@@ -1754,6 +1855,12 @@ class _GcashQrPageState extends State<GcashQrPage> {
                                         'deducted_amount': 0,
                                       });
 
+                                  await _markGcashQrAndPaymentsPaid(
+                                    row,
+                                    currentUserId,
+                                    paymentId,
+                                  );
+
                                   if (mounted) {
                                     this.setState(() {
                                       row['already_paid'] = true;
@@ -1766,6 +1873,7 @@ class _GcashQrPageState extends State<GcashQrPage> {
 
                                 final updateData = {
                                   'status': 'paid',
+                                  'qr_id': row['id'],
                                   'paid_at': DateTime.now()
                                       .toUtc()
                                       .toIso8601String(),
@@ -1822,6 +1930,11 @@ class _GcashQrPageState extends State<GcashQrPage> {
                                     .update(updateData)
                                     .eq('id', paymentId);
                                 print('Update result: $result');
+                                await _markGcashQrAndPaymentsPaid(
+                                  row,
+                                  currentUserId,
+                                  paymentId,
+                                );
                                 if (mounted) {
                                   this.setState(() {
                                     row['already_paid'] = true;

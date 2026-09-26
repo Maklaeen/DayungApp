@@ -310,15 +310,40 @@ class _GCashPaymentPageState extends State<GCashPaymentPage> {
                       imageBytes != null &&
                           isValidRefNo(refNoController.text) &&
                           isValidAmount()
-                      ? () => Navigator.of(context).pop({
-                          'refNo': refNoController.text.replaceAll(' ', ''),
-                          'imageBytes': Uint8List.fromList(imageBytes!),
-                          'amount':
-                              int.tryParse(amountController.text.trim()) ?? 0,
-                          'fileName':
-                              pickedFile?.name ??
-                              'gcash_${DateTime.now().millisecondsSinceEpoch}.png',
-                        })
+                      ? () async {
+                          final confirmed = await showDialog<bool>(
+                            context: context,
+                            builder: (context) => AlertDialog(
+                              title: const Text('Confirm save'),
+                              content: const Text(
+                                'Are you sure you want to save this receipt?',
+                              ),
+                              actions: [
+                                TextButton(
+                                  onPressed: () =>
+                                      Navigator.of(context).pop(false),
+                                  child: const Text('Cancel'),
+                                ),
+                                ElevatedButton(
+                                  onPressed: () =>
+                                      Navigator.of(context).pop(true),
+                                  child: const Text('Confirm'),
+                                ),
+                              ],
+                            ),
+                          );
+
+                          if (confirmed != true || !context.mounted) return;
+                          Navigator.of(context).pop({
+                            'refNo': refNoController.text.replaceAll(' ', ''),
+                            'imageBytes': Uint8List.fromList(imageBytes!),
+                            'amount':
+                                int.tryParse(amountController.text.trim()) ?? 0,
+                            'fileName':
+                                pickedFile?.name ??
+                                'gcash_${DateTime.now().millisecondsSinceEpoch}.png',
+                          });
+                        }
                       : null,
                   child: const Text('Save'),
                 ),
@@ -363,10 +388,11 @@ class _GCashPaymentPageState extends State<GCashPaymentPage> {
       await Supabase.instance.client.from('gcash_qr_codes').insert({
         'userdeceased': null,
         'amount': amount,
+        'status': 'unpaid',
         'image_url': fileName,
         'uploaded_by': Supabase.instance.client.auth.currentUser?.id,
         'type': 'gcash',
-        'payment_purpose': 'Advance payments',
+        'payment_purpose': 'advance_payments',
         'created_at': DateTime.now().toIso8601String().substring(0, 19),
         'dayung_unit_id': widget.dayungUnitId,
         'refno': refNo,
@@ -374,11 +400,6 @@ class _GCashPaymentPageState extends State<GCashPaymentPage> {
 
       if (!mounted) return;
       setState(() {});
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Advance cash receipt saved successfully.'),
-        ),
-      );
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -572,12 +593,11 @@ class _GCashPaymentPageState extends State<GCashPaymentPage> {
         'set_amount_id': setAmountId,
         'userdeceased': dbUserDeceased,
         'amount': amount,
+        'status': 'unpaid',
         'image_url': fileName,
         'uploaded_by': user.id,
-        'type': normalizedType == PaymentUploadType.gcash
-            ? PaymentUploadType.gcash
-            : type,
-        'payment_purpose': 'Advance payments',
+        'type': 'gcash',
+        'payment_purpose': 'for_userdeceased',
         'created_at': DateTime.now().toIso8601String().substring(0, 19),
         'dayung_unit_id': widget.dayungUnitId,
         'refno': refNo,

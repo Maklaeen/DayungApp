@@ -4,6 +4,7 @@ import 'package:capstone_app/Members/memclaims.dart';
 import 'package:capstone_app/Members/memcontributions.dart';
 import 'package:capstone_app/Members/receipts.dart';
 import 'package:capstone_app/Providers/dayung_provider.dart';
+import 'package:capstone_app/Secretary/service_tracker.dart';
 import 'package:capstone_app/pages/notification.dart';
 import 'package:capstone_app/pages/recentdeathnotices.dart';
 import 'package:capstone_app/Auth/login.dart';
@@ -1121,6 +1122,34 @@ class _MemberDashboardPageState extends State<MemberDashboardPage>
                   dayungUnitId:
                       context.read<DayungUnitProvider>().currentUnitId ??
                       _asInt(_selectedDayungUnitObj?['id']),
+                ),
+              ),
+            );
+          },
+        ),
+        const SizedBox(height: 8),
+        _modernActionCard(
+          icon: Icons.track_changes_rounded,
+          title: 'Service Tracking',
+          color: const Color(0xFF8B5CF6),
+          onTap: () {
+            final id =
+                context.read<DayungUnitProvider>().currentUnitId ??
+                _asInt(_selectedDayungUnitObj?['id']);
+            if (id == null) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Select a Dayung first')),
+              );
+              return;
+            }
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => ServiceTrackerPage(
+                  dayungUnitId: id,
+                  allowManage: false,
+                  allowJoin: true,
+                  title: 'Service Tracking',
                 ),
               ),
             );

@@ -932,17 +932,21 @@ class _SecretaryApplicationsPageState extends State<SecretaryApplicationsPage> {
     }
   }
 
+  Future<double> _getMembershipAmount({required int dayungUnitId}) async {
+    final rulesRow = await _supabase
+        .from('dayung_rules')
+        .select('exactamountformembership')
+        .eq('dayung_unit_id', dayungUnitId)
+        .maybeSingle();
+    return parseMembershipAmount(rulesRow?['exactamountformembership']);
+  }
+
   Future<void> _createMembershipPaymentRecord({
     required String userId,
     required int dayungUnitId,
+    required double amount,
   }) async {
     try {
-      final rulesRow = await _supabase
-          .from('dayung_rules')
-          .select('exactamountformembership')
-          .eq('dayung_unit_id', dayungUnitId)
-          .maybeSingle();
-
       final existing = await _supabase
           .from('payments')
           .select('id')
@@ -953,9 +957,6 @@ class _SecretaryApplicationsPageState extends State<SecretaryApplicationsPage> {
 
       if (existing != null) return;
 
-      final amount = parseMembershipAmount(
-        rulesRow?['exactamountformembership'],
-      );
       await _supabase
           .from('payments')
           .insert(
@@ -967,6 +968,39 @@ class _SecretaryApplicationsPageState extends State<SecretaryApplicationsPage> {
           );
     } catch (_) {
       // Ignore payment insert issues so the approval flow is not blocked.
+    }
+  }
+
+  Future<void> _createMembershipPaymentNotification({
+    required String recipientId,
+    required int dayungUnitId,
+    required double amount,
+    required String senderId,
+  }) async {
+    try {
+      final fallbackUnitName =
+          context.read<DayungUnitProvider>().dayungUnit ?? 'this dayung';
+      final unitRow = await _supabase
+          .from('dayung_units')
+          .select('name')
+          .eq('id', dayungUnitId)
+          .maybeSingle();
+      final unitName = (unitRow?['name'] ?? fallbackUnitName).toString();
+
+      await _supabase.from('notifications').insert({
+        'recipient_id': recipientId,
+        'sender_id': senderId,
+        'dayung_unit_id': dayungUnitId,
+        'type': 'announcement',
+        'title': 'Payment for Membership',
+        'body':
+            'Please complete your membership payment to become an official member of $unitName. Amount: ₱${amount.toStringAsFixed(2)}',
+        'announcement_id': null,
+        'read_at': null,
+        'created_at': DateTime.now().toIso8601String(),
+      });
+    } catch (_) {
+      // Keep a successful application approval from being blocked by notifications.
     }
   }
 
@@ -989,7 +1023,7 @@ class _SecretaryApplicationsPageState extends State<SecretaryApplicationsPage> {
             ),
             ElevatedButton(
               onPressed: () => Navigator.pop(ctx, true),
-              child: const Text('Approve'),
+              child: const Text('Approve3'),
             ),
           ],
         ),
@@ -1008,24 +1042,6 @@ class _SecretaryApplicationsPageState extends State<SecretaryApplicationsPage> {
         throw Exception('Unable to identify the applicant.');
       }
 
-      final beneficiaryRows = await _supabase
-          .from('beneficiaries')
-          .select('id')
-          .eq('user_id', userId)
-          .limit(1);
-
-      if (beneficiaryRows.isEmpty) {
-        if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text(
-              'Approval requires at least one beneficiary. Ask the applicant to add one first.',
-            ),
-          ),
-        );
-        return;
-      }
-
       final approverId = _supabase.auth.currentUser?.id;
       if (approverId == null || approverId.isEmpty) {
         throw Exception('Unable to identify the approving user.');
@@ -1041,9 +1057,21 @@ class _SecretaryApplicationsPageState extends State<SecretaryApplicationsPage> {
 
       final unitId = int.tryParse('${applicationRow?['dayung_unit_id']}');
       if (userId.isNotEmpty && unitId != null) {
+        double membershipAmount = 0;
+        try {
+          membershipAmount = await _getMembershipAmount(dayungUnitId: unitId);
+        } catch (_) {}
+
         await _createMembershipPaymentRecord(
           userId: userId,
           dayungUnitId: unitId,
+          amount: membershipAmount,
+        );
+        await _createMembershipPaymentNotification(
+          recipientId: userId,
+          dayungUnitId: unitId,
+          amount: membershipAmount,
+          senderId: approverId,
         );
       }
 
@@ -1587,7 +1615,7 @@ class _SecretaryApplicationsPageState extends State<SecretaryApplicationsPage> {
                               Expanded(
                                 child: FilledButton.icon(
                                   icon: const Icon(Icons.check_circle_rounded),
-                                  label: const Text('Approve'),
+                                  label: const Text('Approve1'),
                                   onPressed: () {
                                     Navigator.pop(ctx);
                                     if (applicationId != null) {
@@ -1641,7 +1669,7 @@ class _SecretaryApplicationsPageState extends State<SecretaryApplicationsPage> {
             return Column(
               children: [
                 SecretaryPageHeader(
-                  title: 'Manage Applications',
+                  title: 'Manage Applications2',
                   icon: Icons.assignment_rounded,
                   usePaymentStyle: true,
                   padding: EdgeInsets.fromLTRB(

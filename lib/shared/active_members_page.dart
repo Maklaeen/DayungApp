@@ -21,10 +21,13 @@ class _ActiveMembersPageState extends State<ActiveMembersPage> {
 
   final _sb = Supabase.instance.client;
   bool _loading = true;
+  bool _savingGroups = false;
   String? _error;
   List<Map<String, dynamic>> _members = [];
   String _search = '';
   int _pageIndex = 0;
+  int? _membersPerGroup;
+  List<List<Map<String, dynamic>>> _serviceGroups = [];
 
   @override
   void initState() {
@@ -130,6 +133,8 @@ class _ActiveMembersPageState extends State<ActiveMembersPage> {
         setState(() {
           _members = membersList;
           _pageIndex = 0;
+          _membersPerGroup = null;
+          _serviceGroups = [];
           _loading = false;
         });
       }
@@ -181,6 +186,373 @@ class _ActiveMembersPageState extends State<ActiveMembersPage> {
   void _goToNextPage() {
     if (_pageIndex >= _pageCount - 1) return;
     setState(() => _pageIndex += 1);
+  }
+
+  String _groupLabel(int index) {
+    var value = index + 1;
+    var label = '';
+    while (value > 0) {
+      final remainder = (value - 1) % 26;
+      label = String.fromCharCode(65 + remainder) + label;
+      value = (value - 1) ~/ 26;
+    }
+    return label;
+  }
+
+  Future<List<Map<String, dynamic>>> _loadApprovedMembersForGroups() async {
+    final rows = await _sb
+        .from('applications')
+        .select('user_id, user:users(id, full_name, profile_url, email)')
+        .eq('dayung_unit_id', widget.dayungUnitId)
+        .eq('status', 'approved');
+
+    final uniqueMembers = <String, Map<String, dynamic>>{};
+    for (final row in List<Map<String, dynamic>>.from(rows)) {
+      final userId = (row['user_id'] ?? '').toString().trim();
+      if (userId.isNotEmpty) uniqueMembers[userId] = row;
+    }
+    return uniqueMembers.values.toList();
+  }
+
+  Future<int?> _loadActiveServiceChecklistId() async {
+    final row = await _sb
+        .from('service_checklist')
+        .select('id')
+        .eq('dayung_unit_id', widget.dayungUnitId)
+        .or('is_removed.is.null,is_removed.eq.false')
+        .order('created_at', ascending: false)
+        .limit(1)
+        .maybeSingle();
+    return row?['id'] as int?;
+  }
+
+  Future<void> _saveServiceGroups(
+    int membersPerGroup,
+    int serviceChecklistId,
+    List<Map<String, dynamic>> approvedMembers,
+  ) async {
+    if (_savingGroups) return;
+    setState(() => _savingGroups = true);
+
+    try {
+      final existingRows = await _sb
+          .from('service_checklist_participants')
+          .select('user_id, group')
+          .eq('service_checklist_id', serviceChecklistId);
+      final approvedById = <String, Map<String, dynamic>>{
+        for (final member in approvedMembers)
+          member['user_id'].toString(): member,
+      };
+      final groupsByLabel = <String, List<Map<String, dynamic>>>{};
+      final assignedUserIds = <String>{};
+
+      for (final row in List<Map<String, dynamic>>.from(existingRows)) {
+        final userId = (row['user_id'] ?? '').toString().trim();
+        final group = (row['group'] ?? '').toString().trim();
+        final member = approvedById[userId];
+        if (userId.isEmpty || group.isEmpty || member == null) continue;
+        groupsByLabel.putIfAbsent(group, () => []).add(member);
+        assignedUserIds.add(userId);
+      }
+
+      final groupLabels = groupsByLabel.keys.toList()
+        ..sort((a, b) => a.compareTo(b));
+      var nextGroupIndex = 0;
+      while (groupsByLabel.containsKey(_groupLabel(nextGroupIndex))) {
+        nextGroupIndex++;
+      }
+
+      final createdAt = DateTime.now().toIso8601String();
+      final participantRows = <Map<String, dynamic>>[];
+      for (final member in approvedMembers) {
+        final userId = member['user_id'].toString().trim();
+        if (assignedUserIds.contains(userId)) continue;
+
+        String? targetGroup;
+        for (final label in groupLabels) {
+          if (groupsByLabel[label]!.length < membersPerGroup) {
+            targetGroup = label;
+            break;
+          }
+        }
+        targetGroup ??= _groupLabel(nextGroupIndex++);
+        groupsByLabel.putIfAbsent(targetGroup, () => []).add(member);
+        if (!groupLabels.contains(targetGroup)) groupLabels.add(targetGroup);
+        assignedUserIds.add(userId);
+        participantRows.add({
+          'service_checklist_id': serviceChecklistId,
+          'user_id': member['user_id'],
+          'group': targetGroup,
+          'dayung_unit_id': widget.dayungUnitId,
+          'created_at': createdAt,
+        });
+      }
+
+      if (participantRows.isNotEmpty) {
+        await _sb
+            .from('service_checklist_participants')
+            .insert(participantRows);
+      }
+
+      final groups =
+          groupsByLabel.entries
+              .where((entry) => entry.value.isNotEmpty)
+              .toList()
+            ..sort((a, b) => a.key.compareTo(b.key));
+
+      if (!mounted) return;
+      setState(() {
+        _membersPerGroup = membersPerGroup;
+        _serviceGroups = groups.map((entry) => entry.value).toList();
+        _savingGroups = false;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            participantRows.isEmpty
+                ? 'All approved members are already assigned to service groups.'
+                : 'Added ${participantRows.length} new members without changing existing assignments.',
+          ),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _savingGroups = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to save service groups: $e')),
+      );
+    }
+  }
+
+  Future<void> _resetServiceGroups(int serviceChecklistId) async {
+    if (_savingGroups) return;
+    setState(() => _savingGroups = true);
+
+    try {
+      await _sb
+          .from('service_checklist_participants')
+          .update({'group': 'NO GROUPS'})
+          .eq('service_checklist_id', serviceChecklistId);
+
+      if (!mounted) return;
+      setState(() {
+        _membersPerGroup = null;
+        _serviceGroups = [];
+        _savingGroups = false;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Service groups were reset.')),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _savingGroups = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to reset service groups: $e')),
+      );
+    }
+  }
+
+  Future<void> _openServiceGroupDialog() async {
+    if (_members.isEmpty) return;
+
+    late final int serviceChecklistId;
+    late final List<Map<String, dynamic>> approvedMembers;
+    try {
+      final checklistId = await _loadActiveServiceChecklistId();
+      if (checklistId == null) {
+        throw Exception(
+          'No active service checklist was found for this Dayung unit.',
+        );
+      }
+      serviceChecklistId = checklistId;
+      approvedMembers = await _loadApprovedMembersForGroups();
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to load approved members: $e')),
+      );
+      return;
+    }
+    if (approvedMembers.isEmpty || !mounted) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'No approved members were found for this Dayung unit.',
+            ),
+          ),
+        );
+      }
+      return;
+    }
+
+    final controller = TextEditingController(
+      text: (_membersPerGroup ?? 5).clamp(1, approvedMembers.length).toString(),
+    );
+    final membersPerGroup = await showDialog<int>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text(
+          'Generate Service Groups',
+          style: TextStyle(
+            color: _kNeutralText,
+            fontWeight: FontWeight.w800,
+            fontFamily: 'Montserrat',
+          ),
+        ),
+        content: StatefulBuilder(
+          builder: (_, setDialogState) {
+            final totalMembers = approvedMembers.length;
+            final selectedCount = int.tryParse(controller.text) ?? 0;
+            final canDecrease = selectedCount > 1;
+            final canIncrease = selectedCount < totalMembers;
+
+            return Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Total active members: $totalMembers',
+                  style: const TextStyle(
+                    color: _kPrimary,
+                    fontWeight: FontWeight.w700,
+                    fontFamily: 'OpenSans',
+                  ),
+                ),
+                const SizedBox(height: 16),
+                const Text(
+                  'Members Per Group',
+                  style: TextStyle(
+                    color: _kNeutralText,
+                    fontWeight: FontWeight.w700,
+                    fontFamily: 'Montserrat',
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    IconButton(
+                      tooltip: 'Decrease members per group',
+                      onPressed: canDecrease
+                          ? () {
+                              controller.text = (selectedCount - 1).toString();
+                              setDialogState(() {});
+                            }
+                          : null,
+                      icon: const Icon(Icons.remove_circle_outline_rounded),
+                      color: _kPrimary,
+                    ),
+                    Expanded(
+                      child: TextField(
+                        controller: controller,
+                        textAlign: TextAlign.center,
+                        keyboardType: TextInputType.number,
+                        decoration: InputDecoration(
+                          filled: true,
+                          fillColor: const Color(0xFFF8FAFC),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          contentPadding: const EdgeInsets.symmetric(
+                            vertical: 12,
+                          ),
+                        ),
+                        onChanged: (_) => setDialogState(() {}),
+                      ),
+                    ),
+                    IconButton(
+                      tooltip: 'Increase members per group',
+                      onPressed: canIncrease
+                          ? () {
+                              controller.text = (selectedCount + 1).toString();
+                              setDialogState(() {});
+                            }
+                          : null,
+                      icon: const Icon(Icons.add_circle_outline_rounded),
+                      color: _kPrimary,
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  selectedCount > 0
+                      ? 'This will create ${(totalMembers / selectedCount).ceil()} service groups.'
+                      : 'Enter a number between 1 and $totalMembers.',
+                  style: const TextStyle(
+                    color: _kSubText,
+                    fontSize: 12,
+                    fontFamily: 'OpenSans',
+                  ),
+                ),
+              ],
+            );
+          },
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () async {
+              final shouldReset = await showDialog<bool>(
+                context: dialogContext,
+                builder: (confirmationContext) => AlertDialog(
+                  title: const Text('Reset service groups?'),
+                  content: const Text(
+                    'The group value for all service checklist participants will be changed to NO GROUPS.',
+                  ),
+                  actions: [
+                    TextButton(
+                      onPressed: () =>
+                          Navigator.of(confirmationContext).pop(false),
+                      child: const Text('Cancel'),
+                    ),
+                    ElevatedButton(
+                      onPressed: () =>
+                          Navigator.of(confirmationContext).pop(true),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: _kPrimary,
+                        foregroundColor: Colors.white,
+                      ),
+                      child: const Text('Reset Groups'),
+                    ),
+                  ],
+                ),
+              );
+              if (shouldReset != true || !mounted) return;
+              Navigator.of(dialogContext).pop();
+              await _resetServiceGroups(serviceChecklistId);
+            },
+            child: const Text('Reset Groups'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              final value = int.tryParse(controller.text);
+              if (value == null ||
+                  value < 1 ||
+                  value > approvedMembers.length) {
+                return;
+              }
+              Navigator.of(dialogContext).pop(value);
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: _kPrimary,
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Generate'),
+          ),
+        ],
+      ),
+    );
+    controller.dispose();
+
+    if (membersPerGroup == null || !mounted) return;
+    await _saveServiceGroups(
+      membersPerGroup,
+      serviceChecklistId,
+      approvedMembers,
+    );
   }
 
   @override
@@ -285,6 +657,49 @@ class _ActiveMembersPageState extends State<ActiveMembersPage> {
                 }),
               ),
             ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+              child: SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  onPressed: _members.isEmpty || _savingGroups
+                      ? null
+                      : _openServiceGroupDialog,
+                  icon: const Icon(Icons.groups_rounded),
+                  label: Text(
+                    _savingGroups
+                        ? 'Saving Service Groups...'
+                        : _serviceGroups.isEmpty
+                        ? 'Generate or Update Service Groups'
+                        : 'Add New Members to Groups',
+                  ),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: _kPrimary,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            if (_serviceGroups.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    '${_serviceGroups.length} service groups  |  $_membersPerGroup members per group  |  ${_members.length} total members',
+                    style: const TextStyle(
+                      color: _kSubText,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                      fontFamily: 'OpenSans',
+                    ),
+                  ),
+                ),
+              ),
             Expanded(
               child: _loading
                   ? const Center(

@@ -1255,7 +1255,7 @@ class _CollectorReceiptsPageState extends State<CollectorReceiptsPage> {
                 ? 'N/A'
                 : receipt['reference'].toString(),
           ),
-          _sheetRow('Receipt ID', (receipt['receipt_id'] ?? 'N/A').toString()),
+
           _sheetRow('Date', _formatDate(receipt['display_date'])),
           const SizedBox(height: 6),
           Text(
@@ -1348,10 +1348,7 @@ class _CollectorReceiptsPageState extends State<CollectorReceiptsPage> {
                         ? 'N/A'
                         : receipt['reference'].toString(),
                   ),
-                  _pdfLine(
-                    'Receipt ID',
-                    (receipt['receipt_id'] ?? 'N/A').toString(),
-                  ),
+
                   _pdfLine('Date', _formatDate(receipt['display_date'])),
                   pw.SizedBox(height: 12),
                   pw.Text((receipt['supporting_text'] ?? '').toString()),
