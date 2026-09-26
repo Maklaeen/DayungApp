@@ -2,7 +2,12 @@ import 'package:capstone_app/ui/theme/branding.dart';
 import 'package:capstone_app/utils/theme_surface.dart';
 import 'package:capstone_app/shared/treasurer_report_header.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/gestures.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+
+const Color _collectorText = Color(0xFF1F2937);
+const Color _collectorSubText = Color(0xFF4B5563);
+const Color _collectorBorder = Color(0xFFE5E7EB);
 
 // ---------------------------------------------------------------------------
 // Models
@@ -62,8 +67,10 @@ class TreasurerCollectorListPage extends StatefulWidget {
 class _TreasurerCollectorListPageState
     extends State<TreasurerCollectorListPage> {
   final _sb = Supabase.instance.client;
+  final _searchController = TextEditingController();
   List<CollectorSummary> _collectors = [];
   bool _loading = true;
+  String _searchQuery = '';
 
   @override
   void initState() {
@@ -127,6 +134,61 @@ class _TreasurerCollectorListPageState
   }
 
   @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  List<CollectorSummary> get _filteredCollectors {
+    final query = _searchQuery.trim().toLowerCase();
+    if (query.isEmpty) return _collectors;
+    return _collectors
+        .where((collector) => collector.name.toLowerCase().contains(query))
+        .toList();
+  }
+
+  Widget _buildSearchBar() {
+    return TextField(
+      controller: _searchController,
+      onChanged: (value) => setState(() => _searchQuery = value),
+      style: const TextStyle(fontSize: 16, color: _collectorText),
+      decoration: InputDecoration(
+        hintText: 'Search collector name',
+        hintStyle: const TextStyle(fontSize: 16, color: _collectorSubText),
+        prefixIcon: const Icon(Icons.search_rounded, size: 25, color: kPrimary),
+        suffixIcon: _searchQuery.isEmpty
+            ? null
+            : IconButton(
+                tooltip: 'Clear search',
+                icon: const Icon(Icons.close_rounded, color: _collectorSubText),
+                onPressed: () {
+                  _searchController.clear();
+                  setState(() => _searchQuery = '');
+                },
+              ),
+        filled: true,
+        fillColor: Colors.white,
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 16,
+          vertical: 16,
+        ),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(16),
+          borderSide: const BorderSide(color: _collectorBorder),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(16),
+          borderSide: const BorderSide(color: _collectorBorder),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(16),
+          borderSide: const BorderSide(color: kPrimary, width: 2),
+        ),
+      ),
+    );
+  }
+
+  @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFFF8FAFC),
@@ -140,11 +202,48 @@ class _TreasurerCollectorListPageState
                   : _collectors.isEmpty
                   ? const Center(child: Text('No collectors found.'))
                   : ListView.separated(
-                      padding: const EdgeInsets.fromLTRB(16, 18, 16, 20),
-                      itemCount: _collectors.length,
+                      padding: const EdgeInsets.fromLTRB(20, 18, 20, 24),
+                      itemCount: _filteredCollectors.isEmpty
+                          ? 2
+                          : _filteredCollectors.length + 1,
                       separatorBuilder: (_, __) => const SizedBox(height: 12),
                       itemBuilder: (context, i) {
-                        final c = _collectors[i];
+                        if (i == 0) {
+                          return _buildSearchBar();
+                        }
+                        final collectors = _filteredCollectors;
+                        if (collectors.isEmpty) {
+                          return Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 28),
+                            child: Column(
+                              children: [
+                                const Icon(
+                                  Icons.search_off_rounded,
+                                  size: 48,
+                                  color: _collectorSubText,
+                                ),
+                                const SizedBox(height: 12),
+                                Text(
+                                  'No collector found',
+                                  style: TextStyle(
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.w700,
+                                    color: dayungTextColor(context),
+                                  ),
+                                ),
+                                const SizedBox(height: 6),
+                                const Text(
+                                  'Try another name or clear the search.',
+                                  style: TextStyle(
+                                    fontSize: 15,
+                                    color: _collectorSubText,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          );
+                        }
+                        final c = collectors[i - 1];
                         return Material(
                           color: Colors.transparent,
                           child: InkWell(
@@ -159,36 +258,42 @@ class _TreasurerCollectorListPageState
                             child: Ink(
                               decoration: dayungSectionCardDecoration(context),
                               child: Padding(
-                                padding: const EdgeInsets.all(16),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 18,
+                                  vertical: 18,
+                                ),
                                 child: Row(
                                   children: [
                                     Container(
-                                      padding: const EdgeInsets.all(12),
+                                      width: 56,
+                                      height: 56,
                                       decoration: BoxDecoration(
                                         color: kPrimary.withValues(alpha: 0.1),
-                                        borderRadius: BorderRadius.circular(12),
+                                        borderRadius: BorderRadius.circular(16),
                                       ),
                                       child: const Icon(
                                         Icons.person_rounded,
                                         color: kPrimary,
-                                        size: 24,
+                                        size: 30,
                                       ),
                                     ),
-                                    const SizedBox(width: 16),
+                                    const SizedBox(width: 14),
                                     Expanded(
                                       child: Text(
                                         c.name,
                                         style: TextStyle(
                                           fontFamily: 'Montserrat',
                                           fontWeight: FontWeight.w700,
-                                          fontSize: 15,
+                                          fontSize: 18,
                                           color: dayungTextColor(context),
                                         ),
+                                        maxLines: 2,
+                                        overflow: TextOverflow.ellipsis,
                                       ),
                                     ),
                                     const Icon(
-                                      Icons.arrow_forward_ios_rounded,
-                                      size: 16,
+                                      Icons.chevron_right_rounded,
+                                      size: 32,
                                       color: kPrimary,
                                     ),
                                   ],
@@ -224,6 +329,7 @@ class _TreasurerCollectorDetailPageState
     extends State<TreasurerCollectorDetailPage> {
   int _activeTab = 0; // 0=Cash 1=NotPaid 2=Cashless 3=Totals
   final Set<int> _recordedTabs = <int>{};
+  final _tableScrollController = ScrollController();
   bool _loading = true;
 
   List<_CollectorMemberRow> _allRows = [];
@@ -407,6 +513,12 @@ class _TreasurerCollectorDetailPageState
   ];
 
   @override
+  void dispose() {
+    _tableScrollController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFFF8FAFC),
@@ -426,11 +538,28 @@ class _TreasurerCollectorDetailPageState
                             padding: const EdgeInsets.only(bottom: 12.0),
                             child: _sectionLabel(widget.collector.name),
                           ),
-                          SingleChildScrollView(
-                            scrollDirection: Axis.horizontal,
-                            child: SizedBox(
-                              width: 820,
-                              child: _tableWithTabs(),
+                          ScrollConfiguration(
+                            behavior: ScrollConfiguration.of(context).copyWith(
+                              dragDevices: {
+                                PointerDeviceKind.touch,
+                                PointerDeviceKind.mouse,
+                                PointerDeviceKind.trackpad,
+                                PointerDeviceKind.stylus,
+                              },
+                            ),
+                            child: Scrollbar(
+                              controller: _tableScrollController,
+                              thumbVisibility: true,
+                              notificationPredicate: (notification) =>
+                                  notification.metrics.axis == Axis.horizontal,
+                              child: SingleChildScrollView(
+                                controller: _tableScrollController,
+                                scrollDirection: Axis.horizontal,
+                                child: SizedBox(
+                                  width: 820,
+                                  child: _tableWithTabs(),
+                                ),
+                              ),
                             ),
                           ),
                           const SizedBox(height: 24),

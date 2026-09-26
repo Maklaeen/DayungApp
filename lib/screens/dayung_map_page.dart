@@ -878,7 +878,7 @@ class _DayungMapPageState extends State<DayungMapPage> {
             child: Column(
               children: [
                 Expanded(
-                  flex: 55,
+                  flex: 52,
                   child: ClipRRect(
                     borderRadius: const BorderRadius.vertical(
                       bottom: Radius.circular(34),
@@ -997,21 +997,21 @@ class _DayungMapPageState extends State<DayungMapPage> {
                     ),
                   ),
                 ),
-                Expanded(flex: 45, child: _infoPanel(dist)),
+                Expanded(flex: 48, child: _infoPanel(dist)),
               ],
             ),
           ),
           if (!_loadingLoc && !_permissionDenied)
             Positioned(
-              right: 18,
+              right: 16,
               top: MediaQuery.of(context).padding.top + 82,
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   _fabIcon(icon: Icons.route, onTap: _showDirectionModeSheet),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 10),
                   _fabIcon(icon: Icons.flag_outlined, onTap: _centerOnDayung),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 10),
                   if (_pos != null)
                     _fabIcon(icon: Icons.my_location, onTap: _centerOnUser),
                 ],
@@ -1027,11 +1027,11 @@ class _DayungMapPageState extends State<DayungMapPage> {
     final address = _address(widget.dayung);
 
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.fromLTRB(12, 12, 18, 16),
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.14),
-        borderRadius: BorderRadius.circular(22),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.18)),
+        color: const Color(0xB31E40AF),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.28)),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.12),
@@ -1044,19 +1044,19 @@ class _DayungMapPageState extends State<DayungMapPage> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           IconButton(
+            tooltip: 'Back',
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(minWidth: 48, minHeight: 48),
             onPressed: () => Navigator.of(context).maybePop(),
-            icon: Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.18),
-                borderRadius: BorderRadius.circular(14),
-              ),
-              child: const Icon(
-                Icons.arrow_back_ios_new_rounded,
-                color: Colors.white,
-                size: 18,
+            style: IconButton.styleFrom(
+              backgroundColor: Colors.white.withValues(alpha: 0.2),
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(13),
+                side: BorderSide(color: Colors.white.withValues(alpha: 0.35)),
               ),
             ),
+            icon: const Icon(Icons.arrow_back_rounded, size: 24),
           ),
           const SizedBox(width: 8),
           Expanded(
@@ -1067,7 +1067,7 @@ class _DayungMapPageState extends State<DayungMapPage> {
                   'Dayung Map',
                   style: TextStyle(
                     color: Colors.white,
-                    fontSize: 12,
+                    fontSize: 14,
                     fontWeight: FontWeight.w700,
                     fontFamily: 'Montserrat',
                     letterSpacing: 0.25,
@@ -1080,7 +1080,7 @@ class _DayungMapPageState extends State<DayungMapPage> {
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
                     color: Colors.white,
-                    fontSize: 20,
+                    fontSize: 24,
                     fontWeight: FontWeight.w800,
                     fontFamily: 'Montserrat',
                     height: 1.15,
@@ -1094,7 +1094,7 @@ class _DayungMapPageState extends State<DayungMapPage> {
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
                       color: Colors.white.withValues(alpha: 0.86),
-                      fontSize: 13,
+                      fontSize: 15,
                       fontWeight: FontWeight.w600,
                       fontFamily: 'OpenSans',
                       height: 1.35,
@@ -1116,7 +1116,7 @@ class _DayungMapPageState extends State<DayungMapPage> {
     final address = _address(widget.dayung);
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.fromLTRB(22, 18, 22, 14),
+      padding: const EdgeInsets.fromLTRB(24, 18, 24, 16),
       decoration: const BoxDecoration(
         color: kPanelBg,
         borderRadius: BorderRadius.vertical(top: Radius.circular(38)),
@@ -1151,7 +1151,7 @@ class _DayungMapPageState extends State<DayungMapPage> {
                     Text(
                       name,
                       style: const TextStyle(
-                        fontSize: 22,
+                        fontSize: 26,
                         fontWeight: FontWeight.w800,
                         fontFamily: 'Montserrat',
                         color: kPrimaryDark,
@@ -1167,7 +1167,7 @@ class _DayungMapPageState extends State<DayungMapPage> {
                         children: [
                           Icon(
                             Icons.location_on,
-                            size: 18,
+                            size: 22,
                             color: kPrimary.withOpacity(.85),
                           ),
                           const SizedBox(width: 6),
@@ -1175,7 +1175,7 @@ class _DayungMapPageState extends State<DayungMapPage> {
                             child: Text(
                               address,
                               style: const TextStyle(
-                                fontSize: 13.5,
+                                fontSize: 16,
                                 fontFamily: 'OpenSans',
                                 color: kSubtleText,
                                 height: 1.25,
@@ -1241,7 +1241,7 @@ class _DayungMapPageState extends State<DayungMapPage> {
     required Color background,
   }) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       decoration: BoxDecoration(
         color: background,
         borderRadius: BorderRadius.circular(14),
@@ -1249,12 +1249,12 @@ class _DayungMapPageState extends State<DayungMapPage> {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 16, color: color),
+          Icon(icon, size: 20, color: color),
           const SizedBox(width: 8),
           Text(
             label,
             style: TextStyle(
-              fontSize: 13,
+              fontSize: 15,
               color: color,
               fontWeight: FontWeight.w700,
               fontFamily: 'OpenSans',
@@ -1736,7 +1736,7 @@ class _DayungMapPageState extends State<DayungMapPage> {
               color: color,
               fontWeight: FontWeight.w600,
               fontFamily: 'OpenSans',
-              fontSize: 14,
+              fontSize: 16,
             ),
           ),
         ),
@@ -1756,7 +1756,7 @@ class _DayungMapPageState extends State<DayungMapPage> {
         child: Text(
           label,
           style: const TextStyle(
-            fontSize: 16.5,
+            fontSize: 18,
             fontWeight: FontWeight.w700,
             fontFamily: 'Montserrat',
           ),
@@ -1765,6 +1765,7 @@ class _DayungMapPageState extends State<DayungMapPage> {
       style: ElevatedButton.styleFrom(
         backgroundColor: kPrimary,
         foregroundColor: Colors.white,
+        minimumSize: const Size.fromHeight(60),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
         elevation: 3,
       ),
@@ -1779,8 +1780,8 @@ class _DayungMapPageState extends State<DayungMapPage> {
         borderRadius: BorderRadius.circular(18),
         onTap: onTap,
         child: SizedBox(
-          width: 56,
-          height: 56,
+          width: 64,
+          height: 64,
           child: DecoratedBox(
             decoration: BoxDecoration(
               color: Colors.white,

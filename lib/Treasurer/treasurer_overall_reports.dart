@@ -3,6 +3,7 @@ import 'package:capstone_app/ui/theme/branding.dart';
 import 'package:capstone_app/utils/theme_surface.dart';
 import 'package:capstone_app/shared/treasurer_report_header.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/gestures.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 class _DeathNoticeReport {
@@ -72,8 +73,8 @@ class TreasurerOverallReportsMemberBuilder {
       // Determine drop status based on the latest row for this user
       final latestStatus =
           ((row['status'] ?? 'unpaid').toString().toLowerCase() == 'paid')
-              ? 'paid'
-              : 'unpaid';
+          ? 'paid'
+          : 'unpaid';
       final isUnpaid = latestStatus == 'unpaid';
 
       // Build patayStatus by checking all payment rows for this user
@@ -121,8 +122,8 @@ class TreasurerOverallReportsMemberBuilder {
       if (deceasedId.isEmpty) continue;
       final status =
           ((row['status'] ?? 'unpaid').toString().toLowerCase() == 'paid')
-              ? 'paid'
-              : 'unpaid';
+          ? 'paid'
+          : 'unpaid';
       // once paid for a given deceased, keep it as paid
       if (map[deceasedId] != 'paid') {
         map[deceasedId] = status;
@@ -163,6 +164,8 @@ class TreasurerOverallReportsPage extends StatefulWidget {
 
 class _TreasurerOverallReportsPageState
     extends State<TreasurerOverallReportsPage> {
+  final _summaryScrollController = ScrollController();
+  final _membersScrollController = ScrollController();
   int _activeTab = 0;
   bool _loadingMembers = true;
   String? _membersError;
@@ -178,6 +181,41 @@ class _TreasurerOverallReportsPageState
   void initState() {
     super.initState();
     _loadMembers();
+  }
+
+  @override
+  void dispose() {
+    _summaryScrollController.dispose();
+    _membersScrollController.dispose();
+    super.dispose();
+  }
+
+  Widget _draggableTable({
+    required ScrollController controller,
+    required double width,
+    required Widget child,
+  }) {
+    return ScrollConfiguration(
+      behavior: ScrollConfiguration.of(context).copyWith(
+        dragDevices: {
+          PointerDeviceKind.touch,
+          PointerDeviceKind.mouse,
+          PointerDeviceKind.trackpad,
+          PointerDeviceKind.stylus,
+        },
+      ),
+      child: Scrollbar(
+        controller: controller,
+        thumbVisibility: true,
+        notificationPredicate: (notification) =>
+            notification.metrics.axis == Axis.horizontal,
+        child: SingleChildScrollView(
+          controller: controller,
+          scrollDirection: Axis.horizontal,
+          child: SizedBox(width: width, child: child),
+        ),
+      ),
+    );
   }
 
   Future<void> _loadMembers() async {
@@ -316,15 +354,17 @@ class _TreasurerOverallReportsPageState
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    SingleChildScrollView(
-                      scrollDirection: Axis.horizontal,
-                      child: SizedBox(width: 760, child: _summaryTable()),
+                    _draggableTable(
+                      controller: _summaryScrollController,
+                      width: 760,
+                      child: _summaryTable(),
                     ),
                     const SizedBox(height: 24),
 
-                    SingleChildScrollView(
-                      scrollDirection: Axis.horizontal,
-                      child: SizedBox(width: 760, child: _membersTable()),
+                    _draggableTable(
+                      controller: _membersScrollController,
+                      width: 760,
+                      child: _membersTable(),
                     ),
                     const SizedBox(height: 24),
                   ],

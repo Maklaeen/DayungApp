@@ -17,7 +17,7 @@ const Color kWarn = Color(0xFFF59E0B);
 const Color kDanger = Color(0xFFEF4444);
 const Color kBg = Color(0xFFF8FAFC);
 const Color kCardBg = Color(0xFFFFFFFF);
-const Color kSubText = Color(0xFF6B7280);
+const Color kSubText = Color(0xFF4B5563);
 const Color kText = Color(0xFF111827);
 const Color kBorderColor = Color(0xFFE5E7EB);
 const String _selectedDayungUnitOwnerIdKey = 'selectedDayungUnitOwnerId';
@@ -91,17 +91,13 @@ class _SelectDayungPageState extends State<SelectDayungPage> {
         ? normalized['id'] as int
         : int.tryParse('${normalized['id']}');
 
-    // Refresh roles and unit provider
     await roleProvider.refreshRoles(id);
     unitProvider.setDayungUnit(
       '${normalized['name'] ?? 'Dayung'}',
       obj: normalized,
     );
 
-    // Update local fallback immediately so the UI marks "Already using"
-    if (mounted) setState(() => _prefsSelectedId = id); // <-- add
-
-    // Let the caller handle navigation
+    if (mounted) setState(() => _prefsSelectedId = id);
     return normalized;
   }
 
@@ -288,7 +284,7 @@ class _SelectDayungPageState extends State<SelectDayungPage> {
         : 'Your active unit controls the dashboard data, notifications, and scoped actions you see.';
 
     return Container(
-      padding: const EdgeInsets.all(18),
+      padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(20),
@@ -305,8 +301,8 @@ class _SelectDayungPageState extends State<SelectDayungPage> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Container(
-            width: isWide ? 56 : 48,
-            height: isWide ? 56 : 48,
+            width: isWide ? 60 : 56,
+            height: isWide ? 60 : 56,
             decoration: BoxDecoration(
               color: kPrimary.withValues(alpha: 0.10),
               borderRadius: BorderRadius.circular(16),
@@ -321,7 +317,7 @@ class _SelectDayungPageState extends State<SelectDayungPage> {
                 Text(
                   headline,
                   style: TextStyle(
-                    fontSize: isWide ? 18 : 16,
+                    fontSize: isWide ? 20 : 18,
                     fontWeight: FontWeight.w800,
                     color: kText,
                   ),
@@ -329,7 +325,11 @@ class _SelectDayungPageState extends State<SelectDayungPage> {
                 const SizedBox(height: 6),
                 Text(
                   supporting,
-                  style: const TextStyle(color: kSubText, height: 1.45),
+                  style: const TextStyle(
+                    color: kSubText,
+                    fontSize: 15,
+                    height: 1.5,
+                  ),
                 ),
                 const SizedBox(height: 12),
                 Wrap(
@@ -349,6 +349,7 @@ class _SelectDayungPageState extends State<SelectDayungPage> {
                         '$unitCount ${unitCount == 1 ? 'unit' : 'units'} available',
                         style: const TextStyle(
                           color: kPrimaryDark,
+                          fontSize: 14,
                           fontWeight: FontWeight.w700,
                         ),
                       ),
@@ -367,6 +368,7 @@ class _SelectDayungPageState extends State<SelectDayungPage> {
                           'Selection required',
                           style: TextStyle(
                             color: Color(0xFF92400E),
+                            fontSize: 14,
                             fontWeight: FontWeight.w700,
                           ),
                         ),
@@ -396,7 +398,7 @@ class _SelectDayungPageState extends State<SelectDayungPage> {
       margin: const EdgeInsets.only(bottom: 14),
       decoration: BoxDecoration(
         color: kCardBg,
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(16),
         border: Border.all(
           color: isCurrent ? kPrimary : kBorderColor,
           width: isCurrent ? 1.6 : 1,
@@ -412,7 +414,7 @@ class _SelectDayungPageState extends State<SelectDayungPage> {
         ],
       ),
       child: Padding(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(20),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -441,7 +443,7 @@ class _SelectDayungPageState extends State<SelectDayungPage> {
                       Text(
                         d['name'] ?? 'Dayung',
                         style: const TextStyle(
-                          fontSize: 18,
+                          fontSize: 20,
                           fontWeight: FontWeight.w800,
                           color: kText,
                         ),
@@ -449,7 +451,11 @@ class _SelectDayungPageState extends State<SelectDayungPage> {
                       const SizedBox(height: 6),
                       Text(
                         _address(d),
-                        style: const TextStyle(color: kSubText, height: 1.4),
+                        style: const TextStyle(
+                          color: kSubText,
+                          fontSize: 15,
+                          height: 1.5,
+                        ),
                       ),
                     ],
                   ),
@@ -468,6 +474,7 @@ class _SelectDayungPageState extends State<SelectDayungPage> {
                     isCurrent ? 'Active now' : 'Available',
                     style: TextStyle(
                       color: isCurrent ? const Color(0xFF047857) : kSubText,
+                      fontSize: 14,
                       fontWeight: FontWeight.w700,
                     ),
                   ),
@@ -483,18 +490,23 @@ class _SelectDayungPageState extends State<SelectDayungPage> {
                       isCurrent
                           ? Icons.check_circle
                           : Icons.radio_button_unchecked_rounded,
-                      size: isWide ? 18 : 15,
+                      size: 20,
                     ),
                     label: Text(
                       isCurrent ? 'Already using this unit' : 'Use this Dayung',
-                      style: TextStyle(fontSize: isWide ? 15 : 13),
+                      style: TextStyle(
+                        fontSize: isWide ? 16 : 15,
+                        fontWeight: FontWeight.w700,
+                      ),
                     ),
                     style: OutlinedButton.styleFrom(
-                      foregroundColor: isCurrent ? kSubText : kPrimary,
+                      backgroundColor: isCurrent ? kBg : kPrimary,
+                      foregroundColor: isCurrent ? kSubText : Colors.white,
                       side: BorderSide(
                         color: isCurrent ? kBorderColor : kPrimary,
                       ),
-                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      minimumSize: const Size.fromHeight(56),
+                      padding: const EdgeInsets.symmetric(horizontal: 12),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(14),
                       ),
@@ -518,7 +530,8 @@ class _SelectDayungPageState extends State<SelectDayungPage> {
                     label: const Text('View on Map'),
                     style: TextButton.styleFrom(
                       foregroundColor: kAccent,
-                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      minimumSize: const Size.fromHeight(56),
+                      padding: const EdgeInsets.symmetric(horizontal: 12),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(14),
                       ),
@@ -574,22 +587,46 @@ class _SelectDayungPageState extends State<SelectDayungPage> {
             child: Column(
               children: [
                 Container(
-                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 20),
+                  padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
+                  decoration: const BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [kPrimaryDark, kPrimary],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                    borderRadius: BorderRadius.only(
+                      bottomLeft: Radius.circular(28),
+                      bottomRight: Radius.circular(28),
+                    ),
+                  ),
                   child: Row(
                     children: [
                       IconButton(
                         icon: const Icon(
                           Icons.arrow_back_rounded,
                           color: Colors.white,
-                          size: 20,
+                          size: 24,
                         ),
                         onPressed: () async {
                           final canLeave = await _confirmRequiredExit();
                           if (!mounted || !canLeave) return;
                           navigator.pop(null);
                         },
-                        padding: EdgeInsets.zero,
-                        constraints: const BoxConstraints(),
+                        padding: const EdgeInsets.all(12),
+                        constraints: const BoxConstraints(
+                          minWidth: 48,
+                          minHeight: 48,
+                        ),
+                        style: IconButton.styleFrom(
+                          backgroundColor: Colors.white.withValues(alpha: 0.2),
+                          foregroundColor: Colors.white,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(13),
+                            side: BorderSide(
+                              color: Colors.white.withValues(alpha: 0.3),
+                            ),
+                          ),
+                        ),
                       ),
                       const SizedBox(width: 12),
                       Expanded(
@@ -599,11 +636,10 @@ class _SelectDayungPageState extends State<SelectDayungPage> {
                             Text(
                               'Select Your Dayung',
                               style: TextStyle(
-                                fontSize: isWide ? 24 : 20,
-                                fontWeight: FontWeight.w800,
+                                fontSize: isWide ? 24 : 22,
+                                fontWeight: FontWeight.w900,
                                 color: Colors.white,
                                 fontFamily: 'Montserrat',
-                                letterSpacing: 0.3,
                               ),
                             ),
                             const SizedBox(height: 4),
@@ -612,9 +648,10 @@ class _SelectDayungPageState extends State<SelectDayungPage> {
                                   ? 'Choose one unit to continue'
                                   : 'Review and switch your active unit',
                               style: const TextStyle(
-                                color: Color(0xDBEFF6FF),
-                                fontSize: 13,
-                                fontWeight: FontWeight.w500,
+                                color: Colors.white70,
+                                fontSize: 14,
+                                fontWeight: FontWeight.w600,
+                                height: 1.4,
                               ),
                             ),
                           ],
@@ -625,20 +662,7 @@ class _SelectDayungPageState extends State<SelectDayungPage> {
                 ),
                 Expanded(
                   child: Container(
-                    decoration: const BoxDecoration(
-                      color: kBg,
-                      borderRadius: BorderRadius.only(
-                        topLeft: Radius.circular(32),
-                        topRight: Radius.circular(32),
-                      ),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black12,
-                          blurRadius: 20,
-                          offset: Offset(0, -5),
-                        ),
-                      ],
-                    ),
+                    color: kBg,
                     child: _buildBody(context, isWide),
                   ),
                 ),

@@ -703,41 +703,23 @@ class _ServiceTrackerPageState extends State<ServiceTrackerPage> {
                 if (service['start_time_service'] != null ||
                     service['end_time_service'] != null) ...[
                   const SizedBox(height: 4),
-                  Row(
+                  Wrap(
+                    spacing: 12,
+                    runSpacing: 8,
                     children: [
-                      const Icon(
-                        Icons.play_arrow_rounded,
-                        size: 16,
+                      _buildScheduleMeta(
+                        icon: Icons.play_arrow_rounded,
+                        label:
+                            'Start: ${_formatServiceSchedule(service['start_time_service'])}',
                         color: kPrimaryDark,
                       ),
-                      const SizedBox(width: 4),
-                      Text(
-                        'Start: '
-                        '${_formatServiceSchedule(service['start_time_service'])}',
-                        style: const TextStyle(
-                          fontSize: 12,
-                          color: kPrimaryDark,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                      if (service['end_time_service'] != null) ...[
-                        const SizedBox(width: 12),
-                        const Icon(
-                          Icons.flag_rounded,
-                          size: 16,
+                      if (service['end_time_service'] != null)
+                        _buildScheduleMeta(
+                          icon: Icons.flag_rounded,
+                          label:
+                              'End: ${_formatServiceSchedule(service['end_time_service'])}',
                           color: kAccentDark,
                         ),
-                        const SizedBox(width: 4),
-                        Text(
-                          'End: '
-                          '${_formatServiceSchedule(service['end_time_service'])}',
-                          style: const TextStyle(
-                            fontSize: 12,
-                            color: kAccentDark,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ],
                     ],
                   ),
                 ],
@@ -759,6 +741,31 @@ class _ServiceTrackerPageState extends State<ServiceTrackerPage> {
             ),
         ],
       ),
+    );
+  }
+
+  Widget _buildScheduleMeta({
+    required IconData icon,
+    required String label,
+    required Color color,
+  }) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, size: 16, color: color),
+        const SizedBox(width: 4),
+        Flexible(
+          child: Text(
+            label,
+            softWrap: true,
+            style: TextStyle(
+              fontSize: 12,
+              color: color,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ),
+      ],
     );
   }
 
@@ -940,34 +947,44 @@ class _ServiceTrackerPageState extends State<ServiceTrackerPage> {
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: const Color(0xFFBFDBFE)),
       ),
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Icon(Icons.location_on_rounded, color: kPrimary, size: 20),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              address.isEmpty ? 'Vigil location' : address,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.w700,
-                color: kPrimaryDark,
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Icon(Icons.location_on_rounded, color: kPrimary, size: 22),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  address.isEmpty ? 'Vigil location' : address,
+                  maxLines: 3,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 14,
+                    height: 1.35,
+                    fontWeight: FontWeight.w700,
+                    color: kPrimaryDark,
+                  ),
+                ),
               ),
-            ),
+            ],
           ),
-          const SizedBox(width: 8),
-          OutlinedButton.icon(
-            onPressed: () => _openVigilLocation(notice),
-            icon: const Icon(Icons.map_outlined, size: 17),
-            label: const Text('View Map'),
-            style: OutlinedButton.styleFrom(
-              foregroundColor: kPrimary,
-              side: const BorderSide(color: kPrimary),
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
-              visualDensity: VisualDensity.compact,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(11),
+          const SizedBox(height: 10),
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              onPressed: () => _openVigilLocation(notice),
+              icon: const Icon(Icons.map_outlined, size: 19),
+              label: const Text('View Map'),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: kPrimary,
+                side: const BorderSide(color: kPrimary),
+                minimumSize: const Size.fromHeight(48),
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(11),
+                ),
               ),
             ),
           ),

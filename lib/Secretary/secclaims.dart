@@ -9,6 +9,7 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:photo_view/photo_view.dart';
 import 'package:flutter/services.dart';
 import 'package:capstone_app/utils/theme_surface.dart';
+import 'package:capstone_app/screens/dayung_map_page.dart';
 
 // Old palette (kept so old logic/widgets compile)
 const Color kPrimary = Color(0xFF0D47A1);
@@ -246,7 +247,7 @@ class _SecretaryClaimsPageState extends State<SecretaryClaimsPage>
       final tagged = await supabase
           .from('claims')
           .select(
-            'id, user_id, title, description, status, date_submitted, death_certificate_url, beneficiary_id, date_of_death, dayung_unit_id, claimedmoney, valid_ids_url',
+            'id, user_id, title, description, status, date_submitted, death_certificate_url, beneficiary_id, date_of_death, dayung_unit_id, claimedmoney, valid_ids_url, vigil_latitude, vigil_longitude, vigil_barangay',
           )
           .eq('dayung_unit_id', unitId)
           .eq('status', statusTitle) // <-- add this line
@@ -260,7 +261,7 @@ class _SecretaryClaimsPageState extends State<SecretaryClaimsPage>
             .from('claims')
             .select(
               'id, user_id, title, description, status, date_submitted, '
-              'death_certificate_url, beneficiary_id, date_of_death, dayung_unit_id, claimedmoney, valid_ids_url', // <— added
+              'death_certificate_url, beneficiary_id, date_of_death, dayung_unit_id, claimedmoney, valid_ids_url, vigil_latitude, vigil_longitude, vigil_barangay',
             )
             .eq('status', statusTitle)
             .isFilter('dayung_unit_id', null)
@@ -415,6 +416,34 @@ class _SecretaryClaimsPageState extends State<SecretaryClaimsPage>
     }
   }
 
+  double? _toDouble(dynamic value) {
+    if (value == null) return null;
+    if (value is num) return value.toDouble();
+    return double.tryParse(value.toString());
+  }
+
+  Map<String, dynamic>? _claimLocation(Map<String, dynamic> claim) {
+    final latitude = _toDouble(claim['vigil_latitude']);
+    final longitude = _toDouble(claim['vigil_longitude']);
+    if (latitude == null || longitude == null) return null;
+
+    return {
+      'latitude': latitude,
+      'longitude': longitude,
+      'barangay': (claim['vigil_barangay'] ?? '').toString(),
+      'name': 'Claim location',
+    };
+  }
+
+  void _openClaimLocation(Map<String, dynamic> claim) {
+    final location = _claimLocation(claim);
+    if (location == null) return;
+
+    Navigator.of(
+      context,
+    ).push(MaterialPageRoute(builder: (_) => DayungMapPage(dayung: location)));
+  }
+
   // ===== Claimed money helpers =====
   bool _isClaimed(dynamic v) {
     if (v is bool) return v;
@@ -491,7 +520,7 @@ class _SecretaryClaimsPageState extends State<SecretaryClaimsPage>
         .eq('has_remaining', true)
         .order('created_at', ascending: true);
 
-    final advanceRows = List<Map<String, dynamic>>.from(rows ?? const []);
+    final advanceRows = List<Map<String, dynamic>>.from(rows);
     if (advanceRows.isEmpty) return;
 
     double remainingContribution = contributionAmount;
@@ -1035,6 +1064,36 @@ class _SecretaryClaimsPageState extends State<SecretaryClaimsPage>
                 );
               },
             ),
+            if (_claimLocation(claim) != null) ...[
+              const SizedBox(height: 10),
+              Row(
+                children: [
+                  Icon(Icons.location_on, size: 18, color: kPrimary),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text(
+                      (claim['vigil_barangay'] ?? 'Location available')
+                          .toString(),
+                      style: const TextStyle(
+                        fontSize: 14,
+                        color: kPrimary,
+                        fontWeight: FontWeight.w700,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  const Text(
+                    'View map',
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: kPrimary,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ],
+              ),
+            ],
           ],
         ),
       ),
@@ -1193,6 +1252,36 @@ class _SecretaryClaimsPageState extends State<SecretaryClaimsPage>
                         submitter,
                       ),
                       _buildInfoRow(Icons.business, 'Dayung', dayungName),
+
+                      if (_claimLocation(claim) != null) ...[
+                        _buildInfoRow(
+                          Icons.location_on,
+                          'Location',
+                          (claim['vigil_barangay'] ?? 'Coordinates available')
+                              .toString(),
+                        ),
+                        const SizedBox(height: 4),
+                        SizedBox(
+                          width: double.infinity,
+                          child: ElevatedButton.icon(
+                            onPressed: () => _openClaimLocation(claim),
+                            icon: const Icon(Icons.map_outlined, size: 22),
+                            label: const Text('View Location on Map'),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: kPrimary,
+                              foregroundColor: Colors.white,
+                              minimumSize: const Size.fromHeight(56),
+                              textStyle: const TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w700,
+                              ),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
 
                       if (status.toLowerCase() == 'approved')
                         _buildInfoRow(
