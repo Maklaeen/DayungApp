@@ -376,14 +376,6 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
       }
     } catch (e, st) {
       debugPrint('Save preferences failed: $e\n$st');
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            'Could not save preferences. Continuing without saving.',
-          ),
-        ),
-      );
     } finally {
       if (mounted) setState(() => isSubmitting = false);
     }
@@ -1081,9 +1073,7 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
                       await _savePreferences();
                       if (!mounted) return;
                       navigator.pushReplacement(
-                        MaterialPageRoute(
-                          builder: (_) => const RoleRouter(),
-                        ),
+                        MaterialPageRoute(builder: (_) => const RoleRouter()),
                       );
                     },
             ),
