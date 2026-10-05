@@ -247,7 +247,7 @@ class _SecretaryClaimsPageState extends State<SecretaryClaimsPage>
       final tagged = await supabase
           .from('claims')
           .select(
-            'id, user_id, title, description, status, date_submitted, death_certificate_url, beneficiary_id, date_of_death, dayung_unit_id, claimedmoney, valid_ids_url, vigil_latitude, vigil_longitude, vigil_barangay',
+            'id, user_id, claimant_name, title, description, status, date_submitted, death_certificate_url, beneficiary_id, date_of_death, dayung_unit_id, claimedmoney, valid_ids_url, vigil_latitude, vigil_longitude, vigil_barangay',
           )
           .eq('dayung_unit_id', unitId)
           .eq('status', statusTitle) // <-- add this line
@@ -260,7 +260,7 @@ class _SecretaryClaimsPageState extends State<SecretaryClaimsPage>
         final legacy = await supabase
             .from('claims')
             .select(
-              'id, user_id, title, description, status, date_submitted, '
+              'id, user_id, claimant_name, title, description, status, date_submitted, '
               'death_certificate_url, beneficiary_id, date_of_death, dayung_unit_id, claimedmoney, valid_ids_url, vigil_latitude, vigil_longitude, vigil_barangay',
             )
             .eq('status', statusTitle)
@@ -1105,7 +1105,9 @@ class _SecretaryClaimsPageState extends State<SecretaryClaimsPage>
     final color = _statusColor(status);
     final userId = (claim['user_id'] ?? '').toString();
     final userInfo = _userMap[userId];
-    final submitter = (userInfo?['full_name'] ?? 'Member').toString();
+    final submitter =
+        (claim['claimant_name'] ?? userInfo?['full_name'] ?? 'Member')
+            .toString();
     final dayungName =
         context.read<DayungUnitProvider>().dayungUnit ?? 'Dayung';
     final claimed = _isClaimed(claim['claimedmoney']); // <— existing

@@ -1,7 +1,10 @@
+import 'dart:convert';
+
 import 'package:auto_size_text/auto_size_text.dart';
 import 'package:capstone_app/Beneficiary/addbeneficiary.dart' as add;
 import 'package:capstone_app/utils/supabase_storage.dart';
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:capstone_app/shared/dayung_back_button.dart';
@@ -48,13 +51,48 @@ class _BeneficiaryPageState extends State<BeneficiaryPage> {
   Future<void> fetchBeneficiaries() async {
     setState(() => isLoading = true);
 
-    final user = Supabase.instance.client.auth.currentUser;
-    final response = await Supabase.instance.client
+    final client = Supabase.instance.client;
+    final user = client.auth.currentUser;
+    if (user == null) {
+      if (!mounted) return;
+      setState(() {
+        beneficiaries = [];
+        isLoading = false;
+      });
+      return;
+    }
+
+    int? unitId;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final ownerId = prefs.getString('selectedDayungUnitOwnerId');
+      final unitJson =
+          prefs.getString('selectedDayungUnitData') ??
+          prefs.getString('selectedDayungUnit');
+      if (ownerId == user.id && unitJson != null) {
+        final unit = Map<String, dynamic>.from(jsonDecode(unitJson) as Map);
+        final rawUnitId = unit['id'];
+        unitId = rawUnitId is int ? rawUnitId : int.tryParse('$rawUnitId');
+      }
+    } catch (_) {}
+
+    if (unitId == null) {
+      if (!mounted) return;
+      setState(() {
+        beneficiaries = [];
+        isLoading = false;
+      });
+      return;
+    }
+
+    final response = await client
         .from('beneficiaries')
         .select()
-        .eq('user_id', user!.id);
+        .eq('user_id', user.id)
+        .eq('dayung_unit_id', unitId);
 
     final List<dynamic> allBeneficiaries = response;
+    if (!mounted) return;
     setState(() {
       beneficiaries = allBeneficiaries;
       isLoading = false;
@@ -70,6 +108,21 @@ class _BeneficiaryPageState extends State<BeneficiaryPage> {
     if (beneficiaries.isNotEmpty && widget.onFirstBeneficiaryAdded != null) {
       widget.onFirstBeneficiaryAdded!();
     }
+  }
+
+  Future<void> _navigateToEditBeneficiary(
+    BuildContext context,
+    Map beneficiary,
+  ) async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => add.AddBeneficiaryPage(
+          beneficiary: Map<String, dynamic>.from(beneficiary),
+        ),
+      ),
+    );
+    await fetchBeneficiaries();
   }
 
   Future<void> _showResolvedFile(BuildContext context, String url) async {
@@ -194,6 +247,23 @@ class _BeneficiaryPageState extends State<BeneficiaryPage> {
                             const SizedBox(height: 8),
                           ],
                         ),
+                      ),
+                      IconButton(
+                        icon: Icon(
+                          Icons.edit_rounded,
+                          color: item['eligible_to_claim'] == true
+                              ? kSubText
+                              : kAccent,
+                        ),
+                        tooltip: item['eligible_to_claim'] == true
+                            ? 'Eligible – No Changes Needed'
+                            : 'Edit beneficiary',
+                        onPressed: item['eligible_to_claim'] == true
+                            ? null
+                            : () {
+                                Navigator.of(sheetContext).pop();
+                                _navigateToEditBeneficiary(context, item);
+                              },
                       ),
                       IconButton(
                         icon: const Icon(Icons.close_rounded, color: kSubText),
@@ -592,17 +662,42 @@ class _BeneficiaryPageState extends State<BeneficiaryPage> {
                             ],
                           ),
                           const SizedBox(height: 12),
-                          Text(
-                            item['full_name'] ?? '',
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              fontSize: isWide ? 19 : 17,
-                              fontWeight: FontWeight.w800,
-                              color: kText,
-                              fontFamily: 'Montserrat',
-                              height: 1.2,
-                            ),
+                          Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  item['full_name'] ?? '',
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(
+                                    fontSize: isWide ? 19 : 17,
+                                    fontWeight: FontWeight.w800,
+                                    color: kText,
+                                    fontFamily: 'Montserrat',
+                                    height: 1.2,
+                                  ),
+                                ),
+                              ),
+                              IconButton(
+                                icon: Icon(
+                                  Icons.edit_rounded,
+                                  color: item['eligible_to_claim'] == true
+                                      ? kSubText
+                                      : kAccent,
+                                  size: 20,
+                                ),
+                                tooltip: item['eligible_to_claim'] == true
+                                    ? 'Eligible – No Changes Needed'
+                                    : 'Edit beneficiary',
+                                onPressed: item['eligible_to_claim'] == true
+                                    ? null
+                                    : () => _navigateToEditBeneficiary(
+                                        context,
+                                        item,
+                                      ),
+                              ),
+                            ],
                           ),
                           const SizedBox(height: 8),
                           Text(
@@ -661,7 +756,6 @@ class _BeneficiaryPageState extends State<BeneficiaryPage> {
   Widget build(BuildContext context) {
     final width = MediaQuery.of(context).size.width;
     final isWide = width > 700;
-    final isCompact = width < 380;
     final totalCount = beneficiaries.length;
 
     final content = SafeArea(

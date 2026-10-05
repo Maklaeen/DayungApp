@@ -130,13 +130,12 @@ class _GlobalSidebarWrapperState extends State<GlobalSidebarWrapper> {
   }
 
   Future<void> _switchAccount() async {
+    final userId = Supabase.instance.client.auth.currentUser?.id;
     final selected = await Navigator.push<Map<String, dynamic>>(
       context,
       MaterialPageRoute(builder: (_) => const SelectDayungPage()),
     );
     if (!mounted || selected == null || selected['id'] == null) return;
-
-    final userId = Supabase.instance.client.auth.currentUser?.id;
     if (userId == null) return;
 
     try {

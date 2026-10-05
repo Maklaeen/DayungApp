@@ -9,6 +9,8 @@ void main() {
       MembershipAgreementPage.shouldShowAgreementContent(
         hasApprovedApplication: true,
         hasRequiredApplicationContent: true,
+        activeDayungUnitId: 5,
+        applicationDayungUnitId: 5,
       ),
       isTrue,
     );
@@ -17,6 +19,8 @@ void main() {
       MembershipAgreementPage.shouldShowAgreementContent(
         hasApprovedApplication: false,
         hasRequiredApplicationContent: true,
+        activeDayungUnitId: 5,
+        applicationDayungUnitId: 5,
       ),
       isFalse,
     );
@@ -25,6 +29,18 @@ void main() {
       MembershipAgreementPage.shouldShowAgreementContent(
         hasApprovedApplication: true,
         hasRequiredApplicationContent: false,
+        activeDayungUnitId: 5,
+        applicationDayungUnitId: 5,
+      ),
+      isFalse,
+    );
+
+    expect(
+      MembershipAgreementPage.shouldShowAgreementContent(
+        hasApprovedApplication: true,
+        hasRequiredApplicationContent: true,
+        activeDayungUnitId: 5,
+        applicationDayungUnitId: 1,
       ),
       isFalse,
     );
@@ -51,7 +67,7 @@ void main() {
 
       await tester.pumpAndSettle();
 
-      expect(find.text('Membership Agreement4.1'), findsOneWidget);
+      expect(find.text('Membership Agreement'), findsOneWidget);
       expect(find.text('Membership Terms'), findsOneWidget);
       expect(find.text('Eligibility'), findsOneWidget);
       expect(find.text('Members must be active and verified.'), findsOneWidget);

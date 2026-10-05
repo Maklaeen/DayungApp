@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:capstone_app/shared/pres_sec_dashboard_overview.dart';
 import 'package:capstone_app/Providers/dayung_role_provider.dart';
 import 'package:capstone_app/Secretary/certificates.dart';
+import 'package:capstone_app/Secretary/beneficiaries_tab.dart';
 import 'package:capstone_app/Secretary/secclaims.dart';
 import 'package:capstone_app/Secretary/seccontributions.dart';
 import 'package:capstone_app/Secretary/manage_applications.dart';
@@ -1207,7 +1208,6 @@ class _SecretaryDashboardPageState extends State<SecretaryDashboardPage> {
           // First row - 2 main actions
           Row(
             children: [
-              /* Temporarily hidden.
               Expanded(
                 child: SizedBox(
                   height: actionCardHeight,
@@ -1237,7 +1237,6 @@ class _SecretaryDashboardPageState extends State<SecretaryDashboardPage> {
                 ),
               ),
               const SizedBox(width: 12),
-              */
               Expanded(
                 child: SizedBox(
                   height: actionCardHeight,

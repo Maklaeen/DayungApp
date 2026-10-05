@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:capstone_app/Providers/dayung_provider.dart';
 import 'package:capstone_app/Providers/dayung_role_provider.dart';
 import 'package:capstone_app/ui/loading/page_skeleton.dart';
@@ -7,6 +9,7 @@ import 'package:flutter/material.dart';
 import 'package:capstone_app/shared/dayung_back_button.dart';
 import 'package:auto_size_text/auto_size_text.dart';
 import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 // Additional colors for notification-specific styling
@@ -273,37 +276,55 @@ class _NotificationPageState extends State<NotificationPage> {
   List<Map<String, dynamic>> _items = [];
   bool _loading = true;
   bool _markingAllRead = false;
+  bool _scopeInitialized = false;
   int? _currentUnitId;
 
-  int? _resolveScopedUnitId(BuildContext context) {
-    final memberScopedId = context.read<DayungUnitProvider>().currentUnitId;
-    final roleScopedId = context.read<DayungRoleProvider>().unitId;
-    return memberScopedId ?? roleScopedId;
-  }
+  Future<void> _refreshScopedUnitId() async {
+    var unitId =
+        context.read<DayungUnitProvider>().currentUnitId ??
+        context.read<DayungRoleProvider>().unitId;
 
-  @override
-  void initState() {
-    super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      final unitId = _resolveScopedUnitId(context);
-      _currentUnitId = unitId;
-      _fetchAll(unitId: _currentUnitId);
-    });
+    if (unitId == null) {
+      final userId = Supabase.instance.client.auth.currentUser?.id;
+      if (userId != null) {
+        final prefs = await SharedPreferences.getInstance();
+        if (prefs.getString('selectedDayungUnitOwnerId') == userId &&
+            Supabase.instance.client.auth.currentUser?.id == userId) {
+          final unitJson =
+              prefs.getString('selectedDayungUnitData') ??
+              prefs.getString('selectedDayungUnit');
+          if (unitJson != null) {
+            try {
+              final unit = Map<String, dynamic>.from(
+                jsonDecode(unitJson) as Map,
+              );
+              final id = unit['id'];
+              unitId = id is int ? id : int.tryParse('$id');
+            } catch (_) {}
+          }
+        }
+      }
+    }
+
+    if (!mounted) return;
+    unitId =
+        context.read<DayungUnitProvider>().currentUnitId ??
+        context.read<DayungRoleProvider>().unitId ??
+        unitId;
+    if (!mounted || (_scopeInitialized && unitId == _currentUnitId)) return;
+
+    _scopeInitialized = true;
+    _currentUnitId = unitId;
+    setState(() => _items = []);
+    _fetchAll(unitId: unitId);
   }
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    final memberScopedId = context.watch<DayungUnitProvider>().currentUnitId;
-    final roleScopedId = context.watch<DayungRoleProvider>().unitId;
-    final newId = memberScopedId ?? roleScopedId;
-    if (newId != _currentUnitId) {
-      _currentUnitId = newId;
-      if (mounted) {
-        setState(() => _items = []);
-      }
-      _fetchAll(unitId: _currentUnitId);
-    }
+    context.watch<DayungUnitProvider>();
+    context.watch<DayungRoleProvider>();
+    _refreshScopedUnitId();
   }
 
   void _showNotificationModal({
@@ -491,14 +512,19 @@ class _NotificationPageState extends State<NotificationPage> {
       }
 
       // 1) Personal notifications for this user across the account.
+      dynamic notificationsQuery = sb
+          .from('notifications')
+          .select(
+            'id, type, title, body, created_at, read_at, dayung_unit_id, announcement_id',
+          )
+          .eq('recipient_id', uid);
+      notificationsQuery = scopedUnitId == null
+          ? notificationsQuery.isFilter('dayung_unit_id', null)
+          : notificationsQuery.or(
+              'dayung_unit_id.eq.$scopedUnitId,dayung_unit_id.is.null',
+            );
       final notifData = List<Map<String, dynamic>>.from(
-        await sb
-            .from('notifications')
-            .select(
-              'id, type, title, body, created_at, read_at, dayung_unit_id, announcement_id',
-            )
-            .eq('recipient_id', uid)
-            .order('created_at', ascending: false),
+        await notificationsQuery.order('created_at', ascending: false),
       );
 
       // Capture announcement_ids already present in notifications to avoid duplicates
@@ -879,11 +905,17 @@ class _NotificationPageState extends State<NotificationPage> {
 
     setState(() => _markingAllRead = true);
     try {
-      await sb
+      dynamic notificationsQuery = sb
           .from('notifications')
           .update({'read_at': DateTime.now().toIso8601String()})
           .eq('recipient_id', uid)
           .isFilter('read_at', null);
+      notificationsQuery = _currentUnitId == null
+          ? notificationsQuery.isFilter('dayung_unit_id', null)
+          : notificationsQuery.or(
+              'dayung_unit_id.eq.$_currentUnitId,dayung_unit_id.is.null',
+            );
+      await notificationsQuery;
 
       final unreadDirect = _items.where(
         (item) => _isDirectAnnouncement(item) && _isUnread(item),

@@ -179,7 +179,10 @@ class _MembersContributionHistoryState
           _dayungId = rawId is int ? rawId : int.tryParse('$rawId'); // NEW
         });
         if (mounted && (unit['name']?.toString().isNotEmpty ?? false)) {
-          context.read<DayungUnitProvider>().setDayungUnit(unit['name']);
+          context.read<DayungUnitProvider>().setDayungUnit(
+            unit['name'],
+            obj: _selectedDayungUnitObj,
+          );
         }
       } catch (_) {
         await prefs.remove('selectedDayungUnit');
@@ -283,7 +286,7 @@ class _MembersContributionHistoryState
           .toSet()
           .toList();
 
-     Map<String, Map<String, dynamic>> noticeById = {};
+      Map<String, Map<String, dynamic>> noticeById = {};
       if (noticeIds.isNotEmpty) {
         final notices = List<Map<String, dynamic>>.from(
           await supabase
@@ -295,7 +298,7 @@ class _MembersContributionHistoryState
       }
 
       final merged = payments.map((p) {
-       final nid = p['death_notice_id']?.toString();
+        final nid = p['death_notice_id']?.toString();
         final n = nid != null ? noticeById[nid] : null;
         final userDeceasedId = p['userdeceased']?.toString();
         final userDeceasedName =

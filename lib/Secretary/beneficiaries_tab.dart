@@ -27,6 +27,9 @@ class SecretaryBeneficiariesTab extends StatefulWidget {
 class _SecretaryBeneficiariesTabState extends State<SecretaryBeneficiariesTab> {
   Map<String, dynamic> _users = {};
   Map<String, List<dynamic>> _beneficiariesByUser = {};
+  final Set<String> _updatingEligibilityIds = {};
+  final Set<String> _sendingEligibilityNotifIds = {};
+  final Map<String, String> _eligibilityReasons = {};
   bool _loading = true;
   String _searchQuery = '';
 
@@ -104,7 +107,7 @@ class _SecretaryBeneficiariesTabState extends State<SecretaryBeneficiariesTab> {
       final beneficiariesData = await supabase
           .from('beneficiaries')
           .select(
-            'id, user_id, full_name, relationship, dob, birth_certificate, marital_status, valid_id',
+            'id, user_id, full_name, relationship, dob, birth_certificate, marital_status, valid_id, eligible_to_claim',
           )
           .eq('dayung_unit_id', widget.dayungUnitId)
           .order('full_name', ascending: true);
@@ -166,6 +169,90 @@ class _SecretaryBeneficiariesTabState extends State<SecretaryBeneficiariesTab> {
 
   int get _beneficiaryCount =>
       _beneficiariesByUser.values.fold(0, (sum, items) => sum + items.length);
+
+  Future<void> _setEligibleToClaim(Map beneficiary, bool eligible) async {
+    final id = beneficiary['id']?.toString();
+    if (id == null || id.isEmpty || _updatingEligibilityIds.contains(id)) {
+      return;
+    }
+
+    setState(() => _updatingEligibilityIds.add(id));
+    try {
+      final updated = await Supabase.instance.client
+          .from('beneficiaries')
+          .update({'eligible_to_claim': eligible})
+          .eq('id', id)
+          .select('id')
+          .maybeSingle();
+      if (updated == null) {
+        throw StateError('No beneficiary record was updated.');
+      }
+
+      if (!mounted) return;
+      setState(() {
+        for (final items in _beneficiariesByUser.values) {
+          for (final item in items) {
+            if (item['id']?.toString() == id) {
+              item['eligible_to_claim'] = eligible;
+            }
+          }
+        }
+      });
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Could not update claim eligibility: $e')),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _updatingEligibilityIds.remove(id));
+      }
+    }
+  }
+
+  Future<void> _sendEligibilityConcern(Map beneficiary) async {
+    final beneficiaryId = beneficiary['id']?.toString() ?? '';
+    final recipientId = beneficiary['user_id']?.toString() ?? '';
+    final body = (_eligibilityReasons[beneficiaryId] ?? '').trim();
+    final senderId = Supabase.instance.client.auth.currentUser?.id;
+    if (beneficiaryId.isEmpty ||
+        recipientId.isEmpty ||
+        senderId == null ||
+        body.isEmpty ||
+        _sendingEligibilityNotifIds.contains(beneficiaryId)) {
+      return;
+    }
+
+    setState(() => _sendingEligibilityNotifIds.add(beneficiaryId));
+    try {
+      await Supabase.instance.client.from('notifications').insert({
+        'recipient_id': recipientId,
+        'sender_id': senderId,
+        'dayung_unit_id': widget.dayungUnitId,
+        'type': 'announcement',
+        'title': 'Claim Eligibility Concern',
+        'body': body,
+        'announcement_id': null,
+        'read_at': null,
+        'created_at': DateTime.now().toIso8601String(),
+      });
+
+      if (!mounted) return;
+      setState(() => _eligibilityReasons.remove(beneficiaryId));
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Eligibility concern notification sent.')),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Could not send notification: $e')),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _sendingEligibilityNotifIds.remove(beneficiaryId));
+      }
+    }
+  }
 
   Widget _overviewStat({
     required IconData icon,
@@ -392,49 +479,171 @@ class _SecretaryBeneficiariesTabState extends State<SecretaryBeneficiariesTab> {
   }
 
   Widget _beneficiaryCard(Map b) {
+    final beneficiaryId = b['id']?.toString() ?? '';
+    final isEligible = b['eligible_to_claim'] == true;
+    final isUpdating = _updatingEligibilityIds.contains(beneficiaryId);
+    final isSendingNotif = _sendingEligibilityNotifIds.contains(beneficiaryId);
+
     return Card(
       margin: const EdgeInsets.symmetric(vertical: 8, horizontal: 2),
       elevation: 3,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      child: ListTile(
-        onTap: () => _showBeneficiaryDetails(b),
-        leading: CircleAvatar(
-          backgroundColor: kAccent.withValues(alpha: 0.1),
-          child: const Icon(Icons.person_rounded, color: kAccent),
-        ),
-        title: Text(
-          b['full_name'] ?? '',
-          style: const TextStyle(fontWeight: FontWeight.bold, color: kText),
-        ),
-        subtitle: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Relationship: ${b['relationship'] ?? ''}',
-              style: const TextStyle(color: kSubText),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          ListTile(
+            onTap: () => _showBeneficiaryDetails(b),
+            leading: CircleAvatar(
+              backgroundColor: kAccent.withValues(alpha: 0.1),
+              child: const Icon(Icons.person_rounded, color: kAccent),
             ),
-            if (b['dob'] != null)
-              Text(
-                'DOB: ${b['dob']}',
-                style: const TextStyle(color: kSubText, fontSize: 12),
-              ),
-            if (b['marital_status'] != null)
-              Text(
-                'Marital Status: ${b['marital_status']}',
-                style: const TextStyle(color: kSubText, fontSize: 12),
-              ),
-          ],
-        ),
-        trailing: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            if (b['birth_certificate'] != null &&
-                b['birth_certificate'].toString().isNotEmpty)
-              const Icon(Icons.picture_as_pdf, color: kAccent),
-            if (b['valid_id'] != null && b['valid_id'].toString().isNotEmpty)
-              const Icon(Icons.credit_card, color: kAccent),
-          ],
-        ),
+            title: Text(
+              b['full_name'] ?? '',
+              style: const TextStyle(fontWeight: FontWeight.bold, color: kText),
+            ),
+            subtitle: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Relationship: ${b['relationship'] ?? ''}',
+                  style: const TextStyle(color: kSubText),
+                ),
+                if (b['dob'] != null)
+                  Text(
+                    'DOB: ${b['dob']}',
+                    style: const TextStyle(color: kSubText, fontSize: 12),
+                  ),
+                if (b['marital_status'] != null)
+                  Text(
+                    'Marital Status: ${b['marital_status']}',
+                    style: const TextStyle(color: kSubText, fontSize: 12),
+                  ),
+              ],
+            ),
+            trailing: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (b['birth_certificate'] != null &&
+                    b['birth_certificate'].toString().isNotEmpty)
+                  const Icon(Icons.picture_as_pdf, color: kAccent),
+                if (b['valid_id'] != null &&
+                    b['valid_id'].toString().isNotEmpty)
+                  const Icon(Icons.credit_card, color: kAccent),
+              ],
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 8, 8),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Icon(
+                      isEligible
+                          ? Icons.verified_rounded
+                          : Icons.pending_outlined,
+                      size: 18,
+                      color: isEligible ? kSuccess : kSubText,
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        isEligible ? 'Eligible to claim' : 'Not yet eligible',
+                        style: TextStyle(
+                          color: isEligible ? kSuccess : kSubText,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                    if (isUpdating)
+                      const Padding(
+                        padding: EdgeInsets.all(12),
+                        child: SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        ),
+                      )
+                    else
+                      Switch.adaptive(
+                        value: isEligible,
+                        activeTrackColor: kSuccess,
+                        onChanged: beneficiaryId.isEmpty
+                            ? null
+                            : (value) => _setEligibleToClaim(b, value),
+                      ),
+                  ],
+                ),
+                if (!isEligible) ...[
+                  const Padding(
+                    padding: EdgeInsets.only(left: 26, top: 4, bottom: 6),
+                    child: Text(
+                      'Reasons why not yet eligible:',
+                      style: TextStyle(
+                        color: kText,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.only(left: 26, right: 8),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        Expanded(
+                          child: TextField(
+                            minLines: 1,
+                            maxLines: 3,
+                            maxLength: 1000,
+                            textCapitalization: TextCapitalization.sentences,
+                            decoration: InputDecoration(
+                              hintText: 'Type the reason to send to this user',
+                              isDense: true,
+                              filled: true,
+                              fillColor: kBg,
+                              contentPadding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 10,
+                              ),
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                            ),
+                            onChanged: (value) => setState(
+                              () => _eligibilityReasons[beneficiaryId] = value,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 4),
+                        IconButton(
+                          tooltip: 'Send eligibility concern',
+                          onPressed:
+                              isSendingNotif ||
+                                  (_eligibilityReasons[beneficiaryId] ?? '')
+                                      .trim()
+                                      .isEmpty ||
+                                  (b['user_id']?.toString() ?? '').isEmpty
+                              ? null
+                              : () => _sendEligibilityConcern(b),
+                          icon: isSendingNotif
+                              ? const SizedBox(
+                                  width: 20,
+                                  height: 20,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                  ),
+                                )
+                              : const Icon(Icons.send_rounded),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }

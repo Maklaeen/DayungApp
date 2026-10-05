@@ -524,7 +524,7 @@ class _CreateDeathNoticePageState extends State<CreateDeathNoticePage> {
                                     if (age != null)
                                       _infoPill(
                                         Icons.badge_rounded,
-                                        'Age: $age',
+                                        'Age : $age',
                                       ),
                                   ],
                                 ),

@@ -1,5 +1,10 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:capstone_app/Providers/dayung_provider.dart';
 import 'package:capstone_app/profile/required_application_page.dart';
 import 'package:capstone_app/utils/theme_surface.dart';
 import 'package:capstone_app/shared/dayung_back_button.dart';
@@ -25,8 +30,13 @@ class MembershipAgreementPage extends StatefulWidget {
   static bool shouldShowAgreementContent({
     required bool hasApprovedApplication,
     required bool hasRequiredApplicationContent,
+    required int? activeDayungUnitId,
+    required int? applicationDayungUnitId,
   }) {
-    return hasApprovedApplication && hasRequiredApplicationContent;
+    return hasApprovedApplication &&
+        hasRequiredApplicationContent &&
+        activeDayungUnitId != null &&
+        activeDayungUnitId == applicationDayungUnitId;
   }
 
   @override
@@ -61,6 +71,12 @@ class _MembershipAgreementPageState extends State<MembershipAgreementPage> {
         setState(() => _content = RequiredApplicationContent.empty());
         return;
       }
+      final activeDayungUnitId = await _resolveActiveDayungUnitId(userId);
+      if (activeDayungUnitId == null) {
+        if (!mounted) return;
+        setState(() => _content = RequiredApplicationContent.empty());
+        return;
+      }
 
       final applicationRows = await Supabase.instance.client
           .from('applications')
@@ -68,6 +84,7 @@ class _MembershipAgreementPageState extends State<MembershipAgreementPage> {
             'id, dayung_unit_id, is_agree, status, approved_at, applied_at',
           )
           .eq('user_id', userId)
+          .eq('dayung_unit_id', activeDayungUnitId)
           .inFilter('status', ['approved', 'for_confirmation'])
           .order('applied_at', ascending: false)
           .limit(1);
@@ -141,6 +158,8 @@ class _MembershipAgreementPageState extends State<MembershipAgreementPage> {
             MembershipAgreementPage.shouldShowAgreementContent(
               hasApprovedApplication: hasApprovedApplication,
               hasRequiredApplicationContent: hasRequiredApplicationContent,
+              activeDayungUnitId: activeDayungUnitId,
+              applicationDayungUnitId: dayungUnitId,
             )
             ? RequiredApplicationContent.fromRows(parsedRows)
             : RequiredApplicationContent.empty();
@@ -155,6 +174,47 @@ class _MembershipAgreementPageState extends State<MembershipAgreementPage> {
         setState(() => _loading = false);
       }
     }
+  }
+
+  Future<int?> _resolveActiveDayungUnitId(String userId) async {
+    final providerUnitId = context.read<DayungUnitProvider>().currentUnitId;
+    if (providerUnitId != null) {
+      return providerUnitId;
+    }
+
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final ownerId = prefs.getString('selectedDayungUnitOwnerId');
+      final savedUnit =
+          prefs.getString('selectedDayungUnitData') ??
+          prefs.getString('selectedDayungUnit');
+      if (ownerId == userId && savedUnit != null) {
+        final savedUnitMap = Map<String, dynamic>.from(
+          jsonDecode(savedUnit) as Map,
+        );
+        final savedUnitId = _parseUnitId(savedUnitMap['id']);
+        if (savedUnitId != null) {
+          return savedUnitId;
+        }
+      }
+
+      final userRow = await Supabase.instance.client
+          .from('users')
+          .select('dayung_unit_id')
+          .eq('id', userId)
+          .maybeSingle();
+      final userUnitId = _parseUnitId(userRow?['dayung_unit_id']);
+      return userUnitId;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  int? _parseUnitId(dynamic value) {
+    if (value is int) return value;
+    if (value is num) return value.toInt();
+    if (value is String) return int.tryParse(value.trim());
+    return null;
   }
 
   Future<void> _handleAgreementAccept() async {

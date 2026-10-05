@@ -1669,7 +1669,7 @@ class _SecretaryApplicationsPageState extends State<SecretaryApplicationsPage> {
             return Column(
               children: [
                 SecretaryPageHeader(
-                  title: 'Manage Applications2',
+                  title: 'Manage Applications',
                   icon: Icons.assignment_rounded,
                   usePaymentStyle: true,
                   padding: EdgeInsets.fromLTRB(

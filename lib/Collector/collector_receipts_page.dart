@@ -1,5 +1,7 @@
+import 'package:encrypt/encrypt.dart' as encrypt;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:http/http.dart' as http;
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:photo_view/photo_view.dart';
@@ -1277,15 +1279,89 @@ class _CollectorReceiptsPageState extends State<CollectorReceiptsPage> {
     final proofImageUrl = (receipt['proof_image_url'] ?? '').toString();
     if (proofImageUrl.isEmpty) return;
 
-    await Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => _ReceiptProofPreviewPage(
-          memberName: (receipt['member_name'] ?? 'Member').toString(),
-          reference: (receipt['reference'] ?? '').toString(),
-          imageUrl: proofImageUrl,
-        ),
+    await showDialog<void>(
+      context: context,
+      builder: (_) => _ReceiptProofPreviewDialog(
+        memberName: (receipt['member_name'] ?? 'Member').toString(),
+        reference: (receipt['reference'] ?? '').toString(),
+        imageBytes: _loadProofImageBytes(proofImageUrl),
       ),
     );
+  }
+
+  Future<Uint8List> _loadProofImageBytes(String imageUrl) async {
+    final Uri imageUri;
+    if (imageUrl.startsWith('http://') || imageUrl.startsWith('https://')) {
+      imageUri = Uri.parse(imageUrl);
+    } else {
+      var fileName = imageUrl.startsWith('/')
+          ? imageUrl.substring(1)
+          : imageUrl;
+      const bucketPrefix = 'gcash_qr_images/';
+      if (fileName.startsWith(bucketPrefix)) {
+        fileName = fileName.substring(bucketPrefix.length);
+      }
+      final signedUrl = await _sb.storage
+          .from('gcash_qr_images')
+          .createSignedUrl(fileName, 60 * 60)
+          .timeout(_queryTimeout);
+      imageUri = Uri.parse(signedUrl);
+    }
+
+    final response = await http.get(imageUri).timeout(_queryTimeout);
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw Exception('HTTP ${response.statusCode}');
+    }
+
+    final bytes = response.bodyBytes;
+    if (_isPlaintextImage(bytes)) return bytes;
+    if (bytes.length < 32) throw Exception('Invalid encrypted image');
+
+    final key = encrypt.Key.fromUtf8(
+      'capstonedayungappjjm'.padRight(32).substring(0, 32),
+    );
+    final iv = encrypt.IV(bytes.sublist(0, 16));
+    final encrypter = encrypt.Encrypter(encrypt.AES(key));
+    return Uint8List.fromList(
+      encrypter.decryptBytes(encrypt.Encrypted(bytes.sublist(16)), iv: iv),
+    );
+  }
+
+  bool _isPlaintextImage(Uint8List bytes) {
+    final isPng =
+        bytes.length >= 8 &&
+        bytes[0] == 0x89 &&
+        bytes[1] == 0x50 &&
+        bytes[2] == 0x4E &&
+        bytes[3] == 0x47 &&
+        bytes[4] == 0x0D &&
+        bytes[5] == 0x0A &&
+        bytes[6] == 0x1A &&
+        bytes[7] == 0x0A;
+    final isJpeg =
+        bytes.length >= 3 &&
+        bytes[0] == 0xFF &&
+        bytes[1] == 0xD8 &&
+        bytes[2] == 0xFF;
+    final isGif =
+        bytes.length >= 6 &&
+        bytes[0] == 0x47 &&
+        bytes[1] == 0x49 &&
+        bytes[2] == 0x46 &&
+        bytes[3] == 0x38 &&
+        (bytes[4] == 0x37 || bytes[4] == 0x39) &&
+        bytes[5] == 0x61;
+    final isWebp =
+        bytes.length >= 12 &&
+        bytes[0] == 0x52 &&
+        bytes[1] == 0x49 &&
+        bytes[2] == 0x46 &&
+        bytes[3] == 0x46 &&
+        bytes[8] == 0x57 &&
+        bytes[9] == 0x45 &&
+        bytes[10] == 0x42 &&
+        bytes[11] == 0x50;
+    return isPng || isJpeg || isGif || isWebp;
   }
 
   Future<void> _printReceipt(Map<String, dynamic> receipt) async {
@@ -1587,62 +1663,102 @@ class _GcashLoadResult {
   const _GcashLoadResult({required this.rows, required this.usedFallback});
 }
 
-class _ReceiptProofPreviewPage extends StatelessWidget {
+class _ReceiptProofPreviewDialog extends StatelessWidget {
   final String memberName;
   final String reference;
-  final String imageUrl;
+  final Future<Uint8List> imageBytes;
 
-  const _ReceiptProofPreviewPage({
+  const _ReceiptProofPreviewDialog({
     required this.memberName,
     required this.reference,
-    required this.imageUrl,
+    required this.imageBytes,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
+    final screenSize = MediaQuery.sizeOf(context);
+
+    return Dialog(
       backgroundColor: Colors.black,
-      appBar: AppBar(
-        backgroundColor: Colors.black,
-        foregroundColor: Colors.white,
-        title: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+      insetPadding: const EdgeInsets.all(20),
+      child: SizedBox(
+        width: screenSize.width * 0.9 > 900 ? 900 : screenSize.width * 0.9,
+        height: screenSize.height * 0.8,
+        child: Column(
           children: [
-            Text(memberName),
-            if (reference.isNotEmpty)
-              Text(
-                'Ref: $reference',
-                style: const TextStyle(fontSize: 12, color: Colors.white70),
-              ),
-          ],
-        ),
-      ),
-      body: PhotoView(
-        imageProvider: NetworkImage(imageUrl),
-        backgroundDecoration: const BoxDecoration(color: Colors.black),
-        minScale: PhotoViewComputedScale.contained,
-        maxScale: PhotoViewComputedScale.covered * 3,
-        errorBuilder: (context, error, stackTrace) {
-          return const Center(
-            child: Padding(
-              padding: EdgeInsets.all(24),
-              child: Text(
-                'Unable to load the GCash proof image.',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 16,
-                  fontWeight: FontWeight.w700,
-                ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 10, 8, 10),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          memberName,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 16,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                        if (reference.isNotEmpty)
+                          Text(
+                            'Ref: $reference',
+                            style: const TextStyle(
+                              fontSize: 12,
+                              color: Colors.white70,
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                  IconButton(
+                    tooltip: 'Close preview',
+                    onPressed: () => Navigator.of(context).pop(),
+                    icon: const Icon(Icons.close, color: Colors.white),
+                  ),
+                ],
               ),
             ),
-          );
-        },
-        loadingBuilder: (context, event) {
-          return const Center(
-            child: CircularProgressIndicator(color: Colors.white),
-          );
-        },
+            Expanded(
+              child: FutureBuilder<Uint8List>(
+                future: imageBytes,
+                builder: (context, snapshot) {
+                  if (snapshot.hasError) {
+                    return const Center(
+                      child: Padding(
+                        padding: EdgeInsets.all(24),
+                        child: Text(
+                          'Unable to load the GCash proof image.',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 16,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ),
+                    );
+                  }
+                  if (!snapshot.hasData) {
+                    return const Center(
+                      child: CircularProgressIndicator(color: Colors.white),
+                    );
+                  }
+                  return PhotoView(
+                    imageProvider: MemoryImage(snapshot.data!),
+                    backgroundDecoration: const BoxDecoration(
+                      color: Colors.black,
+                    ),
+                    minScale: PhotoViewComputedScale.contained,
+                    maxScale: PhotoViewComputedScale.covered * 3,
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

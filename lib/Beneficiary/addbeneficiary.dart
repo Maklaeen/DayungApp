@@ -1,6 +1,8 @@
 import 'dart:convert';
+import 'dart:typed_data';
 import 'dart:ui';
 
+import 'package:encrypt/encrypt.dart' as encrypt;
 import 'package:capstone_app/utils/input_safety.dart';
 import 'package:capstone_app/utils/supabase_storage.dart';
 import 'package:cupertino_calendar_picker/cupertino_calendar_picker.dart';
@@ -8,6 +10,7 @@ import 'package:dropdown_button2/dropdown_button2.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -24,8 +27,13 @@ const kBorderColor = Color(0xFFE5E7EB);
 
 class AddBeneficiaryPage extends StatefulWidget {
   final bool embedded;
+  final Map<String, dynamic>? beneficiary;
 
-  const AddBeneficiaryPage({super.key, this.embedded = false});
+  const AddBeneficiaryPage({
+    super.key,
+    this.embedded = false,
+    this.beneficiary,
+  });
 
   @override
   State<AddBeneficiaryPage> createState() => _AddBeneficiaryPageState();
@@ -56,15 +64,44 @@ class _AddBeneficiaryPageState extends State<AddBeneficiaryPage> {
     'Aunt/Uncle',
     'Niece/Nephew',
     'Cousin',
+    'Household Member',
     'Other',
   ];
 
-  final List<String> _maritalStatuses = [
-    'Single',
-    'Married',
-    'Widowed',
-    'Separated',
-  ];
+  final List<String> _maritalStatuses = ['Single', 'Widowed', 'Separated'];
+
+  List<String> get _availableMaritalStatuses =>
+      selectedRelationship == 'Spouse' ? ['Married'] : _maritalStatuses;
+
+  @override
+  void initState() {
+    super.initState();
+    _prefillForEdit();
+  }
+
+  void _prefillForEdit() {
+    final beneficiary = widget.beneficiary;
+    if (beneficiary == null) return;
+
+    fullNameController.text = (beneficiary['full_name'] ?? '').toString();
+    selectedRelationship = beneficiary['relationship']?.toString();
+    selectedMaritalStatus = beneficiary['marital_status']?.toString();
+    birthCertificateFile = beneficiary['birth_certificate']?.toString();
+    validIdFile = beneficiary['valid_id']?.toString();
+
+    final dob = beneficiary['dob']?.toString();
+    if (dob != null && dob.isNotEmpty) {
+      try {
+        _selectedDob = DateTime.parse(dob);
+      } catch (_) {
+        _selectedDob = null;
+      }
+    }
+
+    if (selectedRelationship == 'Spouse' && selectedMaritalStatus == null) {
+      selectedMaritalStatus = 'Married';
+    }
+  }
 
   @override
   void dispose() {
@@ -531,43 +568,121 @@ class _AddBeneficiaryPageState extends State<AddBeneficiaryPage> {
     }
   }
 
-  void _showUploadedFilePreview(String fileUrl) {
-    showDialog(
-      context: context,
-      builder: (dialogContext) => Dialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              ClipRRect(
-                borderRadius: BorderRadius.circular(16),
-                child: Image.network(
-                  fileUrl,
-                  fit: BoxFit.contain,
-                  errorBuilder: (context, error, stackTrace) =>
-                      const Text('Could not load image'),
-                ),
-              ),
-              const SizedBox(height: 16),
-              ElevatedButton.icon(
-                icon: const Icon(Icons.close, size: 18),
-                label: const Text('Close'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: kAccent,
-                  foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(10),
+  Future<void> _showUploadedFilePreview(String fileUrl) async {
+    try {
+      final signedUrl = await resolveSupabaseStorageUrl(fileUrl);
+      if (signedUrl == null) throw Exception('Could not access uploaded file');
+
+      final response = await http.get(Uri.parse(signedUrl));
+      if (response.statusCode != 200) {
+        throw Exception('Download failed (${response.statusCode})');
+      }
+
+      final bytes = response.bodyBytes;
+      final imageBytes = _isPlaintextImage(bytes)
+          ? bytes
+          : _decryptUploadedImage(bytes);
+      if (!mounted) return;
+
+      showDialog(
+        context: context,
+        builder: (dialogContext) => Dialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                ConstrainedBox(
+                  constraints: const BoxConstraints(
+                    maxWidth: 500,
+                    maxHeight: 600,
+                  ),
+                  child: Image.memory(
+                    imageBytes,
+                    fit: BoxFit.contain,
+                    errorBuilder: (context, error, stackTrace) =>
+                        const Text('Could not display this image'),
                   ),
                 ),
-                onPressed: () => Navigator.pop(dialogContext),
-              ),
-            ],
+                const SizedBox(height: 16),
+                ElevatedButton.icon(
+                  icon: const Icon(Icons.close, size: 18),
+                  label: const Text('Close'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: kAccent,
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                  ),
+                  onPressed: () => Navigator.pop(dialogContext),
+                ),
+              ],
+            ),
           ),
         ),
-      ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      _showTopPopup(
+        'Could not load image: $e',
+        color: kWarn,
+        icon: Icons.error_outline,
+      );
+    }
+  }
+
+  Uint8List _decryptUploadedImage(Uint8List bytes) {
+    if (bytes.length < 32) throw Exception('Invalid encrypted image');
+
+    final key = encrypt.Key.fromUtf8(
+      'capstonedayungappjjm'.padRight(32).substring(0, 32),
     );
+    final iv = encrypt.IV(bytes.sublist(0, 16));
+    final encrypter = encrypt.Encrypter(encrypt.AES(key));
+    return Uint8List.fromList(
+      encrypter.decryptBytes(encrypt.Encrypted(bytes.sublist(16)), iv: iv),
+    );
+  }
+
+  bool _isPlaintextImage(Uint8List bytes) {
+    final isPng =
+        bytes.length >= 8 &&
+        bytes[0] == 0x89 &&
+        bytes[1] == 0x50 &&
+        bytes[2] == 0x4E &&
+        bytes[3] == 0x47 &&
+        bytes[4] == 0x0D &&
+        bytes[5] == 0x0A &&
+        bytes[6] == 0x1A &&
+        bytes[7] == 0x0A;
+    final isJpeg =
+        bytes.length >= 3 &&
+        bytes[0] == 0xFF &&
+        bytes[1] == 0xD8 &&
+        bytes[2] == 0xFF;
+    final isGif =
+        bytes.length >= 6 &&
+        bytes[0] == 0x47 &&
+        bytes[1] == 0x49 &&
+        bytes[2] == 0x46 &&
+        bytes[3] == 0x38 &&
+        (bytes[4] == 0x37 || bytes[4] == 0x39) &&
+        bytes[5] == 0x61;
+    final isWebp =
+        bytes.length >= 12 &&
+        bytes[0] == 0x52 &&
+        bytes[1] == 0x49 &&
+        bytes[2] == 0x46 &&
+        bytes[3] == 0x46 &&
+        bytes[8] == 0x57 &&
+        bytes[9] == 0x45 &&
+        bytes[10] == 0x42 &&
+        bytes[11] == 0x50;
+    return isPng || isJpeg || isGif || isWebp;
   }
 
   String _formatDob(DateTime d) =>
@@ -623,13 +738,35 @@ class _AddBeneficiaryPageState extends State<AddBeneficiaryPage> {
     final maritalStatus = selectedMaritalStatus?.trim();
     final relationship = selectedRelationship!.trim();
     final dob = _formatDob(_selectedDob!);
+    final isEditing = widget.beneficiary != null;
+    final beneficiaryId = widget.beneficiary?['id'];
+    final isLockedForClaim = widget.beneficiary?['eligible_to_claim'] == true;
+
+    if (isEditing && isLockedForClaim) {
+      _showTopPopup(
+        'This beneficiary is already eligible to claim and cannot be edited.',
+        color: kWarn,
+        icon: Icons.lock_rounded,
+      );
+      return;
+    }
 
     try {
-      final response = await Supabase.instance.client
-          .from('beneficiaries')
-          .insert([
-            {
-              'user_id': user!.id,
+      Map<String, dynamic>? response;
+
+      if (isEditing) {
+        if (beneficiaryId == null) {
+          _showTopPopup(
+            'Could not find this beneficiary to update.',
+            color: kWarn,
+            icon: Icons.error_outline,
+          );
+          return;
+        }
+
+        response = await Supabase.instance.client
+            .from('beneficiaries')
+            .update({
               'full_name': fullName,
               'dob': dob,
               'marital_status': maritalStatus,
@@ -637,32 +774,55 @@ class _AddBeneficiaryPageState extends State<AddBeneficiaryPage> {
               'birth_certificate': birthCertificateFile,
               'valid_id': validIdFile,
               'dayung_unit_id': unitText,
-            },
-          ])
-          .select()
-          .single();
+            })
+            .eq('id', beneficiaryId)
+            .eq('user_id', user!.id)
+            .select()
+            .maybeSingle();
+      } else {
+        response = await Supabase.instance.client
+            .from('beneficiaries')
+            .insert([
+              {
+                'user_id': user!.id,
+                'full_name': fullName,
+                'dob': dob,
+                'marital_status': maritalStatus,
+                'relationship': relationship,
+                'birth_certificate': birthCertificateFile,
+                'valid_id': validIdFile,
+                'dayung_unit_id': unitText,
+              },
+            ])
+            .select()
+            .maybeSingle();
+      }
 
       if (!mounted) return;
-      if (response['id'] == null) {
+      if (response == null || response['id'] == null) {
         _showTopPopup(
-          'Failed to add beneficiary',
+          isEditing
+              ? 'Failed to update beneficiary'
+              : 'Failed to add beneficiary',
           color: kWarn,
           icon: Icons.error_outline,
         );
       } else {
         _showTopPopup(
-          'Beneficiary added',
+          isEditing ? 'Beneficiary updated' : 'Beneficiary added',
           color: kSuccess,
           icon: Icons.check_circle,
         );
-        fullNameController.clear();
-        setState(() {
-          selectedRelationship = null;
-          selectedMaritalStatus = null;
-          _selectedDob = null;
-          birthCertificateFile = null;
-          validIdFile = null;
-        });
+        if (!isEditing) {
+          fullNameController.clear();
+          setState(() {
+            selectedRelationship = null;
+            selectedMaritalStatus = null;
+            _selectedDob = null;
+            birthCertificateFile = null;
+            validIdFile = null;
+          });
+        }
         if (!widget.embedded) navigator.pop();
       }
     } catch (e) {
@@ -679,6 +839,7 @@ class _AddBeneficiaryPageState extends State<AddBeneficiaryPage> {
     final isWide = width > 700;
     final isCompact = width < 380;
     final horizontal = isCompact ? 16.0 : 24.0;
+    final isLockedForClaim = widget.beneficiary?['eligible_to_claim'] == true;
 
     final content = SafeArea(
       child: Column(
@@ -719,7 +880,11 @@ class _AddBeneficiaryPageState extends State<AddBeneficiaryPage> {
                 ],
                 Expanded(
                   child: Text(
-                    widget.embedded ? 'My Beneficiaries1' : 'Add Beneficiary',
+                    widget.beneficiary != null
+                        ? 'Edit Beneficiary'
+                        : widget.embedded
+                        ? 'My Beneficiaries1'
+                        : 'Add Beneficiary',
                     style: TextStyle(
                       fontSize: isWide ? 24 : 17,
                       fontWeight: FontWeight.w800,
@@ -744,6 +909,39 @@ class _AddBeneficiaryPageState extends State<AddBeneficiaryPage> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
+                            if (isLockedForClaim)
+                              Container(
+                                margin: const EdgeInsets.only(bottom: 12),
+                                padding: const EdgeInsets.all(12),
+                                decoration: BoxDecoration(
+                                  color: kWarn.withValues(alpha: 0.10),
+                                  borderRadius: BorderRadius.circular(12),
+                                  border: Border.all(
+                                    color: kWarn.withValues(alpha: 0.25),
+                                  ),
+                                ),
+                                child: Row(
+                                  children: [
+                                    const Icon(
+                                      Icons.lock_rounded,
+                                      color: kWarn,
+                                      size: 20,
+                                    ),
+                                    const SizedBox(width: 10),
+                                    Expanded(
+                                      child: Text(
+                                        'This beneficiary is already eligible to claim and can no longer be edited.',
+                                        style: TextStyle(
+                                          color: kText,
+                                          fontWeight: FontWeight.w700,
+                                          fontSize: 13,
+                                          fontFamily: 'OpenSans',
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
                             _buildSectionHeader(
                               icon: Icons.person_add_alt_1_rounded,
                               title:
@@ -848,9 +1046,12 @@ class _AddBeneficiaryPageState extends State<AddBeneficiaryPage> {
                                       ),
                                     )
                                     .toList(),
-                                onChanged: (value) => setState(
-                                  () => selectedRelationship = value,
-                                ),
+                                onChanged: (value) => setState(() {
+                                  selectedRelationship = value;
+                                  if (value == 'Spouse') {
+                                    selectedMaritalStatus = 'Married';
+                                  }
+                                }),
                                 validator: (value) => value == null
                                     ? 'Relationship is required'
                                     : null,
@@ -865,7 +1066,7 @@ class _AddBeneficiaryPageState extends State<AddBeneficiaryPage> {
                                   fontSize: 16,
                                   fontWeight: FontWeight.w500,
                                 ),
-                                items: _maritalStatuses
+                                items: _availableMaritalStatuses
                                     .map(
                                       (status) => DropdownMenuItem<String>(
                                         value: status,
@@ -913,23 +1114,27 @@ class _AddBeneficiaryPageState extends State<AddBeneficiaryPage> {
                                     Icons.check_circle_rounded,
                                     size: 20,
                                   ),
-                                  label: const Text(
-                                    'Submit Beneficiary',
-                                    style: TextStyle(
+                                  label: Text(
+                                    widget.beneficiary != null
+                                        ? 'Save Changes'
+                                        : 'Submit Beneficiary',
+                                    style: const TextStyle(
                                       fontWeight: FontWeight.w700,
                                       fontSize: 16,
                                       fontFamily: 'Montserrat',
                                     ),
                                   ),
                                   style: ElevatedButton.styleFrom(
-                                    backgroundColor: kAccent,
+                                    backgroundColor: isLockedForClaim
+                                        ? kSubText
+                                        : kAccent,
                                     foregroundColor: Colors.white,
                                     shape: RoundedRectangleBorder(
                                       borderRadius: BorderRadius.circular(14),
                                     ),
                                     elevation: 0,
                                   ),
-                                  onPressed: _isSubmitting
+                                  onPressed: _isSubmitting || isLockedForClaim
                                       ? null
                                       : _submitBeneficiary,
                                 ),

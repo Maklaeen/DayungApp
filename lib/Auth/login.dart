@@ -867,6 +867,8 @@ class _LoginState extends State<Login> {
       if (mounted && officerUnit != null) {
         dayungUnitProvider.setDayungUnit('Dayung', obj: {'id': officerUnit});
         await roleProvider.refreshRoles(officerUnit);
+      } else if (mounted) {
+        dayungUnitProvider.setDayungUnit('Dayung', obj: null);
       }
     }
 

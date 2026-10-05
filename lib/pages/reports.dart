@@ -255,11 +255,6 @@ class _ReportsPageState extends State<ReportsPage> {
   final service = ReportsService();
   List<Map<String, dynamic>> moneyCollected = [];
   List<Map<String, dynamic>> newMembers = [];
-  Map<String, dynamic> paymentFlowSummary = const {
-    'in': 0.0,
-    'out': 0.0,
-    'date': '—',
-  };
   bool loading = true;
   pw.ThemeData? _pdfTheme;
 
@@ -272,9 +267,6 @@ class _ReportsPageState extends State<ReportsPage> {
   Future<void> _loadReports() async {
     setState(() => loading = true);
     moneyCollected = await service.fetchMoneyCollectedPerCollector(
-      unitId: widget.unitId,
-    );
-    paymentFlowSummary = await service.fetchPaymentFlowSummary(
       unitId: widget.unitId,
     );
     // Pass unitId as required
@@ -619,12 +611,10 @@ class _ReportsPageState extends State<ReportsPage> {
                                   maxWidth: cardMaxWidth,
                                 ),
                                 child: _modernSectionCard(
-                                  title: 'Payment Flow Summary',
+                                  title: 'Payment Release Records',
                                   icon: Icons.swap_horiz_rounded,
                                   titleFontSize: sectionTitleFontSize,
-                                  child: _PaymentFlowSummaryTable(
-                                    summary: paymentFlowSummary,
-                                  ),
+                                  child: const _PaymentFlowSummaryTable(),
                                 ),
                               ),
                             ),
@@ -789,49 +779,47 @@ class _ReportsPageState extends State<ReportsPage> {
 }
 
 class _PaymentFlowSummaryTable extends StatelessWidget {
-  final Map<String, dynamic> summary;
-  const _PaymentFlowSummaryTable({required this.summary});
+  const _PaymentFlowSummaryTable();
 
   @override
   Widget build(BuildContext context) {
-    final inValue = (summary['in'] as num?)?.toDouble() ?? 0.0;
-    final outValue = (summary['out'] as num?)?.toDouble() ?? 0.0;
-    final membershipReleasedValue =
-        (summary['membershipReleased'] as num?)?.toDouble() ?? 0.0;
-    final latestActivity = summary['latestActivity']?.toString() ?? '—';
-
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(14),
         border: Border.all(color: kBorderColor.withValues(alpha: 0.35)),
       ),
-      child: Table(
-        columnWidths: const {
-          0: FlexColumnWidth(),
-          1: FlexColumnWidth(),
-          2: FlexColumnWidth(),
-          3: FlexColumnWidth(),
-        },
-        children: [
-          TableRow(
-            decoration: BoxDecoration(color: kPrimary.withValues(alpha: 0.06)),
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: SizedBox(
+          width: 840,
+          child: Table(
+            columnWidths: const {
+              0: FlexColumnWidth(),
+              1: FlexColumnWidth(),
+              2: FlexColumnWidth(),
+              3: FlexColumnWidth(),
+              4: FlexColumnWidth(),
+              5: FlexColumnWidth(),
+            },
             children: [
-              _buildHeaderCell('IN'),
-              _buildHeaderCell('CLAIMED'),
-              _buildHeaderCell('MEMBERSHIP RELEASED'),
-              _buildHeaderCell('LATEST ACTIVITY'),
+              TableRow(
+                decoration: BoxDecoration(
+                  color: kPrimary.withValues(alpha: 0.06),
+                ),
+                children: [
+                  _buildHeaderCell('DATE'),
+                  _buildHeaderCell('BENEFICIARY'),
+                  _buildHeaderCell('TYPE'),
+                  _buildHeaderCell('AMOUNT'),
+                  _buildHeaderCell('RELEASED BY'),
+                  _buildHeaderCell('STATUS'),
+                ],
+              ),
+              TableRow(children: List.generate(6, (_) => _buildValueCell('—'))),
             ],
           ),
-          TableRow(
-            children: [
-              _buildValueCell('₱${inValue.toStringAsFixed(2)}'),
-              _buildValueCell('₱${outValue.toStringAsFixed(2)}'),
-              _buildValueCell('₱${membershipReleasedValue.toStringAsFixed(2)}'),
-              _buildValueCell(formatPhilippineDateTime(latestActivity)),
-            ],
-          ),
-        ],
+        ),
       ),
     );
   }

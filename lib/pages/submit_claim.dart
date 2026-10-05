@@ -34,6 +34,7 @@ class SubmitClaimForm extends StatefulWidget {
 class _SubmitClaimFormState extends State<SubmitClaimForm> {
   final _formKey = GlobalKey<FormState>();
   final _desc = TextEditingController();
+  final _claimantName = TextEditingController();
   String? _vigilAddress;
   String? _vigilBarangay;
   bool _submitting = false;
@@ -53,8 +54,14 @@ class _SubmitClaimFormState extends State<SubmitClaimForm> {
   String? _validIdOrigName;
   String? _selectedDeceasedType; // 'member' or 'beneficiary'
   int? _selectedBeneficiaryId;
+  int? _selectedClaimantBeneficiaryId;
   DateTime? _dateOfDeath;
+  String? _memberFullName;
   List<Map<String, dynamic>> _beneficiaries = [];
+  List<Map<String, dynamic>> get _eligibleClaimants => _beneficiaries
+      .where((beneficiary) => beneficiary['eligible_to_claim'] == true)
+      .toList();
+
   String? _firstNonEmpty(List values) {
     for (final v in values) {
       if (v != null) {
@@ -66,8 +73,15 @@ class _SubmitClaimFormState extends State<SubmitClaimForm> {
   }
 
   @override
+  void initState() {
+    super.initState();
+    _fetchBeneficiaries();
+  }
+
+  @override
   void dispose() {
     _desc.dispose();
+    _claimantName.dispose();
     super.dispose();
   }
 
@@ -123,12 +137,18 @@ class _SubmitClaimFormState extends State<SubmitClaimForm> {
     if (user == null) return;
     final res = await sb
         .from('beneficiaries')
-        .select('id, full_name')
-        .eq('user_id', user.id)
-        .eq('eligible_to_claim', true)
-        .eq('status', 'Approved');
+        .select('id, full_name, eligible_to_claim')
+        .eq('user_id', user.id);
+    final userRow = await sb
+        .from('users')
+        .select('full_name')
+        .eq('id', user.id)
+        .maybeSingle();
+    if (!mounted) return;
     setState(() {
       _beneficiaries = List<Map<String, dynamic>>.from(res);
+      _memberFullName = userRow?['full_name']?.toString().trim();
+      _claimantName.text = _memberFullName ?? '';
     });
   }
 
@@ -589,8 +609,7 @@ class _SubmitClaimFormState extends State<SubmitClaimForm> {
         if (memberName != null && memberName.isNotEmpty) {
           deceasedName = memberName;
         }
-      } else if (_selectedDeceasedType != null &&
-          _selectedDeceasedType!.startsWith('beneficiary_')) {
+      } else if (_selectedDeceasedType == 'beneficiary') {
         // Fetch beneficiary's dob
         if (_selectedBeneficiaryId != null) {
           final ben = await sb
@@ -629,6 +648,20 @@ class _SubmitClaimFormState extends State<SubmitClaimForm> {
     try {
       final claimData = {
         'user_id': user.id,
+        'claimant_name': AppInputSecurity.sanitizePlainText(
+          _selectedDeceasedType == 'member'
+              ? _eligibleClaimants
+                        .firstWhere(
+                          (beneficiary) =>
+                              beneficiary['id'] ==
+                              _selectedClaimantBeneficiaryId,
+                          orElse: () => <String, dynamic>{},
+                        )['full_name']
+                        ?.toString() ??
+                    ''
+              : _memberFullName ?? '',
+          maxLength: 120,
+        ),
         'title': 'Death Claim - $deceasedName',
         'description': AppInputSecurity.sanitizePlainText(
           _desc.text,
@@ -638,10 +671,7 @@ class _SubmitClaimFormState extends State<SubmitClaimForm> {
         'status': 'Pending',
         if (_selectedBeneficiaryId != null)
           'beneficiary_id': _selectedBeneficiaryId,
-        'deceased_type':
-            _selectedDeceasedType?.startsWith('beneficiary_') == true
-            ? 'beneficiary'
-            : 'member',
+        'deceased_type': _selectedDeceasedType,
         'date_of_death': fmtDate(_dateOfDeath!),
         'dayung_unit_id': effectiveUnitId,
         'vigil_latitude': _vigilLat,
@@ -766,22 +796,14 @@ class _SubmitClaimFormState extends State<SubmitClaimForm> {
       ),
       child: DropdownButtonFormField<String>(
         initialValue: _selectedDeceasedType,
-        items: [
-          const DropdownMenuItem(value: 'member', child: Text('This Member')),
-          if (_beneficiaries.isNotEmpty)
-            ..._beneficiaries.map(
-              (b) => DropdownMenuItem(
-                value: 'beneficiary_${b['id']}',
-                child: Text(b['full_name']),
-              ),
-            ),
+        items: const [
+          DropdownMenuItem(value: 'member', child: Text('This Member')),
+          DropdownMenuItem(value: 'beneficiary', child: Text('Beneficiary')),
         ],
         onChanged: (v) {
           setState(() {
             _selectedDeceasedType = v;
-            if (v != null && v.startsWith('beneficiary_')) {
-              _selectedBeneficiaryId = int.tryParse(v.split('_').last);
-            } else {
+            if (v != 'beneficiary') {
               _selectedBeneficiaryId = null;
             }
           });
@@ -794,6 +816,85 @@ class _SubmitClaimFormState extends State<SubmitClaimForm> {
         validator: (v) {
           if (v == null || v.isEmpty) {
             return 'Please select who passed away';
+          }
+          return null;
+        },
+      ),
+    );
+  }
+
+  Widget _buildBeneficiaryDropdown() {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.grey.shade50,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.grey.shade200),
+      ),
+      child: DropdownButtonFormField<int>(
+        initialValue: _selectedBeneficiaryId,
+        items: _beneficiaries
+            .map(
+              (beneficiary) => DropdownMenuItem<int>(
+                value: beneficiary['id'] as int,
+                child: Text(beneficiary['full_name']?.toString() ?? ''),
+              ),
+            )
+            .toList(),
+        onChanged: (id) => setState(() => _selectedBeneficiaryId = id),
+        decoration: const InputDecoration(
+          border: InputBorder.none,
+          contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+          labelText: 'Beneficiary name',
+        ),
+        validator: (id) {
+          if (_selectedDeceasedType == 'beneficiary' && id == null) {
+            return 'Please select a beneficiary';
+          }
+          return null;
+        },
+      ),
+    );
+  }
+
+  Widget _buildClaimantBeneficiaryDropdown() {
+    final eligibleClaimants = _eligibleClaimants;
+    final selectedClaimantId =
+        eligibleClaimants.any(
+          (beneficiary) => beneficiary['id'] == _selectedClaimantBeneficiaryId,
+        )
+        ? _selectedClaimantBeneficiaryId
+        : null;
+
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.grey.shade50,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.grey.shade200),
+      ),
+      child: DropdownButtonFormField<int>(
+        initialValue: selectedClaimantId,
+        items: eligibleClaimants
+            .map(
+              (beneficiary) => DropdownMenuItem<int>(
+                value: beneficiary['id'] as int,
+                child: Text(beneficiary['full_name']?.toString() ?? ''),
+              ),
+            )
+            .toList(),
+        onChanged: (id) => setState(() => _selectedClaimantBeneficiaryId = id),
+        decoration: InputDecoration(
+          border: InputBorder.none,
+          contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+          labelText: 'Name for Claimant',
+          hintText: eligibleClaimants.isEmpty
+              ? 'No eligible beneficiaries'
+              : null,
+        ),
+        validator: (id) {
+          if (id == null) {
+            return eligibleClaimants.isEmpty
+                ? 'No eligible beneficiary is available to act as claimant'
+                : 'Please select a claimant';
           }
           return null;
         },
@@ -1355,6 +1456,10 @@ class _SubmitClaimFormState extends State<SubmitClaimForm> {
                     // Who passed away?
                     _buildModernDropdown(),
                     const SizedBox(height: 16),
+                    if (_selectedDeceasedType == 'beneficiary') ...[
+                      _buildBeneficiaryDropdown(),
+                      const SizedBox(height: 16),
+                    ],
 
                     // Date of Death
                     _buildModernDateField(),
@@ -1365,6 +1470,22 @@ class _SubmitClaimFormState extends State<SubmitClaimForm> {
                     const SizedBox(height: 16),
 
                     // ADD: Valid ID
+                    if (_selectedDeceasedType == 'member')
+                      _buildClaimantBeneficiaryDropdown()
+                    else
+                      _buildModernField(
+                        controller: _claimantName,
+                        label: 'Name for Claimant:',
+                        icon: Icons.person_outline,
+                        readOnly: true,
+                        validator: (value) => AppInputSecurity.validateSafeText(
+                          value,
+                          fieldName: 'Claimant name',
+                          required: true,
+                          maxLength: 120,
+                        ),
+                      ),
+                    const SizedBox(height: 16),
                     _buildValidIdUpload(),
                     const SizedBox(height: 16),
 
