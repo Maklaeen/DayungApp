@@ -1227,42 +1227,6 @@ class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Row(
-          children: [
-            const Text(
-              'Death Notices',
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.w800,
-                color: Color(0xFF1E40AF),
-                fontFamily: 'Montserrat',
-              ),
-            ),
-            const Spacer(),
-            TextButton(
-              onPressed: () {
-                if (_dayungUnitId == null) return;
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) =>
-                        RecentDeathNotices(dayungUnitId: _dayungUnitId!),
-                  ),
-                );
-              },
-              child: const Text(
-                'View All',
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                  color: Color(0xFF3B82F6),
-                  fontFamily: 'Montserrat',
-                ),
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 12),
         Container(
           padding: const EdgeInsets.all(20),
           decoration: BoxDecoration(
@@ -1280,6 +1244,42 @@ class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              Row(
+                children: [
+                  const Text(
+                    'Death Notices',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w800,
+                      color: Color(0xFF1E40AF),
+                      fontFamily: 'Montserrat',
+                    ),
+                  ),
+                  const Spacer(),
+                  TextButton(
+                    onPressed: () {
+                      if (_dayungUnitId == null) return;
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) =>
+                              RecentDeathNotices(dayungUnitId: _dayungUnitId!),
+                        ),
+                      );
+                    },
+                    child: const Text(
+                      'View All',
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: Color(0xFF3B82F6),
+                        fontFamily: 'Montserrat',
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
               if (_loading)
                 const Padding(
                   padding: EdgeInsets.symmetric(vertical: 20),

@@ -1242,7 +1242,7 @@ class _SecretaryDashboardPageState extends State<SecretaryDashboardPage> {
                   height: actionCardHeight,
                   child: _modernActionCard(
                     icon: Icons.assignment_rounded,
-                    title: 'Manage Applications1',
+                    title: 'Manage Applications',
                     color: const Color(0xFF10B981),
                     badgeCount: _unseenAppNotifs,
                     onTap: () async {

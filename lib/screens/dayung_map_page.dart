@@ -12,7 +12,6 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:http/http.dart' as http;
 import 'package:latlong2/latlong.dart' as ll;
-import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter_compass/flutter_compass.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -200,7 +199,6 @@ class _DayungMapPageState extends State<DayungMapPage> {
         setState(() => _compassHeading = heading);
       }
     });
-    _loadSavedMode();
     _initLocation();
     _checkExistingApplication();
   }
@@ -453,26 +451,6 @@ class _DayungMapPageState extends State<DayungMapPage> {
     } catch (_) {}
   }
 
-  Future<void> _loadSavedMode() async {
-    final prefs = await SharedPreferences.getInstance();
-    final idx = prefs.getInt('nav_mode');
-    if (idx != null &&
-        idx >= 0 &&
-        idx < NavMode.values.length &&
-        _selectedMode == null) {
-      setState(() => _selectedMode = NavMode.values[idx]);
-    }
-  }
-
-  Future<void> _saveMode(NavMode? m) async {
-    final prefs = await SharedPreferences.getInstance();
-    if (m == null) {
-      await prefs.remove('nav_mode');
-    } else {
-      await prefs.setInt('nav_mode', m.index);
-    }
-  }
-
   void _fitToRoute() {
     if (_routePoints.length < 2) return;
     if (kIsWeb) {
@@ -513,13 +491,7 @@ class _DayungMapPageState extends State<DayungMapPage> {
 
     final apiKey = AppConfig.openRouteServiceApiKey.trim();
     if (apiKey.isEmpty) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Missing OPENROUTESERVICE_API_KEY build-time config'),
-          ),
-        );
-      }
+      await _fetchRouteWithoutApiKey();
       return;
     }
 
@@ -572,13 +544,73 @@ class _DayungMapPageState extends State<DayungMapPage> {
     }
   }
 
+  Future<void> _fetchRouteWithoutApiKey() async {
+    final start = _pos;
+    final endLat = dayungLat;
+    final endLng = dayungLng;
+    if (start == null || endLat == null || endLng == null) return;
+
+    final url = Uri.parse(
+      'https://router.project-osrm.org/route/v1/driving/'
+      '${start.longitude},${start.latitude};$endLng,$endLat'
+      '?overview=full&geometries=geojson',
+    );
+
+    try {
+      final response = await http.get(url);
+      if (response.statusCode != 200) {
+        throw StateError('OSRM status ${response.statusCode}');
+      }
+
+      final data = json.decode(response.body) as Map<String, dynamic>;
+      final routes = data['routes'] as List<dynamic>?;
+      final route = routes?.isNotEmpty == true
+          ? routes!.first as Map<String, dynamic>
+          : null;
+      final coordinates =
+          (route?['geometry'] as Map<String, dynamic>?)?['coordinates']
+              as List<dynamic>?;
+      if (coordinates == null || coordinates.length < 2) {
+        throw StateError('OSRM returned no route');
+      }
+
+      if (!mounted) return;
+      setState(() {
+        _routePoints = coordinates
+            .map<ml.LatLng>(
+              (coordinate) => ml.LatLng(
+                (coordinate[1] as num).toDouble(),
+                (coordinate[0] as num).toDouble(),
+              ),
+            )
+            .toList();
+        _etaMinutes = ((route?['duration'] as num?)?.toDouble() ?? 0) ~/ 60;
+      });
+    } catch (error) {
+      debugPrint('OSRM route error: $error');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Unable to fetch route preview.')),
+        );
+      }
+    }
+  }
+
   Future<void> _openExternalMaps(NavMode mode) async {
     if (dayungLat == null || dayungLng == null) return;
+
+    if (_pos == null) {
+      await _initLocation();
+    }
+
     final dLat = dayungLat!;
     final dLng = dayungLng!;
     final travel = mode.apiValue;
+    final origin = _pos == null
+        ? ''
+        : '&origin=${_pos!.latitude},${_pos!.longitude}';
     final url =
-        'https://www.google.com/maps/dir/?api=1&destination=$dLat,$dLng&travelmode=$travel';
+        'https://www.google.com/maps/dir/?api=1$origin&destination=$dLat,$dLng&travelmode=$travel&dir_action=navigate';
     if (await canLaunchUrl(Uri.parse(url))) {
       await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
     } else {
@@ -593,6 +625,9 @@ class _DayungMapPageState extends State<DayungMapPage> {
     showModalBottomSheet(
       context: context,
       showDragHandle: true,
+      isScrollControlled: true,
+      useSafeArea: true,
+      constraints: const BoxConstraints(maxHeight: 420),
       backgroundColor: Colors.white,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
@@ -602,7 +637,7 @@ class _DayungMapPageState extends State<DayungMapPage> {
         return StatefulBuilder(
           builder: (ctx, setM) {
             return Padding(
-              padding: const EdgeInsets.fromLTRB(18, 10, 18, 24),
+              padding: const EdgeInsets.fromLTRB(18, 4, 18, 16),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
@@ -630,9 +665,20 @@ class _DayungMapPageState extends State<DayungMapPage> {
                         ),
                         selected: active,
                         onSelected: (_) async {
+                          if (active) {
+                            setM(() => temp = null);
+                            if (!mounted) return;
+                            setState(() {
+                              _selectedMode = null;
+                              _routePoints = [];
+                              _etaMinutes = null;
+                            });
+                            await _updateRouteOnMap();
+                            return;
+                          }
+
                           setM(() => temp = m);
                           setState(() => _selectedMode = temp);
-                          await _saveMode(temp);
 
                           if (_pos == null) {
                             await _initLocation();
@@ -652,7 +698,6 @@ class _DayungMapPageState extends State<DayungMapPage> {
                           await _fetchRoute(mode: profile);
                           await _updateRouteOnMap();
                           if (mounted) _fitToRoute();
-                          if (mounted) Navigator.pop(ctx);
                         },
                       );
                     }).toList(),
@@ -679,22 +724,6 @@ class _DayungMapPageState extends State<DayungMapPage> {
                     style: const TextStyle(fontSize: 11, color: kSubtleText),
                     textAlign: TextAlign.center,
                   ),
-                  if (temp != null)
-                    TextButton(
-                      onPressed: () async {
-                        setM(() => temp = null);
-                        setState(() => _selectedMode = null);
-                        await _saveMode(null);
-                        setState(() {
-                          _routePoints = [];
-                          _etaMinutes = null;
-                        });
-                      },
-                      child: const Text(
-                        'Clear selection',
-                        style: TextStyle(fontSize: 12),
-                      ),
-                    ),
                 ],
               ),
             );
@@ -972,19 +1001,13 @@ class _DayungMapPageState extends State<DayungMapPage> {
                                   label: 'ETA: $_etaMinutes min',
                                   color: kPrimary,
                                 ),
-                              if (_selectedMode == null)
-                                _pillChip(
-                                  icon: Icons.info_outline,
-                                  label: 'Pick mode',
-                                  color: kSubtleText,
-                                )
-                              else if (_routePoints.isEmpty)
+                              if (_selectedMode != null && _routePoints.isEmpty)
                                 _pillChip(
                                   icon: _selectedMode!.icon,
                                   label: '${_selectedMode!.label} (no route)',
                                   color: kSubtleText,
                                 )
-                              else
+                              else if (_selectedMode != null)
                                 _pillChip(
                                   icon: _selectedMode!.icon,
                                   label: _selectedMode!.label,
@@ -1694,9 +1717,16 @@ class _DayungMapPageState extends State<DayungMapPage> {
       duration: const Duration(milliseconds: 350),
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
       decoration: BoxDecoration(
-        color: color.withOpacity(.12),
+        color: Colors.white,
         borderRadius: BorderRadius.circular(30),
         border: Border.all(color: color.withOpacity(.55), width: 1.2),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x22000000),
+            blurRadius: 8,
+            offset: Offset(0, 3),
+          ),
+        ],
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -1877,6 +1907,8 @@ class _DayungMapPageState extends State<DayungMapPage> {
           ],
         ),
         const RichAttributionWidget(
+          alignment: AttributionAlignment.bottomLeft,
+          showFlutterMapAttribution: false,
           attributions: [TextSourceAttribution('OpenStreetMap contributors')],
         ),
       ],
@@ -1889,15 +1921,9 @@ class _DayungMapPageState extends State<DayungMapPage> {
       return const Center(child: Text('No location data.'));
     }
     if (kIsWeb) {
-      return SizedBox(
-        width: double.infinity,
-        height: 350,
-        child: _buildFlutterMap(lat, lng),
-      );
+      return SizedBox.expand(child: _buildFlutterMap(lat, lng));
     }
-    return SizedBox(
-      width: double.infinity,
-      height: 350,
+    return SizedBox.expand(
       child: ml.MapLibreMap(
         styleString:
             'https://api.maptiler.com/maps/streets/style.json?key=ZgS5pYNNGTrRGUAnlS71',

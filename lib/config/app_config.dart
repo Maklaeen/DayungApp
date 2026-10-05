@@ -48,10 +48,6 @@ class AppConfig {
   }
 
   static String get openRouteServiceApiKey {
-    if (kIsWeb) {
-      // Add to Env if needed
-      return '';
-    }
     return _firstNonEmpty(
       _openRouteServiceApiKeyDefine,
       _dotenvValue('OPENROUTESERVICE_API_KEY'),

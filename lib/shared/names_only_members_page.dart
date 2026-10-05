@@ -37,12 +37,13 @@ class _NamesOnlyMembersPageState extends State<NamesOnlyMembersPage> {
     });
 
     try {
-      final baseQuery = _sb.from('applications').select(
-            'user_id, status, user:users(id, full_name, profile_url)',
-          )
-        .eq('dayung_unit_id', widget.dayungUnitId);
+      final baseQuery = _sb
+          .from('applications')
+          .select('user_id, status, user:users(id, full_name, profile_url)')
+          .eq('dayung_unit_id', widget.dayungUnitId);
 
-      final query = (widget.statuses.length == 1 && widget.statuses.first == 'removed')
+      final query =
+          (widget.statuses.length == 1 && widget.statuses.first == 'removed')
           ? baseQuery.isFilter('isRemovedInDayung', true)
           : baseQuery.inFilter('status', widget.statuses);
 
@@ -53,13 +54,11 @@ class _NamesOnlyMembersPageState extends State<NamesOnlyMembersPage> {
         final user = row['user'] as Map<String, dynamic>?;
         final fullName = (user?['full_name'] ?? '').toString().trim();
         if (fullName.isEmpty) continue;
-        members.add(
-          {
-            'user_id': (row['user_id'] ?? '').toString(),
-            'full_name': fullName,
-            'status': (row['status'] ?? '').toString(),
-          },
-        );
+        members.add({
+          'user_id': (row['user_id'] ?? '').toString(),
+          'full_name': fullName,
+          'status': (row['status'] ?? '').toString(),
+        });
       }
 
       if (!mounted) return;
@@ -90,14 +89,49 @@ class _NamesOnlyMembersPageState extends State<NamesOnlyMembersPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFFF8FAFC),
-      appBar: AppBar(
-        backgroundColor: const Color(0xFF0D47A1),
-        elevation: 0,
-        title: Text(widget.title),
-      ),
       body: SafeArea(
         child: Column(
           children: [
+            Container(
+              padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
+              decoration: const BoxDecoration(
+                color: Color(0xFF0D47A1),
+                borderRadius: BorderRadius.only(
+                  bottomLeft: Radius.circular(28),
+                  bottomRight: Radius.circular(28),
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: Color(0xFF1E40AF),
+                    blurRadius: 18,
+                    offset: Offset(0, 8),
+                  ),
+                ],
+              ),
+              child: Row(
+                children: [
+                  IconButton(
+                    onPressed: () => Navigator.of(context).maybePop(),
+                    icon: const Icon(
+                      Icons.arrow_back_rounded,
+                      color: Colors.white,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      widget.title,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 22,
+                        fontWeight: FontWeight.w800,
+                        fontFamily: 'Montserrat',
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
               child: TextField(
@@ -116,65 +150,61 @@ class _NamesOnlyMembersPageState extends State<NamesOnlyMembersPage> {
               child: _loading
                   ? const Center(child: CircularProgressIndicator())
                   : _error != null
-                      ? Center(
-                          child: Padding(
-                            padding: const EdgeInsets.all(20),
-                            child: Text(
-                              _error!,
-                              textAlign: TextAlign.center,
-                              style: const TextStyle(color: Colors.red),
+                  ? Center(
+                      child: Padding(
+                        padding: const EdgeInsets.all(20),
+                        child: Text(
+                          _error!,
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(color: Colors.red),
+                        ),
+                      ),
+                    )
+                  : _filteredMembers.isEmpty
+                  ? const Center(
+                      child: Text(
+                        'No members found.',
+                        style: TextStyle(
+                          color: Color(0xFF4B5563),
+                          fontSize: 16,
+                        ),
+                      ),
+                    )
+                  : ListView.separated(
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      itemCount: _filteredMembers.length,
+                      separatorBuilder: (_, __) =>
+                          const Divider(height: 1, color: Color(0xFFE5E7EB)),
+                      itemBuilder: (context, index) {
+                        final member = _filteredMembers[index];
+                        return ListTile(
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 4,
+                          ),
+                          leading: CircleAvatar(
+                            backgroundColor: const Color(
+                              0xFF0D47A1,
+                            ).withOpacity(0.12),
+                            child: const Icon(
+                              Icons.person,
+                              color: Color(0xFF0D47A1),
                             ),
                           ),
-                        )
-                      : _filteredMembers.isEmpty
-                          ? const Center(
-                              child: Text(
-                                'No members found.',
-                                style: TextStyle(
-                                  color: Color(0xFF4B5563),
-                                  fontSize: 16,
-                                ),
-                              ),
-                            )
-                          : ListView.separated(
-                              padding:
-                                  const EdgeInsets.symmetric(horizontal: 16),
-                              itemCount: _filteredMembers.length,
-                              separatorBuilder: (_, __) => const Divider(
-                                height: 1,
-                                color: Color(0xFFE5E7EB),
-                              ),
-                              itemBuilder: (context, index) {
-                                final member = _filteredMembers[index];
-                                return ListTile(
-                                  contentPadding: const EdgeInsets.symmetric(
-                                    horizontal: 12,
-                                    vertical: 4,
-                                  ),
-                                  leading: CircleAvatar(
-                                    backgroundColor:
-                                        const Color(0xFF0D47A1).withOpacity(0.12),
-                                    child: const Icon(
-                                      Icons.person,
-                                      color: Color(0xFF0D47A1),
-                                    ),
-                                  ),
-                                  title: Text(
-                                    member['full_name'] ?? 'Member',
-                                    style: const TextStyle(
-                                      fontWeight: FontWeight.w600,
-                                    ),
-                                  ),
-                                  subtitle: Text(
-                                    'ID: ${member['user_id']}',
-                                    style: const TextStyle(
-                                      fontSize: 12,
-                                      color: Color(0xFF6B7280),
-                                    ),
-                                  ),
-                                );
-                              },
+                          title: Text(
+                            member['full_name'] ?? 'Member',
+                            style: const TextStyle(fontWeight: FontWeight.w600),
+                          ),
+                          subtitle: Text(
+                            'ID: ${member['user_id']}',
+                            style: const TextStyle(
+                              fontSize: 12,
+                              color: Color(0xFF6B7280),
                             ),
+                          ),
+                        );
+                      },
+                    ),
             ),
           ],
         ),

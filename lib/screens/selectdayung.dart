@@ -243,37 +243,6 @@ class _SelectDayungPageState extends State<SelectDayungPage> {
     return parts.join(', ');
   }
 
-  Future<bool> _confirmRequiredExit() async {
-    if (!widget.requireSelection) return true;
-
-    final shouldLeave = await showDialog<bool>(
-      context: context,
-      builder: (dialogContext) {
-        return AlertDialog(
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(20),
-          ),
-          title: const Text('Leave selection?'),
-          content: const Text(
-            'You need to choose a Dayung unit to continue. If you go back now, you will return to login.',
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(dialogContext, false),
-              child: const Text('Stay here'),
-            ),
-            FilledButton(
-              onPressed: () => Navigator.pop(dialogContext, true),
-              child: const Text('Back to login'),
-            ),
-          ],
-        );
-      },
-    );
-
-    return shouldLeave == true;
-  }
-
   Widget _buildIntroCard(bool isWide) {
     final unitCount = _joined.length;
     final headline = widget.requireSelection
@@ -336,42 +305,16 @@ class _SelectDayungPageState extends State<SelectDayungPage> {
                   spacing: 8,
                   runSpacing: 8,
                   children: [
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 10,
-                        vertical: 6,
-                      ),
-                      decoration: BoxDecoration(
-                        color: kPrimary.withValues(alpha: 0.08),
-                        borderRadius: BorderRadius.circular(999),
-                      ),
-                      child: Text(
-                        '$unitCount ${unitCount == 1 ? 'unit' : 'units'} available',
-                        style: const TextStyle(
-                          color: kPrimaryDark,
-                          fontSize: 14,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
+                    _statusChip(
+                      '$unitCount ${unitCount == 1 ? 'unit' : 'units'} available',
+                      kPrimaryDark,
+                      kPrimary.withValues(alpha: 0.08),
                     ),
                     if (widget.requireSelection)
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 10,
-                          vertical: 6,
-                        ),
-                        decoration: BoxDecoration(
-                          color: kWarn.withValues(alpha: 0.14),
-                          borderRadius: BorderRadius.circular(999),
-                        ),
-                        child: const Text(
-                          'Selection required',
-                          style: TextStyle(
-                            color: Color(0xFF92400E),
-                            fontSize: 14,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
+                      _statusChip(
+                        'Selection required',
+                        const Color(0xFF92400E),
+                        kWarn.withValues(alpha: 0.14),
                       ),
                   ],
                 ),
@@ -381,6 +324,55 @@ class _SelectDayungPageState extends State<SelectDayungPage> {
         ],
       ),
     );
+  }
+
+  Widget _statusChip(String label, Color textColor, Color backgroundColor) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: backgroundColor,
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          color: textColor,
+          fontSize: 14,
+          fontWeight: FontWeight.w700,
+        ),
+      ),
+    );
+  }
+
+  Future<bool> _confirmRequiredExit() async {
+    if (!widget.requireSelection) return true;
+
+    final shouldLeave = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
+          title: const Text('Leave selection?'),
+          content: const Text(
+            'You need to choose a Dayung unit to continue. If you go back now, you will return to login.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, false),
+              child: const Text('Stay here'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(dialogContext, true),
+              child: const Text('Back to login'),
+            ),
+          ],
+        );
+      },
+    );
+
+    return shouldLeave == true;
   }
 
   Widget _buildDayungCard(
@@ -574,100 +566,94 @@ class _SelectDayungPageState extends State<SelectDayungPage> {
       },
       child: Scaffold(
         backgroundColor: kBg,
-        body: Container(
-          decoration: const BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topCenter,
-              end: Alignment.bottomCenter,
-              colors: [kPrimaryDark, kPrimary, kBg],
-              stops: [0.0, 0.18, 0.18],
-            ),
-          ),
-          child: SafeArea(
-            child: Column(
-              children: [
-                Container(
-                  padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
-                  decoration: const BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: [kPrimaryDark, kPrimary],
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                    ),
-                    borderRadius: BorderRadius.only(
-                      bottomLeft: Radius.circular(28),
-                      bottomRight: Radius.circular(28),
-                    ),
+        body: SafeArea(
+          child: Column(
+            children: [
+              Container(
+                padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
+                decoration: const BoxDecoration(
+                  color: Color(0xFF0D47A1),
+                  borderRadius: BorderRadius.only(
+                    bottomLeft: Radius.circular(28),
+                    bottomRight: Radius.circular(28),
                   ),
-                  child: Row(
-                    children: [
-                      IconButton(
-                        icon: const Icon(
-                          Icons.arrow_back_rounded,
-                          color: Colors.white,
-                          size: 24,
-                        ),
-                        onPressed: () async {
-                          final canLeave = await _confirmRequiredExit();
-                          if (!mounted || !canLeave) return;
-                          navigator.pop(null);
-                        },
-                        padding: const EdgeInsets.all(12),
-                        constraints: const BoxConstraints(
-                          minWidth: 48,
-                          minHeight: 48,
-                        ),
-                        style: IconButton.styleFrom(
-                          backgroundColor: Colors.white.withValues(alpha: 0.2),
-                          foregroundColor: Colors.white,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(13),
-                            side: BorderSide(
-                              color: Colors.white.withValues(alpha: 0.3),
-                            ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Color(0xFF1E40AF),
+                      blurRadius: 18,
+                      offset: Offset(0, 8),
+                    ),
+                  ],
+                ),
+                child: Row(
+                  children: [
+                    IconButton(
+                      icon: const Icon(
+                        Icons.arrow_back_rounded,
+                        color: Colors.white,
+                        size: 24,
+                      ),
+                      onPressed: () async {
+                        final canLeave = await _confirmRequiredExit();
+                        if (!mounted || !canLeave) return;
+                        navigator.pop(null);
+                      },
+                      padding: const EdgeInsets.all(12),
+                      constraints: const BoxConstraints(
+                        minWidth: 48,
+                        minHeight: 48,
+                      ),
+                      style: IconButton.styleFrom(
+                        backgroundColor: Colors.white.withValues(alpha: 0.2),
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(13),
+                          side: BorderSide(
+                            color: Colors.white.withValues(alpha: 0.3),
                           ),
                         ),
                       ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'Select Your Dayung',
-                              style: TextStyle(
-                                fontSize: isWide ? 24 : 22,
-                                fontWeight: FontWeight.w900,
-                                color: Colors.white,
-                                fontFamily: 'Montserrat',
-                              ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Select Dayung',
+                            style: TextStyle(
+                              fontSize: isWide ? 24 : 22,
+                              fontWeight: FontWeight.w900,
+                              color: Colors.white,
+                              fontFamily: 'Montserrat',
                             ),
-                            const SizedBox(height: 4),
-                            Text(
-                              widget.requireSelection
-                                  ? 'Choose one unit to continue'
-                                  : 'Review and switch your active unit',
-                              style: const TextStyle(
-                                color: Colors.white70,
-                                fontSize: 14,
-                                fontWeight: FontWeight.w600,
-                                height: 1.4,
-                              ),
-                            ),
-                          ],
-                        ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Expanded(
+                child: Container(
+                  margin: const EdgeInsets.fromLTRB(24, 24, 24, 0),
+                  decoration: const BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.vertical(
+                      top: Radius.circular(32),
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Color(0x14000000),
+                        blurRadius: 18,
+                        offset: Offset(0, 6),
                       ),
                     ],
                   ),
+                  child: _buildBody(context, isWide),
                 ),
-                Expanded(
-                  child: Container(
-                    color: kBg,
-                    child: _buildBody(context, isWide),
-                  ),
-                ),
-              ],
-            ),
+              ),
+            ],
           ),
         ),
       ),
@@ -709,7 +695,7 @@ class _SelectDayungPageState extends State<SelectDayungPage> {
       onRefresh: _fetchJoinedDayung,
       child: ListView(
         physics: const AlwaysScrollableScrollPhysics(),
-        padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
+        padding: const EdgeInsets.fromLTRB(16, 20, 16, 24),
         children: [
           _buildIntroCard(isWide),
           const SizedBox(height: 16),

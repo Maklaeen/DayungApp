@@ -12,7 +12,6 @@ const kSubText = Color(0xFF6B7280);
 const kAccent = Color(0xFF3B82F6);
 const kPrimary = Color(0xFF1E40AF);
 const kWarn = Color(0xFFF59E0B);
-const Color _kHeaderGradientStart = Color(0xFF1E40AF);
 const Color _kHeaderGradientEnd = Color(0xFF3B82F6);
 
 class GcashQrPage extends StatefulWidget {
@@ -588,6 +587,31 @@ class _GcashQrPageState extends State<GcashQrPage> {
     super.dispose();
   }
 
+  Widget _qrStatusSummary(String label, String value) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: const TextStyle(
+            color: kSubText,
+            fontSize: 12,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+        const SizedBox(height: 6),
+        Text(
+          value,
+          style: const TextStyle(
+            color: kText,
+            fontSize: 18,
+            fontWeight: FontWeight.w800,
+          ),
+        ),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final width = MediaQuery.of(context).size.width;
@@ -602,18 +626,14 @@ class _GcashQrPageState extends State<GcashQrPage> {
             Container(
               width: double.infinity,
               decoration: const BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [_kHeaderGradientStart, _kHeaderGradientEnd],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                ),
+                color: _kHeaderGradientEnd,
                 borderRadius: BorderRadius.only(
                   bottomLeft: Radius.circular(28),
                   bottomRight: Radius.circular(28),
                 ),
                 boxShadow: [
                   BoxShadow(
-                    color: Color(0x22083366),
+                    color: Color(0xFF1E40AF),
                     blurRadius: 18,
                     offset: Offset(0, 8),
                   ),
@@ -660,85 +680,17 @@ class _GcashQrPageState extends State<GcashQrPage> {
                                 letterSpacing: 0.3,
                               ),
                             ),
-                            const SizedBox(height: 8),
-                            Text(
-                              'Upload, update, and manage your unit’s QR payment code with clarity and speed.',
-                              style: TextStyle(
-                                fontSize: isMobile ? 14 : 15,
-                                color: Colors.white.withOpacity(0.88),
-                                fontWeight: FontWeight.w600,
-                                height: 1.45,
-                              ),
-                            ),
+                            // const SizedBox(height: 8),
+                            // Text(
+                            //   'Upload, update, and manage your unit’s QR payment code with clarity and speed.',
+                            //   style: TextStyle(
+                            //     fontSize: isMobile ? 14 : 15,
+                            //     color: Colors.white.withOpacity(0.88),
+                            //     fontWeight: FontWeight.w600,
+                            //     height: 1.45,
+                            //   ),
+                            // ),
                           ],
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 18),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Container(
-                          padding: const EdgeInsets.all(14),
-                          decoration: BoxDecoration(
-                            color: Colors.white.withOpacity(0.12),
-                            borderRadius: BorderRadius.circular(18),
-                          ),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              const Text(
-                                'QR Status',
-                                style: TextStyle(
-                                  color: Colors.white70,
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w700,
-                                ),
-                              ),
-                              const SizedBox(height: 6),
-                              Text(
-                                _hasQrForUnit ? 'Active' : 'Not set',
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 18,
-                                  fontWeight: FontWeight.w800,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: Container(
-                          padding: const EdgeInsets.all(14),
-                          decoration: BoxDecoration(
-                            color: Colors.white.withOpacity(0.12),
-                            borderRadius: BorderRadius.circular(18),
-                          ),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              const Text(
-                                'Uploads',
-                                style: TextStyle(
-                                  color: Colors.white70,
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w700,
-                                ),
-                              ),
-                              const SizedBox(height: 6),
-                              Text(
-                                '${_qrRows.length}',
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 18,
-                                  fontWeight: FontWeight.w800,
-                                ),
-                              ),
-                            ],
-                          ),
                         ),
                       ),
                     ],
@@ -764,6 +716,32 @@ class _GcashQrPageState extends State<GcashQrPage> {
                   padding: const EdgeInsets.all(16),
                   physics: const AlwaysScrollableScrollPhysics(),
                   children: [
+                    Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF8FAFC),
+                        borderRadius: BorderRadius.circular(18),
+                        border: Border.all(color: const Color(0xFFE5E7EB)),
+                      ),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: _qrStatusSummary(
+                              'QR Status',
+                              _hasQrForUnit ? 'Active' : 'Not set',
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: _qrStatusSummary(
+                              'Uploads',
+                              '${_qrRows.length}',
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 16),
                     Container(
                       decoration: BoxDecoration(
                         color: Colors.white,

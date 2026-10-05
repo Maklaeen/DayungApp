@@ -393,7 +393,7 @@ class _GlobalSidebarWrapperState extends State<GlobalSidebarWrapper> {
                         const SizedBox(height: 8),
                         _SidebarButton(
                           icon: Icons.description_rounded,
-                          label: 'Membership Agreement1',
+                          label: 'Membership Agreement',
                           color: const Color(0xFF2563EB),
                           selected: _currentPage == 'membershipAgreement',
                           onTap: () {
@@ -406,7 +406,7 @@ class _GlobalSidebarWrapperState extends State<GlobalSidebarWrapper> {
                         const SizedBox(height: 16),
                         _SidebarButton(
                           icon: Icons.swap_horiz_rounded,
-                          label: 'Switch Account',
+                          label: 'Switch Dayung',
                           color: const Color(0xFF2563EB),
                           selected: false,
                           onTap: () {
@@ -605,7 +605,7 @@ class DashboardSidebar extends StatelessWidget {
                         const SizedBox(height: 16),
                         _SidebarButton(
                           icon: Icons.swap_horiz_rounded,
-                          label: 'Switch Account',
+                          label: 'Switch Dayung',
                           color: const Color(0xFF2563EB),
                           selected: false,
                           onTap: onSwitchAccountTap,

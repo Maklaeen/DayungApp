@@ -687,9 +687,9 @@ class _CollectorsManagePageState extends State<CollectorsManagePage> {
           children: [
             // Header
             Container(
-              padding: const EdgeInsets.fromLTRB(8, 36, 20, 28),
+              padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
               decoration: const BoxDecoration(
-                color: _kPrimaryDark,
+                color: _kPrimary,
                 borderRadius: BorderRadius.only(
                   bottomLeft: Radius.circular(28),
                   bottomRight: Radius.circular(28),
@@ -725,18 +725,12 @@ class _CollectorsManagePageState extends State<CollectorsManagePage> {
                       ),
                     ),
                   ),
-                  const SizedBox(width: 4),
-                  const Icon(
-                    Icons.badge_rounded,
-                    color: Colors.white,
-                    size: 26,
-                  ),
                   const SizedBox(width: 12),
                   const Expanded(
                     child: Text(
                       'Manage Collectors',
                       style: TextStyle(
-                        fontSize: 20,
+                        fontSize: 22,
                         fontWeight: FontWeight.w800,
                         color: Colors.white,
                         fontFamily: 'Montserrat',

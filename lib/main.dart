@@ -22,6 +22,7 @@ import 'package:capstone_app/services/firebase_push_service.dart';
 import 'package:capstone_app/services/push_notification_service.dart';
 import 'package:capstone_app/settings/custom_scroll_behavior.dart';
 import 'package:capstone_app/utils/network_error_dialog.dart';
+import 'config/app_config.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:provider/provider.dart';
@@ -252,6 +253,7 @@ ThemeData _buildAppTheme(Brightness brightness) {
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await AppConfig.load();
 
   String supabaseUrl = '';
   String supabaseAnonKey = '';

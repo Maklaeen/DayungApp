@@ -211,219 +211,223 @@ class _RecentDeathNoticesState extends State<RecentDeathNotices> {
     if (widget.dayungUnitId == null) {
       return Scaffold(
         backgroundColor: const Color(0xFFF8FAFC),
-        body: Container(
-          decoration: const BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topCenter,
-              end: Alignment.bottomCenter,
-              colors: [Color(0xFF1E40AF), Color(0xFF3B82F6), Color(0xFFF8FAFC)],
-              stops: [0.0, 0.15, 0.15],
-            ),
-          ),
-          child: SafeArea(
-            child: Column(
-              children: [
-                // Modern Header
-                Container(
-                  padding: const EdgeInsets.fromLTRB(20, 20, 20, 30),
-                  child: Row(
-                    children: [
-                      Container(
-                        width: 44,
-                        height: 44,
-                        decoration: BoxDecoration(
-                          color: Colors.white.withValues(alpha: 0.2),
-                          borderRadius: BorderRadius.circular(13),
-                          border: Border.all(
-                            color: Colors.white.withValues(alpha: 0.3),
-                          ),
-                        ),
-                        child: IconButton(
-                          tooltip: 'Back',
-                          padding: EdgeInsets.zero,
-                          onPressed: () => Navigator.of(context).maybePop(),
-                          icon: const Icon(
-                            Icons.arrow_back_rounded,
-                            color: Colors.white,
-                            size: 21,
-                          ),
+        body: SafeArea(
+          child: Column(
+            children: [
+              // Modern Header
+              Container(
+                padding: const EdgeInsets.fromLTRB(20, 20, 20, 30),
+                decoration: const BoxDecoration(
+                  color: kPrimary,
+                  borderRadius: BorderRadius.only(
+                    bottomLeft: Radius.circular(28),
+                    bottomRight: Radius.circular(28),
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Color(0xFF1E40AF),
+                      blurRadius: 18,
+                      offset: Offset(0, 8),
+                    ),
+                  ],
+                ),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 44,
+                      height: 44,
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.2),
+                        borderRadius: BorderRadius.circular(13),
+                        border: Border.all(
+                          color: Colors.white.withValues(alpha: 0.3),
                         ),
                       ),
-                      const SizedBox(width: 20),
-                      Expanded(
-                        child: Text(
-                          'Recent Deaths',
-                          style: TextStyle(
-                            fontSize: isWide ? 32 : 28,
-                            fontWeight: FontWeight.w900,
-                            color: Colors.white,
-                            fontFamily: 'Montserrat',
-                            letterSpacing: 0.5,
-                            shadows: [
-                              const Shadow(
-                                color: Colors.black26,
-                                offset: Offset(0, 2),
-                                blurRadius: 4,
+                      child: IconButton(
+                        tooltip: 'Back',
+                        padding: EdgeInsets.zero,
+                        onPressed: () => Navigator.of(context).maybePop(),
+                        icon: const Icon(
+                          Icons.arrow_back_rounded,
+                          color: Colors.white,
+                          size: 21,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 20),
+                    Expanded(
+                      child: Text(
+                        'Recent Deaths',
+                        style: TextStyle(
+                          fontSize: isWide ? 32 : 28,
+                          fontWeight: FontWeight.w900,
+                          color: Colors.white,
+                          fontFamily: 'Montserrat',
+                          letterSpacing: 0.5,
+                          shadows: [
+                            const Shadow(
+                              color: Colors.black26,
+                              offset: Offset(0, 2),
+                              blurRadius: 4,
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              // Content
+              Expanded(
+                child: Container(
+                  decoration: const BoxDecoration(
+                    color: Color(0xFFF8FAFC),
+                    borderRadius: BorderRadius.only(
+                      topLeft: Radius.circular(32),
+                      topRight: Radius.circular(32),
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black12,
+                        blurRadius: 20,
+                        offset: Offset(0, -5),
+                      ),
+                    ],
+                  ),
+                  child: Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(32),
+                          decoration: BoxDecoration(
+                            gradient: const LinearGradient(
+                              colors: [Color(0xFFFFFFFF), Color(0xFFF8FAFC)],
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                            ),
+                            borderRadius: BorderRadius.circular(24),
+                            border: Border.all(
+                              color: kBorderColor.withValues(alpha: 0.3),
+                              width: 1,
+                            ),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withValues(alpha: 0.08),
+                                blurRadius: 20,
+                                offset: const Offset(0, 8),
+                              ),
+                            ],
+                          ),
+                          child: Column(
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.all(20),
+                                decoration: BoxDecoration(
+                                  gradient: LinearGradient(
+                                    colors: [
+                                      kPrimary.withValues(alpha: 0.1),
+                                      kPrimary.withValues(alpha: 0.05),
+                                    ],
+                                  ),
+                                  borderRadius: BorderRadius.circular(20),
+                                  border: Border.all(
+                                    color: kPrimary.withValues(alpha: 0.2),
+                                    width: 1,
+                                  ),
+                                ),
+                                child: Icon(
+                                  Icons.home_rounded,
+                                  color: kPrimary,
+                                  size: 48,
+                                ),
+                              ),
+                              const SizedBox(height: 24),
+                              Text(
+                                'No Dayung Assigned',
+                                style: TextStyle(
+                                  fontSize: isWide ? 24 : 20,
+                                  fontWeight: FontWeight.w800,
+                                  color: kText,
+                                  fontFamily: 'Montserrat',
+                                ),
+                              ),
+                              const SizedBox(height: 12),
+                              Text(
+                                'Please apply for a Dayung first to view death notices and vigil locations.',
+                                textAlign: TextAlign.center,
+                                style: TextStyle(
+                                  fontSize: isWide ? 16 : 14,
+                                  color: kSubText,
+                                  fontFamily: 'OpenSans',
+                                  height: 1.5,
+                                ),
+                              ),
+                              const SizedBox(height: 32),
+                              Container(
+                                width: double.infinity,
+                                height: 56,
+                                decoration: BoxDecoration(
+                                  gradient: const LinearGradient(
+                                    colors: [kPrimary, kPrimaryLight],
+                                    begin: Alignment.topLeft,
+                                    end: Alignment.bottomRight,
+                                  ),
+                                  borderRadius: BorderRadius.circular(16),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: kPrimary.withValues(alpha: 0.3),
+                                      blurRadius: 12,
+                                      offset: const Offset(0, 6),
+                                    ),
+                                  ],
+                                ),
+                                child: Material(
+                                  color: Colors.transparent,
+                                  child: InkWell(
+                                    borderRadius: BorderRadius.circular(16),
+                                    onTap: () {
+                                      Navigator.push(
+                                        context,
+                                        MaterialPageRoute(
+                                          builder: (_) =>
+                                              const DayungSuggestionsPage(),
+                                        ),
+                                      );
+                                    },
+                                    child: Row(
+                                      mainAxisAlignment:
+                                          MainAxisAlignment.center,
+                                      children: [
+                                        const Icon(
+                                          Icons.add_rounded,
+                                          color: Colors.white,
+                                          size: 20,
+                                        ),
+                                        const SizedBox(width: 8),
+                                        Text(
+                                          'Apply a Dayung',
+                                          style: TextStyle(
+                                            color: Colors.white,
+                                            fontSize: 16,
+                                            fontWeight: FontWeight.w700,
+                                            fontFamily: 'Montserrat',
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
                               ),
                             ],
                           ),
                         ),
-                      ),
-                    ],
-                  ),
-                ),
-                // Content
-                Expanded(
-                  child: Container(
-                    decoration: const BoxDecoration(
-                      color: Color(0xFFF8FAFC),
-                      borderRadius: BorderRadius.only(
-                        topLeft: Radius.circular(32),
-                        topRight: Radius.circular(32),
-                      ),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black12,
-                          blurRadius: 20,
-                          offset: Offset(0, -5),
-                        ),
                       ],
                     ),
-                    child: Center(
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.all(32),
-                            decoration: BoxDecoration(
-                              gradient: const LinearGradient(
-                                colors: [Color(0xFFFFFFFF), Color(0xFFF8FAFC)],
-                                begin: Alignment.topLeft,
-                                end: Alignment.bottomRight,
-                              ),
-                              borderRadius: BorderRadius.circular(24),
-                              border: Border.all(
-                                color: kBorderColor.withValues(alpha: 0.3),
-                                width: 1,
-                              ),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: Colors.black.withValues(alpha: 0.08),
-                                  blurRadius: 20,
-                                  offset: const Offset(0, 8),
-                                ),
-                              ],
-                            ),
-                            child: Column(
-                              children: [
-                                Container(
-                                  padding: const EdgeInsets.all(20),
-                                  decoration: BoxDecoration(
-                                    gradient: LinearGradient(
-                                      colors: [
-                                        kPrimary.withValues(alpha: 0.1),
-                                        kPrimary.withValues(alpha: 0.05),
-                                      ],
-                                    ),
-                                    borderRadius: BorderRadius.circular(20),
-                                    border: Border.all(
-                                      color: kPrimary.withValues(alpha: 0.2),
-                                      width: 1,
-                                    ),
-                                  ),
-                                  child: Icon(
-                                    Icons.home_rounded,
-                                    color: kPrimary,
-                                    size: 48,
-                                  ),
-                                ),
-                                const SizedBox(height: 24),
-                                Text(
-                                  'No Dayung Assigned',
-                                  style: TextStyle(
-                                    fontSize: isWide ? 24 : 20,
-                                    fontWeight: FontWeight.w800,
-                                    color: kText,
-                                    fontFamily: 'Montserrat',
-                                  ),
-                                ),
-                                const SizedBox(height: 12),
-                                Text(
-                                  'Please apply for a Dayung first to view death notices and vigil locations.',
-                                  textAlign: TextAlign.center,
-                                  style: TextStyle(
-                                    fontSize: isWide ? 16 : 14,
-                                    color: kSubText,
-                                    fontFamily: 'OpenSans',
-                                    height: 1.5,
-                                  ),
-                                ),
-                                const SizedBox(height: 32),
-                                Container(
-                                  width: double.infinity,
-                                  height: 56,
-                                  decoration: BoxDecoration(
-                                    gradient: const LinearGradient(
-                                      colors: [kPrimary, kPrimaryLight],
-                                      begin: Alignment.topLeft,
-                                      end: Alignment.bottomRight,
-                                    ),
-                                    borderRadius: BorderRadius.circular(16),
-                                    boxShadow: [
-                                      BoxShadow(
-                                        color: kPrimary.withValues(alpha: 0.3),
-                                        blurRadius: 12,
-                                        offset: const Offset(0, 6),
-                                      ),
-                                    ],
-                                  ),
-                                  child: Material(
-                                    color: Colors.transparent,
-                                    child: InkWell(
-                                      borderRadius: BorderRadius.circular(16),
-                                      onTap: () {
-                                        Navigator.push(
-                                          context,
-                                          MaterialPageRoute(
-                                            builder: (_) =>
-                                                const DayungSuggestionsPage(),
-                                          ),
-                                        );
-                                      },
-                                      child: Row(
-                                        mainAxisAlignment:
-                                            MainAxisAlignment.center,
-                                        children: [
-                                          const Icon(
-                                            Icons.add_rounded,
-                                            color: Colors.white,
-                                            size: 20,
-                                          ),
-                                          const SizedBox(width: 8),
-                                          Text(
-                                            'Apply a Dayung',
-                                            style: TextStyle(
-                                              color: Colors.white,
-                                              fontSize: 16,
-                                              fontWeight: FontWeight.w700,
-                                              fontFamily: 'Montserrat',
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
                   ),
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
         ),
       );
@@ -434,158 +438,160 @@ class _RecentDeathNoticesState extends State<RecentDeathNotices> {
       length: 2,
       child: Scaffold(
         backgroundColor: const Color(0xFFF8FAFC),
-        body: Container(
-          decoration: const BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topCenter,
-              end: Alignment.bottomCenter,
-              colors: [Color(0xFF1E40AF), Color(0xFF3B82F6), Color(0xFFF8FAFC)],
-              stops: [0.0, 0.16, 0.22],
-            ),
-          ),
-          child: SafeArea(
-            child: Column(
-              children: [
-                // Modern Header
-                Container(
-                  padding: EdgeInsets.fromLTRB(
-                    isWide ? 28 : 16,
-                    isWide ? 24 : 16,
-                    isWide ? 28 : 16,
-                    isWide ? 22 : 16,
+        body: SafeArea(
+          child: Column(
+            children: [
+              // Modern Header
+              Container(
+                padding: EdgeInsets.fromLTRB(
+                  isWide ? 28 : 16,
+                  isWide ? 24 : 16,
+                  isWide ? 28 : 16,
+                  isWide ? 22 : 16,
+                ),
+                decoration: const BoxDecoration(
+                  color: kPrimary,
+                  borderRadius: BorderRadius.only(
+                    bottomLeft: Radius.circular(28),
+                    bottomRight: Radius.circular(28),
                   ),
-                  child: Row(
-                    children: [
-                      Container(
-                        width: 44,
-                        height: 44,
-                        decoration: BoxDecoration(
-                          color: Colors.white.withValues(alpha: 0.2),
-                          borderRadius: BorderRadius.circular(13),
-                          border: Border.all(
-                            color: Colors.white.withValues(alpha: 0.3),
-                          ),
-                        ),
-                        child: IconButton(
-                          tooltip: 'Back',
-                          padding: EdgeInsets.zero,
-                          onPressed: () => Navigator.of(context).maybePop(),
-                          icon: const Icon(
-                            Icons.arrow_back_rounded,
-                            color: Colors.white,
-                            size: 21,
-                          ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Color(0xFF1E40AF),
+                      blurRadius: 18,
+                      offset: Offset(0, 8),
+                    ),
+                  ],
+                ),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 44,
+                      height: 44,
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.2),
+                        borderRadius: BorderRadius.circular(13),
+                        border: Border.all(
+                          color: Colors.white.withValues(alpha: 0.3),
                         ),
                       ),
-                      SizedBox(width: isWide ? 20 : 14),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'Death Notices',
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: TextStyle(
-                                fontSize: isWide ? 30 : 24,
-                                fontWeight: FontWeight.w900,
-                                color: Colors.white,
-                                fontFamily: 'Montserrat',
-                              ),
+                      child: IconButton(
+                        tooltip: 'Back',
+                        padding: EdgeInsets.zero,
+                        onPressed: () => Navigator.of(context).maybePop(),
+                        icon: const Icon(
+                          Icons.arrow_back_rounded,
+                          color: Colors.white,
+                          size: 21,
+                        ),
+                      ),
+                    ),
+                    SizedBox(width: isWide ? 20 : 14),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Death Notices',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: isWide ? 30 : 24,
+                              fontWeight: FontWeight.w900,
+                              color: Colors.white,
+                              fontFamily: 'Montserrat',
                             ),
-                            const SizedBox(height: 3),
-                            // Text(
-                            //   'Vigil locations',
-                            //   style: TextStyle(
-                            //     fontSize: isWide ? 15 : 13,
-                            //     fontWeight: FontWeight.w600,
-                            //     color: Colors.white.withValues(alpha: 0.78),
-                            //     fontFamily: 'OpenSans',
-                            //   ),
-                            // ),
-                          ],
-                        ),
+                          ),
+                          const SizedBox(height: 3),
+                          // Text(
+                          //   'Vigil locations',
+                          //   style: TextStyle(
+                          //     fontSize: isWide ? 15 : 13,
+                          //     fontWeight: FontWeight.w600,
+                          //     color: Colors.white.withValues(alpha: 0.78),
+                          //     fontFamily: 'OpenSans',
+                          //   ),
+                          // ),
+                        ],
                       ),
-                      if (isWide)
-                        const SizedBox(width: 64)
-                      else
-                        const SizedBox(width: 48),
+                    ),
+                    if (isWide)
+                      const SizedBox(width: 64)
+                    else
+                      const SizedBox(width: 48),
+                  ],
+                ),
+              ),
+              // Tabs
+              Padding(
+                padding: EdgeInsets.symmetric(horizontal: isWide ? 28 : 16),
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFEFF6FF),
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: TabBar(
+                    labelColor: kPrimary,
+                    unselectedLabelColor: kSubText,
+                    indicatorColor: kPrimary,
+                    indicatorSize: TabBarIndicatorSize.label,
+                    indicatorWeight: 3,
+                    dividerColor: Colors.transparent,
+                    labelStyle: const TextStyle(
+                      fontFamily: 'Montserrat',
+                      fontSize: 14,
+                      fontWeight: FontWeight.w800,
+                    ),
+                    unselectedLabelStyle: const TextStyle(
+                      fontFamily: 'Montserrat',
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                    ),
+                    tabs: const [
+                      Tab(text: 'Members'),
+                      Tab(text: 'Beneficiaries'),
                     ],
                   ),
                 ),
-                // Tabs
-                Padding(
-                  padding: EdgeInsets.symmetric(horizontal: isWide ? 28 : 16),
-                  child: DecoratedBox(
-                    decoration: BoxDecoration(
-                      color: Colors.black.withValues(alpha: 0.12),
-                      borderRadius: BorderRadius.circular(14),
+              ),
+              const SizedBox(height: 14),
+              // Content
+              Expanded(
+                child: Container(
+                  decoration: const BoxDecoration(
+                    color: Color(0xFFF8FAFC),
+                    borderRadius: BorderRadius.only(
+                      topLeft: Radius.circular(32),
+                      topRight: Radius.circular(32),
                     ),
-                    child: TabBar(
-                      labelColor: Colors.white,
-                      unselectedLabelColor: Colors.white.withValues(
-                        alpha: 0.68,
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black12,
+                        blurRadius: 20,
+                        offset: Offset(0, -5),
                       ),
-                      indicatorColor: Colors.white,
-                      indicatorSize: TabBarIndicatorSize.label,
-                      indicatorWeight: 3,
-                      dividerColor: Colors.transparent,
-                      labelStyle: const TextStyle(
-                        fontFamily: 'Montserrat',
-                        fontSize: 14,
-                        fontWeight: FontWeight.w800,
-                      ),
-                      unselectedLabelStyle: const TextStyle(
-                        fontFamily: 'Montserrat',
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
-                      ),
-                      tabs: const [
-                        Tab(text: 'Members'),
-                        Tab(text: 'Beneficiaries'),
-                      ],
-                    ),
+                    ],
                   ),
-                ),
-                const SizedBox(height: 14),
-                // Content
-                Expanded(
-                  child: Container(
-                    decoration: const BoxDecoration(
-                      color: Color(0xFFF8FAFC),
-                      borderRadius: BorderRadius.only(
-                        topLeft: Radius.circular(32),
-                        topRight: Radius.circular(32),
-                      ),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black12,
-                          blurRadius: 20,
-                          offset: Offset(0, -5),
+                  child: _loading
+                      ? const DayungPageSkeleton(
+                          layout: DayungSkeletonLayout.list,
+                          itemCount: 5,
+                        )
+                      : TabBarView(
+                          children: [
+                            _modernList(context, _members, textScale, isWide),
+                            _modernList(
+                              context,
+                              _beneficiaries,
+                              textScale,
+                              isWide,
+                              isBeneficiaryTab: true,
+                            ),
+                          ],
                         ),
-                      ],
-                    ),
-                    child: _loading
-                        ? const DayungPageSkeleton(
-                            layout: DayungSkeletonLayout.list,
-                            itemCount: 5,
-                          )
-                        : TabBarView(
-                            children: [
-                              _modernList(context, _members, textScale, isWide),
-                              _modernList(
-                                context,
-                                _beneficiaries,
-                                textScale,
-                                isWide,
-                                isBeneficiaryTab: true,
-                              ),
-                            ],
-                          ),
-                  ),
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
         ),
       ),

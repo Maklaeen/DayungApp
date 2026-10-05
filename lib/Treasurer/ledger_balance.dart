@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 const Color _kPageBg = Color(0xFFFAFAF7);
-const Color _kHeaderGradientStart = Color(0xFF083366);
 const Color _kHeaderGradientEnd = Color(0xFF0D47A1);
 const Color _kCard = Colors.white;
 const Color _kBorder = Color(0xFFE5E7EB);
@@ -580,18 +579,14 @@ class _LedgerBalancePageState extends State<LedgerBalancePage> {
             Container(
               width: double.infinity,
               decoration: const BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [_kHeaderGradientStart, _kHeaderGradientEnd],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                ),
+                color: _kHeaderGradientEnd,
                 borderRadius: BorderRadius.only(
                   bottomLeft: Radius.circular(28),
                   bottomRight: Radius.circular(28),
                 ),
                 boxShadow: [
                   BoxShadow(
-                    color: Color(0x22083366),
+                    color: Color(0xFF1E40AF),
                     blurRadius: 18,
                     offset: Offset(0, 8),
                   ),
@@ -651,51 +646,6 @@ class _LedgerBalancePageState extends State<LedgerBalancePage> {
                       ),
                     ],
                   ),
-                  const SizedBox(height: 18),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: _summaryCard(
-                          title: 'Number of Userdeceased',
-                          value: '${_collectorSummaries.length}',
-                          accent: const Color(0xFFF59E0B),
-                        ),
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: _summaryCard(
-                          title: 'Collecters Collected',
-                          value: _formatCurrency(_collectedCollectedTotal),
-                          accent: const Color(0xFF10B981),
-                        ),
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: _summaryCard(
-                          title: 'Total Collected',
-                          value: _formatCurrency(totalCollected),
-                          accent: const Color(0xFF10B981),
-                        ),
-                      ),
-
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: _summaryCard(
-                          title: 'Current Cash Holdings',
-                          value: _formatCurrency(_currentCashCollected),
-                          accent: const Color(0xFF10B981),
-                        ),
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: _summaryCard(
-                          title: 'Ledger Balance',
-                          value: _formatCurrency(_totalDeceasedPaymentAmount),
-                          accent: const Color(0xFF3B82F6),
-                        ),
-                      ),
-                    ],
-                  ),
                 ],
               ),
             ),
@@ -745,6 +695,66 @@ class _LedgerBalancePageState extends State<LedgerBalancePage> {
                           physics: const AlwaysScrollableScrollPhysics(),
                           padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
                           children: [
+                            Container(
+                              padding: const EdgeInsets.all(16),
+                              decoration: BoxDecoration(
+                                color: _kCard,
+                                borderRadius: BorderRadius.circular(18),
+                                border: Border.all(color: _kBorder),
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const Text(
+                                    'Ledger summary',
+                                    style: TextStyle(
+                                      fontSize: 18,
+                                      fontWeight: FontWeight.w800,
+                                      color: Color(0xFF111827),
+                                    ),
+                                  ),
+                                  const SizedBox(height: 12),
+                                  Wrap(
+                                    spacing: 10,
+                                    runSpacing: 10,
+                                    children: [
+                                      _summaryCard(
+                                        title: 'Number of Userdeceased',
+                                        value: '${_collectorSummaries.length}',
+                                        accent: const Color(0xFFF59E0B),
+                                      ),
+                                      _summaryCard(
+                                        title: 'Collecters Collected',
+                                        value: _formatCurrency(
+                                          _collectedCollectedTotal,
+                                        ),
+                                        accent: const Color(0xFF10B981),
+                                      ),
+                                      _summaryCard(
+                                        title: 'Total Collected',
+                                        value: _formatCurrency(totalCollected),
+                                        accent: const Color(0xFF10B981),
+                                      ),
+                                      _summaryCard(
+                                        title: 'Current Cash Holdings',
+                                        value: _formatCurrency(
+                                          _currentCashCollected,
+                                        ),
+                                        accent: const Color(0xFF10B981),
+                                      ),
+                                      _summaryCard(
+                                        title: 'Ledger Balance',
+                                        value: _formatCurrency(
+                                          _totalDeceasedPaymentAmount,
+                                        ),
+                                        accent: const Color(0xFF3B82F6),
+                                      ),
+                                    ],
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(height: 16),
                             const Text(
                               'Collector totals',
                               style: TextStyle(

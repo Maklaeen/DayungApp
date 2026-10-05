@@ -775,7 +775,6 @@ class _MemberDashboardPageState extends State<MemberDashboardPage>
               const SizedBox(height: 24),
               _modernRecentActivity(),
               const SizedBox(height: 24),
-              _modernQuickActions(),
               const SizedBox(height: 100),
             ],
           ],
@@ -1539,67 +1538,6 @@ class _MemberDashboardPageState extends State<MemberDashboardPage>
     );
   }
 
-  Widget _modernQuickActions() {
-    final id =
-        context.read<DayungUnitProvider>().currentUnitId ??
-        _asInt(_selectedDayungUnitObj?['id']);
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          'Quick Access',
-          style: TextStyle(
-            fontSize: 18,
-            fontWeight: FontWeight.w800,
-            color: Theme.of(context).colorScheme.onSurface,
-            fontFamily: 'Montserrat',
-          ),
-        ),
-        const SizedBox(height: 16),
-        _modernActionCard(
-          icon: Icons.receipt_long_rounded,
-          title: 'Receipts',
-          color: const Color(0xFF10B981),
-          onTap: () {
-            Navigator.push(
-              context,
-              MaterialPageRoute(builder: (_) => const ReceiptsPage()),
-            );
-          },
-        ),
-        const SizedBox(height: 8),
-        _modernActionCard(
-          icon: Icons.qr_code_rounded,
-          title: 'GCash Payment',
-          color: const Color(0xFF3B82F6),
-          onTap: () {
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (_) => GCashPaymentPage(dayungUnitId: id),
-              ),
-            );
-          },
-        ),
-        const SizedBox(height: 8),
-        _modernActionCard(
-          icon: Icons.family_restroom_rounded,
-          title: 'Recent Death Notices',
-          color: const Color(0xFFF59E0B),
-          onTap: () {
-            if (id == null) return;
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (_) => RecentDeathNotices(dayungUnitId: id),
-              ),
-            );
-          },
-        ),
-      ],
-    );
-  }
   //               icon: Icons.info_outline_rounded,
   //               title: "Contribution Tips",
   //               color: const Color(0xFF3B82F6),

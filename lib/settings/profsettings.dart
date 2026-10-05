@@ -424,109 +424,78 @@ class _ProfSettingsPageState extends State<ProfSettingsPage> {
             children: [
               Container(
                 width: double.infinity,
-                padding: EdgeInsets.symmetric(
-                  horizontal: isWide ? 28 : 18,
-                  vertical: isWide ? 24 : 18,
+                padding: EdgeInsets.fromLTRB(
+                  isWide ? 28 : 20,
+                  isWide ? 28 : 20,
+                  isWide ? 28 : 20,
+                  isWide ? 32 : 24,
                 ),
                 decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: [
-                      _isDark ? const Color(0xFF1D4ED8) : kPrimary,
-                      _isDark ? const Color(0xFF0F766E) : kSuccess,
-                    ],
+                  color: _primaryColor,
+                  borderRadius: const BorderRadius.only(
+                    bottomLeft: Radius.circular(28),
+                    bottomRight: Radius.circular(28),
                   ),
-                  borderRadius: BorderRadius.circular(28),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withValues(
-                        alpha: _isDark ? 0.28 : 0.08,
-                      ),
-                      blurRadius: 16,
-                      offset: const Offset(0, 6),
+                      color: const Color(0xFF1E40AF),
+                      blurRadius: 18,
+                      offset: const Offset(0, 8),
                     ),
                   ],
                 ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                child: Row(
                   children: [
-                    Row(
-                      children: [
-                        if (widget.showBackButton)
-                          DayungBackButton(
-                            onPressed:
-                                widget.onBack ?? () => Navigator.pop(context),
-                          ),
-                        if (widget.showBackButton) const SizedBox(width: 16),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                'Profile Settings',
-                                style: TextStyle(
-                                  color: Colors.white,
-                                  fontWeight: FontWeight.w800,
-                                  fontSize: isWide ? 28 : 22,
-                                  fontFamily: 'Montserrat',
-                                ),
-                              ),
-                              // const SizedBox(height: 4),
-                              // Text(
-                              //   'Manage certificates and update your Dayung access from one clean dashboard.',
-                              //   style: TextStyle(
-                              //     color: Colors.white.withValues(alpha: 0.9),
-                              //     fontSize: isWide ? 14 : 12,
-                              //     height: 1.4,
-                              //     fontFamily: 'OpenSans',
-                              //   ),
-                              // ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 18),
-                    Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 14,
-                        vertical: 12,
+                    if (widget.showBackButton)
+                      DayungBackButton(
+                        onPressed:
+                            widget.onBack ?? () => Navigator.pop(context),
                       ),
-                      decoration: BoxDecoration(
-                        color: Colors.white.withValues(alpha: 0.14),
-                        borderRadius: BorderRadius.circular(16),
-                        border: Border.all(
-                          color: Colors.white.withValues(alpha: 0.12),
+                    if (widget.showBackButton) const SizedBox(width: 16),
+                    Expanded(
+                      child: Text(
+                        'Profile Settings',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w800,
+                          fontSize: isWide ? 24 : 20,
+                          fontFamily: 'Montserrat',
                         ),
-                      ),
-                      child: Row(
-                        children: [
-                          const Icon(
-                            Icons.verified_user_outlined,
-                            color: Colors.white,
-                            size: 20,
-                          ),
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: Text(
-                              '$_availableCertificateCount of 4 profile documents are currently available.',
-                              style: TextStyle(
-                                color: Colors.white.withValues(alpha: 0.95),
-                                fontSize: 12,
-                                height: 1.4,
-                                fontFamily: 'OpenSans',
-                              ),
-                            ),
-                          ),
-                        ],
                       ),
                     ),
                   ],
                 ),
               ),
               const SizedBox(height: 18),
+              Container(
+                width: double.infinity,
+                margin: const EdgeInsets.only(bottom: 18),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 12,
+                ),
+                decoration: BoxDecoration(
+                  color: _softColor,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: _borderColor),
+                ),
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.verified_user_outlined,
+                      color: _primaryColor,
+                      size: 20,
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        '$_availableCertificateCount of 4 profile documents are currently available.',
+                        style: bodyStyle,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
               _buildSectionCard(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,

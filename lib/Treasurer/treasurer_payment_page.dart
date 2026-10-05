@@ -3,7 +3,6 @@ import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 const Color _kPageBg = Color(0xFFF8FAFC);
-const Color _kHeaderGradientStart = Color(0xFF083366);
 const Color _kHeaderGradientEnd = Color(0xFF0D47A1);
 const Color _kCard = Colors.white;
 const Color _kBorder = Color(0xFFE5E7EB);
@@ -242,17 +241,20 @@ class _TreasurerPaymentPageState extends State<TreasurerPaymentPage> {
           children: [
             Container(
               width: double.infinity,
-              padding: const EdgeInsets.fromLTRB(20, 24, 20, 26),
+              padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
               decoration: const BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [_kHeaderGradientStart, _kHeaderGradientEnd],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                ),
+                color: _kHeaderGradientEnd,
                 borderRadius: BorderRadius.only(
                   bottomLeft: Radius.circular(28),
                   bottomRight: Radius.circular(28),
                 ),
+                boxShadow: [
+                  BoxShadow(
+                    color: Color(0xFF1E40AF),
+                    blurRadius: 18,
+                    offset: Offset(0, 8),
+                  ),
+                ],
               ),
               child: Row(
                 children: [

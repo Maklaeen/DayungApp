@@ -185,128 +185,185 @@ class _PaymentReleaseHistoryPageState extends State<PaymentReleaseHistoryPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: dayungPageBackground(context),
-      appBar: AppBar(
-        title: const Text('Payment Release History'),
-        backgroundColor: dayungPageBackground(context),
-        elevation: 0,
-      ),
-      body: RefreshIndicator(
-        onRefresh: _loadHistory,
-        child: ListView(
-          padding: const EdgeInsets.fromLTRB(20, 12, 20, 32),
+      body: SafeArea(
+        child: Column(
           children: [
             Container(
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                color: const Color(0xFF0D9488),
-                borderRadius: BorderRadius.circular(18),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    'Total Released',
-                    style: TextStyle(color: Colors.white70, fontSize: 14),
+              padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
+              decoration: const BoxDecoration(
+                color: Color(0xFF0D47A1),
+                borderRadius: BorderRadius.only(
+                  bottomLeft: Radius.circular(28),
+                  bottomRight: Radius.circular(28),
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: Color(0xFF1E40AF),
+                    blurRadius: 18,
+                    offset: Offset(0, 8),
                   ),
-                  const SizedBox(height: 6),
-                  Text(
-                    _loading ? '—' : _formatCurrency(_totalReleased),
-                    style: const TextStyle(
+                ],
+              ),
+              child: Row(
+                children: [
+                  IconButton(
+                    onPressed: () => Navigator.of(context).maybePop(),
+                    icon: const Icon(
+                      Icons.arrow_back_rounded,
                       color: Colors.white,
-                      fontSize: 30,
-                      fontWeight: FontWeight.w800,
                     ),
                   ),
-                  const SizedBox(height: 4),
-                  Text(
-                    '${_releases.length} userdeceased${_releases.length == 1 ? '' : 's'}',
-                    style: const TextStyle(color: Colors.white70),
+                  const SizedBox(width: 8),
+                  const Expanded(
+                    child: Text(
+                      'Payment Release History',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 22,
+                        fontWeight: FontWeight.w800,
+                        fontFamily: 'Montserrat',
+                      ),
+                    ),
                   ),
                 ],
               ),
             ),
-            const SizedBox(height: 20),
-            TextField(
-              controller: _searchController,
-              onChanged: (value) => setState(() => _searchQuery = value),
-              decoration: InputDecoration(
-                hintText: 'Search name, date, or time',
-                prefixIcon: const Icon(Icons.search_rounded),
-                suffixIcon: _searchQuery.isEmpty
-                    ? null
-                    : IconButton(
-                        tooltip: 'Clear search',
-                        icon: const Icon(Icons.clear_rounded),
-                        onPressed: () {
-                          _searchController.clear();
-                          setState(() => _searchQuery = '');
-                        },
+            Expanded(
+              child: RefreshIndicator(
+                onRefresh: _loadHistory,
+                child: ListView(
+                  padding: const EdgeInsets.fromLTRB(20, 12, 20, 32),
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(20),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF0D9488),
+                        borderRadius: BorderRadius.circular(18),
                       ),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'Total Released',
+                            style: TextStyle(
+                              color: Colors.white70,
+                              fontSize: 14,
+                            ),
+                          ),
+                          const SizedBox(height: 6),
+                          Text(
+                            _loading ? '—' : _formatCurrency(_totalReleased),
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 30,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            '${_releases.length} userdeceased${_releases.length == 1 ? '' : 's'}',
+                            style: const TextStyle(color: Colors.white70),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+                    TextField(
+                      controller: _searchController,
+                      onChanged: (value) =>
+                          setState(() => _searchQuery = value),
+                      decoration: InputDecoration(
+                        hintText: 'Search name, date, or time',
+                        prefixIcon: const Icon(Icons.search_rounded),
+                        suffixIcon: _searchQuery.isEmpty
+                            ? null
+                            : IconButton(
+                                tooltip: 'Clear search',
+                                icon: const Icon(Icons.clear_rounded),
+                                onPressed: () {
+                                  _searchController.clear();
+                                  setState(() => _searchQuery = '');
+                                },
+                              ),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    DropdownButtonFormField<bool>(
+                      initialValue: _newestFirst,
+                      decoration: InputDecoration(
+                        labelText: 'Sort releases',
+                        prefixIcon: const Icon(Icons.sort_rounded),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                      items: const [
+                        DropdownMenuItem(
+                          value: true,
+                          child: Text('New to old'),
+                        ),
+                        DropdownMenuItem(
+                          value: false,
+                          child: Text('Old to new'),
+                        ),
+                      ],
+                      onChanged: (value) {
+                        if (value != null) setState(() => _newestFirst = value);
+                      },
+                    ),
+                    const SizedBox(height: 20),
+                    if (_loading)
+                      const Center(child: CircularProgressIndicator())
+                    else if (_error != null)
+                      Text(_error!, style: const TextStyle(color: Colors.red))
+                    else if (_visibleReleases.isEmpty)
+                      const Padding(
+                        padding: EdgeInsets.symmetric(vertical: 24),
+                        child: Center(
+                          child: Text('No matching releases found.'),
+                        ),
+                      )
+                    else
+                      ..._visibleReleases.map(
+                        (release) => Card(
+                          margin: const EdgeInsets.only(bottom: 10),
+                          elevation: 0,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(14),
+                            side: BorderSide(color: dayungBorder(context)),
+                          ),
+                          child: ListTile(
+                            leading: const CircleAvatar(
+                              backgroundColor: Color(0xFFE6FFFA),
+                              child: Icon(
+                                Icons.check_rounded,
+                                color: Color(0xFF0D9488),
+                              ),
+                            ),
+                            title: Text(
+                              '${release['deceased_name']}',
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                            subtitle: Text(_formatDate(release['date'])),
+                            trailing: Text(
+                              _formatCurrency(release['amount'] as double),
+                              style: const TextStyle(
+                                color: Color(0xFF0D9488),
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                  ],
                 ),
               ),
             ),
-            const SizedBox(height: 10),
-            DropdownButtonFormField<bool>(
-              initialValue: _newestFirst,
-              decoration: InputDecoration(
-                labelText: 'Sort releases',
-                prefixIcon: const Icon(Icons.sort_rounded),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-              ),
-              items: const [
-                DropdownMenuItem(value: true, child: Text('New to old')),
-                DropdownMenuItem(value: false, child: Text('Old to new')),
-              ],
-              onChanged: (value) {
-                if (value != null) setState(() => _newestFirst = value);
-              },
-            ),
-            const SizedBox(height: 20),
-            if (_loading)
-              const Center(child: CircularProgressIndicator())
-            else if (_error != null)
-              Text(_error!, style: const TextStyle(color: Colors.red))
-            else if (_visibleReleases.isEmpty)
-              const Padding(
-                padding: EdgeInsets.symmetric(vertical: 24),
-                child: Center(child: Text('No matching releases found.')),
-              )
-            else
-              ..._visibleReleases.map(
-                (release) => Card(
-                  margin: const EdgeInsets.only(bottom: 10),
-                  elevation: 0,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(14),
-                    side: BorderSide(color: dayungBorder(context)),
-                  ),
-                  child: ListTile(
-                    leading: const CircleAvatar(
-                      backgroundColor: Color(0xFFE6FFFA),
-                      child: Icon(
-                        Icons.check_rounded,
-                        color: Color(0xFF0D9488),
-                      ),
-                    ),
-                    title: Text(
-                      '${release['deceased_name']}',
-                      style: const TextStyle(fontWeight: FontWeight.w700),
-                    ),
-                    subtitle: Text(_formatDate(release['date'])),
-                    trailing: Text(
-                      _formatCurrency(release['amount'] as double),
-                      style: const TextStyle(
-                        color: Color(0xFF0D9488),
-                        fontWeight: FontWeight.w800,
-                      ),
-                    ),
-                  ),
-                ),
-              ),
           ],
         ),
       ),

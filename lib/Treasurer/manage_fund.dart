@@ -567,18 +567,14 @@ class _ManageFundPageState extends State<ManageFundPage> {
         isWide ? 32 : 24,
       ),
       decoration: const BoxDecoration(
-        gradient: LinearGradient(
-          colors: [Color(0xFF083366), Color(0xFF0D47A1)],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
+        color: Color(0xFF0D47A1),
         borderRadius: BorderRadius.only(
           bottomLeft: Radius.circular(28),
           bottomRight: Radius.circular(28),
         ),
         boxShadow: [
           BoxShadow(
-            color: Color(0x22083366),
+            color: Color(0xFF1E40AF),
             blurRadius: 18,
             offset: Offset(0, 8),
           ),
@@ -632,50 +628,7 @@ class _ManageFundPageState extends State<ManageFundPage> {
                 //     fontFamily: 'OpenSans',
                 //   ),
                 // ),
-                const SizedBox(height: 14),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: [
-                    if (!widget.hideTreasurerMetrics)
-                      _headerPill(
-                        icon: Icons.groups_rounded,
-                        label: '$_approvedMemberCount active members',
-                      ),
-                    _headerPill(
-                      icon: Icons.receipt_long_rounded,
-                      label: '${_visibleFunds.length} visible funds',
-                    ),
-                  ],
-                ),
               ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _headerPill({required IconData icon, required String label}) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.14),
-        borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.16)),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 15, color: Colors.white),
-          const SizedBox(width: 6),
-          Text(
-            label,
-            style: const TextStyle(
-              color: Colors.white,
-              fontWeight: FontWeight.w700,
-              fontSize: 12,
-              fontFamily: 'Montserrat',
             ),
           ),
         ],

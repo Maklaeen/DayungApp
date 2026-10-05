@@ -676,16 +676,16 @@ class _GCashPaymentPageState extends State<GCashPaymentPage> {
               children: [
                 // Fixed header
                 Container(
-                  padding: const EdgeInsets.fromLTRB(20, 36, 20, 28),
+                  padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
                   decoration: const BoxDecoration(
-                    color: kAccent,
+                    color: kPrimary,
                     borderRadius: BorderRadius.only(
                       bottomLeft: Radius.circular(28),
                       bottomRight: Radius.circular(28),
                     ),
                     boxShadow: [
                       BoxShadow(
-                        color: kAccent,
+                        color: Color(0xFF1E40AF),
                         blurRadius: 18,
                         offset: Offset(0, 8),
                       ),
@@ -719,7 +719,7 @@ class _GCashPaymentPageState extends State<GCashPaymentPage> {
                         child: Text(
                           'GCash Payment',
                           style: TextStyle(
-                            fontSize: 20,
+                            fontSize: 22,
                             fontWeight: FontWeight.w800,
                             color: Colors.white,
                             fontFamily: 'Montserrat',

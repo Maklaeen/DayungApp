@@ -1668,15 +1668,50 @@ class _SecretaryApplicationsPageState extends State<SecretaryApplicationsPage> {
 
             return Column(
               children: [
-                SecretaryPageHeader(
-                  title: 'Manage Applications',
-                  icon: Icons.assignment_rounded,
-                  usePaymentStyle: true,
+                Container(
                   padding: EdgeInsets.fromLTRB(
                     horizontalPadding,
-                    isWide ? 28 : 28,
+                    20,
                     horizontalPadding,
                     24,
+                  ),
+                  decoration: const BoxDecoration(
+                    color: kPrimary,
+                    borderRadius: BorderRadius.only(
+                      bottomLeft: Radius.circular(28),
+                      bottomRight: Radius.circular(28),
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Color(0xFF1E40AF),
+                        blurRadius: 18,
+                        offset: Offset(0, 8),
+                      ),
+                    ],
+                  ),
+                  child: Row(
+                    children: [
+                      IconButton(
+                        tooltip: 'Back',
+                        onPressed: () => Navigator.of(context).maybePop(),
+                        icon: const Icon(
+                          Icons.arrow_back_rounded,
+                          color: Colors.white,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      const Expanded(
+                        child: Text(
+                          'Manage Applications',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 22,
+                            fontWeight: FontWeight.w800,
+                            fontFamily: 'Montserrat',
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
                 // Navigation Tabs

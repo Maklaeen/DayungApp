@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:capstone_app/Secretary/add_service_dialog.dart';
-import 'package:capstone_app/Secretary/secretary_ui.dart';
 import 'package:capstone_app/pages/deathnoticedetail.dart';
 import 'package:capstone_app/shared/active_members_page.dart';
 import 'package:flutter_riverpod/legacy.dart';
@@ -1123,10 +1122,46 @@ class _ServiceTrackerPageState extends State<ServiceTrackerPage> {
       body: SafeArea(
         child: Column(
           children: [
-            SecretaryPageHeader(
-              title: widget.title,
-              icon: Icons.track_changes_rounded,
-              usePaymentStyle: true,
+            Container(
+              padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
+              decoration: const BoxDecoration(
+                color: kPrimary,
+                borderRadius: BorderRadius.only(
+                  bottomLeft: Radius.circular(28),
+                  bottomRight: Radius.circular(28),
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: Color(0xFF1E40AF),
+                    blurRadius: 18,
+                    offset: Offset(0, 8),
+                  ),
+                ],
+              ),
+              child: Row(
+                children: [
+                  IconButton(
+                    tooltip: 'Back',
+                    onPressed: () => Navigator.of(context).maybePop(),
+                    icon: const Icon(
+                      Icons.arrow_back_rounded,
+                      color: Colors.white,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      widget.title,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 22,
+                        fontWeight: FontWeight.w800,
+                        fontFamily: 'Montserrat',
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
             _loading
                 ? const Expanded(

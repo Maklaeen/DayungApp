@@ -778,20 +778,19 @@ class _DayungSettingsPageState extends State<DayungSettingsPage> {
                 width: double.infinity,
                 padding: EdgeInsets.symmetric(
                   horizontal: isWide ? 28 : 18,
-                  vertical: isWide ? 24 : 18,
+                  vertical: isWide ? 28 : 20,
                 ),
                 decoration: BoxDecoration(
-                  gradient: const LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: [kSettingsPrimary, kSettingsAccent],
+                  color: kSettingsPrimary,
+                  borderRadius: const BorderRadius.only(
+                    bottomLeft: Radius.circular(28),
+                    bottomRight: Radius.circular(28),
                   ),
-                  borderRadius: BorderRadius.circular(28),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.08),
-                      blurRadius: 16,
-                      offset: const Offset(0, 6),
+                      color: kSettingsPrimary.withValues(alpha: 0.28),
+                      blurRadius: 18,
+                      offset: const Offset(0, 8),
                     ),
                   ],
                 ),
@@ -823,7 +822,7 @@ class _DayungSettingsPageState extends State<DayungSettingsPage> {
                                 style: TextStyle(
                                   color: Colors.white,
                                   fontWeight: FontWeight.w800,
-                                  fontSize: isWide ? 28 : 22,
+                                  fontSize: isWide ? 24 : 20,
                                   fontFamily: 'Montserrat',
                                 ),
                               ),

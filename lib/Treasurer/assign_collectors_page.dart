@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 const Color _kPageBg = Color(0xFFF8FAFC);
-const Color _kHeaderGradientStart = Color(0xFF083366);
 const Color _kHeaderGradientEnd = Color(0xFF0D47A1);
 const Color _kCard = Colors.white;
 const Color _kBorder = Color(0xFFE5E7EB);
@@ -359,18 +358,14 @@ class _AssignCollectorsPageState extends State<AssignCollectorsPage> {
     return Container(
       width: double.infinity,
       decoration: const BoxDecoration(
-        gradient: LinearGradient(
-          colors: [_kHeaderGradientStart, _kHeaderGradientEnd],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
+        color: _kHeaderGradientEnd,
         borderRadius: BorderRadius.only(
           bottomLeft: Radius.circular(28),
           bottomRight: Radius.circular(28),
         ),
         boxShadow: [
           BoxShadow(
-            color: Color(0x22083366),
+            color: Color(0xFF1E40AF),
             blurRadius: 18,
             offset: Offset(0, 8),
           ),

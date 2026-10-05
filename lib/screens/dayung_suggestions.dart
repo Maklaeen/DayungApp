@@ -61,9 +61,7 @@ class _DayungSuggestionsPageState extends State<DayungSuggestionsPage> {
     try {
       final res = await _sb
           .from('dayung_units')
-          .select(
-            'id, name, barangay, city, province, latitude, longitude',
-          )
+          .select('id, name, barangay, city, province, latitude, longitude')
           .order('name');
       setState(() {
         _allDayungs = List<Map<String, dynamic>>.from(
@@ -92,37 +90,107 @@ class _DayungSuggestionsPageState extends State<DayungSuggestionsPage> {
   }
 
   Widget _buildModernHeader(BuildContext context, bool isWide) {
-    // Set a minimum height, but allow to grow if needed
-    final double minHeaderHeight = isWide ? 110 : 90;
-
     return SafeArea(
       child: Container(
         width: double.infinity,
-        constraints: BoxConstraints(minHeight: minHeaderHeight),
-        margin: const EdgeInsets.only(top: 12, left: 12, right: 12, bottom: 8),
-        padding: EdgeInsets.symmetric(
-          horizontal: isWide ? 32 : 20,
-          vertical: 16,
+        padding: EdgeInsets.fromLTRB(
+          isWide ? 32 : 20,
+          20,
+          isWide ? 24 : 16,
+          24,
         ),
-        decoration: BoxDecoration(
-          gradient: const LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [kPrimary, kAccent],
+        decoration: const BoxDecoration(
+          color: kPrimary,
+          borderRadius: BorderRadius.only(
+            bottomLeft: Radius.circular(28),
+            bottomRight: Radius.circular(28),
           ),
-          borderRadius: BorderRadius.circular(28),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withValues(alpha: 0.08),
-              blurRadius: 16,
-              offset: const Offset(0, 6),
+              color: Color(0xFF1E40AF),
+              blurRadius: 18,
+              offset: Offset(0, 8),
             ),
           ],
         ),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            // Avatar with icon
+            IconButton(
+              tooltip: 'Back',
+              onPressed: () => Navigator.of(context).maybePop(),
+              icon: const Icon(Icons.arrow_back_rounded, color: Colors.white),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: AnimatedSwitcher(
+                duration: const Duration(milliseconds: 350),
+                transitionBuilder: (child, animation) =>
+                    FadeTransition(opacity: animation, child: child),
+                child: _showSearchBar
+                    ? SizedBox(
+                        key: const ValueKey('searchBar'),
+                        height: isWide ? 48 : 40,
+                        child: TextField(
+                          controller: _searchController,
+                          autofocus: true,
+                          decoration: InputDecoration(
+                            hintText: 'Search Dayung units',
+                            filled: true,
+                            fillColor: Colors.white,
+                            contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 18,
+                            ),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(18),
+                              borderSide: BorderSide.none,
+                            ),
+                            suffixIcon: IconButton(
+                              icon: const Icon(Icons.close, color: kSubText),
+                              onPressed: () {
+                                setState(() {
+                                  _showSearchBar = false;
+                                  _searchController.clear();
+                                  _query = '';
+                                });
+                              },
+                            ),
+                          ),
+                          onChanged: (v) => setState(() => _query = v),
+                          style: TextStyle(
+                            fontSize: isWide ? 18 : 16,
+                            color: kText,
+                            fontFamily: 'OpenSans',
+                          ),
+                        ),
+                      )
+                    : Column(
+                        key: const ValueKey('title'),
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Find a Dayung',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w800,
+                              fontSize: isWide ? 24 : 20,
+                              fontFamily: 'Montserrat',
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            'Browse and search for Dayung units near you.',
+                            style: TextStyle(
+                              color: Colors.white.withValues(alpha: 0.85),
+                              fontSize: isWide ? 15 : 13,
+                              fontFamily: 'OpenSans',
+                            ),
+                          ),
+                        ],
+                      ),
+              ),
+            ),
+            const SizedBox(width: 8),
             GestureDetector(
               onTap: () {
                 setState(() {
@@ -144,89 +212,6 @@ class _DayungSuggestionsPageState extends State<DayungSuggestionsPage> {
                   color: Colors.white,
                   size: isWide ? 40 : 28,
                 ),
-              ),
-            ),
-            const SizedBox(width: 18),
-            // Title/subtitle or animated search bar, both with flexible height
-            Expanded(
-              child: AnimatedSwitcher(
-                duration: const Duration(milliseconds: 350),
-                transitionBuilder: (child, animation) => SlideTransition(
-                  position: Tween<Offset>(
-                    begin: const Offset(1, 0),
-                    end: Offset.zero,
-                  ).animate(animation),
-                  child: FadeTransition(opacity: animation, child: child),
-                ),
-                child: _showSearchBar
-                    ? Center(
-                        key: const ValueKey('searchBar'),
-                        child: SizedBox(
-                          height: isWide ? 48 : 40,
-                          child: TextField(
-                            controller: _searchController,
-                            autofocus: true,
-                            decoration: InputDecoration(
-                              hintText:
-                                  'Search by name, barangay, city, or province',
-                              filled: true,
-                              fillColor: Colors.white,
-                              contentPadding: const EdgeInsets.symmetric(
-                                horizontal: 18,
-                                vertical: 0,
-                              ),
-                              border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(18),
-                                borderSide: BorderSide.none,
-                              ),
-                              suffixIcon: IconButton(
-                                icon: const Icon(Icons.close, color: kSubText),
-                                onPressed: () {
-                                  setState(() {
-                                    _showSearchBar = false;
-                                    _searchController.clear();
-                                    _query = '';
-                                  });
-                                },
-                              ),
-                            ),
-                            onChanged: (v) => setState(() => _query = v),
-                            style: TextStyle(
-                              fontSize: isWide ? 18 : 16,
-                              color: kText,
-                              fontFamily: 'OpenSans',
-                            ),
-                          ),
-                        ),
-                      )
-                    : Container(
-                        key: const ValueKey('title'),
-                        // Remove fixed height, let content wrap
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'Find a Dayung',
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontWeight: FontWeight.bold,
-                                fontSize: isWide ? 28 : 22,
-                                fontFamily: 'Montserrat',
-                              ),
-                            ),
-                            const SizedBox(height: 4),
-                            Text(
-                              'Browse and search for Dayung units near you.',
-                              style: TextStyle(
-                                color: Colors.white.withValues(alpha: 0.85),
-                                fontSize: isWide ? 17 : 15,
-                                fontFamily: 'OpenSans',
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
               ),
             ),
           ],
@@ -325,34 +310,6 @@ class _DayungSuggestionsPageState extends State<DayungSuggestionsPage> {
               ),
             ),
           ],
-        ),
-      ),
-      bottomNavigationBar: Padding(
-        padding: const EdgeInsets.fromLTRB(18, 0, 18, 18),
-        child: SizedBox(
-          width: double.infinity,
-          height: 52,
-          child: ElevatedButton.icon(
-            icon: const Icon(Icons.arrow_back, color: Colors.white),
-            label: const Text(
-              'Back',
-              style: TextStyle(
-                fontWeight: FontWeight.bold,
-                fontSize: 16,
-                fontFamily: 'Montserrat',
-              ),
-            ),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: kPrimaryLight,
-              foregroundColor: Colors.white,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(14),
-              ),
-              elevation: 2,
-              padding: const EdgeInsets.symmetric(vertical: 12),
-            ),
-            onPressed: () => Navigator.of(context).maybePop(),
-          ),
         ),
       ),
     );
