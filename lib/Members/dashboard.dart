@@ -56,6 +56,7 @@ class _MemberDashboardPageState extends State<MemberDashboardPage>
   bool _loadingActiveMembers = true;
   bool _handlingOverlay = false;
   bool _loadingPending = true;
+  bool _loadingAdvancePayment = true;
   bool _isBootstrapping = true;
   bool _loadingApplicationStatus = true;
   bool _hasAppliedBefore = false;
@@ -66,6 +67,7 @@ class _MemberDashboardPageState extends State<MemberDashboardPage>
   List<String> _pendingPaymentMessages = [];
 
   double _pendingPaymentsAmount = 0;
+  double _advancePaymentAmount = 0;
 
   int _unreadNotifCount = 0;
   int _activeMembersCount = 0;
@@ -110,6 +112,7 @@ class _MemberDashboardPageState extends State<MemberDashboardPage>
         _fetchActiveMembers(),
         _fetchRecentDeaths(),
         _fetchPendingPayments(),
+        _fetchAdvancePayment(),
         _fetchPendingApplication(),
       ]);
     } finally {
@@ -154,6 +157,7 @@ class _MemberDashboardPageState extends State<MemberDashboardPage>
         _fetchActiveMembers(),
         _fetchRecentDeaths(),
         _fetchPendingPayments(),
+        _fetchAdvancePayment(),
         _fetchPendingApplication(),
       ]);
     } catch (e) {
@@ -418,6 +422,7 @@ class _MemberDashboardPageState extends State<MemberDashboardPage>
       _fetchActiveMembers(),
       _fetchRecentDeaths(),
       _fetchPendingPayments(),
+      _fetchAdvancePayment(),
     ]);
   }
 
@@ -637,6 +642,44 @@ class _MemberDashboardPageState extends State<MemberDashboardPage>
     }
   }
 
+  Future<void> _fetchAdvancePayment() async {
+    if (!mounted) return;
+    setState(() => _loadingAdvancePayment = true);
+    try {
+      final uid = supabase.auth.currentUser?.id;
+      final unitId = _asInt(_selectedDayungUnitObj?['id']);
+      if (uid == null || unitId == null) {
+        _advancePaymentAmount = 0;
+        return;
+      }
+
+      final rows = await supabase
+          .from('advance_payments')
+          .select('amount, deducted_amount')
+          .eq('user_id', uid)
+          .eq('dayung_unit_id', unitId)
+          .eq('has_remaining', true);
+
+      double parseAmount(dynamic value) {
+        if (value is num) return value.toDouble();
+        return double.tryParse(value?.toString().trim() ?? '') ?? 0;
+      }
+
+      _advancePaymentAmount = (rows as List).fold<double>(0, (total, row) {
+        final amount = parseAmount(row['amount']);
+        final deducted = parseAmount(row['deducted_amount']);
+        final remaining = amount - deducted;
+        return total + (remaining > 0 ? remaining : 0);
+      });
+    } catch (_) {
+      _advancePaymentAmount = 0;
+    } finally {
+      if (mounted) {
+        setState(() => _loadingAdvancePayment = false);
+      }
+    }
+  }
+
   @override
   void dispose() {
     _notifChannel?.unsubscribe();
@@ -770,6 +813,8 @@ class _MemberDashboardPageState extends State<MemberDashboardPage>
               _overviewSection(),
               const SizedBox(height: 24),
               _buildNextPaymentCard(false),
+              const SizedBox(height: 12),
+              _buildAdvancePaymentCard(),
               const SizedBox(height: 24),
               _modernActionCards(),
               const SizedBox(height: 24),
@@ -1855,6 +1900,67 @@ class _MemberDashboardPageState extends State<MemberDashboardPage>
                 ),
                 elevation: 0,
               ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAdvancePaymentCard() {
+    final amount = _loadingAdvancePayment
+        ? '…'
+        : '₱ ${_advancePaymentAmount.toStringAsFixed(2)}';
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: dayungAccentSurface(
+          context,
+          const Color(0xFF15803D),
+          lightAlpha: 0.08,
+          darkAlpha: 0.14,
+        ),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(
+          color: const Color(
+            0xFF15803D,
+          ).withValues(alpha: dayungIsDark(context) ? 0.36 : 0.25),
+          width: 1.6,
+        ),
+        boxShadow: [dayungElevatedShadow(context)],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Advance Payment',
+            style: TextStyle(
+              fontWeight: FontWeight.w800,
+              fontSize: 20,
+              color: dayungTextColor(context),
+              fontFamily: 'Montserrat',
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            amount,
+            style: TextStyle(
+              fontSize: 32,
+              fontWeight: FontWeight.w800,
+              color: dayungTextColor(context),
+              fontFamily: 'Montserrat',
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'Remaining balance',
+            style: TextStyle(
+              color: dayungSubtextColor(context),
+              fontSize: 14,
+              fontFamily: 'OpenSans',
+              fontWeight: FontWeight.w600,
             ),
           ),
         ],

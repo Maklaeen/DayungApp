@@ -1268,27 +1268,13 @@ class _RegisterState extends State<Register> {
           textCapitalization: TextCapitalization.none,
           inputFormatters: [
             ...AppInputSecurity.singleLineFormatters(maxLength: 120),
-            FilteringTextInputFormatter.deny(RegExp(r'[A-Z]')),
           ],
-          onChanged: (value) {
-            final lowered = value.toLowerCase();
-            if (value != lowered) {
-              emailController.value = emailController.value.copyWith(
-                text: lowered,
-                selection: TextSelection.collapsed(offset: lowered.length),
-              );
-            }
-          },
           style: TextStyle(
             fontSize: isWide ? 18 : 16,
             color: kNeutralText,
             fontWeight: FontWeight.w500,
           ),
-          decoration: _dec(
-            'Email',
-            hint: 'example@email.com',
-            icon: Icons.email_rounded,
-          ),
+          decoration: _dec('Email', icon: Icons.email_rounded),
           validator: AppInputSecurity.validateEmail,
         ),
         const SizedBox(height: 16),
@@ -2046,23 +2032,7 @@ class _RegisterState extends State<Register> {
                                     ...AppInputSecurity.singleLineFormatters(
                                       maxLength: 120,
                                     ),
-                                    FilteringTextInputFormatter.deny(
-                                      RegExp(r'[A-Z]'),
-                                    ),
                                   ],
-                                  onChanged: (value) {
-                                    final lowered = value.toLowerCase();
-                                    if (value != lowered) {
-                                      emailController.value = emailController
-                                          .value
-                                          .copyWith(
-                                            text: lowered,
-                                            selection: TextSelection.collapsed(
-                                              offset: lowered.length,
-                                            ),
-                                          );
-                                    }
-                                  },
                                   style: TextStyle(
                                     fontSize: isWide ? 18 : 16,
                                     color: kNeutralText,
@@ -2070,7 +2040,6 @@ class _RegisterState extends State<Register> {
                                   ),
                                   decoration: _dec(
                                     'Email',
-                                    hint: 'example@email.com',
                                     icon: Icons.email_rounded,
                                   ),
                                   validator: AppInputSecurity.validateEmail,

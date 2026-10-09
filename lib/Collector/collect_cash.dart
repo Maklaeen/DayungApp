@@ -500,7 +500,10 @@ class _CollectCashPageState extends State<CollectCashPage> {
 
     for (final setAmount in setAmounts) {
       final beneficiaryId = (setAmount['beneficiary_id'] ?? '').toString();
-      final userId = (setAmount['userdeceased'] ?? '').toString();
+      final userdeceased = (setAmount['userdeceased'] ?? '').toString();
+      final userId = userdeceased.isNotEmpty
+          ? userdeceased
+          : (setAmount['user_id'] ?? '').toString();
       final key = beneficiaryId.isNotEmpty
           ? 'beneficiary:$beneficiaryId'
           : 'user:$userId';
@@ -1086,10 +1089,10 @@ class _CollectCashPageState extends State<CollectCashPage> {
             label: 'Paid Cash',
             value:
                 '${_payments.where((row) {
-                      final status = (row['status'] ?? '').toString().toLowerCase();
-                      final collectorId = (row['collected_by'] ?? '').toString();
-                      return status == 'paid' && collectorId == _currentUserId;
-                    }).length}',
+                  final status = (row['status'] ?? '').toString().toLowerCase();
+                  final collectorId = (row['collected_by'] ?? '').toString();
+                  return status == 'paid' && collectorId == _currentUserId;
+                }).length}',
             tone: const Color(0xFF0F766E),
           ),
           _statCard(
@@ -1180,7 +1183,7 @@ class _CollectCashPageState extends State<CollectCashPage> {
                   Expanded(
                     child: Text(
                       (claim['beneficiary_id'] ?? '').toString().isNotEmpty
-                          ? 'Claim for ${_beneficiaryLabel([], (claim['beneficiary_id'] ?? '').toString())}'
+                          ? '${displayName.isNotEmpty ? displayName : 'Beneficiary'}'
                           : (displayName.isNotEmpty
                                 ? displayName
                                 : _memberName(userId)),

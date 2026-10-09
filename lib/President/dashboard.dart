@@ -6,6 +6,7 @@ import 'package:capstone_app/President/manage_roles.dart';
 import 'package:capstone_app/President/manage_rules.dart';
 import 'package:capstone_app/President/president_payment_page.dart';
 import 'package:capstone_app/President/post_announcement.dart';
+import 'package:capstone_app/President/sms_announcement_page.dart';
 import 'package:capstone_app/President/presclaims.dart' hide kPrimary;
 import 'package:capstone_app/President/prescontribution.dart' hide kPrimary;
 import 'package:capstone_app/President/presidentmemberspage.dart'
@@ -1047,28 +1048,54 @@ class _PresidentDashboardPageState extends State<PresidentDashboardPage> {
             ],
           ),
           const SizedBox(height: 16),
-          SizedBox(
-            height: actionCardHeight,
-            child: _modernActionCard(
-              icon: Icons.bar_chart_rounded,
-              title: 'Collector Progress',
-              color: const Color(0xFF8B5CF6),
-              onTap: () {
-                final unitId = _effectiveUnitId(context);
-                if (unitId == null) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Select a Dayung first')),
-                  );
-                  return;
-                }
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => CollectorProgressPage(dayungUnitId: unitId),
+          Row(
+            children: [
+              Expanded(
+                child: SizedBox(
+                  height: actionCardHeight,
+                  child: _modernActionCard(
+                    icon: Icons.bar_chart_rounded,
+                    title: 'Collector Progress',
+                    color: const Color(0xFF8B5CF6),
+                    onTap: () {
+                      final unitId = _effectiveUnitId(context);
+                      if (unitId == null) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Select a Dayung first'),
+                          ),
+                        );
+                        return;
+                      }
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) =>
+                              CollectorProgressPage(dayungUnitId: unitId),
+                        ),
+                      );
+                    },
                   ),
-                );
-              },
-            ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: SizedBox(
+                  height: actionCardHeight,
+                  child: _modernActionCard(
+                    icon: Icons.sms_outlined,
+                    title: 'Announcement for SMS',
+                    color: const Color(0xFF0891B2),
+                    onTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => const SmsAnnouncementPage(),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
           ),
           const SizedBox(height: 16),
           const Text(

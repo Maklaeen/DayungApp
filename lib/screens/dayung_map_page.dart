@@ -109,6 +109,7 @@ class DayungMapPage extends StatefulWidget {
 
   final bool isApplied;
   final bool isMember;
+  final bool allowApplication;
   final List<Map<String, dynamic>>? allDayungs;
   final double nearbyRadiusMeters;
 
@@ -117,6 +118,7 @@ class DayungMapPage extends StatefulWidget {
     required this.dayung,
     this.isApplied = false,
     this.isMember = false,
+    this.allowApplication = true,
     this.allDayungs,
     this.nearbyRadiusMeters = 5000,
   });
@@ -1605,7 +1607,7 @@ class _DayungMapPageState extends State<DayungMapPage> {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         status(),
-        if (!widget.isMember && !_applied) ...[
+        if (widget.allowApplication && !widget.isMember && !_applied) ...[
           const SizedBox(height: 10),
           _primaryButton(
             label: _submitting ? 'Submitting...' : 'Apply to this Dayung',
@@ -1669,7 +1671,6 @@ class _DayungMapPageState extends State<DayungMapPage> {
             'dayung_unit_id': dayungUnitId,
             'status': 'for_confirmation',
             'name': unitName,
-            'is_agree': false,
           })
           .select('id')
           .single();

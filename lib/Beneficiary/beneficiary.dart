@@ -1,10 +1,7 @@
-import 'dart:convert';
-
 import 'package:auto_size_text/auto_size_text.dart';
 import 'package:capstone_app/Beneficiary/addbeneficiary.dart' as add;
 import 'package:capstone_app/utils/supabase_storage.dart';
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:capstone_app/shared/dayung_back_button.dart';
@@ -25,6 +22,7 @@ class BeneficiaryPage extends StatefulWidget {
   final VoidCallback? onFirstBeneficiaryAdded;
   final bool showBackButton;
   final bool embedded;
+  final int? dayungUnitId;
 
   const BeneficiaryPage({
     super.key,
@@ -32,6 +30,7 @@ class BeneficiaryPage extends StatefulWidget {
     this.onFirstBeneficiaryAdded,
     this.showBackButton = true,
     this.embedded = false,
+    this.dayungUnitId,
   });
 
   @override
@@ -62,34 +61,10 @@ class _BeneficiaryPageState extends State<BeneficiaryPage> {
       return;
     }
 
-    int? unitId;
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      final ownerId = prefs.getString('selectedDayungUnitOwnerId');
-      final unitJson =
-          prefs.getString('selectedDayungUnitData') ??
-          prefs.getString('selectedDayungUnit');
-      if (ownerId == user.id && unitJson != null) {
-        final unit = Map<String, dynamic>.from(jsonDecode(unitJson) as Map);
-        final rawUnitId = unit['id'];
-        unitId = rawUnitId is int ? rawUnitId : int.tryParse('$rawUnitId');
-      }
-    } catch (_) {}
-
-    if (unitId == null) {
-      if (!mounted) return;
-      setState(() {
-        beneficiaries = [];
-        isLoading = false;
-      });
-      return;
-    }
-
     final response = await client
         .from('beneficiaries')
         .select()
-        .eq('user_id', user.id)
-        .eq('dayung_unit_id', unitId);
+        .eq('user_id', user.id);
 
     final List<dynamic> allBeneficiaries = response;
     if (!mounted) return;
@@ -102,7 +77,10 @@ class _BeneficiaryPageState extends State<BeneficiaryPage> {
   Future<void> _navigateToAddBeneficiary(BuildContext context) async {
     await Navigator.push(
       context,
-      MaterialPageRoute(builder: (context) => const add.AddBeneficiaryPage()),
+      MaterialPageRoute(
+        builder: (context) =>
+            add.AddBeneficiaryPage(dayungUnitId: widget.dayungUnitId),
+      ),
     );
     await fetchBeneficiaries();
     if (beneficiaries.isNotEmpty && widget.onFirstBeneficiaryAdded != null) {
@@ -119,6 +97,7 @@ class _BeneficiaryPageState extends State<BeneficiaryPage> {
       MaterialPageRoute(
         builder: (context) => add.AddBeneficiaryPage(
           beneficiary: Map<String, dynamic>.from(beneficiary),
+          dayungUnitId: widget.dayungUnitId,
         ),
       ),
     );

@@ -53,11 +53,16 @@ supabase functions deploy superadmin-admin
 
 More detail is in `docs/supabase-edge-functions.md`.
 
-### Legacy SMS backend
+### Twilio SMS announcements
 
-The `backend/` folder remains available only if you later restore SMS delivery.
+SMS announcements are sent by the authenticated Express backend. Twilio credentials
+must stay on that server; never add them to the Flutter `.env` or app build flags.
 
-Create `backend/.env` using `backend/.env.example` and set:
+1. Create a Twilio account, verify or purchase a sender number, and note the Account
+   SID, Auth Token, and sender number in E.164 format (for example, `+1...`). Trial
+   accounts may only message verified recipient numbers.
+2. In `backend/`, install dependencies with `npm install` and create `.env` from
+   `.env.example`. Set:
 
 - `SUPABASE_URL`
 - `SUPABASE_SERVICE_ROLE_KEY`
@@ -66,12 +71,31 @@ Create `backend/.env` using `backend/.env.example` and set:
 - `TWILIO_FROM`
 - `PORT`
 
+3. Start the backend with `npm start` and confirm `GET /health` returns `{ "ok": true }`.
+   Deploy this backend to a public HTTPS host for real devices; `localhost` only works
+   from the development machine itself.
+4. Run/build Flutter with the backend origin (no trailing slash):
+
+   ```bash
+   flutter run --dart-define=SUPERADMIN_BACKEND_URL=https://your-api.example.com
+   ```
+
+   Use the same `--dart-define` when building the release app.
+5. Sign in as a Super Admin and enable SMS broadcast in System Settings. This server-side
+   switch defaults to off and is also enforced for President announcements.
+6. Sign in as the President assigned to a unit, open **Announcement for SMS**, choose
+   the unit if prompted, and send a short test message to opted-in numbers first.
+   Delivery goes to approved members and unit officers with saved mobile numbers.
+
+The backend validates the Supabase session and President/unit assignment before sending.
+Twilio delivery costs apply, and trial accounts have additional recipient restrictions.
+
 ## Security Notes
 
 - Do not hardcode real secrets in tracked Dart source files.
 - Do not commit `ios/Flutter/Secrets.xcconfig`.
 - The Edge Function `superadmin-admin` is intended to be authenticated and superadmin-scoped.
-- The backend route `/send-announcement-sms` remains intended to be authenticated and president-scoped if SMS is restored later.
+- The backend route `/send-announcement-sms` is authenticated, President-scoped, and gated by the SMS system setting.
 - Sensitive document buckets should use private access policies and signed URLs at the infrastructure level.
 
 ## Audit and Quality Checks

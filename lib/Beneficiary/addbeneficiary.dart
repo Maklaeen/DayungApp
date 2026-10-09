@@ -1,5 +1,4 @@
 import 'dart:convert';
-import 'dart:typed_data';
 import 'dart:ui';
 
 import 'package:encrypt/encrypt.dart' as encrypt;
@@ -10,6 +9,7 @@ import 'package:dropdown_button2/dropdown_button2.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -28,11 +28,13 @@ const kBorderColor = Color(0xFFE5E7EB);
 class AddBeneficiaryPage extends StatefulWidget {
   final bool embedded;
   final Map<String, dynamic>? beneficiary;
+  final int? dayungUnitId;
 
   const AddBeneficiaryPage({
     super.key,
     this.embedded = false,
     this.beneficiary,
+    this.dayungUnitId,
   });
 
   @override
@@ -716,17 +718,19 @@ class _AddBeneficiaryPageState extends State<AddBeneficiaryPage> {
       return;
     }
 
-    int? unitFromPrefs;
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      final raw = prefs.getString('selectedDayungUnit');
-      if (raw != null) {
-        final map = Map<String, dynamic>.from(jsonDecode(raw));
-        unitFromPrefs = map['id'] is int
-            ? map['id'] as int
-            : int.tryParse('${map['id']}');
-      }
-    } catch (_) {}
+    int? unitFromPrefs = widget.dayungUnitId;
+    if (unitFromPrefs == null) {
+      try {
+        final prefs = await SharedPreferences.getInstance();
+        final raw = prefs.getString('selectedDayungUnit');
+        if (raw != null) {
+          final map = Map<String, dynamic>.from(jsonDecode(raw));
+          unitFromPrefs = map['id'] is int
+              ? map['id'] as int
+              : int.tryParse('${map['id']}');
+        }
+      } catch (_) {}
+    }
 
     final String? unitText = unitFromPrefs?.toString();
     setState(() => _isSubmitting = true);
@@ -1004,10 +1008,57 @@ class _AddBeneficiaryPageState extends State<AddBeneficiaryPage> {
                               TextFormField(
                                 controller: fullNameController,
                                 textInputAction: TextInputAction.next,
-                                inputFormatters:
-                                    AppInputSecurity.singleLineFormatters(
-                                      maxLength: 120,
-                                    ),
+                                textCapitalization: TextCapitalization.words,
+                                inputFormatters: [
+                                  ...AppInputSecurity.singleLineFormatters(
+                                    maxLength: 120,
+                                  ),
+                                  TextInputFormatter.withFunction((
+                                    oldValue,
+                                    newValue,
+                                  ) {
+                                    String capitalizeWordInitials(String text) {
+                                      return text.replaceAllMapped(
+                                        RegExp(r'(^|\s)(\S)'),
+                                        (match) =>
+                                            '${match[1]}${match[2]!.toUpperCase()}',
+                                      );
+                                    }
+
+                                    final text = capitalizeWordInitials(
+                                      newValue.text,
+                                    );
+                                    final baseOffset =
+                                        newValue.selection.baseOffset;
+                                    final extentOffset =
+                                        newValue.selection.extentOffset;
+
+                                    return newValue.copyWith(
+                                      text: text,
+                                      selection: TextSelection(
+                                        baseOffset: baseOffset < 0
+                                            ? baseOffset
+                                            : capitalizeWordInitials(
+                                                newValue.text.substring(
+                                                  0,
+                                                  baseOffset,
+                                                ),
+                                              ).length,
+                                        extentOffset: extentOffset < 0
+                                            ? extentOffset
+                                            : capitalizeWordInitials(
+                                                newValue.text.substring(
+                                                  0,
+                                                  extentOffset,
+                                                ),
+                                              ).length,
+                                        affinity: newValue.selection.affinity,
+                                        isDirectional:
+                                            newValue.selection.isDirectional,
+                                      ),
+                                    );
+                                  }),
+                                ],
                                 style: const TextStyle(
                                   fontSize: 14,
                                   color: kText,
@@ -1015,7 +1066,7 @@ class _AddBeneficiaryPageState extends State<AddBeneficiaryPage> {
                                 ),
                                 decoration: _dec(
                                   'Full Name',
-                                  hint: 'e.g., Jane Doe',
+                                  hint: 'e.g., Yanashii Mikasa',
                                   icon: Icons.badge_outlined,
                                 ),
                                 validator: (v) =>

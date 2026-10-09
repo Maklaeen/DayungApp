@@ -102,6 +102,21 @@ class _GCashPaymentPageState extends State<GCashPaymentPage> {
     return data;
   }
 
+  Future<List<Map<String, dynamic>>> fetchAdvancePayments() async {
+    final user = Supabase.instance.client.auth.currentUser;
+    if (user == null || widget.dayungUnitId == null) return [];
+
+    final data = await Supabase.instance.client
+        .from('gcash_qr_codes')
+        .select('id, amount, status, image_url, refno, created_at')
+        .eq('uploaded_by', user.id)
+        .eq('dayung_unit_id', widget.dayungUnitId!)
+        .eq('payment_purpose', 'advance_payments')
+        .order('created_at', ascending: false);
+
+    return (data as List<dynamic>).cast<Map<String, dynamic>>();
+  }
+
   Future<void> showAdvanceCashDialog(
     List<Map<String, dynamic>> payments,
   ) async {
@@ -376,15 +391,22 @@ class _GCashPaymentPageState extends State<GCashPaymentPage> {
         '${DateTime.now().millisecondsSinceEpoch}_$receiptFileName';
 
     if (mounted) setState(() => _isUploading = true);
+    debugPrint(
+      '[Advance Cash] Save started: userId=${Supabase.instance.client.auth.currentUser?.id}, '
+      'dayungUnitId=${widget.dayungUnitId}, amount=$amount',
+    );
     try {
       final storageResponse = await Supabase.instance.client.storage
           .from('gcash_qr_images')
           .uploadBinary(fileName, receiptBytes);
 
       if (storageResponse.isEmpty) {
+        debugPrint('[Advance Cash] Image upload returned an empty path.');
         throw Exception('Receipt image upload failed.');
       }
+      debugPrint('[Advance Cash] Image uploaded: $storageResponse');
 
+      debugPrint('[Advance Cash] Inserting receipt into gcash_qr_codes.');
       await Supabase.instance.client.from('gcash_qr_codes').insert({
         'userdeceased': null,
         'amount': amount,
@@ -397,10 +419,13 @@ class _GCashPaymentPageState extends State<GCashPaymentPage> {
         'dayung_unit_id': widget.dayungUnitId,
         'refno': refNo,
       });
+      debugPrint('[Advance Cash] Receipt insert completed successfully.');
 
       if (!mounted) return;
       setState(() {});
-    } catch (e) {
+    } catch (e, stackTrace) {
+      debugPrint('[Advance Cash] Save failed: $e');
+      debugPrintStack(stackTrace: stackTrace);
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Unable to save advance cash receipt: $e')),
@@ -597,7 +622,9 @@ class _GCashPaymentPageState extends State<GCashPaymentPage> {
         'image_url': fileName,
         'uploaded_by': user.id,
         'type': 'gcash',
-        'payment_purpose': 'for_userdeceased',
+        'payment_purpose': isMembershipPayment
+            ? 'membership_payment'
+            : 'for_userdeceased',
         'created_at': DateTime.now().toIso8601String().substring(0, 19),
         'dayung_unit_id': widget.dayungUnitId,
         'refno': refNo,
@@ -1034,6 +1061,163 @@ class _GCashPaymentPageState extends State<GCashPaymentPage> {
                         Padding(
                           padding: const EdgeInsets.all(16),
                           child: FutureBuilder<List<Map<String, dynamic>>>(
+                            future: fetchAdvancePayments(),
+                            builder: (context, snapshot) {
+                              if (snapshot.hasError) {
+                                return Text(
+                                  'Unable to load advance payments: ${snapshot.error}',
+                                  style: const TextStyle(color: kWarn),
+                                );
+                              }
+                              if (!snapshot.hasData || snapshot.data!.isEmpty) {
+                                return const SizedBox.shrink();
+                              }
+
+                              final advancePayments = snapshot.data!.where((
+                                payment,
+                              ) {
+                                final refNo =
+                                    payment['refno']
+                                        ?.toString()
+                                        .toLowerCase() ??
+                                    '';
+                                return 'advance payment'.contains(
+                                      _searchQuery,
+                                    ) ||
+                                    refNo.contains(_searchQuery);
+                              }).toList();
+
+                              return Column(
+                                crossAxisAlignment: CrossAxisAlignment.stretch,
+                                children: advancePayments.map((payment) {
+                                  final status =
+                                      payment['status']
+                                          ?.toString()
+                                          .toLowerCase() ??
+                                      'unpaid';
+                                  final isPaid = status == 'paid';
+                                  final receiptUrl = payment['image_url']
+                                      ?.toString();
+
+                                  return Card(
+                                    margin: const EdgeInsets.symmetric(
+                                      vertical: 10,
+                                    ),
+                                    elevation: 3,
+                                    color: Colors.white,
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(16),
+                                    ),
+                                    child: Padding(
+                                      padding: const EdgeInsets.symmetric(
+                                        vertical: 16,
+                                        horizontal: 18,
+                                      ),
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          const Text(
+                                            'Advance Payment',
+                                            style: TextStyle(
+                                              fontWeight: FontWeight.bold,
+                                              fontSize: 16,
+                                              color: kText,
+                                            ),
+                                          ),
+                                          const SizedBox(height: 8),
+                                          Text(
+                                            'Amount: ₱ ${payment['amount']}',
+                                            style: const TextStyle(
+                                              fontSize: 15,
+                                              color: kAccent,
+                                            ),
+                                          ),
+                                          if (payment['refno'] != null) ...[
+                                            const SizedBox(height: 8),
+                                            Text(
+                                              'Reference No.: ${payment['refno']}',
+                                              style: const TextStyle(
+                                                fontSize: 14,
+                                                color: kSubText,
+                                              ),
+                                            ),
+                                          ],
+                                          const SizedBox(height: 8),
+                                          Text(
+                                            isPaid ? 'Paid' : 'Pending',
+                                            style: TextStyle(
+                                              color: isPaid
+                                                  ? Colors.green
+                                                  : kWarn,
+                                              fontWeight: FontWeight.bold,
+                                            ),
+                                          ),
+                                          if (receiptUrl != null &&
+                                              receiptUrl.isNotEmpty) ...[
+                                            const SizedBox(height: 12),
+                                            FutureBuilder<String?>(
+                                              future: getSignedQrImageUrl(
+                                                receiptUrl,
+                                              ),
+                                              builder: (context, imageSnapshot) {
+                                                if (imageSnapshot.hasError) {
+                                                  return const Text(
+                                                    'Unable to load receipt image.',
+                                                    style: TextStyle(
+                                                      color: kWarn,
+                                                    ),
+                                                  );
+                                                }
+                                                if (!imageSnapshot.hasData ||
+                                                    imageSnapshot.data ==
+                                                        null) {
+                                                  return const SizedBox(
+                                                    height: 24,
+                                                    width: 24,
+                                                    child:
+                                                        CircularProgressIndicator(
+                                                          strokeWidth: 2,
+                                                          color: kAccent,
+                                                        ),
+                                                  );
+                                                }
+                                                return TextButton.icon(
+                                                  onPressed: () {
+                                                    showDialog<void>(
+                                                      context: context,
+                                                      builder: (context) => Dialog(
+                                                        child: InteractiveViewer(
+                                                          child: Image.network(
+                                                            imageSnapshot.data!,
+                                                            fit: BoxFit.contain,
+                                                          ),
+                                                        ),
+                                                      ),
+                                                    );
+                                                  },
+                                                  icon: const Icon(
+                                                    Icons.receipt_long,
+                                                  ),
+                                                  label: const Text(
+                                                    'View receipt',
+                                                  ),
+                                                );
+                                              },
+                                            ),
+                                          ],
+                                        ],
+                                      ),
+                                    ),
+                                  );
+                                }).toList(),
+                              );
+                            },
+                          ),
+                        ),
+                        Padding(
+                          padding: const EdgeInsets.all(16),
+                          child: FutureBuilder<List<Map<String, dynamic>>>(
                             future: fetchSetAmounts(),
                             builder: (context, snapshot) {
                               if (snapshot.hasError) {
@@ -1307,14 +1491,40 @@ class _GCashPaymentPageState extends State<GCashPaymentPage> {
                                                                           .mounted) {
                                                                         return;
                                                                       }
-                                                                      ScaffoldMessenger.of(
-                                                                        context,
-                                                                      ).showSnackBar(
-                                                                        const SnackBar(
-                                                                          content: Text(
-                                                                            'No QR code found for this unit.',
-                                                                          ),
-                                                                        ),
+                                                                      await showDialog<
+                                                                        void
+                                                                      >(
+                                                                        context:
+                                                                            context,
+                                                                        builder:
+                                                                            (
+                                                                              context,
+                                                                            ) => AlertDialog(
+                                                                              icon: const Icon(
+                                                                                Icons.warning_amber_rounded,
+                                                                                color: kWarn,
+                                                                                size: 40,
+                                                                              ),
+                                                                              title: const Text(
+                                                                                'QR code unavailable',
+                                                                                textAlign: TextAlign.center,
+                                                                              ),
+                                                                              content: const Text(
+                                                                                'No QR code found for this Dayung.',
+                                                                                textAlign: TextAlign.center,
+                                                                              ),
+                                                                              actionsAlignment: MainAxisAlignment.center,
+                                                                              actions: [
+                                                                                TextButton(
+                                                                                  onPressed: () => Navigator.of(
+                                                                                    context,
+                                                                                  ).pop(),
+                                                                                  child: const Text(
+                                                                                    'OK',
+                                                                                  ),
+                                                                                ),
+                                                                              ],
+                                                                            ),
                                                                       );
                                                                       return;
                                                                     }

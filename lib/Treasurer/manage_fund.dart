@@ -29,6 +29,17 @@ bool shouldCountDeceasedCollectionPayment(Map<String, dynamic> payment) {
   return status == 'paid' && isTreasurerCollected;
 }
 
+List<String> deceasedUsersFromClaims(List<Map<String, dynamic>> claims) {
+  final userIds = <String>{};
+  for (final claim in claims) {
+    final userId = (claim['user_id'] ?? '').toString().trim();
+    if (userId.isNotEmpty && userId != 'null') {
+      userIds.add(userId);
+    }
+  }
+  return userIds.toList();
+}
+
 class ManageFundPage extends StatefulWidget {
   final int dayungUnitId;
   final bool hideTreasurerMetrics;
@@ -255,6 +266,15 @@ class _ManageFundPageState extends State<ManageFundPage> {
       });
 
       // --- DECEASED PAYMENT TRACKING (Per Deceased Person) ---
+      final claimsRes = await sb
+          .from('claims')
+          .select('user_id')
+          .eq('dayung_unit_id', widget.dayungUnitId)
+          .timeout(_queryTimeout);
+      final claimedDeceasedUserIds = deceasedUsersFromClaims(
+        List<Map<String, dynamic>>.from(claimsRes),
+      ).toSet();
+
       final deceasedRes = await sb
           .from('payments')
           .select(
@@ -269,7 +289,7 @@ class _ManageFundPageState extends State<ManageFundPage> {
       final deceasedNameLookup = <String, String>{};
       for (final r in List<Map<String, dynamic>>.from(deceasedRes)) {
         final dnId = (r['userdeceased'] ?? '').toString();
-        if (dnId.isEmpty) continue;
+        if (!claimedDeceasedUserIds.contains(dnId)) continue;
         final deceasedName = (r['deceased_name'] ?? '').toString();
         if (deceasedName.isNotEmpty) {
           deceasedNameLookup[dnId] = deceasedName;

@@ -830,14 +830,6 @@ class _SecretaryApplicationsPageState extends State<SecretaryApplicationsPage> {
     );
   }
 
-  bool _isAgreeTrue(Map<String, dynamic> row) {
-    final value = row['is_agree'];
-    if (value is bool) return value;
-    if (value is String) return value.trim().toLowerCase() == 'true';
-    if (value is int) return value == 1;
-    return false;
-  }
-
   Future<void> _fetchApplications({int? forUnitId}) async {
     final unitId =
         forUnitId ??
@@ -863,22 +855,18 @@ class _SecretaryApplicationsPageState extends State<SecretaryApplicationsPage> {
           .from('applications')
           .select(
             // Include user_id so we can flag per user.
-            'id, user_id, status, applied_at, dayung_unit_id, is_agree, users(id, full_name, email, profile_url)',
+            'id, user_id, status, applied_at, dayung_unit_id, users(id, full_name, email, profile_url)',
           )
           .eq('dayung_unit_id', unitId); // single authoritative filter
 
-      final data =
-          await (_filter == 'approved'
-                  ? query.inFilter('status', ['approved', 'pending'])
-                  : query.eq('status', _filter))
-              .order('applied_at', ascending: false);
+      final data = await query
+          .eq('status', _filter)
+          .order('applied_at', ascending: false);
 
       final list = List<Map<String, dynamic>>.from(data).where((r) {
         final v = r['dayung_unit_id'];
         final rid = v is int ? v : int.tryParse('$v');
-        if (rid != unitId) return false;
-        if (_filter == 'pending' && !_isAgreeTrue(r)) return false;
-        return true;
+        return rid == unitId;
       }).toList();
       // Build deceased flags (any death_notice for the user in a different unit)
       final userIds = list
@@ -1056,7 +1044,13 @@ class _SecretaryApplicationsPageState extends State<SecretaryApplicationsPage> {
       );
 
       final unitId = int.tryParse('${applicationRow?['dayung_unit_id']}');
-      if (userId.isNotEmpty && unitId != null) {
+      if (unitId != null) {
+        await _supabase
+            .from('beneficiaries')
+            .update({'eligible_to_claim': true})
+            .eq('user_id', userId)
+            .eq('dayung_unit_id', unitId);
+
         double membershipAmount = 0;
         try {
           membershipAmount = await _getMembershipAmount(dayungUnitId: unitId);
@@ -1207,25 +1201,54 @@ class _SecretaryApplicationsPageState extends State<SecretaryApplicationsPage> {
     return null;
   }
 
-  Future<List<Map<String, dynamic>>> _getApprovedBeneficiaries(
-    String userId,
-  ) async {
+  Future<List<Map<String, dynamic>>> _getBeneficiaries({
+    required String userId,
+    required int dayungUnitId,
+  }) async {
     final rows = await _supabase
         .from('beneficiaries')
         .select(
-          'full_name, dob, marital_status, relationship, birth_certificate, valid_id',
+          'user_id, full_name, dob, marital_status, relationship, birth_certificate, valid_id, eligible_to_claim',
         )
+        .eq('dayung_unit_id', dayungUnitId)
         .eq('user_id', userId)
-        .eq('status', 'Approved')
         .order('full_name', ascending: true);
 
     return List<Map<String, dynamic>>.from(rows);
+  }
+
+  Future<String?> _getMarriageCertificateUrl({
+    required String userId,
+    int? applicationId,
+  }) async {
+    if (applicationId != null) {
+      try {
+        final row = await _supabase
+            .from('applications')
+            .select('marriage_certificate_url')
+            .eq('id', applicationId)
+            .single();
+        final url = (row['marriage_certificate_url'] ?? '').toString().trim();
+        if (url.isNotEmpty) return url;
+      } catch (_) {}
+    }
+    try {
+      final row = await _supabase
+          .from('users')
+          .select('marriage_certificate_url')
+          .eq('id', userId)
+          .single();
+      final url = (row['marriage_certificate_url'] ?? '').toString().trim();
+      if (url.isNotEmpty) return url;
+    } catch (_) {}
+    return null;
   }
 
   // New: open tracking sheet for a user
   Future<void> _openUserTracking({
     required String userId,
     required String userName,
+    required int dayungUnitId,
     int? applicationId,
   }) async {
     if (!mounted) return;
@@ -1273,10 +1296,17 @@ class _SecretaryApplicationsPageState extends State<SecretaryApplicationsPage> {
                   userId: userId,
                   applicationId: applicationId,
                 ),
+                _getMarriageCertificateUrl(
+                  userId: userId,
+                  applicationId: applicationId,
+                ),
               ]);
               final user = await userFuture;
               final docs = await docsFuture;
-              final beneficiaries = await _getApprovedBeneficiaries(userId);
+              final beneficiaries = await _getBeneficiaries(
+                userId: userId,
+                dayungUnitId: dayungUnitId,
+              );
               return {
                 'user': user,
                 'docs': docs,
@@ -1300,17 +1330,21 @@ class _SecretaryApplicationsPageState extends State<SecretaryApplicationsPage> {
               final birthUrl = docs.isNotEmpty ? docs[0] : null;
               final validIdUrl = docs.length > 1 ? docs[1] : null;
               final residencyUrl = docs.length > 2 ? docs[2] : null;
+              final marriageUrl = docs.length > 3 ? docs[3] : null;
               final uploadedBirth = (birthUrl != null && birthUrl.isNotEmpty);
               final uploadedValidId =
                   (validIdUrl != null && validIdUrl.isNotEmpty);
               final uploadedResidency =
                   (residencyUrl != null && residencyUrl.isNotEmpty);
+              final uploadedMarriage =
+                  (marriageUrl != null && marriageUrl.isNotEmpty);
 
               int completed = 0;
               if (uploadedBirth) completed++;
               if (uploadedValidId) completed++;
               if (uploadedResidency) completed++;
-              const total = 3;
+              if (uploadedMarriage) completed++;
+              const total = 4;
               double progress = completed / total;
 
               final fullName = (user['full_name'] ?? userName ?? '').toString();
@@ -1511,7 +1545,7 @@ class _SecretaryApplicationsPageState extends State<SecretaryApplicationsPage> {
                                   children: [
                                     const Expanded(
                                       child: Text(
-                                        'Approved Beneficiaries',
+                                        'Beneficiaries',
                                         style: TextStyle(
                                           fontSize: 16,
                                           fontWeight: FontWeight.w800,
@@ -1530,9 +1564,26 @@ class _SecretaryApplicationsPageState extends State<SecretaryApplicationsPage> {
                                   ],
                                 ),
                                 const SizedBox(height: 12),
-                                if (beneficiaries.isEmpty)
+                                if (snap.connectionState !=
+                                    ConnectionState.done)
                                   const Text(
-                                    'No approved beneficiaries recorded.',
+                                    'Loading beneficiaries...',
+                                    style: TextStyle(
+                                      color: kSubText,
+                                      fontFamily: 'OpenSans',
+                                    ),
+                                  )
+                                else if (snap.hasError)
+                                  Text(
+                                    'Could not load beneficiaries: ${snap.error}',
+                                    style: const TextStyle(
+                                      color: kDanger,
+                                      fontFamily: 'OpenSans',
+                                    ),
+                                  )
+                                else if (beneficiaries.isEmpty)
+                                  const Text(
+                                    'No beneficiaries recorded.',
                                     style: TextStyle(
                                       color: kSubText,
                                       fontFamily: 'OpenSans',
@@ -1583,6 +1634,16 @@ class _SecretaryApplicationsPageState extends State<SecretaryApplicationsPage> {
                                   )
                                 : null,
                           ),
+                          const SizedBox(height: 10),
+                          _TrackingStepTile(
+                            stepNumber: 4,
+                            title: 'Marriage Certificate',
+                            completed: uploadedMarriage,
+                            url: marriageUrl,
+                            onView: uploadedMarriage
+                                ? () => _openCertificateViewer(marriageUrl)
+                                : null,
+                          ),
                           const SizedBox(height: 18),
                           Row(
                             children: [
@@ -1615,7 +1676,7 @@ class _SecretaryApplicationsPageState extends State<SecretaryApplicationsPage> {
                               Expanded(
                                 child: FilledButton.icon(
                                   icon: const Icon(Icons.check_circle_rounded),
-                                  label: const Text('Approve1'),
+                                  label: const Text('Approve'),
                                   onPressed: () {
                                     Navigator.pop(ctx);
                                     if (applicationId != null) {
@@ -1653,8 +1714,6 @@ class _SecretaryApplicationsPageState extends State<SecretaryApplicationsPage> {
 
   @override
   Widget build(BuildContext context) {
-    final dayungName =
-        context.watch<DayungUnitProvider>().dayungUnit ?? 'Dayung';
     final visibleApps = _visibleApps;
     return Scaffold(
       backgroundColor: kCardBg,
@@ -2041,6 +2100,9 @@ class _SecretaryApplicationsPageState extends State<SecretaryApplicationsPage> {
                                                       _openUserTracking(
                                                         userId: userIdStr,
                                                         userName: userName,
+                                                        dayungUnitId:
+                                                            app['dayung_unit_id']
+                                                                as int,
                                                         applicationId: appId,
                                                       ),
                                                   icon: const Icon(
@@ -2159,6 +2221,12 @@ class _SecretaryApplicationsPageState extends State<SecretaryApplicationsPage> {
         .toString()
         .trim();
     final validId = (beneficiary['valid_id'] ?? '').toString().trim();
+    final eligibleToClaim = beneficiary['eligible_to_claim'];
+    final eligibilityLabel = eligibleToClaim == true
+        ? 'Yes'
+        : eligibleToClaim == false
+        ? 'No'
+        : 'Not set';
 
     return Container(
       width: double.infinity,
@@ -2191,6 +2259,10 @@ class _SecretaryApplicationsPageState extends State<SecretaryApplicationsPage> {
           _sheetDetailRow(
             Icons.family_restroom_rounded,
             'Relationship: ${(beneficiary['relationship'] ?? 'Not provided').toString()}',
+          ),
+          _sheetDetailRow(
+            Icons.fact_check_outlined,
+            'Eligible to claim: $eligibilityLabel',
           ),
           Wrap(
             spacing: 8,

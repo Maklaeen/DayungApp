@@ -321,7 +321,7 @@ class _AssignCollectorsPageState extends State<AssignCollectorsPage> {
                             border: Border.all(color: _kBorder),
                           ),
                           child: const Text(
-                            'No approved applications found for assignment.',
+                            'No assigned members found for the selected filter',
                             style: TextStyle(color: _kTextSub),
                           ),
                         )

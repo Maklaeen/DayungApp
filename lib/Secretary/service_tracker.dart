@@ -841,6 +841,7 @@ class _ServiceTrackerPageState extends State<ServiceTrackerPage> {
                 value: '$_scheduledToday',
                 tone: const Color(0xFFF59E0B),
               ),
+              /*
               OutlinedButton.icon(
                 onPressed: _openActiveMembersPage,
                 icon: const Icon(Icons.groups_rounded, size: 17),
@@ -857,6 +858,7 @@ class _ServiceTrackerPageState extends State<ServiceTrackerPage> {
                   ),
                 ),
               ),
+              */
             ],
           ),
           const SizedBox(height: 12),

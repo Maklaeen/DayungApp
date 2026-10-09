@@ -38,6 +38,7 @@ class _CollectorMemberRow {
     required this.amountPaid,
     required this.amountNeeded,
     this.advanceAmount = 0,
+    // ignore: unused_element_parameter
     this.proofUrl,
     required this.dropStatus,
   });

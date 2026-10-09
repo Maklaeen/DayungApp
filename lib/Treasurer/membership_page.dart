@@ -124,6 +124,8 @@ class _MembershipPageState extends State<MembershipPage> {
             'status': 'paid',
             'collected_by': currentUserId,
             'paid_at': paidAt,
+            'iscollectedbytreasurer': true,
+            'iscollectedbytreasurer_date': paidAt,
           })
           .eq('id', paymentId);
 

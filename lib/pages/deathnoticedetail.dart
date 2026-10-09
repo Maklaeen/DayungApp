@@ -413,8 +413,8 @@ class _DeathNoticeDetailState extends State<DeathNoticeDetail> {
   }) {
     // Always use claims table now, fields are from claims
     final fields = includeLocationFields
-        ? 'id, PassedAway, dob, deceased_age, date_of_death, vigil_address, vigil_barangay, vigil_latitude, vigil_longitude, deceased_type, user_id, beneficiary_id, death_certificate_url, valid_ids_url, claimedmoney, paid_count, unpaid_count, total_paid_amount, total_payment_amount'
-        : 'id, PassedAway, dob, deceased_age, date_of_death, vigil_address, vigil_barangay, deceased_type, user_id, beneficiary_id, death_certificate_url, valid_ids_url, claimedmoney, paid_count, unpaid_count, total_paid_amount, total_payment_amount';
+        ? 'id, PassedAway, dob, deceased_age, date_of_death, vigil_address, vigil_barangay, vigil_latitude, vigil_longitude, deceased_type, user_id, beneficiary_id, death_certificate_url, valid_ids_url, claimedmoney'
+        : 'id, PassedAway, dob, deceased_age, date_of_death, vigil_address, vigil_barangay, deceased_type, user_id, beneficiary_id, death_certificate_url, valid_ids_url, claimedmoney';
 
     return _sb
         .from('claims')

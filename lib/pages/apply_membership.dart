@@ -152,17 +152,12 @@ class _ApplyMembershipWizardState extends State<ApplyMembershipWizard> {
     if (userId == null) return false;
     final documents = await _supabase
         .from('users')
-        .select(
-          'birth_certificate_url, marriage_certificate_url, '
-          'proof_of_residency_url, valid_id',
-        )
+        .select('proof_of_residency_url, valid_id')
         .eq('id', userId)
         .maybeSingle();
     if (documents == null) return false;
 
     return [
-      documents['birth_certificate_url'],
-      documents['marriage_certificate_url'],
       documents['proof_of_residency_url'],
       documents['valid_id'],
     ].every((value) => value is String && value.trim().isNotEmpty);
@@ -211,7 +206,7 @@ class _ApplyMembershipWizardState extends State<ApplyMembershipWizard> {
               const Icon(Icons.upload_file_outlined, size: 40),
               const SizedBox(height: 12),
               const Text(
-                'Upload all 4 profile documents before continuing.',
+                'Upload Proof of Residency and Valid ID before continuing.',
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: 20),
@@ -266,7 +261,9 @@ class _ApplyMembershipWizardState extends State<ApplyMembershipWizard> {
 
     if (!await _hasRequiredProfileDocuments()) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Upload all 4 profile documents first.')),
+        const SnackBar(
+          content: Text('Upload Proof of Residency and Valid ID first.'),
+        ),
       );
       return;
     }
@@ -517,7 +514,11 @@ class _ApplyMembershipWizardState extends State<ApplyMembershipWizard> {
         return Column(
           children: [
             Expanded(
-              child: BeneficiaryPage(embedded: true, showBackButton: false),
+              child: BeneficiaryPage(
+                embedded: true,
+                showBackButton: false,
+                dayungUnitId: widget.dayungUnitId,
+              ),
             ),
             Padding(
               padding: const EdgeInsets.fromLTRB(18, 0, 18, 16),

@@ -9,6 +9,7 @@ import 'package:capstone_app/Treasurer/treascontributions.dart';
 import 'package:capstone_app/Treasurer/ledger_balance.dart';
 import 'package:capstone_app/Treasurer/payment_release_history.dart';
 import 'package:capstone_app/Treasurer/treasurer_payment_page.dart';
+import 'package:capstone_app/Treasurer/paid_unpaid_members_page.dart';
 import 'package:capstone_app/Collector/gcash_qr_page.dart';
 import 'package:capstone_app/pages/notification.dart';
 import 'package:capstone_app/pages/recentdeathnotices.dart';
@@ -48,10 +49,6 @@ bool _isTruthyFlagValue(dynamic value) {
 bool shouldCountCurrentFundPayment(Map<String, dynamic> row) {
   if (!_isTruthyFlagValue(row['iscollectedbytreasurer'])) return false;
   if (_isTruthyFlagValue(row['is_claimed'])) return false;
-  if ((row['status']?.toString().toLowerCase() ?? '') != 'paid') return false;
-  if ((row['type']?.toString().toLowerCase() ?? '') != 'deceased_payment') {
-    return false;
-  }
   return true;
 }
 
@@ -451,10 +448,10 @@ class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
       if (ids.isEmpty) return;
       final rows = await sb
           .from('payments')
-          .select('amount, iscollectedbytreasurer')
+          .select('amount, iscollectedbytreasurer, is_claimed')
           .inFilter('dayung_unit_id', ids)
-          .eq('status', 'paid')
-          .eq('type', 'deceased_payment');
+          .eq('iscollectedbytreasurer', true)
+          .or('is_claimed.is.null,is_claimed.eq.false');
       double total = 0;
       for (final row in List<Map<String, dynamic>>.from(rows)) {
         if (!shouldCountCurrentFundPayment(row)) continue;
@@ -496,25 +493,36 @@ class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
     try {
       _todayCollected = 0;
       if (ids.isEmpty) return;
+      final nowInPhilippines = DateTime.now().toUtc().add(
+        const Duration(hours: 8),
+      );
+      final startOfPhilippinesDay = DateTime.utc(
+        nowInPhilippines.year,
+        nowInPhilippines.month,
+        nowInPhilippines.day,
+      ).subtract(const Duration(hours: 8));
+      final startOfNextPhilippinesDay = startOfPhilippinesDay.add(
+        const Duration(days: 1),
+      );
       final rows = await sb
           .from('payments')
-          .select('amount, paid_at, created_at')
+          .select('amount')
           .inFilter('dayung_unit_id', ids)
-          .eq('status', 'paid');
-      final now = DateTime.now();
-      final start = DateTime(now.year, now.month, now.day);
-      final end = start.add(const Duration(days: 1));
+          .eq('iscollectedbytreasurer', true)
+          .gte(
+            'iscollectedbytreasurer_date',
+            startOfPhilippinesDay.toIso8601String(),
+          )
+          .lt(
+            'iscollectedbytreasurer_date',
+            startOfNextPhilippinesDay.toIso8601String(),
+          );
       double total = 0;
       for (final row in List<Map<String, dynamic>>.from(rows)) {
-        final raw = (row['paid_at'] ?? row['created_at'])?.toString() ?? '';
-        final date = DateTime.tryParse(raw);
-        if (date == null) continue;
-        if (!date.isBefore(start) && date.isBefore(end)) {
-          final amount = row['amount'];
-          total += (amount is num)
-              ? amount.toDouble()
-              : double.tryParse('$amount') ?? 0;
-        }
+        final amount = row['amount'];
+        total += (amount is num)
+            ? amount.toDouble()
+            : double.tryParse('$amount') ?? 0;
       }
       _todayCollected = total;
     } catch (_) {
@@ -776,7 +784,7 @@ class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
         const SizedBox(height: 12),
         _buildModernActionCard(
           icon: Icons.account_balance_wallet_rounded,
-          title: 'Ledger Balance',
+          title: 'Contribution Confirmation',
           color: const Color(0xFF3B82F6),
           onTap: () {
             if (_dayungUnitId == null) {
@@ -914,6 +922,27 @@ class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
                 builder: (_) => MembershipPage(dayungUnitId: _dayungUnitId!),
               ),
             );
+          },
+        ),
+        const SizedBox(height: 8),
+        _buildModernActionCard(
+          icon: Icons.people_rounded,
+          title: 'Paid & Unpaid Members',
+          color: const Color(0xFF0D9488),
+          onTap: () {
+            if (_dayungUnitId == null) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Select a Dayung first')),
+              );
+              return;
+            }
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) =>
+                    PaidUnpaidMembersPage(dayungUnitId: _dayungUnitId!),
+              ),
+            ).then((_) => _fetchAll());
           },
         ),
         const SizedBox(height: 8),
@@ -2418,11 +2447,11 @@ class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
       //   value: _loading ? '—' : '₱${_collectorCollected.toStringAsFixed(0)}',
       //   color: const Color(0xFF10B981),
       // ),
-      _buildStatCard(
-        title: 'Pending Members',
-        value: _loading ? '—' : '$_pendingMembers',
-        color: const Color(0xFFF59E0B),
-      ),
+      // _buildStatCard(
+      //   title: 'Pending Members',
+      //   value: _loading ? '—' : '$_pendingMembers',
+      //   color: const Color(0xFFF59E0B),
+      // ),
       _buildStatCard(
         title: 'Today’s Collected',
         value: _loading ? '—' : '₱${_todayCollected.toStringAsFixed(0)}',

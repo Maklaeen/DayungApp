@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:capstone_app/Providers/dayung_provider.dart';
 import 'package:capstone_app/Providers/dayung_role_provider.dart';
+import 'package:capstone_app/pages/apply_membership.dart';
 import 'package:capstone_app/screens/dayung_suggestions.dart';
 import 'package:capstone_app/screens/selectdayung.dart';
 import 'package:capstone_app/screens/dayung_map_page.dart';
@@ -647,6 +648,49 @@ class _DayungSettingsPageState extends State<DayungSettingsPage> {
     }
   }
 
+  Future<void> _openPendingApplication() async {
+    final user = Supabase.instance.client.auth.currentUser;
+    if (user == null) return;
+
+    try {
+      final application = await Supabase.instance.client
+          .from('applications')
+          .select('dayung_unit_id, name')
+          .eq('user_id', user.id)
+          .eq('status', 'for_confirmation')
+          .order('applied_at', ascending: false)
+          .limit(1)
+          .maybeSingle();
+
+      if (!mounted) return;
+      final rawDayungUnitId = application?['dayung_unit_id'];
+      final dayungUnitId = rawDayungUnitId is int
+          ? rawDayungUnitId
+          : int.tryParse('$rawDayungUnitId');
+      if (application == null || dayungUnitId == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('No pending application to continue.')),
+        );
+        return;
+      }
+
+      await Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => ApplyMembershipWizard(
+            dayungUnitId: dayungUnitId,
+            dayungName: (application['name'] ?? 'Dayung').toString(),
+          ),
+        ),
+      );
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Could not open pending application: $error')),
+      );
+    }
+  }
+
   void _openCurrentDayungMap() {
     if (_currentDayungData == null) return;
     Navigator.push(
@@ -1099,6 +1143,15 @@ class _DayungSettingsPageState extends State<DayungSettingsPage> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    SizedBox(
+                      width: double.infinity,
+                      child: OutlinedButton.icon(
+                        onPressed: _openPendingApplication,
+                        icon: const Icon(Icons.pending_actions_outlined),
+                        label: const Text('Pending Application'),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [

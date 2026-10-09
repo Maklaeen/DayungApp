@@ -141,14 +141,17 @@ class _LedgerBalancePageState extends State<LedgerBalancePage> {
         return true;
       }).toList();
 
-      final totalDeceasedPaymentAmount = paymentRows
-          .where((row) {
-            if (row['type'] != 'deceased_payment') return false;
+      final totalDeceasedPaymentAmount = rawPaymentRows
+          .where((row) => row['type'] == 'deceased_payment')
+          .fold<double>(0.0, (balance, row) {
+            final amount = _asDouble(row['amount']);
+            final received = _isTruthyFlag(row['iscollectedbytreasurer']);
+            final claimed = _isTruthyFlag(row['is_claimed']);
 
-            final statusValue = '${row['status'] ?? ''}'.trim().toLowerCase();
-            return statusValue == 'paid' || statusValue == 'unpaid';
-          })
-          .fold<double>(0.0, (sum, row) => sum + _asDouble(row['amount']));
+            return balance +
+                (received ? amount : 0.0) -
+                (claimed ? amount : 0.0);
+          });
 
       final currentCashCollected = paymentRows.fold<double>(0.0, (sum, row) {
         final typeValue = row['type']?.toString().toLowerCase();
@@ -706,7 +709,7 @@ class _LedgerBalancePageState extends State<LedgerBalancePage> {
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   const Text(
-                                    'Ledger summary',
+                                    '',
                                     style: TextStyle(
                                       fontSize: 18,
                                       fontWeight: FontWeight.w800,
@@ -719,12 +722,12 @@ class _LedgerBalancePageState extends State<LedgerBalancePage> {
                                     runSpacing: 10,
                                     children: [
                                       _summaryCard(
-                                        title: 'Number of Userdeceased',
+                                        title: 'Number of Deceased Members',
                                         value: '${_collectorSummaries.length}',
                                         accent: const Color(0xFFF59E0B),
                                       ),
                                       _summaryCard(
-                                        title: 'Collecters Collected',
+                                        title: 'Collectors Collected',
                                         value: _formatCurrency(
                                           _collectedCollectedTotal,
                                         ),

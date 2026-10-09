@@ -21,11 +21,27 @@ class _ManageBeneficiariesPageState extends State<ManageBeneficiariesPage> {
   }
 
   Future<List<Map<String, dynamic>>> _fetchBeneficiaries() async {
+    final applications = await Supabase.instance.client
+        .from('applications')
+        .select('user_id')
+        .eq('status', 'approved');
+    final approvedUserIds = (applications as List<dynamic>)
+        .map((application) => (application as Map)['user_id'])
+        .where(
+          (userId) => userId != null && userId.toString().trim().isNotEmpty,
+        )
+        .map((userId) => userId.toString())
+        .toSet()
+        .toList();
+
+    if (approvedUserIds.isEmpty) return [];
+
     final res = await Supabase.instance.client
         .from('beneficiaries')
         .select(
           'id, full_name, dob, marital_status, relationship, status, eligible_to_claim',
         )
+        .inFilter('user_id', approvedUserIds)
         .order('full_name', ascending: true);
     return List<Map<String, dynamic>>.from(res);
   }

@@ -25,6 +25,12 @@ void main() {
       expect(shouldCountCurrentFundPayment(row), isTrue);
     });
 
+    test('includes payments when is_claimed is null', () {
+      final row = {'is_claimed': null, 'iscollectedbytreasurer': true};
+
+      expect(shouldCountCurrentFundPayment(row), isTrue);
+    });
+
     test('excludes payments when treasurer has not collected them', () {
       final row = {
         'is_claimed': false,

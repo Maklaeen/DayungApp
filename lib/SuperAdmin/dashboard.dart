@@ -1,7 +1,6 @@
 import 'package:capstone_app/SuperAdmin/admins_page.dart';
 import 'package:capstone_app/SuperAdmin/audit_logs_page.dart';
 import 'package:capstone_app/SuperAdmin/broadcast_page.dart';
-import 'package:capstone_app/SuperAdmin/manage_beneficiaries_page.dart';
 import 'package:capstone_app/SuperAdmin/organization_page.dart';
 import 'package:capstone_app/SuperAdmin/reports_page.dart';
 import 'package:capstone_app/SuperAdmin/settings_page.dart';
@@ -71,10 +70,7 @@ class SuperAdminDashboardPage extends StatelessWidget {
                 const SizedBox(height: 18),
                 _buildStatsSection(),
                 const SizedBox(height: 18),
-                const _SectionHeader(
-                  title: 'Quick Actions',
-                  subtitle: '',
-                ),
+                const _SectionHeader(title: 'Quick Actions', subtitle: ''),
                 const SizedBox(height: 14),
                 LayoutBuilder(
                   builder: (context, constraints) {
@@ -198,6 +194,7 @@ class SuperAdminDashboardPage extends StatelessWidget {
           MaterialPageRoute(builder: (_) => const SuperAdminAdminsPage()),
         ),
       ),
+      /*
       _ActionTile(
         icon: Icons.family_restroom_rounded,
         title: 'Manage Beneficiaries',
@@ -208,6 +205,7 @@ class SuperAdminDashboardPage extends StatelessWidget {
           MaterialPageRoute(builder: (_) => const ManageBeneficiariesPage()),
         ),
       ),
+      */
       _ActionTile(
         icon: Icons.account_balance_rounded,
         title: 'Dayung Organization',

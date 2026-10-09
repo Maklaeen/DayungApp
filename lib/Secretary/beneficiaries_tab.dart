@@ -53,6 +53,7 @@ class _SecretaryBeneficiariesTabState extends State<SecretaryBeneficiariesTab> {
           .where((v) => v != null && v.toString().trim().isNotEmpty)
           .map((v) => v.toString())
           .toSet();
+      final approvedApplicationUserIds = Set<String>.from(memberUserIds);
 
       // 2. Get officials from dayung_units
       final unit = await supabase
@@ -117,7 +118,7 @@ class _SecretaryBeneficiariesTabState extends State<SecretaryBeneficiariesTab> {
       for (final raw in beneficiariesData as List<dynamic>) {
         final b = raw as Map<String, dynamic>;
         final uid = (b['user_id'] ?? '').toString();
-        if (uid.isEmpty) continue;
+        if (uid.isEmpty || !approvedApplicationUserIds.contains(uid)) continue;
         beneficiariesByUser.putIfAbsent(uid, () => []).add(b);
       }
 

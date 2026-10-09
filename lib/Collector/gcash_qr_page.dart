@@ -84,6 +84,12 @@ class _GcashQrPageState extends State<GcashQrPage> {
 
     final paymentPurpose = row['payment_purpose']?.toString().trim();
     if (paymentPurpose != null && paymentPurpose.isNotEmpty) {
+      switch (paymentPurpose.toLowerCase()) {
+        case 'membership_payment':
+          return 'Membership Payment';
+        case 'advance_payments':
+          return 'Advance Payments';
+      }
       return paymentPurpose;
     }
 
@@ -100,6 +106,10 @@ class _GcashQrPageState extends State<GcashQrPage> {
         ?.toString()
         .trim()
         .toLowerCase();
+    if (_selectedPaymentTab == 2) {
+      final type = row['type']?.toString().trim().toLowerCase();
+      return paymentPurpose == 'membership_payment' || type == 'for_membership';
+    }
     if (_selectedPaymentTab == 1) {
       return paymentPurpose == 'advance_payments';
     }
@@ -525,7 +535,7 @@ class _GcashQrPageState extends State<GcashQrPage> {
       row['payment_id'] = paymentIdMap[paymentKey];
       final isAdvancePayment =
           row['payment_purpose']?.toString().trim().toLowerCase() ==
-          'advance payments';
+          'advance_payments';
       final hasAdvanceRecord =
           isAdvancePayment &&
           List<Map<String, dynamic>>.from(advanceRows).any((advanceRow) {
@@ -1211,9 +1221,11 @@ class _GcashQrPageState extends State<GcashQrPage> {
                     ),
                     const SizedBox(height: 18),
                     Text(
-                      _selectedPaymentTab == 1
-                          ? 'GCash advance payments'
-                          : 'GCash payments for deceased members',
+                      switch (_selectedPaymentTab) {
+                        1 => 'GCash advance payments',
+                        2 => 'GCash membership payments',
+                        _ => 'GCash payments for deceased members',
+                      },
                       style: TextStyle(
                         fontWeight: FontWeight.w800,
                         fontSize: 18,
@@ -1223,9 +1235,14 @@ class _GcashQrPageState extends State<GcashQrPage> {
                     ),
                     const SizedBox(height: 6),
                     Text(
-                      _selectedPaymentTab == 1
-                          ? 'Review advance payment proofs separately from deceased-related collections.'
-                          : 'Review deceased-related proofs and confirm the correct payment records.',
+                      switch (_selectedPaymentTab) {
+                        1 =>
+                          'Review advance payment proofs separately from deceased-related collections.',
+                        2 =>
+                          'Review membership payment proofs and confirm the correct payment records.',
+                        _ =>
+                          'Review deceased-related proofs and confirm the correct payment records.',
+                      },
                       style: TextStyle(
                         color: kSubText,
                         fontSize: 13,
@@ -1267,6 +1284,24 @@ class _GcashQrPageState extends State<GcashQrPage> {
                           labelStyle: TextStyle(
                             color: _selectedPaymentTab == 1
                                 ? Colors.green.shade800
+                                : kSubText,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                        ChoiceChip(
+                          avatar: const Icon(
+                            Icons.card_membership_outlined,
+                            size: 18,
+                          ),
+                          label: const Text('Membership Payments'),
+                          selected: _selectedPaymentTab == 2,
+                          onSelected: (_) {
+                            setState(() => _selectedPaymentTab = 2);
+                          },
+                          selectedColor: const Color(0xFFFFEDD5),
+                          labelStyle: TextStyle(
+                            color: _selectedPaymentTab == 2
+                                ? Colors.deepOrange.shade800
                                 : kSubText,
                             fontWeight: FontWeight.w700,
                           ),
@@ -1409,9 +1444,12 @@ class _GcashQrPageState extends State<GcashQrPage> {
                                   ),
                                   SizedBox(height: 12),
                                   Text(
-                                    _selectedPaymentTab == 1
-                                        ? 'No advance payment uploads found'
-                                        : 'No deceased payment uploads found',
+                                    switch (_selectedPaymentTab) {
+                                      1 => 'No advance payment uploads found',
+                                      2 =>
+                                        'No membership payment uploads found',
+                                      _ => 'No deceased payment uploads found',
+                                    },
                                     style: TextStyle(
                                       fontSize: 16,
                                       fontWeight: FontWeight.w800,
@@ -1507,7 +1545,7 @@ class _GcashQrPageState extends State<GcashQrPage> {
                                             ),
                                             const SizedBox(height: 4),
                                             Text(
-                                              'Deceased: ${_getDeceasedDisplayText(row)}',
+                                              '${_selectedPaymentTab == 0 ? "Deceased" : "Payment"}: ${_getDeceasedDisplayText(row)}',
                                               style: const TextStyle(
                                                 fontSize: 13,
                                                 color: kSubText,
@@ -1516,6 +1554,14 @@ class _GcashQrPageState extends State<GcashQrPage> {
                                             const SizedBox(height: 4),
                                             Text(
                                               'Ref No: ${row['refno']?.toString().trim().isNotEmpty == true ? row['refno'].toString() : 'N/A'}',
+                                              style: const TextStyle(
+                                                fontSize: 13,
+                                                color: kSubText,
+                                              ),
+                                            ),
+                                            const SizedBox(height: 4),
+                                            Text(
+                                              'Amount: ₱${row['amount']?.toString() ?? 'N/A'}',
                                               style: const TextStyle(
                                                 fontSize: 13,
                                                 color: kSubText,
@@ -1587,7 +1633,7 @@ class _GcashQrPageState extends State<GcashQrPage> {
                                                   ),
                                                   const SizedBox(height: 4),
                                                   Text(
-                                                    'Deceased: ${_getDeceasedDisplayText(row)}',
+                                                    '${_selectedPaymentTab == 0 ? "Deceased" : "Payment"}: ${_getDeceasedDisplayText(row)}',
                                                     style: const TextStyle(
                                                       fontSize: 13,
                                                       color: kSubText,
@@ -1596,6 +1642,14 @@ class _GcashQrPageState extends State<GcashQrPage> {
                                                   const SizedBox(height: 4),
                                                   Text(
                                                     'Ref No: ${row['refno']?.toString().trim().isNotEmpty == true ? row['refno'].toString() : 'N/A'}',
+                                                    style: const TextStyle(
+                                                      fontSize: 13,
+                                                      color: kSubText,
+                                                    ),
+                                                  ),
+                                                  const SizedBox(height: 4),
+                                                  Text(
+                                                    'Amount: ₱${row['amount']?.toString() ?? 'N/A'}',
                                                     style: const TextStyle(
                                                       fontSize: 13,
                                                       color: kSubText,
@@ -1702,13 +1756,21 @@ class _GcashQrPageState extends State<GcashQrPage> {
     }
 
     final now = DateTime.now().toUtc().toIso8601String();
-    final paidData = {
+    final paymentPurpose = row['payment_purpose']
+        ?.toString()
+        .trim()
+        .toLowerCase();
+    final paidData = <String, dynamic>{
       'status': 'paid',
-      'type': 'gcash',
       'qr_id': qrId,
       'paid_at': now,
       'collected_by': collectorId,
     };
+    if (paymentPurpose != 'membership_payment') {
+      paidData['type'] = paymentPurpose == 'for_userdeceased'
+          ? 'deceased_payment'
+          : 'gcash';
+    }
 
     await Supabase.instance.client
         .from('gcash_qr_codes')
@@ -1731,7 +1793,7 @@ class _GcashQrPageState extends State<GcashQrPage> {
   Widget _buildMarkPaidButton(Map<String, dynamic> row) {
     final isAdvancePayment =
         row['payment_purpose']?.toString().trim().toLowerCase() ==
-        'advance payments';
+        'advance_payments';
 
     return ElevatedButton(
       style: ElevatedButton.styleFrom(
@@ -1827,7 +1889,7 @@ class _GcashQrPageState extends State<GcashQrPage> {
                                         'created_at': DateTime.now()
                                             .toUtc()
                                             .toIso8601String(),
-                                        'added_b  y': currentUserId,
+                                        'added_by': currentUserId,
                                         'dayung_unit_id': widget.dayungUnitId,
                                         'has_remaining': true,
                                         'deducted_amount': 0,

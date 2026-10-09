@@ -5,6 +5,7 @@ import 'package:capstone_app/Collector/collector_receipts_page.dart';
 import 'package:capstone_app/Collector/collect_cash.dart';
 import 'package:capstone_app/Collector/collector_overall_reports_page.dart';
 import 'package:capstone_app/Collector/collector_records_page.dart';
+import 'package:capstone_app/Members/gcash_payment_page.dart' hide kPrimary;
 import 'package:capstone_app/Providers/dayung_provider.dart';
 import 'package:capstone_app/Providers/dayung_role_provider.dart';
 import 'package:capstone_app/pages/members_page.dart';
@@ -1578,6 +1579,25 @@ class _CollectorDashboardPageState extends State<CollectorDashboardPage> {
             title: 'Members',
             color: kAccent,
             onTap: _showMembers,
+          ),
+        ),
+        const SizedBox(height: 12),
+        SizedBox(
+          height: cardHeight,
+          child: _modernActionCardGrid(
+            icon: Icons.account_balance_wallet_rounded,
+            title: 'GCash Payment',
+            color: const Color(0xFF00A86B),
+            onTap: () {
+              if (_dayungUnitId == null) return;
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) =>
+                      GCashPaymentPage(dayungUnitId: _dayungUnitId!),
+                ),
+              );
+            },
           ),
         ),
         const SizedBox(height: 12),

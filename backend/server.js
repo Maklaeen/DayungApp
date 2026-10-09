@@ -1509,16 +1509,20 @@ app.post(
         });
       }
 
-      const { title, body } = req.body;
+      const title = sanitizeText(req.body.title, { maxLength: 120 });
+      const body = sanitizeMultilineText(req.body.body, { maxLength: 800 });
       const dayung_unit_id = req.dayungUnitId;
 
       if (
-        typeof title !== 'string' ||
-        typeof body !== 'string' ||
-        title.trim().length < 3 ||
-        body.trim().length < 3
+        title.length < 3 ||
+        body.length < 3
       ) {
         return res.status(400).json({ error: 'Invalid title or body' });
+      }
+
+      const settings = await readSystemState();
+      if (settings.allow_sms_broadcast !== true) {
+        return res.status(403).json({ error: 'SMS announcements are disabled in system settings' });
       }
 
       const { data: unit, error: unitError } = await supabase
@@ -1571,7 +1575,7 @@ app.post(
         return res.status(500).json({ error: 'Failed to load recipients' });
       }
 
-      const message = `[Dayung] ${title.trim()}\n${body.trim()}`;
+      const message = `[Dayung] ${title}\n${body}`;
       let sent = 0;
 
       for (const user of users) {

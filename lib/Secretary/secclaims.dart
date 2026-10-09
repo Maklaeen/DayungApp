@@ -346,6 +346,30 @@ class _SecretaryClaimsPageState extends State<SecretaryClaimsPage>
     }
   }
 
+  Future<bool?> _loadSubmitterEligibility(Map<String, dynamic> claim) async {
+    final userId = (claim['user_id'] ?? '').toString();
+    final submitterName = (claim['claimant_name'] ?? '').toString().trim();
+    if (userId.isEmpty || submitterName.isEmpty) return true;
+
+    try {
+      final beneficiaries = await supabase
+          .from('beneficiaries')
+          .select('full_name, eligible_to_claim')
+          .eq('user_id', userId);
+      for (final beneficiary in List<Map<String, dynamic>>.from(
+        beneficiaries,
+      )) {
+        if ((beneficiary['full_name'] ?? '').toString().trim().toLowerCase() ==
+            submitterName.toLowerCase()) {
+          return beneficiary['eligible_to_claim'] == true;
+        }
+      }
+      return true;
+    } catch (_) {
+      return null;
+    }
+  }
+
   int? _computeAge(String? birthIso, String? deathIso) {
     if (birthIso == null ||
         birthIso.isEmpty ||
@@ -439,9 +463,12 @@ class _SecretaryClaimsPageState extends State<SecretaryClaimsPage>
     final location = _claimLocation(claim);
     if (location == null) return;
 
-    Navigator.of(
-      context,
-    ).push(MaterialPageRoute(builder: (_) => DayungMapPage(dayung: location)));
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) =>
+            DayungMapPage(dayung: location, allowApplication: false),
+      ),
+    );
   }
 
   // ===== Claimed money helpers =====
@@ -598,6 +625,7 @@ class _SecretaryClaimsPageState extends State<SecretaryClaimsPage>
     bool newValue,
     dynamic existingColumnValue,
     Map<String, dynamic> claim,
+    double amountReleased,
   ) async {
     if (_updating) return;
     setState(() => _updating = true);
@@ -609,11 +637,11 @@ class _SecretaryClaimsPageState extends State<SecretaryClaimsPage>
 
       final storeVal = _storeClaimedValue(newValue, existingColumnValue);
       final claimedAt = _philippinesNowIso();
+      final deceasedUserId = (claim['user_id'] ?? '').toString();
       final paymentUpdate = <String, dynamic>{
         'is_due': newValue,
         'due_date': newValue ? claimedAt : null,
         'is_claimed': newValue,
-        'is_claimed_date': newValue ? claimedAt : null,
       };
 
       await supabase
@@ -621,19 +649,74 @@ class _SecretaryClaimsPageState extends State<SecretaryClaimsPage>
           .update({
             'claimedmoney': storeVal,
             'claimedmoney_date': newValue ? claimedAt : null,
+            'amount_released': newValue ? amountReleased : null,
+            'date_released': newValue ? claimedAt : null,
           })
           .eq('id', claimId);
       _updateClaimLocally(claimId, storeVal);
+
+      List<Map<String, dynamic>> unpaidPayments = [];
+      String deceasedName = '';
+      if (newValue) {
+        final rows = await supabase
+            .from('payments')
+            .select('user_id, deceased_name')
+            .eq('dayung_unit_id', resolvedUnitId)
+            .eq('userdeceased', deceasedUserId)
+            .eq('status', 'unpaid');
+        unpaidPayments = List<Map<String, dynamic>>.from(rows);
+        deceasedName = unpaidPayments
+            .map((row) => (row['deceased_name'] ?? '').toString().trim())
+            .firstWhere((name) => name.isNotEmpty, orElse: () => '');
+        if (deceasedName.isEmpty && deceasedUserId.isNotEmpty) {
+          final deceased = await supabase
+              .from('users')
+              .select('full_name')
+              .eq('id', deceasedUserId)
+              .maybeSingle();
+          deceasedName = (deceased?['full_name'] ?? '').toString().trim();
+        }
+      }
 
       await supabase
           .from('payments')
           .update(paymentUpdate)
           .eq('dayung_unit_id', resolvedUnitId)
-          .eq('userdeceased', (claim['user_id'] ?? '').toString());
+          .eq('userdeceased', deceasedUserId);
+
+      if (newValue && unpaidPayments.isNotEmpty) {
+        final recipientIds = unpaidPayments
+            .map((payment) => (payment['user_id'] ?? '').toString())
+            .where((recipientId) => recipientId.isNotEmpty)
+            .toSet();
+        final now = DateTime.now().toIso8601String();
+        final notificationRows = recipientIds
+            .map(
+              (recipientId) => {
+                'recipient_id': recipientId,
+                'sender_id': supabase.auth.currentUser?.id,
+                'dayung_unit_id': resolvedUnitId,
+                'type': 'announcement',
+                'title': 'Pending Payment',
+                'body':
+                    'You have not yet paid your contribution for ${deceasedName.isEmpty ? 'this member' : deceasedName}.',
+                'announcement_id': null,
+                'read_at': null,
+                'created_at': now,
+              },
+            )
+            .toList();
+        await supabase.from('notifications').insert(notificationRows);
+      }
 
       await _fetchClaims();
     } catch (e) {
       debugPrint("Error updating claimedmoney: $e");
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Failed to update claim: $e')));
+      }
     } finally {
       if (mounted) setState(() => _updating = false);
     }
@@ -1111,6 +1194,7 @@ class _SecretaryClaimsPageState extends State<SecretaryClaimsPage>
     final dayungName =
         context.read<DayungUnitProvider>().dayungUnit ?? 'Dayung';
     final claimed = _isClaimed(claim['claimedmoney']); // <— existing
+    final submitterEligibility = _loadSubmitterEligibility(claim);
 
     showModalBottomSheet(
       context: context,
@@ -1252,6 +1336,18 @@ class _SecretaryClaimsPageState extends State<SecretaryClaimsPage>
                         Icons.person_outline,
                         'Submitter',
                         submitter,
+                      ),
+                      FutureBuilder<bool?>(
+                        future: submitterEligibility,
+                        builder: (context, snapshot) => _buildInfoRow(
+                          Icons.verified_user_outlined,
+                          'Eligible to Claim',
+                          snapshot.hasError || snapshot.data == null
+                              ? 'Unavailable'
+                              : snapshot.data!
+                              ? 'Yes'
+                              : 'No',
+                        ),
                       ),
                       _buildInfoRow(Icons.business, 'Dayung', dayungName),
 
@@ -1641,6 +1737,7 @@ class _SecretaryClaimsPageState extends State<SecretaryClaimsPage>
                                           !claimed,
                                           claim['claimedmoney'],
                                           claim,
+                                          treasurerCollectedAmount,
                                         );
                                         if (!mounted) return;
                                         navigator.pop();
@@ -1905,9 +2002,7 @@ class _SecretaryClaimsPageState extends State<SecretaryClaimsPage>
                               filterPaymentRecipientsForDeceasedClaim(
                                 approvedApplications: approvedApplicationList,
                                 membershipFeePayments: membershipFeePayments,
-                                deceasedUserId: deceasedType == 'member'
-                                    ? deceasedUserId
-                                    : null,
+                                deceasedUserId: deceasedUserId,
                               );
 
                           final now = DateTime.now().toIso8601String();
@@ -1954,6 +2049,17 @@ class _SecretaryClaimsPageState extends State<SecretaryClaimsPage>
                                   .toString(),
                               contributionAmount: result,
                             );
+                            await supabase
+                                .from('payments')
+                                .update({
+                                  'is_claimed': false,
+                                  'iscollectedbytreasurer': false,
+                                })
+                                .eq('dayung_unit_id', resolvedClaimUnitId)
+                                .eq(
+                                  'userdeceased',
+                                  (claim['user_id'] ?? '').toString(),
+                                );
                           }
 
                           rootNavigator.pop();

@@ -2,34 +2,17 @@ import 'package:capstone_app/Treasurer/manage_fund.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  group('shouldCountDeceasedCollectionPayment', () {
-    test('returns true when the payment is paid and confirmed by the treasurer', () {
+  group('deceasedUsersFromClaims', () {
+    test('returns distinct non-empty claims user IDs', () {
       expect(
-        shouldCountDeceasedCollectionPayment({
-          'status': 'paid',
-          'iscollectedbytreasurer': true,
-        }),
-        isTrue,
-      );
-    });
-
-    test('returns false when the treasurer flag is not true', () {
-      expect(
-        shouldCountDeceasedCollectionPayment({
-          'status': 'paid',
-          'iscollectedbytreasurer': false,
-        }),
-        isFalse,
-      );
-    });
-
-    test('returns false when the payment is not paid', () {
-      expect(
-        shouldCountDeceasedCollectionPayment({
-          'status': 'pending',
-          'iscollectedbytreasurer': true,
-        }),
-        isFalse,
+        deceasedUsersFromClaims([
+          {'user_id': 'deceased-1'},
+          {'user_id': ' deceased-1 '},
+          {'user_id': 'deceased-2'},
+          {'user_id': ''},
+          {'user_id': null},
+        ]),
+        ['deceased-1', 'deceased-2'],
       );
     });
   });

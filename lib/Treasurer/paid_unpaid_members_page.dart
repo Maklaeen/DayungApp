@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 const Color _kPageBg = Color(0xFFF8FAFC);
@@ -7,6 +8,14 @@ const Color _kHeaderGradientEnd = Color(0xFF0D47A1);
 const Color _kCard = Colors.white;
 const Color _kBorder = Color(0xFFE5E7EB);
 
+String _formatPhilippinesDate(String value) {
+  final date = DateTime.tryParse(value);
+  if (date == null) return value;
+
+  final philippinesDate = date.toUtc().add(const Duration(hours: 8));
+  return DateFormat('MMM d, yyyy • h:mm a').format(philippinesDate);
+}
+
 class PaymentMember {
   final String id;
   final String userId;
@@ -14,6 +23,7 @@ class PaymentMember {
   final String status;
   final double amount;
   final String? date;
+  final String? deceasedName;
 
   const PaymentMember({
     required this.id,
@@ -22,6 +32,7 @@ class PaymentMember {
     required this.status,
     required this.amount,
     this.date,
+    this.deceasedName,
   });
 }
 
@@ -51,6 +62,7 @@ class _PaidUnpaidMembersPageState extends State<PaidUnpaidMembersPage>
   String? _error;
   List<PaymentMember> _paidMembers = [];
   List<PaymentMember> _unpaidMembers = [];
+  final Set<String> _updatingPaymentIds = {};
   String _search = '';
 
   @override
@@ -110,7 +122,7 @@ class _PaidUnpaidMembersPageState extends State<PaidUnpaidMembersPage>
       final rows = await client
           .from('payments')
           .select(
-            'id, user_id, amount, status, paid_at, created_at, users!payments_user_id_fkey(full_name)',
+            'id, user_id, amount, status, paid_at, created_at, deceased_name, users!payments_user_id_fkey(full_name)',
           )
           .eq('dayung_unit_id', widget.dayungUnitId)
           .inFilter('status', ['paid', 'pending', 'unpaid'])
@@ -134,6 +146,7 @@ class _PaidUnpaidMembersPageState extends State<PaidUnpaidMembersPage>
               ? (row['amount'] as num).toDouble()
               : double.tryParse('${row['amount']}') ?? 0,
           date: (row['paid_at'] ?? row['created_at'])?.toString(),
+          deceasedName: row['deceased_name']?.toString().trim(),
         );
 
         if (status == 'paid') {
@@ -166,6 +179,78 @@ class _PaidUnpaidMembersPageState extends State<PaidUnpaidMembersPage>
           member.userId.toLowerCase().contains(query) ||
           member.status.toLowerCase().contains(query);
     }).toList();
+  }
+
+  Future<void> _confirmMarkPaid(PaymentMember member) async {
+    final deceased = member.deceasedName?.isNotEmpty == true
+        ? member.deceasedName!
+        : 'the deceased member';
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Confirm Payment'),
+        content: Text(
+          'Mark ${member.fullName}\'s payment of '
+          '₱${member.amount.toStringAsFixed(2)} for $deceased as paid?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Confirm'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+
+    final client = _getClient();
+    if (client == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Supabase is not initialized.')),
+      );
+      return;
+    }
+
+    setState(() => _updatingPaymentIds.add(member.id));
+    try {
+      final now = DateTime.now().toUtc().toIso8601String();
+      final updated = await client
+          .from('payments')
+          .update({
+            'status': 'paid',
+            'paid_at': now,
+            'collected_by': client.auth.currentUser?.id,
+            'iscollectedbytreasurer': true,
+            'iscollectedbytreasurer_date': now,
+          })
+          .eq('id', member.id)
+          .inFilter('status', ['pending', 'unpaid'])
+          .select('id');
+
+      if (!mounted) return;
+      if (updated.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('This payment was already updated. Refreshing...'),
+          ),
+        );
+      }
+      await _loadMembers();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Failed to update payment: $e')));
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _updatingPaymentIds.remove(member.id));
+      }
+    }
   }
 
   Widget _buildMemberList(List<PaymentMember> members) {
@@ -224,90 +309,115 @@ class _PaidUnpaidMembersPageState extends State<PaidUnpaidMembersPage>
               ),
             ],
           ),
-          child: Row(
+          child: Column(
             children: [
-              CircleAvatar(
-                radius: 24,
-                backgroundColor:
-                    (isPaid ? const Color(0xFF10B981) : const Color(0xFFF59E0B))
-                        .withValues(alpha: 0.12),
-                child: Icon(
-                  Icons.person_rounded,
-                  color: isPaid
-                      ? const Color(0xFF10B981)
-                      : const Color(0xFFF59E0B),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      member.fullName,
-                      style: const TextStyle(
-                        fontWeight: FontWeight.w700,
-                        fontSize: 15,
-                      ),
+              Row(
+                children: [
+                  CircleAvatar(
+                    radius: 24,
+                    backgroundColor:
+                        (isPaid
+                                ? const Color(0xFF10B981)
+                                : const Color(0xFFF59E0B))
+                            .withValues(alpha: 0.12),
+                    child: Icon(
+                      Icons.person_rounded,
+                      color: isPaid
+                          ? const Color(0xFF10B981)
+                          : const Color(0xFFF59E0B),
                     ),
-                    const SizedBox(height: 4),
-                    Text(
-                      'ID: ${member.userId}',
-                      style: const TextStyle(
-                        color: Color(0xFF6B7280),
-                        fontSize: 12,
-                      ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          member.fullName,
+                          style: const TextStyle(
+                            fontWeight: FontWeight.w700,
+                            fontSize: 15,
+                          ),
+                        ),
+                        if (member.deceasedName?.isNotEmpty == true) ...[
+                          const SizedBox(height: 4),
+                          Text(
+                            'Deceased Name: ${member.deceasedName}',
+                            style: const TextStyle(
+                              color: Color(0xFF4B5563),
+                              fontSize: 12,
+                            ),
+                          ),
+                        ],
+                        if (member.date != null) ...[
+                          const SizedBox(height: 4),
+                          Text(
+                            'Date: ${_formatPhilippinesDate(member.date!)}',
+                            style: const TextStyle(
+                              color: Color(0xFF6B7280),
+                              fontSize: 12,
+                            ),
+                          ),
+                        ],
+                      ],
                     ),
-                    if (member.date != null) ...[
-                      const SizedBox(height: 2),
+                  ),
+                  const SizedBox(width: 10),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 6,
+                        ),
+                        decoration: BoxDecoration(
+                          color:
+                              (isPaid
+                                      ? const Color(0xFF10B981)
+                                      : const Color(0xFFF59E0B))
+                                  .withValues(alpha: 0.12),
+                          borderRadius: BorderRadius.circular(999),
+                        ),
+                        child: Text(
+                          '₱${member.amount.toStringAsFixed(0)}',
+                          style: TextStyle(
+                            fontWeight: FontWeight.w800,
+                            color: isPaid
+                                ? const Color(0xFF10B981)
+                                : const Color(0xFFF59E0B),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 6),
                       Text(
-                        'Date: ${member.date}',
+                        member.status.toUpperCase(),
                         style: const TextStyle(
+                          fontSize: 11,
                           color: Color(0xFF6B7280),
-                          fontSize: 12,
                         ),
                       ),
                     ],
-                  ],
-                ),
-              ),
-              const SizedBox(width: 10),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 10,
-                      vertical: 6,
-                    ),
-                    decoration: BoxDecoration(
-                      color:
-                          (isPaid
-                                  ? const Color(0xFF10B981)
-                                  : const Color(0xFFF59E0B))
-                              .withValues(alpha: 0.12),
-                      borderRadius: BorderRadius.circular(999),
-                    ),
-                    child: Text(
-                      '₱${member.amount.toStringAsFixed(0)}',
-                      style: TextStyle(
-                        fontWeight: FontWeight.w800,
-                        color: isPaid
-                            ? const Color(0xFF10B981)
-                            : const Color(0xFFF59E0B),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 6),
-                  Text(
-                    member.status.toUpperCase(),
-                    style: const TextStyle(
-                      fontSize: 11,
-                      color: Color(0xFF6B7280),
-                    ),
                   ),
                 ],
               ),
+              if (!isPaid) ...[
+                const SizedBox(height: 10),
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton.icon(
+                    onPressed: _updatingPaymentIds.contains(member.id)
+                        ? null
+                        : () => _confirmMarkPaid(member),
+                    icon: const Icon(Icons.check_circle_outline_rounded),
+                    label: Text(
+                      _updatingPaymentIds.contains(member.id)
+                          ? 'Updating...'
+                          : 'Mark as Paid',
+                    ),
+                  ),
+                ),
+              ],
             ],
           ),
         );

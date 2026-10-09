@@ -23,6 +23,21 @@ void main() {
 
       expect(recipients.map((recipient) => recipient['user_id']), ['user-1']);
     });
+
+    test('excludes the member account linked to a beneficiary claim', () {
+      final recipients = filterPaymentRecipientsForDeceasedClaim(
+        approvedApplications: [
+          {'user_id': 'claim-owner'},
+          {'user_id': 'other-member'},
+        ],
+        membershipFeePayments: const [],
+        deceasedUserId: 'claim-owner',
+      );
+
+      expect(recipients.map((recipient) => recipient['user_id']), [
+        'other-member',
+      ]);
+    });
   });
 
   test(
