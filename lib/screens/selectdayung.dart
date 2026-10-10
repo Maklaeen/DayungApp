@@ -620,7 +620,7 @@ class _SelectDayungPageState extends State<SelectDayungPage> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            'Select Dayung',
+                            'Selectr Dayung',
                             style: TextStyle(
                               fontSize: isWide ? 24 : 22,
                               fontWeight: FontWeight.w900,
