@@ -291,45 +291,38 @@ class _AssignCollectorsPageState extends State<AssignCollectorsPage> {
           children: [
             _buildPageHeader(context),
             Expanded(
-              child: Container(
-                color: _kPageBg,
-                child: RefreshIndicator(
-                  onRefresh: _load,
-                  child: ListView(
-                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 20),
-                    physics: const AlwaysScrollableScrollPhysics(),
-                    children: [
-                      const SizedBox(height: 18),
-                      _buildSummaryRow(
-                        assignedCount,
-                        unassignedCount,
-                        collectorCount,
-                      ),
-                      const SizedBox(height: 14),
-                      _buildFilterChips(),
-                      const SizedBox(height: 12),
-                      _buildSearchCard(),
-                      const SizedBox(height: 12),
-                      _buildInstructionsCard(),
-                      const SizedBox(height: 12),
-                      if (_filteredMembers.isEmpty)
-                        Container(
-                          padding: const EdgeInsets.all(20),
-                          decoration: BoxDecoration(
-                            color: _kCard,
-                            borderRadius: BorderRadius.circular(16),
-                            border: Border.all(color: _kBorder),
-                          ),
-                          child: const Text(
-                            'No assigned members found for the selected filter',
-                            style: TextStyle(color: _kTextSub),
-                          ),
-                        )
-                      else
-                        ..._filteredMembers.map(_memberTile),
-                      const SizedBox(height: 8),
-                    ],
-                  ),
+              child: RefreshIndicator(
+                onRefresh: _load,
+                child: ListView(
+                  padding: const EdgeInsets.fromLTRB(16, 18, 16, 24),
+                  physics: const AlwaysScrollableScrollPhysics(),
+                  children: [
+                    _buildSummaryRow(
+                      assignedCount,
+                      unassignedCount,
+                      collectorCount,
+                    ),
+                    const SizedBox(height: 14),
+                    _buildFilterChips(),
+                    const SizedBox(height: 12),
+                    _buildSearchCard(),
+                    const SizedBox(height: 12),
+                    if (_filteredMembers.isEmpty)
+                      Container(
+                        padding: const EdgeInsets.all(20),
+                        decoration: BoxDecoration(
+                          color: _kCard,
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(color: _kBorder),
+                        ),
+                        child: const Text(
+                          'No members found for the selected filter.',
+                          style: TextStyle(color: _kTextSub),
+                        ),
+                      )
+                    else
+                      ..._filteredMembers.map(_memberTile),
+                  ],
                 ),
               ),
             ),
@@ -412,21 +405,8 @@ class _AssignCollectorsPageState extends State<AssignCollectorsPage> {
                         fontWeight: FontWeight.w800,
                       ),
                     ),
-                    SizedBox(height: 6),
-                    Text(
-                      'Manage collector assignments for approved members.',
-                      style: TextStyle(
-                        color: Colors.white70,
-                        fontSize: 13,
-                        height: 1.5,
-                      ),
-                    ),
                   ],
                 ),
-              ),
-              IconButton(
-                icon: const Icon(Icons.refresh_rounded, color: Colors.white),
-                onPressed: _load,
               ),
             ],
           ),
@@ -572,21 +552,6 @@ class _AssignCollectorsPageState extends State<AssignCollectorsPage> {
       labelStyle: TextStyle(
         color: selected ? const Color(0xFF0D47A1) : const Color(0xFF374151),
         fontWeight: FontWeight.w600,
-      ),
-    );
-  }
-
-  Widget _buildInstructionsCard() {
-    return Container(
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: Colors.grey.shade200),
-      ),
-      child: const Text(
-        'Assign each approved application to one of the collectors in this unit.',
-        style: TextStyle(color: Colors.black87, height: 1.4),
       ),
     );
   }

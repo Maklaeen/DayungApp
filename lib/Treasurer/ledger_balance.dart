@@ -653,50 +653,37 @@ class _LedgerBalancePageState extends State<LedgerBalancePage> {
               ),
             ),
             Expanded(
-              child: Container(
-                margin: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-                decoration: BoxDecoration(
-                  color: _kCard,
-                  borderRadius: BorderRadius.circular(24),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.08),
-                      blurRadius: 18,
-                      offset: const Offset(0, 8),
-                    ),
-                  ],
-                ),
-                child: _loading
-                    ? const Center(child: CircularProgressIndicator())
-                    : _error != null
-                    ? Center(
-                        child: Padding(
-                          padding: const EdgeInsets.all(24),
-                          child: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Text(
-                                _error!,
-                                textAlign: TextAlign.center,
-                                style: const TextStyle(
-                                  color: Colors.redAccent,
-                                  fontSize: 14,
-                                ),
+              child: _loading
+                  ? const Center(child: CircularProgressIndicator())
+                  : _error != null
+                  ? Center(
+                      child: Padding(
+                        padding: const EdgeInsets.all(24),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              _error!,
+                              textAlign: TextAlign.center,
+                              style: const TextStyle(
+                                color: Colors.redAccent,
+                                fontSize: 14,
                               ),
-                              const SizedBox(height: 12),
-                              ElevatedButton(
-                                onPressed: _loadCollectorTotals,
-                                child: const Text('Retry'),
-                              ),
-                            ],
-                          ),
+                            ),
+                            const SizedBox(height: 12),
+                            ElevatedButton(
+                              onPressed: _loadCollectorTotals,
+                              child: const Text('Retry'),
+                            ),
+                          ],
                         ),
-                      )
-                    : RefreshIndicator(
-                        onRefresh: _loadCollectorTotals,
-                        child: ListView(
-                          physics: const AlwaysScrollableScrollPhysics(),
-                          padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
+                      ),
+                    )
+                  : RefreshIndicator(
+                      onRefresh: _loadCollectorTotals,
+                      child: ListView(
+                        physics: const AlwaysScrollableScrollPhysics(),
+                        padding: const EdgeInsets.fromLTRB(16, 18, 16, 24),
                           children: [
                             Container(
                               padding: const EdgeInsets.all(16),
@@ -863,9 +850,8 @@ class _LedgerBalancePageState extends State<LedgerBalancePage> {
                                 );
                               }),
                           ],
-                        ),
                       ),
-              ),
+                    ),
             ),
           ],
         ),

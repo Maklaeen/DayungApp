@@ -725,37 +725,17 @@ class _CollectorsManagePageState extends State<CollectorsManagePage> {
                       ),
                     ),
                   ),
-                  const SizedBox(width: 12),
+                  const SizedBox(width: 8),
                   const Expanded(
                     child: Text(
                       'Manage Collectors',
                       style: TextStyle(
-                        fontSize: 22,
+                        fontSize: 24,
                         fontWeight: FontWeight.w800,
                         color: Colors.white,
-                        fontFamily: 'Montserrat',
                       ),
                     ),
                   ),
-                  // Container(
-                  //   padding: const EdgeInsets.symmetric(
-                  //     horizontal: 10,
-                  //     vertical: 6,
-                  //   ),
-                  //   decoration: BoxDecoration(
-                  //     color: Colors.white.withValues(alpha: 0.2),
-                  //     borderRadius: BorderRadius.circular(12),
-                  //   ),
-                  //   child: Text(
-                  //     '${_collectors.length}',
-                  //     style: const TextStyle(
-                  //       color: Colors.white,
-                  //       fontWeight: FontWeight.w800,
-                  //       fontSize: 14,
-                  //       fontFamily: 'Montserrat',
-                  //     ),
-                  //   ),
-                  // ),
                 ],
               ),
             ),
@@ -769,7 +749,7 @@ class _CollectorsManagePageState extends State<CollectorsManagePage> {
                   : RefreshIndicator(
                       onRefresh: _load,
                       child: ListView(
-                        padding: const EdgeInsets.all(16),
+                        padding: const EdgeInsets.fromLTRB(16, 18, 16, 24),
                         children: [
                           // Assigned collectors
                           Container(
@@ -890,15 +870,6 @@ class _CollectorsManagePageState extends State<CollectorsManagePage> {
                                     ),
                                   ],
                                 ),
-                                // const SizedBox(height: 4),
-                                // const Text(
-                                //   'Showing active members with paid membership payments. Tap a member to assign or change their collector or officer roles.',
-                                //   style: TextStyle(
-                                //     fontSize: 12,
-                                //     color: _kSubText,
-                                //     fontFamily: 'OpenSans',
-                                //   ),
-                                // ),
                                 const SizedBox(height: 16),
                                 _roleTile(
                                   'Secretary',

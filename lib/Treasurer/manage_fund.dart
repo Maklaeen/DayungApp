@@ -517,60 +517,38 @@ class _ManageFundPageState extends State<ManageFundPage> {
           children: [
             _buildPageHeader(isWide),
             Expanded(
-              child: Container(
-                decoration: const BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.only(
-                    topLeft: Radius.circular(24),
-                    topRight: Radius.circular(24),
-                  ),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Color(0x1A000000),
-                      blurRadius: 20,
-                      offset: Offset(0, -4),
-                    ),
-                  ],
-                ),
-                child: ClipRRect(
-                  borderRadius: const BorderRadius.only(
-                    topLeft: Radius.circular(24),
-                    topRight: Radius.circular(24),
-                  ),
-                  child: _loading
-                      ? const DayungPageSkeleton(
-                          layout: DayungSkeletonLayout.dashboard,
-                          itemCount: 4,
-                        )
-                      : _error != null
-                      ? _buildErrorState()
-                      : RefreshIndicator(
-                          onRefresh: _onRefresh,
-                          child: ListView(
-                            physics: const AlwaysScrollableScrollPhysics(),
-                            padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
-                            children: [
-                              _summaryHeader(),
-                              const SizedBox(height: 12),
-                              _filtersBar(),
-                              const SizedBox(height: 10),
-                              if (_visibleFunds.isEmpty)
-                                _buildEmptyState()
-                              else
-                                ...List.generate(
-                                  _visibleFunds.length,
-                                  (i) => Padding(
-                                    padding: const EdgeInsets.symmetric(
-                                      vertical: 8,
-                                    ),
-                                    child: _fundCard(_visibleFunds[i]),
-                                  ),
+              child: _loading
+                  ? const DayungPageSkeleton(
+                      layout: DayungSkeletonLayout.dashboard,
+                      itemCount: 4,
+                    )
+                  : _error != null
+                  ? _buildErrorState()
+                  : RefreshIndicator(
+                      onRefresh: _onRefresh,
+                      child: ListView(
+                        physics: const AlwaysScrollableScrollPhysics(),
+                        padding: const EdgeInsets.fromLTRB(16, 18, 16, 24),
+                        children: [
+                          _summaryHeader(),
+                          const SizedBox(height: 12),
+                          _filtersBar(),
+                          const SizedBox(height: 10),
+                          if (_visibleFunds.isEmpty)
+                            _buildEmptyState()
+                          else
+                            ...List.generate(
+                              _visibleFunds.length,
+                              (i) => Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 8,
                                 ),
-                            ],
-                          ),
-                        ),
-                ),
-              ),
+                                child: _fundCard(_visibleFunds[i]),
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
             ),
           ],
         ),
@@ -580,12 +558,7 @@ class _ManageFundPageState extends State<ManageFundPage> {
 
   Widget _buildPageHeader(bool isWide) {
     return Container(
-      padding: EdgeInsets.fromLTRB(
-        12,
-        isWide ? 36 : 28,
-        isWide ? 24 : 16,
-        isWide ? 32 : 24,
-      ),
+      padding: const EdgeInsets.fromLTRB(16, 20, 16, 24),
       decoration: const BoxDecoration(
         color: Color(0xFF0D47A1),
         borderRadius: BorderRadius.only(
@@ -627,27 +600,14 @@ class _ManageFundPageState extends State<ManageFundPage> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
+                const Text(
                   'Manage Funds',
                   style: TextStyle(
-                    fontSize: isWide ? 24 : 21,
-                    fontWeight: FontWeight.w900,
+                    fontSize: 24,
+                    fontWeight: FontWeight.w800,
                     color: Colors.white,
-                    fontFamily: 'Montserrat',
-                    letterSpacing: 0.2,
                   ),
                 ),
-                const SizedBox(height: 4),
-                // Text(
-                //   'Track collection progress, missing fund rows, and member payment status.',
-                //   style: TextStyle(
-                //     fontSize: isWide ? 14 : 13,
-                //     height: 1.35,
-                //     fontWeight: FontWeight.w600,
-                //     color: Colors.white70,
-                //     fontFamily: 'OpenSans',
-                //   ),
-                // ),
               ],
             ),
           ),
@@ -748,12 +708,11 @@ class _ManageFundPageState extends State<ManageFundPage> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 const Text(
-                  'Deceased Payment Status',
+                  'Payment Status',
                   style: TextStyle(
                     fontSize: 18,
                     fontWeight: FontWeight.w800,
                     color: kNeutralText,
-                    fontFamily: 'Montserrat',
                   ),
                 ),
                 const SizedBox(height: 14),
@@ -832,13 +791,12 @@ class _ManageFundPageState extends State<ManageFundPage> {
                       ),
                     ),
                     const SizedBox(height: 4),
-                    Text(
+                    const Text(
                       'Death Fund Collection',
                       style: TextStyle(
                         fontSize: 12,
                         fontWeight: FontWeight.w600,
                         color: kSubtleText,
-                        fontFamily: 'OpenSans',
                       ),
                     ),
                   ],
@@ -878,7 +836,6 @@ class _ManageFundPageState extends State<ManageFundPage> {
                         fontSize: 11,
                         fontWeight: FontWeight.w600,
                         color: kSubtleText,
-                        fontFamily: 'OpenSans',
                       ),
                     ),
                     const SizedBox(height: 4),
@@ -904,7 +861,6 @@ class _ManageFundPageState extends State<ManageFundPage> {
                         fontSize: 11,
                         fontWeight: FontWeight.w600,
                         color: kSubtleText,
-                        fontFamily: 'OpenSans',
                       ),
                     ),
                     const SizedBox(height: 4),
@@ -930,7 +886,6 @@ class _ManageFundPageState extends State<ManageFundPage> {
                         fontSize: 11,
                         fontWeight: FontWeight.w600,
                         color: kSubtleText,
-                        fontFamily: 'OpenSans',
                       ),
                     ),
                     const SizedBox(height: 4),
@@ -963,90 +918,6 @@ class _ManageFundPageState extends State<ManageFundPage> {
     );
   }
 
-  Widget _buildDeceasedPaymentCompactCard(Map<String, dynamic> deceased) {
-    final paid = (deceased['paid'] as double?) ?? 0.0;
-    final total = (deceased['total'] as double?) ?? 0.0;
-    final progress = (deceased['progress'] as double?) ?? 0.0;
-    final name = (deceased['name'] ?? 'Death Notice').toString();
-    final percentage = (progress * 100).round();
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-      decoration: BoxDecoration(
-        color: const Color(0xFFFEF3C7),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: const Color(0xFFF59E0B).withValues(alpha: 0.3),
-        ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  name,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w700,
-                    color: Color(0xFFA16207),
-                    fontFamily: 'Montserrat',
-                  ),
-                ),
-              ),
-              const SizedBox(width: 8),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFF59E0B).withValues(alpha: 0.2),
-                  borderRadius: BorderRadius.circular(6),
-                ),
-                child: Text(
-                  '$percentage%',
-                  style: const TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w900,
-                    color: Color(0xFFA16207),
-                    fontFamily: 'Montserrat',
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 6),
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  '${_currency(paid)} / ${_currency(total)}',
-                  style: const TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w700,
-                    color: Color(0xFFA16207),
-                    fontFamily: 'Montserrat',
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 6),
-          ClipRRect(
-            borderRadius: BorderRadius.circular(4),
-            child: LinearProgressIndicator(
-              value: progress.clamp(0.0, 1.0),
-              minHeight: 6,
-              backgroundColor: const Color(0xFFF59E0B).withValues(alpha: 0.15),
-              valueColor: const AlwaysStoppedAnimation(Color(0xFFF59E0B)),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
   Widget _summaryHeader() {
     final remaining = (_totalGoal - _totalPaid).clamp(0.0, double.infinity);
     return Container(
@@ -1054,14 +925,10 @@ class _ManageFundPageState extends State<ManageFundPage> {
       decoration: BoxDecoration(
         color: kCard,
         borderRadius: BorderRadius.circular(20),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x1A000000),
-            blurRadius: 20,
-            offset: Offset(0, 4),
-          ),
-        ],
         border: Border.all(color: Colors.grey.shade200),
+        boxShadow: const [
+          BoxShadow(color: Color(0x1A000000), blurRadius: 20, offset: Offset(0, 4)),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1069,36 +936,24 @@ class _ManageFundPageState extends State<ManageFundPage> {
           const Text(
             'Fund Overview',
             style: TextStyle(
-              fontSize: 20,
+              fontSize: 18,
               fontWeight: FontWeight.w800,
               color: kNeutralText,
-              fontFamily: 'Montserrat',
             ),
           ),
-          const SizedBox(height: 6),
-          const Text(
-            'Review all active death notices, check missing funds, and generate any pending member fund rows that still need to be created.',
-            style: TextStyle(
-              fontSize: 13,
-              height: 1.4,
-              color: kSubtleText,
-              fontWeight: FontWeight.w600,
-              fontFamily: 'OpenSans',
-            ),
-          ),
-          const SizedBox(height: 14),
+          const SizedBox(height: 10),
           Wrap(
             spacing: 10,
             runSpacing: 10,
             children: [
               _infoBadge(
                 icon: Icons.groups_rounded,
-                label: '$_approvedMemberCount approved members',
+                label: '$_approvedMemberCount members',
                 color: const Color(0xFF1E40AF),
               ),
               _infoBadge(
                 icon: Icons.rule_folder_rounded,
-                label: '${_funds.length} total fund buckets',
+                label: '${_funds.length} funds',
                 color: const Color(0xFF0F766E),
               ),
             ],
@@ -1174,11 +1029,7 @@ class _ManageFundPageState extends State<ManageFundPage> {
         borderRadius: BorderRadius.circular(20),
         border: Border.all(color: kBorder),
         boxShadow: const [
-          BoxShadow(
-            color: Color(0x0F000000),
-            blurRadius: 12,
-            offset: Offset(0, 4),
-          ),
+          BoxShadow(color: Color(0x0F000000), blurRadius: 12, offset: Offset(0, 4)),
         ],
       ),
       child: Column(
@@ -1190,20 +1041,9 @@ class _ManageFundPageState extends State<ManageFundPage> {
               fontSize: 18,
               fontWeight: FontWeight.w800,
               color: kNeutralText,
-              fontFamily: 'Montserrat',
             ),
           ),
-          const SizedBox(height: 6),
-          const Text(
-            'Search by deceased name or narrow the list by collection status and notice type.',
-            style: TextStyle(
-              fontSize: 13,
-              color: kSubtleText,
-              fontWeight: FontWeight.w600,
-              fontFamily: 'OpenSans',
-            ),
-          ),
-          const SizedBox(height: 14),
+          const SizedBox(height: 12),
           TextField(
             decoration: InputDecoration(
               hintText: 'Search deceased name',
@@ -1231,25 +1071,19 @@ class _ManageFundPageState extends State<ManageFundPage> {
             onChanged: (v) => setState(() => _search = v.trim()),
           ),
           const SizedBox(height: 10),
-          Align(
-            alignment: Alignment.centerLeft,
-            child: _segmentedGroup(
-              children: [
-                _segChip('All', 'all'),
-                _segChip('Collecting', 'collecting'),
-                _segChip('Completed', 'completed'),
-              ],
-            ),
+          _segmentedGroup(
+            children: [
+              _segChip('All', 'all'),
+              _segChip('Collecting', 'collecting'),
+              _segChip('Completed', 'completed'),
+            ],
           ),
           const SizedBox(height: 10),
-          Align(
-            alignment: Alignment.centerLeft,
-            child: _segmentedGroup(
-              children: [
-                _segChipType('Members', 'members'),
-                _segChipType('Beneficiaries', 'beneficiaries'),
-              ],
-            ),
+          _segmentedGroup(
+            children: [
+              _segChipType('Members', 'members'),
+              _segChipType('Beneficiaries', 'beneficiaries'),
+            ],
           ),
         ],
       ),
@@ -1321,7 +1155,6 @@ class _ManageFundPageState extends State<ManageFundPage> {
     );
   }
 
-  // NEW: Type segmented chip
   Widget _segChipType(String label, String key) {
     final selected = _typeFilter == key;
     return GestureDetector(
@@ -1401,13 +1234,12 @@ class _ManageFundPageState extends State<ManageFundPage> {
                       if (missingMembers > 0)
                         _metricPill(
                           icon: Icons.warning_amber_rounded,
-                          label: '$missingMembers missing fund',
+                          label: '$missingMembers missing',
                           color: const Color(0xFFF59E0B),
                         ),
                     ],
                   ),
                   const SizedBox(height: 12),
-                  // Title + pill
                   Row(
                     children: [
                       Expanded(
@@ -1496,7 +1328,7 @@ class _ManageFundPageState extends State<ManageFundPage> {
                       ),
                       const SizedBox(width: 6),
                       Text(
-                        'Date of Death: ${deadline.isEmpty ? '—' : deadline}',
+                        'Date of Death: ${deadline.isEmpty ? '"'"'—'"'"' : deadline}',
                         style: const TextStyle(
                           fontWeight: FontWeight.w600,
                           fontSize: 13,
@@ -1891,22 +1723,12 @@ class _ManageFundPageState extends State<ManageFundPage> {
                       fontFamily: 'Montserrat',
                     ),
                   ),
-                  const SizedBox(height: 6),
-                  Text(
-                    'Review who already has a fund and who still needs one.',
-                    style: const TextStyle(
-                      fontSize: 15,
-                      height: 1.4,
-                      color: kSubtleText,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
                   const SizedBox(height: 14),
                   Row(
                     children: [
                       Expanded(
                         child: _sheetStatCard(
-                          label: 'With Fund',
+                          label: 'May Pondo',
                           value: '${items.length - virtualPendingCount}',
                           icon: Icons.receipt_long_rounded,
                           color: const Color(0xFF10B981),
