@@ -1183,7 +1183,7 @@ class _CollectCashPageState extends State<CollectCashPage> {
                   Expanded(
                     child: Text(
                       (claim['beneficiary_id'] ?? '').toString().isNotEmpty
-                          ? '${displayName.isNotEmpty ? displayName : 'Beneficiary'}'
+                          ? displayName.isNotEmpty ? displayName : 'Beneficiary'
                           : (displayName.isNotEmpty
                                 ? displayName
                                 : _memberName(userId)),

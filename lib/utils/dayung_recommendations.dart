@@ -15,6 +15,7 @@ class DayungPreferencesData {
     this.location,
     this.userLat,
     this.userLng,
+    this.serviceTags = const {},
   });
 
   final String? meetingFrequency;
@@ -27,6 +28,7 @@ class DayungPreferencesData {
   final String? location;
   final double? userLat;
   final double? userLng;
+  final Map<String, bool> serviceTags;
 
   List<String> get tags {
     final values = <String>[];
@@ -59,6 +61,7 @@ class DayungPreferencesData {
     String? location,
     double? userLat,
     double? userLng,
+    Map<String, bool>? serviceTags,
   }) {
     return DayungPreferencesData(
       meetingFrequency: meetingFrequency ?? this.meetingFrequency,
@@ -71,6 +74,7 @@ class DayungPreferencesData {
       location: location ?? this.location,
       userLat: userLat ?? this.userLat,
       userLng: userLng ?? this.userLng,
+      serviceTags: serviceTags ?? this.serviceTags,
     );
   }
 
@@ -89,11 +93,14 @@ class DayungPreferencesData {
       'fund_support_range': membershipPayment,
       'latitude': userLat,
       'longitude': userLng,
+      for (final label in dayungServiceTagLabels)
+        dayungServiceTagColumns[label]!: serviceTags[label] ?? false,
     };
   }
 }
 
 class DayungRecommendationService {
+  static const int preferenceVectorDimensions = 37;
   static const double similarityThreshold = 0.3;
   static const double maxDistanceKm = 6.0;
 
@@ -106,7 +113,7 @@ class DayungRecommendationService {
         .select(
           'meeting_frequency, contribution_amount, membership_payment, '
           'penalty_payment, payment_method, open_for_all, penalty_policy, '
-          'location',
+          'location, ${dayungServiceTagLabels.map((label) => dayungServiceTagColumns[label]!).join(', ')}',
         )
         .eq('user_id', userId)
         .maybeSingle();
@@ -140,6 +147,10 @@ class DayungRecommendationService {
       userLng: user?['longitude'] != null
           ? double.tryParse('${user?['longitude']}')
           : null,
+      serviceTags: {
+        for (final label in dayungServiceTagLabels)
+          label: pref?[dayungServiceTagColumns[label]] == true,
+      },
     );
   }
 
@@ -218,38 +229,21 @@ class DayungRecommendationService {
     Set<int> excludedDayungIds = const {},
     int limit = 5,
   }) async {
-    final userVector = _generatePreferenceVector(preferences);
-    final rows = await client
-        .from('dayung_rules')
-        .select(
-          'id, dayung_unit_id, dayung_unit_name, meeting_frequency, '
-          'collection_fee_range, membership_payment, penalty_payment, '
-          'payment_method, open_for_all, ${dayungServiceTagLabels.map((label) => dayungServiceTagColumns[label]!).join(', ')}, dayung_units('
-          'id, name, latitude, longitude, barangay, city, province)',
-        );
+    final matches = await matchPreferenceVector(
+      client,
+      preferenceVector: preferenceVector(preferences),
+      similarityThreshold: similarityThreshold,
+    );
 
     final scoredUnits = <Map<String, dynamic>>[];
 
-    for (final row in rows as List) {
-      final data = Map<String, dynamic>.from(row as Map);
-      final unit = data['dayung_units'];
-      if (unit is Map) {
-        data['id'] = data['dayung_unit_id'] ?? unit['id'];
-        data['name'] = data['dayung_unit_name'] ?? unit['name'];
-        data['latitude'] = unit['latitude'];
-        data['longitude'] = unit['longitude'];
-        data['barangay'] = unit['barangay'];
-        data['city'] = unit['city'];
-        data['province'] = unit['province'];
-      }
-
+    for (final data in matches) {
       final unitId = data['id'];
       if (unitId == null || unitId == currentDayungId) continue;
-      if (unitId is int && excludedDayungIds.contains(unitId)) continue;
-
-      final ruleVector = _buildRuleVector(data);
-      final similarity = _cosineSimilarity(userVector, ruleVector);
-      final score = similarity * _attributeMatchBoost(userVector, ruleVector);
+      final parsedUnitId = int.tryParse('$unitId');
+      if (parsedUnitId != null && excludedDayungIds.contains(parsedUnitId)) {
+        continue;
+      }
 
       final lat = data['latitude'] != null
           ? double.tryParse('${data['latitude']}')
@@ -296,7 +290,7 @@ class DayungRecommendationService {
         'membership_payment': data['membership_payment'],
         'payment_method': data['payment_method'],
         'open_for_all': data['open_for_all'],
-        '__score': score,
+        '__score': (data['__score'] as num?)?.toDouble() ?? 0.0,
         '__km': km,
         '__withinRadius': withinRadius,
         '__tags': tags,
@@ -310,7 +304,7 @@ class DayungRecommendationService {
     );
   }
 
-  static List<double> _generatePreferenceVector(DayungPreferencesData prefs) {
+  static List<double> preferenceVector(DayungPreferencesData prefs) {
     const feeRanges = [
       '50-100',
       '100-150',
@@ -330,7 +324,7 @@ class DayungRecommendationService {
     }
 
     final serviceTags = dayungServiceTagLabels.map((label) {
-      return 0.0;
+      return prefs.serviceTags[label] == true ? 1.0 : 0.0;
     }).toList();
 
     return [
@@ -348,77 +342,44 @@ class DayungRecommendationService {
     ];
   }
 
-  static List<double> _buildRuleVector(Map<String, dynamic> data) {
-    String norm(String? value) => (value ?? '').trim().toLowerCase();
-    const feeRanges = [
-      '50-100',
-      '100-150',
-      '150-200',
-      '200-250',
-      '250-300',
-      '300-350',
-      '400 plus',
-    ];
-
-    List<double> bucket(String? selected) {
-      final out = List<double>.filled(feeRanges.length, 0.0);
-      for (int index = 0; index < feeRanges.length; index++) {
-        if (norm(selected) == feeRanges[index]) out[index] = 1.0;
-      }
-      return out.every((value) => value == 0.0)
-          ? List<double>.filled(feeRanges.length, 1.0)
-          : out;
+  static String serializePreferenceVector(List<double> vector) {
+    if (vector.length != preferenceVectorDimensions) {
+      throw ArgumentError.value(
+        vector.length,
+        'vector.length',
+        'Expected $preferenceVectorDimensions preference dimensions',
+      );
     }
+    return '[${vector.map((value) => value.toStringAsFixed(1)).join(',')}]';
+  }
 
-    final meeting = norm(data['meeting_frequency']);
-    final paymentMethod = norm(data['payment_method']);
+  static Future<List<Map<String, dynamic>>> matchPreferenceVector(
+    SupabaseClient client, {
+    required List<double> preferenceVector,
+    double similarityThreshold = similarityThreshold,
+    int matchCount = 1000,
+  }) async {
+    final rows = await client.rpc(
+      'match_dayung_units',
+      params: {
+        'p_query_vector': serializePreferenceVector(preferenceVector),
+        'p_selected_count': preferenceVector
+            .where((value) => value == 1.0)
+            .length,
+        'p_minimum_score': similarityThreshold,
+        'p_match_count': matchCount,
+      },
+    );
 
-    final serviceTagVector = dayungServiceTagLabels.map((label) {
-      final column = dayungServiceTagColumns[label]!;
-      return data[column] == true ? 1.0 : 0.0;
+    return (rows as List).map((raw) {
+      final result = Map<String, dynamic>.from(raw as Map);
+      final recommendation = Map<String, dynamic>.from(
+        result['recommendation'] as Map,
+      );
+      recommendation['__score'] =
+          (result['final_score'] as num?)?.toDouble() ?? 0.0;
+      return recommendation;
     }).toList();
-
-    return [
-      meeting == 'weekly' ? 1.0 : 0.0,
-      meeting == 'monthly' ? 1.0 : 0.0,
-      meeting == 'needed' ? 1.0 : 0.0,
-      paymentMethod == 'cash' ? 1.0 : 0.0,
-      paymentMethod == 'gcash' ? 1.0 : 0.0,
-      paymentMethod == 'both' ? 1.0 : 0.0,
-      ...bucket(data['collection_fee_range']),
-      ...bucket(data['membership_payment']),
-      ...bucket(data['penalty_payment']),
-      norm('${data['open_for_all']}') == 'yes' ? 1.0 : 0.0,
-      ...serviceTagVector,
-    ];
-  }
-
-  static double _cosineSimilarity(List<double> user, List<double> rule) {
-    if (user.length != rule.length || user.isEmpty) return 0.0;
-    double dot = 0.0;
-    double magUser = 0.0;
-    double magRule = 0.0;
-    for (int index = 0; index < user.length; index++) {
-      dot += user[index] * rule[index];
-      magUser += user[index] * user[index];
-      magRule += rule[index] * rule[index];
-    }
-    const eps = 1e-10;
-    if (magUser < eps || magRule < eps) return 0.0;
-    return dot / (math.sqrt(magUser) * math.sqrt(magRule));
-  }
-
-  static double _attributeMatchBoost(List<double> user, List<double> rule) {
-    int selected = 0;
-    int matched = 0;
-    for (int index = 0; index < user.length; index++) {
-      if (user[index] == 1.0) {
-        selected++;
-        if (rule[index] == 1.0) matched++;
-      }
-    }
-    if (selected == 0) return 1.0;
-    return 1.0 + 0.25 * (matched / selected);
   }
 
   static double _distanceKm(

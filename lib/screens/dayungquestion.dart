@@ -2,10 +2,11 @@
 
 import 'dart:math';
 
+import 'package:capstone_app/profile/dayung_profile.dart';
 import 'package:capstone_app/screens/dayung_map_page.dart';
 import 'package:capstone_app/Providers/role_router.dart';
+import 'package:capstone_app/utils/dayung_recommendations.dart';
 import 'package:capstone_app/utils/dayung_service_tags.dart';
-import 'package:capstone_app/utils/dayung_similarity.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart' as ll;
@@ -53,6 +54,7 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
   List<dynamic> suggestedUnits = [];
   bool isLoading = false;
   bool isSubmitting = false;
+  int _suggestionRequestId = 0;
   final Map<String, bool> selectedServiceTags = {};
 
   double? userLat; // <-- Set this to the user's latitude
@@ -77,13 +79,14 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
 
   // Ang mosunod nga function nag-encode sa user preferences ngadto sa binary vector.
   // Gigamit kini para sa cosine similarity matching sa Dayung units.
-  /* 28 positions
+  /* 37 positions
 3 for meeting frequency
 3 for payment method
 7 for registration fee
 7 for membership payment
 7 for penalty payment
-1 for open for all*/
+1 for open for all
+9 for support services*/
 
   List<double> _generatePreferenceVector() {
     // Meeting Frequency (3 positions)
@@ -144,129 +147,8 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
     ];
   }
 
-  /// Nag-compute sa cosine similarity tali sa user preference vector `u`
-  /// ug sa Dayung unit vector `d`.
-  ///
-  /// Formula:
-  /// cosine_similarity(U, D) = (U ⋅ D) / (||U|| * ||D||)
-  ///
-  /// Asa:
-  /// - U ⋅ D mao ang dot product sa duha ka vectors
-  /// - ||U|| ug ||D|| mao ang magnitudes (gitas-on) sa vectors
-  ///
-  /// Ang resulta kay gikan -1 hangtod 1:
-  /// - 1 → parehas kaayo (dako og similarity)
-  /// - 0 → walay kalabotan
-  /// - -1 → supak kaayo (opposite)
-  ///
-  /// Gigamit kini para i-ranggo ang Dayung units base sa kaparehas sa user preferences.
-  double cosineSimilarity(List<double> u, List<double> d) {
-    if (u.length != d.length || u.isEmpty) return 0.0;
-    double dot = 0, magU = 0, magD = 0;
-    for (int i = 0; i < u.length; i++) {
-      dot += u[i] * d[i];
-      magU += u[i] * u[i];
-      magD += d[i] * d[i];
-    }
-    const eps = 1e-10;
-    if (magU < eps || magD < eps) return 0.0;
-    return dot / (sqrt(magU) * sqrt(magD));
-  }
-
-  // Helper function para maghimo og vector gikan sa dayung_rules row.
-  // Gigamit kini para sa local similarity matching.
-  List<double> _buildRuleVector(Map<String, dynamic> m) {
-    String norm(Object? s) {
-      if (s == null) return '';
-      if (s is bool) return s ? 'yes' : 'no';
-      return s.toString().trim().toLowerCase();
-    }
-
-    // Meeting Frequency (3 positions)
-    final meet = norm(m['meeting_frequency']);
-    double meetWeekly = meet == 'weekly' ? 1.0 : 0.0;
-    double meetMonthly = meet == 'monthly' ? 1.0 : 0.0;
-    double meetNeeded = meet == 'needed' ? 1.0 : 0.0;
-
-    // Payment Method (3 positions)
-    final pay = norm(m['payment_method']);
-    double payCash = pay == 'cash' ? 1.0 : 0.0;
-    double payGcash = pay == 'gcash' ? 1.0 : 0.0;
-    double payBoth = pay == 'both' ? 1.0 : 0.0;
-
-    List<String> feeRanges = [
-      '50-100',
-      '100-150',
-      '150-200',
-      '200-250',
-      '250-300',
-      '300-350',
-      '400 plus',
-    ];
-    List<double> regFee = List.filled(feeRanges.length, 0.0);
-    for (int i = 0; i < feeRanges.length; i++) {
-      if (norm(m['collection_fee_range']) == feeRanges[i]) regFee[i] = 1.0;
-    }
-
-    // Membership Payment (same buckets)
-    List<double> memFee = List.filled(feeRanges.length, 0.0);
-    for (int i = 0; i < feeRanges.length; i++) {
-      if (norm(m['membership_payment']) == feeRanges[i]) memFee[i] = 1.0;
-    }
-
-    // Penalty Payment (same buckets)
-    List<double> penFee = List.filled(feeRanges.length, 0.0);
-    for (int i = 0; i < feeRanges.length; i++) {
-      if (norm(m['penalty_payment']) == feeRanges[i]) penFee[i] = 1.0;
-    }
-
-    // Open For All (1 position)
-    double openAll = norm(m['open_for_all']) == 'yes' ? 1.0 : 0.0;
-
-    final serviceTagVector = dayungServiceTagLabels.map((label) {
-      final column = dayungServiceTagColumns[label]!;
-      final value = m[column];
-      return value == true ? 1.0 : 0.0;
-    }).toList();
-
-    return [
-      meetWeekly,
-      meetMonthly,
-      meetNeeded,
-      payCash,
-      payGcash,
-      payBoth,
-      ...regFee,
-      ...memFee,
-      ...penFee,
-      openAll,
-      ...serviceTagVector,
-    ];
-  }
-
-  String _buildHybridDebugSummary({
-    required String unitId,
-    required List<double> userVector,
-    required List<double> unitVector,
-    required double threshold,
-  }) {
-    final hybrid = computeHybridScore(userVector, unitVector);
-    final passed = hybrid.finalScore >= threshold;
-    final reason = passed ? 'PASS' : 'REJECT (final score below threshold)';
-    return 'DEBUG: Unit ID:$unitId '
-        'UserVector=${userVector.join(",")} '
-        'UnitVector=${unitVector.join(",")} '
-        'Cosine=${hybrid.cosineSimilarity.toStringAsFixed(4)} '
-        'Boost=${hybrid.attributeMatchBoost.toStringAsFixed(4)} '
-        'Final=${hybrid.finalScore.toStringAsFixed(4)} '
-        'Matched=${hybrid.matchedSelectedCount}/${hybrid.selectedCount} '
-        '-> $reason';
-  }
-
-  // Kini nga function mopangita og Dayung units, maghimo sa ilang vectors,
-  // ug mosort base sa cosine similarity sa user preference vector.
-  // Dinhi gyud mahitabo ang matching ug ranking.
   Future<void> _fetchSuggestionsLocal() async {
+    final requestId = ++_suggestionRequestId;
     debugPrint(
       'DEBUG: User "${widget.userId}" (role: ${widget.role}) is searching for Dayung rules',
     );
@@ -276,58 +158,23 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
       debugPrint(
         'DEBUG: User Preference Vector len=${userVector.length}: $userVector',
       );
-
-      // Fetch rules joined with unit info for location
-      final resp = await Supabase.instance.client
-          .from('dayung_rules')
-          .select(
-            'id,dayung_unit_id,dayung_unit_name,meeting_frequency,collection_fee_range,membership_payment,penalty_payment,payment_method,open_for_all,${dayungServiceTagLabels.map((label) => dayungServiceTagColumns[label]!).join(',')},'
-            'dayung_units(latitude,longitude,barangay,city,province)',
-          );
-
-      final rules = <Map<String, dynamic>>[];
-      for (final raw in resp) {
-        final m = Map<String, dynamic>.from(raw as Map);
-
-        // Merge unit info for location
-        final unit = m['dayung_units'];
-        if (unit is Map) {
-          m['latitude'] = unit['latitude'];
-          m['longitude'] = unit['longitude'];
-          m['barangay'] = unit['barangay'];
-          m['city'] = unit['city'];
-          m['province'] = unit['province'];
-        }
-
-        // Build vector from rule columns
-        m['__parsedVector'] = _buildRuleVector(m);
-
-        final unitId = m['dayung_unit_id'] ?? m['id'];
-        debugPrint('DEBUG: Unit ID:$unitId Vector: ${m['__parsedVector']}');
-
-        rules.add(m);
-      }
-
-      // Sort by similarity * attribute match boost
-      // Dinhi gigamit ang cosine similarity ug ang attributeMatchBoost para i-ranggo ang Dayung units.
-      // Ang resulta kay mas taas ang score sa units nga daghan og exact match sa gipili sa user.
-      rules.sort((a, b) {
-        final va = (a['__parsedVector'] as List<double>? ?? const []);
-        final vb = (b['__parsedVector'] as List<double>? ?? const []);
-        final hybridA = computeHybridScore(userVector, va);
-        final hybridB = computeHybridScore(userVector, vb);
-        return hybridB.finalScore.compareTo(hybridA.finalScore);
-      });
-
-      setState(() => suggestedUnits = rules);
+      final matches = await DayungRecommendationService.matchPreferenceVector(
+        Supabase.instance.client,
+        preferenceVector: userVector,
+        similarityThreshold: 0.3,
+      );
+      if (!mounted || requestId != _suggestionRequestId) return;
+      setState(() => suggestedUnits = matches);
     } catch (e) {
       debugPrint('DEBUG: Local fetch error: $e');
-      if (!mounted) return;
+      if (!mounted || requestId != _suggestionRequestId) return;
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text('Local similarity error: $e')));
     } finally {
-      if (mounted) setState(() => isLoading = false);
+      if (mounted && requestId == _suggestionRequestId) {
+        setState(() => isLoading = false);
+      }
     }
   }
 
@@ -415,6 +262,7 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
           selectedServiceTags[label] = resp[column] == true;
         }
       });
+      await _fetchSuggestions();
     } catch (e) {
       debugPrint('Failed to load saved service preferences: $e');
     }
@@ -612,54 +460,13 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
     return R * c;
   }
 
-  // Helper function para sa attribute match boost
-  // Kini nga function nag-compute og "boost" score base sa pila ka user-selected features (1s sa user vector)
-  // nga nag-match pud sa Dayung unit vector. Gigamit ang formula:
-  // AttributeMatch(U, D) = 1 + λ * (#matched_selected / #selected)
-  // Asa:
-  // - #matched_selected = pila ka features nga 1 sa user vector ug 1 pud sa unit vector (nagmatch)
-  // - #selected = total nga 1s sa user vector (user-selected features)
-  // - λ = boost factor (default 0.25)
-  // Ang resulta kay gamultiply sa cosine similarity score para mahatagan og extra weight ang units nga daghan og exact match sa gipili sa user.
-  double attributeMatchBoost(
-    List<double> user,
-    List<double> unit, {
-    double lambda = 0.25,
-  }) {
-    int selected = 0;
-    int matched = 0;
-    for (int i = 0; i < user.length; i++) {
-      if (user[i] == 1.0) {
-        selected++;
-        if (unit[i] == 1.0) matched++;
-      }
-    }
-    if (selected == 0) return 1.0;
-    return 1.0 + lambda * (matched / selected);
-  }
-
-  List<dynamic> _rankPassingUnits(
-    List<dynamic> units,
-    List<double> userVector,
-  ) {
+  List<dynamic> _rankPassingUnits(List<dynamic> units) {
     const double similarityThreshold = 0.300;
     final eligible = <Map<String, dynamic>>[];
 
     for (final unit in units) {
-      final unitVector =
-          (unit['__parsedVector'] as List<double>? ?? const <double>[]);
-      final hybrid = computeHybridScore(userVector, unitVector);
-      if (hybrid.finalScore < similarityThreshold) {
-        debugPrint(
-          _buildHybridDebugSummary(
-            unitId: '${unit['dayung_unit_id'] ?? unit['id']}',
-            userVector: userVector,
-            unitVector: unitVector,
-            threshold: similarityThreshold,
-          ),
-        );
-        continue;
-      }
+      final score = (unit['__score'] as num?)?.toDouble() ?? 0.0;
+      if (score < similarityThreshold) continue;
 
       final lat = double.tryParse('${unit['latitude']}');
       final lng = double.tryParse('${unit['longitude']}');
@@ -670,7 +477,7 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
 
       eligible.add({
         ...Map<String, dynamic>.from(unit as Map),
-        '__hybridScore': hybrid.finalScore,
+        '__hybridScore': score,
         '__distanceKm': distanceKm,
       });
     }
@@ -711,12 +518,11 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
   }
 
   Widget _buildBody(BuildContext context, bool isWide) {
-    if (isLoading) {
+    if (isLoading && suggestedUnits.isEmpty) {
       return const Center(child: CircularProgressIndicator(color: kPrimary));
     }
 
-    final userVector = _generatePreferenceVector();
-    final filteredUnits = _rankPassingUnits(suggestedUnits, userVector);
+    final filteredUnits = _rankPassingUnits(suggestedUnits);
 
     return RefreshIndicator(
       onRefresh: () async => _fetchSuggestions(),
@@ -740,13 +546,19 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
                       label: 'Meeting Frequency',
                       items: ['Weekly', 'Monthly', 'Needed'],
                       value: meeting_frequency,
-                      onChanged: (v) => setState(() => meeting_frequency = v),
+                      onChanged: (v) {
+                        setState(() => meeting_frequency = v);
+                        _fetchSuggestions();
+                      },
                     ),
                     _buildDropdown(
                       label: 'Payment Method',
                       items: ['Cash', 'GCash', 'Both'],
                       value: payment_method,
-                      onChanged: (v) => setState(() => payment_method = v),
+                      onChanged: (v) {
+                        setState(() => payment_method = v);
+                        _fetchSuggestions();
+                      },
                     ),
                     _buildDropdown(
                       label: 'Collection Fee',
@@ -760,7 +572,10 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
                         '400 plus',
                       ],
                       value: contribution_amount,
-                      onChanged: (v) => setState(() => contribution_amount = v),
+                      onChanged: (v) {
+                        setState(() => contribution_amount = v);
+                        _fetchSuggestions();
+                      },
                     ),
                     _buildDropdown(
                       label: 'Membership Payment',
@@ -774,7 +589,10 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
                         '400 plus',
                       ],
                       value: membership_payment,
-                      onChanged: (v) => setState(() => membership_payment = v),
+                      onChanged: (v) {
+                        setState(() => membership_payment = v);
+                        _fetchSuggestions();
+                      },
                     ),
                     _buildDropdown(
                       label: 'Penalty Payment',
@@ -788,13 +606,19 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
                         '400 plus',
                       ],
                       value: penalty_payment,
-                      onChanged: (v) => setState(() => penalty_payment = v),
+                      onChanged: (v) {
+                        setState(() => penalty_payment = v);
+                        _fetchSuggestions();
+                      },
                     ),
                     _buildDropdown(
                       label: 'Open for All',
                       items: ['Yes', 'No'],
                       value: openForAll,
-                      onChanged: (v) => setState(() => openForAll = v),
+                      onChanged: (v) {
+                        setState(() => openForAll = v);
+                        _fetchSuggestions();
+                      },
                     ),
                     const SizedBox(height: 8),
                     Align(
@@ -833,6 +657,7 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
                             setState(() {
                               selectedServiceTags[label] = value;
                             });
+                            _fetchSuggestions();
                           },
                           side: const BorderSide(color: kBorderColor),
                           selectedColor: kPrimary.withValues(alpha: 0.16),
@@ -1072,8 +897,23 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
                       final navigator = Navigator.of(context);
                       await _savePreferences();
                       if (!mounted) return;
+                      Widget destination = const RoleRouter();
+                      final user = Supabase.instance.client.auth.currentUser;
+                      if (user != null) {
+                        try {
+                          final profile = await Supabase.instance.client
+                              .from('users')
+                              .select('dayung_unit_id')
+                              .eq('id', user.id)
+                              .maybeSingle();
+                          if (profile?['dayung_unit_id'] == null) {
+                            destination = const DayungSettingsPage();
+                          }
+                        } catch (_) {}
+                      }
+                      if (!mounted) return;
                       navigator.pushReplacement(
-                        MaterialPageRoute(builder: (_) => const RoleRouter()),
+                        MaterialPageRoute(builder: (_) => destination),
                       );
                     },
             ),
@@ -1201,7 +1041,7 @@ class DayungMapPreview extends StatelessWidget {
   EXPLANATION SA DEBUG OUTPUT:
 
   Pananglitan:
-  DEBUG: User Preference Vector len=28: [0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+  DEBUG: User Preference Vector len=37: [preference values, including 9 service-tag positions]
   DEBUG: Unit ID:1 Similarity=0.632 Boost=1.250 Combined=0.791
 
   - Ang "User Preference Vector" nagpakita sa mga gipili sa user nga features (1 = gipili, 0 = wala).

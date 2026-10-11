@@ -4,6 +4,29 @@ import 'package:capstone_app/utils/dayung_similarity.dart';
 
 void main() {
   group('dayung hybrid filtering', () {
+    test('builds the 37-dimension pgvector query in database column order', () {
+      final vector = DayungRecommendationService.preferenceVector(
+        const DayungPreferencesData(
+          meetingFrequency: 'Weekly',
+          contributionAmount: '100-150',
+          paymentMethod: 'Cash',
+          openForAll: true,
+          serviceTags: {'Prayer Support': true},
+        ),
+      );
+
+      expect(vector, hasLength(37));
+      expect(vector[0], 1.0);
+      expect(vector[3], 1.0);
+      expect(vector[7], 1.0);
+      expect(vector[27], 1.0);
+      expect(vector[36], 1.0);
+      expect(
+        DayungRecommendationService.serializePreferenceVector(vector),
+        startsWith('[1.0,0.0,0.0,1.0'),
+      );
+    });
+
     test('matches the sample computation from the description', () {
       final userVector = [0.0, 1.0, 1.0, 1.0, 0.0, 1.0];
       final unitA = [1.0, 1.0, 1.0, 1.0, 1.0, 1.0];

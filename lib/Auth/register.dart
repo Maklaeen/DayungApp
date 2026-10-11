@@ -786,7 +786,28 @@ class _RegisterState extends State<Register> {
       }
 
       _showTopErrorDialog(context, 'Auth error: ${e.message}');
+    } on PostgrestException catch (e) {
+      if (!mounted) return;
+      setState(() => _isSubmitting = false);
+
+      final errorDetails = '${e.message} ${e.details ?? ''} ${e.hint ?? ''}'
+          .toLowerCase();
+      final isDuplicatePhone =
+          e.code == '23505' &&
+          (errorDetails.contains('mobile_number') ||
+              errorDetails.contains('phone_number'));
+
+      if (isDuplicatePhone) {
+        _showTopErrorDialog(
+          context,
+          'This phone number is already in use. Please use a different number.',
+        );
+        return;
+      }
+
+      _showTopErrorDialog(context, 'Error: ${e.message}');
     } catch (e) {
+      if (!mounted) return;
       setState(() => _isSubmitting = false);
 
       if (_looksOffline(e)) {

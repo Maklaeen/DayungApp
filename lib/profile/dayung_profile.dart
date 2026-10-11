@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:capstone_app/Providers/dayung_provider.dart';
 import 'package:capstone_app/Providers/dayung_role_provider.dart';
 import 'package:capstone_app/pages/apply_membership.dart';
+import 'package:capstone_app/Providers/role_router.dart';
 import 'package:capstone_app/screens/dayung_suggestions.dart';
 import 'package:capstone_app/screens/selectdayung.dart';
 import 'package:capstone_app/screens/dayung_map_page.dart';
@@ -46,6 +47,7 @@ class _DayungSettingsPageState extends State<DayungSettingsPage> {
   String? _prefPaymentMethod;
   bool? _prefOpenForAll;
   String? _prefLocation;
+  Map<String, bool> _prefServiceTags = {};
 
   double? _userLat;
   double? _userLng;
@@ -143,6 +145,7 @@ class _DayungSettingsPageState extends State<DayungSettingsPage> {
         _prefPaymentMethod = preferences.paymentMethod;
         _prefOpenForAll = preferences.openForAll;
         _prefLocation = preferences.location;
+        _prefServiceTags = preferences.serviceTags;
         _userLat = preferences.userLat;
         _userLng = preferences.userLng;
         _loadingPrefs = false;
@@ -174,6 +177,7 @@ class _DayungSettingsPageState extends State<DayungSettingsPage> {
         location: _prefLocation,
         userLat: _userLat,
         userLng: _userLng,
+        serviceTags: _prefServiceTags,
       );
       await DayungRecommendationService.savePreferences(
         supabase,
@@ -237,6 +241,7 @@ class _DayungSettingsPageState extends State<DayungSettingsPage> {
         location: _prefLocation,
         userLat: _userLat,
         userLng: _userLng,
+        serviceTags: _prefServiceTags,
       );
       final recommendations =
           await DayungRecommendationService.loadRecommendations(
@@ -668,8 +673,19 @@ class _DayungSettingsPageState extends State<DayungSettingsPage> {
           ? rawDayungUnitId
           : int.tryParse('$rawDayungUnitId');
       if (application == null || dayungUnitId == null) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('No pending application to continue.')),
+        await showDialog<void>(
+          context: context,
+          builder: (dialogContext) => AlertDialog(
+            icon: const Icon(Icons.info_outline_rounded),
+            title: const Text('No Pending Application'),
+            content: const Text('No pending application to continue.'),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(dialogContext).pop(),
+                child: const Text('OK'),
+              ),
+            ],
+          ),
         );
         return;
       }
@@ -849,7 +865,14 @@ class _DayungSettingsPageState extends State<DayungSettingsPage> {
                             borderRadius: BorderRadius.circular(14),
                           ),
                           child: IconButton(
-                            onPressed: () => Navigator.pop(context, true),
+                            onPressed: () {
+                              Navigator.of(context).pushAndRemoveUntil(
+                                MaterialPageRoute(
+                                  builder: (_) => const RoleRouter(),
+                                ),
+                                (route) => false,
+                              );
+                            },
                             icon: const Icon(
                               Icons.arrow_back_ios_new_rounded,
                               color: Colors.white,
