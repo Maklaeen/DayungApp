@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:capstone_app/widgets/record_data_table.dart';
 
 const Color _kPrimary = Color(0xFF0D47A1);
 const Color _kPrimaryDark = Color(0xFF083366);
@@ -17,6 +18,8 @@ class CollectorsManagePage extends StatefulWidget {
 }
 
 class _CollectorsManagePageState extends State<CollectorsManagePage> {
+  static const int _pageSize = 10;
+
   final _sb = Supabase.instance.client;
   bool _loading = true;
   List<Map<String, dynamic>> _collectors = [];
@@ -25,6 +28,8 @@ class _CollectorsManagePageState extends State<CollectorsManagePage> {
   Map<String, String> _collectorIdByUser = {};
   Map<String, String> _collectorNameById = {};
   Map<String, int> _assignedCounts = {};
+  int _collectorPageIndex = 0;
+  int _activeMemberPageIndex = 0;
 
   String _secretaryId = '';
   String _treasurerId = '';
@@ -32,6 +37,30 @@ class _CollectorsManagePageState extends State<CollectorsManagePage> {
   String _secretaryProfileUrl = '';
   String _treasurerName = '';
   String _treasurerProfileUrl = '';
+
+  int _pageCount(int itemCount) =>
+      itemCount == 0 ? 1 : (itemCount / _pageSize).ceil();
+
+  List<Map<String, dynamic>> _page(
+    List<Map<String, dynamic>> items,
+    int pageIndex,
+  ) {
+    final start = pageIndex * _pageSize;
+    if (start >= items.length) return const [];
+    final end = (start + _pageSize).clamp(0, items.length);
+    return items.sublist(start, end);
+  }
+
+  void _changePage(
+    int current,
+    int count,
+    ValueChanged<int> update,
+    int delta,
+  ) {
+    final next = current + delta;
+    if (next < 0 || next >= _pageCount(count)) return;
+    setState(() => update(next));
+  }
 
   @override
   void initState() {
@@ -205,6 +234,8 @@ class _CollectorsManagePageState extends State<CollectorsManagePage> {
           _collectors = collectors;
           _activeMembers = members;
           _assignedCounts = assignedCounts;
+          _collectorPageIndex = 0;
+          _activeMemberPageIndex = 0;
           _loading = false;
         });
       }
@@ -818,7 +849,48 @@ class _CollectorsManagePageState extends State<CollectorsManagePage> {
                                     ),
                                   )
                                 else
-                                  ..._collectors.map((c) => _collectorTile(c)),
+                                  LayoutBuilder(
+                                    builder: (context, constraints) {
+                                      if (constraints.maxWidth < 720) {
+                                        return _collectorMobileRows();
+                                      }
+                                      return RecordDataTable(
+                                        modernStyle: true,
+                                        minWidth: constraints.maxWidth > 620
+                                            ? constraints.maxWidth
+                                            : 620,
+                                        columns: const [
+                                          DataColumn(label: Text('Collector')),
+                                          DataColumn(label: Text('Members')),
+                                          DataColumn(
+                                            label: Text('Phone Number'),
+                                          ),
+                                          DataColumn(label: Text('Action')),
+                                        ],
+                                        rows: _page(
+                                          _collectors,
+                                          _collectorPageIndex,
+                                        ).map(_collectorTile).toList(),
+                                      );
+                                    },
+                                  ),
+                                if (_collectors.length > _pageSize)
+                                  _buildPager(
+                                    itemCount: _collectors.length,
+                                    pageIndex: _collectorPageIndex,
+                                    onPrevious: () => _changePage(
+                                      _collectorPageIndex,
+                                      _collectors.length,
+                                      (page) => _collectorPageIndex = page,
+                                      -1,
+                                    ),
+                                    onNext: () => _changePage(
+                                      _collectorPageIndex,
+                                      _collectors.length,
+                                      (page) => _collectorPageIndex = page,
+                                      1,
+                                    ),
+                                  ),
                               ],
                             ),
                           ),
@@ -886,9 +958,47 @@ class _CollectorsManagePageState extends State<CollectorsManagePage> {
                                   () => _showAssignRoleSheet('treasurer'),
                                 ),
                                 const SizedBox(height: 16),
-                                ..._activeMembers.map(
-                                  (m) => _activeMemberTile(m),
-                                ),
+                                if (_activeMembers.isNotEmpty)
+                                  LayoutBuilder(
+                                    builder: (context, constraints) {
+                                      if (constraints.maxWidth < 720) {
+                                        return _activeMemberMobileRows();
+                                      }
+                                      return RecordDataTable(
+                                        modernStyle: true,
+                                        minWidth: constraints.maxWidth > 480
+                                            ? constraints.maxWidth
+                                            : 480,
+                                        columns: const [
+                                          DataColumn(label: Text('Member')),
+                                          DataColumn(
+                                            label: Text('Assigned Collector'),
+                                          ),
+                                        ],
+                                        rows: _page(
+                                          _activeMembers,
+                                          _activeMemberPageIndex,
+                                        ).map(_activeMemberTile).toList(),
+                                      );
+                                    },
+                                  ),
+                                if (_activeMembers.length > _pageSize)
+                                  _buildPager(
+                                    itemCount: _activeMembers.length,
+                                    pageIndex: _activeMemberPageIndex,
+                                    onPrevious: () => _changePage(
+                                      _activeMemberPageIndex,
+                                      _activeMembers.length,
+                                      (page) => _activeMemberPageIndex = page,
+                                      -1,
+                                    ),
+                                    onNext: () => _changePage(
+                                      _activeMemberPageIndex,
+                                      _activeMembers.length,
+                                      (page) => _activeMemberPageIndex = page,
+                                      1,
+                                    ),
+                                  ),
                               ],
                             ),
                           ),
@@ -915,69 +1025,50 @@ class _CollectorsManagePageState extends State<CollectorsManagePage> {
     );
   }
 
-  Widget _collectorTile(Map<String, dynamic> c) {
-    final name = (c['full_name'] ?? 'Collector').toString();
-    final profileUrl = (c['profile_url'] ?? '').toString();
-    final userId = (c['id'] ?? '').toString();
-    final phone = (c['mobile_number'] ?? '').toString();
+  Widget _collectorMobileRows() {
+    final pageCollectors = _page(_collectors, _collectorPageIndex);
+    return Column(
+      children: [
+        for (var index = 0; index < pageCollectors.length; index++) ...[
+          _collectorMobileRow(pageCollectors[index]),
+          if (index < pageCollectors.length - 1)
+            const Divider(height: 1, indent: 12, endIndent: 12),
+        ],
+      ],
+    );
+  }
 
-    return Container(
-      margin: const EdgeInsets.only(bottom: 10),
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-      decoration: BoxDecoration(
-        color: _kPrimary.withValues(alpha: 0.05),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: _kPrimary.withValues(alpha: 0.15)),
-      ),
+  Widget _collectorMobileRow(Map<String, dynamic> collector) {
+    final name = (collector['full_name'] ?? 'Collector').toString();
+    final userId = (collector['id'] ?? '').toString();
+    final phone = (collector['mobile_number'] ?? '').toString();
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
       child: Row(
         children: [
-          CircleAvatar(
-            radius: 20,
-            backgroundImage: profileUrl.isNotEmpty
-                ? NetworkImage(profileUrl)
-                : null,
-            backgroundColor: _kPrimary.withValues(alpha: 0.15),
-            child: profileUrl.isEmpty
-                ? Text(
-                    name.isNotEmpty ? name[0].toUpperCase() : 'C',
-                    style: const TextStyle(
-                      color: _kPrimary,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  )
-                : null,
-          ),
-          const SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
                   name,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
-                    fontWeight: FontWeight.w700,
-                    fontSize: 14,
                     color: _kNeutralText,
+                    fontWeight: FontWeight.w700,
                     fontFamily: 'Montserrat',
                   ),
                 ),
+                const SizedBox(height: 4),
                 Text(
-                  'Members: ${_assignedCounts[userId] ?? 0}',
+                  '${_assignedCounts[userId] ?? 0} members · ${phone.isEmpty ? 'No phone number' : phone}',
                   style: const TextStyle(
                     fontSize: 12,
                     color: _kSubText,
                     fontFamily: 'OpenSans',
                   ),
                 ),
-                if (phone.isNotEmpty)
-                  Text(
-                    'Phone Number: $phone',
-                    style: const TextStyle(
-                      fontSize: 12,
-                      color: _kSubText,
-                      fontFamily: 'OpenSans',
-                    ),
-                  ),
               ],
             ),
           ),
@@ -991,54 +1082,141 @@ class _CollectorsManagePageState extends State<CollectorsManagePage> {
     );
   }
 
-  Widget _activeMemberTile(Map<String, dynamic> m) {
+  Widget _activeMemberMobileRows() {
+    final pageMembers = _page(_activeMembers, _activeMemberPageIndex);
+    return Column(
+      children: [
+        for (var index = 0; index < pageMembers.length; index++) ...[
+          _activeMemberMobileRow(pageMembers[index]),
+          if (index < pageMembers.length - 1)
+            const Divider(height: 1, indent: 12, endIndent: 12),
+        ],
+      ],
+    );
+  }
+
+  Widget _buildPager({
+    required int itemCount,
+    required int pageIndex,
+    required VoidCallback onPrevious,
+    required VoidCallback onNext,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 8),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          IconButton(
+            onPressed: pageIndex == 0 ? null : onPrevious,
+            icon: const Icon(Icons.arrow_back_ios_new_rounded),
+            color: _kPrimary,
+          ),
+          Text(
+            'Page ${pageIndex + 1} of ${_pageCount(itemCount)}',
+            style: const TextStyle(
+              color: _kNeutralText,
+              fontWeight: FontWeight.w700,
+              fontFamily: 'Montserrat',
+            ),
+          ),
+          IconButton(
+            onPressed: pageIndex >= _pageCount(itemCount) - 1 ? null : onNext,
+            icon: const Icon(Icons.arrow_forward_ios_rounded),
+            color: _kPrimary,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _activeMemberMobileRow(Map<String, dynamic> member) {
+    final name = (member['full_name'] ?? 'Member').toString();
+    final assignedCollectorId = (member['assigned_collector'] ?? '').toString();
+    final assignedCollectorLabel = assignedCollectorId.isNotEmpty
+        ? _collectorNameById[assignedCollectorId] ?? 'Assigned collector'
+        : 'No collector assigned';
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            name,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              color: _kNeutralText,
+              fontWeight: FontWeight.w700,
+              fontFamily: 'Montserrat',
+            ),
+          ),
+          const SizedBox(height: 4),
+          Row(
+            children: [
+              const Icon(Icons.badge_outlined, size: 14, color: _kSubText),
+              const SizedBox(width: 5),
+              const Text(
+                'Assigned collector:',
+                style: TextStyle(
+                  fontSize: 12,
+                  color: _kSubText,
+                  fontFamily: 'OpenSans',
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(width: 5),
+              Expanded(
+                child: Text(
+                  assignedCollectorLabel,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: assignedCollectorId.isEmpty ? _kSubText : _kPrimary,
+                    fontFamily: 'OpenSans',
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  DataRow _collectorTile(Map<String, dynamic> c) {
+    final name = (c['full_name'] ?? 'Collector').toString();
+    final userId = (c['id'] ?? '').toString();
+    final phone = (c['mobile_number'] ?? '').toString();
+
+    return DataRow(
+      cells: [
+        DataCell(Text(name)),
+        DataCell(Text('${_assignedCounts[userId] ?? 0}')),
+        DataCell(Text(phone.isEmpty ? '—' : phone)),
+        DataCell(
+          IconButton(
+            icon: const Icon(Icons.remove_circle_rounded, color: _kDanger),
+            tooltip: 'Remove collector',
+            onPressed: () => _showRemoveConfirm(userId, name),
+          ),
+        ),
+      ],
+    );
+  }
+
+  DataRow _activeMemberTile(Map<String, dynamic> m) {
     final name = (m['full_name'] ?? 'Member').toString();
-    final profileUrl = (m['profile_url'] ?? '').toString();
     final userId = (m['id'] ?? '').toString();
     final assignedCollectorId = (m['assigned_collector'] ?? '').toString();
     final assignedCollectorLabel = assignedCollectorId.isNotEmpty
         ? _collectorNameById[assignedCollectorId] ?? 'Assigned collector'
         : 'No collector assigned';
 
-    return Container(
-      margin: const EdgeInsets.only(bottom: 8),
-      child: ListTile(
-        contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-        leading: CircleAvatar(
-          radius: 18,
-          backgroundImage: profileUrl.isNotEmpty
-              ? NetworkImage(profileUrl)
-              : null,
-          backgroundColor: _kSuccess.withValues(alpha: 0.1),
-          child: profileUrl.isEmpty
-              ? Text(
-                  name.isNotEmpty ? name[0].toUpperCase() : 'M',
-                  style: const TextStyle(
-                    color: _kSuccess,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 12,
-                  ),
-                )
-              : null,
-        ),
-        title: Text(
-          name,
-          style: const TextStyle(
-            fontWeight: FontWeight.w600,
-            fontSize: 13,
-            color: _kNeutralText,
-            fontFamily: 'Montserrat',
-          ),
-        ),
-        subtitle: Text(
-          assignedCollectorLabel,
-          style: const TextStyle(
-            fontSize: 12,
-            color: _kSubText,
-            fontFamily: 'OpenSans',
-          ),
-        ),
-      ),
+    return DataRow(
+      cells: [DataCell(Text(name)), DataCell(Text(assignedCollectorLabel))],
     );
   }
 

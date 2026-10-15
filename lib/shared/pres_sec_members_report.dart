@@ -1,5 +1,6 @@
 import 'package:capstone_app/ui/theme/branding.dart';
 import 'package:capstone_app/utils/theme_surface.dart';
+import 'package:capstone_app/widgets/record_data_table.dart';
 import 'package:flutter/material.dart';
 
 // ---------------------------------------------------------------------------
@@ -196,7 +197,19 @@ class _PresSecMembersReportPageState extends State<PresSecMembersReportPage>
             ),
           ),
           const SizedBox(height: 12),
-          ..._changes.map(_changeCard),
+          Container(
+            decoration: dayungSectionCardDecoration(context),
+            child: RecordDataTable(
+              minWidth: 650,
+              columns: const [
+                DataColumn(label: Text('Member')),
+                DataColumn(label: Text('Change')),
+                DataColumn(label: Text('Date')),
+                DataColumn(label: Text('Note')),
+              ],
+              rows: _changes.map(_changeRow).toList(),
+            ),
+          ),
           const SizedBox(height: 24),
         ],
       ),
@@ -285,91 +298,55 @@ class _PresSecMembersReportPageState extends State<PresSecMembersReportPage>
     );
   }
 
-  Widget _changeCard(_MemberChange change) {
+  DataRow _changeRow(_MemberChange change) {
     final color = _changeColor(change.type);
     final icon = _changeIcon(change.type);
     final label = _changeLabel(change.type);
 
-    return Container(
-      margin: const EdgeInsets.only(bottom: 10),
-      padding: const EdgeInsets.all(14),
-      decoration: dayungSectionCardDecoration(context),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: color.withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: Icon(icon, color: color, size: 18),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        change.memberName,
-                        style: TextStyle(
-                          fontFamily: 'Montserrat',
-                          fontWeight: FontWeight.w700,
-                          fontSize: 16,
-                          color: dayungTextColor(context),
-                        ),
-                      ),
-                    ),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 8,
-                        vertical: 3,
-                      ),
-                      decoration: BoxDecoration(
-                        color: color.withValues(alpha: 0.1),
-                        borderRadius: BorderRadius.circular(6),
-                      ),
-                      child: Text(
-                        label,
-                        style: TextStyle(
-                          fontFamily: 'Montserrat',
-                          fontSize: 13,
-                          fontWeight: FontWeight.w800,
-                          color: color,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  change.date,
-                  style: TextStyle(
-                    fontFamily: 'OpenSans',
-                    fontSize: 14,
-                    color: dayungSubtextColor(context),
-                  ),
-                ),
-                if (change.note != null) ...[
-                  const SizedBox(height: 4),
-                  Text(
-                    change.note!,
-                    style: TextStyle(
-                      fontFamily: 'OpenSans',
-                      fontSize: 14,
-                      color: dayungSubtextColor(context),
-                      fontStyle: FontStyle.italic,
-                    ),
-                  ),
-                ],
-              ],
+    return DataRow(
+      cells: [
+        DataCell(
+          SizedBox(
+            width: 190,
+            child: Text(
+              change.memberName,
+              style: TextStyle(
+                fontFamily: 'Montserrat',
+                fontWeight: FontWeight.w700,
+                color: dayungTextColor(context),
+              ),
             ),
           ),
-        ],
-      ),
+        ),
+        DataCell(
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, color: color, size: 18),
+              const SizedBox(width: 8),
+              Text(
+                label,
+                style: TextStyle(
+                  fontFamily: 'Montserrat',
+                  fontWeight: FontWeight.w800,
+                  color: color,
+                ),
+              ),
+            ],
+          ),
+        ),
+        DataCell(Text(change.date)),
+        DataCell(
+          SizedBox(
+            width: 240,
+            child: Text(
+              change.note ?? '',
+              softWrap: true,
+              style: const TextStyle(fontStyle: FontStyle.italic),
+            ),
+          ),
+        ),
+      ],
     );
   }
 

@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:capstone_app/pages/deathnoticedetail.dart';
 import 'package:capstone_app/ui/loading/page_skeleton.dart';
 import 'package:capstone_app/ui/theme/branding.dart';
+import 'package:capstone_app/widgets/record_data_table.dart';
 import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -50,7 +51,7 @@ class _RecentDeathNoticesState extends State<RecentDeathNotices> {
         final roleProv = context.read<DayungRoleProvider>();
         final unitProv = context.read<DayungUnitProvider>();
         int? fallback = roleProv.unitId ?? unitProv.currentUnitId;
-        if (!mounted) return;
+        if (!mounted || fallback == null) return;
         navigator.pushReplacement(
           MaterialPageRoute(
             builder: (_) => RecentDeathNotices(dayungUnitId: fallback),
@@ -522,38 +523,6 @@ class _RecentDeathNoticesState extends State<RecentDeathNotices> {
                   ],
                 ),
               ),
-              // Tabs
-              Padding(
-                padding: EdgeInsets.symmetric(horizontal: isWide ? 28 : 16),
-                child: DecoratedBox(
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFEFF6FF),
-                    borderRadius: BorderRadius.circular(14),
-                  ),
-                  child: TabBar(
-                    labelColor: kPrimary,
-                    unselectedLabelColor: kSubText,
-                    indicatorColor: kPrimary,
-                    indicatorSize: TabBarIndicatorSize.label,
-                    indicatorWeight: 3,
-                    dividerColor: Colors.transparent,
-                    labelStyle: const TextStyle(
-                      fontFamily: 'Montserrat',
-                      fontSize: 14,
-                      fontWeight: FontWeight.w800,
-                    ),
-                    unselectedLabelStyle: const TextStyle(
-                      fontFamily: 'Montserrat',
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                    ),
-                    tabs: const [
-                      Tab(text: 'Members'),
-                      Tab(text: 'Beneficiaries'),
-                    ],
-                  ),
-                ),
-              ),
               const SizedBox(height: 14),
               // Content
               Expanded(
@@ -572,23 +541,71 @@ class _RecentDeathNoticesState extends State<RecentDeathNotices> {
                       ),
                     ],
                   ),
-                  child: _loading
-                      ? const DayungPageSkeleton(
-                          layout: DayungSkeletonLayout.list,
-                          itemCount: 5,
-                        )
-                      : TabBarView(
-                          children: [
-                            _modernList(context, _members, textScale, isWide),
-                            _modernList(
-                              context,
-                              _beneficiaries,
-                              textScale,
-                              isWide,
-                              isBeneficiaryTab: true,
-                            ),
-                          ],
+                  child: Column(
+                    children: [
+                      Padding(
+                        padding: EdgeInsets.fromLTRB(
+                          isWide ? 28 : 16,
+                          14,
+                          isWide ? 28 : 16,
+                          0,
                         ),
+                        child: DecoratedBox(
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFEFF6FF),
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                          child: TabBar(
+                            labelColor: kPrimary,
+                            unselectedLabelColor: kSubText,
+                            indicatorColor: kPrimary,
+                            indicatorSize: TabBarIndicatorSize.label,
+                            indicatorWeight: 3,
+                            dividerColor: Colors.transparent,
+                            labelStyle: const TextStyle(
+                              fontFamily: 'Montserrat',
+                              fontSize: 14,
+                              fontWeight: FontWeight.w800,
+                            ),
+                            unselectedLabelStyle: const TextStyle(
+                              fontFamily: 'Montserrat',
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                            ),
+                            tabs: const [
+                              Tab(text: 'Members'),
+                              Tab(text: 'Beneficiaries'),
+                            ],
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Expanded(
+                        child: _loading
+                            ? const DayungPageSkeleton(
+                                layout: DayungSkeletonLayout.list,
+                                itemCount: 5,
+                              )
+                            : TabBarView(
+                                children: [
+                                  _modernList(
+                                    context,
+                                    _members,
+                                    textScale,
+                                    isWide,
+                                  ),
+                                  _modernList(
+                                    context,
+                                    _beneficiaries,
+                                    textScale,
+                                    isWide,
+                                    isBeneficiaryTab: true,
+                                  ),
+                                ],
+                              ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ],
@@ -677,172 +694,231 @@ class _RecentDeathNoticesState extends State<RecentDeathNotices> {
         ),
       );
     }
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 30, 20, 20),
-      child: ListView.builder(
-        physics: const BouncingScrollPhysics(),
-        itemCount: items.length,
-        itemBuilder: (context, index) {
-          final notice = items[index];
-          // Show real name for all users, both members and beneficiaries
-          String name = (notice['full_name'] ?? notice['PassedAway'] ?? '')
-              .toString();
-          if (name.trim().isEmpty) name = 'Unknown';
-          final dod = (notice['date_of_death'] ?? '').toString();
-          final barangay =
-              notice['vigil_barangay']?.toString() ??
-              notice['vigil_address']?.toString();
-          final isBeneficiary = notice['deceased_type'] == 'beneficiary';
-
-          return Container(
-            margin: const EdgeInsets.only(bottom: 16),
-            decoration: BoxDecoration(
-              gradient: const LinearGradient(
-                colors: [Color(0xFFFFFFFF), Color(0xFFF8FAFC)],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(
-                color: kBorderColor.withValues(alpha: 0.3),
-                width: 1,
-              ),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.08),
-                  blurRadius: 15,
-                  offset: const Offset(0, 6),
-                ),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        if (constraints.maxWidth < 720) {
+          return ListView.separated(
+            padding: const EdgeInsets.fromLTRB(12, 12, 12, 20),
+            itemCount: items.length,
+            separatorBuilder: (_, _) =>
+                const Divider(height: 1, indent: 12, endIndent: 12),
+            itemBuilder: (context, index) =>
+                _noticeMobileRow(context, items[index]),
+          );
+        }
+        return ListView(
+          padding: const EdgeInsets.fromLTRB(20, 24, 20, 20),
+          children: [
+            RecordDataTable(
+              modernStyle: true,
+              minWidth: constraints.maxWidth > 1000
+                  ? constraints.maxWidth
+                  : 1000,
+              dataRowMinHeight: 88,
+              dataRowMaxHeight: 120,
+              columns: const [
+                DataColumn(label: Text('Name')),
+                DataColumn(label: Text('Type')),
+                DataColumn(label: Text('Date of death')),
+                DataColumn(label: Text('Vigil Details')),
               ],
+              rows: items
+                  .map((notice) => _noticeDataRow(context, notice))
+                  .toList(),
             ),
-            child: Material(
-              color: Colors.transparent,
-              child: InkWell(
-                borderRadius: BorderRadius.circular(20),
-                onTap: () {
-                  showModalBottomSheet(
-                    context: context,
-                    isScrollControlled: true,
-                    backgroundColor: Colors.transparent,
-                    builder: (_) => DeathNoticeDetail.byNoticeId(
-                      noticeId: notice['id']?.toString(),
-                      dayungUnitId: widget.dayungUnitId,
-                      name: name,
-                      date: notice['date_of_death']?.toString(),
-                      barangay:
-                          notice['vigil_barangay']?.toString() ??
-                          notice['vigil_address']?.toString(),
+          ],
+        );
+      },
+    );
+  }
+
+  String _noticeName(Map<String, dynamic> notice) {
+    final name = (notice['full_name'] ?? notice['PassedAway'] ?? '')
+        .toString()
+        .trim();
+    return name.isEmpty ? 'Unknown' : name;
+  }
+
+  String _noticeVigilLocation(Map<String, dynamic> notice) {
+    final location = (notice['vigil_barangay'] ?? notice['vigil_address'] ?? '')
+        .toString()
+        .trim();
+    return location.isEmpty ? '—' : location;
+  }
+
+  void _showNoticeDetails(BuildContext context, Map<String, dynamic> notice) {
+    DeathNoticeDetail.showVigilDetails(
+      context: context,
+      noticeId: notice['id']?.toString(),
+      dayungUnitId: widget.dayungUnitId,
+      name: _noticeName(notice),
+      date: notice['date_of_death']?.toString(),
+      birthDate: notice['dob']?.toString(),
+      latitude: _toDouble(notice['vigil_latitude']),
+      longitude: _toDouble(notice['vigil_longitude']),
+      barangay:
+          notice['vigil_barangay']?.toString() ??
+          notice['vigil_address']?.toString(),
+    );
+  }
+
+  double? _toDouble(dynamic value) {
+    if (value is num) return value.toDouble();
+    return double.tryParse('$value');
+  }
+
+  Widget _noticeMobileRow(BuildContext context, Map<String, dynamic> notice) {
+    final name = _noticeName(notice);
+    final isBeneficiary = notice['deceased_type'] == 'beneficiary';
+    final date = (notice['date_of_death'] ?? '').toString();
+
+    return InkWell(
+      onTap: () => _showNoticeDetails(context, notice),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 14),
+        child: Row(
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    name,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w700,
+                      color: kText,
                     ),
-                  );
-                },
-                child: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Row(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          gradient: const LinearGradient(
-                            colors: [kPrimary, kPrimaryLight],
-                            begin: Alignment.topLeft,
-                            end: Alignment.bottomRight,
-                          ),
-                          borderRadius: BorderRadius.circular(16),
-                          boxShadow: [
-                            BoxShadow(
-                              color: kPrimary.withValues(alpha: 0.3),
-                              blurRadius: 8,
-                              offset: const Offset(0, 4),
-                            ),
-                          ],
-                        ),
-                        child: const Icon(
-                          Icons.person_rounded,
-                          color: Colors.white,
-                          size: 24,
-                        ),
-                      ),
-                      const SizedBox(width: 16),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 8,
-                                vertical: 4,
-                              ),
-                              decoration: BoxDecoration(
-                                color:
-                                    (isBeneficiary
-                                            ? const Color(0xFF7C3AED)
-                                            : kPrimary)
-                                        .withValues(alpha: 0.1),
-                                borderRadius: BorderRadius.circular(999),
-                              ),
-                              child: Text(
-                                isBeneficiary ? 'Beneficiary' : 'Member',
-                                style: TextStyle(
-                                  fontSize: 10,
-                                  fontWeight: FontWeight.w800,
-                                  color: isBeneficiary
-                                      ? const Color(0xFF7C3AED)
-                                      : kPrimary,
-                                  fontFamily: 'OpenSans',
-                                ),
-                              ),
-                            ),
-                            const SizedBox(height: 7),
-                            Text(
-                              name,
-                              maxLines: 2,
-                              overflow: TextOverflow.ellipsis,
-                              style: TextStyle(
-                                fontSize: isWide ? 18 : 16,
-                                fontWeight: FontWeight.w700,
-                                color: kText,
-                                fontFamily: 'Montserrat',
-                              ),
-                            ),
-                            const SizedBox(height: 4),
-                            Text(
-                              [
-                                if (dod.isNotEmpty) dod,
-                                if (barangay != null && barangay.isNotEmpty)
-                                  barangay,
-                              ].join(' • '),
-                              maxLines: 2,
-                              overflow: TextOverflow.ellipsis,
-                              style: TextStyle(
-                                fontSize: isWide ? 14 : 12,
-                                color: kSubText,
-                                fontFamily: 'OpenSans',
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      Container(
-                        padding: const EdgeInsets.all(8),
-                        decoration: BoxDecoration(
-                          color: kSubText.withValues(alpha: 0.1),
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Icon(
-                          Icons.chevron_right_rounded,
-                          size: 16,
-                          color: kSubText,
-                        ),
-                      ),
-                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    isBeneficiary ? 'Beneficiary' : 'Member',
+                    style: const TextStyle(
+                      fontSize: 12,
+                      color: kSubText,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  _noticeMobileDetail(
+                    'Date of death',
+                    date.isEmpty ? '—' : date,
+                  ),
+                  const SizedBox(height: 4),
+                  _vigilDetailsMobile(context, notice),
+                ],
+              ),
+            ),
+            const SizedBox(width: 8),
+            const Icon(Icons.chevron_right_rounded, color: kSubText),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _noticeMobileDetail(String label, String value) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SizedBox(
+          width: 105,
+          child: Text(
+            label,
+            style: const TextStyle(fontSize: 12, color: kSubText),
+          ),
+        ),
+        Expanded(
+          child: Text(
+            value,
+            style: const TextStyle(fontSize: 12, color: kText),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _vigilDetailsMobile(
+    BuildContext context,
+    Map<String, dynamic> notice,
+  ) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _noticeMobileDetail('Location', _noticeVigilLocation(notice)),
+        const SizedBox(height: 8),
+        OutlinedButton.icon(
+          onPressed: () => _showNoticeDetails(context, notice),
+          icon: const Icon(Icons.map_outlined, size: 18),
+          label: const Text('View Vigil Details'),
+          style: OutlinedButton.styleFrom(
+            foregroundColor: kPrimary,
+            side: const BorderSide(color: kPrimaryLight),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            visualDensity: VisualDensity.compact,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _vigilDetailsTableCell(
+    BuildContext context,
+    Map<String, dynamic> notice,
+  ) {
+    return SizedBox(
+      width: 300,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Icon(Icons.location_on_outlined, size: 18, color: kPrimary),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(
+                  _noticeVigilLocation(notice),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: kText,
+                    fontWeight: FontWeight.w600,
                   ),
                 ),
               ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          OutlinedButton.icon(
+            onPressed: () => _showNoticeDetails(context, notice),
+            icon: const Icon(Icons.map_outlined, size: 17),
+            label: const Text('View Vigil Details'),
+            style: OutlinedButton.styleFrom(
+              foregroundColor: kPrimary,
+              side: const BorderSide(color: kPrimaryLight),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              visualDensity: VisualDensity.compact,
             ),
-          );
-        },
+          ),
+        ],
       ),
+    );
+  }
+
+  DataRow _noticeDataRow(BuildContext context, Map<String, dynamic> notice) {
+    final isBeneficiary = notice['deceased_type'] == 'beneficiary';
+    final date = (notice['date_of_death'] ?? '').toString();
+    return DataRow(
+      onSelectChanged: (_) => _showNoticeDetails(context, notice),
+      cells: [
+        DataCell(Text(_noticeName(notice))),
+        DataCell(Text(isBeneficiary ? 'Beneficiary' : 'Member')),
+        DataCell(Text(date.isEmpty ? '—' : date)),
+        DataCell(_vigilDetailsTableCell(context, notice)),
+      ],
     );
   }
 }

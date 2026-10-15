@@ -1,5 +1,6 @@
 import 'package:capstone_app/SuperAdmin/superadmin_support.dart';
 import 'package:flutter/material.dart';
+import 'package:capstone_app/widgets/record_data_table.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:latlong2/latlong.dart' as ll;
@@ -198,7 +199,15 @@ class _SuperAdminOrganizationPageState
                         );
                         return Column(
                           children: [
-                            ...pageUnits.map((unit) {
+                            RecordDataTable(
+                              minWidth: 800,
+                              columns: const [
+                                DataColumn(label: Text('Organization')),
+                                DataColumn(label: Text('Location')),
+                                DataColumn(label: Text('Coordinates')),
+                                DataColumn(label: Text('Applications')),
+                              ],
+                              rows: pageUnits.map((unit) {
                               final location =
                                   [
                                         unit['barangay'],
@@ -212,28 +221,25 @@ class _SuperAdminOrganizationPageState
                                       .join(', ');
                               final coordinates =
                                   '${unit['latitude'] ?? '-'}, ${unit['longitude'] ?? '-'}';
-                              return Card(
-                                margin: const EdgeInsets.only(bottom: 10),
-                                child: ListTile(
-                                  leading: const Icon(
-                                    Icons.account_balance_rounded,
-                                    color: kSuperAdminPrimary,
-                                  ),
-                                  title: Text(
-                                    unit['name']?.toString() ?? 'Unnamed unit',
-                                    style: const TextStyle(
-                                      fontWeight: FontWeight.w700,
-                                    ),
-                                  ),
-                                  subtitle: Text(
-                                    '${location.isEmpty ? 'Location not set' : location}\nCoordinates: $coordinates',
-                                  ),
-                                  onTap: () => _showUnitApplications(
-                                    (unit['id'] ?? '').toString(),
-                                  ),
+                              return DataRow(
+                                onSelectChanged: (_) => _showUnitApplications(
+                                  (unit['id'] ?? '').toString(),
                                 ),
+                                cells: [
+                                  DataCell(Text(
+                                    unit['name']?.toString() ?? 'Unnamed unit',
+                                  )),
+                                  DataCell(Text(
+                                    location.isEmpty ? 'Location not set' : location,
+                                  )),
+                                  DataCell(Text(coordinates)),
+                                  const DataCell(
+                                    Icon(Icons.chevron_right_rounded),
+                                  ),
+                                ],
                               );
-                            }),
+                              }).toList(),
+                            ),
                             if (pageCount > 1) ...[
                               const SizedBox(height: 4),
                               Row(

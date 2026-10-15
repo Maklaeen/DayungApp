@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:capstone_app/shared/president_secretary_member_reports.dart';
+import 'package:capstone_app/widgets/record_data_table.dart';
 
 const Color kBg = Color(0xFFFAFAF7);
 const Color kPrimary = Color(0xFF0D47A1);
@@ -30,8 +31,6 @@ String _initialOf(dynamic name) {
 
 class _SecretaryMembersPageState extends State<SecretaryMembersPage>
     with SingleTickerProviderStateMixin {
-  static const double _kTablet = 700;
-  static const double _kDesktop = 1100;
   static const double _kMaxContentWidth = 1000;
 
   final _sb = Supabase.instance.client;
@@ -431,7 +430,7 @@ class _SecretaryMembersPageState extends State<SecretaryMembersPage>
                         ),
                       )
                     : LayoutBuilder(
-                        builder: (context, constraints) {
+                        builder: (context, _) {
                           return Column(
                             children: [
                               Expanded(
@@ -446,17 +445,14 @@ class _SecretaryMembersPageState extends State<SecretaryMembersPage>
                                         _memberList(
                                           _approved,
                                           mode: 'active',
-                                          constraints: constraints,
                                         ),
                                         _memberList(
                                           _pending,
                                           mode: 'pending',
-                                          constraints: constraints,
                                         ),
                                         _memberList(
                                           _deceased,
                                           mode: 'deceased',
-                                          constraints: constraints,
                                         ),
                                       ],
                                     ),
@@ -478,7 +474,6 @@ class _SecretaryMembersPageState extends State<SecretaryMembersPage>
   Widget _memberList(
     List<Map<String, dynamic>> list, {
     String mode = 'active',
-    required BoxConstraints constraints,
   }) {
     List<Map<String, dynamic>> filtered = list;
     if (_searchQuery.isNotEmpty) {
@@ -504,39 +499,27 @@ class _SecretaryMembersPageState extends State<SecretaryMembersPage>
       );
     }
 
-    final width = constraints.maxWidth;
-    final useGrid = width >= _kTablet;
-    final crossAxisCount = width >= _kDesktop ? 3 : 2;
-
-    if (!useGrid) {
-      return RefreshIndicator(
-        onRefresh: _refresh,
-        child: ListView.builder(
-          physics: const AlwaysScrollableScrollPhysics(),
-          itemCount: filtered.length,
-          itemBuilder: (_, i) => _memberTileCard(filtered[i], mode: mode),
-        ),
-      );
-    }
-
     return RefreshIndicator(
       onRefresh: _refresh,
-      child: GridView.builder(
+      child: ListView(
         physics: const AlwaysScrollableScrollPhysics(),
         padding: const EdgeInsets.all(12),
-        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-          crossAxisCount: crossAxisCount,
-          mainAxisSpacing: 12,
-          crossAxisSpacing: 12,
-          childAspectRatio: 2.9,
-        ),
-        itemCount: filtered.length,
-        itemBuilder: (_, i) => _memberTileCard(filtered[i], mode: mode),
+        children: [
+          RecordDataTable(
+            minWidth: 720,
+            columns: const [
+              DataColumn(label: Text('Member')),
+              DataColumn(label: Text('Dayung')),
+              DataColumn(label: Text('Status')),
+            ],
+            rows: filtered.map((row) => _memberDataRow(row, mode: mode)).toList(),
+          ),
+        ],
       ),
     );
   }
 
-  Widget _memberTileCard(Map<String, dynamic> r, {required String mode}) {
+  DataRow _memberDataRow(Map<String, dynamic> r, {required String mode}) {
     final u = r['user'] as Map<String, dynamic>?;
     final profileUrl = (u?['profile_url'] as String?)?.trim();
     final dayungId = r['dayung_unit_id'] as int?;
@@ -562,82 +545,79 @@ class _SecretaryMembersPageState extends State<SecretaryMembersPage>
     final title = (u?['full_name'] as String?)?.trim().isNotEmpty == true
         ? (u?['full_name'] as String).trim()
         : 'Member';
+    final onTap = mode == 'active'
+        ? () {
+            final uuid = (u?['id'] as String?)?.trim().isNotEmpty == true
+                ? (u?['id'] as String).trim()
+                : r['user_id']?.toString().trim();
+            _showBeneficiariesModal(context, uuid, u?['full_name']);
+          }
+        : null;
 
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        border: Border(
-          bottom: BorderSide(color: Colors.grey.shade200, width: 0.5),
-        ),
-      ),
-      child: ListTile(
-        contentPadding: const EdgeInsets.symmetric(
-          horizontal: 16,
-          vertical: 10,
-        ),
-        leading: CircleAvatar(
-          backgroundImage: (profileUrl != null && profileUrl.isNotEmpty)
-              ? NetworkImage(profileUrl)
-              : null,
-          backgroundColor: kBg,
-          radius: 22,
-          child: (profileUrl == null || profileUrl.isEmpty)
-              ? Text(
-                  _initialOf(u?['full_name']),
+    return DataRow(
+      cells: [
+        DataCell(
+          Row(
+            children: [
+              CircleAvatar(
+                backgroundImage: profileUrl != null && profileUrl.isNotEmpty
+                    ? NetworkImage(profileUrl)
+                    : null,
+                backgroundColor: kBg,
+                radius: 18,
+                child: profileUrl == null || profileUrl.isEmpty
+                    ? Text(
+                        _initialOf(u?['full_name']),
+                        style: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 13,
+                          color: kPrimaryDark,
+                        ),
+                      )
+                    : null,
+              ),
+              const SizedBox(width: 12),
+              Flexible(
+                child: Text(
+                  title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 15,
+                    fontWeight: FontWeight.w600,
+                    fontSize: 14,
                     color: kPrimaryDark,
+                    fontFamily: 'Montserrat',
                   ),
-                )
-              : null,
-        ),
-        title: Text(
-          title,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: const TextStyle(
-            fontWeight: FontWeight.w600,
-            fontSize: 16,
-            color: kPrimaryDark,
-            fontFamily: 'Montserrat',
+                ),
+              ),
+            ],
           ),
+          onTap: onTap,
         ),
-        subtitle: Text(
-          dayungName,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: const TextStyle(
-            fontSize: 14,
-            color: kSubtleText,
-            fontFamily: 'OpenSans',
-          ),
+        DataCell(
+          Text(dayungName, maxLines: 1, overflow: TextOverflow.ellipsis),
+          onTap: onTap,
         ),
-        trailing: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
-          decoration: BoxDecoration(
-            color: chipColor.withValues(alpha: .15),
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: chipColor),
-          ),
-          child: Text(
-            chipText,
-            style: TextStyle(
-              fontSize: 13,
-              fontWeight: FontWeight.w600,
-              color: chipColor,
+        DataCell(
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            decoration: BoxDecoration(
+              color: chipColor.withValues(alpha: .15),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: chipColor),
+            ),
+            child: Text(
+              chipText,
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: chipColor,
+              ),
             ),
           ),
+          onTap: onTap,
         ),
-        onTap: mode == 'active'
-            ? () {
-                final uuid = (u?['id'] as String?)?.trim().isNotEmpty == true
-                    ? (u?['id'] as String).trim()
-                    : (r['user_id']?.toString().trim());
-                _showBeneficiariesModal(context, uuid, u?['full_name']);
-              }
-            : null,
-      ),
+      ],
     );
   }
 }

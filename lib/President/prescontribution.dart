@@ -1,4 +1,5 @@
 import 'package:capstone_app/utils/theme_surface.dart';
+import 'package:capstone_app/widgets/record_data_table.dart';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -394,164 +395,63 @@ class _PresidentContributionsPageState
                             padding: const EdgeInsets.all(16),
                             child: RefreshIndicator(
                               onRefresh: _fetchContributions,
-                              child: ListView.separated(
-                                itemCount: _payments.length,
-                                separatorBuilder: (_, __) =>
-                                    const SizedBox(height: 8),
-                                itemBuilder: (context, index) {
-                                  final payment = _payments[index];
-                                  final userDeceasedId =
-                                      (payment['userdeceased'] ?? '')
-                                          .toString();
-                                  final userDeceased =
-                                      (payment['deceased_name']
+                              child: ListView(
+                                physics: const AlwaysScrollableScrollPhysics(),
+                                children: [
+                                  RecordDataTable(
+                                    minWidth: 620,
+                                    columns: const [
+                                      DataColumn(label: Text('Contribution')),
+                                      DataColumn(label: Text('Amount')),
+                                      DataColumn(label: Text('Status')),
+                                      DataColumn(label: Text('Paid')),
+                                    ],
+                                    rows: _payments.map((payment) {
+                                      final userDeceasedId =
+                                          (payment['userdeceased'] ?? '')
+                                              .toString();
+                                      final userDeceased =
+                                          (payment['deceased_name']
+                                                      ?.toString()
+                                                      .isNotEmpty ==
+                                                  true)
+                                              ? payment['deceased_name']
+                                                    .toString()
+                                              : (userDeceasedId.isNotEmpty
+                                                    ? _users[userDeceasedId] ??
+                                                          userDeceasedId
+                                                    : 'Membership Payment');
+                                      final paidAtStr = _fmtDateTime(
+                                        payment['paid_at'],
+                                      );
+                                      final paid =
+                                          payment['status']
                                               ?.toString()
-                                              .isNotEmpty ==
-                                          true)
-                                      ? payment['deceased_name'].toString()
-                                      : (userDeceasedId.isNotEmpty
-                                            ? _users[userDeceasedId] ??
-                                                  userDeceasedId
-                                            : 'Membership Payment');
-                                  final paidAtStr = _fmtDateTime(
-                                    payment['paid_at'],
-                                  );
-                                  final paid =
-                                      (payment['status']
-                                          ?.toString()
-                                          .toLowerCase() ==
-                                      'paid');
-
-                                  return Container(
-                                    padding: const EdgeInsets.all(8),
-                                    decoration: BoxDecoration(
-                                      color: kCardBg,
-                                      borderRadius: BorderRadius.circular(12),
-                                      border: Border.all(
-                                        color: kBorderColor,
-                                        width: 1,
-                                      ),
-                                      boxShadow: [
-                                        BoxShadow(
-                                          color: Colors.black.withValues(
-                                            alpha: 0.03,
-                                          ),
-                                          blurRadius: 8,
-                                          offset: const Offset(0, 2),
-                                        ),
-                                      ],
-                                    ),
-                                    child: Column(
-                                      children: [
-                                        Row(
-                                          children: [
-                                            Container(
-                                              padding: const EdgeInsets.all(8),
-                                              decoration: BoxDecoration(
-                                                color: paid
-                                                    ? kPaid.withValues(
-                                                        alpha: 0.1,
-                                                      )
-                                                    : kPending.withValues(
-                                                        alpha: 0.1,
-                                                      ),
-                                                borderRadius:
-                                                    BorderRadius.circular(10),
-                                              ),
-                                              child: Icon(
-                                                paid
-                                                    ? Icons.check_circle_rounded
-                                                    : Icons.schedule_rounded,
-                                                color: paid ? kPaid : kPending,
-                                                size: 18,
-                                              ),
-                                            ),
-                                            const SizedBox(width: 12),
-                                            Expanded(
-                                              child: Column(
-                                                crossAxisAlignment:
-                                                    CrossAxisAlignment.start,
-                                                children: [
-                                                  Text(
-                                                    userDeceased,
-                                                    style: const TextStyle(
-                                                      fontSize: 14,
-                                                      fontWeight:
-                                                          FontWeight.w700,
-                                                      color: kText,
-                                                      fontFamily: 'Montserrat',
-                                                    ),
-                                                  ),
-                                                ],
-                                              ),
-                                            ),
-                                            Container(
-                                              padding:
-                                                  const EdgeInsets.symmetric(
-                                                    horizontal: 8,
-                                                    vertical: 4,
-                                                  ),
-                                              decoration: BoxDecoration(
-                                                color: paid
-                                                    ? kPaid.withValues(
-                                                        alpha: 0.1,
-                                                      )
-                                                    : kPending.withValues(
-                                                        alpha: 0.1,
-                                                      ),
-                                                borderRadius:
-                                                    BorderRadius.circular(8),
-                                                border: Border.all(
-                                                  color: paid
-                                                      ? kPaid
-                                                      : kPending,
-                                                  width: 1,
-                                                ),
-                                              ),
-                                              child: Text(
-                                                paid ? 'PAID' : 'PENDING',
-                                                style: TextStyle(
-                                                  color: paid
-                                                      ? kPaid
-                                                      : kPending,
-                                                  fontWeight: FontWeight.w700,
-                                                  fontSize: 10,
-                                                  letterSpacing: 0.5,
-                                                  fontFamily: 'Montserrat',
-                                                ),
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                        const SizedBox(height: 8),
-                                        Row(
-                                          mainAxisAlignment:
-                                              MainAxisAlignment.spaceBetween,
-                                          children: [
+                                              .toLowerCase() ==
+                                          'paid';
+                                      return DataRow(
+                                        cells: [
+                                          DataCell(Text(userDeceased)),
+                                          DataCell(
                                             Text(
-                                              'Amount: ₱${_formatAmount(payment['amount'])}',
-                                              style: TextStyle(
-                                                fontSize: 11,
-                                                color: paid ? kPaid : kPending,
-                                                fontWeight: FontWeight.w700,
-                                                fontFamily: 'Montserrat',
-                                              ),
+                                              '₱${_formatAmount(payment['amount'])}',
                                             ),
-                                            if (paidAtStr.isNotEmpty)
-                                              Text(
-                                                'Paid: $paidAtStr',
-                                                style: const TextStyle(
-                                                  fontSize: 10,
-                                                  color: kSubText,
-                                                  fontFamily: 'OpenSans',
-                                                ),
-                                              ),
-                                          ],
-                                        ),
-                                      ],
-                                    ),
-                                  );
-                                },
+                                          ),
+                                          DataCell(
+                                            Text(paid ? 'PAID' : 'PENDING'),
+                                          ),
+                                          DataCell(
+                                            Text(
+                                              paidAtStr.isEmpty
+                                                  ? '—'
+                                                  : paidAtStr,
+                                            ),
+                                          ),
+                                        ],
+                                      );
+                                    }).toList(),
+                                  ),
+                                ],
                               ),
                             ),
                           )),

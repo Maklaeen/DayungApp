@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:capstone_app/widgets/record_data_table.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 const kBg = Color(0xFFFAFAF7);
@@ -1128,7 +1129,47 @@ class _CollectCashPageState extends State<CollectCashPage> {
               'Claims must be approved before collectors can record cash payments here.',
         )
       else
-        ...approvedClaims.map(_claimCard),
+        RecordDataTable(
+          minWidth: 720,
+          columns: const [
+            DataColumn(label: Text('Claim')),
+            DataColumn(label: Text('Amount')),
+            DataColumn(label: Text('Status')),
+          ],
+          rows: approvedClaims.map((claim) {
+            final beneficiaryId = (claim['beneficiary_id'] ?? '').toString();
+            final userId = (claim['user_id'] ?? '').toString();
+            final key = beneficiaryId.isNotEmpty
+                ? 'beneficiary:$beneficiaryId'
+                : 'user:$userId';
+            final option = _deceasedOptions.firstWhere(
+              (item) => (item['key'] ?? '').toString() == key,
+              orElse: () => <String, dynamic>{},
+            );
+            final displayName =
+                (option['display_name'] ??
+                        (beneficiaryId.isNotEmpty
+                            ? 'Beneficiary'
+                            : _memberName(userId)))
+                    .toString();
+            final claimed = _isClaimedMoney(claim['claimedmoney']);
+            return DataRow(
+              onSelectChanged: (_) {
+                setState(() {
+                  _selectedDeceased = _selectionForClaim(claim);
+                  _memberSearch = '';
+                });
+              },
+              cells: [
+                DataCell(Text(displayName)),
+                DataCell(Text(
+                  'PHP ${_asDouble(claim['amount']).toStringAsFixed(2)}',
+                )),
+                DataCell(Text(claimed ? 'Claimed money' : 'Unclaimed')),
+              ],
+            );
+          }).toList(),
+        ),
     ];
   }
 
@@ -1295,7 +1336,49 @@ class _CollectCashPageState extends State<CollectCashPage> {
               'Try a different search term or go back and choose another notice.',
         )
       else
-        ..._filteredMembers.map(_memberCard),
+        RecordDataTable(
+          minWidth: 850,
+          columns: const [
+            DataColumn(label: Text('Member')),
+            DataColumn(label: Text('Amount')),
+            DataColumn(label: Text('Status')),
+            DataColumn(label: Text('Paid date')),
+            DataColumn(label: Text('Action')),
+          ],
+          rows: _filteredMembers.map((member) {
+            final memberId = (member['id'] ?? '').toString();
+            final payment = _paymentForMember(memberId);
+            final isPaid =
+                (payment?['status'] ?? '').toString().toLowerCase() == 'paid';
+            final isCurrentUser = _currentUserId == memberId;
+            final amount = isPaid
+                ? _asDouble(payment?['amount'])
+                : _asDouble(_selectedDeceased?['amount']);
+            final paidAt = (payment?['paid_at'] ?? '').toString();
+            return DataRow(cells: [
+              DataCell(Text((member['full_name'] ?? 'Member').toString())),
+              DataCell(Text('PHP ${amount.toStringAsFixed(2)}')),
+              DataCell(Text(isPaid ? 'Paid' : 'Pending')),
+              DataCell(Text(
+                paidAt.isEmpty ? '—' : paidAt.split('T').first,
+              )),
+              DataCell(
+                isCurrentUser
+                    ? const Text('Cannot collect for yourself')
+                    : ElevatedButton.icon(
+                        onPressed:
+                            isPaid ? null : () => _showCollectDialog(member),
+                        icon: Icon(
+                          isPaid
+                              ? Icons.check_circle_rounded
+                              : Icons.payments_rounded,
+                        ),
+                        label: Text(isPaid ? 'Paid' : 'Collect cash'),
+                      ),
+              ),
+            ]);
+          }).toList(),
+        ),
     ];
   }
 

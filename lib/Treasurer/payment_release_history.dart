@@ -1,4 +1,5 @@
 import 'package:capstone_app/utils/theme_surface.dart';
+import 'package:capstone_app/widgets/record_data_table.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -327,38 +328,51 @@ class _PaymentReleaseHistoryPageState extends State<PaymentReleaseHistoryPage> {
                         ),
                       )
                     else
-                      ..._visibleReleases.map(
-                        (release) => Card(
-                          margin: const EdgeInsets.only(bottom: 10),
-                          elevation: 0,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(14),
-                            side: BorderSide(color: dayungBorder(context)),
-                          ),
-                          child: ListTile(
-                            leading: const CircleAvatar(
-                              backgroundColor: Color(0xFFE6FFFA),
-                              child: Icon(
-                                Icons.check_rounded,
-                                color: Color(0xFF0D9488),
+                      RecordDataTable(
+                        minWidth: 620,
+                        columns: const [
+                          DataColumn(label: Text('Deceased')),
+                          DataColumn(label: Text('Release date')),
+                          DataColumn(label: Text('Amount')),
+                        ],
+                        rows: _visibleReleases.map((release) {
+                          return DataRow(
+                            cells: [
+                              DataCell(
+                                Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    const Icon(
+                                      Icons.check_circle_rounded,
+                                      color: Color(0xFF0D9488),
+                                    ),
+                                    const SizedBox(width: 10),
+                                    Flexible(
+                                      child: Text(
+                                        '${release['deceased_name']}',
+                                        style: const TextStyle(
+                                          fontWeight: FontWeight.w700,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
                               ),
-                            ),
-                            title: Text(
-                              '${release['deceased_name']}',
-                              style: const TextStyle(
-                                fontWeight: FontWeight.w700,
+                              DataCell(Text(_formatDate(release['date']))),
+                              DataCell(
+                                Text(
+                                  _formatCurrency(
+                                    release['amount'] as double,
+                                  ),
+                                  style: const TextStyle(
+                                    color: Color(0xFF0D9488),
+                                    fontWeight: FontWeight.w800,
+                                  ),
+                                ),
                               ),
-                            ),
-                            subtitle: Text(_formatDate(release['date'])),
-                            trailing: Text(
-                              _formatCurrency(release['amount'] as double),
-                              style: const TextStyle(
-                                color: Color(0xFF0D9488),
-                                fontWeight: FontWeight.w800,
-                              ),
-                            ),
-                          ),
-                        ),
+                            ],
+                          );
+                        }).toList(),
                       ),
                   ],
                 ),

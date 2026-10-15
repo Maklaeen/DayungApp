@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-// Clipboard copy removed; no services import needed
+import 'package:capstone_app/widgets/record_data_table.dart';
+import 'package:intl/intl.dart';
 
 const Color _kPrimary = Color(0xFF0D47A1);
-const Color _kPrimaryDark = Color(0xFF083366);
 const Color _kNeutralText = Color(0xFF1F2937);
 const Color _kSubText = Color(0xFF4B5563);
 const Color _kSuccess = Color(0xFF10B981);
@@ -25,6 +25,11 @@ class _ActiveMembersPageState extends State<ActiveMembersPage> {
   String? _error;
   List<Map<String, dynamic>> _members = [];
   String _search = '';
+  String _membershipFilter = 'Active';
+  String _dateFilterMode = 'Year';
+  int? _selectedJoinYear;
+  int? _selectedJoinMonth;
+  DateTime? _selectedJoinDate;
   int _pageIndex = 0;
   int? _membersPerGroup;
   List<List<Map<String, dynamic>>> _serviceGroups = [];
@@ -78,6 +83,59 @@ class _ActiveMembersPageState extends State<ActiveMembersPage> {
         }
       }
 
+      final applicationRows = await _sb
+          .from('applications')
+          .select(
+            'id, user_id, approved_at, updated_at, isRemovedInDayung, '
+            'user:users(id, full_name, profile_url, email)',
+          )
+          .eq('dayung_unit_id', widget.dayungUnitId)
+          .eq('status', 'approved');
+      final applicationsByUser = <String, Map<String, dynamic>>{
+        for (final application in List<Map<String, dynamic>>.from(
+          applicationRows,
+        ))
+          if ((application['user_id'] ?? '').toString().trim().isNotEmpty)
+            (application['user_id'] ?? '').toString().trim(): application,
+      };
+
+      for (final entry in uniqueMembers.entries.toList()) {
+        final application = applicationsByUser[entry.key];
+        final member = entry.value;
+        final isInactive =
+            application != null && application['isRemovedInDayung'] == true;
+        final membershipEndedAt =
+            application != null && application['isRemovedInDayung'] == true
+            ? application['updated_at']
+            : null;
+        final joinedAt =
+            application?['approved_at'] ??
+            member['paid_at'] ??
+            member['created_at'];
+        uniqueMembers[entry.key] = {
+          ...member,
+          'membership_status': isInactive ? 'Inactive' : 'Active',
+          'membership_joined_at': joinedAt,
+          'membership_ended_at': membershipEndedAt,
+        };
+      }
+
+      for (final application in applicationsByUser.values) {
+        if (application['isRemovedInDayung'] != true) continue;
+        final userId = (application['user_id'] ?? '').toString().trim();
+        if (userId.isEmpty || uniqueMembers.containsKey(userId)) continue;
+        uniqueMembers[userId] = {
+          ...application,
+          'user_id': userId,
+          'paid_at': null,
+          'created_at': application['approved_at'],
+          'type': 'membership_payment',
+          'membership_status': 'Inactive',
+          'membership_joined_at': application['approved_at'],
+          'membership_ended_at': application['updated_at'],
+        };
+      }
+
       final unitRow = await _sb
           .from('dayung_units')
           .select('president_id, secretary_id, treasurer_id')
@@ -112,6 +170,9 @@ class _ActiveMembersPageState extends State<ActiveMembersPage> {
               'created_at': null,
               'status': 'officer',
               'type': 'membership_payment',
+              'membership_status': 'Active',
+              'membership_joined_at': null,
+              'membership_ended_at': null,
               'user': userRow,
             };
           }
@@ -156,14 +217,330 @@ class _ActiveMembersPageState extends State<ActiveMembersPage> {
   }
 
   List<Map<String, dynamic>> get _filtered {
-    if (_search.isEmpty) return _members;
     final q = _search.toLowerCase();
     return _members.where((r) {
       final u = r['user'] as Map?;
       final name = (u?['full_name'] ?? '').toString().toLowerCase();
       final userId = (r['user_id'] ?? '').toString().toLowerCase();
-      return name.contains(q) || userId.contains(q);
+      if (_membershipFilter != 'All' &&
+          (r['membership_status'] ?? 'Active') != _membershipFilter) {
+        return false;
+      }
+      if (_search.isNotEmpty && !name.contains(q) && !userId.contains(q)) {
+        return false;
+      }
+
+      final joined = _joinedDate(r);
+      if (_dateFilterMode == 'Year' &&
+          _selectedJoinYear != null &&
+          joined?.year != _selectedJoinYear) {
+        return false;
+      }
+      if (_dateFilterMode == 'Month' &&
+          _selectedJoinMonth != null &&
+          (joined?.month != _selectedJoinMonth ||
+              (_selectedJoinYear != null &&
+                  joined?.year != _selectedJoinYear))) {
+        return false;
+      }
+      if (_dateFilterMode == 'Date' && _selectedJoinDate != null) {
+        if (joined == null ||
+            joined.year != _selectedJoinDate!.year ||
+            joined.month != _selectedJoinDate!.month ||
+            joined.day != _selectedJoinDate!.day) {
+          return false;
+        }
+      }
+      return true;
     }).toList();
+  }
+
+  int get _activeMemberCount => _members
+      .where((member) => (member['membership_status'] ?? 'Active') == 'Active')
+      .length;
+
+  DateTime? _joinedDate(Map<String, dynamic> member) {
+    return DateTime.tryParse(
+      (member['membership_joined_at'] ??
+              member['paid_at'] ??
+              member['created_at'] ??
+              '')
+          .toString(),
+    )?.toLocal();
+  }
+
+  List<int> get _availableJoinYears {
+    return _members
+        .map(_joinedDate)
+        .whereType<DateTime>()
+        .map((date) => date.year)
+        .toSet()
+        .toList()
+      ..sort((a, b) => b.compareTo(a));
+  }
+
+  void _setDateMode(String mode) {
+    setState(() {
+      _dateFilterMode = mode;
+      if (mode != 'Month') _selectedJoinMonth = null;
+      if (mode != 'Date') _selectedJoinDate = null;
+      _pageIndex = 0;
+    });
+  }
+
+  Future<void> _chooseJoinedDate() async {
+    final now = DateTime.now();
+    final initialDate =
+        _selectedJoinDate ?? DateTime(now.year, now.month, now.day);
+    final date = await showDatePicker(
+      context: context,
+      initialDate: initialDate,
+      firstDate: DateTime(1990),
+      lastDate: DateTime(now.year + 1),
+      helpText: 'Select membership join date',
+    );
+    if (!mounted || date == null) return;
+    setState(() {
+      _selectedJoinDate = date;
+      _pageIndex = 0;
+    });
+  }
+
+  Widget _buildMemberFilters() {
+    final years = _availableJoinYears;
+    final inactiveCount = _members.length - _activeMemberCount;
+    final statusSection = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'Membership status',
+          style: TextStyle(
+            color: _kNeutralText,
+            fontSize: 15,
+            fontWeight: FontWeight.w800,
+            fontFamily: 'Montserrat',
+          ),
+        ),
+        const SizedBox(height: 10),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            _statusFilterChip('Active', _activeMemberCount, _kSuccess),
+            _statusFilterChip(
+              'Inactive',
+              inactiveCount,
+              const Color(0xFFC62828),
+            ),
+            _statusFilterChip('All', _members.length, _kPrimary),
+          ],
+        ),
+      ],
+    );
+    final dateSection = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'Filter by date joined',
+          style: TextStyle(
+            color: _kNeutralText,
+            fontSize: 15,
+            fontWeight: FontWeight.w800,
+            fontFamily: 'Montserrat',
+          ),
+        ),
+        const SizedBox(height: 10),
+        Wrap(
+          spacing: 10,
+          runSpacing: 10,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          children: [
+            for (final mode in ['Year', 'Month', 'Date'])
+              ChoiceChip(
+                label: Text(mode),
+                selected: _dateFilterMode == mode,
+                onSelected: (_) => _setDateMode(mode),
+                selectedColor: const Color(0xFFEAF2FC),
+                labelStyle: TextStyle(
+                  color: _dateFilterMode == mode ? _kPrimary : _kSubText,
+                  fontWeight: FontWeight.w700,
+                  fontFamily: 'OpenSans',
+                ),
+                side: BorderSide(
+                  color: _dateFilterMode == mode
+                      ? _kPrimary.withValues(alpha: 0.35)
+                      : const Color(0xFFD1D5DB),
+                ),
+              ),
+            if (_dateFilterMode != 'Date')
+              SizedBox(
+                width: 150,
+                child: DropdownButtonFormField<int>(
+                  initialValue: _selectedJoinYear ?? 0,
+                  isExpanded: true,
+                  decoration: _filterDropdownDecoration('Year'),
+                  items: [
+                    const DropdownMenuItem(value: 0, child: Text('All years')),
+                    ...years.map(
+                      (year) => DropdownMenuItem(
+                        value: year,
+                        child: Text(year.toString()),
+                      ),
+                    ),
+                  ],
+                  onChanged: (year) => setState(() {
+                    _selectedJoinYear = year == null || year == 0 ? null : year;
+                    _pageIndex = 0;
+                  }),
+                ),
+              ),
+            if (_dateFilterMode == 'Month')
+              SizedBox(
+                width: 170,
+                child: DropdownButtonFormField<int>(
+                  initialValue: _selectedJoinMonth ?? 0,
+                  isExpanded: true,
+                  decoration: _filterDropdownDecoration('Month'),
+                  items: [
+                    const DropdownMenuItem(value: 0, child: Text('All months')),
+                    for (var month = 1; month <= 12; month++)
+                      DropdownMenuItem(
+                        value: month,
+                        child: Text(
+                          DateFormat.MMMM().format(DateTime(2020, month)),
+                        ),
+                      ),
+                  ],
+                  onChanged: (month) => setState(() {
+                    _selectedJoinMonth = month == null || month == 0
+                        ? null
+                        : month;
+                    _pageIndex = 0;
+                  }),
+                ),
+              ),
+            if (_dateFilterMode == 'Date')
+              OutlinedButton.icon(
+                onPressed: _chooseJoinedDate,
+                icon: const Icon(Icons.calendar_month_rounded),
+                label: Text(
+                  _selectedJoinDate == null
+                      ? 'Choose date'
+                      : DateFormat.yMMMd().format(_selectedJoinDate!),
+                ),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: _kPrimary,
+                  minimumSize: const Size(0, 50),
+                  side: const BorderSide(color: _kPrimary),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+              ),
+            if (_selectedJoinYear != null ||
+                _selectedJoinMonth != null ||
+                _selectedJoinDate != null)
+              TextButton.icon(
+                onPressed: () => setState(() {
+                  _selectedJoinYear = null;
+                  _selectedJoinMonth = null;
+                  _selectedJoinDate = null;
+                  _pageIndex = 0;
+                }),
+                icon: const Icon(Icons.filter_alt_off_rounded),
+                label: const Text('Clear date'),
+              ),
+          ],
+        ),
+      ],
+    );
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isWide = constraints.maxWidth >= 900;
+        return Container(
+          width: double.infinity,
+          margin: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+          padding: EdgeInsets.all(isWide ? 20 : 16),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: const Color(0xFFE5E7EB)),
+            boxShadow: [
+              BoxShadow(
+                color: _kPrimary.withValues(alpha: 0.04),
+                blurRadius: 12,
+                offset: const Offset(0, 3),
+              ),
+            ],
+          ),
+          child: isWide
+              ? Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    Expanded(flex: 4, child: statusSection),
+                    Container(
+                      width: 1,
+                      height: 62,
+                      margin: const EdgeInsets.symmetric(horizontal: 24),
+                      color: const Color(0xFFE5E7EB),
+                    ),
+                    Expanded(flex: 7, child: dateSection),
+                  ],
+                )
+              : Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    statusSection,
+                    const SizedBox(height: 18),
+                    dateSection,
+                  ],
+                ),
+        );
+      },
+    );
+  }
+
+  Widget _statusFilterChip(String status, int count, Color color) {
+    final selected = _membershipFilter == status;
+    return ChoiceChip(
+      label: Text('$status ($count)'),
+      selected: selected,
+      onSelected: (_) => setState(() {
+        _membershipFilter = status;
+        _pageIndex = 0;
+      }),
+      selectedColor: color.withValues(alpha: 0.12),
+      labelStyle: TextStyle(
+        color: selected ? color : _kSubText,
+        fontSize: 15,
+        fontWeight: FontWeight.w800,
+        fontFamily: 'OpenSans',
+      ),
+      side: BorderSide(
+        color: selected
+            ? color.withValues(alpha: 0.4)
+            : const Color(0xFFD1D5DB),
+      ),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+    );
+  }
+
+  InputDecoration _filterDropdownDecoration(String label) {
+    return InputDecoration(
+      labelText: label,
+      filled: true,
+      fillColor: const Color(0xFFF8FAFC),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: const BorderSide(color: Color(0xFFD1D5DB)),
+      ),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: const BorderSide(color: Color(0xFFD1D5DB)),
+      ),
+    );
   }
 
   int get _pageCount {
@@ -204,7 +581,8 @@ class _ActiveMembersPageState extends State<ActiveMembersPage> {
         .from('applications')
         .select('user_id, user:users(id, full_name, profile_url, email)')
         .eq('dayung_unit_id', widget.dayungUnitId)
-        .eq('status', 'approved');
+        .eq('status', 'approved')
+        .or('isRemovedInDayung.is.null,isRemovedInDayung.eq.false');
 
     final uniqueMembers = <String, Map<String, dynamic>>{};
     for (final row in List<Map<String, dynamic>>.from(rows)) {
@@ -623,7 +1001,7 @@ class _ActiveMembersPageState extends State<ActiveMembersPage> {
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: Text(
-                      '${_members.length}',
+                      '${_filtered.length}',
                       style: const TextStyle(
                         color: Colors.white,
                         fontWeight: FontWeight.w800,
@@ -658,12 +1036,13 @@ class _ActiveMembersPageState extends State<ActiveMembersPage> {
                 }),
               ),
             ),
+            _buildMemberFilters(),
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
               child: SizedBox(
                 width: double.infinity,
                 child: ElevatedButton.icon(
-                  onPressed: _members.isEmpty || _savingGroups
+                  onPressed: _activeMemberCount == 0 || _savingGroups
                       ? null
                       : _openServiceGroupDialog,
                   icon: const Icon(Icons.groups_rounded),
@@ -691,7 +1070,7 @@ class _ActiveMembersPageState extends State<ActiveMembersPage> {
                 child: Align(
                   alignment: Alignment.centerLeft,
                   child: Text(
-                    '${_serviceGroups.length} service groups  |  $_membersPerGroup members per group  |  ${_members.length} total members',
+                    '${_serviceGroups.length} service groups  |  $_membersPerGroup members per group  |  $_activeMemberCount active members',
                     style: const TextStyle(
                       color: _kSubText,
                       fontSize: 12,
@@ -763,8 +1142,10 @@ class _ActiveMembersPageState extends State<ActiveMembersPage> {
                             color: _kSubText.withValues(alpha: 0.5),
                           ),
                           const SizedBox(height: 12),
-                          const Text(
-                            'No active members found',
+                          Text(
+                            _membershipFilter == 'Inactive'
+                                ? 'No inactive members found'
+                                : 'No members found',
                             style: TextStyle(
                               color: _kSubText,
                               fontSize: 16,
@@ -780,11 +1161,42 @@ class _ActiveMembersPageState extends State<ActiveMembersPage> {
                         Expanded(
                           child: RefreshIndicator(
                             onRefresh: _load,
-                            child: ListView.builder(
+                            child: ListView(
+                              physics: const AlwaysScrollableScrollPhysics(),
                               padding: const EdgeInsets.all(16),
-                              itemCount: _pagedFiltered.length,
-                              itemBuilder: (_, i) =>
-                                  _memberCard(_pagedFiltered[i]),
+                              children: [
+                                LayoutBuilder(
+                                  builder: (context, constraints) {
+                                    if (constraints.maxWidth < 720) {
+                                      return _memberMobileRows(_pagedFiltered);
+                                    }
+                                    return RecordDataTable(
+                                      modernStyle: true,
+                                      showCheckboxColumn: false,
+                                      minWidth: constraints.maxWidth > 1050
+                                          ? constraints.maxWidth
+                                          : 1050,
+                                      dataRowMinHeight: 82,
+                                      dataRowMaxHeight: 116,
+                                      columns: const [
+                                        DataColumn(label: Text('Member name')),
+                                        DataColumn(
+                                          label: Text('Date and time joined'),
+                                        ),
+                                        DataColumn(
+                                          label: Text('Membership status'),
+                                        ),
+                                        DataColumn(
+                                          label: Text('Membership ended'),
+                                        ),
+                                      ],
+                                      rows: _pagedFiltered
+                                          .map(_memberDataRow)
+                                          .toList(),
+                                    );
+                                  },
+                                ),
+                              ],
                             ),
                           ),
                         ),
@@ -832,70 +1244,206 @@ class _ActiveMembersPageState extends State<ActiveMembersPage> {
     );
   }
 
-  Widget _memberCard(Map<String, dynamic> r) {
-    final u = r['user'] as Map?;
-    final name = (u?['full_name'] ?? 'Member').toString();
-    final profileUrl = (u?['profile_url'] ?? '').toString();
-    final userId = (r['user_id'] ?? '').toString();
-    final paidAt = (r['paid_at'] ?? r['created_at'] ?? '').toString();
-    String dateStr = '';
-    if (paidAt.isNotEmpty) {
-      final dt = DateTime.tryParse(paidAt);
-      if (dt != null) dateStr = '${dt.month}/${dt.day}/${dt.year}';
-    }
+  Widget _memberMobileRows(List<Map<String, dynamic>> members) {
+    return Column(
+      children: [
+        for (var index = 0; index < members.length; index++) ...[
+          _memberMobileRow(members[index]),
+          if (index < members.length - 1)
+            const Divider(height: 1, indent: 12, endIndent: 12),
+        ],
+      ],
+    );
+  }
 
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.grey.shade200),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.04),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
+  Widget _memberMobileRow(Map<String, dynamic> member) {
+    final user = member['user'] as Map?;
+    final name = (user?['full_name'] ?? 'Member').toString();
+    final profileUrl = (user?['profile_url'] ?? '').toString();
+    final joinedDate = _joinedDate(member);
+    final status = (member['membership_status'] ?? 'Active').toString();
+    final endedDate = DateTime.tryParse(
+      (member['membership_ended_at'] ?? '').toString(),
+    )?.toLocal();
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+      child: Row(
+        children: [
+          CircleAvatar(
+            radius: 20,
+            backgroundImage: profileUrl.isNotEmpty
+                ? NetworkImage(profileUrl)
+                : null,
+            backgroundColor: _kSuccess.withValues(alpha: 0.1),
+            child: profileUrl.isEmpty
+                ? Text(
+                    name.isNotEmpty ? name[0].toUpperCase() : 'M',
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color: _kSuccess,
+                    ),
+                  )
+                : null,
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  name,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w700,
+                    color: _kNeutralText,
+                    fontFamily: 'Montserrat',
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Date joined: ${joinedDate == null ? '—' : DateFormat.yMMMd().add_jm().format(joinedDate)}',
+                  style: const TextStyle(
+                    fontSize: 14,
+                    color: _kSubText,
+                    fontFamily: 'OpenSans',
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Row(
+                  children: [
+                    _membershipStatusBadge(status),
+                    if (status == 'Inactive' && endedDate != null) ...[
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          'Ended ${DateFormat.yMMMd().format(endedDate)}',
+                          style: const TextStyle(
+                            fontSize: 14,
+                            color: _kSubText,
+                            fontFamily: 'OpenSans',
+                          ),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ],
+            ),
           ),
         ],
       ),
-      child: ListTile(
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        leading: CircleAvatar(
-          radius: 22,
-          backgroundImage: profileUrl.isNotEmpty
-              ? NetworkImage(profileUrl)
-              : null,
-          backgroundColor: _kSuccess.withValues(alpha: 0.1),
-          child: profileUrl.isEmpty
-              ? Text(
-                  name.isNotEmpty ? name[0].toUpperCase() : 'M',
+    );
+  }
+
+  DataRow _memberDataRow(Map<String, dynamic> r) {
+    final u = r['user'] as Map?;
+    final name = (u?['full_name'] ?? 'Member').toString();
+    final profileUrl = (u?['profile_url'] ?? '').toString();
+    final joinedAt = _joinedDate(r);
+    final endedAt = DateTime.tryParse(
+      (r['membership_ended_at'] ?? '').toString(),
+    )?.toLocal();
+    final status = (r['membership_status'] ?? 'Active').toString();
+
+    return DataRow(
+      cells: [
+        DataCell(
+          Row(
+            children: [
+              CircleAvatar(
+                radius: 18,
+                backgroundImage: profileUrl.isNotEmpty
+                    ? NetworkImage(profileUrl)
+                    : null,
+                backgroundColor: _kSuccess.withValues(alpha: 0.1),
+                child: profileUrl.isEmpty
+                    ? Text(
+                        name.isNotEmpty ? name[0].toUpperCase() : 'M',
+                        style: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                          color: _kSuccess,
+                        ),
+                      )
+                    : null,
+              ),
+              const SizedBox(width: 12),
+              Flexible(
+                child: Text(
+                  name,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
-                    fontWeight: FontWeight.bold,
-                    color: _kSuccess,
+                    fontWeight: FontWeight.w700,
+                    fontSize: 14,
+                    color: _kNeutralText,
+                    fontFamily: 'Montserrat',
                   ),
-                )
-              : null,
-        ),
-        title: Text(
-          name,
-          style: const TextStyle(
-            fontWeight: FontWeight.w700,
-            fontSize: 14,
-            color: _kNeutralText,
-            fontFamily: 'Montserrat',
+                ),
+              ),
+            ],
           ),
         ),
-        subtitle: dateStr.isNotEmpty
-            ? Text(
-                'Approved: $dateStr',
-                style: const TextStyle(
-                  fontSize: 12,
-                  color: _kSubText,
-                  fontFamily: 'OpenSans',
-                ),
-              )
-            : null,
-        // trailing action removed (copy UID)
+        DataCell(
+          SizedBox(
+            width: 185,
+            child: Text(
+              joinedAt == null
+                  ? '—'
+                  : DateFormat.yMMMd().add_jm().format(joinedAt),
+              style: const TextStyle(color: _kNeutralText),
+            ),
+          ),
+        ),
+        DataCell(_membershipStatusBadge(status)),
+        DataCell(
+          SizedBox(
+            width: 170,
+            child: Text(
+              status != 'Inactive' || endedAt == null
+                  ? '—'
+                  : DateFormat.yMMMd().add_jm().format(endedAt),
+              style: const TextStyle(color: _kSubText),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _membershipStatusBadge(String status) {
+    final isActive = status == 'Active';
+    final color = isActive ? _kSuccess : const Color(0xFFC62828);
+    final background = isActive
+        ? const Color(0xFFF0FDF4)
+        : const Color(0xFFFEF2F2);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: background,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: color.withValues(alpha: 0.22)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            isActive ? Icons.check_circle_rounded : Icons.cancel_rounded,
+            size: 17,
+            color: color,
+          ),
+          const SizedBox(width: 6),
+          Text(
+            status,
+            style: TextStyle(
+              color: color,
+              fontSize: 14,
+              fontWeight: FontWeight.w800,
+              fontFamily: 'OpenSans',
+            ),
+          ),
+        ],
       ),
     );
   }

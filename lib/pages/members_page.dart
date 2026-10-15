@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:capstone_app/utils/theme_surface.dart';
+import 'package:capstone_app/widgets/record_data_table.dart';
 
 const kBg = Color(0xFFFAFAF7);
 const kText = Color(0xFF1F2937);
@@ -239,7 +240,44 @@ class _MembersPageState extends State<MembersPage> {
                               if (_visiblePayments.isEmpty)
                                 _buildEmptyState()
                               else
-                                ..._visiblePayments.map(_buildPaymentCard),
+                                RecordDataTable(
+                                  minWidth: 850,
+                                  columns: const [
+                                    DataColumn(label: Text('Member')),
+                                    DataColumn(label: Text('Amount')),
+                                    DataColumn(label: Text('Status')),
+                                    DataColumn(label: Text('Collector')),
+                                    DataColumn(label: Text('Date')),
+                                  ],
+                                  rows: _visiblePayments.map((payment) {
+                                    final paid =
+                                        (payment['status'] ?? 'pending')
+                                                .toString()
+                                                .toLowerCase() ==
+                                            'paid';
+                                    final date = paid
+                                        ? payment['paid_at']
+                                        : payment['created_at'];
+                                    return DataRow(cells: [
+                                      DataCell(Text(
+                                        (payment['full_name'] ?? 'Member')
+                                            .toString(),
+                                      )),
+                                      DataCell(Text(
+                                        _formatAmount(payment['amount']),
+                                      )),
+                                      DataCell(Text(paid ? 'Paid' : 'Pending')),
+                                      DataCell(Text(
+                                        (payment['collector_full_name'] ??
+                                                'Not assigned')
+                                            .toString(),
+                                      )),
+                                      DataCell(Text(_formatDate(
+                                        (date ?? '').toString(),
+                                      ))),
+                                    ]);
+                                  }).toList(),
+                                ),
                               const SizedBox(height: 20),
                               _buildPaginationBar(),
                             ],

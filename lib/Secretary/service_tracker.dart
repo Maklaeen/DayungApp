@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:capstone_app/widgets/record_data_table.dart';
 import 'package:capstone_app/Secretary/add_service_dialog.dart';
 import 'package:capstone_app/pages/deathnoticedetail.dart';
 import 'package:capstone_app/shared/active_members_page.dart';
@@ -950,6 +951,7 @@ class _ServiceTrackerPageState extends State<ServiceTrackerPage> {
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
         children: [
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -998,20 +1000,17 @@ class _ServiceTrackerPageState extends State<ServiceTrackerPage> {
     final noticeId = _noticeKey(notice);
     if (noticeId.isEmpty) return;
 
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => DeathNoticeDetail.byNoticeId(
-          noticeId: noticeId,
-          dayungUnitId: widget.dayungUnitId,
-          name: notice['display_name']?.toString(),
-          date: notice['date_of_death']?.toString(),
-          birthDate: notice['dob']?.toString(),
-          latitude: _toDouble(notice['vigil_latitude']),
-          longitude: _toDouble(notice['vigil_longitude']),
-          barangay: (notice['vigil_barangay'] ?? notice['vigil_address'])
-              ?.toString(),
-        ),
-      ),
+    DeathNoticeDetail.showVigilDetails(
+      context: context,
+      noticeId: noticeId,
+      dayungUnitId: widget.dayungUnitId,
+      name: (notice['display_name'] ?? 'Vigil Details').toString(),
+      date: notice['date_of_death']?.toString(),
+      birthDate: notice['dob']?.toString(),
+      latitude: _toDouble(notice['vigil_latitude']),
+      longitude: _toDouble(notice['vigil_longitude']),
+      barangay: (notice['vigil_barangay'] ?? notice['vigil_address'])
+          ?.toString(),
     );
   }
 
@@ -1218,220 +1217,180 @@ class _ServiceTrackerPageState extends State<ServiceTrackerPage> {
                                 ),
                               ],
                             )
-                          : ListView.separated(
+                          : ListView(
                               padding: const EdgeInsets.fromLTRB(
                                 16,
                                 16,
                                 16,
                                 24,
                               ),
-                              itemCount: visibleNotices.length + 1,
-                              separatorBuilder: (_, __) =>
-                                  const SizedBox(height: 14),
-                              itemBuilder: (context, index) {
-                                if (index == 0) {
-                                  return _buildToolbarCard();
-                                }
-
-                                final notice = visibleNotices[index - 1];
-                                final services =
-                                    _servicesByNotice[_noticeKey(notice)] ?? [];
-
-                                return Container(
-                                  decoration: BoxDecoration(
-                                    color: kCardBg,
-                                    borderRadius: BorderRadius.circular(20),
-                                    border: Border.all(
-                                      color: kBorderColor.withValues(
-                                        alpha: 0.75,
-                                      ),
-                                    ),
-                                    boxShadow: [
-                                      BoxShadow(
-                                        color: Colors.black.withValues(
-                                          alpha: 0.05,
+                              children: [
+                                _buildToolbarCard(),
+                                LayoutBuilder(
+                                  builder: (context, constraints) {
+                                    if (constraints.maxWidth < 720) {
+                                      return _noticeMobileRows(visibleNotices);
+                                    }
+                                    return RecordDataTable(
+                                      modernStyle: true,
+                                      minWidth: constraints.maxWidth > 1200
+                                          ? constraints.maxWidth
+                                          : 1200,
+                                      dataRowMinHeight: 100,
+                                      dataRowMaxHeight: 240,
+                                      columns: const [
+                                        DataColumn(label: Text('Notice')),
+                                        DataColumn(label: Text('Dates')),
+                                        DataColumn(
+                                          label: Text('Vigil location'),
                                         ),
-                                        blurRadius: 16,
-                                        offset: const Offset(0, 8),
-                                      ),
-                                    ],
-                                  ),
-                                  child: Padding(
-                                    padding: const EdgeInsets.all(16),
-                                    child: Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
-                                      children: [
-                                        Row(
-                                          crossAxisAlignment:
-                                              CrossAxisAlignment.start,
-                                          children: [
-                                            Container(
-                                              padding: const EdgeInsets.all(12),
-                                              decoration: BoxDecoration(
-                                                color: const Color(0xFFEFF6FF),
-                                                borderRadius:
-                                                    BorderRadius.circular(16),
-                                              ),
-                                              child: const Icon(
-                                                Icons
-                                                    .volunteer_activism_rounded,
-                                                color: kPrimary,
-                                              ),
-                                            ),
-                                            const SizedBox(width: 12),
-                                            Expanded(
-                                              child: Column(
-                                                crossAxisAlignment:
-                                                    CrossAxisAlignment.start,
-                                                children: [
-                                                  Text(
-                                                    (notice['display_name'] ??
-                                                            'No Name')
-                                                        .toString(),
-                                                    style: const TextStyle(
-                                                      fontWeight:
-                                                          FontWeight.w800,
-                                                      fontSize: 18,
-                                                      color: kText,
-                                                    ),
-                                                  ),
-                                                  const SizedBox(height: 4),
-                                                  Text(
-                                                    services.isEmpty
-                                                        ? 'No services scheduled yet'
-                                                        : '${services.length} active service${services.length == 1 ? '' : 's'} scheduled',
-                                                    style: TextStyle(
-                                                      fontSize: 13,
-                                                      fontWeight:
-                                                          FontWeight.w600,
-                                                      color: services.isEmpty
-                                                          ? kSubText
-                                                          : kAccentDark,
-                                                    ),
-                                                  ),
-                                                ],
-                                              ),
-                                            ),
-                                            if (widget.allowManage)
-                                              FilledButton.icon(
-                                                onPressed: () =>
-                                                    _showAddServiceDialog(
-                                                      notice,
-                                                    ),
-                                                style: FilledButton.styleFrom(
-                                                  backgroundColor: kPrimary,
-                                                  foregroundColor: Colors.white,
-                                                  padding:
-                                                      const EdgeInsets.symmetric(
-                                                        horizontal: 14,
-                                                        vertical: 12,
-                                                      ),
-                                                  shape: RoundedRectangleBorder(
-                                                    borderRadius:
-                                                        BorderRadius.circular(
-                                                          14,
-                                                        ),
-                                                  ),
-                                                ),
-                                                icon: const Icon(
-                                                  Icons.add_rounded,
-                                                  size: 18,
-                                                ),
-                                                label: const Text('Add'),
-                                              ),
-                                          ],
+                                        DataColumn(
+                                          label: Text('Scheduled services'),
                                         ),
-                                        const SizedBox(height: 14),
-                                        Wrap(
-                                          spacing: 8,
-                                          runSpacing: 8,
-                                          children: [
-                                            _buildMetaChip(
-                                              Icons.event_busy_rounded,
-                                              'DOD: ${_formatDateValue(notice['date_of_death'])}',
-                                            ),
-                                            _buildMetaChip(
-                                              Icons.cake_rounded,
-                                              'DOB: ${_formatDateValue(notice['dob'])}',
-                                            ),
-                                            _buildMetaChip(
-                                              Icons.accessibility_new_rounded,
-                                              'Age: ${notice['deceased_age'] ?? 'N/A'}',
-                                            ),
-                                            if ((notice['barangay'] ?? '')
-                                                .toString()
-                                                .trim()
-                                                .isNotEmpty)
-                                              _buildMetaChip(
-                                                Icons.place_rounded,
-                                                '${notice['barangay']}',
-                                              ),
-                                          ],
-                                        ),
-                                        const SizedBox(height: 16),
-                                        _buildVigilLocation(notice),
-                                        const SizedBox(height: 16),
-                                        const Text(
-                                          'Scheduled Services',
-                                          style: TextStyle(
-                                            fontSize: 14,
-                                            fontWeight: FontWeight.w800,
-                                            color: kText,
-                                          ),
-                                        ),
-                                        if (services.isEmpty)
-                                          Container(
-                                            margin: const EdgeInsets.only(
-                                              top: 10,
-                                            ),
-                                            padding: const EdgeInsets.all(14),
-                                            decoration: BoxDecoration(
-                                              color: const Color(0xFFF8FAFC),
-                                              borderRadius:
-                                                  BorderRadius.circular(16),
-                                              border: Border.all(
-                                                color: kBorderColor.withValues(
-                                                  alpha: 0.8,
-                                                ),
-                                              ),
-                                            ),
-                                            child: Row(
-                                              children: [
-                                                const Icon(
-                                                  Icons.info_outline_rounded,
-                                                  color: kSubText,
-                                                ),
-                                                const SizedBox(width: 10),
-                                                Expanded(
-                                                  child: Text(
-                                                    widget.allowManage
-                                                        ? 'No services added yet.'
-                                                        : 'No services scheduled yet for this notice.',
-                                                    style: const TextStyle(
-                                                      fontSize: 13,
-                                                      color: kSubText,
-                                                      fontWeight:
-                                                          FontWeight.w600,
-                                                    ),
-                                                  ),
-                                                ),
-                                              ],
-                                            ),
-                                          )
-                                        else
-                                          ...services.map(_buildServiceTile),
+                                        DataColumn(label: Text('Actions')),
                                       ],
-                                    ),
-                                  ),
-                                );
-                              },
+                                      rows: visibleNotices
+                                          .map(_noticeDataRow)
+                                          .toList(),
+                                    );
+                                  },
+                                ),
+                              ],
                             ),
                     ),
                   ),
           ],
         ),
       ),
+    );
+  }
+
+  List<Map<String, dynamic>> _servicesForNotice(Map<String, dynamic> notice) {
+    return _servicesByNotice[_noticeKey(notice)] ?? [];
+  }
+
+  Widget _scheduledServices(
+    Map<String, dynamic> notice, {
+    required double width,
+  }) {
+    final services = _servicesForNotice(notice);
+    if (services.isEmpty) {
+      return Text(
+        widget.allowManage
+            ? 'No services added yet.'
+            : 'No services scheduled yet.',
+      );
+    }
+    return SizedBox(
+      width: width,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: services.map(_buildServiceTile).toList(),
+      ),
+    );
+  }
+
+  Widget _addServiceAction(Map<String, dynamic> notice) {
+    if (!widget.allowManage) return const SizedBox.shrink();
+    return FilledButton.icon(
+      onPressed: () => _showAddServiceDialog(notice),
+      icon: const Icon(Icons.add_rounded),
+      label: const Text('Add service'),
+    );
+  }
+
+  Widget _noticeMobileRows(List<Map<String, dynamic>> notices) {
+    return Column(
+      children: [
+        for (var index = 0; index < notices.length; index++) ...[
+          _noticeMobileRow(notices[index]),
+          if (index < notices.length - 1)
+            const Divider(height: 1, indent: 12, endIndent: 12),
+        ],
+      ],
+    );
+  }
+
+  Widget _noticeMobileRow(Map<String, dynamic> notice) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            (notice['display_name'] ?? 'No Name').toString(),
+            style: const TextStyle(
+              fontWeight: FontWeight.w800,
+              fontSize: 16,
+              color: kText,
+            ),
+          ),
+          const SizedBox(height: 8),
+          _mobileNoticeDetail(
+            'Date of death',
+            _formatDateValue(notice['date_of_death']),
+          ),
+          const SizedBox(height: 4),
+          _mobileNoticeDetail(
+            'Date of birth / age',
+            '${_formatDateValue(notice['dob'])} · Age: ${notice['deceased_age'] ?? 'N/A'}',
+          ),
+          const SizedBox(height: 10),
+          _buildVigilLocation(notice),
+          const SizedBox(height: 12),
+          const Text(
+            'Scheduled services',
+            style: TextStyle(fontWeight: FontWeight.w700, color: kText),
+          ),
+          _scheduledServices(notice, width: double.infinity),
+          if (widget.allowManage) ...[
+            const SizedBox(height: 10),
+            SizedBox(width: double.infinity, child: _addServiceAction(notice)),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _mobileNoticeDetail(String label, String value) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          '$label: ',
+          style: TextStyle(
+            color: Colors.grey[700],
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        Expanded(
+          child: Text(value, style: const TextStyle(color: kText)),
+        ),
+      ],
+    );
+  }
+
+  DataRow _noticeDataRow(Map<String, dynamic> notice) {
+    return DataRow(
+      cells: [
+        DataCell(Text((notice['display_name'] ?? 'No Name').toString())),
+        DataCell(
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text('DOD: ${_formatDateValue(notice['date_of_death'])}'),
+              Text(
+                'DOB: ${_formatDateValue(notice['dob'])} · Age: ${notice['deceased_age'] ?? 'N/A'}',
+              ),
+            ],
+          ),
+        ),
+        DataCell(_buildVigilLocation(notice)),
+        DataCell(_scheduledServices(notice, width: 520)),
+        DataCell(_addServiceAction(notice)),
+      ],
     );
   }
 }

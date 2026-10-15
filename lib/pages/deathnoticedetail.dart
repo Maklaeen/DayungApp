@@ -49,6 +49,59 @@ class DeathNoticeDetail extends StatefulWidget {
     this.barangay,
   });
 
+  static Future<void> showVigilDetails({
+    required BuildContext context,
+    required String? noticeId,
+    required int? dayungUnitId,
+    required String name,
+    String? date,
+    String? birthDate,
+    double? latitude,
+    double? longitude,
+    String? barangay,
+  }) {
+    final media = MediaQuery.sizeOf(context);
+    final detail = DeathNoticeDetail.byNoticeId(
+      noticeId: noticeId,
+      dayungUnitId: dayungUnitId,
+      name: name,
+      date: date,
+      birthDate: birthDate,
+      latitude: latitude,
+      longitude: longitude,
+      barangay: barangay,
+    );
+
+    if (media.width >= 720) {
+      return showDialog<void>(
+        context: context,
+        barrierDismissible: true,
+        builder: (_) => Dialog(
+          backgroundColor: Colors.transparent,
+          insetPadding: const EdgeInsets.symmetric(
+            horizontal: 32,
+            vertical: 24,
+          ),
+          child: SizedBox(
+            width: (media.width - 64).clamp(0, 1100),
+            height: (media.height - 48).clamp(0, 900),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(20),
+              child: detail,
+            ),
+          ),
+        ),
+      );
+    }
+
+    return showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => detail,
+    );
+  }
+
   @override
   State<DeathNoticeDetail> createState() => _DeathNoticeDetailState();
 }
@@ -75,6 +128,7 @@ class _DeathNoticeDetailState extends State<DeathNoticeDetail> {
   ml.MapLibreMapController? _mapController;
   final MapController _webMapController = MapController();
   bool _styleLoaded = false;
+  ml.Symbol? _vigilSymbol;
   ml.Circle? _vigilCircle;
   ml.Circle? _userCircle;
   ml.Line? _routeLine;
@@ -203,7 +257,7 @@ class _DeathNoticeDetailState extends State<DeathNoticeDetail> {
         _routeLine!,
         ml.LineOptions(
           geometry: _routeLine!.options.geometry,
-          lineColor: '#FF5722',
+          lineColor: '#0D47A1',
           lineWidth: 4.0,
           lineOpacity: opacity,
         ),
@@ -252,7 +306,7 @@ class _DeathNoticeDetailState extends State<DeathNoticeDetail> {
       _routeLine = await _mapController!.addLine(
         ml.LineOptions(
           geometry: pts,
-          lineColor: '#FF5722',
+          lineColor: '#0D47A1',
           lineWidth: 4.0,
           lineOpacity: 0.8,
         ),
@@ -286,9 +340,22 @@ class _DeathNoticeDetailState extends State<DeathNoticeDetail> {
 
   Future<void> _onStyleLoaded() async {
     _styleLoaded = true;
+    await _ensureVigilMarker();
     await _ensureVigilCircle();
     await _updateUserCircle();
     await _fetchRoadRoute();
+  }
+
+  Future<void> _ensureVigilMarker() async {
+    if (!_styleLoaded || _mapController == null) return;
+    if (_fLat == null || _fLng == null) return;
+    _vigilSymbol ??= await _mapController!.addSymbol(
+      ml.SymbolOptions(
+        geometry: ml.LatLng(_fLat!, _fLng!),
+        iconImage: 'marker-15',
+        iconSize: 1.6,
+      ),
+    );
   }
 
   Future<void> _ensureVigilCircle() async {
@@ -299,11 +366,11 @@ class _DeathNoticeDetailState extends State<DeathNoticeDetail> {
       _vigilCircle = await _mapController!.addCircle(
         ml.CircleOptions(
           geometry: pos,
-          circleRadius: 10.0,
-          circleColor: "#FF5722", // vigil color
-          circleStrokeColor: "#FFFFFF",
+          circleRadius: 26.0,
+          circleColor: "#2E7D32",
+          circleStrokeColor: "#2E7D32",
           circleStrokeWidth: 2.0,
-          circleOpacity: 0.95,
+          circleOpacity: 0.2,
         ),
       );
     } else {
@@ -331,7 +398,7 @@ class _DeathNoticeDetailState extends State<DeathNoticeDetail> {
         ml.CircleOptions(
           geometry: here,
           circleRadius: 9.0,
-          circleColor: "#0D47A1", // user color
+          circleColor: "#0D47A1",
           circleStrokeColor: "#FFFFFF",
           circleStrokeWidth: 2.0,
           circleOpacity: 0.95,
@@ -757,7 +824,10 @@ class _DeathNoticeDetailState extends State<DeathNoticeDetail> {
 
   @override
   Widget build(BuildContext context) {
-    final screenHeight = MediaQuery.of(context).size.height;
+    final screenSize = MediaQuery.sizeOf(context);
+    final screenHeight = screenSize.height;
+    final mapHeight = screenSize.width >= 720 ? 360.0 : 240.0;
+    final detailHeight = screenHeight * (screenSize.width >= 720 ? 0.9 : 0.75);
     final name = (_fName ?? '').trim().isEmpty ? 'Unknown' : _fName!.trim();
     final dDate = _fDateOfDeath;
     final bDate = _fBirthDate;
@@ -767,7 +837,7 @@ class _DeathNoticeDetailState extends State<DeathNoticeDetail> {
     return SafeArea(
       top: false,
       child: Container(
-        height: screenHeight * 0.75,
+        height: detailHeight,
         clipBehavior: Clip.antiAlias,
         decoration: const BoxDecoration(
           color: Color(0xFFF8FAFC),
@@ -881,6 +951,14 @@ class _DeathNoticeDetailState extends State<DeathNoticeDetail> {
                               value: _fmtDate(dDate),
                               subtitle: age != null ? 'Aged $age years' : null,
                             ),
+                            if ((bDate ?? '').trim().isNotEmpty) ...[
+                              const SizedBox(height: 16),
+                              _buildInfoCard(
+                                icon: Icons.cake_outlined,
+                                title: 'Date of Birth',
+                                value: _fmtDate(bDate),
+                              ),
+                            ],
                             const SizedBox(height: 16),
                             // Location Card
                             _buildInfoCard(
@@ -897,13 +975,17 @@ class _DeathNoticeDetailState extends State<DeathNoticeDetail> {
                               _buildLocationWarningCard(),
                             if (hasMapLocation) ...[
                               SizedBox(
-                                height: 240,
+                                height: mapHeight,
                                 width: double.infinity,
                                 child: ClipRRect(
                                   borderRadius: BorderRadius.circular(20),
                                   child: Stack(
                                     children: [
-                                      _buildModernMap(_fLat!, _fLng!),
+                                      _buildModernMap(
+                                        _fLat!,
+                                        _fLng!,
+                                        mapHeight: mapHeight,
+                                      ),
                                       // ml.MapLibreMap(
                                       //   key: ValueKey('map_${_fLat}_$_fLng'),
                                       //   styleString:
@@ -1101,163 +1183,168 @@ class _DeathNoticeDetailState extends State<DeathNoticeDetail> {
     );
   }
 
-  Widget _buildModernMap(double lat, double lng) {
+  Widget _buildModernMap(double lat, double lng, {required double mapHeight}) {
     if (kIsWeb) {
-      return Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(18),
-          child: Stack(
-            children: [
-              SizedBox(
-                height: 240,
-                child: FlutterMap(
-                  mapController: _webMapController,
-                  options: MapOptions(
-                    initialCenter: ll.LatLng(lat, lng),
-                    initialZoom: 16,
-                    minZoom: 12,
-                    maxZoom: 20,
-                    interactionOptions: const InteractionOptions(
-                      flags: InteractiveFlag.all & ~InteractiveFlag.rotate,
+      return Stack(
+        children: [
+          SizedBox(
+            height: mapHeight,
+            child: FlutterMap(
+              mapController: _webMapController,
+              options: MapOptions(
+                initialCenter: ll.LatLng(lat, lng),
+                initialZoom: 15,
+                minZoom: 12,
+                maxZoom: 20,
+                interactionOptions: const InteractionOptions(
+                  flags: InteractiveFlag.all & ~InteractiveFlag.rotate,
+                ),
+              ),
+              children: [
+                TileLayer(
+                  urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                  userAgentPackageName: 'capstone_app',
+                ),
+                CircleLayer(
+                  circles: [
+                    CircleMarker(
+                      point: ll.LatLng(lat, lng),
+                      radius: 26,
+                      color: const Color(0xFF10B981).withValues(alpha: 0.2),
+                      borderColor: const Color(0xFF10B981),
+                      borderStrokeWidth: 2,
                     ),
-                  ),
-                  children: [
-                    TileLayer(
-                      urlTemplate:
-                          'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                      userAgentPackageName: 'capstone_app',
-                    ),
-                    CircleLayer(
-                      circles: [
-                        CircleMarker(
-                          point: ll.LatLng(lat, lng),
-                          radius: 10,
-                          color: const Color(0xFFFF5722),
-                          borderColor: Colors.white,
-                          borderStrokeWidth: 2,
-                        ),
-                        if (_userLat != null && _userLng != null)
-                          CircleMarker(
-                            point: ll.LatLng(_userLat!, _userLng!),
-                            radius: 9,
-                            color: const Color(0xFF0D47A1),
-                            borderColor: Colors.white,
-                            borderStrokeWidth: 2,
-                          ),
-                      ],
-                    ),
-                    if (_webRoutePoints.length >= 2)
-                      PolylineLayer(
-                        polylines: [
-                          Polyline(
-                            points: _webRoutePoints,
-                            color: const Color(0xFFFF5722),
-                            strokeWidth: 4,
-                          ),
-                        ],
+                    if (_userLat != null && _userLng != null)
+                      CircleMarker(
+                        point: ll.LatLng(_userLat!, _userLng!),
+                        radius: 10,
+                        color: const Color(0xFF3B82F6),
+                        borderColor: Colors.white,
+                        borderStrokeWidth: 2,
                       ),
-                    MarkerLayer(
-                      markers: [
-                        Marker(
-                          point: ll.LatLng(lat, lng),
-                          width: 38,
-                          height: 38,
+                  ],
+                ),
+                if (_webRoutePoints.length >= 2)
+                  PolylineLayer(
+                    polylines: [
+                      Polyline(
+                        points: _webRoutePoints,
+                        color: const Color(0xFF3B82F6),
+                        strokeWidth: 4,
+                      ),
+                    ],
+                  ),
+                MarkerLayer(
+                  markers: [
+                    Marker(
+                      point: ll.LatLng(lat, lng),
+                      width: 52,
+                      height: 52,
+                      child: const Icon(
+                        Icons.location_on_rounded,
+                        color: Color(0xFF10B981),
+                        size: 42,
+                      ),
+                    ),
+                    if (_userLat != null && _userLng != null)
+                      Marker(
+                        point: ll.LatLng(_userLat!, _userLng!),
+                        width: 34,
+                        height: 34,
+                        child: Container(
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            shape: BoxShape.circle,
+                            border: Border.all(color: Colors.white, width: 2),
+                          ),
                           child: const Icon(
-                            Icons.location_on,
-                            color: Color(0xFFFF5722),
-                            size: 30,
+                            Icons.my_location_rounded,
+                            color: Color(0xFF3B82F6),
+                            size: 20,
                           ),
                         ),
-                      ],
-                    ),
+                      ),
                   ],
                 ),
-              ),
-              Positioned(
-                top: 12,
-                right: 12,
-                child: Column(
-                  children: [
-                    _MapIconBtn(
-                      icon: Icons.zoom_in,
-                      onTap: () => _zoomWebMap(1),
-                    ),
-                    const SizedBox(height: 8),
-                    _MapIconBtn(
-                      icon: Icons.zoom_out,
-                      onTap: () => _zoomWebMap(-1),
-                    ),
-                    const SizedBox(height: 8),
-                    _MapIconBtn(icon: Icons.my_location, onTap: _centerOnUser),
-                    const SizedBox(height: 8),
-                    _MapIconBtn(icon: Icons.location_on, onTap: _centerOnVigil),
+                const RichAttributionWidget(
+                  alignment: AttributionAlignment.bottomLeft,
+                  showFlutterMapAttribution: false,
+                  attributions: [
+                    TextSourceAttribution('OpenStreetMap contributors'),
                   ],
                 ),
+              ],
+            ),
+          ),
+          Positioned(
+            top: 12,
+            right: 12,
+            child: Column(
+              children: [
+                _MapIconBtn(icon: Icons.zoom_in, onTap: () => _zoomWebMap(1)),
+                const SizedBox(height: 8),
+                _MapIconBtn(icon: Icons.zoom_out, onTap: () => _zoomWebMap(-1)),
+                const SizedBox(height: 8),
+                _MapIconBtn(icon: Icons.my_location, onTap: _centerOnUser),
+                const SizedBox(height: 8),
+                _MapIconBtn(icon: Icons.location_on, onTap: _centerOnVigil),
+              ],
+            ),
+          ),
+        ],
+      );
+    }
+    return Stack(
+      children: [
+        SizedBox(
+          height: mapHeight,
+          child: ml.MapLibreMap(
+            styleString:
+                'https://api.maptiler.com/maps/streets/style.json?key=ZgS5pYNNGTrRGUAnlS71',
+            initialCameraPosition: ml.CameraPosition(
+              target: ml.LatLng(lat, lng),
+              zoom: 16,
+            ),
+            onMapCreated: (controller) async {
+              _mapController = controller;
+              await _onMapCreated(controller);
+            },
+            onStyleLoadedCallback: _onStyleLoaded,
+            myLocationEnabled: false,
+            compassEnabled: false,
+            rotateGesturesEnabled: true,
+            tiltGesturesEnabled: false,
+            minMaxZoomPreference: const ml.MinMaxZoomPreference(12, 20),
+            attributionButtonMargins: const Point(6, 6),
+            logoViewMargins: const Point(6, 6),
+            // Pinch and double-tap zoom are enabled by default
+          ),
+        ),
+        // Overlay controls
+        Positioned(
+          top: 12,
+          right: 12,
+          child: Column(
+            children: [
+              _MapIconBtn(
+                icon: Icons.zoom_in,
+                onTap: () =>
+                    _mapController?.animateCamera(ml.CameraUpdate.zoomIn()),
               ),
+              const SizedBox(height: 8),
+              _MapIconBtn(
+                icon: Icons.zoom_out,
+                onTap: () =>
+                    _mapController?.animateCamera(ml.CameraUpdate.zoomOut()),
+              ),
+              const SizedBox(height: 8),
+              _MapIconBtn(icon: Icons.my_location, onTap: _centerOnUser),
+              const SizedBox(height: 8),
+              _MapIconBtn(icon: Icons.location_on, onTap: _centerOnVigil),
             ],
           ),
         ),
-      );
-    }
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(18),
-        child: Stack(
-          children: [
-            SizedBox(
-              height: 240,
-              child: ml.MapLibreMap(
-                styleString:
-                    'https://api.maptiler.com/maps/streets/style.json?key=ZgS5pYNNGTrRGUAnlS71',
-                initialCameraPosition: ml.CameraPosition(
-                  target: ml.LatLng(lat, lng),
-                  zoom: 16,
-                ),
-                onMapCreated: (controller) async {
-                  _mapController = controller;
-                  await _onMapCreated(controller);
-                },
-                onStyleLoadedCallback: _onStyleLoaded,
-                myLocationEnabled: false,
-                compassEnabled: false,
-                rotateGesturesEnabled: true,
-                tiltGesturesEnabled: false,
-                minMaxZoomPreference: const ml.MinMaxZoomPreference(12, 20),
-                attributionButtonMargins: const Point(6, 6),
-                logoViewMargins: const Point(6, 6),
-                // Pinch and double-tap zoom are enabled by default
-              ),
-            ),
-            // Overlay controls
-            Positioned(
-              top: 12,
-              right: 12,
-              child: Column(
-                children: [
-                  _MapIconBtn(
-                    icon: Icons.zoom_in,
-                    onTap: () =>
-                        _mapController?.animateCamera(ml.CameraUpdate.zoomIn()),
-                  ),
-                  const SizedBox(height: 8),
-                  _MapIconBtn(
-                    icon: Icons.zoom_out,
-                    onTap: () => _mapController?.animateCamera(
-                      ml.CameraUpdate.zoomOut(),
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  _MapIconBtn(icon: Icons.my_location, onTap: _centerOnUser),
-                  const SizedBox(height: 8),
-                  _MapIconBtn(icon: Icons.location_on, onTap: _centerOnVigil),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
+      ],
     );
   }
 

@@ -1,5 +1,6 @@
 import 'package:capstone_app/SuperAdmin/superadmin_support.dart';
 import 'package:flutter/material.dart';
+import 'package:capstone_app/widgets/record_data_table.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 const kPrimary = Color(0xFF1E40AF);
@@ -334,48 +335,123 @@ class _SuperAdminAdminsPageState extends State<SuperAdminAdminsPage> {
                             collectors: collectorCount,
                           ),
                           const SizedBox(height: 16),
-                          ...filteredUnits.map(
-                            (unit) => Padding(
-                              padding: const EdgeInsets.only(bottom: 16),
-                              child: _UnitRoleCard(
-                                unit: unit,
-                                onAssignRole: (role) async {
-                                  final selected = await _pickUser(
-                                    'Assign ${_labelForRole(role)}',
-                                    data.applicantsByUnit[unit['id']
-                                            ?.toString()] ??
-                                        [],
-                                  );
-                                  if (selected == null) return;
-                                  await _assignRole(
-                                    unit: unit,
-                                    role: role,
-                                    user: selected,
-                                  );
-                                },
-                                onRemoveRole: (role) =>
-                                    _removeRole(unit: unit, role: role),
-                                onAddCollector: () async {
-                                  final selected = await _pickUser(
-                                    'Add Collector',
-                                    data.applicantsByUnit[unit['id']
-                                            ?.toString()] ??
-                                        [],
-                                  );
-                                  if (selected == null) return;
-                                  await _assignRole(
-                                    unit: unit,
-                                    role: 'collector',
-                                    user: selected,
-                                  );
-                                },
-                                onRemoveCollector: (collectorId) => _removeRole(
+                          RecordDataTable(
+                            minWidth: 1450,
+                            columns: const [
+                              DataColumn(label: Text('Dayung unit')),
+                              DataColumn(label: Text('President')),
+                              DataColumn(label: Text('Secretary')),
+                              DataColumn(label: Text('Treasurer')),
+                              DataColumn(label: Text('Collectors')),
+                            ],
+                            rows: filteredUnits.map((unit) {
+                              final collectors =
+                                  List<Map<String, dynamic>>.from(
+                                unit['collectors'] as List,
+                              );
+                              Future<void> assignRole(String role) async {
+                                final selected = await _pickUser(
+                                  'Assign ${_labelForRole(role)}',
+                                  data.applicantsByUnit[
+                                          unit['id']?.toString()] ??
+                                      [],
+                                );
+                                if (selected == null) return;
+                                await _assignRole(
+                                  unit: unit,
+                                  role: role,
+                                  user: selected,
+                                );
+                              }
+
+                              Future<void> addCollector() async {
+                                final selected = await _pickUser(
+                                  'Add Collector',
+                                  data.applicantsByUnit[
+                                          unit['id']?.toString()] ??
+                                      [],
+                                );
+                                if (selected == null) return;
+                                await _assignRole(
                                   unit: unit,
                                   role: 'collector',
-                                  userId: collectorId,
-                                ),
-                              ),
-                            ),
+                                  user: selected,
+                                );
+                              }
+
+                              return DataRow(cells: [
+                                DataCell(Text(
+                                  '${unit['name'] ?? 'Dayung Unit'}\n'
+                                  '${[
+                                    unit['barangay'],
+                                    unit['city'],
+                                    unit['province'],
+                                  ].where((part) => (part ?? '').toString().trim().isNotEmpty).join(' • ')}',
+                                )),
+                                DataCell(_RoleTile(
+                                  title: 'President',
+                                  color: const Color(0xFF1D4ED8),
+                                  assignee:
+                                      unit['president'] as Map<String, dynamic>?,
+                                  onAssign: () => assignRole('president'),
+                                  onRemove: unit['president'] == null
+                                      ? null
+                                      : () => _removeRole(
+                                          unit: unit,
+                                          role: 'president',
+                                        ),
+                                )),
+                                DataCell(_RoleTile(
+                                  title: 'Secretary',
+                                  color: const Color(0xFF7C3AED),
+                                  assignee:
+                                      unit['secretary'] as Map<String, dynamic>?,
+                                  onAssign: () => assignRole('secretary'),
+                                  onRemove: unit['secretary'] == null
+                                      ? null
+                                      : () => _removeRole(
+                                          unit: unit,
+                                          role: 'secretary',
+                                        ),
+                                )),
+                                DataCell(_RoleTile(
+                                  title: 'Treasurer',
+                                  color: const Color(0xFFEA580C),
+                                  assignee:
+                                      unit['treasurer'] as Map<String, dynamic>?,
+                                  onAssign: () => assignRole('treasurer'),
+                                  onRemove: unit['treasurer'] == null
+                                      ? null
+                                      : () => _removeRole(
+                                          unit: unit,
+                                          role: 'treasurer',
+                                        ),
+                                )),
+                                DataCell(Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    ...collectors.map(
+                                      (collector) => _CollectorChip(
+                                        collector: collector,
+                                        onRemove: () => _removeRole(
+                                          unit: unit,
+                                          role: 'collector',
+                                          userId: collector['id'].toString(),
+                                        ),
+                                      ),
+                                    ),
+                                    TextButton.icon(
+                                      onPressed: addCollector,
+                                      icon: const Icon(
+                                        Icons.person_add_alt_1_rounded,
+                                      ),
+                                      label: const Text('Add'),
+                                    ),
+                                  ],
+                                )),
+                              ]);
+                            }).toList(),
                           ),
                         ],
                       ),

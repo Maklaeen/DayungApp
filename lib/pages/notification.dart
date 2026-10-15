@@ -4,6 +4,7 @@ import 'package:capstone_app/Providers/dayung_provider.dart';
 import 'package:capstone_app/Providers/dayung_role_provider.dart';
 import 'package:capstone_app/ui/loading/page_skeleton.dart';
 import 'package:capstone_app/ui/theme/branding.dart';
+import 'package:capstone_app/widgets/record_data_table.dart';
 import 'package:capstone_app/utils/theme_surface.dart';
 import 'package:flutter/material.dart';
 import 'package:capstone_app/shared/dayung_back_button.dart';
@@ -11,6 +12,7 @@ import 'package:auto_size_text/auto_size_text.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:intl/intl.dart';
 
 // Additional colors for notification-specific styling
 const kText = Color(0xFF111827);
@@ -119,153 +121,167 @@ class NotificationPage extends StatefulWidget {
     required Color iconColor,
     required bool isWide,
     required bool isUnread,
+    required VoidCallback onTap,
   }) {
     return Semantics(
       label: '$title. $message. $time.',
+      button: true,
       child: Container(
         margin: EdgeInsets.symmetric(horizontal: isWide ? 24 : 16),
-        decoration: BoxDecoration(
-          color: isUnread ? surfaceColor : kCardBg,
+        child: Material(
+          color: Colors.transparent,
           borderRadius: BorderRadius.circular(20),
-          border: Border.all(
-            color: isUnread
-                ? accentColor.withValues(alpha: 0.28)
-                : kBorderColor.withValues(alpha: 0.45),
-            width: 1.2,
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: accentColor.withValues(alpha: isUnread ? 0.10 : 0.05),
-              blurRadius: 18,
-              offset: const Offset(0, 8),
-            ),
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.03),
-              blurRadius: 10,
-              offset: const Offset(0, 2),
-            ),
-          ],
-        ),
-        padding: EdgeInsets.all(isWide ? 22 : 18),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Container(
-              width: isWide ? 56 : 52,
-              height: isWide ? 56 : 52,
+          child: InkWell(
+            onTap: onTap,
+            borderRadius: BorderRadius.circular(20),
+            child: Ink(
               decoration: BoxDecoration(
-                color: iconBg,
-                borderRadius: BorderRadius.circular(16),
+                color: isUnread ? surfaceColor : kCardBg,
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(
+                  color: isUnread
+                      ? accentColor.withValues(alpha: 0.35)
+                      : kBorderColor.withValues(alpha: 0.8),
+                  width: 1.2,
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: accentColor.withValues(
+                      alpha: isUnread ? 0.10 : 0.04,
+                    ),
+                    blurRadius: 14,
+                    offset: const Offset(0, 5),
+                  ),
+                ],
               ),
-              child: Icon(icon, color: iconColor, size: isWide ? 30 : 28),
-            ),
-            const SizedBox(width: 16),
-            Expanded(
-              child: Column(
+              padding: EdgeInsets.all(isWide ? 22 : 18),
+              child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 10,
-                          vertical: 6,
-                        ),
-                        decoration: BoxDecoration(
-                          color: iconBg,
-                          borderRadius: BorderRadius.circular(999),
-                        ),
-                        child: Text(
-                          category,
-                          style: TextStyle(
-                            fontSize: isWide ? 13 : 12,
-                            fontWeight: FontWeight.w700,
-                            color: iconColor,
-                            fontFamily: 'Montserrat',
-                          ),
-                        ),
-                      ),
-                      if (isUnread)
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 10,
-                            vertical: 6,
-                          ),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFFEF2F2),
-                            borderRadius: BorderRadius.circular(999),
-                          ),
-                          child: const Text(
-                            'Unread',
-                            style: TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w700,
-                              color: Color(0xFFDC2626),
-                              fontFamily: 'Montserrat',
+                  Container(
+                    width: isWide ? 56 : 52,
+                    height: isWide ? 56 : 52,
+                    decoration: BoxDecoration(
+                      color: iconBg,
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    child: Icon(icon, color: iconColor, size: isWide ? 30 : 28),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 8,
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 11,
+                                vertical: 7,
+                              ),
+                              decoration: BoxDecoration(
+                                color: iconBg,
+                                borderRadius: BorderRadius.circular(999),
+                              ),
+                              child: Text(
+                                category,
+                                style: TextStyle(
+                                  fontSize: isWide ? 15 : 14,
+                                  fontWeight: FontWeight.w700,
+                                  color: iconColor,
+                                  fontFamily: 'Montserrat',
+                                ),
+                              ),
                             ),
-                          ),
+                            if (isUnread)
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 11,
+                                  vertical: 7,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFFFEF2F2),
+                                  borderRadius: BorderRadius.circular(999),
+                                  border: Border.all(
+                                    color: const Color(
+                                      0xFFB91C1C,
+                                    ).withValues(alpha: 0.2),
+                                  ),
+                                ),
+                                child: const Text(
+                                  'Unread',
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w800,
+                                    color: Color(0xFF991B1B),
+                                    fontFamily: 'Montserrat',
+                                  ),
+                                ),
+                              ),
+                          ],
                         ),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-                  AutoSizeText(
-                    title,
-                    style: TextStyle(
-                      fontSize: isWide ? 19 : 17,
-                      fontWeight: FontWeight.w800,
-                      color: kText,
-                      fontFamily: 'Montserrat',
-                      height: 1.2,
-                    ),
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    message,
-                    style: TextStyle(
-                      fontSize: isWide ? 16 : 15,
-                      height: 1.5,
-                      color: kText,
-                      fontFamily: 'OpenSans',
-                      fontWeight: FontWeight.w600,
-                    ),
-                    maxLines: 3,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  const SizedBox(height: 12),
-                  Row(
-                    children: [
-                      Icon(
-                        Icons.access_time_rounded,
-                        size: 16,
-                        color: kSubText,
-                      ),
-                      const SizedBox(width: 6),
-                      Expanded(
-                        child: Text(
-                          time,
+                        const SizedBox(height: 12),
+                        AutoSizeText(
+                          title,
                           style: TextStyle(
-                            fontSize: isWide ? 14 : 13,
-                            color: kSubText,
+                            fontSize: isWide ? 20 : 19,
+                            fontWeight: FontWeight.w800,
+                            color: kText,
+                            fontFamily: 'Montserrat',
+                            height: 1.25,
+                          ),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          message,
+                          style: TextStyle(
+                            fontSize: isWide ? 17 : 16,
+                            height: 1.55,
+                            color: kText,
                             fontFamily: 'OpenSans',
                             fontWeight: FontWeight.w600,
                           ),
+                          maxLines: 4,
+                          overflow: TextOverflow.ellipsis,
                         ),
-                      ),
-                      const Icon(
-                        Icons.chevron_right_rounded,
-                        color: kSubText,
-                        size: 22,
-                      ),
-                    ],
+                        const SizedBox(height: 14),
+                        Row(
+                          children: [
+                            const Icon(
+                              Icons.access_time_rounded,
+                              size: 18,
+                              color: kSubText,
+                            ),
+                            const SizedBox(width: 7),
+                            Expanded(
+                              child: Text(
+                                time,
+                                style: const TextStyle(
+                                  fontSize: 16,
+                                  color: kSubText,
+                                  fontFamily: 'OpenSans',
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ),
+                            const Icon(
+                              Icons.chevron_right_rounded,
+                              color: kPrimary,
+                              size: 26,
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
                   ),
                 ],
               ),
             ),
-          ],
+          ),
         ),
       ),
     );
@@ -332,142 +348,294 @@ class _NotificationPageState extends State<NotificationPage> {
     required String message,
     required String category,
     required String time,
+    required String exactDate,
     required IconData icon,
     required Color iconColor,
   }) {
     if (!mounted) return;
-    showModalBottomSheet(
-      context: context, // use State's context
-      useRootNavigator: true, // ensure a Navigator is available
+    final width = MediaQuery.sizeOf(context).width;
+    final isWide = width >= 720;
+
+    if (isWide) {
+      showDialog<void>(
+        context: context,
+        useRootNavigator: true,
+        barrierDismissible: true,
+        builder: (dialogContext) => Dialog(
+          backgroundColor: Colors.transparent,
+          insetPadding: const EdgeInsets.symmetric(
+            horizontal: 24,
+            vertical: 24,
+          ),
+          child: SizedBox(
+            width: (MediaQuery.sizeOf(dialogContext).width - 48)
+                .clamp(0.0, 680.0)
+                .toDouble(),
+            child: ConstrainedBox(
+              constraints: BoxConstraints(
+                maxHeight: MediaQuery.sizeOf(dialogContext).height * 0.86,
+              ),
+              child: _buildNotificationDetailsContent(
+                title: title,
+                message: message,
+                category: category,
+                time: time,
+                exactDate: exactDate,
+                icon: icon,
+                iconColor: iconColor,
+                isWide: true,
+                onClose: () =>
+                    Navigator.of(dialogContext, rootNavigator: true).pop(),
+              ),
+            ),
+          ),
+        ),
+      );
+      return;
+    }
+
+    showModalBottomSheet<void>(
+      context: context,
+      useRootNavigator: true,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (ctx) {
-        final mq = MediaQuery.maybeOf(ctx);
-        final width =
-            mq?.size.width ?? MediaQuery.of(context).size.width; // fallback
-        final isWide = width > 700;
-        return Container(
-          padding: EdgeInsets.only(bottom: mq?.viewInsets.bottom ?? 0),
-          decoration: const BoxDecoration(
-            color: kCardBg,
-            borderRadius: BorderRadius.only(
-              topLeft: Radius.circular(28),
-              topRight: Radius.circular(28),
-            ),
-            boxShadow: [
-              BoxShadow(
-                color: Color(0x22000000),
-                blurRadius: 24,
-                offset: Offset(0, -8),
-              ),
-            ],
+      builder: (sheetContext) => Padding(
+        padding: EdgeInsets.only(
+          bottom: MediaQuery.viewInsetsOf(sheetContext).bottom,
+        ),
+        child: ConstrainedBox(
+          constraints: BoxConstraints(
+            maxHeight: MediaQuery.sizeOf(sheetContext).height * 0.88,
           ),
-          child: SafeArea(
-            top: false,
-            child: Padding(
-              padding: EdgeInsets.fromLTRB(
-                isWide ? 40 : 24,
-                28,
-                isWide ? 40 : 24,
-                24,
+          child: _buildNotificationDetailsContent(
+            title: title,
+            message: message,
+            category: category,
+            time: time,
+            exactDate: exactDate,
+            icon: icon,
+            iconColor: iconColor,
+            isWide: false,
+            onClose: () =>
+                Navigator.of(sheetContext, rootNavigator: true).pop(),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildNotificationDetailsContent({
+    required String title,
+    required String message,
+    required String category,
+    required String time,
+    required String exactDate,
+    required IconData icon,
+    required Color iconColor,
+    required bool isWide,
+    required VoidCallback onClose,
+  }) {
+    return Container(
+      decoration: BoxDecoration(
+        color: kCardBg,
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: kBorderColor),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x22000000),
+            blurRadius: 24,
+            offset: Offset(0, 8),
+          ),
+        ],
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: double.infinity,
+            padding: EdgeInsets.fromLTRB(
+              isWide ? 32 : 22,
+              isWide ? 28 : 20,
+              isWide ? 24 : 14,
+              isWide ? 28 : 20,
+            ),
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(
+                colors: [kPrimary, Color(0xFF2563EB)],
+                begin: Alignment.centerLeft,
+                end: Alignment.centerRight,
               ),
-              child: SingleChildScrollView(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Container(
-                          decoration: BoxDecoration(
-                            color: iconColor.withValues(alpha: 0.12),
-                            borderRadius: BorderRadius.circular(14),
-                          ),
-                          padding: const EdgeInsets.all(12),
-                          child: Icon(icon, color: iconColor, size: 28),
-                        ),
-                        const SizedBox(width: 16),
-                        Expanded(
-                          child: Text(
-                            title,
-                            style: TextStyle(
-                              fontSize: isWide ? 22 : 18,
-                              fontWeight: FontWeight.w800,
-                              color: kText,
-                              fontFamily: 'Montserrat',
-                            ),
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                        IconButton(
-                          icon: const Icon(
-                            Icons.close_rounded,
-                            color: kSubText,
-                          ),
-                          onPressed: () =>
-                              Navigator.of(ctx, rootNavigator: true).pop(),
-                        ),
-                      ],
+            ),
+            child: Row(
+              children: [
+                Container(
+                  width: isWide ? 58 : 52,
+                  height: isWide ? 58 : 52,
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.16),
+                    borderRadius: BorderRadius.circular(15),
+                    border: Border.all(
+                      color: Colors.white.withValues(alpha: 0.22),
                     ),
-                    const SizedBox(height: 18),
-                    Text(
+                  ),
+                  child: Icon(
+                    icon,
+                    color: Colors.white,
+                    size: isWide ? 30 : 27,
+                  ),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Notification details',
+                        style: TextStyle(
+                          color: Colors.white.withValues(alpha: 0.82),
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          fontFamily: 'OpenSans',
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        title,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: isWide ? 23 : 19,
+                          height: 1.2,
+                          fontWeight: FontWeight.w800,
+                          fontFamily: 'Montserrat',
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                IconButton(
+                  tooltip: 'Close notification details',
+                  onPressed: onClose,
+                  icon: const Icon(Icons.close_rounded, color: Colors.white),
+                  style: IconButton.styleFrom(
+                    backgroundColor: Colors.white.withValues(alpha: 0.14),
+                    minimumSize: const Size(48, 48),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Flexible(
+            child: SingleChildScrollView(
+              padding: EdgeInsets.all(isWide ? 32 : 22),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  _buildTableBadge(
+                    label: category,
+                    color: iconColor,
+                    background: iconColor.withValues(alpha: 0.09),
+                    icon: icon,
+                  ),
+                  SizedBox(height: isWide ? 26 : 22),
+                  Text(
+                    'Message',
+                    style: TextStyle(
+                      color: kSubText,
+                      fontSize: isWide ? 16 : 14,
+                      fontWeight: FontWeight.w700,
+                      fontFamily: 'OpenSans',
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  Container(
+                    width: double.infinity,
+                    padding: EdgeInsets.all(isWide ? 22 : 18),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF7F9FC),
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: kBorderColor),
+                    ),
+                    child: SelectableText(
                       message,
                       style: TextStyle(
-                        fontSize: isWide ? 16 : 15,
+                        fontSize: isWide ? 18 : 16,
                         color: kText,
                         fontFamily: 'OpenSans',
-                        fontWeight: FontWeight.w500,
-                        height: 1.5,
+                        fontWeight: FontWeight.w600,
+                        height: 1.6,
                       ),
                     ),
-                    const SizedBox(height: 24),
-                    Row(
+                  ),
+                  SizedBox(height: isWide ? 22 : 18),
+                  Container(
+                    width: double.infinity,
+                    padding: EdgeInsets.all(isWide ? 20 : 16),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF5F9FF),
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(
+                        color: kPrimary.withValues(alpha: 0.16),
+                      ),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Icon(
-                          Icons.access_time_rounded,
-                          size: 16,
-                          color: kSubText,
-                        ),
-                        const SizedBox(width: 6),
-                        Text(
-                          time,
-                          style: TextStyle(
-                            fontSize: isWide ? 14 : 13,
-                            color: kSubText,
-                            fontFamily: 'OpenSans',
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                        Padding(
-                          padding: const EdgeInsets.only(left: 16),
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 10,
-                              vertical: 4,
+                        Row(
+                          children: [
+                            Icon(
+                              Icons.event_available_rounded,
+                              size: 20,
+                              color: kPrimary,
                             ),
-                            decoration: BoxDecoration(
-                              color: iconColor.withValues(alpha: 0.10),
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            child: Text(
-                              category,
+                            SizedBox(width: 8),
+                            Text(
+                              'Date and time sent',
                               style: TextStyle(
-                                color: iconColor,
-                                fontWeight: FontWeight.w700,
-                                fontSize: 13,
+                                color: kPrimary,
+                                fontSize: isWide ? 16 : 15,
+                                fontWeight: FontWeight.w800,
+                                fontFamily: 'Montserrat',
                               ),
                             ),
+                          ],
+                        ),
+                        const SizedBox(height: 10),
+                        Text(
+                          exactDate.isEmpty
+                              ? 'Exact date unavailable'
+                              : exactDate,
+                          style: TextStyle(
+                            color: kText,
+                            fontSize: isWide ? 18 : 17,
+                            fontWeight: FontWeight.w700,
+                            fontFamily: 'OpenSans',
                           ),
                         ),
+                        if (time.isNotEmpty) ...[
+                          const SizedBox(height: 5),
+                          Text(
+                            time,
+                            style: const TextStyle(
+                              color: kSubText,
+                              fontSize: 15,
+                              fontWeight: FontWeight.w600,
+                              fontFamily: 'OpenSans',
+                            ),
+                          ),
+                        ],
                       ],
                     ),
-                  ],
-                ),
+                  ),
+                ],
               ),
             ),
           ),
-        );
-      },
+        ],
+      ),
     );
   }
 
@@ -896,6 +1064,40 @@ class _NotificationPageState extends State<NotificationPage> {
     );
   }
 
+  Widget _buildTableBadge({
+    required String label,
+    required Color color,
+    required Color background,
+    IconData? icon,
+  }) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 8),
+      decoration: BoxDecoration(
+        color: background,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: color.withValues(alpha: 0.2)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (icon != null) ...[
+            Icon(icon, color: color, size: 17),
+            const SizedBox(width: 6),
+          ],
+          Text(
+            label,
+            style: TextStyle(
+              color: color,
+              fontSize: 14,
+              fontWeight: FontWeight.w700,
+              fontFamily: 'OpenSans',
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Future<void> _markVisibleNotificationsRead() async {
     if (_markingAllRead) return;
 
@@ -1155,118 +1357,218 @@ class _NotificationPageState extends State<NotificationPage> {
                             )
                           : _items.isEmpty
                           ? NotificationPage._emptyState(isWide: isWide)
-                          : ListView.separated(
-                              shrinkWrap: true,
-                              physics: const NeverScrollableScrollPhysics(),
-                              padding: EdgeInsets.fromLTRB(0, 20, 0, 24),
-                              itemCount: _items.length,
-                              separatorBuilder: (_, __) =>
-                                  const SizedBox(height: 14),
-                              itemBuilder: (context, i) {
-                                final n = _items[i];
-                                final isDirect = _isDirectAnnouncement(n);
-                                final isApplication =
-                                    _isApplicationNotification(n);
-                                final isUnread = _isUnread(n);
-                                final iconColor = _itemAccent(n);
-                                final category = _categoryLabel(n);
+                          : isWide
+                          ? Padding(
+                              padding: const EdgeInsets.fromLTRB(
+                                24,
+                                20,
+                                24,
+                                24,
+                              ),
+                              child: RecordDataTable(
+                                minWidth: 1050,
+                                cardStyle: true,
+                                fillAvailableWidth: true,
+                                showCheckboxColumn: false,
+                                headingRowColor: const Color(0xFFEAF2FC),
+                                headingTextStyle: const TextStyle(
+                                  color: kPrimary,
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w800,
+                                  fontFamily: 'Montserrat',
+                                ),
+                                dataTextStyle: const TextStyle(
+                                  color: kText,
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w600,
+                                  fontFamily: 'OpenSans',
+                                ),
+                                columnSpacing: 22,
+                                horizontalMargin: 20,
+                                dataRowMinHeight: 88,
+                                dataRowMaxHeight: 148,
+                                columns: const [
+                                  DataColumn(label: Text('Notification')),
+                                  DataColumn(label: Text('Message')),
+                                  DataColumn(label: Text('Category')),
+                                  DataColumn(label: Text('Received')),
+                                  DataColumn(label: Text('Status')),
+                                ],
+                                rows: List.generate(_items.length, (i) {
+                                  final n = _items[i];
+                                  final isDirect = _isDirectAnnouncement(n);
+                                  final isApplication =
+                                      _isApplicationNotification(n);
+                                  final isUnread = _isUnread(n);
+                                  final category = _categoryLabel(n);
+                                  final accent = _itemAccent(n);
 
-                                return Material(
-                                  color: Colors.transparent,
-                                  child: InkWell(
-                                    borderRadius: BorderRadius.circular(22),
-                                    onTap: () async {
-                                      if (isUnread && mounted) {
-                                        setState(() {
-                                          _items[i] = {
-                                            ...n,
-                                            if (isApplication || isDirect)
-                                              'is_read': true
-                                            else
-                                              'read_at': DateTime.now()
-                                                  .toIso8601String(),
-                                          };
-                                        });
-                                      }
-
-                                      final messenger = ScaffoldMessenger.of(
-                                        context,
-                                      );
-                                      bool ok = true;
-                                      try {
-                                        if (isApplication && isUnread) {
-                                          final id = n['app_notif_id'];
-                                          if (id != null) {
-                                            await _markApplicationNotifSeen(
-                                              id is num
-                                                  ? id.toInt()
-                                                  : int.parse('$id'),
-                                            );
-                                          }
-                                        } else if (isDirect && isUnread) {
-                                          final id = n['id'];
-                                          if (id is int) {
-                                            ok = await _markAnnouncementRead(
-                                              id,
-                                            );
-                                          } else if (id is num) {
-                                            ok = await _markAnnouncementRead(
-                                              id.toInt(),
-                                            );
-                                          }
-                                        } else if (isUnread) {
-                                          final sb = Supabase.instance.client;
-                                          await sb
-                                              .from('notifications')
-                                              .update({
-                                                'read_at': DateTime.now()
-                                                    .toIso8601String(),
-                                              })
-                                              .eq('id', n['id'])
-                                              .isFilter('read_at', null);
-                                        }
-                                      } catch (_) {
-                                        ok = false;
-                                      }
-
-                                      _showNotificationModal(
-                                        title: _itemTitle(n),
-                                        message: _itemMessage(n),
-                                        category: category,
-                                        time: _formatTime(n['created_at']),
-                                        icon: _itemIcon(n),
-                                        iconColor: iconColor,
-                                      );
-
-                                      // ignore: unawaited_futures
-                                      _fetchAll(unitId: _currentUnitId);
-
-                                      if (!ok && mounted) {
-                                        messenger.showSnackBar(
-                                          const SnackBar(
-                                            content: Text(
-                                              'Could not update the notification status.',
+                                  return DataRow(
+                                    color: WidgetStatePropertyAll(
+                                      isUnread
+                                          ? const Color(0xFFF3F8FF)
+                                          : i.isEven
+                                          ? Colors.white
+                                          : const Color(0xFFF8FAFD),
+                                    ),
+                                    cells: [
+                                      DataCell(
+                                        SizedBox(
+                                          width: 250,
+                                          child: Row(
+                                            children: [
+                                              Container(
+                                                width: 40,
+                                                height: 40,
+                                                decoration: BoxDecoration(
+                                                  color: _itemSurface(n),
+                                                  borderRadius:
+                                                      BorderRadius.circular(12),
+                                                ),
+                                                child: Icon(
+                                                  _itemIcon(n),
+                                                  color: accent,
+                                                  size: 22,
+                                                ),
+                                              ),
+                                              const SizedBox(width: 12),
+                                              Expanded(
+                                                child: Text(
+                                                  _itemTitle(n),
+                                                  maxLines: 2,
+                                                  overflow:
+                                                      TextOverflow.ellipsis,
+                                                  style: TextStyle(
+                                                    fontSize: 17,
+                                                    fontWeight: isUnread
+                                                        ? FontWeight.w800
+                                                        : FontWeight.w700,
+                                                    color: kText,
+                                                  ),
+                                                ),
+                                              ),
+                                              IconButton(
+                                                tooltip: 'Open notification',
+                                                constraints:
+                                                    const BoxConstraints.tightFor(
+                                                      width: 48,
+                                                      height: 48,
+                                                    ),
+                                                icon: const Icon(
+                                                  Icons.open_in_new_rounded,
+                                                  color: kPrimary,
+                                                  size: 21,
+                                                ),
+                                                onPressed: () =>
+                                                    _openNotification(
+                                                      context,
+                                                      i,
+                                                      n,
+                                                      isDirect,
+                                                      isApplication,
+                                                      isUnread,
+                                                      category,
+                                                    ),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                      ),
+                                      DataCell(
+                                        SizedBox(
+                                          width: 300,
+                                          child: Text(
+                                            _itemMessage(n),
+                                            maxLines: 3,
+                                            overflow: TextOverflow.ellipsis,
+                                            style: const TextStyle(
+                                              height: 1.45,
+                                              fontSize: 16,
                                             ),
                                           ),
-                                        );
-                                      }
-                                    },
+                                        ),
+                                      ),
+                                      DataCell(
+                                        _buildTableBadge(
+                                          label: category,
+                                          color: accent,
+                                          background: _itemSurface(n),
+                                        ),
+                                      ),
+                                      DataCell(
+                                        SizedBox(
+                                          width: 150,
+                                          child: Text(
+                                            _formatTime(n['created_at']),
+                                            style: const TextStyle(
+                                              fontSize: 16,
+                                              height: 1.4,
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                      DataCell(
+                                        _buildTableBadge(
+                                          label: isUnread ? 'Unread' : 'Read',
+                                          color: isUnread
+                                              ? const Color(0xFF991B1B)
+                                              : const Color(0xFF166534),
+                                          background: isUnread
+                                              ? const Color(0xFFFEF2F2)
+                                              : const Color(0xFFF0FDF4),
+                                          icon: isUnread
+                                              ? Icons.mark_email_unread_rounded
+                                              : Icons.mark_email_read_rounded,
+                                        ),
+                                      ),
+                                    ],
+                                  );
+                                }),
+                              ),
+                            )
+                          : Padding(
+                              padding: const EdgeInsets.only(
+                                top: 20,
+                                bottom: 24,
+                              ),
+                              child: Column(
+                                children: List.generate(_items.length, (i) {
+                                  final item = _items[i];
+                                  final isUnread = _isUnread(item);
+                                  final category = _categoryLabel(item);
+                                  final accent = _itemAccent(item);
+                                  final surface = _itemSurface(item);
+                                  final isDirect = _isDirectAnnouncement(item);
+                                  final isApplication =
+                                      _isApplicationNotification(item);
+
+                                  return Padding(
+                                    padding: const EdgeInsets.only(bottom: 12),
                                     child: NotificationPage._notificationCard(
-                                      title: _itemTitle(n),
-                                      message: _itemMessage(n),
+                                      title: _itemTitle(item),
+                                      message: _itemMessage(item),
                                       category: category,
-                                      time: _formatTime(n['created_at']),
-                                      icon: _itemIcon(n),
-                                      accentColor: iconColor,
-                                      surfaceColor: _itemSurface(n),
-                                      iconBg: iconColor.withValues(alpha: 0.12),
-                                      iconColor: iconColor,
-                                      isWide: isWide,
+                                      time: _formatTime(item['created_at']),
+                                      icon: _itemIcon(item),
+                                      accentColor: accent,
+                                      surfaceColor: surface,
+                                      iconBg: accent.withValues(alpha: 0.12),
+                                      iconColor: accent,
+                                      isWide: false,
                                       isUnread: isUnread,
+                                      onTap: () => _openNotification(
+                                        context,
+                                        i,
+                                        item,
+                                        isDirect,
+                                        isApplication,
+                                        isUnread,
+                                        category,
+                                      ),
                                     ),
-                                  ),
-                                );
-                              },
+                                  );
+                                }),
+                              ),
                             ),
                     ],
                   ),
@@ -1277,6 +1579,76 @@ class _NotificationPageState extends State<NotificationPage> {
         ),
       ),
     );
+  }
+
+  Future<void> _openNotification(
+    BuildContext context,
+    int index,
+    Map<String, dynamic> notification,
+    bool isDirect,
+    bool isApplication,
+    bool isUnread,
+    String category,
+  ) async {
+    final iconColor = _itemAccent(notification);
+    if (isUnread && mounted) {
+      setState(() {
+        _items[index] = {
+          ...notification,
+          if (isApplication || isDirect)
+            'is_read': true
+          else
+            'read_at': DateTime.now().toIso8601String(),
+        };
+      });
+    }
+
+    final messenger = ScaffoldMessenger.of(context);
+    var ok = true;
+    try {
+      if (isApplication && isUnread) {
+        final id = notification['app_notif_id'];
+        if (id != null) {
+          await _markApplicationNotifSeen(
+            id is num ? id.toInt() : int.parse('$id'),
+          );
+        }
+      } else if (isDirect && isUnread) {
+        final id = notification['id'];
+        if (id is int) {
+          ok = await _markAnnouncementRead(id);
+        } else if (id is num) {
+          ok = await _markAnnouncementRead(id.toInt());
+        }
+      } else if (isUnread) {
+        await Supabase.instance.client
+            .from('notifications')
+            .update({'read_at': DateTime.now().toIso8601String()})
+            .eq('id', notification['id'])
+            .isFilter('read_at', null);
+      }
+    } catch (_) {
+      ok = false;
+    }
+
+    _showNotificationModal(
+      title: _itemTitle(notification),
+      message: _itemMessage(notification),
+      category: category,
+      time: _formatTime(notification['created_at']),
+      exactDate: _formatExactDateTime(notification['created_at']),
+      icon: _itemIcon(notification),
+      iconColor: iconColor,
+    );
+    // ignore: unawaited_futures
+    _fetchAll(unitId: _currentUnitId);
+    if (!ok && mounted) {
+      messenger.showSnackBar(
+        const SnackBar(
+          content: Text('Could not update the notification status.'),
+        ),
+      );
+    }
   }
 
   String _formatTime(dynamic iso) {
@@ -1290,6 +1662,13 @@ class _NotificationPageState extends State<NotificationPage> {
     if (diff.inHours < 24) return '${diff.inHours} hr ago';
     if (diff.inDays < 7) return '${diff.inDays} days ago';
     return '${dt.year}-${dt.month.toString().padLeft(2, '0')}-${dt.day.toString().padLeft(2, '0')}';
+  }
+
+  String _formatExactDateTime(dynamic iso) {
+    if (iso == null) return '';
+    final date = DateTime.tryParse(iso.toString());
+    if (date == null) return '';
+    return DateFormat("EEEE, MMMM d, y 'at' h:mm a").format(date.toLocal());
   }
 }
 

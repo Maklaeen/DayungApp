@@ -1,6 +1,7 @@
 import 'dart:math';
 import 'package:capstone_app/ui/loading/page_skeleton.dart';
 import 'package:flutter/material.dart';
+import 'package:capstone_app/widgets/record_data_table.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 const Color kBg = Color(0xFFFAFAF7);
@@ -537,14 +538,31 @@ class _ManageFundPageState extends State<ManageFundPage> {
                           if (_visibleFunds.isEmpty)
                             _buildEmptyState()
                           else
-                            ...List.generate(
-                              _visibleFunds.length,
-                              (i) => Padding(
-                                padding: const EdgeInsets.symmetric(
-                                  vertical: 8,
-                                ),
-                                child: _fundCard(_visibleFunds[i]),
-                              ),
+                            LayoutBuilder(
+                              builder: (context, constraints) {
+                                if (constraints.maxWidth < 720) {
+                                  return _fundMobileRows(_visibleFunds);
+                                }
+                                return RecordDataTable(
+                                  modernStyle: true,
+                                  minWidth: constraints.maxWidth > 1050
+                                      ? constraints.maxWidth
+                                      : 1050,
+                                  dataRowMinHeight: 72,
+                                  dataRowMaxHeight: 130,
+                                  columns: const [
+                                    DataColumn(label: Text('Death notice')),
+                                    DataColumn(label: Text('Collected / goal')),
+                                    DataColumn(label: Text('Progress')),
+                                    DataColumn(label: Text('Members')),
+                                    DataColumn(label: Text('Deadline')),
+                                    DataColumn(label: Text('Actions')),
+                                  ],
+                                  rows: _visibleFunds
+                                      .map(_fundDataRow)
+                                      .toList(),
+                                );
+                              },
                             ),
                         ],
                       ),
@@ -553,6 +571,222 @@ class _ManageFundPageState extends State<ManageFundPage> {
           ],
         ),
       ),
+    );
+  }
+
+  Widget _fundMobileRows(List<Map<String, dynamic>> funds) {
+    return Column(
+      children: [
+        for (var index = 0; index < funds.length; index++) ...[
+          _fundMobileRow(funds[index]),
+          if (index < funds.length - 1)
+            const Divider(height: 1, indent: 12, endIndent: 12),
+        ],
+      ],
+    );
+  }
+
+  Widget _fundMobileRow(Map<String, dynamic> fund) {
+    final paid = (fund['paid'] as double?) ?? 0.0;
+    final goal = (fund['goal'] as double?) ?? 0.0;
+    final progress = ((fund['progress'] as double?) ?? 0.0).clamp(0.0, 1.0);
+    final completed = (fund['status'] ?? '').toString() == 'Completed';
+    final recordedMembers = (fund['recordedMembers'] as int?) ?? 0;
+    final expectedMembers = (fund['expectedMembers'] as int?) ?? 0;
+    final missingMembers = (fund['missingMembers'] as int?) ?? 0;
+    final noticeId = fund['id'] is int
+        ? fund['id'] as int
+        : int.tryParse('${fund['id']}') ?? 0;
+    final deadline = (fund['deadline'] ?? '').toString();
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  (fund['name'] ?? 'Death Notice').toString(),
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w800,
+                    color: kNeutralText,
+                  ),
+                ),
+              ),
+              _fundStatusBadge(completed),
+            ],
+          ),
+          const SizedBox(height: 10),
+          _fundMobileDetail(
+            'Collected / goal',
+            '₱${paid.toStringAsFixed(2)} / ₱${goal.toStringAsFixed(2)}',
+          ),
+          const SizedBox(height: 6),
+          Row(
+            children: [
+              Expanded(
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(8),
+                  child: LinearProgressIndicator(
+                    value: progress,
+                    minHeight: 9,
+                    valueColor: AlwaysStoppedAnimation(
+                      completed
+                          ? const Color(0xFF10B981)
+                          : const Color(0xFF3B82F6),
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Text(
+                '${(progress * 100).round()}%',
+                style: const TextStyle(fontWeight: FontWeight.w700),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          _fundMobileDetail(
+            'Members',
+            '$recordedMembers / $expectedMembers'
+                '${missingMembers > 0 ? ' ($missingMembers missing)' : ''}',
+          ),
+          const SizedBox(height: 6),
+          _fundMobileDetail('Deadline', deadline.isEmpty ? '—' : deadline),
+          const SizedBox(height: 10),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              OutlinedButton.icon(
+                onPressed: noticeId <= 0
+                    ? null
+                    : () => _showPaymentStatusSheet(
+                        noticeId,
+                        widget.dayungUnitId,
+                      ),
+                icon: const Icon(Icons.people_alt_rounded),
+                label: const Text('Members'),
+              ),
+              ElevatedButton.icon(
+                onPressed: noticeId <= 0 || completed
+                    ? null
+                    : () => _triggerPaymentCollection(
+                        noticeId,
+                        widget.dayungUnitId,
+                      ),
+                icon: const Icon(Icons.campaign_rounded),
+                label: Text(missingMembers > 0 ? 'Create Missing' : 'Collect'),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _fundMobileDetail(String label, String value) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          '$label: ',
+          style: TextStyle(
+            color: Colors.grey[700],
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        Expanded(
+          child: Text(value, style: const TextStyle(color: kNeutralText)),
+        ),
+      ],
+    );
+  }
+
+  Widget _fundStatusBadge(bool completed) {
+    final color = completed ? Colors.teal : Colors.orange;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.12),
+        border: Border.all(color: color),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Text(
+        completed ? 'Completed' : 'Collecting',
+        style: TextStyle(color: color, fontWeight: FontWeight.w800),
+      ),
+    );
+  }
+
+  DataRow _fundDataRow(Map<String, dynamic> fund) {
+    final paid = (fund['paid'] as double?) ?? 0.0;
+    final goal = (fund['goal'] as double?) ?? 0.0;
+    final progress = ((fund['progress'] as double?) ?? 0.0).clamp(0.0, 1.0);
+    final completed = (fund['status'] ?? '').toString() == 'Completed';
+    final recordedMembers = (fund['recordedMembers'] as int?) ?? 0;
+    final expectedMembers = (fund['expectedMembers'] as int?) ?? 0;
+    final missingMembers = (fund['missingMembers'] as int?) ?? 0;
+    final noticeId = fund['id'] is int
+        ? fund['id'] as int
+        : int.tryParse('${fund['id']}') ?? 0;
+    final deadline = (fund['deadline'] ?? '').toString();
+
+    return DataRow(
+      cells: [
+        DataCell(Text((fund['name'] ?? 'Death Notice').toString())),
+        DataCell(
+          Text('₱${paid.toStringAsFixed(2)} / ₱${goal.toStringAsFixed(2)}'),
+        ),
+        DataCell(
+          SizedBox(
+            width: 110,
+            child: LinearProgressIndicator(
+              value: progress,
+              valueColor: AlwaysStoppedAnimation(
+                completed ? const Color(0xFF10B981) : const Color(0xFF3B82F6),
+              ),
+            ),
+          ),
+        ),
+        DataCell(
+          Text(
+            '$recordedMembers / $expectedMembers'
+            '${missingMembers > 0 ? ' ($missingMembers missing)' : ''}',
+          ),
+        ),
+        DataCell(Text(deadline.isEmpty ? '—' : deadline)),
+        DataCell(
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              OutlinedButton.icon(
+                onPressed: noticeId <= 0
+                    ? null
+                    : () => _showPaymentStatusSheet(
+                        noticeId,
+                        widget.dayungUnitId,
+                      ),
+                icon: const Icon(Icons.people_alt_rounded),
+                label: const Text('Members'),
+              ),
+              ElevatedButton.icon(
+                onPressed: noticeId <= 0 || completed
+                    ? null
+                    : () => _triggerPaymentCollection(
+                        noticeId,
+                        widget.dayungUnitId,
+                      ),
+                icon: const Icon(Icons.campaign_rounded),
+                label: Text(missingMembers > 0 ? 'Create Missing' : 'Collect'),
+              ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 
@@ -716,17 +950,113 @@ class _ManageFundPageState extends State<ManageFundPage> {
                   ),
                 ),
                 const SizedBox(height: 14),
-                ...List.generate(
-                  _deceasedPayments.length,
-                  (i) => Padding(
-                    padding: const EdgeInsets.only(bottom: 12),
-                    child: _buildDeceasedPaymentCard(_deceasedPayments[i]),
-                  ),
+                LayoutBuilder(
+                  builder: (context, constraints) {
+                    if (constraints.maxWidth < 720) {
+                      return _paymentStatusMobileRows(_deceasedPayments);
+                    }
+                    return RecordDataTable(
+                      modernStyle: true,
+                      minWidth: constraints.maxWidth > 850
+                          ? constraints.maxWidth
+                          : 850,
+                      dataRowMinHeight: 64,
+                      columns: const [
+                        DataColumn(label: Text('Death notice')),
+                        DataColumn(label: Text('Collected')),
+                        DataColumn(label: Text('Goal')),
+                        DataColumn(label: Text('Remaining')),
+                        DataColumn(label: Text('Progress')),
+                      ],
+                      rows: _deceasedPayments
+                          .map(_paymentStatusDataRow)
+                          .toList(),
+                    );
+                  },
                 ),
               ],
             ),
           ),
         ],
+      ],
+    );
+  }
+
+  Widget _paymentStatusMobileRows(List<Map<String, dynamic>> payments) {
+    return Column(
+      children: [
+        for (var index = 0; index < payments.length; index++) ...[
+          _paymentStatusMobileRow(payments[index]),
+          if (index < payments.length - 1)
+            const Divider(height: 1, indent: 12, endIndent: 12),
+        ],
+      ],
+    );
+  }
+
+  Widget _paymentStatusMobileRow(Map<String, dynamic> deceased) {
+    final paid = (deceased['paid'] as double?) ?? 0.0;
+    final total = (deceased['total'] as double?) ?? 0.0;
+    final progress = ((deceased['progress'] as double?) ?? 0.0).clamp(0.0, 1.0);
+    final remaining = (total - paid).clamp(0.0, double.infinity);
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            (deceased['name'] ?? 'Death Notice').toString(),
+            style: const TextStyle(
+              fontWeight: FontWeight.w700,
+              color: kNeutralText,
+            ),
+          ),
+          const SizedBox(height: 8),
+          _fundMobileDetail('Collected', _currency(paid)),
+          const SizedBox(height: 4),
+          _fundMobileDetail('Goal', _currency(total)),
+          const SizedBox(height: 4),
+          _fundMobileDetail('Remaining', _currency(remaining)),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Expanded(
+                child: LinearProgressIndicator(
+                  value: progress,
+                  minHeight: 9,
+                  valueColor: const AlwaysStoppedAnimation(Color(0xFFF59E0B)),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Text('${(progress * 100).round()}%'),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  DataRow _paymentStatusDataRow(Map<String, dynamic> deceased) {
+    final paid = (deceased['paid'] as double?) ?? 0.0;
+    final total = (deceased['total'] as double?) ?? 0.0;
+    final progress = (deceased['progress'] as double?) ?? 0.0;
+    final remaining = (total - paid).clamp(0.0, double.infinity);
+    return DataRow(
+      cells: [
+        DataCell(Text((deceased['name'] ?? 'Death Notice').toString())),
+        DataCell(Text(_currency(paid))),
+        DataCell(Text(_currency(total))),
+        DataCell(Text(_currency(remaining))),
+        DataCell(
+          SizedBox(
+            width: 130,
+            child: LinearProgressIndicator(
+              value: progress.clamp(0.0, 1.0),
+              minHeight: 10,
+              valueColor: const AlwaysStoppedAnimation(Color(0xFFF59E0B)),
+            ),
+          ),
+        ),
       ],
     );
   }
@@ -927,7 +1257,11 @@ class _ManageFundPageState extends State<ManageFundPage> {
         borderRadius: BorderRadius.circular(20),
         border: Border.all(color: Colors.grey.shade200),
         boxShadow: const [
-          BoxShadow(color: Color(0x1A000000), blurRadius: 20, offset: Offset(0, 4)),
+          BoxShadow(
+            color: Color(0x1A000000),
+            blurRadius: 20,
+            offset: Offset(0, 4),
+          ),
         ],
       ),
       child: Column(
@@ -1029,7 +1363,11 @@ class _ManageFundPageState extends State<ManageFundPage> {
         borderRadius: BorderRadius.circular(20),
         border: Border.all(color: kBorder),
         boxShadow: const [
-          BoxShadow(color: Color(0x0F000000), blurRadius: 12, offset: Offset(0, 4)),
+          BoxShadow(
+            color: Color(0x0F000000),
+            blurRadius: 12,
+            offset: Offset(0, 4),
+          ),
         ],
       ),
       child: Column(
@@ -1328,7 +1666,9 @@ class _ManageFundPageState extends State<ManageFundPage> {
                       ),
                       const SizedBox(width: 6),
                       Text(
-                        'Date of Death: ${deadline.isEmpty ? '"'"'—'"'"' : deadline}',
+                        'Date of Death: ${deadline.isEmpty ? '"'
+                                  "'—'"
+                                  '"' : deadline}',
                         style: const TextStyle(
                           fontWeight: FontWeight.w600,
                           fontSize: 13,

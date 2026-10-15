@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:capstone_app/widgets/record_data_table.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 const Color kBg = Color(0xFFFAFAF7);
@@ -1059,148 +1060,26 @@ class _CollectedFromCollectorsPageState
       );
     }
 
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final columns = _gridColumns(constraints.maxWidth);
-        final ratio = columns == 1 ? 1.48 : 1.10;
-        return GridView.builder(
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          itemCount: _collectors.length,
-          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: columns,
-            childAspectRatio: ratio,
-            crossAxisSpacing: 16,
-            mainAxisSpacing: 16,
-          ),
-          itemBuilder: (context, index) {
-            final collector = _collectors[index];
-            final paymentCount = _asInt(collector['payment_count']);
-            final totalCollected = _asDouble(collector['total_collected']);
-            final recentPayment = (collector['recent_payment'] ?? '')
-                .toString();
-            return Container(
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(22),
-                border: Border.all(color: kBorder),
-                boxShadow: const [
-                  BoxShadow(
-                    color: Color(0x12000000),
-                    blurRadius: 16,
-                    offset: Offset(0, 6),
-                  ),
-                ],
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Container(
-                        width: 48,
-                        height: 48,
-                        decoration: BoxDecoration(
-                          gradient: const LinearGradient(
-                            colors: [Color(0xFF1E40AF), Color(0xFF3B82F6)],
-                            begin: Alignment.topLeft,
-                            end: Alignment.bottomRight,
-                          ),
-                          borderRadius: BorderRadius.circular(14),
-                        ),
-                        child: const Icon(
-                          Icons.person_rounded,
-                          color: Colors.white,
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              (collector['collector_name'] ?? 'Collector')
-                                  .toString(),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.w800,
-                                color: kNeutralText,
-                                fontFamily: 'Montserrat',
-                              ),
-                            ),
-                            const SizedBox(height: 4),
-                            Text(
-                              paymentCount > 0
-                                  ? 'Collector has recorded paid remittances'
-                                  : 'Assigned but no paid remittances yet',
-                              maxLines: 2,
-                              overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
-                                fontSize: 12,
-                                color: kSubtleText,
-                                fontWeight: FontWeight.w600,
-                                fontFamily: 'OpenSans',
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-                  Text(
-                    _formatCurrency(totalCollected),
-                    style: const TextStyle(
-                      fontSize: 24,
-                      fontWeight: FontWeight.w900,
-                      color: kPrimary,
-                      fontFamily: 'Montserrat',
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: [
-                      _buildMiniChip(
-                        icon: Icons.receipt_long_rounded,
-                        label:
-                            '$paymentCount payment${paymentCount == 1 ? '' : 's'}',
-                        color: const Color(0xFF047857),
-                        background: const Color(0xFFECFDF5),
-                      ),
-                      _buildMiniChip(
-                        icon: Icons.schedule_rounded,
-                        label: recentPayment.isEmpty
-                            ? 'No recent payment'
-                            : _formatDate(recentPayment),
-                        color: const Color(0xFF1D4ED8),
-                        background: const Color(0xFFEFF6FF),
-                      ),
-                    ],
-                  ),
-                  const Spacer(),
-                  Text(
-                    (collector['collector_note'] ?? '').toString(),
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      fontSize: 12,
-                      color: kSubtleText,
-                      fontWeight: FontWeight.w600,
-                      fontFamily: 'OpenSans',
-                      height: 1.4,
-                    ),
-                  ),
-                ],
-              ),
-            );
-          },
-        );
-      },
+    return RecordDataTable(
+      minWidth: 850,
+      columns: const [
+        DataColumn(label: Text('Collector')),
+        DataColumn(label: Text('Total collected')),
+        DataColumn(label: Text('Payments')),
+        DataColumn(label: Text('Recent payment')),
+        DataColumn(label: Text('Note')),
+      ],
+      rows: _collectors.map((collector) {
+        final paymentCount = _asInt(collector['payment_count']);
+        final recentPayment = (collector['recent_payment'] ?? '').toString();
+        return DataRow(cells: [
+          DataCell(Text((collector['collector_name'] ?? 'Collector').toString())),
+          DataCell(Text(_formatCurrency(_asDouble(collector['total_collected'])))),
+          DataCell(Text('$paymentCount')),
+          DataCell(Text(recentPayment.isEmpty ? 'No recent payment' : _formatDate(recentPayment))),
+          DataCell(Text((collector['collector_note'] ?? '').toString())),
+        ]);
+      }).toList(),
     );
   }
 

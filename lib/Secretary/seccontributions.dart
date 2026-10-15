@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:capstone_app/ui/theme/branding.dart';
 import 'package:capstone_app/utils/theme_surface.dart';
+import 'package:capstone_app/widgets/record_data_table.dart';
 
 // Additional colors for secretary contributions specific styling (new UI)
 const kText = Color(0xFF111827);
@@ -385,159 +386,57 @@ class _SecretaryContributionsPageState
                             padding: const EdgeInsets.all(16),
                             child: RefreshIndicator(
                               onRefresh: _fetchContributions,
-                              child: ListView.separated(
-                                itemCount: _payments.length,
-                                separatorBuilder: (_, __) =>
-                                    const SizedBox(height: 8),
-                                itemBuilder: (context, i) {
-                                  final p = _payments[i];
-                                  final userDeceasedId =
-                                      (p['userdeceased'] ?? '').toString();
-                                  final userDeceased =
-                                      (p['deceased_name']
+                              child: ListView(
+                                physics: const AlwaysScrollableScrollPhysics(),
+                                children: [
+                                  RecordDataTable(
+                                    minWidth: 620,
+                                    columns: const [
+                                      DataColumn(label: Text('Contribution')),
+                                      DataColumn(label: Text('Amount')),
+                                      DataColumn(label: Text('Status')),
+                                      DataColumn(label: Text('Paid')),
+                                    ],
+                                    rows: _payments.map((p) {
+                                      final userDeceasedId =
+                                          (p['userdeceased'] ?? '').toString();
+                                      final userDeceased =
+                                          (p['deceased_name']
+                                                      ?.toString()
+                                                      .isNotEmpty ==
+                                                  true)
+                                              ? p['deceased_name'].toString()
+                                              : (userDeceasedId.isNotEmpty
+                                                    ? _users[userDeceasedId] ??
+                                                          userDeceasedId
+                                                    : 'Membership Payment');
+                                      final paidAtStr = _fmtDateTime(
+                                        p['paid_at'],
+                                      );
+                                      final paid =
+                                          p['status']
                                               ?.toString()
-                                              .isNotEmpty ==
-                                          true)
-                                      ? p['deceased_name'].toString()
-                                      : (userDeceasedId.isNotEmpty
-                                            ? _users[userDeceasedId] ??
-                                                  userDeceasedId
-                                            : 'Membership Payment');
-                                  final paidAtStr = _fmtDateTime(p['paid_at']);
-                                  final paid =
-                                      (p['status']?.toString().toLowerCase() ==
-                                      'paid');
-
-                                  return Container(
-                                    padding: const EdgeInsets.all(8),
-                                    decoration: BoxDecoration(
-                                      color: kCardBg,
-                                      borderRadius: BorderRadius.circular(12),
-                                      border: Border.all(
-                                        color: kBorderColor,
-                                        width: 1,
-                                      ),
-                                      boxShadow: [
-                                        BoxShadow(
-                                          color: Colors.black.withValues(
-                                            alpha: 0.03,
+                                              .toLowerCase() ==
+                                          'paid';
+                                      return DataRow(
+                                        cells: [
+                                          DataCell(Text(userDeceased)),
+                                          DataCell(Text('₱${p['amount']}')),
+                                          DataCell(
+                                            Text(paid ? 'PAID' : 'PENDING'),
                                           ),
-                                          blurRadius: 8,
-                                          offset: const Offset(0, 2),
-                                        ),
-                                      ],
-                                    ),
-                                    child: Column(
-                                      children: [
-                                        Row(
-                                          children: [
-                                            Container(
-                                              padding: const EdgeInsets.all(8),
-                                              decoration: BoxDecoration(
-                                                color: paid
-                                                    ? kPaid.withValues(
-                                                        alpha: 0.1,
-                                                      )
-                                                    : kPending.withValues(
-                                                        alpha: 0.1,
-                                                      ),
-                                                borderRadius:
-                                                    BorderRadius.circular(10),
-                                              ),
-                                              child: Icon(
-                                                paid
-                                                    ? Icons.check_circle_rounded
-                                                    : Icons.schedule_rounded,
-                                                color: paid ? kPaid : kPending,
-                                                size: 18,
-                                              ),
-                                            ),
-                                            const SizedBox(width: 12),
-                                            Expanded(
-                                              child: Column(
-                                                crossAxisAlignment:
-                                                    CrossAxisAlignment.start,
-                                                children: [
-                                                  Text(
-                                                    userDeceased,
-                                                    style: const TextStyle(
-                                                      fontSize: 14,
-                                                      fontWeight:
-                                                          FontWeight.w700,
-                                                      color: kText,
-                                                      fontFamily: 'Montserrat',
-                                                    ),
-                                                  ),
-                                                ],
-                                              ),
-                                            ),
-                                            Container(
-                                              padding:
-                                                  const EdgeInsets.symmetric(
-                                                    horizontal: 8,
-                                                    vertical: 4,
-                                                  ),
-                                              decoration: BoxDecoration(
-                                                color: paid
-                                                    ? kPaid.withValues(
-                                                        alpha: 0.1,
-                                                      )
-                                                    : kPending.withValues(
-                                                        alpha: 0.1,
-                                                      ),
-                                                borderRadius:
-                                                    BorderRadius.circular(8),
-                                                border: Border.all(
-                                                  color: paid
-                                                      ? kPaid
-                                                      : kPending,
-                                                  width: 1,
-                                                ),
-                                              ),
-                                              child: Text(
-                                                paid ? 'PAID' : 'PENDING',
-                                                style: TextStyle(
-                                                  color: paid
-                                                      ? kPaid
-                                                      : kPending,
-                                                  fontWeight: FontWeight.w700,
-                                                  fontSize: 10,
-                                                  letterSpacing: 0.5,
-                                                  fontFamily: 'Montserrat',
-                                                ),
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                        const SizedBox(height: 8),
-                                        Row(
-                                          mainAxisAlignment:
-                                              MainAxisAlignment.spaceBetween,
-                                          children: [
+                                          DataCell(
                                             Text(
-                                              'Amount: ₱${p['amount']}',
-                                              style: TextStyle(
-                                                fontSize: 11,
-                                                color: paid ? kPaid : kPending,
-                                                fontWeight: FontWeight.w700,
-                                                fontFamily: 'Montserrat',
-                                              ),
+                                              paidAtStr.isEmpty
+                                                  ? '—'
+                                                  : paidAtStr,
                                             ),
-                                            if (paidAtStr.isNotEmpty)
-                                              Text(
-                                                'Paid: $paidAtStr',
-                                                style: const TextStyle(
-                                                  fontSize: 10,
-                                                  color: kSubText,
-                                                  fontFamily: 'OpenSans',
-                                                ),
-                                              ),
-                                          ],
-                                        ),
-                                      ],
-                                    ),
-                                  );
-                                },
+                                          ),
+                                        ],
+                                      );
+                                    }).toList(),
+                                  ),
+                                ],
                               ),
                             ),
                           )),

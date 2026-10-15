@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:capstone_app/shared/president_secretary_member_reports.dart';
+import 'package:capstone_app/widgets/record_data_table.dart';
 
 const Color kBg = Color(0xFFFAFAF7);
 const Color kPrimary = Color(0xFF0D47A1);
@@ -1110,7 +1111,7 @@ class _PresidentMembersPageState extends State<PresidentMembersPage>
                       ),
                     )
                   : LayoutBuilder(
-                      builder: (context, constraints) {
+                      builder: (context, _) {
                         return Column(
                           children: [
                             Expanded(
@@ -1122,21 +1123,9 @@ class _PresidentMembersPageState extends State<PresidentMembersPage>
                                   child: TabBarView(
                                     controller: _tabController,
                                     children: [
-                                      _memberList(
-                                        _approved,
-                                        mode: 'active',
-                                        constraints: constraints,
-                                      ),
-                                      _memberList(
-                                        _pending,
-                                        mode: 'pending',
-                                        constraints: constraints,
-                                      ),
-                                      _memberList(
-                                        _deceased,
-                                        mode: 'deceased',
-                                        constraints: constraints,
-                                      ),
+                                      _memberList(_approved, mode: 'active'),
+                                      _memberList(_pending, mode: 'pending'),
+                                      _memberList(_deceased, mode: 'deceased'),
                                     ],
                                   ),
                                 ),
@@ -1156,7 +1145,6 @@ class _PresidentMembersPageState extends State<PresidentMembersPage>
   Widget _memberList(
     List<Map<String, dynamic>> list, {
     String mode = 'active',
-    required BoxConstraints constraints,
   }) {
     List<Map<String, dynamic>> filtered = list;
     if (_searchQuery.isNotEmpty) {
@@ -1181,39 +1169,30 @@ class _PresidentMembersPageState extends State<PresidentMembersPage>
       );
     }
 
-    final width = constraints.maxWidth;
-    final useGrid = width >= 700;
-    final crossAxisCount = width >= 1100 ? 3 : 2;
-
-    if (!useGrid) {
-      return RefreshIndicator(
-        onRefresh: _refresh,
-        child: ListView.builder(
-          physics: const AlwaysScrollableScrollPhysics(),
-          itemCount: filtered.length,
-          itemBuilder: (_, i) => _memberTileCard(filtered[i], mode: mode),
-        ),
-      );
-    }
-
     return RefreshIndicator(
       onRefresh: _refresh,
-      child: GridView.builder(
+      child: ListView(
         physics: const AlwaysScrollableScrollPhysics(),
         padding: const EdgeInsets.all(12),
-        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-          crossAxisCount: crossAxisCount,
-          mainAxisSpacing: 12,
-          crossAxisSpacing: 12,
-          childAspectRatio: 2.9,
-        ),
-        itemCount: filtered.length,
-        itemBuilder: (_, i) => _memberTileCard(filtered[i], mode: mode),
+        children: [
+          RecordDataTable(
+            minWidth: 760,
+            columns: const [
+              DataColumn(label: Text('Member')),
+              DataColumn(label: Text('Dayung')),
+              DataColumn(label: Text('Status')),
+              DataColumn(label: Text('Action')),
+            ],
+            rows: filtered
+                .map((row) => _memberDataRow(row, mode: mode))
+                .toList(),
+          ),
+        ],
       ),
     );
   }
 
-  Widget _memberTileCard(Map<String, dynamic> r, {required String mode}) {
+  DataRow _memberDataRow(Map<String, dynamic> r, {required String mode}) {
     final u = r['user'] as Map<String, dynamic>?;
     final profileUrl = (r['profile_url'] as String?)?.trim();
     final dayungId = r['dayung_unit_id'] as int?;
@@ -1237,89 +1216,77 @@ class _PresidentMembersPageState extends State<PresidentMembersPage>
     }
 
     final title = _memberNameOf(r);
+    final uuid = (u?['id'] as String?)?.trim().isNotEmpty == true
+        ? (u?['id'] as String).trim()
+        : r['user_id']?.toString().trim();
+    void onTap() => _showBeneficiariesModal(context, uuid, title);
 
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        border: Border(
-          bottom: BorderSide(color: Colors.grey.shade200, width: 0.5),
-        ),
-      ),
-      child: ListTile(
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-        leading: CircleAvatar(
-          backgroundImage: (profileUrl != null && profileUrl.isNotEmpty)
-              ? NetworkImage(profileUrl)
-              : null,
-          backgroundColor: kBg,
-          radius: 16,
-          child: (profileUrl == null || profileUrl.isEmpty)
-              ? Text(
-                  _initialOf(title),
+    return DataRow(
+      cells: [
+        DataCell(
+          Row(
+            children: [
+              CircleAvatar(
+                backgroundImage: profileUrl != null && profileUrl.isNotEmpty
+                    ? NetworkImage(profileUrl)
+                    : null,
+                backgroundColor: kBg,
+                radius: 16,
+                child: profileUrl == null || profileUrl.isEmpty
+                    ? Text(
+                        _initialOf(title),
+                        style: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 12,
+                          color: kPrimaryDark,
+                        ),
+                      )
+                    : null,
+              ),
+              const SizedBox(width: 10),
+              Flexible(
+                child: Text(
+                  title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
-                    fontWeight: FontWeight.bold,
+                    fontWeight: FontWeight.w600,
                     fontSize: 12,
                     color: kPrimaryDark,
-                  ),
-                )
-              : null,
-        ),
-        title: Text(
-          title,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: const TextStyle(
-            fontWeight: FontWeight.w600,
-            fontSize: 12,
-            color: kPrimaryDark,
-            fontFamily: 'Montserrat',
-          ),
-        ),
-        subtitle: Text(
-          dayungName,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: const TextStyle(
-            fontSize: 10,
-            color: kSubtleText,
-            fontFamily: 'OpenSans',
-          ),
-        ),
-        trailing: Container(
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                decoration: BoxDecoration(
-                  color: chipColor.withValues(alpha: .15),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: chipColor),
-                ),
-                child: Text(
-                  chipText,
-                  style: TextStyle(
-                    fontSize: 8,
-                    fontWeight: FontWeight.w600,
-                    color: chipColor,
+                    fontFamily: 'Montserrat',
                   ),
                 ),
               ),
-              if (mode == 'active' && dayungId != null) ...[
-                const SizedBox(width: 6),
-                IconButton(
-                  tooltip: 'Remove member',
-                  visualDensity: VisualDensity.compact,
-                  constraints: const BoxConstraints(
-                    minWidth: 28,
-                    minHeight: 28,
-                  ),
-                  padding: EdgeInsets.zero,
-                  icon: const Icon(
-                    Icons.person_remove_rounded,
-                    size: 18,
-                    color: kDanger,
-                  ),
+            ],
+          ),
+          onTap: onTap,
+        ),
+        DataCell(
+          Text(dayungName, maxLines: 1, overflow: TextOverflow.ellipsis),
+          onTap: onTap,
+        ),
+        DataCell(
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            decoration: BoxDecoration(
+              color: chipColor.withValues(alpha: .15),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: chipColor),
+            ),
+            child: Text(
+              chipText,
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+                color: chipColor,
+              ),
+            ),
+          ),
+          onTap: onTap,
+        ),
+        DataCell(
+          mode == 'active' && dayungId != null
+              ? TextButton.icon(
                   onPressed: () => _showRemoveMemberDialog(
                     applicationId: (r['id'] as num).toInt(),
                     dayungUnitId: dayungId,
@@ -1328,19 +1295,18 @@ class _PresidentMembersPageState extends State<PresidentMembersPage>
                         : (r['user_id']?.toString().trim() ?? ''),
                     memberName: title,
                   ),
-                ),
-              ],
-            ],
-          ),
+                  icon: const Icon(Icons.person_remove_rounded, size: 18),
+                  label: const Text('Remove'),
+                  style: TextButton.styleFrom(
+                    foregroundColor: kDanger,
+                    padding: const EdgeInsets.symmetric(horizontal: 8),
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    minimumSize: const Size(0, 32),
+                  ),
+                )
+              : const SizedBox.shrink(),
         ),
-        // President can click any member (active, pending, deceased)
-        onTap: () {
-          final uuid = (u?['id'] as String?)?.trim().isNotEmpty == true
-              ? (u?['id'] as String).trim()
-              : (r['user_id']?.toString().trim());
-          _showBeneficiariesModal(context, uuid, title);
-        },
-      ),
+      ],
     );
   }
 

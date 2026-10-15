@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:capstone_app/utils/supabase_storage.dart';
+import 'package:capstone_app/widgets/record_data_table.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -189,69 +190,36 @@ class _CertificatesPageState extends State<CertificatesPage>
     }
     return RefreshIndicator(
       onRefresh: _fetchCertificates,
-      child: ListView.separated(
-        itemCount: list.length,
-        separatorBuilder: (_, __) =>
-            const Divider(height: 32, thickness: 1, color: Color(0xFFE1E4E8)),
-        itemBuilder: (context, index) {
-          final cert = list[index];
-          final fileUrl = cert['file_url'];
-          return Card(
-            elevation: 3,
-            color: kCardBg,
-            margin: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(16),
-            ),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(vertical: 18, horizontal: 18),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      CircleAvatar(
-                        backgroundColor: kPrimary.withValues(alpha: 0.15),
-                        child: const Icon(
-                          Icons.description,
-                          color: kPrimaryDark,
-                        ),
-                      ),
-                      const SizedBox(width: 14),
-                      Expanded(
-                        child: Text(
-                          cert['deceased_name'] ?? 'Unknown',
-                          style: const TextStyle(
-                            fontWeight: FontWeight.w700,
-                            fontSize: 20,
-                            color: kPrimaryDark,
-                            fontFamily: 'Montserrat',
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-                  _infoRow(
-                    Icons.event,
-                    'Date of Death: ${_formatDate(cert['date_of_death'])}',
-                  ),
-                  _infoRow(
-                    Icons.upload_file,
-                    'Submitted: ${_formatDate(cert['submitted_at'])}',
-                  ),
-                  const SizedBox(height: 14),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: OutlinedButton.icon(
-                          onPressed:
-                              fileUrl != null && fileUrl.toString().isNotEmpty
+      child: ListView(
+        padding: const EdgeInsets.all(18),
+        children: [
+          RecordDataTable(
+            minWidth: 850,
+            columns: const [
+              DataColumn(label: Text('Deceased name')),
+              DataColumn(label: Text('Date of death')),
+              DataColumn(label: Text('Submitted')),
+              DataColumn(label: Text('Actions')),
+            ],
+            rows: list.map((cert) {
+              final fileUrl = cert['file_url'];
+              return DataRow(
+                cells: [
+                  DataCell(Text((cert['deceased_name'] ?? 'Unknown').toString())),
+                  DataCell(Text(_formatDate(cert['date_of_death']))),
+                  DataCell(Text(_formatDate(cert['submitted_at']))),
+                  DataCell(
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        OutlinedButton.icon(
+                          onPressed: fileUrl != null &&
+                                  fileUrl.toString().isNotEmpty
                               ? () async {
                                   final resolved =
                                       await resolveSupabaseStorageUrl(
-                                        fileUrl.toString(),
-                                      );
+                                    fileUrl.toString(),
+                                  );
                                   if (resolved != null &&
                                       await canLaunchUrl(Uri.parse(resolved))) {
                                     await launchUrl(
@@ -261,51 +229,27 @@ class _CertificatesPageState extends State<CertificatesPage>
                                   }
                                 }
                               : null,
-                          icon: const Icon(
-                            Icons.picture_as_pdf,
-                            color: kPrimaryDark,
-                          ),
-                          label: const Text('View Certificate'),
-                          style: OutlinedButton.styleFrom(
-                            foregroundColor: kPrimaryDark,
-                            side: const BorderSide(color: kPrimaryDark),
-                            padding: const EdgeInsets.symmetric(vertical: 14),
-                            textStyle: const TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
+                          icon: const Icon(Icons.picture_as_pdf),
+                          label: const Text('View'),
                         ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: ElevatedButton.icon(
-                          onPressed: () {
-                            // TODO: Validate logic here
-                          },
+                        const SizedBox(width: 8),
+                        ElevatedButton.icon(
+                          onPressed: () {},
                           icon: const Icon(Icons.verified, size: 20),
                           label: const Text('Validate'),
                           style: ElevatedButton.styleFrom(
                             backgroundColor: kPrimary,
                             foregroundColor: Colors.white,
-                            padding: const EdgeInsets.symmetric(vertical: 14),
-                            textStyle: const TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w600,
-                            ),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(8),
-                            ),
                           ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
                 ],
-              ),
-            ),
-          );
-        },
+              );
+            }).toList(),
+          ),
+        ],
       ),
     );
   }

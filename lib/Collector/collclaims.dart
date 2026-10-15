@@ -1,6 +1,7 @@
 import 'package:capstone_app/ui/loading/page_skeleton.dart';
 import 'package:capstone_app/pages/submit_claim.dart';
 import 'package:capstone_app/utils/theme_surface.dart';
+import 'package:capstone_app/widgets/record_data_table.dart';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -138,7 +139,7 @@ class _CollectorClaimsPageState extends State<CollectorClaimsPage> {
                                   ),
                                 ),
                               ),
-                            ..._myClaims.map(_claimCard),
+                            if (_myClaims.isNotEmpty) _claimsTable(),
                             const SizedBox(height: 8),
                             if (_myClaims.isEmpty)
                               _emptyState('No claims yet for this unit'),
@@ -201,138 +202,47 @@ class _CollectorClaimsPageState extends State<CollectorClaimsPage> {
   }
 
   // UI helpers
-  Widget _claimCard(Map<String, dynamic> c) {
-    final status = (c['status'] ?? '').toString();
-    final title = (c['title'] ?? 'Untitled').toString();
-    final desc = (c['description'] ?? '').toString().trim();
-    final date = _formatDate(c['date_submitted']);
-    final color = _statusColor(status);
-
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: color.withValues(alpha: 0.16)),
-        boxShadow: [
-          BoxShadow(
-            color: color.withValues(alpha: 0.08),
-            blurRadius: 18,
-            offset: const Offset(0, 8),
-          ),
-          const BoxShadow(
-            color: Color(0x0D000000),
-            blurRadius: 8,
-            offset: Offset(0, 2),
-          ),
-        ],
-      ),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(20),
-        onTap: () {
-          // TODO: open claim detail (collector)
-        },
-        child: Padding(
-          padding: const EdgeInsets.all(20),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Container(
-                    width: 48,
-                    height: 48,
-                    decoration: BoxDecoration(
-                      color: color.withValues(alpha: 0.12),
-                      borderRadius: BorderRadius.circular(14),
-                    ),
-                    child: Icon(_statusIcon(status), color: color, size: 24),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          title,
-                          style: const TextStyle(
-                            fontFamily: 'Montserrat',
-                            fontWeight: FontWeight.w800,
-                            fontSize: 17,
-                            color: kText,
-                            height: 1.2,
-                          ),
-                        ),
-                        const SizedBox(height: 6),
-                        Text(
-                          date,
-                          style: const TextStyle(
-                            fontFamily: 'OpenSans',
-                            fontSize: 13,
-                            color: kSubText,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 6,
-                    ),
-                    decoration: BoxDecoration(
-                      color: color.withValues(alpha: 0.1),
-                      borderRadius: BorderRadius.circular(999),
-                    ),
-                    child: Text(
-                      _displayStatus(status),
-                      style: TextStyle(
-                        color: color,
-                        fontWeight: FontWeight.w700,
-                        fontSize: 12,
-                        fontFamily: 'Montserrat',
-                      ),
-                    ),
-                  ),
-                ],
+  Widget _claimsTable() {
+    return RecordDataTable(
+      minWidth: 960,
+      columnSpacing: 20,
+      columns: const [
+        DataColumn(label: Text('Claim')),
+        DataColumn(label: Text('Description')),
+        DataColumn(label: Text('Submitted')),
+        DataColumn(label: Text('Status')),
+      ],
+      rows: _myClaims.map((claim) {
+        final status = (claim['status'] ?? '').toString();
+        final color = _statusColor(status);
+        return DataRow(
+          cells: [
+            DataCell(
+              Text(
+                (claim['title'] ?? 'Untitled').toString(),
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
               ),
-              if (desc.isNotEmpty) ...[
-                const SizedBox(height: 14),
-                Text(
-                  desc,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    fontFamily: 'OpenSans',
-                    fontSize: 15,
-                    color: kSubText,
-                    height: 1.45,
-                  ),
-                ),
-              ],
-              const SizedBox(height: 14),
-              Row(
-                children: [
-                  Icon(Icons.arrow_outward_rounded, size: 16, color: color),
-                  const SizedBox(width: 6),
-                  Text(
-                    'View details',
-                    style: TextStyle(
-                      fontFamily: 'OpenSans',
-                      fontSize: 13,
-                      color: color,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                ],
+            ),
+            DataCell(
+              Text(
+                (claim['description'] ?? '').toString().trim().isEmpty
+                    ? '—'
+                    : (claim['description'] ?? '').toString().trim(),
+                maxLines: 3,
+                overflow: TextOverflow.ellipsis,
               ),
-            ],
-          ),
-        ),
-      ),
+            ),
+            DataCell(Text(_formatDate(claim['date_submitted']))),
+            DataCell(
+              Text(
+                _displayStatus(status),
+                style: TextStyle(color: color, fontWeight: FontWeight.w700),
+              ),
+            ),
+          ],
+        );
+      }).toList(),
     );
   }
 
@@ -369,14 +279,6 @@ class _CollectorClaimsPageState extends State<CollectorClaimsPage> {
     if (low == 'rejected') return kDanger;
     if (low == 'pending') return kWarn;
     return kSubtleText;
-  }
-
-  IconData _statusIcon(String status) {
-    final low = status.toLowerCase();
-    if (low == 'approved' || low == 'claimed') return Icons.check_circle;
-    if (low == 'rejected') return Icons.cancel;
-    if (low == 'pending') return Icons.pending;
-    return Icons.info;
   }
 
   String _displayStatus(String s) {

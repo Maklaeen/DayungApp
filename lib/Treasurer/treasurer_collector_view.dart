@@ -1,6 +1,7 @@
 import 'package:capstone_app/ui/theme/branding.dart';
 import 'package:capstone_app/utils/theme_surface.dart';
 import 'package:flutter/material.dart';
+import 'package:capstone_app/widgets/record_data_table.dart';
 import 'package:flutter/gestures.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -240,19 +241,12 @@ class _TreasurerCollectorListPageState
                   ? const Center(child: CircularProgressIndicator())
                   : _collectors.isEmpty
                   ? const Center(child: Text('No collectors found.'))
-                  : ListView.separated(
+                  : ListView(
                       padding: const EdgeInsets.fromLTRB(20, 18, 20, 24),
-                      itemCount: _filteredCollectors.isEmpty
-                          ? 2
-                          : _filteredCollectors.length + 1,
-                      separatorBuilder: (_, __) => const SizedBox(height: 12),
-                      itemBuilder: (context, i) {
-                        if (i == 0) {
-                          return _buildSearchBar();
-                        }
-                        final collectors = _filteredCollectors;
-                        if (collectors.isEmpty) {
-                          return Padding(
+                      children: [
+                        _buildSearchBar(),
+                        if (_filteredCollectors.isEmpty)
+                          Padding(
                             padding: const EdgeInsets.symmetric(vertical: 28),
                             child: Column(
                               children: [
@@ -280,68 +274,35 @@ class _TreasurerCollectorListPageState
                                 ),
                               ],
                             ),
-                          );
-                        }
-                        final c = collectors[i - 1];
-                        return Material(
-                          color: Colors.transparent,
-                          child: InkWell(
-                            borderRadius: BorderRadius.circular(16),
-                            onTap: () => Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (_) =>
-                                    TreasurerCollectorDetailPage(collector: c),
-                              ),
-                            ),
-                            child: Ink(
-                              decoration: dayungSectionCardDecoration(context),
-                              child: Padding(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 18,
-                                  vertical: 18,
+                          )
+                        else
+                          RecordDataTable(
+                            minWidth: 480,
+                            columns: const [
+                              DataColumn(label: Text('Collector')),
+                              DataColumn(label: Text('Details')),
+                            ],
+                            rows: _filteredCollectors.map((collector) {
+                              return DataRow(
+                                onSelectChanged: (_) => Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (_) =>
+                                        TreasurerCollectorDetailPage(
+                                      collector: collector,
+                                    ),
+                                  ),
                                 ),
-                                child: Row(
-                                  children: [
-                                    Container(
-                                      width: 56,
-                                      height: 56,
-                                      decoration: BoxDecoration(
-                                        color: kPrimary.withValues(alpha: 0.1),
-                                        borderRadius: BorderRadius.circular(16),
-                                      ),
-                                      child: const Icon(
-                                        Icons.person_rounded,
-                                        color: kPrimary,
-                                        size: 30,
-                                      ),
-                                    ),
-                                    const SizedBox(width: 14),
-                                    Expanded(
-                                      child: Text(
-                                        c.name,
-                                        style: TextStyle(
-                                          fontFamily: 'Montserrat',
-                                          fontWeight: FontWeight.w700,
-                                          fontSize: 18,
-                                          color: dayungTextColor(context),
-                                        ),
-                                        maxLines: 2,
-                                        overflow: TextOverflow.ellipsis,
-                                      ),
-                                    ),
-                                    const Icon(
-                                      Icons.chevron_right_rounded,
-                                      size: 32,
-                                      color: kPrimary,
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ),
+                                cells: [
+                                  DataCell(Text(collector.name)),
+                                  const DataCell(
+                                    Icon(Icons.chevron_right_rounded),
+                                  ),
+                                ],
+                              );
+                            }).toList(),
                           ),
-                        );
-                      },
+                      ],
                     ),
             ),
           ],

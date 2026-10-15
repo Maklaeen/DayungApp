@@ -1,4 +1,5 @@
 import 'package:capstone_app/SuperAdmin/superadmin_support.dart';
+import 'package:capstone_app/widgets/record_data_table.dart';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -201,14 +202,88 @@ class _ManageBeneficiariesPageState extends State<ManageBeneficiariesPage> {
                           },
                         )
                       else
-                        ...filtered.map(
-                          (beneficiary) => Padding(
-                            padding: const EdgeInsets.only(bottom: 14),
-                            child: _BeneficiaryCard(
-                              beneficiary: beneficiary,
-                              onViewDetails: () => _showDetails(beneficiary),
-                            ),
-                          ),
+                        RecordDataTable(
+                          minWidth: 900,
+                          columns: const [
+                            DataColumn(label: Text('Beneficiary')),
+                            DataColumn(label: Text('Relationship')),
+                            DataColumn(label: Text('Date of birth')),
+                            DataColumn(label: Text('Status')),
+                            DataColumn(label: Text('Claim eligibility')),
+                            DataColumn(label: Text('Actions')),
+                          ],
+                          rows: filtered.map((beneficiary) {
+                            final eligible =
+                                beneficiary['eligible_to_claim'] == true;
+                            return DataRow(
+                              cells: [
+                                DataCell(
+                                  Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      CircleAvatar(
+                                        radius: 18,
+                                        backgroundColor: kSuperAdminPrimary
+                                            .withValues(alpha: 0.1),
+                                        child: const Icon(
+                                          Icons.person_outline_rounded,
+                                          color: kSuperAdminPrimary,
+                                          size: 20,
+                                        ),
+                                      ),
+                                      const SizedBox(width: 10),
+                                      Text(
+                                        (beneficiary['full_name'] ?? 'No Name')
+                                            .toString(),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                DataCell(
+                                  Text(
+                                    _displayValue(beneficiary['relationship']),
+                                  ),
+                                ),
+                                DataCell(
+                                  Text(_displayDate(beneficiary['dob'])),
+                                ),
+                                DataCell(
+                                  Text(
+                                    (beneficiary['status'] ?? 'Unknown')
+                                        .toString(),
+                                  ),
+                                ),
+                                DataCell(
+                                  Text(
+                                    eligible
+                                        ? 'Eligible to claim'
+                                        : 'Not yet eligible',
+                                    style: TextStyle(
+                                      color: eligible
+                                          ? kSuperAdminAccent
+                                          : kSuperAdminWarn,
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                ),
+                                DataCell(
+                                  OutlinedButton.icon(
+                                    onPressed: () => _showDetails(beneficiary),
+                                    icon: const Icon(
+                                      Icons.visibility_outlined,
+                                    ),
+                                    label: const Text('View details'),
+                                    style: OutlinedButton.styleFrom(
+                                      foregroundColor: kSuperAdminPrimary,
+                                      side: const BorderSide(
+                                        color: kSuperAdminBorder,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            );
+                          }).toList(),
                         ),
                     ],
                   ],
@@ -429,133 +504,6 @@ class _SummaryChip extends StatelessWidget {
             TextSpan(text: label),
           ],
         ),
-      ),
-    );
-  }
-}
-
-class _BeneficiaryCard extends StatelessWidget {
-  final Map<String, dynamic> beneficiary;
-  final VoidCallback onViewDetails;
-
-  const _BeneficiaryCard({
-    required this.beneficiary,
-    required this.onViewDetails,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final eligible = beneficiary['eligible_to_claim'] == true;
-    final status = (beneficiary['status'] ?? 'Unknown').toString();
-
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: kSuperAdminBorder),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              CircleAvatar(
-                radius: 26,
-                backgroundColor: kSuperAdminPrimary.withValues(alpha: 0.1),
-                child: const Icon(
-                  Icons.person_outline_rounded,
-                  color: kSuperAdminPrimary,
-                ),
-              ),
-              const SizedBox(width: 14),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      (beneficiary['full_name'] ?? 'No Name').toString(),
-                      style: const TextStyle(
-                        fontSize: 19,
-                        fontWeight: FontWeight.w800,
-                        color: kSuperAdminText,
-                      ),
-                    ),
-                    const SizedBox(height: 6),
-                    Text(
-                      'Relationship: ${(beneficiary['relationship'] ?? 'Not provided').toString()}',
-                      style: const TextStyle(color: kSuperAdminMuted),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          Wrap(
-            spacing: 10,
-            runSpacing: 10,
-            children: [
-              _StatusPill(label: status, color: kSuperAdminPrimary),
-              _StatusPill(
-                label: eligible ? 'Eligible to claim' : 'Not yet eligible',
-                color: eligible ? kSuperAdminAccent : kSuperAdminWarn,
-              ),
-              _StatusPill(
-                label:
-                    'Marital: ${(beneficiary['marital_status'] ?? 'Not provided').toString()}',
-                color: const Color(0xFF4F46E5),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  'Birth date: ${(beneficiary['dob'] ?? 'Not provided').toString()}',
-                  style: const TextStyle(color: kSuperAdminMuted),
-                ),
-              ),
-              const SizedBox(width: 12),
-              OutlinedButton.icon(
-                onPressed: onViewDetails,
-                icon: const Icon(Icons.visibility_outlined),
-                label: const Text('View details'),
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: kSuperAdminPrimary,
-                  side: const BorderSide(color: kSuperAdminBorder),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _StatusPill extends StatelessWidget {
-  final String label;
-  final Color color;
-
-  const _StatusPill({required this.label, required this.color});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.08),
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: Text(
-        label,
-        style: TextStyle(color: color, fontWeight: FontWeight.w700),
       ),
     );
   }

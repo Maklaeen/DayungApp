@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:capstone_app/widgets/record_data_table.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 class NamesOnlyMembersPage extends StatefulWidget {
@@ -170,40 +171,27 @@ class _NamesOnlyMembersPageState extends State<NamesOnlyMembersPage> {
                         ),
                       ),
                     )
-                  : ListView.separated(
+                  : ListView(
                       padding: const EdgeInsets.symmetric(horizontal: 16),
-                      itemCount: _filteredMembers.length,
-                      separatorBuilder: (_, __) =>
-                          const Divider(height: 1, color: Color(0xFFE5E7EB)),
-                      itemBuilder: (context, index) {
-                        final member = _filteredMembers[index];
-                        return ListTile(
-                          contentPadding: const EdgeInsets.symmetric(
-                            horizontal: 12,
-                            vertical: 4,
-                          ),
-                          leading: CircleAvatar(
-                            backgroundColor: const Color(
-                              0xFF0D47A1,
-                            ).withOpacity(0.12),
-                            child: const Icon(
-                              Icons.person,
-                              color: Color(0xFF0D47A1),
-                            ),
-                          ),
-                          title: Text(
-                            member['full_name'] ?? 'Member',
-                            style: const TextStyle(fontWeight: FontWeight.w600),
-                          ),
-                          subtitle: Text(
-                            'ID: ${member['user_id']}',
-                            style: const TextStyle(
-                              fontSize: 12,
-                              color: Color(0xFF6B7280),
-                            ),
-                          ),
-                        );
-                      },
+                      children: [
+                        RecordDataTable(
+                          minWidth: 440,
+                          columns: const [
+                            DataColumn(label: Text('Member')),
+                            DataColumn(label: Text('ID')),
+                          ],
+                          rows: _filteredMembers.map((member) {
+                            return DataRow(
+                              cells: [
+                                DataCell(
+                                  Text(member['full_name'] ?? 'Member'),
+                                ),
+                                DataCell(Text('${member['user_id']}')),
+                              ],
+                            );
+                          }).toList(),
+                        ),
+                      ],
                     ),
             ),
           ],

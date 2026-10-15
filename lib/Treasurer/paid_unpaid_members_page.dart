@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:capstone_app/widgets/record_data_table.dart';
 
 const Color _kPageBg = Color(0xFFF8FAFC);
 const Color _kHeaderGradientStart = Color(0xFF083366);
@@ -288,140 +289,52 @@ class _PaidUnpaidMembersPageState extends State<PaidUnpaidMembersPage>
       );
     }
 
-    return ListView.builder(
+    return ListView(
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
-      itemCount: filtered.length,
-      itemBuilder: (context, index) {
-        final member = filtered[index];
-        final isPaid = member.status.toLowerCase() == 'paid';
-        return Container(
-          margin: const EdgeInsets.only(bottom: 12),
-          padding: const EdgeInsets.all(14),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: const Color(0xFFE5E7EB)),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.03),
-                blurRadius: 10,
-                offset: const Offset(0, 3),
-              ),
-            ],
-          ),
-          child: Column(
-            children: [
-              Row(
-                children: [
-                  CircleAvatar(
-                    radius: 24,
-                    backgroundColor:
-                        (isPaid
-                                ? const Color(0xFF10B981)
-                                : const Color(0xFFF59E0B))
-                            .withValues(alpha: 0.12),
-                    child: Icon(
-                      Icons.person_rounded,
-                      color: isPaid
-                          ? const Color(0xFF10B981)
-                          : const Color(0xFFF59E0B),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          member.fullName,
-                          style: const TextStyle(
-                            fontWeight: FontWeight.w700,
-                            fontSize: 15,
+      children: [
+        RecordDataTable(
+          minWidth: 720,
+          columns: const [
+            DataColumn(label: Text('Member')),
+            DataColumn(label: Text('Deceased Name')),
+            DataColumn(label: Text('Date')),
+            DataColumn(label: Text('Amount')),
+            DataColumn(label: Text('Status')),
+            DataColumn(label: Text('Action')),
+          ],
+          rows: filtered.map((member) {
+            final isPaid = member.status.toLowerCase() == 'paid';
+            return DataRow(
+              cells: [
+                DataCell(Text(member.fullName)),
+                DataCell(Text(member.deceasedName?.isNotEmpty == true
+                    ? member.deceasedName!
+                    : '—')),
+                DataCell(Text(member.date == null
+                    ? '—'
+                    : _formatPhilippinesDate(member.date!))),
+                DataCell(Text('₱${member.amount.toStringAsFixed(0)}')),
+                DataCell(Text(member.status.toUpperCase())),
+                DataCell(
+                  isPaid
+                      ? const Text('—')
+                      : OutlinedButton.icon(
+                          onPressed: _updatingPaymentIds.contains(member.id)
+                              ? null
+                              : () => _confirmMarkPaid(member),
+                          icon: const Icon(Icons.check_circle_outline_rounded),
+                          label: Text(
+                            _updatingPaymentIds.contains(member.id)
+                                ? 'Updating...'
+                                : 'Mark as Paid',
                           ),
                         ),
-                        if (member.deceasedName?.isNotEmpty == true) ...[
-                          const SizedBox(height: 4),
-                          Text(
-                            'Deceased Name: ${member.deceasedName}',
-                            style: const TextStyle(
-                              color: Color(0xFF4B5563),
-                              fontSize: 12,
-                            ),
-                          ),
-                        ],
-                        if (member.date != null) ...[
-                          const SizedBox(height: 4),
-                          Text(
-                            'Date: ${_formatPhilippinesDate(member.date!)}',
-                            style: const TextStyle(
-                              color: Color(0xFF6B7280),
-                              fontSize: 12,
-                            ),
-                          ),
-                        ],
-                      ],
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 10,
-                          vertical: 6,
-                        ),
-                        decoration: BoxDecoration(
-                          color:
-                              (isPaid
-                                      ? const Color(0xFF10B981)
-                                      : const Color(0xFFF59E0B))
-                                  .withValues(alpha: 0.12),
-                          borderRadius: BorderRadius.circular(999),
-                        ),
-                        child: Text(
-                          '₱${member.amount.toStringAsFixed(0)}',
-                          style: TextStyle(
-                            fontWeight: FontWeight.w800,
-                            color: isPaid
-                                ? const Color(0xFF10B981)
-                                : const Color(0xFFF59E0B),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 6),
-                      Text(
-                        member.status.toUpperCase(),
-                        style: const TextStyle(
-                          fontSize: 11,
-                          color: Color(0xFF6B7280),
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-              if (!isPaid) ...[
-                const SizedBox(height: 10),
-                SizedBox(
-                  width: double.infinity,
-                  child: OutlinedButton.icon(
-                    onPressed: _updatingPaymentIds.contains(member.id)
-                        ? null
-                        : () => _confirmMarkPaid(member),
-                    icon: const Icon(Icons.check_circle_outline_rounded),
-                    label: Text(
-                      _updatingPaymentIds.contains(member.id)
-                          ? 'Updating...'
-                          : 'Mark as Paid',
-                    ),
-                  ),
                 ),
               ],
-            ],
-          ),
-        );
-      },
+            );
+          }).toList(),
+        ),
+      ],
     );
   }
 

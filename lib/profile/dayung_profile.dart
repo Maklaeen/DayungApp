@@ -830,32 +830,33 @@ class _DayungSettingsPageState extends State<DayungSettingsPage> {
       backgroundColor: const Color(0xFFFAFAF7),
       body: SafeArea(
         child: SingleChildScrollView(
-          padding: const EdgeInsets.fromLTRB(16, 12, 16, 28),
+          padding: const EdgeInsets.only(bottom: 28),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Container(
                 width: double.infinity,
-                padding: EdgeInsets.symmetric(
-                  horizontal: isWide ? 28 : 18,
-                  vertical: isWide ? 28 : 20,
+                padding: EdgeInsets.fromLTRB(
+                  isWide ? 30 : 16,
+                  20,
+                  isWide ? 24 : 16,
+                  24,
                 ),
-                decoration: BoxDecoration(
-                  color: kSettingsPrimary,
-                  borderRadius: const BorderRadius.only(
+                decoration: const BoxDecoration(
+                  color: Color(0xFF0D47A1),
+                  borderRadius: BorderRadius.only(
                     bottomLeft: Radius.circular(28),
                     bottomRight: Radius.circular(28),
                   ),
                   boxShadow: [
                     BoxShadow(
-                      color: kSettingsPrimary.withValues(alpha: 0.28),
+                      color: Color(0xFF1E40AF),
                       blurRadius: 18,
-                      offset: const Offset(0, 8),
+                      offset: Offset(0, 8),
                     ),
                   ],
                 ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                child: Row(
                   children: [
                     Row(
                       children: [
@@ -908,505 +909,506 @@ class _DayungSettingsPageState extends State<DayungSettingsPage> {
                         ),
                       ],
                     ),
-                    // const SizedBox(height: 18),
-                    // Container(
-                    //   width: double.infinity,
-                    //   padding: const EdgeInsets.symmetric(
-                    //     horizontal: 14,
-                    //     vertical: 12,
-                    //   ),
-                    //   decoration: BoxDecoration(
-                    //     color: Colors.white.withValues(alpha: 0.14),
-                    //     borderRadius: BorderRadius.circular(16),
-                    //     border: Border.all(
-                    //       color: Colors.white.withValues(alpha: 0.12),
-                    //     ),
-                    //   ),
-                    //   child: Row(
-                    //     children: [
-                    //       const Icon(
-                    //         Icons.info_outline_rounded,
-                    //         color: Colors.white,
-                    //         size: 20,
-                    //       ),
-                    //       const SizedBox(width: 10),
-                    //       Expanded(
-                    //         child: Text(
-                    //           hasCurrentDayung
-                    //               ? 'Your current Dayung is active below. Use Change Dayung if you want to switch units.'
-                    //               : 'No Dayung is assigned yet. Start by tapping Change Dayung or Apply a Dayung.',
-                    //           style: TextStyle(
-                    //             color: Colors.white.withValues(alpha: 0.94),
-                    //             fontSize: 12,
-                    //             height: 1.4,
-                    //             fontFamily: 'OpenSans',
-                    //           ),
-                    //         ),
-                    //       ),
-                    //     ],
-                    //   ),
-                    // ),
                   ],
                 ),
               ),
-              const SizedBox(height: 18),
-              _buildSectionCard(
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Row(
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.all(12),
-                          decoration: BoxDecoration(
-                            color: primaryColor.withValues(alpha: 0.08),
-                            borderRadius: BorderRadius.circular(16),
-                          ),
-                          child: Icon(
-                            hasCurrentDayung
-                                ? Icons.home_work_rounded
-                                : Icons.location_city_outlined,
-                            color: primaryColor,
-                            size: 26,
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
+                    const SizedBox(height: 18),
+                    _buildSectionCard(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
                             children: [
-                              Text(
-                                'Current Dayung',
-                                style: bodyTextStyle.copyWith(
-                                  color: mutedTextStyle.color,
-                                  fontWeight: FontWeight.w600,
+                              Container(
+                                padding: const EdgeInsets.all(12),
+                                decoration: BoxDecoration(
+                                  color: primaryColor.withValues(alpha: 0.08),
+                                  borderRadius: BorderRadius.circular(16),
+                                ),
+                                child: Icon(
+                                  hasCurrentDayung
+                                      ? Icons.home_work_rounded
+                                      : Icons.location_city_outlined,
+                                  color: primaryColor,
+                                  size: 26,
                                 ),
                               ),
-                              const SizedBox(height: 2),
-                              AutoSizeText(
-                                _currentDayungName ?? 'No Dayung Assigned',
-                                style: bodyTextStyle.copyWith(
-                                  color: titleColor,
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      'Current Dayung',
+                                      style: bodyTextStyle.copyWith(
+                                        color: mutedTextStyle.color,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 2),
+                                    AutoSizeText(
+                                      _currentDayungName ??
+                                          'No Dayung Assigned',
+                                      style: bodyTextStyle.copyWith(
+                                        color: titleColor,
+                                        fontWeight: FontWeight.w700,
+                                        fontSize: isWide ? 22 : 18,
+                                      ),
+                                      maxLines: 1,
+                                      minFontSize: 12,
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              IconButton(
+                                tooltip: 'Refresh',
+                                onPressed: _loadCurrentDayung,
+                                icon: Icon(
+                                  Icons.refresh_rounded,
+                                  color: primaryColor,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 14),
+                          SizedBox(
+                            width: double.infinity,
+                            child: ElevatedButton.icon(
+                              onPressed: _changingDayung
+                                  ? null
+                                  : _showChangeDayungConfirmation,
+                              icon: _changingDayung
+                                  ? const SizedBox(
+                                      width: 18,
+                                      height: 18,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                        color: Colors.white,
+                                      ),
+                                    )
+                                  : Icon(
+                                      _changeDayungSuccess
+                                          ? Icons.check_circle
+                                          : Icons.swap_horiz_rounded,
+                                    ),
+                              label: Text(
+                                _changingDayung
+                                    ? 'Changing...'
+                                    : (_changeDayungSuccess
+                                          ? 'Changed'
+                                          : 'Change Dayung'),
+                              ),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: primaryColor,
+                                foregroundColor: Colors.white,
+                                minimumSize: const Size.fromHeight(52),
+                                elevation: 0,
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 15,
+                                ),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(16),
+                                ),
+                                textStyle: const TextStyle(
                                   fontWeight: FontWeight.w700,
-                                  fontSize: isWide ? 22 : 18,
+                                  fontFamily: 'Montserrat',
+                                ),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+                          if (_loadingDayung)
+                            const ClipRRect(
+                              borderRadius: BorderRadius.all(
+                                Radius.circular(99),
+                              ),
+                              child: LinearProgressIndicator(minHeight: 6),
+                            )
+                          else ...[
+                            _buildSummaryInfoRow(
+                              icon: Icons.location_on_outlined,
+                              label: 'Location',
+                              value: currentAddress,
+                            ),
+                            _buildSummaryInfoRow(
+                              icon: Icons.verified_user_outlined,
+                              label: 'Status',
+                              value: hasCurrentDayung
+                                  ? 'Currently assigned to this Dayung unit.'
+                                  : 'No active Dayung assignment yet.',
+                            ),
+                            const SizedBox(height: 12),
+                            Row(
+                              children: [
+                                if (canViewMap)
+                                  Expanded(
+                                    child: OutlinedButton.icon(
+                                      onPressed: _openCurrentDayungMap,
+                                      icon: const Icon(Icons.map_outlined),
+                                      label: const Text('View on Map'),
+                                      style: OutlinedButton.styleFrom(
+                                        foregroundColor: primaryColor,
+                                        minimumSize: const Size.fromHeight(52),
+                                        side: BorderSide(
+                                          color: kSettingsBorder.withValues(
+                                            alpha: 0.9,
+                                          ),
+                                        ),
+                                        padding: const EdgeInsets.symmetric(
+                                          vertical: 14,
+                                        ),
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius: BorderRadius.circular(
+                                            14,
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                if (canViewMap) const SizedBox(width: 12),
+                                Expanded(
+                                  child: OutlinedButton.icon(
+                                    onPressed: _applyForDayung,
+                                    icon: const Icon(Icons.add_circle_outline),
+                                    label: const Text('Apply a Dayung'),
+                                    style: OutlinedButton.styleFrom(
+                                      foregroundColor: primaryColor,
+                                      minimumSize: const Size.fromHeight(52),
+                                      side: BorderSide(
+                                        color: kSettingsBorder.withValues(
+                                          alpha: 0.9,
+                                        ),
+                                      ),
+                                      padding: const EdgeInsets.symmetric(
+                                        vertical: 14,
+                                      ),
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(14),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+                    if (roleProvider.isPresident) ...[
+                      const SizedBox(height: 16),
+                      _buildSectionCard(
+                        child: ListTile(
+                          contentPadding: EdgeInsets.zero,
+                          leading: Container(
+                            padding: const EdgeInsets.all(10),
+                            decoration: BoxDecoration(
+                              color: kSettingsAccent.withValues(alpha: 0.12),
+                              borderRadius: BorderRadius.circular(14),
+                            ),
+                            child: Icon(
+                              Icons.rule_folder_rounded,
+                              color: kSettingsAccent,
+                            ),
+                          ),
+                          title: Text(
+                            'Manage Rules',
+                            style: bodyTextStyle.copyWith(
+                              color: titleColor,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                          subtitle: Text(
+                            'Open Dayung rules and policy management.',
+                            style: mutedTextStyle,
+                          ),
+                          trailing: const Icon(Icons.chevron_right_rounded),
+                          onTap: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => const ManageRulesPagePres(),
+                              ),
+                            );
+                          },
+                        ),
+                      ),
+                    ],
+                    const SizedBox(height: 16),
+                    _buildSectionCard(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          SizedBox(
+                            width: double.infinity,
+                            child: OutlinedButton.icon(
+                              onPressed: _openPendingApplication,
+                              icon: const Icon(Icons.pending_actions_outlined),
+                              label: const Text('Pending Application'),
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              AutoSizeText(
+                                'Filters',
+                                style: sectionTitleStyle.copyWith(
+                                  color: titleColor,
                                 ),
                                 maxLines: 1,
                                 minFontSize: 12,
                               ),
+                              TextButton.icon(
+                                onPressed: _showEditPreferencesSheet,
+                                icon: Icon(
+                                  Icons.tune_rounded,
+                                  color: primaryColor,
+                                ),
+                                label: Text(
+                                  'Edit',
+                                  style: TextStyle(
+                                    color: primaryColor,
+                                    fontSize: isWide ? 16 : 13,
+                                  ),
+                                ),
+                              ),
                             ],
                           ),
-                        ),
-                        IconButton(
-                          tooltip: 'Refresh',
-                          onPressed: _loadCurrentDayung,
-                          icon: Icon(
-                            Icons.refresh_rounded,
-                            color: primaryColor,
+                          const SizedBox(height: 6),
+                          Text(
+                            'These preferences influence what Dayung suggestions appear first.',
+                            style: mutedTextStyle,
                           ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 14),
-                    SizedBox(
-                      width: double.infinity,
-                      child: ElevatedButton.icon(
-                        onPressed: _changingDayung
-                            ? null
-                            : _showChangeDayungConfirmation,
-                        icon: _changingDayung
-                            ? const SizedBox(
-                                width: 18,
-                                height: 18,
+                          const SizedBox(height: 14),
+                          if (_loadingPrefs)
+                            const Center(
+                              child: Padding(
+                                padding: EdgeInsets.all(12),
                                 child: CircularProgressIndicator(
                                   strokeWidth: 2,
-                                  color: Colors.white,
                                 ),
-                              )
-                            : Icon(
-                                _changeDayungSuccess
-                                    ? Icons.check_circle
-                                    : Icons.swap_horiz_rounded,
                               ),
-                        label: Text(
-                          _changingDayung
-                              ? 'Changing...'
-                              : (_changeDayungSuccess
-                                    ? 'Changed'
-                                    : 'Change Dayung'),
-                        ),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: primaryColor,
-                          foregroundColor: Colors.white,
-                          minimumSize: const Size.fromHeight(52),
-                          elevation: 0,
-                          padding: const EdgeInsets.symmetric(vertical: 15),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(16),
-                          ),
-                          textStyle: const TextStyle(
-                            fontWeight: FontWeight.w700,
-                            fontFamily: 'Montserrat',
-                          ),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    if (_loadingDayung)
-                      const ClipRRect(
-                        borderRadius: BorderRadius.all(Radius.circular(99)),
-                        child: LinearProgressIndicator(minHeight: 6),
-                      )
-                    else ...[
-                      _buildSummaryInfoRow(
-                        icon: Icons.location_on_outlined,
-                        label: 'Location',
-                        value: currentAddress,
-                      ),
-                      _buildSummaryInfoRow(
-                        icon: Icons.verified_user_outlined,
-                        label: 'Status',
-                        value: hasCurrentDayung
-                            ? 'Currently assigned to this Dayung unit.'
-                            : 'No active Dayung assignment yet.',
-                      ),
-                      const SizedBox(height: 12),
-                      Row(
-                        children: [
-                          if (canViewMap)
-                            Expanded(
-                              child: OutlinedButton.icon(
-                                onPressed: _openCurrentDayungMap,
-                                icon: const Icon(Icons.map_outlined),
-                                label: const Text('View on Map'),
-                                style: OutlinedButton.styleFrom(
-                                  foregroundColor: primaryColor,
-                                  minimumSize: const Size.fromHeight(52),
-                                  side: BorderSide(
-                                    color: kSettingsBorder.withValues(
-                                      alpha: 0.9,
+                            )
+                          else
+                            Wrap(
+                              spacing: 10,
+                              runSpacing: 10,
+                              children: _prefsTags.map((tag) {
+                                return Chip(
+                                  labelPadding: const EdgeInsets.symmetric(
+                                    horizontal: 10,
+                                    vertical: 4,
+                                  ),
+                                  label: Text(
+                                    tag,
+                                    style: TextStyle(
+                                      fontSize: isWide ? 15 : 13,
+                                      color: kSettingsAccent,
+                                      fontWeight: FontWeight.w600,
                                     ),
                                   ),
-                                  padding: const EdgeInsets.symmetric(
-                                    vertical: 14,
+                                  backgroundColor: kSettingsAccent.withValues(
+                                    alpha: 0.08,
                                   ),
+                                  side: BorderSide.none,
                                   shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(14),
+                                    borderRadius: BorderRadius.circular(999),
                                   ),
-                                ),
-                              ),
+                                );
+                              }).toList(),
                             ),
-                          if (canViewMap) const SizedBox(width: 12),
-                          Expanded(
-                            child: OutlinedButton.icon(
-                              onPressed: _applyForDayung,
-                              icon: const Icon(Icons.add_circle_outline),
-                              label: const Text('Apply a Dayung'),
-                              style: OutlinedButton.styleFrom(
-                                foregroundColor: primaryColor,
-                                minimumSize: const Size.fromHeight(52),
-                                side: BorderSide(
-                                  color: kSettingsBorder.withValues(alpha: 0.9),
-                                ),
-                                padding: const EdgeInsets.symmetric(
-                                  vertical: 14,
-                                ),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(14),
-                                ),
-                              ),
-                            ),
-                          ),
                         ],
                       ),
-                    ],
-                  ],
-                ),
-              ),
-              if (roleProvider.isPresident) ...[
-                const SizedBox(height: 16),
-                _buildSectionCard(
-                  child: ListTile(
-                    contentPadding: EdgeInsets.zero,
-                    leading: Container(
-                      padding: const EdgeInsets.all(10),
-                      decoration: BoxDecoration(
-                        color: kSettingsAccent.withValues(alpha: 0.12),
-                        borderRadius: BorderRadius.circular(14),
-                      ),
-                      child: Icon(
-                        Icons.rule_folder_rounded,
-                        color: kSettingsAccent,
-                      ),
                     ),
-                    title: Text(
-                      'Manage Rules',
-                      style: bodyTextStyle.copyWith(
-                        color: titleColor,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                    subtitle: Text(
-                      'Open Dayung rules and policy management.',
-                      style: mutedTextStyle,
-                    ),
-                    trailing: const Icon(Icons.chevron_right_rounded),
-                    onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => const ManageRulesPagePres(),
-                        ),
-                      );
-                    },
-                  ),
-                ),
-              ],
-              const SizedBox(height: 16),
-              _buildSectionCard(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    SizedBox(
-                      width: double.infinity,
-                      child: OutlinedButton.icon(
-                        onPressed: _openPendingApplication,
-                        icon: const Icon(Icons.pending_actions_outlined),
-                        label: const Text('Pending Application'),
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        AutoSizeText(
-                          'Filters',
-                          style: sectionTitleStyle.copyWith(color: titleColor),
-                          maxLines: 1,
-                          minFontSize: 12,
-                        ),
-                        TextButton.icon(
-                          onPressed: _showEditPreferencesSheet,
-                          icon: Icon(Icons.tune_rounded, color: primaryColor),
-                          label: Text(
-                            'Edit',
-                            style: TextStyle(
-                              color: primaryColor,
-                              fontSize: isWide ? 16 : 13,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 6),
-                    Text(
-                      'These preferences influence what Dayung suggestions appear first.',
-                      style: mutedTextStyle,
-                    ),
-                    const SizedBox(height: 14),
-                    if (_loadingPrefs)
-                      const Center(
-                        child: Padding(
-                          padding: EdgeInsets.all(12),
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        ),
-                      )
-                    else
-                      Wrap(
-                        spacing: 10,
-                        runSpacing: 10,
-                        children: _prefsTags.map((tag) {
-                          return Chip(
-                            labelPadding: const EdgeInsets.symmetric(
-                              horizontal: 10,
-                              vertical: 4,
-                            ),
-                            label: Text(
-                              tag,
-                              style: TextStyle(
-                                fontSize: isWide ? 15 : 13,
-                                color: kSettingsAccent,
-                                fontWeight: FontWeight.w600,
+                    const SizedBox(height: 24),
+                    _buildSectionCard(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              AutoSizeText(
+                                'Recommended for you',
+                                style: sectionTitleStyle.copyWith(
+                                  color: titleColor,
+                                ),
+                                maxLines: 1,
+                                minFontSize: 12,
                               ),
-                            ),
-                            backgroundColor: kSettingsAccent.withValues(
-                              alpha: 0.08,
-                            ),
-                            side: BorderSide.none,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(999),
-                            ),
-                          );
-                        }).toList(),
-                      ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 24),
-              _buildSectionCard(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        AutoSizeText(
-                          'Recommended for you',
-                          style: sectionTitleStyle.copyWith(color: titleColor),
-                          maxLines: 1,
-                          minFontSize: 12,
-                        ),
-                        const Spacer(),
-                        IconButton(
-                          tooltip: 'Refresh recommendations',
-                          onPressed: _loadRecommendations,
-                          icon: const Icon(
-                            Icons.refresh_rounded,
-                            size: 18,
-                            color: kSettingsPrimary,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 6),
-                    Text(
-                      'Suggested Dayung units based on your filters and nearby matches.',
-                      style: mutedTextStyle,
-                    ),
-                    const SizedBox(height: 14),
-                    if (_loadingRecs)
-                      const Center(
-                        child: Padding(
-                          padding: EdgeInsets.all(12),
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        ),
-                      )
-                    else if (_recommendedUnits.isEmpty)
-                      Text(
-                        'No recommendations yet. Edit your filters above.',
-                        style: mutedTextStyle,
-                      )
-                    else
-                      ..._recommendedUnits.map((dayungData) {
-                        final tags = List<String>.from(
-                          (dayungData['__tags'] as List?) ?? const <String>[],
-                        );
-                        return GestureDetector(
-                          onTap: () async {
-                            final messenger = ScaffoldMessenger.of(context);
-                            final result = await Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (_) => DayungMapPage(
-                                  dayung: dayungData,
-                                  isApplied: false,
-                                  isMember: false,
+                              const Spacer(),
+                              IconButton(
+                                tooltip: 'Refresh recommendations',
+                                onPressed: _loadRecommendations,
+                                icon: const Icon(
+                                  Icons.refresh_rounded,
+                                  size: 18,
+                                  color: kSettingsPrimary,
                                 ),
                               ),
-                            );
-                            if (!mounted) return;
-                            if (result != null) {
-                              messenger.showSnackBar(
-                                SnackBar(
-                                  content: Text(
-                                    'Application sent to1 ${result['name']}!',
-                                  ),
+                            ],
+                          ),
+                          const SizedBox(height: 6),
+                          Text(
+                            'Suggested Dayung units based on your filters and nearby matches.',
+                            style: mutedTextStyle,
+                          ),
+                          const SizedBox(height: 14),
+                          if (_loadingRecs)
+                            const Center(
+                              child: Padding(
+                                padding: EdgeInsets.all(12),
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
                                 ),
+                              ),
+                            )
+                          else if (_recommendedUnits.isEmpty)
+                            Text(
+                              'No recommendations yet. Edit your filters above.',
+                              style: mutedTextStyle,
+                            )
+                          else
+                            ..._recommendedUnits.map((dayungData) {
+                              final tags = List<String>.from(
+                                (dayungData['__tags'] as List?) ??
+                                    const <String>[],
                               );
-                              await _loadCurrentDayung();
-                              await _loadRecommendations();
-                            }
-                          },
-                          child: Container(
-                            width: double.infinity,
-                            margin: const EdgeInsets.only(bottom: 14),
-                            padding: const EdgeInsets.all(18),
-                            decoration: BoxDecoration(
-                              color: kSettingsCardBg,
-                              borderRadius: BorderRadius.circular(20),
-                              border: Border.all(
-                                color: kSettingsBorder.withValues(alpha: 0.9),
-                              ),
-                              boxShadow: const [
-                                BoxShadow(
-                                  color: Color(0x100B1F33),
-                                  blurRadius: 16,
-                                  offset: Offset(0, 8),
-                                ),
-                              ],
-                            ),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Row(
-                                  children: [
-                                    Expanded(
-                                      child: AutoSizeText(
-                                        (dayungData['name'] ?? 'Unnamed Dayung')
-                                            .toString(),
-                                        style: TextStyle(
-                                          fontSize: isWide ? 18 : 15,
-                                          fontWeight: FontWeight.bold,
-                                          fontFamily: 'Montserrat',
-                                          color: titleColor,
-                                        ),
-                                        maxLines: 1,
-                                        minFontSize: 12,
+                              return GestureDetector(
+                                onTap: () async {
+                                  final messenger = ScaffoldMessenger.of(
+                                    context,
+                                  );
+                                  final result = await Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (_) => DayungMapPage(
+                                        dayung: dayungData,
+                                        isApplied: false,
+                                        isMember: false,
                                       ),
                                     ),
-                                    const Icon(
-                                      Icons.chevron_right_rounded,
-                                      color: Color(0xFF94A3B8),
-                                    ),
-                                  ],
-                                ),
-                                const SizedBox(height: 8),
-                                Text(
-                                  _address(dayungData),
-                                  style: mutedTextStyle.copyWith(fontSize: 13),
-                                ),
-                                if ((dayungData['__score'] as num?) !=
-                                    null) ...[
-                                  const SizedBox(height: 6),
-                                  Text(
-                                    'Match score: ${(((dayungData['__score'] as num?) ?? 0) * 100).toStringAsFixed(0)}%',
-                                    style: TextStyle(
-                                      color: primaryColor,
-                                      fontWeight: FontWeight.w700,
-                                      fontSize: 13,
-                                      fontFamily: 'Montserrat',
-                                    ),
-                                  ),
-                                ],
-                                const SizedBox(height: 10),
-                                Wrap(
-                                  spacing: 10,
-                                  runSpacing: 10,
-                                  children: tags.map((tag) {
-                                    return Chip(
-                                      labelPadding: const EdgeInsets.symmetric(
-                                        horizontal: 10,
-                                        vertical: 4,
-                                      ),
-                                      label: Text(
-                                        tag,
-                                        style: TextStyle(
-                                          fontSize: isWide ? 15 : 13,
-                                        ),
-                                      ),
-                                      backgroundColor: const Color(0xFFF1F5F9),
-                                      side: BorderSide.none,
-                                      shape: RoundedRectangleBorder(
-                                        borderRadius: BorderRadius.circular(
-                                          999,
+                                  );
+                                  if (!mounted) return;
+                                  if (result != null) {
+                                    messenger.showSnackBar(
+                                      SnackBar(
+                                        content: Text(
+                                          'Application sent to1 ${result['name']}!',
                                         ),
                                       ),
                                     );
-                                  }).toList(),
+                                    await _loadCurrentDayung();
+                                    await _loadRecommendations();
+                                  }
+                                },
+                                child: Container(
+                                  width: double.infinity,
+                                  margin: const EdgeInsets.only(bottom: 14),
+                                  padding: const EdgeInsets.all(18),
+                                  decoration: BoxDecoration(
+                                    color: kSettingsCardBg,
+                                    borderRadius: BorderRadius.circular(20),
+                                    border: Border.all(
+                                      color: kSettingsBorder.withValues(
+                                        alpha: 0.9,
+                                      ),
+                                    ),
+                                    boxShadow: const [
+                                      BoxShadow(
+                                        color: Color(0x100B1F33),
+                                        blurRadius: 16,
+                                        offset: Offset(0, 8),
+                                      ),
+                                    ],
+                                  ),
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Row(
+                                        children: [
+                                          Expanded(
+                                            child: AutoSizeText(
+                                              (dayungData['name'] ??
+                                                      'Unnamed Dayung')
+                                                  .toString(),
+                                              style: TextStyle(
+                                                fontSize: isWide ? 18 : 15,
+                                                fontWeight: FontWeight.bold,
+                                                fontFamily: 'Montserrat',
+                                                color: titleColor,
+                                              ),
+                                              maxLines: 1,
+                                              minFontSize: 12,
+                                            ),
+                                          ),
+                                          const Icon(
+                                            Icons.chevron_right_rounded,
+                                            color: Color(0xFF94A3B8),
+                                          ),
+                                        ],
+                                      ),
+                                      const SizedBox(height: 8),
+                                      Text(
+                                        _address(dayungData),
+                                        style: mutedTextStyle.copyWith(
+                                          fontSize: 13,
+                                        ),
+                                      ),
+                                      if ((dayungData['__score'] as num?) !=
+                                          null) ...[
+                                        const SizedBox(height: 6),
+                                        Text(
+                                          'Match score: ${(((dayungData['__score'] as num?) ?? 0) * 100).toStringAsFixed(0)}%',
+                                          style: TextStyle(
+                                            color: primaryColor,
+                                            fontWeight: FontWeight.w700,
+                                            fontSize: 13,
+                                            fontFamily: 'Montserrat',
+                                          ),
+                                        ),
+                                      ],
+                                      const SizedBox(height: 10),
+                                      Wrap(
+                                        spacing: 10,
+                                        runSpacing: 10,
+                                        children: tags.map((tag) {
+                                          return Chip(
+                                            labelPadding:
+                                                const EdgeInsets.symmetric(
+                                                  horizontal: 10,
+                                                  vertical: 4,
+                                                ),
+                                            label: Text(
+                                              tag,
+                                              style: TextStyle(
+                                                fontSize: isWide ? 15 : 13,
+                                              ),
+                                            ),
+                                            backgroundColor: const Color(
+                                              0xFFF1F5F9,
+                                            ),
+                                            side: BorderSide.none,
+                                            shape: RoundedRectangleBorder(
+                                              borderRadius:
+                                                  BorderRadius.circular(999),
+                                            ),
+                                          );
+                                        }).toList(),
+                                      ),
+                                    ],
+                                  ),
                                 ),
-                              ],
-                            ),
-                          ),
-                        );
-                      }),
+                              );
+                            }),
+                        ],
+                      ),
+                    ),
                   ],
                 ),
               ),

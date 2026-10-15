@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:capstone_app/Providers/dayung_provider.dart';
 import 'package:capstone_app/Providers/dayung_role_provider.dart';
 import 'package:capstone_app/screens/dayung_map_page.dart';
+import 'package:capstone_app/widgets/record_data_table.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -375,133 +376,42 @@ class _SelectDayungPageState extends State<SelectDayungPage> {
     return shouldLeave == true;
   }
 
-  Widget _buildDayungCard(
+  Widget _buildDayungTable(
     BuildContext context,
-    Map<String, dynamic> d,
-    bool isWide,
+    List<Map<String, dynamic>> dayungs,
     int? currentId,
   ) {
-    final did = d['id'] is int ? d['id'] as int : int.tryParse('${d['id']}');
-    final isCurrent = currentId != null && did != null && currentId == did;
-
-    return AnimatedContainer(
-      duration: const Duration(milliseconds: 180),
-      curve: Curves.easeOutCubic,
-      margin: const EdgeInsets.only(bottom: 14),
-      decoration: BoxDecoration(
-        color: kCardBg,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: isCurrent ? kPrimary : kBorderColor,
-          width: isCurrent ? 1.6 : 1,
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: isCurrent
-                ? kPrimary.withValues(alpha: 0.12)
-                : Colors.black.withValues(alpha: 0.04),
-            blurRadius: isCurrent ? 24 : 16,
-            offset: const Offset(0, 10),
-          ),
-        ],
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Container(
-                  width: 48,
-                  height: 48,
-                  decoration: BoxDecoration(
-                    color: isCurrent
-                        ? kPrimary.withValues(alpha: 0.14)
-                        : kPrimary.withValues(alpha: 0.08),
-                    borderRadius: BorderRadius.circular(14),
-                  ),
-                  child: Icon(
-                    isCurrent ? Icons.check_circle_rounded : Icons.home_rounded,
-                    color: isCurrent ? kPrimaryDark : kPrimary,
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        d['name'] ?? 'Dayung',
-                        style: const TextStyle(
-                          fontSize: 20,
-                          fontWeight: FontWeight.w800,
-                          color: kText,
-                        ),
-                      ),
-                      const SizedBox(height: 6),
-                      Text(
-                        _address(d),
-                        style: const TextStyle(
-                          color: kSubText,
-                          fontSize: 15,
-                          height: 1.5,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 10,
-                    vertical: 6,
-                  ),
-                  decoration: BoxDecoration(
-                    color: isCurrent ? kAccent.withValues(alpha: 0.12) : kBg,
-                    borderRadius: BorderRadius.circular(999),
-                  ),
-                  child: Text(
-                    isCurrent ? 'Active now' : 'Available',
-                    style: TextStyle(
-                      color: isCurrent ? const Color(0xFF047857) : kSubText,
-                      fontSize: 14,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
-            Row(
-              children: [
-                Expanded(
-                  child: OutlinedButton.icon(
+    return RecordDataTable(
+      minWidth: 760,
+      columns: const [
+        DataColumn(label: Text('Dayung')),
+        DataColumn(label: Text('Location')),
+        DataColumn(label: Text('Status')),
+        DataColumn(label: Text('Actions')),
+      ],
+      rows: dayungs.map((d) {
+        final did = d['id'] is int
+            ? d['id'] as int
+            : int.tryParse('${d['id']}');
+        final isCurrent = currentId != null && currentId == did;
+        return DataRow(
+          cells: [
+            DataCell(Text((d['name'] ?? 'Dayung').toString())),
+            DataCell(Text(_address(d))),
+            DataCell(Text(isCurrent ? 'Active now' : 'Available')),
+            DataCell(
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  OutlinedButton.icon(
                     icon: Icon(
                       isCurrent
                           ? Icons.check_circle
                           : Icons.radio_button_unchecked_rounded,
-                      size: 20,
+                      size: 18,
                     ),
                     label: Text(
                       isCurrent ? 'Already using this unit' : 'Use this Dayung',
-                      style: TextStyle(
-                        fontSize: isWide ? 16 : 15,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                    style: OutlinedButton.styleFrom(
-                      backgroundColor: isCurrent ? kBg : kPrimary,
-                      foregroundColor: isCurrent ? kSubText : Colors.white,
-                      side: BorderSide(
-                        color: isCurrent ? kBorderColor : kPrimary,
-                      ),
-                      minimumSize: const Size.fromHeight(56),
-                      padding: const EdgeInsets.symmetric(horizontal: 12),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(14),
-                      ),
                     ),
                     onPressed: isCurrent
                         ? null
@@ -514,20 +424,10 @@ class _SelectDayungPageState extends State<SelectDayungPage> {
                             navigator.pop(normalized);
                           },
                   ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: TextButton.icon(
+                  const SizedBox(width: 8),
+                  TextButton.icon(
                     icon: const Icon(Icons.map_outlined),
                     label: const Text('View on Map'),
-                    style: TextButton.styleFrom(
-                      foregroundColor: kAccent,
-                      minimumSize: const Size.fromHeight(56),
-                      padding: const EdgeInsets.symmetric(horizontal: 12),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(14),
-                      ),
-                    ),
                     onPressed: () {
                       final normalized = _normalizeDayung(d);
                       Navigator.push(
@@ -535,18 +435,18 @@ class _SelectDayungPageState extends State<SelectDayungPage> {
                         MaterialPageRoute(
                           builder: (_) => DayungMapPage(
                             dayung: normalized,
-                            isMember: (d['is_member'] == true),
+                            isMember: d['is_member'] == true,
                           ),
                         ),
                       );
                     },
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ],
-        ),
-      ),
+        );
+      }).toList(),
     );
   }
 
@@ -620,7 +520,7 @@ class _SelectDayungPageState extends State<SelectDayungPage> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            'Selectr Dayung',
+                            'Select Dayung',
                             style: TextStyle(
                               fontSize: isWide ? 24 : 22,
                               fontWeight: FontWeight.w900,
@@ -699,8 +599,7 @@ class _SelectDayungPageState extends State<SelectDayungPage> {
         children: [
           _buildIntroCard(isWide),
           const SizedBox(height: 16),
-          for (final d in _joined)
-            _buildDayungCard(context, d, isWide, currentId),
+          _buildDayungTable(context, _joined, currentId),
         ],
       ),
     );

@@ -1,5 +1,6 @@
 import 'package:capstone_app/SuperAdmin/superadmin_support.dart';
 import 'package:flutter/material.dart';
+import 'package:capstone_app/widgets/record_data_table.dart';
 
 class SuperAdminAuditLogsPage extends StatefulWidget {
   const SuperAdminAuditLogsPage({super.key});
@@ -166,10 +167,23 @@ class _SuperAdminAuditLogsPageState extends State<SuperAdminAuditLogsPage> {
                       else if (_logs.isEmpty)
                         const _EmptyState()
                       else
-                        ..._logs.map(
-                          (log) => Padding(
-                            padding: const EdgeInsets.only(bottom: 14),
-                            child: _AuditCard(log: log),
+                        Container(
+                          decoration: BoxDecoration(
+                            color: kSuperAdminCard,
+                            borderRadius: BorderRadius.circular(24),
+                            border: Border.all(color: kSuperAdminBorder),
+                          ),
+                          child: RecordDataTable(
+                            minWidth: 900,
+                            columns: const [
+                              DataColumn(label: Text('Activity')),
+                              DataColumn(label: Text('Category')),
+                              DataColumn(label: Text('Date')),
+                              DataColumn(label: Text('Actor')),
+                              DataColumn(label: Text('Details')),
+                              DataColumn(label: Text('Action')),
+                            ],
+                            rows: _logs.map(_auditRow).toList(),
                           ),
                         ),
                     ],
@@ -177,6 +191,72 @@ class _SuperAdminAuditLogsPageState extends State<SuperAdminAuditLogsPage> {
                 ),
         ),
       ),
+    );
+  }
+
+  DataRow _auditRow(Map<String, dynamic> log) {
+    final fields = Map<String, dynamic>.from(log['fields'] ?? const {});
+    final fieldEntries = fields.entries
+        .where(
+          (entry) => entry.value != null && '${entry.value}'.trim().isNotEmpty,
+        )
+        .map((entry) => '${_humanize(entry.key)}: ${entry.value}')
+        .join('\n');
+    final actorEmail = log['actor_email']?.toString() ?? '';
+
+    return DataRow(
+      cells: [
+        DataCell(
+          SizedBox(
+            width: 180,
+            child: Text(
+              log['title']?.toString() ?? 'Activity',
+              style: const TextStyle(
+                fontWeight: FontWeight.w800,
+                color: kSuperAdminText,
+              ),
+            ),
+          ),
+        ),
+        DataCell(Text(log['category']?.toString() ?? 'General')),
+        DataCell(Text(_formatDateTime(log['created_at']?.toString()))),
+        DataCell(
+          SizedBox(
+            width: 180,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  log['actor_name']?.toString() ?? 'Unknown user',
+                  style: const TextStyle(fontWeight: FontWeight.w700),
+                ),
+                if (actorEmail.isNotEmpty)
+                  Text(
+                    actorEmail,
+                    style: const TextStyle(color: kSuperAdminMuted),
+                  ),
+              ],
+            ),
+          ),
+        ),
+        DataCell(
+          SizedBox(
+            width: 240,
+            child: Text(fieldEntries, softWrap: true),
+          ),
+        ),
+        DataCell(
+          SizedBox(
+            width: 260,
+            child: Text(
+              log['raw_action']?.toString() ?? '',
+              softWrap: true,
+              style: const TextStyle(color: kSuperAdminMuted, height: 1.5),
+            ),
+          ),
+        ),
+      ],
     );
   }
 }
@@ -242,134 +322,6 @@ class _HeroIcon extends StatelessWidget {
         Icons.history_edu_rounded,
         color: Colors.white,
         size: 30,
-      ),
-    );
-  }
-}
-
-class _AuditCard extends StatelessWidget {
-  final Map<String, dynamic> log;
-
-  const _AuditCard({required this.log});
-
-  @override
-  Widget build(BuildContext context) {
-    final fields = Map<String, dynamic>.from(log['fields'] ?? const {});
-    final fieldEntries = fields.entries
-        .where(
-          (entry) => entry.value != null && '${entry.value}'.trim().isNotEmpty,
-        )
-        .toList();
-
-    return Container(
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        color: kSuperAdminCard,
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: kSuperAdminBorder),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Container(
-                padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(
-                  color: kSuperAdminPrimary.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                child: const Icon(
-                  Icons.fingerprint_rounded,
-                  color: kSuperAdminPrimary,
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      log['title']?.toString() ?? 'Activity',
-                      style: const TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.w800,
-                        color: kSuperAdminText,
-                        fontFamily: 'Montserrat',
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      log['category']?.toString() ?? 'General',
-                      style: const TextStyle(
-                        color: kSuperAdminMuted,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              Text(
-                _formatDateTime(log['created_at']?.toString()),
-                textAlign: TextAlign.right,
-                style: const TextStyle(
-                  color: kSuperAdminMuted,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 14),
-          Text(
-            log['actor_name']?.toString() ?? 'Unknown user',
-            style: const TextStyle(
-              color: kSuperAdminText,
-              fontWeight: FontWeight.w800,
-            ),
-          ),
-          if ((log['actor_email']?.toString().isNotEmpty ?? false)) ...[
-            const SizedBox(height: 2),
-            Text(
-              log['actor_email'].toString(),
-              style: const TextStyle(color: kSuperAdminMuted),
-            ),
-          ],
-          if (fieldEntries.isNotEmpty) ...[
-            const SizedBox(height: 14),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: fieldEntries
-                  .map(
-                    (entry) => Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 8,
-                      ),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFF7FAFC),
-                        borderRadius: BorderRadius.circular(999),
-                        border: Border.all(color: kSuperAdminBorder),
-                      ),
-                      child: Text(
-                        '${_humanize(entry.key)}: ${entry.value}',
-                        style: const TextStyle(
-                          color: kSuperAdminText,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ),
-                  )
-                  .toList(),
-            ),
-          ],
-          const SizedBox(height: 14),
-          Text(
-            log['raw_action']?.toString() ?? '',
-            style: const TextStyle(color: kSuperAdminMuted, height: 1.5),
-          ),
-        ],
       ),
     );
   }

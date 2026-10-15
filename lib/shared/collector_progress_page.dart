@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:capstone_app/widgets/record_data_table.dart';
 import 'package:capstone_app/shared/dayung_back_button.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:capstone_app/utils/theme_surface.dart';
@@ -352,166 +353,22 @@ class _CollectorProgressPageState extends State<CollectorProgressPage> {
                                   child: RefreshIndicator(
                                     color: _kPrimary,
                                     onRefresh: _load,
-                                    child: ListView.builder(
+                                    child: ListView(
                                       physics:
                                           const AlwaysScrollableScrollPhysics(),
-                                      itemCount: _items.length,
-                                      itemBuilder: (context, index) {
-                                        final item = _items[index];
-                                        return Container(
-                                          margin: const EdgeInsets.only(
-                                            bottom: 12,
-                                          ),
-                                          padding: const EdgeInsets.all(16),
-                                          decoration: BoxDecoration(
-                                            color: Colors.white,
-                                            borderRadius: BorderRadius.circular(
-                                              16,
-                                            ),
-                                            border: Border.all(
-                                              color: Colors.grey.shade200,
-                                            ),
-                                            boxShadow: [
-                                              BoxShadow(
-                                                color: Colors.black.withValues(
-                                                  alpha: 0.04,
-                                                ),
-                                                blurRadius: 10,
-                                                offset: const Offset(0, 4),
-                                              ),
-                                            ],
-                                          ),
-                                          child: Column(
-                                            crossAxisAlignment:
-                                                CrossAxisAlignment.start,
-                                            children: [
-                                              Row(
-                                                children: [
-                                                  Container(
-                                                    padding:
-                                                        const EdgeInsets.all(8),
-                                                    decoration: BoxDecoration(
-                                                      color: _kPurple
-                                                          .withValues(
-                                                            alpha: 0.1,
-                                                          ),
-                                                      borderRadius:
-                                                          BorderRadius.circular(
-                                                            10,
-                                                          ),
-                                                    ),
-                                                    child: const Icon(
-                                                      Icons
-                                                          .local_florist_rounded,
-                                                      color: _kPurple,
-                                                      size: 18,
-                                                    ),
-                                                  ),
-                                                  const SizedBox(width: 10),
-                                                  Expanded(
-                                                    child: Text(
-                                                      item.name,
-                                                      style: const TextStyle(
-                                                        fontSize: 15,
-                                                        fontWeight:
-                                                            FontWeight.w800,
-                                                        color: _kNeutralText,
-                                                        fontFamily:
-                                                            'Montserrat',
-                                                      ),
-                                                      maxLines: 1,
-                                                      overflow:
-                                                          TextOverflow.ellipsis,
-                                                    ),
-                                                  ),
-                                                  const SizedBox(width: 8),
-                                                  Container(
-                                                    padding:
-                                                        const EdgeInsets.symmetric(
-                                                          horizontal: 8,
-                                                          vertical: 4,
-                                                        ),
-                                                    decoration: BoxDecoration(
-                                                      color: item.isComplete
-                                                          ? _kSuccess
-                                                                .withValues(
-                                                                  alpha: 0.12,
-                                                                )
-                                                          : _kWarn.withValues(
-                                                              alpha: 0.12,
-                                                            ),
-                                                      borderRadius:
-                                                          BorderRadius.circular(
-                                                            8,
-                                                          ),
-                                                    ),
-                                                    child: Text(
-                                                      item.isComplete
-                                                          ? 'Completed'
-                                                          : 'In progress',
-                                                      style: TextStyle(
-                                                        fontSize: 12,
-                                                        fontWeight:
-                                                            FontWeight.w800,
-                                                        color: item.isComplete
-                                                            ? _kSuccess
-                                                            : _kWarn,
-                                                        fontFamily:
-                                                            'Montserrat',
-                                                      ),
-                                                    ),
-                                                  ),
-                                                ],
-                                              ),
-                                              const SizedBox(height: 12),
-                                              ClipRRect(
-                                                borderRadius:
-                                                    BorderRadius.circular(8),
-                                                child: LinearProgressIndicator(
-                                                  value: item.progress,
-                                                  minHeight: 10,
-                                                  backgroundColor:
-                                                      Colors.grey.shade100,
-                                                  valueColor:
-                                                      AlwaysStoppedAnimation(
-                                                        item.isComplete
-                                                            ? _kSuccess
-                                                            : _kPrimary,
-                                                      ),
-                                                ),
-                                              ),
-                                              const SizedBox(height: 8),
-                                              Row(
-                                                children: [
-                                                  Expanded(
-                                                    child: Text(
-                                                      '${item.paid.toStringAsFixed(0)} of ${item.goal.toStringAsFixed(0)} members paid',
-                                                      style: const TextStyle(
-                                                        fontSize: 12,
-                                                        fontWeight:
-                                                            FontWeight.w700,
-                                                        color: _kSuccess,
-                                                        fontFamily: 'OpenSans',
-                                                      ),
-                                                    ),
-                                                  ),
-                                                  const SizedBox(width: 8),
-                                                  Text(
-                                                    '${(item.goal - item.paid).toStringAsFixed(0)} remaining',
-                                                    style: const TextStyle(
-                                                      fontSize: 12,
-                                                      fontWeight:
-                                                          FontWeight.w600,
-                                                      color: _kSubText,
-                                                      fontFamily: 'OpenSans',
-                                                    ),
-                                                  ),
-                                                ],
-                                              ),
-                                            ],
-                                          ),
-                                        );
-                                      },
+                                      children: [
+                                        RecordDataTable(
+                                          minWidth: 760,
+                                          columns: const [
+                                            DataColumn(label: Text('Collection')),
+                                            DataColumn(label: Text('Status')),
+                                            DataColumn(label: Text('Progress')),
+                                            DataColumn(label: Text('Paid')),
+                                            DataColumn(label: Text('Remaining')),
+                                          ],
+                                          rows: _items.map(_progressRow).toList(),
+                                        ),
+                                      ],
                                     ),
                                   ),
                                 ),
@@ -524,6 +381,99 @@ class _CollectorProgressPageState extends State<CollectorProgressPage> {
           ),
         ),
       ),
+    );
+  }
+
+  DataRow _progressRow(_CollectorProgressItem item) {
+    return DataRow(
+      cells: [
+        DataCell(
+          SizedBox(
+            width: 190,
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(
+                  Icons.local_florist_rounded,
+                  color: _kPurple,
+                  size: 18,
+                ),
+                const SizedBox(width: 10),
+                Flexible(
+                  child: Text(
+                    item.name,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w800,
+                      color: _kNeutralText,
+                      fontFamily: 'Montserrat',
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        DataCell(
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            decoration: BoxDecoration(
+              color: item.isComplete
+                  ? _kSuccess.withValues(alpha: 0.12)
+                  : _kWarn.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Text(
+              item.isComplete ? 'Completed' : 'In progress',
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w800,
+                color: item.isComplete ? _kSuccess : _kWarn,
+                fontFamily: 'Montserrat',
+              ),
+            ),
+          ),
+        ),
+        DataCell(
+          SizedBox(
+            width: 150,
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(8),
+              child: LinearProgressIndicator(
+                value: item.progress,
+                minHeight: 10,
+                backgroundColor: Colors.grey.shade100,
+                valueColor: AlwaysStoppedAnimation(
+                  item.isComplete ? _kSuccess : _kPrimary,
+                ),
+              ),
+            ),
+          ),
+        ),
+        DataCell(
+          Text(
+            '${item.paid.toStringAsFixed(0)} of ${item.goal.toStringAsFixed(0)} members paid',
+            style: const TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+              color: _kSuccess,
+              fontFamily: 'OpenSans',
+            ),
+          ),
+        ),
+        DataCell(
+          Text(
+            '${(item.goal - item.paid).toStringAsFixed(0)} remaining',
+            style: const TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              color: _kSubText,
+              fontFamily: 'OpenSans',
+            ),
+          ),
+        ),
+      ],
     );
   }
 

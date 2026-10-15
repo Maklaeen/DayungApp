@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:capstone_app/widgets/record_data_table.dart';
 import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:image_picker/image_picker.dart';
@@ -1087,9 +1088,16 @@ class _GCashPaymentPageState extends State<GCashPaymentPage> {
                                     refNo.contains(_searchQuery);
                               }).toList();
 
-                              return Column(
-                                crossAxisAlignment: CrossAxisAlignment.stretch,
-                                children: advancePayments.map((payment) {
+                              return RecordDataTable(
+                                minWidth: 850,
+                                columns: const [
+                                  DataColumn(label: Text('Payment')),
+                                  DataColumn(label: Text('Amount')),
+                                  DataColumn(label: Text('Reference')),
+                                  DataColumn(label: Text('Status')),
+                                  DataColumn(label: Text('Receipt')),
+                                ],
+                                rows: advancePayments.map((payment) {
                                   final status =
                                       payment['status']
                                           ?.toString()
@@ -1099,64 +1107,17 @@ class _GCashPaymentPageState extends State<GCashPaymentPage> {
                                   final receiptUrl = payment['image_url']
                                       ?.toString();
 
-                                  return Card(
-                                    margin: const EdgeInsets.symmetric(
-                                      vertical: 10,
-                                    ),
-                                    elevation: 3,
-                                    color: Colors.white,
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(16),
-                                    ),
-                                    child: Padding(
-                                      padding: const EdgeInsets.symmetric(
-                                        vertical: 16,
-                                        horizontal: 18,
-                                      ),
-                                      child: Column(
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.start,
-                                        children: [
-                                          const Text(
-                                            'Advance Payment',
-                                            style: TextStyle(
-                                              fontWeight: FontWeight.bold,
-                                              fontSize: 16,
-                                              color: kText,
-                                            ),
-                                          ),
-                                          const SizedBox(height: 8),
-                                          Text(
-                                            'Amount: ₱ ${payment['amount']}',
-                                            style: const TextStyle(
-                                              fontSize: 15,
-                                              color: kAccent,
-                                            ),
-                                          ),
-                                          if (payment['refno'] != null) ...[
-                                            const SizedBox(height: 8),
-                                            Text(
-                                              'Reference No.: ${payment['refno']}',
-                                              style: const TextStyle(
-                                                fontSize: 14,
-                                                color: kSubText,
-                                              ),
-                                            ),
-                                          ],
-                                          const SizedBox(height: 8),
-                                          Text(
-                                            isPaid ? 'Paid' : 'Pending',
-                                            style: TextStyle(
-                                              color: isPaid
-                                                  ? Colors.green
-                                                  : kWarn,
-                                              fontWeight: FontWeight.bold,
-                                            ),
-                                          ),
-                                          if (receiptUrl != null &&
-                                              receiptUrl.isNotEmpty) ...[
-                                            const SizedBox(height: 12),
-                                            FutureBuilder<String?>(
+                                  return DataRow(cells: [
+                                    const DataCell(Text('Advance payment')),
+                                    DataCell(Text('₱ ${payment['amount']}')),
+                                    DataCell(Text(
+                                      (payment['refno'] ?? '—').toString(),
+                                    )),
+                                    DataCell(Text(isPaid ? 'Paid' : 'Pending')),
+                                    DataCell(
+                                      receiptUrl == null || receiptUrl.isEmpty
+                                          ? const Text('—')
+                                          : FutureBuilder<String?>(
                                               future: getSignedQrImageUrl(
                                                 receiptUrl,
                                               ),
@@ -1164,30 +1125,28 @@ class _GCashPaymentPageState extends State<GCashPaymentPage> {
                                                 if (imageSnapshot.hasError) {
                                                   return const Text(
                                                     'Unable to load receipt image.',
-                                                    style: TextStyle(
-                                                      color: kWarn,
-                                                    ),
                                                   );
                                                 }
                                                 if (!imageSnapshot.hasData ||
-                                                    imageSnapshot.data ==
-                                                        null) {
+                                                    imageSnapshot.data == null) {
                                                   return const SizedBox(
                                                     height: 24,
                                                     width: 24,
                                                     child:
                                                         CircularProgressIndicator(
-                                                          strokeWidth: 2,
-                                                          color: kAccent,
-                                                        ),
+                                                      strokeWidth: 2,
+                                                      color: kAccent,
+                                                    ),
                                                   );
                                                 }
                                                 return TextButton.icon(
                                                   onPressed: () {
                                                     showDialog<void>(
                                                       context: context,
-                                                      builder: (context) => Dialog(
-                                                        child: InteractiveViewer(
+                                                      builder: (context) =>
+                                                          Dialog(
+                                                        child:
+                                                            InteractiveViewer(
                                                           child: Image.network(
                                                             imageSnapshot.data!,
                                                             fit: BoxFit.contain,
@@ -1199,17 +1158,12 @@ class _GCashPaymentPageState extends State<GCashPaymentPage> {
                                                   icon: const Icon(
                                                     Icons.receipt_long,
                                                   ),
-                                                  label: const Text(
-                                                    'View receipt',
-                                                  ),
+                                                  label: const Text('View'),
                                                 );
                                               },
                                             ),
-                                          ],
-                                        ],
-                                      ),
                                     ),
-                                  );
+                                  ]);
                                 }).toList(),
                               );
                             },

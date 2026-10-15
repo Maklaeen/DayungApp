@@ -10,6 +10,7 @@ import 'package:photo_view/photo_view.dart';
 import 'package:flutter/services.dart';
 import 'package:capstone_app/utils/theme_surface.dart';
 import 'package:capstone_app/screens/dayung_map_page.dart';
+import 'package:capstone_app/widgets/record_data_table.dart';
 
 // Old palette (kept so old logic/widgets compile)
 const Color kPrimary = Color(0xFF0D47A1);
@@ -967,12 +968,9 @@ class _SecretaryClaimsPageState extends State<SecretaryClaimsPage>
                                 ),
                               ),
                             )
-                          : ListView.separated(
+                          : ListView(
                               padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
-                              itemCount: claims.length,
-                              separatorBuilder: (_, __) =>
-                                  const SizedBox(height: 8),
-                              itemBuilder: (_, i) => _claimCard(claims[i]),
+                              children: [_claimsTable(claims)],
                             )),
               ),
             ],
@@ -1075,111 +1073,79 @@ class _SecretaryClaimsPageState extends State<SecretaryClaimsPage>
     );
   }
 
-  Widget _claimCard(Map<String, dynamic> claim) {
-    final status = (claim['status'] ?? '').toString();
-    final color = _statusColor(status);
-    final title = (claim['title'] ?? 'Untitled').toString();
-    final date = _formatDate(claim['date_submitted']);
-    final desc = (claim['description'] ?? '').toString().trim();
+  Widget _claimsTable(List<Map<String, dynamic>> claims) {
+    return RecordDataTable(
+      minWidth: 1160,
+      columnSpacing: 20,
+      columns: const [
+        DataColumn(label: Text('Claim')),
+        DataColumn(label: Text('Claimant')),
+        DataColumn(label: Text('Description')),
+        DataColumn(label: Text('Deceased')),
+        DataColumn(label: Text('Location')),
+        DataColumn(label: Text('Submitted')),
+        DataColumn(label: Text('Status')),
+      ],
+      rows: claims.map((claim) {
+        final status = (claim['status'] ?? '').toString();
+        final color = _statusColor(status);
+        final userInfo = _userMap[(claim['user_id'] ?? '').toString()];
+        final claimant =
+            (claim['claimant_name'] ?? userInfo?['full_name'] ?? 'Member')
+                .toString();
+        final description = (claim['description'] ?? '').toString().trim();
+        final location = _claimLocation(claim) == null
+            ? '—'
+            : (claim['vigil_barangay'] ?? 'Location available').toString();
+        final onTap = () => _showDetail(claim);
 
-    return InkWell(
-      onTap: () => _showDetail(claim),
-      borderRadius: BorderRadius.circular(12),
-      child: Container(
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(12),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.03),
-              blurRadius: 8,
-              offset: const Offset(0, 2),
-            ),
-          ],
-        ),
-        padding: const EdgeInsets.all(12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Icon(_statusIcon(status), color: color, size: 18),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    title,
-                    style: const TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 16,
-                      color: kNeutralText,
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Text(
-                  date,
-                  style: const TextStyle(fontSize: 12, color: kSubtleText),
-                ),
-              ],
-            ),
-            if (desc.isNotEmpty) ...[
-              const SizedBox(height: 4),
+        return DataRow(
+          cells: [
+            DataCell(
               Text(
-                desc,
-                style: const TextStyle(fontSize: 13, color: kSubtleText),
+                (claim['title'] ?? 'Untitled').toString(),
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
               ),
-            ],
-            const SizedBox(height: 6),
-            FutureBuilder<Map<String, dynamic>>(
-              future: getDeceasedInfo(claim),
-              builder: (context, snapshot) {
-                if (!snapshot.hasData) return const SizedBox.shrink();
-                final deceased = snapshot.data!;
-                return Text(
-                  'Deceased: ${deceased['name']}',
-                  style: const TextStyle(fontSize: 13, color: kSubtleText),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                );
-              },
+              onTap: onTap,
             ),
-            if (_claimLocation(claim) != null) ...[
-              const SizedBox(height: 10),
-              Row(
-                children: [
-                  Icon(Icons.location_on, size: 18, color: kPrimary),
-                  const SizedBox(width: 6),
-                  Expanded(
-                    child: Text(
-                      (claim['vigil_barangay'] ?? 'Location available')
-                          .toString(),
-                      style: const TextStyle(
-                        fontSize: 14,
-                        color: kPrimary,
-                        fontWeight: FontWeight.w700,
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                  const Text(
-                    'View map',
-                    style: TextStyle(
-                      fontSize: 13,
-                      color: kPrimary,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                ],
+            DataCell(
+              Text(claimant, maxLines: 2, overflow: TextOverflow.ellipsis),
+              onTap: onTap,
+            ),
+            DataCell(
+              Text(
+                description.isEmpty ? '—' : description,
+                maxLines: 3,
+                overflow: TextOverflow.ellipsis,
               ),
-            ],
+              onTap: onTap,
+            ),
+            DataCell(
+              FutureBuilder<Map<String, dynamic>>(
+                future: getDeceasedInfo(claim),
+                builder: (context, snapshot) => Text(
+                  snapshot.hasData
+                      ? (snapshot.data!['name'] ?? 'Member').toString()
+                      : '—',
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              onTap: onTap,
+            ),
+            DataCell(
+              Text(location, maxLines: 2, overflow: TextOverflow.ellipsis),
+              onTap: onTap,
+            ),
+            DataCell(Text(_formatDate(claim['date_submitted'])), onTap: onTap),
+            DataCell(
+              Text(status.isEmpty ? '—' : status),
+              onTap: onTap,
+            ),
           ],
-        ),
-      ),
+        );
+      }).toList(),
     );
   }
 

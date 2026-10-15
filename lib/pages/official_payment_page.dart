@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:capstone_app/widgets/record_data_table.dart';
 
 const kOfficialPaymentBg = Color(0xFFFAFAF7);
 const kOfficialPaymentText = Color(0xFF1F2937);
@@ -739,142 +740,109 @@ class _OfficialPaymentPageState extends State<OfficialPaymentPage> {
     );
   }
 
-  Widget _paymentCard(Map<String, dynamic> row) {
-    final amount = _amountOf(row['amount']);
-    final paymentId = (row['id'] ?? '').toString();
-    final uploads = (_gcashUploadsByPayment[paymentId] ?? [])
-        .cast<Map<String, dynamic>>();
+  RecordDataTable _paymentTable() {
+    return RecordDataTable(
+      minWidth: 1050,
+      columnSpacing: 20,
+      columns: const [
+        DataColumn(label: Text('For deceased')),
+        DataColumn(label: Text('Created')),
+        DataColumn(label: Text('Amount')),
+        DataColumn(label: Text('Uploaded GCash receipts')),
+        DataColumn(label: Text('Payment actions')),
+      ],
+      rows: _pendingRows.map((row) {
+        final amount = _amountOf(row['amount']);
+        final paymentId = (row['id'] ?? '').toString();
+        final uploads = (_gcashUploadsByPayment[paymentId] ?? [])
+            .cast<Map<String, dynamic>>();
 
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(22),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.04),
-            blurRadius: 14,
-            offset: const Offset(0, 8),
-          ),
-        ],
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(18),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Container(
-                  width: 48,
-                  height: 48,
-                  decoration: BoxDecoration(
-                    color: kOfficialPaymentPrimary.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(14),
-                  ),
-                  child: const Icon(
-                    Icons.payments_rounded,
-                    color: kOfficialPaymentPrimary,
-                  ),
+        return DataRow(
+          cells: [
+            DataCell(
+              Text(
+                _deceasedLabel(row),
+                style: const TextStyle(fontWeight: FontWeight.w700),
+              ),
+            ),
+            DataCell(Text(_dateLabel(row))),
+            DataCell(
+              Text(
+                '₱${amount.toStringAsFixed(2)}',
+                style: const TextStyle(
+                  fontWeight: FontWeight.w900,
+                  color: kOfficialPaymentPrimaryDark,
                 ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        _deceasedLabel(row),
-                        style: const TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w800,
-                          color: kOfficialPaymentText,
-                        ),
+              ),
+            ),
+            DataCell(
+              SizedBox(
+                width: 240,
+                child: uploads.isEmpty
+                    ? const Text('None')
+                    : Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Padding(
+                            padding: const EdgeInsets.only(bottom: 8),
+                            child: Text(
+                              '${uploads.length} uploaded receipt${uploads.length == 1 ? '' : 's'}',
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w700,
+                                color: kOfficialPaymentPrimary,
+                              ),
+                            ),
+                          ),
+                          ...uploads.map(_gcashReceiptTile),
+                        ],
                       ),
-                      const SizedBox(height: 4),
-                      Text(
-                        'Created on ${_dateLabel(row)}',
-                        style: const TextStyle(
-                          fontSize: 13,
+              ),
+            ),
+            DataCell(
+              SizedBox(
+                width: 170,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    ElevatedButton.icon(
+                      onPressed: _collectors.isEmpty
+                          ? null
+                          : () => _openCashModal(row),
+                      icon: const Icon(Icons.handshake_rounded),
+                      label: const Text('Pay Cash'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: kOfficialPaymentAccent,
+                        foregroundColor: Colors.white,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    ElevatedButton.icon(
+                      onPressed: () => _openGCashModal(row),
+                      icon: const Icon(Icons.qr_code_2_rounded),
+                      label: const Text('Pay GCash'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: kOfficialPaymentPrimary,
+                        foregroundColor: Colors.white,
+                      ),
+                    ),
+                    if (_collectors.isEmpty) ...[
+                      const SizedBox(height: 8),
+                      const Text(
+                        'No collector is assigned to this dayung yet, so cash payment is temporarily unavailable.',
+                        style: TextStyle(
+                          fontSize: 12,
                           fontWeight: FontWeight.w600,
-                          color: kOfficialPaymentSubText,
+                          color: kOfficialPaymentWarn,
                         ),
                       ),
                     ],
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 14),
-            Text(
-              '₱${amount.toStringAsFixed(2)}',
-              style: const TextStyle(
-                fontSize: 24,
-                fontWeight: FontWeight.w900,
-                color: kOfficialPaymentPrimaryDark,
-              ),
-            ),
-            const SizedBox(height: 14),
-            Wrap(
-              spacing: 10,
-              runSpacing: 10,
-              children: [
-                ElevatedButton.icon(
-                  onPressed: _collectors.isEmpty
-                      ? null
-                      : () => _openCashModal(row),
-                  icon: const Icon(Icons.handshake_rounded),
-                  label: const Text('Pay Cash'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: kOfficialPaymentAccent,
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 18,
-                      vertical: 12,
-                    ),
-                  ),
-                ),
-                ElevatedButton.icon(
-                  onPressed: () => _openGCashModal(row),
-                  icon: const Icon(Icons.qr_code_2_rounded),
-                  label: const Text('Pay GCash'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: kOfficialPaymentPrimary,
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 18,
-                      vertical: 12,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            if (uploads.isNotEmpty) ...[
-              const SizedBox(height: 12),
-              Text(
-                'Uploaded GCash receipts (${uploads.length})',
-                style: const TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w800,
-                  color: kOfficialPaymentPrimary,
+                  ],
                 ),
               ),
-              const SizedBox(height: 8),
-              ...uploads.map(_gcashReceiptTile),
-            ],
-            if (_collectors.isEmpty) ...[
-              const SizedBox(height: 10),
-              const Text(
-                'No collector is assigned to this dayung yet, so cash payment is temporarily unavailable.',
-                style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                  color: kOfficialPaymentWarn,
-                ),
-              ),
-            ],
+            ),
           ],
-        ),
-      ),
+        );
+      }).toList(),
     );
   }
 
@@ -1065,7 +1033,7 @@ class _OfficialPaymentPageState extends State<OfficialPaymentPage> {
                               ),
                             ),
                             const SizedBox(height: 16),
-                            ..._pendingRows.map(_paymentCard),
+                            _paymentTable(),
                           ],
                         ],
                       ),

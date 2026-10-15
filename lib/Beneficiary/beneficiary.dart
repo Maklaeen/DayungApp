@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:capstone_app/shared/dayung_back_button.dart';
+import 'package:capstone_app/widgets/record_data_table.dart';
 
 const kBg = Color(0xFFFAFAF7);
 const kText = Color(0xFF1F2937);
@@ -471,6 +472,219 @@ class _BeneficiaryPageState extends State<BeneficiaryPage> {
     );
   }
 
+  Widget _buildDocumentTag(String label, IconData icon) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF1F6FD),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: kAccent.withValues(alpha: 0.18)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 17, color: kAccent),
+          const SizedBox(width: 6),
+          Text(
+            label,
+            style: const TextStyle(
+              color: kText,
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+              fontFamily: 'OpenSans',
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildBeneficiaryMobileCard(Map<String, dynamic> item) {
+    final name = (item['full_name'] ?? 'Unnamed beneficiary').toString();
+    final relationship = (item['relationship'] ?? 'Not provided').toString();
+    final dob = item['dob']?.toString().trim() ?? '';
+    final hasBirthCertificate =
+        (item['birth_certificate']?.toString() ?? '').isNotEmpty;
+    final hasValidId = (item['valid_id']?.toString() ?? '').isNotEmpty;
+    final eligible = item['eligible_to_claim'] == true;
+    final isCompact = MediaQuery.of(context).size.width < 380;
+    final viewButton = OutlinedButton.icon(
+      onPressed: () => _showBeneficiaryDetails(item),
+      icon: const Icon(Icons.visibility_outlined, size: 20),
+      label: const Text('View details'),
+      style: OutlinedButton.styleFrom(
+        foregroundColor: kPrimary,
+        minimumSize: const Size(0, 52),
+        textStyle: const TextStyle(
+          fontSize: 15,
+          fontWeight: FontWeight.w700,
+          fontFamily: 'OpenSans',
+        ),
+        side: const BorderSide(color: kPrimary),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      ),
+    );
+    final editButton = ElevatedButton.icon(
+      onPressed: eligible
+          ? null
+          : () => _navigateToEditBeneficiary(context, item),
+      icon: const Icon(Icons.edit_rounded, size: 19),
+      label: Text(eligible ? 'No changes' : 'Edit'),
+      style: ElevatedButton.styleFrom(
+        backgroundColor: kPrimary,
+        foregroundColor: Colors.white,
+        disabledBackgroundColor: const Color(0xFFE5E7EB),
+        disabledForegroundColor: kSubText,
+        minimumSize: const Size(0, 52),
+        textStyle: const TextStyle(
+          fontSize: 15,
+          fontWeight: FontWeight.w700,
+          fontFamily: 'OpenSans',
+        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      ),
+    );
+
+    return Material(
+      color: kCardBg,
+      borderRadius: BorderRadius.circular(18),
+      child: InkWell(
+        onTap: () => _showBeneficiaryDetails(item),
+        borderRadius: BorderRadius.circular(18),
+        child: Container(
+          padding: const EdgeInsets.all(18),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(color: kBorderColor),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.04),
+                blurRadius: 12,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  CircleAvatar(
+                    radius: 25,
+                    backgroundColor: kAccent.withValues(alpha: 0.12),
+                    child: const Icon(
+                      Icons.person_rounded,
+                      color: kAccent,
+                      size: 28,
+                    ),
+                  ),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Text(
+                      name,
+                      style: const TextStyle(
+                        fontSize: 19,
+                        fontWeight: FontWeight.w800,
+                        color: kText,
+                        fontFamily: 'Montserrat',
+                        height: 1.25,
+                      ),
+                    ),
+                  ),
+                  const Icon(Icons.chevron_right_rounded, color: kSubText),
+                ],
+              ),
+              const SizedBox(height: 18),
+              _buildBeneficiaryDetailLine('Relationship', relationship),
+              const SizedBox(height: 10),
+              _buildBeneficiaryDetailLine(
+                'Date of birth',
+                dob.isEmpty ? 'Not provided' : dob,
+              ),
+              const SizedBox(height: 14),
+              Text(
+                'Documents',
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w700,
+                  color: kSubText,
+                  fontFamily: 'OpenSans',
+                ),
+              ),
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  if (hasBirthCertificate)
+                    _buildDocumentTag(
+                      'Birth certificate',
+                      Icons.description_rounded,
+                    ),
+                  if (hasValidId)
+                    _buildDocumentTag('Valid ID', Icons.badge_rounded),
+                  if (!hasBirthCertificate && !hasValidId)
+                    const Text(
+                      'No documents uploaded',
+                      style: TextStyle(
+                        color: kText,
+                        fontSize: 15,
+                        fontFamily: 'OpenSans',
+                      ),
+                    ),
+                ],
+              ),
+              const SizedBox(height: 18),
+              if (isCompact) ...[
+                SizedBox(width: double.infinity, child: viewButton),
+                const SizedBox(height: 10),
+                SizedBox(width: double.infinity, child: editButton),
+              ] else
+                Row(
+                  children: [
+                    Expanded(child: viewButton),
+                    const SizedBox(width: 10),
+                    Expanded(child: editButton),
+                  ],
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildBeneficiaryDetailLine(String label, String value) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SizedBox(
+          width: 132,
+          child: Text(
+            label,
+            style: const TextStyle(
+              color: kSubText,
+              fontSize: 15,
+              fontWeight: FontWeight.w600,
+              fontFamily: 'OpenSans',
+            ),
+          ),
+        ),
+        Expanded(
+          child: Text(
+            value,
+            style: const TextStyle(
+              color: kText,
+              fontSize: 16,
+              fontWeight: FontWeight.w700,
+              fontFamily: 'OpenSans',
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
   Widget _buildBeneficiariesList(List<dynamic> items) {
     final width = MediaQuery.of(context).size.width;
     final isWide = width > 700;
@@ -533,17 +747,6 @@ class _BeneficiaryPageState extends State<BeneficiaryPage> {
                         fontFamily: 'Montserrat',
                       ),
                     ),
-                    // const SizedBox(height: 8),
-                    // const Text(
-                    //   'No beneficiaries match the selected filter right now.',
-                    //   textAlign: TextAlign.center,
-                    //   style: TextStyle(
-                    //     fontSize: 15,
-                    //     color: kSubText,
-                    //     fontFamily: 'OpenSans',
-                    //     fontWeight: FontWeight.w500,
-                    //   ),
-                    // ),
                   ],
                 ),
               ),
@@ -553,181 +756,146 @@ class _BeneficiaryPageState extends State<BeneficiaryPage> {
       );
     }
 
-    return ListView.builder(
-      padding: EdgeInsets.fromLTRB(isWide ? 24 : 16, 20, isWide ? 24 : 16, 24),
-      itemCount: items.length,
-      itemBuilder: (context, index) {
-        final item = items[index];
-        final hasDocuments =
-            (item['birth_certificate'] != null &&
-                item['birth_certificate'].toString().isNotEmpty) ||
-            (item['valid_id'] != null &&
-                item['valid_id'].toString().isNotEmpty);
+    if (!isWide) {
+      return ListView.separated(
+        physics: const AlwaysScrollableScrollPhysics(
+          parent: BouncingScrollPhysics(),
+        ),
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
+        itemCount: items.length,
+        separatorBuilder: (context, index) => const SizedBox(height: 12),
+        itemBuilder: (context, index) => _buildBeneficiaryMobileCard(
+          Map<String, dynamic>.from(items[index] as Map),
+        ),
+      );
+    }
 
-        return Container(
-          margin: const EdgeInsets.only(bottom: 14),
-          decoration: BoxDecoration(
-            color: kCardBg,
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(
-              color: kAccent.withValues(alpha: 0.18),
-              width: 1.2,
+    return SingleChildScrollView(
+      physics: const AlwaysScrollableScrollPhysics(
+        parent: BouncingScrollPhysics(),
+      ),
+      padding: EdgeInsets.fromLTRB(isWide ? 24 : 16, 20, isWide ? 24 : 16, 24),
+      child: RecordDataTable(
+        minWidth: 850,
+        cardStyle: true,
+        headingRowColor: const Color(0xFFEAF2FC),
+        headingTextStyle: const TextStyle(
+          color: kPrimary,
+          fontSize: 16,
+          fontWeight: FontWeight.w800,
+          fontFamily: 'Montserrat',
+        ),
+        dataTextStyle: const TextStyle(
+          color: kText,
+          fontSize: 16,
+          fontWeight: FontWeight.w600,
+          fontFamily: 'OpenSans',
+        ),
+        columnSpacing: 28,
+        horizontalMargin: 20,
+        dataRowMinHeight: 82,
+        dataRowMaxHeight: 112,
+        columns: const [
+          DataColumn(label: Text('Beneficiary')),
+          DataColumn(label: Text('Relationship')),
+          DataColumn(label: Text('Date of birth')),
+          DataColumn(label: Text('Documents')),
+          DataColumn(label: Text('Actions')),
+        ],
+        rows: items.indexed.map<DataRow>((entry) {
+          final (index, raw) = entry;
+          final item = Map<String, dynamic>.from(raw as Map);
+          final hasBirthCertificate =
+              (item['birth_certificate']?.toString() ?? '').isNotEmpty;
+          final hasValidId = (item['valid_id']?.toString() ?? '').isNotEmpty;
+          final hasDocuments = hasBirthCertificate || hasValidId;
+          final eligible = item['eligible_to_claim'] == true;
+
+          return DataRow(
+            color: WidgetStatePropertyAll(
+              index.isEven ? Colors.white : const Color(0xFFF8FAFD),
             ),
-            boxShadow: [
-              BoxShadow(
-                color: kAccent.withValues(alpha: 0.08),
-                blurRadius: 18,
-                offset: const Offset(0, 8),
-              ),
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.03),
-                blurRadius: 10,
-                offset: const Offset(0, 2),
-              ),
-            ],
-          ),
-          child: Material(
-            color: Colors.transparent,
-            child: InkWell(
-              borderRadius: BorderRadius.circular(20),
-              onTap: () => _showBeneficiaryDetails(item),
-              child: Padding(
-                padding: EdgeInsets.all(isWide ? 22 : 18),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+            onSelectChanged: (_) => _showBeneficiaryDetails(item),
+            cells: [
+              DataCell(
+                Row(
+                  mainAxisSize: MainAxisSize.min,
                   children: [
-                    Container(
-                      width: isWide ? 56 : 52,
-                      height: isWide ? 56 : 52,
-                      decoration: BoxDecoration(
-                        color: kAccent.withValues(alpha: 0.12),
-                        borderRadius: BorderRadius.circular(16),
-                      ),
-                      child: Icon(
-                        Icons.person_rounded,
-                        color: kAccent,
-                        size: isWide ? 30 : 28,
-                      ),
+                    CircleAvatar(
+                      radius: 20,
+                      backgroundColor: kAccent.withValues(alpha: 0.12),
+                      child: const Icon(Icons.person_rounded, color: kAccent),
                     ),
-                    const SizedBox(width: 16),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Wrap(
-                            spacing: 8,
-                            runSpacing: 8,
-                            children: [
-                              if (hasDocuments)
-                                Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 10,
-                                    vertical: 6,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color: kPrimary.withValues(alpha: 0.1),
-                                    borderRadius: BorderRadius.circular(999),
-                                  ),
-                                  child: const Text(
-                                    'Documents Ready',
-                                    style: TextStyle(
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.w700,
-                                      color: kPrimary,
-                                      fontFamily: 'Montserrat',
-                                    ),
-                                  ),
-                                ),
-                            ],
-                          ),
-                          const SizedBox(height: 12),
-                          Row(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Expanded(
-                                child: Text(
-                                  item['full_name'] ?? '',
-                                  maxLines: 2,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: TextStyle(
-                                    fontSize: isWide ? 19 : 17,
-                                    fontWeight: FontWeight.w800,
-                                    color: kText,
-                                    fontFamily: 'Montserrat',
-                                    height: 1.2,
-                                  ),
-                                ),
-                              ),
-                              IconButton(
-                                icon: Icon(
-                                  Icons.edit_rounded,
-                                  color: item['eligible_to_claim'] == true
-                                      ? kSubText
-                                      : kAccent,
-                                  size: 20,
-                                ),
-                                tooltip: item['eligible_to_claim'] == true
-                                    ? 'Eligible – No Changes Needed'
-                                    : 'Edit beneficiary',
-                                onPressed: item['eligible_to_claim'] == true
-                                    ? null
-                                    : () => _navigateToEditBeneficiary(
-                                        context,
-                                        item,
-                                      ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 8),
-                          Text(
-                            'Relationship: ${item['relationship'] ?? 'Not provided'}',
+                    const SizedBox(width: 10),
+                    Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text((item['full_name'] ?? '').toString()),
+                        if (hasDocuments)
+                          const Text(
+                            'Documents available',
                             style: TextStyle(
-                              fontSize: isWide ? 15 : 14,
-                              height: 1.5,
-                              color: kText,
-                              fontFamily: 'OpenSans',
-                              fontWeight: FontWeight.w600,
+                              fontSize: 14,
+                              fontWeight: FontWeight.w700,
+                              color: kPrimary,
                             ),
                           ),
-                          const SizedBox(height: 10),
-                          Row(
-                            children: [
-                              const Icon(
-                                Icons.cake_rounded,
-                                size: 16,
-                                color: kSubText,
-                              ),
-                              const SizedBox(width: 6),
-                              Expanded(
-                                child: Text(
-                                  item['dob']?.toString().isNotEmpty == true
-                                      ? item['dob'].toString()
-                                      : 'Date of birth not provided',
-                                  style: const TextStyle(
-                                    fontSize: 13,
-                                    color: kSubText,
-                                    fontFamily: 'OpenSans',
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                ),
-                              ),
-                              const Icon(
-                                Icons.chevron_right_rounded,
-                                color: kSubText,
-                                size: 22,
-                              ),
-                            ],
-                          ),
-                        ],
-                      ),
+                      ],
                     ),
                   ],
                 ),
               ),
-            ),
-          ),
-        );
-      },
+              DataCell(
+                Text((item['relationship'] ?? 'Not provided').toString()),
+              ),
+              DataCell(
+                Text(
+                  item['dob']?.toString().isNotEmpty == true
+                      ? item['dob'].toString()
+                      : 'Date of birth not provided',
+                ),
+              ),
+              DataCell(
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (hasBirthCertificate)
+                      _buildDocumentTag(
+                        'Birth certificate',
+                        Icons.description_rounded,
+                      ),
+                    if (hasBirthCertificate && hasValidId)
+                      const SizedBox(width: 6),
+                    if (hasValidId)
+                      _buildDocumentTag('Valid ID', Icons.badge_rounded),
+                    if (!hasDocuments)
+                      const Text(
+                        'No documents',
+                        style: TextStyle(fontSize: 15),
+                      ),
+                  ],
+                ),
+              ),
+              DataCell(
+                IconButton(
+                  icon: Icon(
+                    Icons.edit_rounded,
+                    color: eligible ? kSubText : kAccent,
+                    size: 20,
+                  ),
+                  tooltip: eligible
+                      ? 'Eligible – No Changes Needed'
+                      : 'Edit beneficiary',
+                  onPressed: eligible
+                      ? null
+                      : () => _navigateToEditBeneficiary(context, item),
+                ),
+              ),
+            ],
+          );
+        }).toList(),
+      ),
     );
   }
 
@@ -740,49 +908,50 @@ class _BeneficiaryPageState extends State<BeneficiaryPage> {
     final content = SafeArea(
       child: Column(
         children: [
-          Container(
-            padding: EdgeInsets.fromLTRB(
-              30,
-              isWide ? 36 : 28,
-              isWide ? 24 : 16,
-              isWide ? 32 : 24,
-            ),
-            decoration: const BoxDecoration(
-              color: kPrimary,
-              borderRadius: BorderRadius.only(
-                bottomLeft: Radius.circular(28),
-                bottomRight: Radius.circular(28),
+          if (!widget.embedded)
+            Container(
+              padding: EdgeInsets.fromLTRB(
+                30,
+                isWide ? 36 : 28,
+                isWide ? 24 : 16,
+                isWide ? 32 : 24,
               ),
-              boxShadow: [
-                BoxShadow(
-                  color: Color(0xFF1E40AF),
-                  blurRadius: 18,
-                  offset: Offset(0, 8),
+              decoration: const BoxDecoration(
+                color: kPrimary,
+                borderRadius: BorderRadius.only(
+                  bottomLeft: Radius.circular(28),
+                  bottomRight: Radius.circular(28),
                 ),
-              ],
-            ),
-            child: Row(
-              children: [
-                if (widget.showBackButton)
-                  DayungBackButton(
-                    onPressed: widget.onBack ?? () => Navigator.pop(context),
+                boxShadow: [
+                  BoxShadow(
+                    color: Color(0xFF1E40AF),
+                    blurRadius: 18,
+                    offset: Offset(0, 8),
                   ),
-                if (widget.showBackButton) const SizedBox(width: 16),
-                Expanded(
-                  child: Text(
-                    'My Beneficiaries',
-                    style: TextStyle(
-                      fontSize: isWide ? 24 : 17,
-                      fontWeight: FontWeight.w800,
-                      color: Colors.white,
-                      fontFamily: 'Montserrat',
-                      letterSpacing: 0.3,
+                ],
+              ),
+              child: Row(
+                children: [
+                  if (widget.showBackButton)
+                    DayungBackButton(
+                      onPressed: widget.onBack ?? () => Navigator.pop(context),
+                    ),
+                  if (widget.showBackButton) const SizedBox(width: 16),
+                  Expanded(
+                    child: Text(
+                      'My Beneficiaries',
+                      style: TextStyle(
+                        fontSize: isWide ? 24 : 17,
+                        fontWeight: FontWeight.w800,
+                        color: Colors.white,
+                        fontFamily: 'Montserrat',
+                        letterSpacing: 0.3,
+                      ),
                     ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
-          ),
           Padding(
             padding: EdgeInsets.fromLTRB(
               isWide ? 24 : 16,

@@ -7,6 +7,7 @@ import 'package:pdf/widgets.dart' as pw;
 import 'package:photo_view/photo_view.dart';
 import 'package:printing/printing.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:capstone_app/widgets/record_data_table.dart';
 
 const kReceiptsBg = Color(0xFFFAFAF7);
 const kReceiptsText = Color(0xFF1F2937);
@@ -512,7 +513,21 @@ class _CollectorReceiptsPageState extends State<CollectorReceiptsPage> {
                               if (_visibleReceipts.isEmpty)
                                 _buildEmptyState()
                               else
-                                ..._visibleReceipts.map(_buildReceiptCard),
+                                RecordDataTable(
+                                  minWidth: 1120,
+                                  columns: const [
+                                    DataColumn(label: Text('Member')),
+                                    DataColumn(label: Text('Method')),
+                                    DataColumn(label: Text('Amount')),
+                                    DataColumn(label: Text('Collector / status')),
+                                    DataColumn(label: Text('Date')),
+                                    DataColumn(label: Text('Reference')),
+                                    DataColumn(label: Text('Receipt details')),
+                                  ],
+                                  rows: _visibleReceipts
+                                      .map(_buildReceiptRow)
+                                      .toList(),
+                                ),
                             ],
                           ),
                         ),
@@ -907,141 +922,69 @@ class _CollectorReceiptsPageState extends State<CollectorReceiptsPage> {
     );
   }
 
-  Widget _buildReceiptCard(Map<String, dynamic> receipt) {
+  DataRow _buildReceiptRow(Map<String, dynamic> receipt) {
     final source = (receipt['source'] ?? 'cash').toString().toLowerCase();
     final sourceTone = source == 'gcash' ? kReceiptsWarn : kReceiptsSuccess;
-
     final hasProofImage = (receipt['proof_image_url'] ?? '')
         .toString()
         .isNotEmpty;
 
-    return Container(
-      margin: const EdgeInsets.only(bottom: 14),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(22),
-        border: Border.all(color: sourceTone.withValues(alpha: 0.16)),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x12000000),
-            blurRadius: 16,
-            offset: Offset(0, 6),
+    return DataRow(
+      onSelectChanged: (_) {
+        _showReceiptDetails(receipt);
+      },
+      cells: [
+        DataCell(
+          Text(
+            (receipt['member_name'] ?? 'Member').toString(),
+            style: const TextStyle(fontWeight: FontWeight.w700),
           ),
-        ],
-      ),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(22),
-        onTap: () => _showReceiptDetails(receipt),
-        child: Padding(
-          padding: const EdgeInsets.all(20),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  CircleAvatar(
-                    radius: 24,
-                    backgroundColor: sourceTone.withValues(alpha: 0.12),
-                    child: Icon(
-                      source == 'gcash'
-                          ? Icons.phone_iphone_rounded
-                          : Icons.payments_rounded,
-                      color: sourceTone,
-                    ),
+        ),
+        DataCell(
+          _statusChip(
+            (receipt['source_label'] ?? 'Receipt').toString(),
+            sourceTone,
+          ),
+        ),
+        DataCell(
+          Text(
+            _formatAmount(receipt['amount']),
+            style: TextStyle(
+              fontWeight: FontWeight.w800,
+              color: sourceTone,
+            ),
+          ),
+        ),
+        DataCell(
+          Text((receipt['collector_name'] ?? 'Not assigned').toString()),
+        ),
+        DataCell(Text(_formatDate(receipt['display_date']))),
+        DataCell(Text((receipt['reference'] ?? '—').toString())),
+        DataCell(
+          SizedBox(
+            width: 240,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  (receipt['supporting_text'] ?? '').toString(),
+                  style: const TextStyle(
+                    fontSize: 12,
+                    color: kReceiptsSubText,
+                    fontWeight: FontWeight.w600,
                   ),
-                  const SizedBox(width: 14),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          (receipt['member_name'] ?? 'Member').toString(),
-                          style: const TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.w900,
-                            color: kReceiptsText,
-                            fontFamily: 'Montserrat',
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          _formatAmount(receipt['amount']),
-                          style: TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w800,
-                            color: sourceTone,
-                            fontFamily: 'Montserrat',
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    children: [
-                      _statusChip(
-                        receipt['source_label'].toString(),
-                        sourceTone,
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-              const SizedBox(height: 14),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: [
-                  _detailChip(
-                    icon: Icons.person_outline_rounded,
-                    label:
-                        'Collector: ${(receipt['collector_name'] ?? 'Not assigned').toString()}',
-                    color: const Color(0xFF1E40AF),
-                    background: const Color(0xFFEFF6FF),
-                  ),
-                  _detailChip(
-                    icon: Icons.schedule_rounded,
-                    label: _formatDate(receipt['display_date']),
-                    color: sourceTone,
-                    background: source == 'gcash'
-                        ? const Color(0xFFFFFBEB)
-                        : const Color(0xFFECFDF5),
-                  ),
-                  if ((receipt['reference'] ?? '').toString().isNotEmpty)
-                    _detailChip(
-                      icon: Icons.tag_rounded,
-                      label: 'Ref: ${receipt['reference']}',
-                      color: kReceiptsAccentDark,
-                      background: const Color(0xFFEEF2FF),
-                    ),
-                ],
-              ),
-              const SizedBox(height: 12),
-              Text(
-                (receipt['supporting_text'] ?? '').toString(),
-                style: const TextStyle(
-                  fontSize: 13,
-                  color: kReceiptsSubText,
-                  height: 1.35,
-                  fontWeight: FontWeight.w600,
-                  fontFamily: 'OpenSans',
                 ),
-              ),
-              if (hasProofImage) ...[
-                const SizedBox(height: 14),
-                Align(
-                  alignment: Alignment.centerLeft,
-                  child: TextButton.icon(
+                if (hasProofImage)
+                  TextButton.icon(
                     onPressed: () => _showProofPreview(receipt),
                     icon: const Icon(Icons.photo_library_outlined),
                     label: const Text('Preview GCash proof'),
                   ),
-                ),
               ],
-            ],
+            ),
           ),
         ),
-      ),
+      ],
     );
   }
 
@@ -1060,50 +1003,6 @@ class _CollectorReceiptsPageState extends State<CollectorReceiptsPage> {
           fontSize: 11,
           fontFamily: 'Montserrat',
         ),
-      ),
-    );
-  }
-
-  Color _statusColor(String status) {
-    switch (status.toLowerCase()) {
-      case 'paid':
-      case 'approved':
-        return kReceiptsSuccess;
-      case 'submitted':
-      case 'pending':
-        return kReceiptsWarn;
-      default:
-        return kReceiptsAccent;
-    }
-  }
-
-  Widget _detailChip({
-    required IconData icon,
-    required String label,
-    required Color color,
-    required Color background,
-  }) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-      decoration: BoxDecoration(
-        color: background,
-        borderRadius: BorderRadius.circular(999),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 14, color: color),
-          const SizedBox(width: 6),
-          Text(
-            label,
-            style: TextStyle(
-              fontSize: 11,
-              color: color,
-              fontWeight: FontWeight.w700,
-              fontFamily: 'Montserrat',
-            ),
-          ),
-        ],
       ),
     );
   }

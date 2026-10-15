@@ -35,18 +35,6 @@ enum _ReportExportOption { moneyCollected, newMembers, all }
 class ReportsService {
   final sb = Supabase.instance.client;
 
-  Future<Map<String, dynamic>> fetchPaymentFlowSummary({int? unitId}) async {
-    var query = sb
-        .from('payments')
-        .select(
-          'amount, iscollectedbytreasurer, iscollectedbytreasurer_date, is_claimed, is_claimed_date, membership_released, membershipreleased_date, paid_at, created_at',
-        );
-    if (unitId != null) query.eq('dayung_unit_id', unitId);
-
-    final rows = List<Map<String, dynamic>>.from(await query);
-    return summarizePaymentFlowRows(rows);
-  }
-
   // gina fetch ang total money collected per collector per month
   Future<List<Map<String, dynamic>>> fetchMoneyCollectedPerCollector({
     int? unitId,
@@ -92,12 +80,85 @@ class ReportsService {
     return data.values.toList();
   }
 
-  /// Funds released per month (stub, ready for your table)
-  Future<List<Map<String, dynamic>>> fetchFundsReleasedPerMonth({
+  Future<List<Map<String, dynamic>>> fetchDisbursementActivity({
     int? unitId,
   }) async {
-    // blank
-    return [];
+    var claimsQuery = sb
+        .from('claims')
+        .select('user_id, claimedmoney, date_released, claimedmoney_date');
+    if (unitId != null) claimsQuery = claimsQuery.eq('dayung_unit_id', unitId);
+
+    final claims = List<Map<String, dynamic>>.from(await claimsQuery);
+    final releasedClaimsByMember = <String, Map<String, dynamic>>{};
+    for (final claim in claims) {
+      if (!_isTruthyFlag(claim['claimedmoney'])) continue;
+      final memberId = (claim['user_id'] ?? '').toString();
+      if (memberId.isEmpty) continue;
+
+      final current = releasedClaimsByMember[memberId];
+      final currentDate = DateTime.tryParse(
+        '${current?['date_released'] ?? current?['claimedmoney_date'] ?? ''}',
+      );
+      final claimDate = DateTime.tryParse(
+        '${claim['date_released'] ?? claim['claimedmoney_date'] ?? ''}',
+      );
+      if (current == null ||
+          (claimDate != null &&
+              (currentDate == null || claimDate.isAfter(currentDate)))) {
+        releasedClaimsByMember[memberId] = claim;
+      }
+    }
+    if (releasedClaimsByMember.isEmpty) return [];
+
+    var paymentsQuery = sb
+        .from('payments')
+        .select(
+          'user_id, userdeceased, deceased_name, amount, is_claimed_date, '
+          'recipient:users!payments_user_id_fkey(full_name)',
+        )
+        .eq('status', 'paid')
+        .eq('is_claimed', true);
+    if (unitId != null)
+      paymentsQuery = paymentsQuery.eq('dayung_unit_id', unitId);
+
+    final payments = List<Map<String, dynamic>>.from(await paymentsQuery);
+    final activities = <Map<String, dynamic>>[];
+    for (final payment in payments) {
+      final memberId = (payment['userdeceased'] ?? '').toString();
+      final release = releasedClaimsByMember[memberId];
+      if (release == null) continue;
+
+      final recipient = payment['recipient'];
+      final beneficiaryName = recipient is Map
+          ? (recipient['full_name'] ?? '').toString()
+          : '';
+      activities.add({
+        'beneficiary_name': beneficiaryName.trim().isEmpty
+            ? 'Unknown beneficiary'
+            : beneficiaryName,
+        'deceased_member':
+            (payment['deceased_name'] ?? '').toString().trim().isEmpty
+            ? 'Unknown member'
+            : payment['deceased_name'],
+        'amount': payment['amount'],
+        'released_by': 'Not recorded',
+        'released_at':
+            release['date_released'] ??
+            release['claimedmoney_date'] ??
+            payment['is_claimed_date'],
+        'status': 'Released',
+      });
+    }
+
+    activities.sort((a, b) {
+      final aDate = DateTime.tryParse('${a['released_at'] ?? ''}');
+      final bDate = DateTime.tryParse('${b['released_at'] ?? ''}');
+      if (aDate == null && bDate == null) return 0;
+      if (aDate == null) return 1;
+      if (bDate == null) return -1;
+      return bDate.compareTo(aDate);
+    });
+    return activities;
   }
 
   /// Number of new members each month
@@ -151,27 +212,6 @@ String _formatMonthYear(String ym) {
   return '$monthName - $year';
 }
 
-String formatPhilippineDateTime(Object? value) {
-  if (value == null) return '—';
-
-  final rawValue = value.toString().trim();
-  if (rawValue.isEmpty || rawValue == '—') return '—';
-
-  DateTime? parsed;
-  try {
-    parsed = DateTime.parse(rawValue);
-  } catch (_) {
-    return rawValue;
-  }
-
-  final isUtcInput = rawValue.endsWith('Z') || rawValue.endsWith('z');
-  final philippineTime = isUtcInput
-      ? parsed.toUtc().add(const Duration(hours: 8))
-      : parsed.add(const Duration(hours: 8));
-
-  return DateFormat('MMM d, yyyy • h:mm a').format(philippineTime);
-}
-
 bool _isTruthyFlag(Object? value) {
   if (value is bool) return value;
   if (value is num) return value != 0;
@@ -182,65 +222,50 @@ bool _isTruthyFlag(Object? value) {
   return false;
 }
 
-Map<String, dynamic> summarizePaymentFlowRows(List<Map<String, dynamic>> rows) {
-  double inTotal = 0;
-  double outTotal = 0;
-  double membershipReleasedTotal = 0;
-  String? latestClaimDate;
-  String? latestMembershipReleasedDate;
+String formatPhilippineDateTime(Object? value) {
+  if (value == null) return '—';
 
-  String? normalizeDate(Object? value) {
-    final dateValue = value?.toString();
-    if (dateValue == null || dateValue.trim().isEmpty) {
-      return null;
-    }
-    final parsedDate = DateTime.tryParse(dateValue);
-    if (parsedDate == null) return null;
-    return parsedDate.toUtc().toIso8601String();
-  }
+  final rawValue = value.toString().trim();
+  if (rawValue.isEmpty || rawValue == '—') return '—';
+
+  final parsed = DateTime.tryParse(rawValue);
+  if (parsed == null) return rawValue;
+
+  final philippineTime = parsed.toUtc().add(const Duration(hours: 8));
+  return DateFormat('MMM d, yyyy • h:mm a').format(philippineTime);
+}
+
+Map<String, dynamic> summarizePaymentFlowRows(List<Map<String, dynamic>> rows) {
+  double collectedTotal = 0;
+  double claimedTotal = 0;
+  DateTime? latestClaimDate;
 
   for (final row in rows) {
-    final amount = double.tryParse(row['amount']?.toString() ?? '') ?? 0.0;
+    final amount = double.tryParse(row['amount']?.toString() ?? '') ?? 0;
     if (_isTruthyFlag(row['iscollectedbytreasurer'])) {
-      inTotal += amount;
+      collectedTotal += amount;
     }
 
     if (_isTruthyFlag(row['is_claimed'])) {
-      outTotal += amount;
-      final normalizedDate = normalizeDate(row['is_claimed_date']);
-      if (normalizedDate != null &&
-          (latestClaimDate == null ||
-              normalizedDate.compareTo(latestClaimDate) > 0)) {
-        latestClaimDate = normalizedDate;
-      }
-    }
-
-    if (_isTruthyFlag(row['membership_released'])) {
-      membershipReleasedTotal += amount;
-      final normalizedDate = normalizeDate(row['membershipreleased_date']);
-      if (normalizedDate != null &&
-          (latestMembershipReleasedDate == null ||
-              normalizedDate.compareTo(latestMembershipReleasedDate) > 0)) {
-        latestMembershipReleasedDate = normalizedDate;
+      claimedTotal += amount;
+      final claimDate = DateTime.tryParse(
+        row['is_claimed_date']?.toString() ?? '',
+      );
+      if (claimDate != null &&
+          (latestClaimDate == null || claimDate.isAfter(latestClaimDate))) {
+        latestClaimDate = claimDate;
       }
     }
   }
 
-  String? latestActivityDate;
-  if (latestClaimDate != null && latestMembershipReleasedDate != null) {
-    latestActivityDate =
-        latestClaimDate.compareTo(latestMembershipReleasedDate) >= 0
-        ? latestClaimDate
-        : latestMembershipReleasedDate;
-  } else {
-    latestActivityDate = latestClaimDate ?? latestMembershipReleasedDate;
-  }
-
+  final latestDate = latestClaimDate == null
+      ? '—'
+      : DateFormat('yyyy-MM-dd').format(latestClaimDate.toUtc());
   return {
-    'in': inTotal,
-    'out': outTotal,
-    'membershipReleased': membershipReleasedTotal,
-    'latestActivity': latestActivityDate ?? '—',
+    'in': collectedTotal,
+    'out': claimedTotal,
+    'date': latestDate,
+    'latestActivity': latestDate,
   };
 }
 
@@ -255,6 +280,8 @@ class _ReportsPageState extends State<ReportsPage> {
   final service = ReportsService();
   List<Map<String, dynamic>> moneyCollected = [];
   List<Map<String, dynamic>> newMembers = [];
+  List<Map<String, dynamic>> disbursementActivities = [];
+  String? disbursementActivityError;
   bool loading = true;
   pw.ThemeData? _pdfTheme;
 
@@ -266,14 +293,32 @@ class _ReportsPageState extends State<ReportsPage> {
 
   Future<void> _loadReports() async {
     setState(() => loading = true);
-    moneyCollected = await service.fetchMoneyCollectedPerCollector(
-      unitId: widget.unitId,
-    );
-    // Pass unitId as required
-    newMembers = widget.unitId != null
-        ? await service.fetchNewMembersPerMonth(unitId: widget.unitId!)
-        : [];
-    setState(() => loading = false);
+    try {
+      final activities = await service.fetchDisbursementActivity(
+        unitId: widget.unitId,
+      );
+      final collected = await service.fetchMoneyCollectedPerCollector(
+        unitId: widget.unitId,
+      );
+      final members = widget.unitId != null
+          ? await service.fetchNewMembersPerMonth(unitId: widget.unitId!)
+          : <Map<String, dynamic>>[];
+      if (!mounted) return;
+      setState(() {
+        disbursementActivities = activities;
+        disbursementActivityError = null;
+        moneyCollected = collected;
+        newMembers = members;
+        loading = false;
+      });
+    } catch (error) {
+      debugPrint('Unable to load reports: $error');
+      if (!mounted) return;
+      setState(() {
+        disbursementActivityError = 'Unable to load Disbursement Activity.';
+        loading = false;
+      });
+    }
   }
 
   List<double> _moneyCollectedMonthlyTotals() {
@@ -570,21 +615,14 @@ class _ReportsPageState extends State<ReportsPage> {
         child: LayoutBuilder(
           builder: (context, constraints) {
             final isWide = constraints.maxWidth > 700;
-            final horizontalPadding = isWide
-                ? constraints.maxWidth * 0.15
-                : 20.0;
-            final cardMaxWidth = isWide ? 600.0 : double.infinity;
+            final horizontalPadding = isWide ? 24.0 : 20.0;
+            const contentMaxWidth = 1200.0;
             final sectionTitleFontSize = isWide ? 22.0 : 18.0;
 
             return Column(
               children: [
                 Container(
-                  padding: EdgeInsets.fromLTRB(
-                    horizontalPadding,
-                    20,
-                    horizontalPadding,
-                    24,
-                  ),
+                  padding: const EdgeInsets.symmetric(vertical: 16),
                   decoration: const BoxDecoration(
                     color: kPrimary,
                     borderRadius: BorderRadius.only(
@@ -599,29 +637,41 @@ class _ReportsPageState extends State<ReportsPage> {
                       ),
                     ],
                   ),
-                  child: Row(
-                    children: [
-                      IconButton(
-                        tooltip: 'Back',
-                        onPressed: () => Navigator.of(context).maybePop(),
-                        icon: const Icon(
-                          Icons.arrow_back_rounded,
-                          color: Colors.white,
+                  child: Center(
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(
+                        maxWidth: contentMaxWidth,
+                      ),
+                      child: Padding(
+                        padding: EdgeInsets.symmetric(
+                          horizontal: isWide ? 0 : horizontalPadding,
+                        ),
+                        child: Row(
+                          children: [
+                            IconButton(
+                              tooltip: 'Back',
+                              onPressed: () => Navigator.of(context).maybePop(),
+                              icon: const Icon(
+                                Icons.arrow_back_rounded,
+                                color: Colors.white,
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            const Expanded(
+                              child: Text(
+                                'Reports',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 22,
+                                  fontWeight: FontWeight.w800,
+                                  fontFamily: 'Montserrat',
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
                       ),
-                      const SizedBox(width: 8),
-                      const Expanded(
-                        child: Text(
-                          'Reports',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 22,
-                            fontWeight: FontWeight.w800,
-                            fontFamily: 'Montserrat',
-                          ),
-                        ),
-                      ),
-                    ],
+                    ),
                   ),
                 ),
                 // Content
@@ -634,31 +684,42 @@ class _ReportsPageState extends State<ReportsPage> {
                       : ListView(
                           padding: EdgeInsets.fromLTRB(
                             horizontalPadding,
-                            isWide ? 32 : 20,
+                            isWide ? 28 : 20,
                             horizontalPadding,
                             isWide ? 32 : 20,
                           ),
                           children: [
-                            _buildExportButton(),
+                            Center(
+                              child: ConstrainedBox(
+                                constraints: const BoxConstraints(
+                                  maxWidth: contentMaxWidth,
+                                ),
+                                child: _buildExportButton(),
+                              ),
+                            ),
                             const SizedBox(height: 16),
                             Center(
                               child: ConstrainedBox(
-                                constraints: BoxConstraints(
-                                  maxWidth: cardMaxWidth,
+                                constraints: const BoxConstraints(
+                                  maxWidth: contentMaxWidth,
                                 ),
                                 child: _modernSectionCard(
-                                  title: 'Payment Release Records',
-                                  icon: Icons.swap_horiz_rounded,
+                                  title: 'Disbursement Activity',
+                                  icon: Icons.payments_rounded,
                                   titleFontSize: sectionTitleFontSize,
-                                  child: const _PaymentFlowSummaryTable(),
+                                  child: _DisbursementActivityTable(
+                                    activities: disbursementActivities,
+                                    error: disbursementActivityError,
+                                    onRetry: _loadReports,
+                                  ),
                                 ),
                               ),
                             ),
                             const SizedBox(height: 24),
                             Center(
                               child: ConstrainedBox(
-                                constraints: BoxConstraints(
-                                  maxWidth: cardMaxWidth,
+                                constraints: const BoxConstraints(
+                                  maxWidth: contentMaxWidth,
                                 ),
                                 child: _modernSectionCard(
                                   title:
@@ -675,8 +736,8 @@ class _ReportsPageState extends State<ReportsPage> {
                             const SizedBox(height: 24),
                             Center(
                               child: ConstrainedBox(
-                                constraints: BoxConstraints(
-                                  maxWidth: cardMaxWidth,
+                                constraints: const BoxConstraints(
+                                  maxWidth: contentMaxWidth,
                                 ),
                                 child: _modernSectionCard(
                                   title: 'New Members Per Month',
@@ -814,78 +875,274 @@ class _ReportsPageState extends State<ReportsPage> {
   }
 }
 
-class _PaymentFlowSummaryTable extends StatelessWidget {
-  const _PaymentFlowSummaryTable();
+class _DisbursementActivityTable extends StatelessWidget {
+  final List<Map<String, dynamic>> activities;
+  final String? error;
+  final VoidCallback onRetry;
+
+  const _DisbursementActivityTable({
+    required this.activities,
+    required this.error,
+    required this.onRetry,
+  });
+
+  Widget _buildErrorState(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFFF7F5),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: const Color(0xFFFAD4CE)),
+      ),
+      child: Wrap(
+        alignment: WrapAlignment.center,
+        crossAxisAlignment: WrapCrossAlignment.center,
+        spacing: 16,
+        runSpacing: 12,
+        children: [
+          const Icon(
+            Icons.cloud_off_rounded,
+            color: Color(0xFFB42318),
+            size: 26,
+          ),
+          ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 440),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: const [
+                Text(
+                  'Disbursement activity could not be loaded',
+                  style: TextStyle(
+                    color: Color(0xFF912018),
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                SizedBox(height: 4),
+                Text(
+                  'Check your connection and try again.',
+                  style: TextStyle(color: Color(0xFF7A271A), fontSize: 13),
+                ),
+              ],
+            ),
+          ),
+          OutlinedButton.icon(
+            onPressed: onRetry,
+            icon: const Icon(Icons.refresh_rounded, size: 18),
+            label: const Text('Retry'),
+            style: OutlinedButton.styleFrom(
+              foregroundColor: const Color(0xFFB42318),
+              side: const BorderSide(color: Color(0xFFE7A49A)),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
+    if (error != null) {
+      return _buildErrorState(context);
+    }
+    if (activities.isEmpty) {
+      return _message('No disbursement activity has been recorded yet.');
+    }
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        if (constraints.maxWidth < 760) {
+          return Column(
+            children: activities
+                .map((activity) => _buildActivityCard(activity))
+                .toList(),
+          );
+        }
+
+        return Container(
+          clipBehavior: Clip.antiAlias,
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: kBorderColor.withValues(alpha: 0.45)),
+          ),
+          child: SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: DataTable(
+              headingRowColor: WidgetStatePropertyAll(
+                kPrimary.withValues(alpha: 0.06),
+              ),
+              columnSpacing: 24,
+              horizontalMargin: 18,
+              columns: const [
+                DataColumn(label: Text('Beneficiary Name')),
+                DataColumn(label: Text('Deceased Member')),
+                DataColumn(label: Text('Amount Released')),
+                DataColumn(label: Text('Released By')),
+                DataColumn(label: Text('Date and Time Released')),
+                DataColumn(label: Text('Status')),
+              ],
+              rows: activities.map((activity) {
+                return DataRow(
+                  cells: [
+                    DataCell(_tableValue(activity['beneficiary_name'])),
+                    DataCell(_tableValue(activity['deceased_member'])),
+                    DataCell(_tableValue(_formatCurrency(activity['amount']))),
+                    DataCell(_tableValue(activity['released_by'])),
+                    DataCell(
+                      _tableValue(_formatReleaseDate(activity['released_at'])),
+                    ),
+                    DataCell(_statusBadge(activity['status'])),
+                  ],
+                );
+              }).toList(),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildActivityCard(Map<String, dynamic> activity) {
     return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: kBorderColor.withValues(alpha: 0.35)),
+        border: Border.all(color: kBorderColor.withValues(alpha: 0.55)),
       ),
-      child: SingleChildScrollView(
-        scrollDirection: Axis.horizontal,
-        child: SizedBox(
-          width: 840,
-          child: Table(
-            columnWidths: const {
-              0: FlexColumnWidth(),
-              1: FlexColumnWidth(),
-              2: FlexColumnWidth(),
-              3: FlexColumnWidth(),
-              4: FlexColumnWidth(),
-              5: FlexColumnWidth(),
-            },
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
             children: [
-              TableRow(
-                decoration: BoxDecoration(
-                  color: kPrimary.withValues(alpha: 0.06),
+              Expanded(
+                child: Text(
+                  '${activity['beneficiary_name']}',
+                  style: const TextStyle(
+                    color: kPrimary,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w800,
+                  ),
                 ),
-                children: [
-                  _buildHeaderCell('DATE'),
-                  _buildHeaderCell('BENEFICIARY'),
-                  _buildHeaderCell('TYPE'),
-                  _buildHeaderCell('AMOUNT'),
-                  _buildHeaderCell('RELEASED BY'),
-                  _buildHeaderCell('STATUS'),
-                ],
               ),
-              TableRow(children: List.generate(6, (_) => _buildValueCell('—'))),
+              Text(
+                _formatCurrency(activity['amount']),
+                style: const TextStyle(
+                  color: kPrimary,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
             ],
           ),
-        ),
+          const SizedBox(height: 14),
+          _detailLine('Deceased Member', activity['deceased_member']),
+          _detailLine('Released By', activity['released_by']),
+          _detailLine(
+            'Date and Time Released',
+            _formatReleaseDate(activity['released_at']),
+          ),
+          const SizedBox(height: 8),
+          _statusBadge(activity['status']),
+        ],
       ),
     );
   }
 
-  Widget _buildHeaderCell(String label) {
+  Widget _detailLine(String label, Object? value) {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 150,
+            child: Text(
+              label,
+              style: const TextStyle(
+                color: kSubText,
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+          Expanded(
+            child: Text(
+              '${value ?? '—'}',
+              style: const TextStyle(
+                color: Colors.black87,
+                fontSize: 13,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _message(String text, {Color? color}) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: kBorderColor.withValues(alpha: 0.45)),
+      ),
       child: Text(
-        label,
+        text,
+        textAlign: TextAlign.center,
+        style: TextStyle(color: color ?? kSubText, fontWeight: FontWeight.w600),
+      ),
+    );
+  }
+
+  Widget _tableValue(Object? value) {
+    return Text(
+      '${value ?? '—'}',
+      style: const TextStyle(
+        color: Colors.black87,
+        fontSize: 13,
+        fontWeight: FontWeight.w600,
+      ),
+    );
+  }
+
+  Widget _statusBadge(Object? value) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: const Color(0xFFE8F5E9),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Text(
+        '${value ?? 'Released'}',
         style: const TextStyle(
+          color: Color(0xFF2E7D32),
           fontSize: 12,
           fontWeight: FontWeight.w800,
-          color: kPrimary,
         ),
       ),
     );
   }
 
-  Widget _buildValueCell(String value) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-      child: Text(
-        value,
-        style: const TextStyle(
-          fontSize: 13,
-          fontWeight: FontWeight.w700,
-          color: Colors.black87,
-        ),
-      ),
-    );
+  String _formatCurrency(Object? value) {
+    final amount = value is num
+        ? value.toDouble()
+        : double.tryParse('${value ?? ''}') ?? 0;
+    return '₱${amount.toStringAsFixed(2)}';
+  }
+
+  String _formatReleaseDate(Object? value) {
+    final date = DateTime.tryParse('${value ?? ''}')?.toLocal();
+    if (date == null) return 'Date unavailable';
+    return DateFormat('MMM d, yyyy • h:mm a').format(date);
   }
 }
 

@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'dart:convert';
 import 'package:capstone_app/utils/theme_surface.dart';
+import 'package:capstone_app/widgets/record_data_table.dart';
 
 // Color palette
 
@@ -437,104 +438,66 @@ class _MembersContributionHistoryState
                   ),
                 ],
               )
-            : ListView.separated(
+            : ListView(
                 physics: const AlwaysScrollableScrollPhysics(),
                 padding: const EdgeInsets.symmetric(
                   horizontal: 16,
                   vertical: 16,
                 ),
-                itemCount: _paidContributions.length,
-                separatorBuilder: (_, __) => const SizedBox(height: 14),
-                itemBuilder: (context, index) {
-                  final contrib = _paidContributions[index];
-                  final amount = contrib['amount'] ?? 0.0;
-                  final userDeceasedId = contrib['userdeceased'] ?? 'Unknown';
-                  final date = _fmtDate(contrib['date'] ?? '');
+                children: [
+                  RecordDataTable(
+                    minWidth: 640,
+                    columns: const [
+                      DataColumn(label: Text('Amount')),
+                      DataColumn(label: Text('For deceased')),
+                      DataColumn(label: Text('Status')),
+                      DataColumn(label: Text('Date')),
+                    ],
+                    rows: _paidContributions.map((contrib) {
+                      final amount = contrib['amount'] ?? 0.0;
+                      final userDeceasedId =
+                          contrib['userdeceased'] ?? 'Unknown';
+                      final date = _fmtDate(contrib['date'] ?? '');
 
-                  return Card(
-                    margin: EdgeInsets.symmetric(vertical: 4),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                    elevation: 2,
-                    color: Colors.white,
-                    child: Padding(
-                      padding: const EdgeInsets.all(20),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            children: [
-                              Icon(
-                                Icons.check_circle,
-                                color: kAccent,
-                                size: 28,
+                      return DataRow(
+                        cells: [
+                          DataCell(
+                            Text(
+                              '₱${amount.toStringAsFixed(2)}',
+                              style: const TextStyle(
+                                fontFamily: 'Montserrat',
+                                fontWeight: FontWeight.bold,
+                                color: kText,
                               ),
-                              SizedBox(width: 12),
-                              Expanded(
-                                child: Text(
-                                  '₱${amount.toStringAsFixed(2)}',
-                                  style: TextStyle(
-                                    fontFamily: 'Montserrat',
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 18,
-                                    color: kText,
-                                  ),
+                            ),
+                          ),
+                          DataCell(Text('For: $userDeceasedId')),
+                          DataCell(
+                            Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const Icon(
+                                  Icons.check_circle,
+                                  color: kAccent,
+                                  size: 20,
                                 ),
-                              ),
-                              Container(
-                                padding: EdgeInsets.symmetric(
-                                  horizontal: 12,
-                                  vertical: 4,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: kAccent.withValues(alpha: 0.1),
-                                  borderRadius: BorderRadius.circular(12),
-                                ),
-                                child: Text(
+                                const SizedBox(width: 8),
+                                Text(
                                   'Paid',
                                   style: TextStyle(
                                     color: kAccent,
                                     fontWeight: FontWeight.w600,
-                                    fontSize: 13,
                                   ),
                                 ),
-                              ),
-                            ],
-                          ),
-                          SizedBox(height: 8),
-                          Text(
-                            'For: $userDeceasedId',
-                            style: TextStyle(
-                              fontFamily: 'OpenSans',
-                              fontSize: 15,
-                              color: kSubText,
+                              ],
                             ),
                           ),
-                          SizedBox(height: 12),
-                          Row(
-                            children: [
-                              Icon(
-                                Icons.calendar_today,
-                                size: 16,
-                                color: kSubText,
-                              ),
-                              SizedBox(width: 6),
-                              Text(
-                                date,
-                                style: TextStyle(
-                                  fontFamily: 'OpenSans',
-                                  fontSize: 13,
-                                  color: kSubText,
-                                ),
-                              ),
-                            ],
-                          ),
+                          DataCell(Text(date)),
                         ],
-                      ),
-                    ),
-                  );
-                },
+                      );
+                    }).toList(),
+                  ),
+                ],
               ),
       ),
     );

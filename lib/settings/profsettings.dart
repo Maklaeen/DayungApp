@@ -27,12 +27,14 @@ class ProfSettingsPage extends StatefulWidget {
   final VoidCallback? onBack;
   final bool showBackButton;
   final bool showManageDayung;
+  final bool embedded;
 
   const ProfSettingsPage({
     super.key,
     this.onBack,
     this.showBackButton = true,
     this.showManageDayung = true,
+    this.embedded = false,
   });
 
   @override
@@ -419,50 +421,52 @@ class _ProfSettingsPageState extends State<ProfSettingsPage> {
       body: SafeArea(
         child: Column(
           children: [
-            Container(
-              padding: EdgeInsets.fromLTRB(
-                30,
-                isWide ? 36 : 28,
-                isWide ? 24 : 16,
-                isWide ? 32 : 24,
-              ),
-              decoration: const BoxDecoration(
-                color: Color(0xFF0D47A1),
-                borderRadius: BorderRadius.only(
-                  bottomLeft: Radius.circular(28),
-                  bottomRight: Radius.circular(28),
+            if (!widget.embedded)
+              Container(
+                padding: EdgeInsets.fromLTRB(
+                  30,
+                  isWide ? 36 : 28,
+                  isWide ? 24 : 16,
+                  isWide ? 32 : 24,
                 ),
-                boxShadow: [
-                  BoxShadow(
-                    color: Color(0xFF1E40AF),
-                    blurRadius: 18,
-                    offset: Offset(0, 8),
+                decoration: const BoxDecoration(
+                  color: Color(0xFF0D47A1),
+                  borderRadius: BorderRadius.only(
+                    bottomLeft: Radius.circular(28),
+                    bottomRight: Radius.circular(28),
                   ),
-                ],
-              ),
-              child: Row(
-                children: [
-                  if (widget.showBackButton) ...[
-                    DayungBackButton(
-                      onPressed: widget.onBack ?? () => Navigator.pop(context),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Color(0xFF1E40AF),
+                      blurRadius: 18,
+                      offset: Offset(0, 8),
                     ),
-                    const SizedBox(width: 16),
                   ],
-                  Expanded(
-                    child: Text(
-                      'Profile Settings',
-                      style: TextStyle(
-                        fontSize: isWide ? 24 : 17,
-                        fontWeight: FontWeight.w800,
-                        color: Colors.white,
-                        fontFamily: 'Montserrat',
-                        letterSpacing: 0.3,
+                ),
+                child: Row(
+                  children: [
+                    if (widget.showBackButton) ...[
+                      DayungBackButton(
+                        onPressed:
+                            widget.onBack ?? () => Navigator.pop(context),
+                      ),
+                      const SizedBox(width: 16),
+                    ],
+                    Expanded(
+                      child: Text(
+                        'Profile Settings',
+                        style: TextStyle(
+                          fontSize: isWide ? 24 : 17,
+                          fontWeight: FontWeight.w800,
+                          color: Colors.white,
+                          fontFamily: 'Montserrat',
+                          letterSpacing: 0.3,
+                        ),
                       ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
-            ),
             Expanded(
               child: SingleChildScrollView(
                 padding: const EdgeInsets.fromLTRB(16, 18, 16, 28),

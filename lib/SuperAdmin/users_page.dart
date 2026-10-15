@@ -1,6 +1,7 @@
 import 'package:capstone_app/SuperAdmin/superadmin_support.dart';
 import 'package:capstone_app/utils/input_safety.dart';
 import 'package:flutter/material.dart';
+import 'package:capstone_app/widgets/record_data_table.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 const kPrimary = Color(0xFF1E40AF);
@@ -227,16 +228,57 @@ class _SuperAdminUsersPageState extends State<SuperAdminUsersPage> {
                             disabled: disabledCount,
                           ),
                           const SizedBox(height: 16),
-                          ...users.map(
-                            (user) => Padding(
-                              padding: const EdgeInsets.only(bottom: 14),
-                              child: _UserCard(
-                                user: user,
-                                onEdit: () => _editUser(user),
-                                onResetPassword: () => _resetPassword(user),
-                                onToggleDisabled: () => _toggleDisabled(user),
-                              ),
-                            ),
+                          RecordDataTable(
+                            minWidth: 900,
+                            columns: const [
+                              DataColumn(label: Text('Name')),
+                              DataColumn(label: Text('Email')),
+                              DataColumn(label: Text('Role')),
+                              DataColumn(label: Text('Status')),
+                              DataColumn(label: Text('Actions')),
+                            ],
+                            rows: users.map((user) {
+                              final isDisabled = user['is_disabled'] == true;
+                              final isDeceased = user['is_deceased'] == true;
+                              return DataRow(
+                                cells: [
+                                  DataCell(Text(
+                                    (user['full_name'] ?? 'No Name').toString(),
+                                  )),
+                                  DataCell(Text((user['email'] ?? '').toString())),
+                                  DataCell(Text((user['role'] ?? 'member').toString())),
+                                  DataCell(Text([
+                                    isDisabled ? 'Disabled' : 'Active',
+                                    if (isDeceased) 'Deceased',
+                                  ].join(' · '))),
+                                  DataCell(Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      IconButton(
+                                        tooltip: 'Edit details',
+                                        onPressed: () => _editUser(user),
+                                        icon: const Icon(Icons.edit_outlined),
+                                      ),
+                                      IconButton(
+                                        tooltip: 'Reset password',
+                                        onPressed: () => _resetPassword(user),
+                                        icon: const Icon(Icons.lock_reset_rounded),
+                                      ),
+                                      IconButton(
+                                        tooltip: isDisabled ? 'Reactivate' : 'Deactivate',
+                                        onPressed: () => _toggleDisabled(user),
+                                        icon: Icon(
+                                          isDisabled
+                                              ? Icons.person_add_alt_1_rounded
+                                              : Icons.block_rounded,
+                                          color: isDisabled ? kSuccess : kDanger,
+                                        ),
+                                      ),
+                                    ],
+                                  )),
+                                ],
+                              );
+                            }).toList(),
                           ),
                         ],
                       ),

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:capstone_app/widgets/record_data_table.dart';
 
 class UserDayungApplications extends StatelessWidget {
   final List<Map<String, dynamic>> applications;
@@ -12,33 +13,41 @@ class UserDayungApplications extends StatelessWidget {
         child: Text('No dayung applications yet.'),
       );
     }
-    return ListView.builder(
-      shrinkWrap: true,
-      itemCount: applications.length,
-      itemBuilder: (context, i) {
-        final app = applications[i];
+    return RecordDataTable(
+      minWidth: 600,
+      columns: const [
+        DataColumn(label: Text('Dayung unit')),
+        DataColumn(label: Text('Location')),
+        DataColumn(label: Text('Status')),
+      ],
+      rows: applications.map((app) {
         final unit = app['dayung_units'] ?? {};
-        return Card(
-          margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-          child: ListTile(
-            title: Text(unit['name'] ?? ''),
-            subtitle: Text(
-              '${unit['barangay'] ?? ''}${unit['city'] != null ? ', ${unit['city']}' : ''}${unit['province'] != null ? ', ${unit['province']}' : ''}',
-            ),
-            trailing: Text(
-              (app['status'] ?? 'pending').toString().toUpperCase(),
-              style: TextStyle(
-                color: app['status'] == 'approved'
-                    ? Colors.green
-                    : app['status'] == 'rejected'
-                        ? Colors.red
-                        : Colors.orange,
-                fontWeight: FontWeight.bold,
+        final location = [
+          unit['barangay'],
+          unit['city'],
+          unit['province'],
+        ].where((part) => part != null && part.toString().isNotEmpty).join(', ');
+        final status = (app['status'] ?? 'pending').toString();
+        return DataRow(
+          cells: [
+            DataCell(Text((unit['name'] ?? '').toString())),
+            DataCell(Text(location)),
+            DataCell(
+              Text(
+                status.toUpperCase(),
+                style: TextStyle(
+                  color: status == 'approved'
+                      ? Colors.green
+                      : status == 'rejected'
+                      ? Colors.red
+                      : Colors.orange,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
             ),
-          ),
+          ],
         );
-      },
+      }).toList(),
     );
   }
 }

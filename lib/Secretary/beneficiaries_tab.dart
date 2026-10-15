@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:capstone_app/Secretary/secretary_ui.dart';
 import 'package:capstone_app/utils/supabase_storage.dart';
+import 'package:capstone_app/widgets/record_data_table.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -444,6 +445,9 @@ class _SecretaryBeneficiariesTabState extends State<SecretaryBeneficiariesTab> {
         final userId = sortedUserIds[idx - 1];
         final userName = _users[userId] ?? 'Unknown User';
         final beneficiaries = grouped[userId]!;
+        final rows = beneficiaries
+            .map((raw) => Map<String, dynamic>.from(raw as Map))
+            .toList();
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -470,8 +474,29 @@ class _SecretaryBeneficiariesTabState extends State<SecretaryBeneficiariesTab> {
                 ],
               ),
             ),
-            ...beneficiaries.map(
-              (b) => _beneficiaryCard(Map<String, dynamic>.from(b as Map)),
+            LayoutBuilder(
+              builder: (context, constraints) {
+                if (constraints.maxWidth < 720) {
+                  return _beneficiaryMobileRows(rows);
+                }
+                return RecordDataTable(
+                  modernStyle: true,
+                  minWidth: constraints.maxWidth > 1050
+                      ? constraints.maxWidth
+                      : 1050,
+                  dataRowMinHeight: 72,
+                  dataRowMaxHeight: 260,
+                  columns: const [
+                    DataColumn(label: Text('Beneficiary')),
+                    DataColumn(label: Text('Relationship')),
+                    DataColumn(label: Text('Date of birth')),
+                    DataColumn(label: Text('Marital status')),
+                    DataColumn(label: Text('Documents')),
+                    DataColumn(label: Text('Eligibility')),
+                  ],
+                  rows: rows.map(_beneficiaryRow).toList(),
+                );
+              },
             ),
           ],
         );
@@ -479,63 +504,286 @@ class _SecretaryBeneficiariesTabState extends State<SecretaryBeneficiariesTab> {
     );
   }
 
-  Widget _beneficiaryCard(Map b) {
+  Widget _beneficiaryMobileRows(List<Map<String, dynamic>> rows) {
+    return Column(
+      children: [
+        for (var index = 0; index < rows.length; index++) ...[
+          _beneficiaryMobileRow(rows[index]),
+          if (index < rows.length - 1)
+            const Divider(height: 1, indent: 12, endIndent: 12),
+        ],
+      ],
+    );
+  }
+
+  Widget _beneficiaryMobileRow(Map<String, dynamic> b) {
+    final beneficiaryId = b['id']?.toString() ?? '';
+    final isEligible = b['eligible_to_claim'] == true;
+    final isUpdating = _updatingEligibilityIds.contains(beneficiaryId);
+    final isSendingNotif = _sendingEligibilityNotifIds.contains(beneficiaryId);
+    final hasBirthCertificate =
+        (b['birth_certificate']?.toString() ?? '').isNotEmpty;
+    final hasValidId = (b['valid_id']?.toString() ?? '').isNotEmpty;
+
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: () => _showBeneficiaryDetails(b),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  CircleAvatar(
+                    radius: 18,
+                    backgroundColor: kAccent.withValues(alpha: 0.1),
+                    child: const Icon(
+                      Icons.person_rounded,
+                      color: kAccent,
+                      size: 20,
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      (b['full_name'] ?? '').toString(),
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        color: kText,
+                      ),
+                    ),
+                  ),
+                  Icon(Icons.chevron_right_rounded, color: Colors.grey[500]),
+                ],
+              ),
+              const SizedBox(height: 10),
+              Wrap(
+                spacing: 18,
+                runSpacing: 8,
+                children: [
+                  _mobileField(
+                    'Relationship',
+                    (b['relationship'] ?? 'Not provided').toString(),
+                  ),
+                  _mobileField(
+                    'Date of birth',
+                    (b['dob'] ?? 'Not provided').toString(),
+                  ),
+                  _mobileField(
+                    'Marital status',
+                    (b['marital_status'] ?? 'Not provided').toString(),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 10),
+              Row(
+                children: [
+                  Text(
+                    'Documents: ',
+                    style: TextStyle(
+                      color: Colors.grey[700],
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  if (hasBirthCertificate) ...[
+                    const Icon(Icons.picture_as_pdf, color: kAccent, size: 18),
+                    const SizedBox(width: 4),
+                    const Text('Birth certificate'),
+                  ],
+                  if (hasBirthCertificate && hasValidId)
+                    const SizedBox(width: 12),
+                  if (hasValidId) ...[
+                    const Icon(Icons.credit_card, color: kAccent, size: 18),
+                    const SizedBox(width: 4),
+                    const Text('Valid ID'),
+                  ],
+                  if (!hasBirthCertificate && !hasValidId) const Text('None'),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  Icon(
+                    isEligible
+                        ? Icons.verified_rounded
+                        : Icons.pending_outlined,
+                    size: 18,
+                    color: isEligible ? kSuccess : kSubText,
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      isEligible ? 'Eligible to claim' : 'Not yet eligible',
+                      style: TextStyle(
+                        color: isEligible ? kSuccess : kSubText,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                  if (isUpdating)
+                    const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  else
+                    Switch.adaptive(
+                      value: isEligible,
+                      activeTrackColor: kSuccess,
+                      onChanged: beneficiaryId.isEmpty
+                          ? null
+                          : (value) => _setEligibleToClaim(b, value),
+                    ),
+                ],
+              ),
+              if (!isEligible) ...[
+                const SizedBox(height: 4),
+                const Text(
+                  'Reason why not yet eligible',
+                  style: TextStyle(color: kText, fontWeight: FontWeight.w600),
+                ),
+                const SizedBox(height: 6),
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        minLines: 1,
+                        maxLines: 3,
+                        maxLength: 1000,
+                        textCapitalization: TextCapitalization.sentences,
+                        decoration: InputDecoration(
+                          hintText: 'Enter a reason to send to this user',
+                          isDense: true,
+                          filled: true,
+                          fillColor: kBg,
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 10,
+                          ),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                        onChanged: (value) => setState(
+                          () => _eligibilityReasons[beneficiaryId] = value,
+                        ),
+                      ),
+                    ),
+                    IconButton(
+                      tooltip: 'Send eligibility concern',
+                      onPressed:
+                          isSendingNotif ||
+                              (_eligibilityReasons[beneficiaryId] ?? '')
+                                  .trim()
+                                  .isEmpty ||
+                              (b['user_id']?.toString() ?? '').isEmpty
+                          ? null
+                          : () => _sendEligibilityConcern(b),
+                      icon: isSendingNotif
+                          ? const SizedBox(
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Icon(Icons.send_rounded),
+                    ),
+                  ],
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _mobileField(String label, String value) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: TextStyle(
+            fontSize: 12,
+            color: Colors.grey[600],
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        const SizedBox(height: 2),
+        Text(value, style: const TextStyle(color: kText)),
+      ],
+    );
+  }
+
+  DataRow _beneficiaryRow(Map<String, dynamic> b) {
     final beneficiaryId = b['id']?.toString() ?? '';
     final isEligible = b['eligible_to_claim'] == true;
     final isUpdating = _updatingEligibilityIds.contains(beneficiaryId);
     final isSendingNotif = _sendingEligibilityNotifIds.contains(beneficiaryId);
 
-    return Card(
-      margin: const EdgeInsets.symmetric(vertical: 8, horizontal: 2),
-      elevation: 3,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          ListTile(
-            onTap: () => _showBeneficiaryDetails(b),
-            leading: CircleAvatar(
-              backgroundColor: kAccent.withValues(alpha: 0.1),
-              child: const Icon(Icons.person_rounded, color: kAccent),
-            ),
-            title: Text(
-              b['full_name'] ?? '',
-              style: const TextStyle(fontWeight: FontWeight.bold, color: kText),
-            ),
-            subtitle: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Relationship: ${b['relationship'] ?? ''}',
-                  style: const TextStyle(color: kSubText),
+    final hasBirthCertificate =
+        (b['birth_certificate']?.toString() ?? '').isNotEmpty;
+    final hasValidId = (b['valid_id']?.toString() ?? '').isNotEmpty;
+
+    return DataRow(
+      onSelectChanged: (_) => _showBeneficiaryDetails(b),
+      cells: [
+        DataCell(
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              CircleAvatar(
+                radius: 18,
+                backgroundColor: kAccent.withValues(alpha: 0.1),
+                child: const Icon(
+                  Icons.person_rounded,
+                  color: kAccent,
+                  size: 20,
                 ),
-                if (b['dob'] != null)
-                  Text(
-                    'DOB: ${b['dob']}',
-                    style: const TextStyle(color: kSubText, fontSize: 12),
+              ),
+              const SizedBox(width: 10),
+              Flexible(
+                child: Text(
+                  (b['full_name'] ?? '').toString(),
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    color: kText,
                   ),
-                if (b['marital_status'] != null)
-                  Text(
-                    'Marital Status: ${b['marital_status']}',
-                    style: const TextStyle(color: kSubText, fontSize: 12),
-                  ),
-              ],
-            ),
-            trailing: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                if (b['birth_certificate'] != null &&
-                    b['birth_certificate'].toString().isNotEmpty)
-                  const Icon(Icons.picture_as_pdf, color: kAccent),
-                if (b['valid_id'] != null &&
-                    b['valid_id'].toString().isNotEmpty)
-                  const Icon(Icons.credit_card, color: kAccent),
-              ],
-            ),
+                ),
+              ),
+            ],
           ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 0, 8, 8),
+        ),
+        DataCell(Text((b['relationship'] ?? 'Not provided').toString())),
+        DataCell(Text((b['dob'] ?? 'Not provided').toString())),
+        DataCell(Text((b['marital_status'] ?? 'Not provided').toString())),
+        DataCell(
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (hasBirthCertificate)
+                const Tooltip(
+                  message: 'Birth certificate uploaded',
+                  child: Icon(Icons.picture_as_pdf, color: kAccent),
+                ),
+              if (hasBirthCertificate && hasValidId) const SizedBox(width: 8),
+              if (hasValidId)
+                const Tooltip(
+                  message: 'Valid ID uploaded',
+                  child: Icon(Icons.credit_card, color: kAccent),
+                ),
+              if (!hasBirthCertificate && !hasValidId) const Text('None'),
+            ],
+          ),
+        ),
+        DataCell(
+          SizedBox(
+            width: 300,
             child: Column(
+              mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Row(
@@ -548,13 +796,11 @@ class _SecretaryBeneficiariesTabState extends State<SecretaryBeneficiariesTab> {
                       color: isEligible ? kSuccess : kSubText,
                     ),
                     const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        isEligible ? 'Eligible to claim' : 'Not yet eligible',
-                        style: TextStyle(
-                          color: isEligible ? kSuccess : kSubText,
-                          fontWeight: FontWeight.w600,
-                        ),
+                    Text(
+                      isEligible ? 'Eligible to claim' : 'Not yet eligible',
+                      style: TextStyle(
+                        color: isEligible ? kSuccess : kSubText,
+                        fontWeight: FontWeight.w600,
                       ),
                     ),
                     if (isUpdating)
@@ -577,75 +823,65 @@ class _SecretaryBeneficiariesTabState extends State<SecretaryBeneficiariesTab> {
                   ],
                 ),
                 if (!isEligible) ...[
-                  const Padding(
-                    padding: EdgeInsets.only(left: 26, top: 4, bottom: 6),
-                    child: Text(
-                      'Reasons why not yet eligible:',
-                      style: TextStyle(
-                        color: kText,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
+                  const Text(
+                    'Reasons why not yet eligible:',
+                    style: TextStyle(color: kText, fontWeight: FontWeight.w600),
                   ),
-                  Padding(
-                    padding: const EdgeInsets.only(left: 26, right: 8),
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.end,
-                      children: [
-                        Expanded(
-                          child: TextField(
-                            minLines: 1,
-                            maxLines: 3,
-                            maxLength: 1000,
-                            textCapitalization: TextCapitalization.sentences,
-                            decoration: InputDecoration(
-                              hintText: 'Type the reason to send to this user',
-                              isDense: true,
-                              filled: true,
-                              fillColor: kBg,
-                              contentPadding: const EdgeInsets.symmetric(
-                                horizontal: 12,
-                                vertical: 10,
-                              ),
-                              border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(12),
-                              ),
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      Expanded(
+                        child: TextField(
+                          minLines: 1,
+                          maxLines: 3,
+                          maxLength: 1000,
+                          textCapitalization: TextCapitalization.sentences,
+                          decoration: InputDecoration(
+                            hintText: 'Type the reason to send to this user',
+                            isDense: true,
+                            filled: true,
+                            fillColor: kBg,
+                            contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 10,
                             ),
-                            onChanged: (value) => setState(
-                              () => _eligibilityReasons[beneficiaryId] = value,
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
                             ),
                           ),
+                          onChanged: (value) => setState(
+                            () => _eligibilityReasons[beneficiaryId] = value,
+                          ),
                         ),
-                        const SizedBox(width: 4),
-                        IconButton(
-                          tooltip: 'Send eligibility concern',
-                          onPressed:
-                              isSendingNotif ||
-                                  (_eligibilityReasons[beneficiaryId] ?? '')
-                                      .trim()
-                                      .isEmpty ||
-                                  (b['user_id']?.toString() ?? '').isEmpty
-                              ? null
-                              : () => _sendEligibilityConcern(b),
-                          icon: isSendingNotif
-                              ? const SizedBox(
-                                  width: 20,
-                                  height: 20,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                  ),
-                                )
-                              : const Icon(Icons.send_rounded),
-                        ),
-                      ],
-                    ),
+                      ),
+                      IconButton(
+                        tooltip: 'Send eligibility concern',
+                        onPressed:
+                            isSendingNotif ||
+                                (_eligibilityReasons[beneficiaryId] ?? '')
+                                    .trim()
+                                    .isEmpty ||
+                                (b['user_id']?.toString() ?? '').isEmpty
+                            ? null
+                            : () => _sendEligibilityConcern(b),
+                        icon: isSendingNotif
+                            ? const SizedBox(
+                                width: 20,
+                                height: 20,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                ),
+                              )
+                            : const Icon(Icons.send_rounded),
+                      ),
+                    ],
                   ),
                 ],
               ],
             ),
           ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 

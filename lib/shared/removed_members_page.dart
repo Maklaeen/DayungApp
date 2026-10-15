@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:capstone_app/widgets/record_data_table.dart';
 
 const Color _kPrimary = Color(0xFF0D47A1);
-const Color _kPrimaryDark = Color(0xFF083366);
 const Color _kNeutralText = Color(0xFF1F2937);
 const Color _kSubText = Color(0xFF4B5563);
 const Color _kDanger = Color(0xFFC62828);
@@ -26,6 +26,7 @@ class _RemovedMembersPageState extends State<RemovedMembersPage> {
   List<Map<String, dynamic>> _removedMembers = [];
   String _search = '';
   int _pageIndex = 0;
+  int _removedPageIndex = 0;
   final Set<String> _removingUserIds = <String>{};
   final Set<String> _restoringUserIds = <String>{};
 
@@ -64,6 +65,7 @@ class _RemovedMembersPageState extends State<RemovedMembersPage> {
           _members = activeRows;
           _removedMembers = removedRows;
           _pageIndex = 0;
+          _removedPageIndex = 0;
           _loading = false;
         });
       }
@@ -105,6 +107,24 @@ class _RemovedMembersPageState extends State<RemovedMembersPage> {
     if (start >= _filtered.length) return const <Map<String, dynamic>>[];
     final end = (start + _pageSize).clamp(0, _filtered.length);
     return _filtered.sublist(start, end);
+  }
+
+  List<Map<String, dynamic>> get _pagedRemovedMembers {
+    final start = _removedPageIndex * _pageSize;
+    if (start >= _removedMembers.length) return const [];
+    final end = (start + _pageSize).clamp(0, _removedMembers.length);
+    return _removedMembers.sublist(start, end);
+  }
+
+  int get _removedPageCount {
+    if (_removedMembers.isEmpty) return 1;
+    return (_removedMembers.length / _pageSize).ceil();
+  }
+
+  void _changeRemovedPage(int delta) {
+    final next = _removedPageIndex + delta;
+    if (next < 0 || next >= _removedPageCount) return;
+    setState(() => _removedPageIndex = next);
   }
 
   void _goToPreviousPage() {
@@ -531,11 +551,32 @@ class _RemovedMembersPageState extends State<RemovedMembersPage> {
                         Expanded(
                           child: RefreshIndicator(
                             onRefresh: _load,
-                            child: ListView.builder(
+                            child: ListView(
+                              physics: const AlwaysScrollableScrollPhysics(),
                               padding: const EdgeInsets.all(16),
-                              itemCount: _pagedFiltered.length,
-                              itemBuilder: (_, i) =>
-                                  _memberCard(_pagedFiltered[i]),
+                              children: [
+                                LayoutBuilder(
+                                  builder: (context, constraints) {
+                                    if (constraints.maxWidth < 720) {
+                                      return _memberMobileRows(_pagedFiltered);
+                                    }
+                                    return RecordDataTable(
+                                      modernStyle: true,
+                                      minWidth: constraints.maxWidth > 700
+                                          ? constraints.maxWidth
+                                          : 700,
+                                      columns: const [
+                                        DataColumn(label: Text('Member')),
+                                        DataColumn(label: Text('Approved')),
+                                        DataColumn(label: Text('Action')),
+                                      ],
+                                      rows: _pagedFiltered
+                                          .map(_memberDataRow)
+                                          .toList(),
+                                    );
+                                  },
+                                ),
+                              ],
                             ),
                           ),
                         ),
@@ -597,72 +638,28 @@ class _RemovedMembersPageState extends State<RemovedMembersPage> {
                                   ),
                                 ),
                                 const SizedBox(height: 10),
-                                Wrap(
-                                  spacing: 8,
-                                  runSpacing: 8,
-                                  children: _removedMembers.map((row) {
-                                    final user = row['user'] as Map?;
-                                    final fullName =
-                                        (user?['full_name'] ?? 'Member')
-                                            .toString();
-                                    final userId = (row['user_id'] ?? '')
-                                        .toString();
-                                    final isRestoring = _restoringUserIds
-                                        .contains(userId);
-                                    return Container(
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 12,
-                                        vertical: 8,
-                                      ),
-                                      decoration: BoxDecoration(
-                                        color: _kDanger.withValues(alpha: 0.08),
-                                        borderRadius: BorderRadius.circular(
-                                          999,
-                                        ),
-                                      ),
-                                      child: Row(
-                                        mainAxisSize: MainAxisSize.min,
-                                        children: [
-                                          Text(
-                                            fullName,
-                                            style: const TextStyle(
-                                              color: _kDanger,
-                                              fontSize: 12,
-                                              fontWeight: FontWeight.w700,
-                                              fontFamily: 'OpenSans',
-                                            ),
-                                          ),
-                                          const SizedBox(width: 8),
-                                          InkWell(
-                                            onTap: isRestoring
-                                                ? null
-                                                : () => _confirmRestore(row),
-                                            borderRadius: BorderRadius.circular(
-                                              999,
-                                            ),
-                                            child: Padding(
-                                              padding: const EdgeInsets.all(2),
-                                              child: isRestoring
-                                                  ? const SizedBox(
-                                                      width: 14,
-                                                      height: 14,
-                                                      child:
-                                                          CircularProgressIndicator(
-                                                            strokeWidth: 2,
-                                                          ),
-                                                    )
-                                                  : const Icon(
-                                                      Icons.undo_rounded,
-                                                      size: 16,
-                                                      color: _kPrimary,
-                                                    ),
-                                            ),
-                                          ),
-                                        ],
-                                      ),
+                                LayoutBuilder(
+                                  builder: (context, constraints) {
+                                    if (constraints.maxWidth < 720) {
+                                      return _removedMemberMobileRows();
+                                    }
+                                    return RecordDataTable(
+                                      modernStyle: true,
+                                      minWidth: constraints.maxWidth > 520
+                                          ? constraints.maxWidth
+                                          : 520,
+                                      columns: const [
+                                        DataColumn(label: Text('Member')),
+                                        DataColumn(label: Text('Action')),
+                                      ],
+                                      rows: _pagedRemovedMembers
+                                          .map(_removedMemberDataRow)
+                                          .toList(),
                                     );
-                                  }).toList(),
+                                  },
                                 ),
+                                if (_removedMembers.length > _pageSize)
+                                  _buildRemovedPager(),
                               ],
                             ),
                           ),
@@ -675,7 +672,220 @@ class _RemovedMembersPageState extends State<RemovedMembersPage> {
     );
   }
 
-  Widget _memberCard(Map<String, dynamic> r) {
+  Widget _memberMobileRows(List<Map<String, dynamic>> members) {
+    return Column(
+      children: [
+        for (var index = 0; index < members.length; index++) ...[
+          _memberMobileRow(members[index]),
+          if (index < members.length - 1)
+            const Divider(height: 1, indent: 12, endIndent: 12),
+        ],
+      ],
+    );
+  }
+
+  Widget _removedMemberMobileRows() {
+    final pageMembers = _pagedRemovedMembers;
+    return Column(
+      children: [
+        for (var index = 0; index < pageMembers.length; index++) ...[
+          _removedMemberMobileRow(pageMembers[index]),
+          if (index < pageMembers.length - 1)
+            const Divider(height: 1, indent: 12, endIndent: 12),
+        ],
+      ],
+    );
+  }
+
+  Widget _buildRemovedPager() {
+    return Padding(
+      padding: const EdgeInsets.only(top: 8),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          IconButton(
+            onPressed: _removedPageIndex == 0
+                ? null
+                : () => _changeRemovedPage(-1),
+            icon: const Icon(Icons.arrow_back_ios_new_rounded),
+            color: _kPrimary,
+          ),
+          Text(
+            'Page ${_removedPageIndex + 1} of $_removedPageCount',
+            style: const TextStyle(
+              color: _kNeutralText,
+              fontWeight: FontWeight.w700,
+              fontFamily: 'Montserrat',
+            ),
+          ),
+          IconButton(
+            onPressed: _removedPageIndex >= _removedPageCount - 1
+                ? null
+                : () => _changeRemovedPage(1),
+            icon: const Icon(Icons.arrow_forward_ios_rounded),
+            color: _kPrimary,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _removedMemberMobileRow(Map<String, dynamic> member) {
+    final user = member['user'] as Map?;
+    final name = (user?['full_name'] ?? 'Member').toString();
+    final userId = (member['user_id'] ?? '').toString();
+    final isRestoring = _restoringUserIds.contains(userId);
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              name,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                color: _kDanger,
+                fontWeight: FontWeight.w700,
+                fontFamily: 'OpenSans',
+              ),
+            ),
+          ),
+          IconButton(
+            tooltip: 'Restore member',
+            onPressed: isRestoring ? null : () => _confirmRestore(member),
+            icon: isRestoring
+                ? const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(Icons.undo_rounded, color: _kPrimary),
+          ),
+        ],
+      ),
+    );
+  }
+
+  DataRow _removedMemberDataRow(Map<String, dynamic> member) {
+    final user = member['user'] as Map?;
+    final name = (user?['full_name'] ?? 'Member').toString();
+    final userId = (member['user_id'] ?? '').toString();
+    final isRestoring = _restoringUserIds.contains(userId);
+
+    return DataRow(
+      cells: [
+        DataCell(
+          Text(
+            name,
+            style: const TextStyle(
+              color: _kDanger,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ),
+        DataCell(
+          IconButton(
+            tooltip: 'Restore member',
+            onPressed: isRestoring ? null : () => _confirmRestore(member),
+            icon: isRestoring
+                ? const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(Icons.undo_rounded, color: _kPrimary),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _memberMobileRow(Map<String, dynamic> member) {
+    final user = member['user'] as Map?;
+    final name = (user?['full_name'] ?? 'Member').toString();
+    final profileUrl = (user?['profile_url'] ?? '').toString();
+    final userId = (member['user_id'] ?? '').toString();
+    final isRemoving = _removingUserIds.contains(userId);
+    final approvedAt = (member['approved_at'] ?? member['updated_at'] ?? '')
+        .toString();
+    final approvedDate = DateTime.tryParse(approvedAt);
+    final dateLabel = approvedDate == null
+        ? '—'
+        : '${approvedDate.month}/${approvedDate.day}/${approvedDate.year}';
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+      child: Row(
+        children: [
+          CircleAvatar(
+            radius: 20,
+            backgroundImage: profileUrl.isNotEmpty
+                ? NetworkImage(profileUrl)
+                : null,
+            backgroundColor: _kSuccess.withValues(alpha: 0.1),
+            child: profileUrl.isEmpty
+                ? Text(
+                    name.isNotEmpty ? name[0].toUpperCase() : 'M',
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color: _kSuccess,
+                    ),
+                  )
+                : null,
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  name,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w700,
+                    color: _kNeutralText,
+                    fontFamily: 'Montserrat',
+                  ),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  'Approved: $dateLabel',
+                  style: const TextStyle(
+                    fontSize: 12,
+                    color: _kSubText,
+                    fontFamily: 'OpenSans',
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          TextButton.icon(
+            onPressed: isRemoving ? null : () => _confirmRemove(member),
+            style: TextButton.styleFrom(
+              foregroundColor: _kDanger,
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              minimumSize: const Size(0, 36),
+            ),
+            icon: isRemoving
+                ? const SizedBox(
+                    width: 14,
+                    height: 14,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(Icons.person_remove_rounded, size: 16),
+            label: Text(isRemoving ? 'Removing' : 'Remove'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  DataRow _memberDataRow(Map<String, dynamic> r) {
     final u = r['user'] as Map?;
     final name = (u?['full_name'] ?? 'Member').toString();
     final profileUrl = (u?['profile_url'] ?? '').toString();
@@ -688,82 +898,81 @@ class _RemovedMembersPageState extends State<RemovedMembersPage> {
       if (dt != null) dateStr = '${dt.month}/${dt.day}/${dt.year}';
     }
 
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.grey.shade200),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.04),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: ListTile(
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        leading: CircleAvatar(
-          radius: 22,
-          backgroundImage: profileUrl.isNotEmpty
-              ? NetworkImage(profileUrl)
-              : null,
-          backgroundColor: _kSuccess.withValues(alpha: 0.1),
-          child: profileUrl.isEmpty
-              ? Text(
-                  name.isNotEmpty ? name[0].toUpperCase() : 'M',
+    return DataRow(
+      cells: [
+        DataCell(
+          Row(
+            children: [
+              CircleAvatar(
+                radius: 18,
+                backgroundImage: profileUrl.isNotEmpty
+                    ? NetworkImage(profileUrl)
+                    : null,
+                backgroundColor: _kSuccess.withValues(alpha: 0.1),
+                child: profileUrl.isEmpty
+                    ? Text(
+                        name.isNotEmpty ? name[0].toUpperCase() : 'M',
+                        style: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                          color: _kSuccess,
+                        ),
+                      )
+                    : null,
+              ),
+              const SizedBox(width: 12),
+              Flexible(
+                child: Text(
+                  name,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
-                    fontWeight: FontWeight.bold,
-                    color: _kSuccess,
+                    fontWeight: FontWeight.w700,
+                    fontSize: 14,
+                    color: _kNeutralText,
+                    fontFamily: 'Montserrat',
                   ),
-                )
-              : null,
-        ),
-        title: Text(
-          name,
-          style: const TextStyle(
-            fontWeight: FontWeight.w700,
-            fontSize: 14,
-            color: _kNeutralText,
-            fontFamily: 'Montserrat',
-          ),
-        ),
-        subtitle: dateStr.isNotEmpty
-            ? Text(
-                'Approved: $dateStr',
-                style: const TextStyle(
-                  fontSize: 12,
-                  color: _kSubText,
-                  fontFamily: 'OpenSans',
                 ),
-              )
-            : null,
-        trailing: TextButton.icon(
-          onPressed: isRemoving ? null : () => _confirmRemove(r),
-          style: TextButton.styleFrom(
-            foregroundColor: _kDanger,
-            padding: const EdgeInsets.symmetric(horizontal: 8),
-            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-            minimumSize: const Size(0, 32),
+              ),
+            ],
           ),
-          icon: isRemoving
-              ? const SizedBox(
-                  width: 14,
-                  height: 14,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                )
-              : const Icon(Icons.person_remove_rounded, size: 16),
-          label: Text(
-            isRemoving ? 'Removing' : 'Remove',
+        ),
+        DataCell(
+          Text(
+            dateStr.isEmpty ? '—' : dateStr,
             style: const TextStyle(
-              fontWeight: FontWeight.w700,
               fontSize: 12,
-              fontFamily: 'Montserrat',
+              color: _kSubText,
+              fontFamily: 'OpenSans',
             ),
           ),
         ),
-      ),
+        DataCell(
+          TextButton.icon(
+            onPressed: isRemoving ? null : () => _confirmRemove(r),
+            style: TextButton.styleFrom(
+              foregroundColor: _kDanger,
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              minimumSize: const Size(0, 32),
+            ),
+            icon: isRemoving
+                ? const SizedBox(
+                    width: 14,
+                    height: 14,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(Icons.person_remove_rounded, size: 16),
+            label: Text(
+              isRemoving ? 'Removing' : 'Remove',
+              style: const TextStyle(
+                fontWeight: FontWeight.w700,
+                fontSize: 12,
+                fontFamily: 'Montserrat',
+              ),
+            ),
+          ),
+        ),
+      ],
     );
   }
 }

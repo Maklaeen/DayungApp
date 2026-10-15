@@ -9,6 +9,7 @@ import 'package:capstone_app/pages/notification.dart';
 import 'package:capstone_app/pages/recentdeathnotices.dart';
 import 'package:capstone_app/Auth/login.dart';
 import 'package:capstone_app/profile/dayung_profile.dart';
+import 'package:capstone_app/screens/selectdayung.dart';
 import 'package:capstone_app/settings/profsettings.dart';
 import 'package:capstone_app/utils/theme_surface.dart';
 import 'package:flutter/material.dart';
@@ -1608,13 +1609,130 @@ class _MemberDashboardPageState extends State<MemberDashboardPage>
   //   );
   // }
 
+  Future<void> _openDayungSelection() async {
+    await Navigator.of(context).push(
+      MaterialPageRoute<Map<String, dynamic>>(
+        builder: (_) => const SelectDayungPage(),
+      ),
+    );
+  }
+
+  Widget _buildSelectDayungEmptyState({
+    required IconData icon,
+    required String title,
+    required String description,
+  }) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final maxWidth = constraints.maxWidth < 520
+            ? constraints.maxWidth
+            : 520.0;
+
+        return Center(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(24),
+            child: ConstrainedBox(
+              constraints: BoxConstraints(maxWidth: maxWidth),
+              child: Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(28),
+                decoration: dayungSectionCardDecoration(context, radius: 24),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      width: 76,
+                      height: 76,
+                      decoration: dayungAccentCardDecoration(
+                        context,
+                        accent: Theme.of(context).colorScheme.primary,
+                        radius: 22,
+                      ),
+                      child: Icon(
+                        icon,
+                        size: 36,
+                        color: Theme.of(context).colorScheme.primary,
+                      ),
+                    ),
+                    const SizedBox(height: 22),
+                    Text(
+                      title,
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        color: dayungTextColor(context),
+                        fontSize: 21,
+                        fontWeight: FontWeight.w800,
+                        fontFamily: 'Montserrat',
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    Text(
+                      description,
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        color: dayungSubtextColor(context),
+                        fontSize: 15,
+                        height: 1.5,
+                        fontFamily: 'OpenSans',
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+                    SizedBox(
+                      width: double.infinity,
+                      child: FilledButton.icon(
+                        onPressed: _openDayungSelection,
+                        icon: const Icon(Icons.apartment_rounded),
+                        label: const Text('Choose a Dayung unit'),
+                        style: FilledButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(vertical: 15),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                          textStyle: const TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w700,
+                            fontFamily: 'Montserrat',
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Text(
+                      'Your contributions and claims will be shown for the selected unit.',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        color: dayungSubtextColor(context),
+                        fontSize: 12,
+                        height: 1.4,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
   List<Widget> get _pages => [
     _buildHomePage(context),
     _dayungUnitId == null
-        ? const Center(child: Text('Select a Dayung unit first'))
+        ? _buildSelectDayungEmptyState(
+            icon: Icons.trending_up_rounded,
+            title: 'Choose a Dayung unit',
+            description:
+                'Select a Dayung unit to view your contribution history.',
+          )
         : MembersContributionHistory(dayungUnitId: _dayungUnitId!),
     _dayungUnitId == null
-        ? const Center(child: Text('Select a Dayung unit first'))
+        ? _buildSelectDayungEmptyState(
+            icon: Icons.assignment_rounded,
+            title: 'Choose a Dayung unit',
+            description:
+                'Select a Dayung unit to submit a claim or track your existing claims.',
+          )
         : MembersClaimsPage(dayungUnitId: _dayungUnitId!),
   ];
 
@@ -1623,7 +1741,6 @@ class _MemberDashboardPageState extends State<MemberDashboardPage>
     super.didChangeDependencies();
     final provUnit = context.watch<DayungUnitProvider>().currentUnitId;
     if (provUnit != _lastRoleUnitId) {
-      _lastRoleUnitId = provUnit;
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) {
           _maybeOnProviderUnitChanged(provUnit);

@@ -1,6 +1,7 @@
 import 'package:capstone_app/ui/loading/page_skeleton.dart';
 import 'package:capstone_app/Treasurer/treasurer_payment_page.dart';
 import 'package:capstone_app/utils/theme_surface.dart';
+import 'package:capstone_app/widgets/record_data_table.dart';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -310,101 +311,71 @@ class _TreasurerContributionsPageState
     );
   }
 
-  Widget _paymentCard(Map<String, dynamic> row, {required bool mine}) {
-    final amount = _amountOf(row);
-    final status = (row['status'] ?? '').toString();
-    final statusColor = _statusColor(status);
-    final payerId = (row['user_id'] ?? '').toString();
-    final payerName = mine ? _fullName : (_userNames[payerId] ?? 'Member');
-    final noticeId = int.tryParse('${row['death_notice_id'] ?? ''}');
-    final notice = noticeId != null ? _deathNotices[noticeId] : null;
-    final deceasedName = (notice?['name'] ?? 'No deceased linked').toString();
-    final dateLabel = _dateOf(row);
+  RecordDataTable _paymentTable(
+    List<Map<String, dynamic>> payments, {
+    required bool mine,
+  }) {
+    return RecordDataTable(
+      minWidth: 760,
+      columns: const [
+        DataColumn(label: Text('Amount')),
+        DataColumn(label: Text('Member')),
+        DataColumn(label: Text('For deceased')),
+        DataColumn(label: Text('Date')),
+        DataColumn(label: Text('Status')),
+      ],
+      rows: payments.map((row) {
+        final status = (row['status'] ?? '').toString();
+        final statusColor = _statusColor(status);
+        final payerId = (row['user_id'] ?? '').toString();
+        final payerName = mine ? _fullName : (_userNames[payerId] ?? 'Member');
+        final noticeId = int.tryParse('${row['death_notice_id'] ?? ''}');
+        final notice = noticeId != null ? _deathNotices[noticeId] : null;
+        final deceasedName = (notice?['name'] ?? 'No deceased linked')
+            .toString();
+        final displayStatus = status.isEmpty
+            ? 'Unknown'
+            : status[0].toUpperCase() + status.substring(1).toLowerCase();
 
-    return Card(
-      margin: const EdgeInsets.only(bottom: 12),
-      elevation: 1.5,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(kCardRadius),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    '₱${amount.toStringAsFixed(2)}',
-                    style: const TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.w900,
-                      color: kPrimary,
-                    ),
-                  ),
+        return DataRow(
+          cells: [
+            DataCell(
+              Text(
+                '₱${_amountOf(row).toStringAsFixed(2)}',
+                style: const TextStyle(
+                  fontWeight: FontWeight.w800,
+                  color: kPrimary,
                 ),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 6,
-                  ),
-                  decoration: BoxDecoration(
-                    color: statusColor.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(999),
-                    border: Border.all(
-                      color: statusColor.withValues(alpha: 0.2),
-                    ),
-                  ),
-                  child: Text(
-                    status.isEmpty
-                        ? 'Unknown'
-                        : status[0].toUpperCase() +
-                              status.substring(1).toLowerCase(),
-                    style: TextStyle(
-                      color: statusColor,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 10),
-            Text(
-              mine ? 'Your contribution' : 'Member: $payerName',
-              style: const TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w700,
-                color: kText,
               ),
             ),
-            const SizedBox(height: 6),
-            Text(
-              'For deceased: $deceasedName',
-              style: const TextStyle(
-                fontSize: 14,
-                color: kSubText,
-                fontWeight: FontWeight.w600,
+            DataCell(Text(mine ? 'You ($_fullName)' : payerName)),
+            DataCell(Text(deceasedName)),
+            DataCell(Text(_dateOf(row))),
+            DataCell(
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 6,
+                ),
+                decoration: BoxDecoration(
+                  color: statusColor.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(999),
+                  border: Border.all(
+                    color: statusColor.withValues(alpha: 0.2),
+                  ),
+                ),
+                child: Text(
+                  displayStatus,
+                  style: TextStyle(
+                    color: statusColor,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
               ),
-            ),
-            const SizedBox(height: 10),
-            Row(
-              children: [
-                Icon(
-                  Icons.calendar_today_rounded,
-                  size: 16,
-                  color: Colors.grey.shade600,
-                ),
-                const SizedBox(width: 6),
-                Text(
-                  dateLabel,
-                  style: TextStyle(color: Colors.grey.shade700, fontSize: 13),
-                ),
-              ],
             ),
           ],
-        ),
-      ),
+        );
+      }).toList(),
     );
   }
 
@@ -575,9 +546,7 @@ class _TreasurerContributionsPageState
                       'Your paid and pending contributions will appear here.',
                     )
                   else
-                    ..._myContributions.map(
-                      (row) => _paymentCard(row, mine: true),
-                    ),
+                    _paymentTable(_myContributions, mine: true),
                   const SizedBox(height: 20),
                   _sectionHeader(
                     'Other Members Contributions',
@@ -589,9 +558,7 @@ class _TreasurerContributionsPageState
                       'Other members will appear here once contribution records exist.',
                     )
                   else
-                    ..._otherContributions.map(
-                      (row) => _paymentCard(row, mine: false),
-                    ),
+                    _paymentTable(_otherContributions, mine: false),
                 ],
               ),
             ),

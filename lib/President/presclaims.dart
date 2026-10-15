@@ -7,6 +7,7 @@ import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:capstone_app/utils/theme_surface.dart';
+import 'package:capstone_app/widgets/record_data_table.dart';
 
 const kBg = Color(0xFFF8FAFC);
 const kText = Color(0xFF111827);
@@ -883,123 +884,54 @@ class _PresidentClaimsPageState extends State<PresidentClaimsPage> {
                       ),
                     )
                   else
-                    ..._filteredClaims.map((claim) {
+                    RecordDataTable(
+                      minWidth: 850,
+                      columns: const [
+                        DataColumn(label: Text('Claim')),
+                        DataColumn(label: Text('Deceased')),
+                        DataColumn(label: Text('Filed by')),
+                        DataColumn(label: Text('Status')),
+                        DataColumn(label: Text('Submitted')),
+                        DataColumn(label: Text('Details')),
+                      ],
+                      rows: _filteredClaims.map((claim) {
                       final status = (claim['status'] ?? '').toString();
                       final claimId = '${claim['id'] ?? ''}';
                       final active = _activeClaimId == claimId;
-                      return GestureDetector(
-                        onTap: () => _showClaimDetails(claim),
-                        child: Container(
-                          margin: const EdgeInsets.only(bottom: 12),
-                          padding: const EdgeInsets.all(16),
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            borderRadius: BorderRadius.circular(20),
-                            border: Border.all(color: kBorderColor),
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.black.withValues(alpha: 0.05),
-                                blurRadius: 12,
-                                offset: const Offset(0, 6),
-                              ),
-                            ],
-                          ),
-                          child: Row(
+                      return DataRow(
+                        onSelectChanged: (_) => _showClaimDetails(claim),
+                        cells: [
+                          DataCell(Text(_claimType(claim))),
+                          DataCell(Text(_deceasedName(claim))),
+                          DataCell(Text(_submittedBy(claim))),
+                          DataCell(Row(
+                            mainAxisSize: MainAxisSize.min,
                             children: [
-                              Container(
-                                padding: const EdgeInsets.all(12),
-                                decoration: BoxDecoration(
-                                  color: _statusColor(
-                                    status,
-                                  ).withValues(alpha: 0.12),
-                                  borderRadius: BorderRadius.circular(14),
-                                ),
-                                child: Icon(
-                                  _statusIcon(status),
-                                  color: _statusColor(status),
-                                ),
+                              Icon(
+                                _statusIcon(status),
+                                size: 18,
+                                color: _statusColor(status),
                               ),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      _claimType(claim),
-                                      style: const TextStyle(
-                                        fontSize: 16,
-                                        fontWeight: FontWeight.w800,
-                                        color: kText,
-                                      ),
-                                    ),
-                                    const SizedBox(height: 4),
-                                    Text(
-                                      _deceasedName(claim),
-                                      style: const TextStyle(
-                                        fontSize: 14,
-                                        fontWeight: FontWeight.w700,
-                                        color: kPrimary,
-                                      ),
-                                    ),
-                                    const SizedBox(height: 4),
-                                    Text(
-                                      'Filed by ${_submittedBy(claim)}',
-                                      style: const TextStyle(
-                                        fontSize: 13,
-                                        color: kSubText,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                              Column(
-                                crossAxisAlignment: CrossAxisAlignment.end,
-                                children: [
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 10,
-                                      vertical: 6,
-                                    ),
-                                    decoration: BoxDecoration(
-                                      color: _statusColor(
-                                        status,
-                                      ).withValues(alpha: 0.12),
-                                      borderRadius: BorderRadius.circular(999),
-                                    ),
-                                    child: Text(
-                                      status,
-                                      style: TextStyle(
-                                        color: _statusColor(status),
-                                        fontWeight: FontWeight.w700,
-                                      ),
-                                    ),
-                                  ),
-                                  const SizedBox(height: 10),
-                                  Text(
-                                    _formatDate(claim['date_submitted']),
-                                    style: const TextStyle(
-                                      fontSize: 12,
-                                      color: kSubText,
-                                      fontWeight: FontWeight.w600,
-                                    ),
-                                  ),
-                                  if (_updating && active) ...[
-                                    const SizedBox(height: 8),
-                                    const SizedBox(
-                                      height: 18,
-                                      width: 18,
-                                      child: CircularProgressIndicator(
-                                        strokeWidth: 2,
-                                      ),
-                                    ),
-                                  ],
-                                ],
-                              ),
+                              const SizedBox(width: 6),
+                              Text(status),
                             ],
+                          )),
+                          DataCell(Text(_formatDate(claim['date_submitted']))),
+                          DataCell(
+                            _updating && active
+                                ? const SizedBox(
+                                    height: 18,
+                                    width: 18,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                    ),
+                                  )
+                                : const Icon(Icons.chevron_right_rounded),
                           ),
-                        ),
+                        ],
                       );
-                    }),
+                      }).toList(),
+                    ),
                 ],
               ),
             ),

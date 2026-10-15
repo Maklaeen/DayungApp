@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:intl/intl.dart';
+import 'package:capstone_app/widgets/record_data_table.dart';
 
 const Color _kPageBg = Color(0xFFF8FAFC);
 const Color _kHeaderGradientEnd = Color(0xFF0D47A1);
@@ -377,109 +378,38 @@ class _MembershipPageState extends State<MembershipPage> {
 
     return RefreshIndicator(
       onRefresh: _fetchPayments,
-      child: ListView.builder(
+      child: ListView(
+        physics: const AlwaysScrollableScrollPhysics(),
         padding: const EdgeInsets.only(bottom: 20),
-        itemCount: _filteredPayments.length,
-        itemBuilder: (context, index) {
-          final payment = _filteredPayments[index];
+        children: [
+          RecordDataTable(
+            minWidth: 700,
+            columns: const [
+              DataColumn(label: Text('Member')),
+              DataColumn(label: Text('Amount')),
+              DataColumn(label: Text('Status')),
+              DataColumn(label: Text('Date Approved')),
+              DataColumn(label: Text('Action')),
+            ],
+            rows: _filteredPayments.map((payment) {
           final userData = payment['users'] as Map<String, dynamic>?;
           final fullName = userData?['full_name']?.toString() ?? 'Unknown user';
           final amount = payment['amount']?.toString() ?? '0';
           final status = payment['status']?.toString() ?? 'unknown';
           final createdAt = payment['created_at']?.toString() ?? 'No date';
-          final statusColor = _getStatusColor(status);
-
-          return Container(
-            margin: const EdgeInsets.only(bottom: 12),
-            decoration: BoxDecoration(
-              color: _kCard,
-              borderRadius: BorderRadius.circular(18),
-              border: Border.all(color: _kBorder),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.04),
-                  blurRadius: 10,
-                  offset: const Offset(0, 3),
-                ),
-              ],
-            ),
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      CircleAvatar(
-                        radius: 22,
-                        backgroundColor: statusColor.withValues(alpha: 0.15),
-                        child: Icon(
-                          Icons.account_balance_wallet,
-                          color: statusColor,
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              fullName,
-                              style: const TextStyle(
-                                fontSize: 15,
-                                fontWeight: FontWeight.w700,
-                              ),
-                            ),
-                            const SizedBox(height: 6),
-                            Text(
-                              '',
-                              style: const TextStyle(
-                                color: _kTextSub,
-                                fontSize: 12,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 10,
-                          vertical: 6,
-                        ),
-                        decoration: BoxDecoration(
-                          color: statusColor.withValues(alpha: 0.15),
-                          borderRadius: BorderRadius.circular(999),
-                        ),
-                        child: Text(
-                          status.toUpperCase(),
-                          style: TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w700,
-                            color: statusColor,
-                          ),
-                        ),
-                      ),
-                    ],
+              return DataRow(
+                cells: [
+                  DataCell(Text(fullName)),
+                  DataCell(Text('₱$amount')),
+                  DataCell(
+                    Text(
+                      status.toUpperCase(),
+                      style: TextStyle(color: _getStatusColor(status)),
+                    ),
                   ),
-                  const SizedBox(height: 14),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: _infoRow(label: 'Amount', value: '₱$amount'),
-                      ),
-                      Expanded(
-                        child: _infoRow(
-                          label: 'Date Approved',
-                          value: _formatDate(createdAt),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 14),
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton.icon(
+                  DataCell(Text(_formatDate(createdAt))),
+                  DataCell(
+                    ElevatedButton.icon(
                       onPressed: _updating || status.toLowerCase() == 'paid'
                           ? null
                           : () => _confirmMarkPaid(payment['id'].toString()),
@@ -493,21 +423,13 @@ class _MembershipPageState extends State<MembershipPage> {
                             ? 'Paid'
                             : 'Mark as Paid',
                       ),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF0D47A1),
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(vertical: 12),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(14),
-                        ),
-                      ),
                     ),
                   ),
                 ],
-              ),
-            ),
-          );
-        },
+              );
+            }).toList(),
+          ),
+        ],
       ),
     );
   }

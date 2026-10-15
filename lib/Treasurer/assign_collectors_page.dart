@@ -1,4 +1,5 @@
 import 'package:capstone_app/shared/collectors_manage_page.dart';
+import 'package:capstone_app/widgets/record_data_table.dart';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -321,7 +322,7 @@ class _AssignCollectorsPageState extends State<AssignCollectorsPage> {
                         ),
                       )
                     else
-                      ..._filteredMembers.map(_memberTile),
+                      _memberTable(_filteredMembers),
                   ],
                 ),
               ),
@@ -556,74 +557,77 @@ class _AssignCollectorsPageState extends State<AssignCollectorsPage> {
     );
   }
 
-  Widget _memberTile(Map<String, dynamic> member) {
-    final collectorId = (member['assigned_collector'] ?? '').toString();
-    final collectorName = collectorId.isNotEmpty
-        ? _collectors
-                  .firstWhere(
-                    (collector) =>
-                        (collector['collectors_id'] ?? '').toString() ==
-                        collectorId,
-                    orElse: () => <String, dynamic>{},
-                  )['full_name']
-                  ?.toString() ??
-              'Collector'
-        : 'Unassigned';
+  Widget _memberTable(List<Map<String, dynamic>> members) {
+    String assignedCollectorName(Map<String, dynamic> member) {
+      final collectorId = (member['assigned_collector'] ?? '').toString();
+      if (collectorId.isEmpty) return 'Unassigned';
+      return _collectors
+              .firstWhere(
+                (collector) =>
+                    (collector['collectors_id'] ?? '').toString() ==
+                    collectorId,
+                orElse: () => <String, dynamic>{},
+              )['full_name']
+              ?.toString() ??
+          'Collector';
+    }
 
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.grey.shade200),
-      ),
-      child: ListTile(
-        onTap: () => _showCollectorSelection(member),
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        leading: CircleAvatar(
-          radius: 24,
-          backgroundImage: (member['profile_url'] ?? '').toString().isNotEmpty
-              ? NetworkImage(member['profile_url'] as String)
-              : null,
-          backgroundColor: const Color(0xFF0D47A1).withValues(alpha: 0.12),
-          child: (member['profile_url'] ?? '').toString().isEmpty
-              ? Text(
-                  member['full_name']?.toString().isNotEmpty == true
-                      ? member['full_name'][0].toUpperCase()
-                      : 'M',
-                  style: const TextStyle(
-                    color: Color(0xFF0D47A1),
-                    fontWeight: FontWeight.bold,
+    return RecordDataTable(
+      minWidth: 560,
+      columns: const [
+        DataColumn(label: Text('Member')),
+        DataColumn(label: Text('Assigned collector')),
+        DataColumn(label: Text('Action')),
+      ],
+      rows: members.map((member) {
+        final fullName = member['full_name']?.toString() ?? 'Member';
+        final profileUrl = (member['profile_url'] ?? '').toString();
+        return DataRow(
+          cells: [
+            DataCell(
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  CircleAvatar(
+                    radius: 18,
+                    backgroundImage: profileUrl.isNotEmpty
+                        ? NetworkImage(profileUrl)
+                        : null,
+                    backgroundColor: const Color(
+                      0xFF0D47A1,
+                    ).withValues(alpha: 0.12),
+                    child: profileUrl.isEmpty
+                        ? Text(
+                            fullName.isNotEmpty
+                                ? fullName[0].toUpperCase()
+                                : 'M',
+                            style: const TextStyle(
+                              color: Color(0xFF0D47A1),
+                              fontWeight: FontWeight.bold,
+                            ),
+                          )
+                        : null,
                   ),
-                )
-              : null,
-        ),
-        title: Text(
-          member['full_name']?.toString() ?? 'Member',
-          style: const TextStyle(fontWeight: FontWeight.w700),
-        ),
-        subtitle: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const SizedBox(height: 2),
-            Text(
-              'Collector: $collectorName',
-              style: const TextStyle(color: Color(0xFF6B7280)),
+                  const SizedBox(width: 10),
+                  Flexible(child: Text(fullName)),
+                ],
+              ),
+              onTap: () => _showCollectorSelection(member),
+            ),
+            DataCell(Text(assignedCollectorName(member))),
+            DataCell(
+              ElevatedButton(
+                onPressed: () => _showCollectorSelection(member),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF0D47A1),
+                  foregroundColor: Colors.white,
+                ),
+                child: const Text('Assign'),
+              ),
             ),
           ],
-        ),
-        trailing: ElevatedButton(
-          onPressed: () => _showCollectorSelection(member),
-          style: ElevatedButton.styleFrom(
-            backgroundColor: const Color(0xFF0D47A1),
-            foregroundColor: Colors.white,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(10),
-            ),
-          ),
-          child: const Text('Assign'),
-        ),
-      ),
+        );
+      }).toList(),
     );
   }
 }

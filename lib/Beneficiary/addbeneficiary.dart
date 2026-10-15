@@ -1066,7 +1066,7 @@ class _AddBeneficiaryPageState extends State<AddBeneficiaryPage> {
                                 ),
                                 decoration: _dec(
                                   'Full Name',
-                                  hint: 'e.g., Yanashii Mikasa',
+                                  hint: 'e.g., Juan Dela Cruz',
                                   icon: Icons.badge_outlined,
                                 ),
                                 validator: (v) =>

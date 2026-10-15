@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:capstone_app/Secretary/secretary_ui.dart';
 import 'package:capstone_app/utils/supabase_storage.dart';
 import 'package:capstone_app/utils/input_safety.dart';
+import 'package:capstone_app/widgets/record_data_table.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -390,236 +391,141 @@ class _CreateDeathNoticePageState extends State<CreateDeathNoticePage> {
                           ),
                         ],
                       )
-                    : ListView.builder(
+                    : ListView(
                         padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
-                        itemCount: filteredClaims.length + 1,
-                        itemBuilder: (_, i) {
-                          if (i == 0) {
-                            return Padding(
-                              padding: const EdgeInsets.only(bottom: 14),
-                              child: _buildToolbarCard(filteredClaims.length),
-                            );
-                          }
+                        children: [
+                          Padding(
+                            padding: const EdgeInsets.only(bottom: 14),
+                            child: _buildToolbarCard(filteredClaims.length),
+                          ),
+                          RecordDataTable(
+                            minWidth: 1320,
+                            columns: const [
+                              DataColumn(label: Text('Name')),
+                              DataColumn(label: Text('Claim type')),
+                              DataColumn(label: Text('Submitted')),
+                              DataColumn(label: Text('Date of birth')),
+                              DataColumn(label: Text('Date of death')),
+                              DataColumn(label: Text('Age')),
+                              DataColumn(label: Text('Death certificate')),
+                              DataColumn(label: Text('Action')),
+                            ],
+                            rows: filteredClaims.map((c) {
+                              final claimKey = _claimKey(c);
+                              final isSubmitting =
+                                  _submittingClaimKey == claimKey;
+                              final isBeneficiary = c['beneficiary_id'] != null;
+                              final deceased = isBeneficiary
+                                  ? c['beneficiaries']
+                                  : c['users'];
+                              final name = deceased?['full_name'] ?? '';
+                              final dob = deceased?['dob'];
+                              final dod = c['date_of_death'];
+                              final deathCert = c['death_certificate_url'];
+                              final age = (dob != null && dod != null)
+                                  ? _calculateAge(
+                                      DateTime.parse(dob),
+                                      DateTime.parse(dod),
+                                    )
+                                  : null;
+                              final submitted = _formatDate(
+                                c['date_submitted'] ?? c['created_at'],
+                              );
+                              final tone = isBeneficiary
+                                  ? const Color(0xFF7C3AED)
+                                  : kPrimary;
 
-                          final c = filteredClaims[i - 1];
-                          final claimKey = _claimKey(c);
-                          final isSubmitting = _submittingClaimKey == claimKey;
-                          final isBeneficiary = c['beneficiary_id'] != null;
-                          final deceased = isBeneficiary
-                              ? c['beneficiaries']
-                              : c['users'];
-                          final name = deceased?['full_name'] ?? '';
-                          final dob = deceased?['dob'];
-                          final dod = c['date_of_death'];
-                          final deathCert = c['death_certificate_url'];
-                          final age = (dob != null && dod != null)
-                              ? _calculateAge(
-                                  DateTime.parse(dob),
-                                  DateTime.parse(dod),
-                                )
-                              : null;
-                          final submitted = _formatDate(
-                            c['date_submitted'] ?? c['created_at'],
-                          );
-                          final tone = isBeneficiary
-                              ? const Color(0xFF7C3AED)
-                              : kPrimary;
-
-                          return Container(
-                            margin: const EdgeInsets.only(bottom: 14),
-                            padding: const EdgeInsets.all(18),
-                            decoration: BoxDecoration(
-                              color: kCardBg,
-                              borderRadius: BorderRadius.circular(18),
-                              border: Border.all(
-                                color: kPrimary.withValues(alpha: 0.08),
-                              ),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: Colors.black.withValues(alpha: 0.05),
-                                  blurRadius: 14,
-                                  offset: const Offset(0, 6),
-                                ),
-                              ],
-                            ),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Row(
-                                  children: [
-                                    CircleAvatar(
-                                      radius: 24,
-                                      backgroundColor: tone.withValues(
-                                        alpha: 0.12,
-                                      ),
-                                      child: Icon(
-                                        Icons.person_rounded,
-                                        color: tone,
-                                      ),
-                                    ),
-                                    const SizedBox(width: 12),
-                                    Expanded(
-                                      child: Column(
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.start,
-                                        children: [
-                                          Text(
-                                            name,
-                                            style: const TextStyle(
-                                              fontWeight: FontWeight.w800,
-                                              fontSize: 18,
-                                              color: kPrimaryDark,
-                                              fontFamily: 'Montserrat',
-                                            ),
-                                          ),
-                                          const SizedBox(height: 4),
-                                          Text(
-                                            'Submitted: $submitted',
-                                            style: const TextStyle(
-                                              fontSize: 12,
-                                              color: kSubText,
-                                              fontWeight: FontWeight.w600,
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                    Container(
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 10,
-                                        vertical: 6,
-                                      ),
-                                      decoration: BoxDecoration(
-                                        color: tone.withValues(alpha: 0.1),
-                                        borderRadius: BorderRadius.circular(
-                                          999,
-                                        ),
-                                      ),
+                              return DataRow(
+                                cells: [
+                                  DataCell(
+                                    SizedBox(
+                                      width: 190,
                                       child: Text(
-                                        isBeneficiary
-                                            ? 'Beneficiary'
-                                            : 'Member',
-                                        style: TextStyle(
-                                          color: tone,
+                                        name,
+                                        style: const TextStyle(
                                           fontWeight: FontWeight.w700,
-                                          fontSize: 12,
+                                          color: kPrimaryDark,
                                         ),
                                       ),
                                     ),
-                                  ],
-                                ),
-                                const SizedBox(height: 14),
-                                Wrap(
-                                  spacing: 10,
-                                  runSpacing: 10,
-                                  children: [
-                                    _infoPill(
-                                      Icons.cake_rounded,
-                                      'DOB: ${_formatDate(dob)}',
-                                    ),
-                                    _infoPill(
-                                      Icons.event_rounded,
-                                      'Date of Death: ${_formatDate(dod)}',
-                                    ),
-                                    if (age != null)
-                                      _infoPill(
-                                        Icons.badge_rounded,
-                                        'Age : $age',
+                                  ),
+                                  DataCell(
+                                    Text(
+                                      isBeneficiary ? 'Beneficiary' : 'Member',
+                                      style: TextStyle(
+                                        color: tone,
+                                        fontWeight: FontWeight.w700,
                                       ),
-                                  ],
-                                ),
-                                if (deathCert != null &&
-                                    deathCert.toString().isNotEmpty) ...[
-                                  const SizedBox(height: 12),
-                                  TextButton.icon(
-                                    icon: const Icon(
-                                      Icons.picture_as_pdf_rounded,
-                                      size: 18,
                                     ),
-                                    label: const Text('View death certificate'),
-                                    onPressed: () async {
-                                      final messenger = ScaffoldMessenger.of(
-                                        context,
-                                      );
-                                      final url =
-                                          await resolveSupabaseStorageUrl(
-                                            deathCert.toString(),
-                                            client: supabase,
-                                          );
-                                      if (!mounted) return;
-                                      if (url == null) {
-                                        messenger.showSnackBar(
-                                          const SnackBar(
-                                            content: Text(
-                                              'Could not open file.',
+                                  ),
+                                  DataCell(Text(submitted)),
+                                  DataCell(Text(_formatDate(dob))),
+                                  DataCell(Text(_formatDate(dod))),
+                                  DataCell(Text(age?.toString() ?? '—')),
+                                  DataCell(
+                                    deathCert != null &&
+                                            deathCert.toString().isNotEmpty
+                                        ? TextButton.icon(
+                                            icon: const Icon(
+                                              Icons.picture_as_pdf_rounded,
+                                              size: 18,
                                             ),
-                                          ),
-                                        );
-                                        return;
-                                      }
-                                      final fileUri = Uri.parse(url);
-                                      if (await canLaunchUrl(fileUri)) {
-                                        await launchUrl(
-                                          fileUri,
-                                          mode: LaunchMode.externalApplication,
-                                        );
-                                      } else {
-                                        if (!mounted) return;
-                                        messenger.showSnackBar(
-                                          const SnackBar(
-                                            content: Text(
-                                              'Could not open file.',
+                                            label: const Text(
+                                              'View death certificate',
                                             ),
+                                            onPressed: () =>
+                                                _openDeathCertificate(
+                                                  deathCert,
+                                                ),
+                                            style: TextButton.styleFrom(
+                                              foregroundColor: kPrimaryDark,
+                                            ),
+                                          )
+                                        : const Text('—'),
+                                  ),
+                                  DataCell(
+                                    FilledButton.icon(
+                                      onPressed: isSubmitting
+                                          ? null
+                                          : () =>
+                                                _showAmountDialogAndSetDeceased(
+                                                  c,
+                                                ),
+                                      style: FilledButton.styleFrom(
+                                        backgroundColor: kPrimary,
+                                        foregroundColor: Colors.white,
+                                        minimumSize: const Size(190, 46),
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius: BorderRadius.circular(
+                                            12,
                                           ),
-                                        );
-                                      }
-                                    },
-                                    style: TextButton.styleFrom(
-                                      foregroundColor: kPrimaryDark,
+                                        ),
+                                      ),
+                                      icon: isSubmitting
+                                          ? const SizedBox(
+                                              width: 18,
+                                              height: 18,
+                                              child: CircularProgressIndicator(
+                                                strokeWidth: 2,
+                                                color: Colors.white,
+                                              ),
+                                            )
+                                          : const Icon(
+                                              Icons.check_circle_rounded,
+                                              size: 18,
+                                            ),
+                                      label: Text(
+                                        isSubmitting
+                                            ? 'Saving...'
+                                            : 'Create death notice',
+                                      ),
                                     ),
                                   ),
                                 ],
-                                const SizedBox(height: 14),
-                                SizedBox(
-                                  width: double.infinity,
-                                  child: FilledButton.icon(
-                                    onPressed: isSubmitting
-                                        ? null
-                                        : () => _showAmountDialogAndSetDeceased(
-                                            c,
-                                          ),
-                                    style: FilledButton.styleFrom(
-                                      backgroundColor: kPrimary,
-                                      foregroundColor: Colors.white,
-                                      minimumSize: const Size.fromHeight(46),
-                                      shape: RoundedRectangleBorder(
-                                        borderRadius: BorderRadius.circular(12),
-                                      ),
-                                    ),
-                                    icon: isSubmitting
-                                        ? const SizedBox(
-                                            width: 18,
-                                            height: 18,
-                                            child: CircularProgressIndicator(
-                                              strokeWidth: 2,
-                                              color: Colors.white,
-                                            ),
-                                          )
-                                        : const Icon(
-                                            Icons.check_circle_rounded,
-                                            size: 18,
-                                          ),
-                                    label: Text(
-                                      isSubmitting
-                                          ? 'Saving...'
-                                          : 'Create death notice',
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          );
-                        },
+                              );
+                            }).toList(),
+                          ),
+                        ],
                       ),
               ),
             ),
@@ -627,6 +533,30 @@ class _CreateDeathNoticePageState extends State<CreateDeathNoticePage> {
         ),
       ),
     );
+  }
+
+  Future<void> _openDeathCertificate(dynamic deathCert) async {
+    final messenger = ScaffoldMessenger.of(context);
+    final url = await resolveSupabaseStorageUrl(
+      deathCert.toString(),
+      client: supabase,
+    );
+    if (!mounted) return;
+    if (url == null) {
+      messenger.showSnackBar(
+        const SnackBar(content: Text('Could not open file.')),
+      );
+      return;
+    }
+    final fileUri = Uri.parse(url);
+    if (await canLaunchUrl(fileUri)) {
+      await launchUrl(fileUri, mode: LaunchMode.externalApplication);
+    } else {
+      if (!mounted) return;
+      messenger.showSnackBar(
+        const SnackBar(content: Text('Could not open file.')),
+      );
+    }
   }
 
   Widget _buildToolbarCard(int filteredCount) {
@@ -744,32 +674,6 @@ class _CreateDeathNoticePageState extends State<CreateDeathNoticePage> {
               fontWeight: FontWeight.w700,
               color: tone,
               fontFamily: 'Montserrat',
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _infoPill(IconData icon, String label) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      decoration: BoxDecoration(
-        color: const Color(0xFFF8FAFC),
-        borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: kPrimary.withValues(alpha: 0.08)),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 15, color: kPrimaryDark),
-          const SizedBox(width: 6),
-          Text(
-            label,
-            style: const TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.w700,
-              color: kNeutralText,
             ),
           ),
         ],
@@ -1189,8 +1093,7 @@ class _CreateDeathNoticePageState extends State<CreateDeathNoticePage> {
       final claimKey = _claimKey(claim);
       setState(() => _submittingClaimKey = claimKey);
       try {
-        final notice = await _setDeceased(claim);
-        final deathNoticeId = notice['id'];
+        await _setDeceased(claim);
 
         await supabase.from('set_amount').insert({
           'userdeceased': userId,
@@ -1237,7 +1140,7 @@ class _CreateDeathNoticePageState extends State<CreateDeathNoticePage> {
               (recipientId) => {
                 'user_id': recipientId,
                 'userdeceased': userId,
-                'beneficiary_id': beneficiaryId,          
+                'beneficiary_id': beneficiaryId,
                 'dayung_unit_id': widget.dayungUnitId,
                 'amount': result,
                 'status': 'unpaid',
@@ -1285,7 +1188,6 @@ Future<void> savePayment(Map<String, dynamic> paymentData) async {
   final userId = paymentData['user_id'];
   final userDeceasedId = paymentData['userdeceased'];
 
-  
   final existing = await supabase
       .from('payments')
       .select('id')
