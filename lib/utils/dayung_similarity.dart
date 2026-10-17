@@ -1,5 +1,7 @@
 import 'dart:math' as math;
 
+const double hybridAttributeMatchWeight = 0.25;
+
 class HybridScoreResult {
   const HybridScoreResult({
     required this.cosineSimilarity,
@@ -62,7 +64,8 @@ HybridScoreResult computeHybridScore(List<double> user, List<double> unit) {
 
   final boost = selectedCount == 0
       ? 1.0
-      : 1.0 + 0.25 * (matchedSelectedCount / selectedCount);
+      : 1.0 +
+            hybridAttributeMatchWeight * (matchedSelectedCount / selectedCount);
 
   return HybridScoreResult(
     cosineSimilarity: cosine,

@@ -2,17 +2,16 @@
 
 import 'dart:math';
 
-import 'package:capstone_app/profile/dayung_profile.dart';
 import 'package:capstone_app/screens/dayung_map_page.dart';
 import 'package:capstone_app/Providers/role_router.dart';
-import 'package:capstone_app/utils/dayung_recommendations.dart';
 import 'package:capstone_app/utils/dayung_service_tags.dart';
+import 'package:capstone_app/utils/dayung_similarity.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart' as ll;
 import 'package:maplibre_gl/maplibre_gl.dart' as ml;
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/foundation.dart' show kDebugMode, kIsWeb;
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 
@@ -54,7 +53,6 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
   List<dynamic> suggestedUnits = [];
   bool isLoading = false;
   bool isSubmitting = false;
-  int _suggestionRequestId = 0;
   final Map<String, bool> selectedServiceTags = {};
 
   double? userLat; // <-- Set this to the user's latitude
@@ -79,14 +77,13 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
 
   // Ang mosunod nga function nag-encode sa user preferences ngadto sa binary vector.
   // Gigamit kini para sa cosine similarity matching sa Dayung units.
-  /* 37 positions
+  /* 28 positions
 3 for meeting frequency
 3 for payment method
 7 for registration fee
 7 for membership payment
 7 for penalty payment
-1 for open for all
-9 for support services*/
+1 for open for all*/
 
   List<double> _generatePreferenceVector() {
     // Meeting Frequency (3 positions)
@@ -147,8 +144,110 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
     ];
   }
 
+  /// Nag-compute sa cosine similarity tali sa user preference vector `u`
+  /// ug sa Dayung unit vector `d`.
+  ///
+  /// Formula:
+  /// cosine_similarity(U, D) = (U ⋅ D) / (||U|| * ||D||)
+  ///
+  /// Asa:
+  /// - U ⋅ D mao ang dot product sa duha ka vectors
+  /// - ||U|| ug ||D|| mao ang magnitudes (gitas-on) sa vectors
+  ///
+  /// Ang resulta kay gikan -1 hangtod 1:
+  /// - 1 → parehas kaayo (dako og similarity)
+  /// - 0 → walay kalabotan
+  /// - -1 → supak kaayo (opposite)
+  ///
+  /// Gigamit kini para i-ranggo ang Dayung units base sa kaparehas sa user preferences.
+  double cosineSimilarity(List<double> u, List<double> d) {
+    if (u.length != d.length || u.isEmpty) return 0.0;
+    double dot = 0, magU = 0, magD = 0;
+    for (int i = 0; i < u.length; i++) {
+      dot += u[i] * d[i];
+      magU += u[i] * u[i];
+      magD += d[i] * d[i];
+    }
+    const eps = 1e-10;
+    if (magU < eps || magD < eps) return 0.0;
+    return dot / (sqrt(magU) * sqrt(magD));
+  }
+
+  // Helper function para maghimo og vector gikan sa dayung_rules row.
+  // Gigamit kini para sa local similarity matching.
+  List<double> _buildRuleVector(Map<String, dynamic> m) {
+    String norm(Object? s) {
+      if (s == null) return '';
+      if (s is bool) return s ? 'yes' : 'no';
+      return s.toString().trim().toLowerCase();
+    }
+
+    // Meeting Frequency (3 positions)
+    final meet = norm(m['meeting_frequency']);
+    double meetWeekly = meet == 'weekly' ? 1.0 : 0.0;
+    double meetMonthly = meet == 'monthly' ? 1.0 : 0.0;
+    double meetNeeded = meet == 'needed' ? 1.0 : 0.0;
+
+    // Payment Method (3 positions)
+    final pay = norm(m['payment_method']);
+    double payCash = pay == 'cash' ? 1.0 : 0.0;
+    double payGcash = pay == 'gcash' ? 1.0 : 0.0;
+    double payBoth = pay == 'both' ? 1.0 : 0.0;
+
+    List<String> feeRanges = [
+      '50-100',
+      '100-150',
+      '150-200',
+      '200-250',
+      '250-300',
+      '300-350',
+      '400 plus',
+    ];
+    List<double> regFee = List.filled(feeRanges.length, 0.0);
+    for (int i = 0; i < feeRanges.length; i++) {
+      if (norm(m['collection_fee_range']) == feeRanges[i]) regFee[i] = 1.0;
+    }
+
+    // Membership Payment (same buckets)
+    List<double> memFee = List.filled(feeRanges.length, 0.0);
+    for (int i = 0; i < feeRanges.length; i++) {
+      if (norm(m['membership_payment']) == feeRanges[i]) memFee[i] = 1.0;
+    }
+
+    // Penalty Payment (same buckets)
+    List<double> penFee = List.filled(feeRanges.length, 0.0);
+    for (int i = 0; i < feeRanges.length; i++) {
+      if (norm(m['penalty_payment']) == feeRanges[i]) penFee[i] = 1.0;
+    }
+
+    // Open For All (1 position)
+    double openAll = norm(m['open_for_all']) == 'yes' ? 1.0 : 0.0;
+
+    final serviceTagVector = dayungServiceTagLabels.map((label) {
+      final column = dayungServiceTagColumns[label]!;
+      final value = m[column];
+      return value == true ? 1.0 : 0.0;
+    }).toList();
+
+    return [
+      meetWeekly,
+      meetMonthly,
+      meetNeeded,
+      payCash,
+      payGcash,
+      payBoth,
+      ...regFee,
+      ...memFee,
+      ...penFee,
+      openAll,
+      ...serviceTagVector,
+    ];
+  }
+
+  // Kini nga function mopangita og Dayung units, maghimo sa ilang vectors,
+  // ug mosort base sa cosine similarity sa user preference vector.
+  // Dinhi gyud mahitabo ang matching ug ranking.
   Future<void> _fetchSuggestionsLocal() async {
-    final requestId = ++_suggestionRequestId;
     debugPrint(
       'DEBUG: User "${widget.userId}" (role: ${widget.role}) is searching for Dayung rules',
     );
@@ -158,23 +257,58 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
       debugPrint(
         'DEBUG: User Preference Vector len=${userVector.length}: $userVector',
       );
-      final matches = await DayungRecommendationService.matchPreferenceVector(
-        Supabase.instance.client,
-        preferenceVector: userVector,
-        similarityThreshold: 0.3,
-      );
-      if (!mounted || requestId != _suggestionRequestId) return;
-      setState(() => suggestedUnits = matches);
+
+      // Fetch rules joined with unit info for location
+      final resp = await Supabase.instance.client
+          .from('dayung_rules')
+          .select(
+            'id,dayung_unit_id,dayung_unit_name,meeting_frequency,collection_fee_range,membership_payment,penalty_payment,payment_method,open_for_all,${dayungServiceTagLabels.map((label) => dayungServiceTagColumns[label]!).join(',')},'
+            'dayung_units(latitude,longitude,barangay,city,province)',
+          );
+
+      final rules = <Map<String, dynamic>>[];
+      for (final raw in resp) {
+        final m = Map<String, dynamic>.from(raw as Map);
+
+        // Merge unit info for location
+        final unit = m['dayung_units'];
+        if (unit is Map) {
+          m['latitude'] = unit['latitude'];
+          m['longitude'] = unit['longitude'];
+          m['barangay'] = unit['barangay'];
+          m['city'] = unit['city'];
+          m['province'] = unit['province'];
+        }
+
+        // Build vector from rule columns
+        m['__parsedVector'] = _buildRuleVector(m);
+
+        final unitId = m['dayung_unit_id'] ?? m['id'];
+        debugPrint('DEBUG: Unit ID:$unitId Vector: ${m['__parsedVector']}');
+
+        rules.add(m);
+      }
+
+      // Sort by similarity * attribute match boost
+      // Dinhi gigamit ang cosine similarity ug ang attributeMatchBoost para i-ranggo ang Dayung units.
+      // Ang resulta kay mas taas ang score sa units nga daghan og exact match sa gipili sa user.
+      rules.sort((a, b) {
+        final va = (a['__parsedVector'] as List<double>? ?? const []);
+        final vb = (b['__parsedVector'] as List<double>? ?? const []);
+        final hybridA = computeHybridScore(userVector, va);
+        final hybridB = computeHybridScore(userVector, vb);
+        return hybridB.finalScore.compareTo(hybridA.finalScore);
+      });
+
+      setState(() => suggestedUnits = rules);
     } catch (e) {
       debugPrint('DEBUG: Local fetch error: $e');
-      if (!mounted || requestId != _suggestionRequestId) return;
+      if (!mounted) return;
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text('Local similarity error: $e')));
     } finally {
-      if (mounted && requestId == _suggestionRequestId) {
-        setState(() => isLoading = false);
-      }
+      if (mounted) setState(() => isLoading = false);
     }
   }
 
@@ -262,7 +396,6 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
           selectedServiceTags[label] = resp[column] == true;
         }
       });
-      await _fetchSuggestions();
     } catch (e) {
       debugPrint('Failed to load saved service preferences: $e');
     }
@@ -460,14 +593,44 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
     return R * c;
   }
 
-  List<dynamic> _rankPassingUnits(List<dynamic> units) {
+  // Helper function para sa attribute match boost
+  // Kini nga function nag-compute og "boost" score base sa pila ka user-selected features (1s sa user vector)
+  // nga nag-match pud sa Dayung unit vector. Gigamit ang formula:
+  // AttributeMatch(U, D) = 1 + λ * (#matched_selected / #selected)
+  // Asa:
+  // - #matched_selected = pila ka features nga 1 sa user vector ug 1 pud sa unit vector (nagmatch)
+  // - #selected = total nga 1s sa user vector (user-selected features)
+  // - λ = boost factor (default 0.25)
+  // Ang resulta kay gamultiply sa cosine similarity score para mahatagan og extra weight ang units nga daghan og exact match sa gipili sa user.
+  double attributeMatchBoost(
+    List<double> user,
+    List<double> unit, {
+    double lambda = 0.25,
+  }) {
+    int selected = 0;
+    int matched = 0;
+    for (int i = 0; i < user.length; i++) {
+      if (user[i] == 1.0) {
+        selected++;
+        if (unit[i] == 1.0) matched++;
+      }
+    }
+    if (selected == 0) return 1.0;
+    return 1.0 + lambda * (matched / selected);
+  }
+
+  List<dynamic> _rankPassingUnits(
+    List<dynamic> units,
+    List<double> userVector,
+  ) {
     const double similarityThreshold = 0.300;
     final eligible = <Map<String, dynamic>>[];
+    final rejected = <Map<String, dynamic>>[];
 
     for (final unit in units) {
-      final score = (unit['__score'] as num?)?.toDouble() ?? 0.0;
-      if (score < similarityThreshold) continue;
-
+      final unitVector =
+          (unit['__parsedVector'] as List<double>? ?? const <double>[]);
+      final hybrid = computeHybridScore(userVector, unitVector);
       final lat = double.tryParse('${unit['latitude']}');
       final lng = double.tryParse('${unit['longitude']}');
       double? distanceKm;
@@ -475,23 +638,27 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
         distanceKm = _distanceKm(userLat!, userLng!, lat, lng);
       }
 
-      eligible.add({
+      final scoredUnit = {
         ...Map<String, dynamic>.from(unit as Map),
-        '__hybridScore': score,
+        '__unitVector': unitVector,
+        '__cosineSimilarity': hybrid.cosineSimilarity,
+        '__attributeMatchBoost': hybrid.attributeMatchBoost,
+        '__hybridScore': hybrid.finalScore,
         '__distanceKm': distanceKm,
-      });
+        '__matchedSelectedCount': hybrid.matchedSelectedCount,
+        '__selectedCount': hybrid.selectedCount,
+      };
+      if (hybrid.finalScore < similarityThreshold) {
+        rejected.add(scoredUnit);
+      } else {
+        eligible.add(scoredUnit);
+      }
     }
 
-    final nearEligible = selectedDistanceKm != null && selectedDistanceKm! > 0
-        ? eligible.where((unit) {
-            final distance = unit['__distanceKm'] as double?;
-            return distance != null && distance <= selectedDistanceKm!;
-          }).toList()
-        : <Map<String, dynamic>>[];
-
-    final rankedSource = nearEligible.isNotEmpty ? nearEligible : eligible;
-
-    rankedSource.sort((a, b) {
+    int compareByDistanceThenScore(
+      Map<String, dynamic> a,
+      Map<String, dynamic> b,
+    ) {
       final distanceA = (a['__distanceKm'] as num?)?.toDouble();
       final distanceB = (b['__distanceKm'] as num?)?.toDouble();
 
@@ -512,17 +679,165 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
       return (a['dayung_unit_name'] ?? a['id'] ?? '').toString().compareTo(
         (b['dayung_unit_name'] ?? b['id'] ?? '').toString(),
       );
-    });
+    }
 
-    return rankedSource.take(3).toList();
+    eligible.sort(compareByDistanceThenScore);
+    final nearEligible = selectedDistanceKm != null && selectedDistanceKm! > 0
+        ? eligible.where((unit) {
+            final distance = unit['__distanceKm'] as double?;
+            return distance != null && distance <= selectedDistanceKm!;
+          }).toList()
+        : <Map<String, dynamic>>[];
+
+    final rankedSource = nearEligible.isNotEmpty ? nearEligible : eligible;
+    final recommendations = rankedSource.take(3).toList();
+    _logRecommendationDebug(
+      userVector: userVector,
+      qualifiedUnits: eligible,
+      rejectedUnits: rejected,
+      rankedRecommendations: recommendations,
+      threshold: similarityThreshold,
+    );
+    return recommendations;
+  }
+
+  void _logRecommendationDebug({
+    required List<double> userVector,
+    required List<Map<String, dynamic>> qualifiedUnits,
+    required List<Map<String, dynamic>> rejectedUnits,
+    required List<Map<String, dynamic>> rankedRecommendations,
+    required double threshold,
+  }) {
+    if (!kDebugMode) return;
+
+    void logVector(String label, List<double> vector) {
+      debugPrint('$label (length: ${vector.length}):');
+      for (var start = 0; start < vector.length; start += 10) {
+        final end = min(start + 10, vector.length);
+        final positions = <String>[];
+        for (var index = start; index < end; index++) {
+          final value = vector[index] == vector[index].roundToDouble()
+              ? vector[index].toInt().toString()
+              : vector[index].toString();
+          positions.add('${index + 1}:$value');
+        }
+        debugPrint('  ${positions.join(', ')}');
+      }
+    }
+
+    String unitName(Map<String, dynamic> unit) =>
+        (unit['dayung_unit_name'] ?? 'Unnamed Unit').toString();
+    String unitId(Map<String, dynamic> unit) =>
+        '${unit['dayung_unit_id'] ?? unit['id'] ?? 'unknown'}';
+    String distanceText(Map<String, dynamic> unit) {
+      final distance = (unit['__distanceKm'] as num?)?.toDouble();
+      return distance == null
+          ? 'Distance unavailable'
+          : '${distance.toStringAsFixed(2)} km';
+    }
+
+    void logScoredUnit(Map<String, dynamic> unit, {required int rank}) {
+      debugPrint('$rank. ${unitName(unit)} (ID: ${unitId(unit)})');
+      debugPrint(
+        '  Cosine Similarity: '
+        '${(unit['__cosineSimilarity'] as num).toStringAsFixed(4)}',
+      );
+      debugPrint(
+        '  Matched Features: ${unit['__matchedSelectedCount']}/'
+        '${unit['__selectedCount']}',
+      );
+      debugPrint(
+        '  Attribute Match: '
+        '${(unit['__attributeMatchBoost'] as num).toStringAsFixed(4)}',
+      );
+      debugPrint(
+        '  Final Hybrid Score: '
+        '${(unit['__hybridScore'] as num).toStringAsFixed(4)}',
+      );
+      debugPrint('  Distance: ${distanceText(unit)}');
+      debugPrint('  Status: PASS');
+      logVector('  Feature Vector', unit['__unitVector'] as List<double>);
+    }
+
+    debugPrint('========== DAYUNG RECOMMENDATION ==========');
+    debugPrint('Similarity Threshold: ${threshold.toStringAsFixed(4)}');
+    debugPrint('Feature Enhancement Weight: $hybridAttributeMatchWeight');
+    debugPrint('Expected Vector Length: 37');
+    logVector('USER PREFERENCE VECTOR', userVector);
+
+    debugPrint('QUALIFIED DAYUNG UNITS (${qualifiedUnits.length}):');
+    if (qualifiedUnits.isEmpty) debugPrint('  None');
+    final inDistancePreference =
+        selectedDistanceKm != null &&
+        selectedDistanceKm! > 0 &&
+        qualifiedUnits.any((unit) {
+          final distance = unit['__distanceKm'] as double?;
+          return distance != null && distance <= selectedDistanceKm!;
+        });
+    for (var index = 0; index < qualifiedUnits.length; index++) {
+      final unit = qualifiedUnits[index];
+      logScoredUnit(unit, rank: index + 1);
+      final distance = unit['__distanceKm'] as double?;
+      if (inDistancePreference &&
+          (distance == null || distance > selectedDistanceKm!)) {
+        debugPrint(
+          '  Final Recommendation Status: PASS, omitted by distance preference',
+        );
+      }
+    }
+
+    debugPrint('REJECTED DAYUNG UNITS (${rejectedUnits.length}):');
+    if (rejectedUnits.isEmpty) debugPrint('  None');
+    for (final unit in rejectedUnits) {
+      debugPrint('- ${unitName(unit)} (ID: ${unitId(unit)})');
+      debugPrint(
+        '  Cosine Similarity: '
+        '${(unit['__cosineSimilarity'] as num).toStringAsFixed(4)}',
+      );
+      debugPrint(
+        '  Matched Features: ${unit['__matchedSelectedCount']}/'
+        '${unit['__selectedCount']}',
+      );
+      debugPrint(
+        '  Attribute Match: '
+        '${(unit['__attributeMatchBoost'] as num).toStringAsFixed(4)}',
+      );
+      debugPrint(
+        '  Final Hybrid Score: '
+        '${(unit['__hybridScore'] as num).toStringAsFixed(4)}',
+      );
+      debugPrint('  Threshold: ${threshold.toStringAsFixed(4)}');
+      debugPrint('  Distance: ${distanceText(unit)}');
+      debugPrint('  Status: REJECT');
+      debugPrint(
+        '  Reason: Final hybrid score is below the required threshold.',
+      );
+      logVector('  Feature Vector', unit['__unitVector'] as List<double>);
+    }
+
+    debugPrint('TOP ${rankedRecommendations.length} RECOMMENDATIONS:');
+    if (rankedRecommendations.isEmpty) {
+      debugPrint('  No Dayung units qualified for recommendation.');
+    }
+    for (var index = 0; index < rankedRecommendations.length; index++) {
+      final unit = rankedRecommendations[index];
+      debugPrint('Rank ${index + 1}: ${unitName(unit)}');
+      debugPrint(
+        '  Final Hybrid Score: '
+        '${(unit['__hybridScore'] as num).toStringAsFixed(4)}',
+      );
+      debugPrint('  Distance: ${distanceText(unit)}');
+    }
+    debugPrint('=================================================');
   }
 
   Widget _buildBody(BuildContext context, bool isWide) {
-    if (isLoading && suggestedUnits.isEmpty) {
+    if (isLoading) {
       return const Center(child: CircularProgressIndicator(color: kPrimary));
     }
 
-    final filteredUnits = _rankPassingUnits(suggestedUnits);
+    final userVector = _generatePreferenceVector();
+    final filteredUnits = _rankPassingUnits(suggestedUnits, userVector);
 
     return RefreshIndicator(
       onRefresh: () async => _fetchSuggestions(),
@@ -546,19 +861,13 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
                       label: 'Meeting Frequency',
                       items: ['Weekly', 'Monthly', 'Needed'],
                       value: meeting_frequency,
-                      onChanged: (v) {
-                        setState(() => meeting_frequency = v);
-                        _fetchSuggestions();
-                      },
+                      onChanged: (v) => setState(() => meeting_frequency = v),
                     ),
                     _buildDropdown(
                       label: 'Payment Method',
                       items: ['Cash', 'GCash', 'Both'],
                       value: payment_method,
-                      onChanged: (v) {
-                        setState(() => payment_method = v);
-                        _fetchSuggestions();
-                      },
+                      onChanged: (v) => setState(() => payment_method = v),
                     ),
                     _buildDropdown(
                       label: 'Collection Fee',
@@ -572,10 +881,7 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
                         '400 plus',
                       ],
                       value: contribution_amount,
-                      onChanged: (v) {
-                        setState(() => contribution_amount = v);
-                        _fetchSuggestions();
-                      },
+                      onChanged: (v) => setState(() => contribution_amount = v),
                     ),
                     _buildDropdown(
                       label: 'Membership Payment',
@@ -589,10 +895,7 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
                         '400 plus',
                       ],
                       value: membership_payment,
-                      onChanged: (v) {
-                        setState(() => membership_payment = v);
-                        _fetchSuggestions();
-                      },
+                      onChanged: (v) => setState(() => membership_payment = v),
                     ),
                     _buildDropdown(
                       label: 'Penalty Payment',
@@ -606,19 +909,13 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
                         '400 plus',
                       ],
                       value: penalty_payment,
-                      onChanged: (v) {
-                        setState(() => penalty_payment = v);
-                        _fetchSuggestions();
-                      },
+                      onChanged: (v) => setState(() => penalty_payment = v),
                     ),
                     _buildDropdown(
                       label: 'Open for All',
                       items: ['Yes', 'No'],
                       value: openForAll,
-                      onChanged: (v) {
-                        setState(() => openForAll = v);
-                        _fetchSuggestions();
-                      },
+                      onChanged: (v) => setState(() => openForAll = v),
                     ),
                     const SizedBox(height: 8),
                     Align(
@@ -657,7 +954,6 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
                             setState(() {
                               selectedServiceTags[label] = value;
                             });
-                            _fetchSuggestions();
                           },
                           side: const BorderSide(color: kBorderColor),
                           selectedColor: kPrimary.withValues(alpha: 0.16),
@@ -897,23 +1193,8 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
                       final navigator = Navigator.of(context);
                       await _savePreferences();
                       if (!mounted) return;
-                      Widget destination = const RoleRouter();
-                      final user = Supabase.instance.client.auth.currentUser;
-                      if (user != null) {
-                        try {
-                          final profile = await Supabase.instance.client
-                              .from('users')
-                              .select('dayung_unit_id')
-                              .eq('id', user.id)
-                              .maybeSingle();
-                          if (profile?['dayung_unit_id'] == null) {
-                            destination = const DayungSettingsPage();
-                          }
-                        } catch (_) {}
-                      }
-                      if (!mounted) return;
                       navigator.pushReplacement(
-                        MaterialPageRoute(builder: (_) => destination),
+                        MaterialPageRoute(builder: (_) => const RoleRouter()),
                       );
                     },
             ),
@@ -1041,7 +1322,7 @@ class DayungMapPreview extends StatelessWidget {
   EXPLANATION SA DEBUG OUTPUT:
 
   Pananglitan:
-  DEBUG: User Preference Vector len=37: [preference values, including 9 service-tag positions]
+  DEBUG: User Preference Vector len=28: [0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
   DEBUG: Unit ID:1 Similarity=0.632 Boost=1.250 Combined=0.791
 
   - Ang "User Preference Vector" nagpakita sa mga gipili sa user nga features (1 = gipili, 0 = wala).

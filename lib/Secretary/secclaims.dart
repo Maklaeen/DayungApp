@@ -1097,7 +1097,7 @@ class _SecretaryClaimsPageState extends State<SecretaryClaimsPage>
         final location = _claimLocation(claim) == null
             ? '—'
             : (claim['vigil_barangay'] ?? 'Location available').toString();
-        final onTap = () => _showDetail(claim);
+        void onTap() => _showDetail(claim);
 
         return DataRow(
           cells: [

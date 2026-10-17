@@ -119,8 +119,9 @@ class ReportsService {
         )
         .eq('status', 'paid')
         .eq('is_claimed', true);
-    if (unitId != null)
+    if (unitId != null) {
       paymentsQuery = paymentsQuery.eq('dayung_unit_id', unitId);
+    }
 
     final payments = List<Map<String, dynamic>>.from(await paymentsQuery);
     final activities = <Map<String, dynamic>>[];

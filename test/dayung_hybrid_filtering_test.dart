@@ -50,6 +50,21 @@ void main() {
       expect(scoreC.finalScore, closeTo(0.649518, 1e-5));
     });
 
+    test('scores 37-position vectors with the configured feature weight', () {
+      final userVector = List<double>.filled(37, 0.0)..[0] = 1.0;
+      final unitVector = List<double>.filled(37, 0.0)
+        ..[0] = 1.0
+        ..[1] = 1.0;
+
+      final score = computeHybridScore(userVector, unitVector);
+
+      expect(score.selectedCount, 1);
+      expect(score.matchedSelectedCount, 1);
+      expect(score.cosineSimilarity, closeTo(0.7071067811865475, 1e-12));
+      expect(score.attributeMatchBoost, 1 + hybridAttributeMatchWeight);
+      expect(score.finalScore, closeTo(0.8838834764831844, 1e-12));
+    });
+
     test('ranks passing recommendations by nearest distance first', () {
       final units = <Map<String, dynamic>>[
         {'id': 1, '__score': 0.75, '__km': 15.0, '__withinRadius': true},
