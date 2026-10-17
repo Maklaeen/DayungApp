@@ -1,5 +1,6 @@
 import 'package:capstone_app/ui/loading/page_skeleton.dart';
 import 'package:capstone_app/Secretary/secretary_ui.dart';
+import 'package:capstone_app/shared/president_secretary_member_reports.dart';
 import 'package:capstone_app/utils/theme_surface.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -161,6 +162,52 @@ class ReportsService {
     return activities;
   }
 
+  Future<Map<String, int>> fetchMemberActivitySummary({
+    required int unitId,
+  }) async {
+    final applications = await sb
+        .from('applications')
+        .select('user_id, status, isRemovedInDayung')
+        .eq('dayung_unit_id', unitId);
+    final applicationRows = List<Map<String, dynamic>>.from(applications);
+
+    final deathNotices = await sb
+        .from('death_notices')
+        .select('user_id, beneficiary_id, deceased_type')
+        .eq('dayung_unit_id', unitId);
+    final noticeRows = List<Map<String, dynamic>>.from(deathNotices);
+
+    final deceasedMembers = noticeRows
+        .where(
+          (row) =>
+              (row['deceased_type'] ?? 'member').toString().toLowerCase() ==
+              'member',
+        )
+        .map((row) => (row['user_id'] ?? '').toString())
+        .where((id) => id.isNotEmpty)
+        .toSet();
+    final deceasedBeneficiaries = noticeRows
+        .where(
+          (row) =>
+              (row['deceased_type'] ?? '').toString().toLowerCase() ==
+              'beneficiary',
+        )
+        .map((row) => (row['beneficiary_id'] ?? '').toString())
+        .where((id) => id.isNotEmpty)
+        .toSet();
+
+    return {
+      'added': applicationRows
+          .where((row) => (row['status'] ?? '').toString() == 'approved')
+          .length,
+      'removed': applicationRows
+          .where((row) => row['isRemovedInDayung'] == true)
+          .length,
+      'deceasedMembers': deceasedMembers.length,
+      'deceasedBeneficiaries': deceasedBeneficiaries.length,
+    };
+  }
+
   /// Number of new members each month
   Future<List<Map<String, dynamic>>> fetchNewMembersPerMonth({
     required int unitId,
@@ -281,6 +328,12 @@ class _ReportsPageState extends State<ReportsPage> {
   List<Map<String, dynamic>> moneyCollected = [];
   List<Map<String, dynamic>> newMembers = [];
   List<Map<String, dynamic>> disbursementActivities = [];
+  Map<String, int> memberActivitySummary = const {
+    'added': 0,
+    'removed': 0,
+    'deceasedMembers': 0,
+    'deceasedBeneficiaries': 0,
+  };
   String? disbursementActivityError;
   bool loading = true;
   pw.ThemeData? _pdfTheme;
@@ -303,9 +356,13 @@ class _ReportsPageState extends State<ReportsPage> {
       final members = widget.unitId != null
           ? await service.fetchNewMembersPerMonth(unitId: widget.unitId!)
           : <Map<String, dynamic>>[];
+      final activitySummary = widget.unitId != null
+          ? await service.fetchMemberActivitySummary(unitId: widget.unitId!)
+          : memberActivitySummary;
       if (!mounted) return;
       setState(() {
         disbursementActivities = activities;
+        memberActivitySummary = activitySummary;
         disbursementActivityError = null;
         moneyCollected = collected;
         newMembers = members;
@@ -695,6 +752,26 @@ class _ReportsPageState extends State<ReportsPage> {
                                   maxWidth: contentMaxWidth,
                                 ),
                                 child: _buildExportButton(),
+                              ),
+                            ),
+                            const SizedBox(height: 16),
+                            Center(
+                              child: ConstrainedBox(
+                                constraints: const BoxConstraints(
+                                  maxWidth: contentMaxWidth,
+                                ),
+                                child: PresidentSecretaryMemberReports(
+                                  addedMembers:
+                                      memberActivitySummary['added'] ?? 0,
+                                  removedMembers:
+                                      memberActivitySummary['removed'] ?? 0,
+                                  deceasedMembers:
+                                      memberActivitySummary['deceasedMembers'] ??
+                                      0,
+                                  deceasedBeneficiaries:
+                                      memberActivitySummary['deceasedBeneficiaries'] ??
+                                      0,
+                                ),
                               ),
                             ),
                             const SizedBox(height: 16),

@@ -14,6 +14,7 @@ import 'package:capstone_app/President/presidentmemberspage.dart'
 import 'package:capstone_app/Providers/dayung_provider.dart';
 import 'package:capstone_app/Providers/dayung_role_provider.dart';
 import 'package:capstone_app/pages/recentdeathnotices.dart';
+import 'package:capstone_app/pages/reports.dart' as reports;
 import 'package:capstone_app/utils/theme_surface.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -1092,6 +1093,34 @@ class _PresidentDashboardPageState extends State<PresidentDashboardPage> {
                         builder: (_) => const SmsAnnouncementPage(),
                       ),
                     ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: SizedBox(
+                  height: actionCardHeight,
+                  child: _modernActionCard(
+                    icon: Icons.assessment_rounded,
+                    title: 'Reports',
+                    color: const Color(0xFF0D47A1),
+                    onTap: () {
+                      final unitId = _effectiveUnitId(context);
+                      if (unitId == null) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Select a Dayung first'),
+                          ),
+                        );
+                        return;
+                      }
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => reports.ReportsPage(unitId: unitId),
+                        ),
+                      );
+                    },
                   ),
                 ),
               ),

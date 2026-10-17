@@ -237,6 +237,16 @@ class _SecretaryApplicationsPageState extends State<SecretaryApplicationsPage> {
     return '${monthNames[date.month - 1]} ${date.day}, ${date.year}';
   }
 
+  String _formatRejectionDate(dynamic value) {
+    final date = DateTime.tryParse('${value ?? ''}')?.toLocal();
+    if (date == null) return 'Date unavailable';
+    final dateLabel = _formatAppliedDate(date);
+    final hour = date.hour % 12 == 0 ? 12 : date.hour % 12;
+    final minute = date.minute.toString().padLeft(2, '0');
+    final period = date.hour >= 12 ? 'PM' : 'AM';
+    return '$dateLabel • $hour:$minute $period';
+  }
+
   Widget _buildOverviewCard() {
     final statusTone = _statusColor(_filter);
     return Container(
@@ -856,7 +866,7 @@ class _SecretaryApplicationsPageState extends State<SecretaryApplicationsPage> {
           .from('applications')
           .select(
             // Include user_id so we can flag per user.
-            'id, user_id, status, applied_at, dayung_unit_id, users(id, full_name, email, profile_url)',
+            'id, user_id, status, applied_at, dayung_unit_id, rejection_reason, rejection_date, users(id, full_name, email, profile_url)',
           )
           .eq('dayung_unit_id', unitId); // single authoritative filter
 
@@ -1091,11 +1101,76 @@ class _SecretaryApplicationsPageState extends State<SecretaryApplicationsPage> {
   }
 
   Future<void> _reject(int applicationId) async {
+    final reasonController = TextEditingController();
+    var showValidationError = false;
+    final reason = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          icon: const Icon(Icons.cancel_outlined, color: kDanger),
+          title: const Text('Reject application?'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Add a reason so the applicant understands why the application was rejected.',
+              ),
+              const SizedBox(height: 14),
+              TextField(
+                controller: reasonController,
+                autofocus: true,
+                minLines: 3,
+                maxLines: 5,
+                maxLength: 500,
+                textCapitalization: TextCapitalization.sentences,
+                decoration: InputDecoration(
+                  labelText: 'Reason for rejection',
+                  hintText: 'Describe what needs to be corrected or provided.',
+                  errorText: showValidationError
+                      ? 'Please enter a rejection reason.'
+                      : null,
+                  border: const OutlineInputBorder(),
+                  alignLabelWithHint: true,
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () {
+                if (reasonController.text.trim().isEmpty) {
+                  setDialogState(() => showValidationError = true);
+                  return;
+                }
+                Navigator.pop(dialogContext, reasonController.text.trim());
+              },
+              style: FilledButton.styleFrom(backgroundColor: kDanger),
+              child: const Text('Reject application'),
+            ),
+          ],
+        ),
+      ),
+    );
+    reasonController.dispose();
+    if (reason == null || !mounted) return;
+
     try {
       await _supabase.rpc(
         'reject_application',
         params: {'p_application_id': applicationId},
       );
+      await _supabase
+          .from('applications')
+          .update({
+            'rejection_reason': reason,
+            'rejection_date': DateTime.now().toUtc().toIso8601String(),
+          })
+          .eq('id', applicationId);
       if (!mounted) return;
       ScaffoldMessenger.of(
         context,
@@ -1110,11 +1185,11 @@ class _SecretaryApplicationsPageState extends State<SecretaryApplicationsPage> {
           ),
         ),
       );
-    } catch (_) {
+    } catch (error) {
       if (!mounted) return;
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(const SnackBar(content: Text('Unexpected error')));
+      ).showSnackBar(SnackBar(content: Text('Reject failed: $error')));
     }
   }
 
@@ -1918,10 +1993,16 @@ class _SecretaryApplicationsPageState extends State<SecretaryApplicationsPage> {
                                         : 1100,
                                     dataRowMinHeight: 72,
                                     dataRowMaxHeight: 240,
-                                    columns: const [
+                                    columns: [
                                       DataColumn(label: Text('Applicant')),
                                       DataColumn(label: Text('Email')),
                                       DataColumn(label: Text('Applied')),
+                                      if (_filter == 'rejected') ...[
+                                        DataColumn(
+                                          label: Text('Rejection reason'),
+                                        ),
+                                        DataColumn(label: Text('Rejected on')),
+                                      ],
                                       DataColumn(label: Text('Status')),
                                       DataColumn(label: Text('Qualification')),
                                       DataColumn(label: Text('Actions')),
@@ -2024,6 +2105,20 @@ class _SecretaryApplicationsPageState extends State<SecretaryApplicationsPage> {
             'Applied',
             _formatAppliedDate(app['applied_at']),
           ),
+          if (status == 'rejected') ...[
+            const SizedBox(height: 6),
+            _applicationMobileDetail(
+              'Rejection reason',
+              (app['rejection_reason'] ?? '').toString().trim().isEmpty
+                  ? 'No reason recorded'
+                  : app['rejection_reason'].toString(),
+            ),
+            const SizedBox(height: 6),
+            _applicationMobileDetail(
+              'Rejected on',
+              _formatRejectionDate(app['rejection_date']),
+            ),
+          ],
           const SizedBox(height: 6),
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -2128,103 +2223,122 @@ class _SecretaryApplicationsPageState extends State<SecretaryApplicationsPage> {
     final dayungUnitId = app['dayung_unit_id'] as int;
     final applicationId = app['id'] as int;
 
-    return DataRow(
-      cells: [
-        DataCell(
-          Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              CircleAvatar(
-                radius: 18,
-                backgroundColor: statusTone.withValues(alpha: 0.1),
-                child: Text(
-                  userName.isNotEmpty ? userName[0].toUpperCase() : 'M',
-                  style: TextStyle(
-                    color: statusTone,
-                    fontWeight: FontWeight.w700,
-                  ),
+    final cells = <DataCell>[
+      DataCell(
+        Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            CircleAvatar(
+              radius: 18,
+              backgroundColor: statusTone.withValues(alpha: 0.1),
+              child: Text(
+                userName.isNotEmpty ? userName[0].toUpperCase() : 'M',
+                style: TextStyle(
+                  color: statusTone,
+                  fontWeight: FontWeight.w700,
                 ),
               ),
-              const SizedBox(width: 10),
-              Text(userName),
-            ],
-          ),
-        ),
-        DataCell(Text((user?['email'] ?? 'No email provided').toString())),
-        DataCell(Text(_formatAppliedDate(app['applied_at']))),
-        DataCell(
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-            decoration: BoxDecoration(
-              color: statusTone.withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(999),
             ),
+            const SizedBox(width: 10),
+            Text(userName),
+          ],
+        ),
+      ),
+      DataCell(Text((user?['email'] ?? 'No email provided').toString())),
+      DataCell(Text(_formatAppliedDate(app['applied_at']))),
+    ];
+    if (_filter == 'rejected') {
+      cells.addAll([
+        DataCell(
+          ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 280),
             child: Text(
-              _filterLabel,
-              style: TextStyle(
-                fontSize: 11,
-                fontWeight: FontWeight.w700,
-                color: statusTone,
-              ),
+              (app['rejection_reason'] ?? '').toString().trim().isEmpty
+                  ? 'No reason recorded'
+                  : app['rejection_reason'].toString(),
+              maxLines: 3,
+              overflow: TextOverflow.ellipsis,
             ),
           ),
         ),
-        DataCell(_qualificationStatus(userId, dayungUnitId)),
-        DataCell(
-          Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              FilledButton.icon(
-                onPressed: () => _openUserTracking(
-                  userId: userId,
-                  userName: userName,
-                  dayungUnitId: dayungUnitId,
-                  applicationId: applicationId,
+        DataCell(Text(_formatRejectionDate(app['rejection_date']))),
+      ]);
+    }
+    cells.addAll([
+      DataCell(
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+          decoration: BoxDecoration(
+            color: statusTone.withValues(alpha: 0.1),
+            borderRadius: BorderRadius.circular(999),
+          ),
+          child: Text(
+            _filterLabel,
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w700,
+              color: statusTone,
+            ),
+          ),
+        ),
+      ),
+      DataCell(_qualificationStatus(userId, dayungUnitId)),
+      DataCell(
+        Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            FilledButton.icon(
+              onPressed: () => _openUserTracking(
+                userId: userId,
+                userName: userName,
+                dayungUnitId: dayungUnitId,
+                applicationId: applicationId,
+              ),
+              icon: const Icon(Icons.visibility_rounded, size: 18),
+              label: Text(
+                status == 'pending' ? 'Review application' : 'View details',
+              ),
+              style: FilledButton.styleFrom(
+                backgroundColor: kPrimary,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 12,
                 ),
-                icon: const Icon(Icons.visibility_rounded, size: 18),
-                label: Text(
-                  status == 'pending' ? 'Review application' : 'View details',
-                ),
-                style: FilledButton.styleFrom(
-                  backgroundColor: kPrimary,
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 14,
-                    vertical: 12,
-                  ),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
                 ),
               ),
-              if (deceasedElsewhere) ...[
-                OutlinedButton.icon(
-                  icon: const Icon(Icons.info_outline),
-                  label: const Text('View deceased details'),
-                  onPressed: () => _openDeceasedDetails(userId),
-                ),
-                const Row(
-                  children: [
-                    Icon(Icons.warning_amber_rounded, size: 16, color: kDanger),
-                    SizedBox(width: 6),
-                    Flexible(
-                      child: Text(
-                        'This user is marked as deceased in another dayung.',
-                        style: TextStyle(
-                          color: kDanger,
-                          fontWeight: FontWeight.w700,
-                        ),
+            ),
+            if (deceasedElsewhere) ...[
+              OutlinedButton.icon(
+                icon: const Icon(Icons.info_outline),
+                label: const Text('View deceased details'),
+                onPressed: () => _openDeceasedDetails(userId),
+              ),
+              const Row(
+                children: [
+                  Icon(Icons.warning_amber_rounded, size: 16, color: kDanger),
+                  SizedBox(width: 6),
+                  Flexible(
+                    child: Text(
+                      'This user is marked as deceased in another dayung.',
+                      style: TextStyle(
+                        color: kDanger,
+                        fontWeight: FontWeight.w700,
                       ),
                     ),
-                  ],
-                ),
-              ],
+                  ),
+                ],
+              ),
             ],
-          ),
+          ],
         ),
-      ],
-    );
+      ),
+    ]);
+
+    return DataRow(cells: cells);
   }
 
   Widget _sheetDetailRow(IconData icon, String value) {

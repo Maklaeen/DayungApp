@@ -17,87 +17,139 @@ class PresidentSecretaryMemberReports extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      margin: const EdgeInsets.fromLTRB(20, 16, 20, 8),
+      padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: Colors.white,
-        border: Border.all(color: const Color(0xFF111827)),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: const Color(0xFFE5E7EB)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 14,
+            offset: const Offset(0, 5),
+          ),
+        ],
       ),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Padding(
-            padding: EdgeInsets.all(10),
-            child: Text(
-              'UPDATED SA MEMBERS REPORTS',
-              style: TextStyle(
-                fontFamily: 'Montserrat',
-                fontSize: 16,
-                fontWeight: FontWeight.w800,
-                color: Color(0xFF111827),
+          const Row(
+            children: [
+              Icon(Icons.groups_rounded, color: Color(0xFF1E40AF)),
+              SizedBox(width: 10),
+              Text(
+                'Membership Activity',
+                style: TextStyle(
+                  fontFamily: 'Montserrat',
+                  fontSize: 18,
+                  fontWeight: FontWeight.w800,
+                  color: Color(0xFF1E40AF),
+                ),
               ),
-            ),
+            ],
           ),
-          _reportRow('Members added', addedMembers.toString()),
-          _reportRow('Members removed', removedMembers.toString()),
-          _reportRow('Members who died', deceasedMembers.toString()),
-          _reportRow(
-            'Beneficiaries who died',
-            deceasedBeneficiaries.toString(),
-          ),
-          Container(
-            color: const Color(0xFFFFFF00),
-            padding: const EdgeInsets.all(8),
-            child: const Text(
-              'NOTES: SEPARATE ANG MAG CREATE UG ACCOUNT SA APP UG MAG APPLY UG MEMBERSHIP SA DAYUNG. SA PAG APPLY SA DAYUNG, DAPAT MALAGAY ANG LISTAHAN SA BENEFICIARY BAGO I-ACCEPT.',
-              style: TextStyle(
-                fontFamily: 'Montserrat',
-                fontSize: 11,
-                fontWeight: FontWeight.w700,
-                height: 1.25,
-                color: Color(0xFF111827),
-              ),
-            ),
+          const SizedBox(height: 16),
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final columns = constraints.maxWidth >= 760 ? 4 : 2;
+              final width =
+                  (constraints.maxWidth - (columns - 1) * 12) / columns;
+              return Wrap(
+                spacing: 12,
+                runSpacing: 12,
+                children: [
+                  _metric(
+                    width: width,
+                    label: 'Members added',
+                    value: addedMembers,
+                    icon: Icons.person_add_alt_1_rounded,
+                    color: const Color(0xFF059669),
+                  ),
+                  _metric(
+                    width: width,
+                    label: 'Members removed',
+                    value: removedMembers,
+                    icon: Icons.person_remove_alt_1_rounded,
+                    color: const Color(0xFFDC2626),
+                  ),
+                  _metric(
+                    width: width,
+                    label: 'Members deceased',
+                    value: deceasedMembers,
+                    icon: Icons.person_off_rounded,
+                    color: const Color(0xFF7C3AED),
+                  ),
+                  _metric(
+                    width: width,
+                    label: 'Beneficiaries deceased',
+                    value: deceasedBeneficiaries,
+                    icon: Icons.family_restroom_rounded,
+                    color: const Color(0xFFD97706),
+                  ),
+                ],
+              );
+            },
           ),
         ],
       ),
     );
   }
 
-  Widget _reportRow(String label, String value) {
-    return Row(
-      children: [
-        Expanded(
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-            child: Text(
-              label,
-              style: const TextStyle(
-                fontFamily: 'OpenSans',
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
-                color: Color(0xFF111827),
-              ),
+  Widget _metric({
+    required double width,
+    required String label,
+    required int value,
+    required IconData icon,
+    required Color color,
+  }) {
+    return Container(
+      width: width,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.06),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: color.withValues(alpha: 0.16)),
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(9),
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(11),
+            ),
+            child: Icon(icon, size: 19, color: color),
+          ),
+          const SizedBox(width: 11),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  '$value',
+                  style: TextStyle(
+                    color: color,
+                    fontSize: 22,
+                    fontWeight: FontWeight.w800,
+                    fontFamily: 'Montserrat',
+                  ),
+                ),
+                Text(
+                  label,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: Color(0xFF4B5563),
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    fontFamily: 'OpenSans',
+                  ),
+                ),
+              ],
             ),
           ),
-        ),
-        Container(
-          width: 72,
-          alignment: Alignment.center,
-          padding: const EdgeInsets.symmetric(vertical: 8),
-          decoration: const BoxDecoration(
-            border: Border(left: BorderSide(color: Color(0xFF111827))),
-          ),
-          child: Text(
-            value,
-            style: const TextStyle(
-              fontFamily: 'Montserrat',
-              fontSize: 13,
-              fontWeight: FontWeight.w800,
-              color: Color(0xFF111827),
-            ),
-          ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 }
