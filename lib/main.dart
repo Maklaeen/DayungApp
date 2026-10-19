@@ -7,7 +7,6 @@ import 'package:capstone_app/Secretary/dashboard.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'config/env.dart';
 import 'package:capstone_app/Auth/auth_redirects.dart';
-import 'package:capstone_app/Auth/idle_timeout_manage.dart';
 import 'package:capstone_app/Auth/password_recovery_page.dart';
 import 'package:capstone_app/Collector/dashboard.dart';
 import 'package:capstone_app/President/dashboard.dart';
@@ -523,68 +522,62 @@ class _MyAppState extends State<MyApp> {
 
   @override
   Widget build(BuildContext context) {
-    return Listener(
-      behavior: HitTestBehavior.translucent,
-      onPointerDown: (_) => IdleTimeoutManager().reset(),
-      onPointerMove: (_) => IdleTimeoutManager().reset(),
-      onPointerUp: (_) => IdleTimeoutManager().reset(),
-      child: MultiProvider(
-        providers: [
-          ChangeNotifierProvider.value(value: widget.appTheme),
-          ChangeNotifierProvider(create: (_) => UserProvider()),
-          ChangeNotifierProvider(
-            create: (_) => DayungUnitProvider()..loadDayungUnit(),
-          ),
-          ChangeNotifierProxyProvider<DayungUnitProvider, DayungRoleProvider>(
-            create: (_) => DayungRoleProvider(),
-            update: (context, unitProv, roleProv) {
-              roleProv ??= DayungRoleProvider();
-              final newId = unitProv.currentUnitId;
-              if (newId != roleProv.unitId) {
-                roleProv.refreshRoles(newId);
-              }
-              return roleProv;
-            },
-          ),
-        ],
-        child: Builder(
-          builder: (context) {
-            return MaterialApp(
-              navigatorKey: globalNavigatorKey,
-              debugShowCheckedModeBanner: false,
-              scrollBehavior: NoGlowScrollBehavior(),
-              title: 'Dayung',
-              navigatorObservers: [appRouteObserver],
-              builder: (context, child) {
-                WidgetsBinding.instance.addPostFrameCallback((_) {
-                  NetworkMonitor().start();
-                });
-                return child!;
-              },
-              theme: _buildAppTheme(Brightness.light),
-              themeMode: ThemeMode.light,
-              themeAnimationDuration: const Duration(milliseconds: 400),
-              initialRoute: '/',
-              routes: {
-                '/': (context) => const _AuthGate(),
-                '/splash': (context) => const SplashScreen(),
-                '/role-router': (context) => const RoleRouter(),
-                '/login': (context) => Login(),
-                '/register': (context) => Register(),
-                kPasswordRecoveryRoute: (context) =>
-                    const PasswordRecoveryPage(),
-                '/reapply': (context) => Reapply(),
-                '/dashboard': (context) => const RoleRouter(),
-                '/president-dashboard': (context) => PresidentDashboardPage(),
-                '/secretary-dashboard': (context) =>
-                    const SecretaryDashboardPage(),
-                '/treasurer-dashboard': (context) => TreasurerDashboardPage(),
-                '/collector-dashboard': (context) => CollectorDashboardPage(),
-                '/superadmin-dashboard': (context) => SuperAdminDashboardPage(),
-              },
-            );
+    return MultiProvider(
+      providers: [
+        ChangeNotifierProvider.value(value: widget.appTheme),
+        ChangeNotifierProvider(create: (_) => UserProvider()),
+        ChangeNotifierProvider(
+          create: (_) => DayungUnitProvider()..loadDayungUnit(),
+        ),
+        ChangeNotifierProxyProvider<DayungUnitProvider, DayungRoleProvider>(
+          create: (_) => DayungRoleProvider(),
+          update: (context, unitProv, roleProv) {
+            roleProv ??= DayungRoleProvider();
+            final newId = unitProv.currentUnitId;
+            if (newId != roleProv.unitId) {
+              roleProv.refreshRoles(newId);
+            }
+            return roleProv;
           },
         ),
+      ],
+      child: Builder(
+        builder: (context) {
+          return MaterialApp(
+            navigatorKey: globalNavigatorKey,
+            debugShowCheckedModeBanner: false,
+            scrollBehavior: NoGlowScrollBehavior(),
+            title: 'Dayung',
+            navigatorObservers: [appRouteObserver],
+            builder: (context, child) {
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                NetworkMonitor().start();
+              });
+              return child!;
+            },
+            theme: _buildAppTheme(Brightness.light),
+            themeMode: ThemeMode.light,
+            themeAnimationDuration: const Duration(milliseconds: 400),
+            initialRoute: '/',
+            routes: {
+              '/': (context) => const _AuthGate(),
+              '/splash': (context) => const SplashScreen(),
+              '/role-router': (context) => const RoleRouter(),
+              '/login': (context) => Login(),
+              '/register': (context) => Register(),
+              kPasswordRecoveryRoute: (context) =>
+                  const PasswordRecoveryPage(),
+              '/reapply': (context) => Reapply(),
+              '/dashboard': (context) => const RoleRouter(),
+              '/president-dashboard': (context) => PresidentDashboardPage(),
+              '/secretary-dashboard': (context) =>
+                  const SecretaryDashboardPage(),
+              '/treasurer-dashboard': (context) => TreasurerDashboardPage(),
+              '/collector-dashboard': (context) => CollectorDashboardPage(),
+              '/superadmin-dashboard': (context) => SuperAdminDashboardPage(),
+            },
+          );
+        },
       ),
     );
   }
@@ -609,7 +602,6 @@ class _AuthGateState extends State<_AuthGate> {
         if (data.session != null) {
           await context.read<DayungUnitProvider>().loadDayungUnit();
           if (!mounted) return;
-          IdleTimeoutManager().start(context);
           final uid = data.session!.user.id;
           final hasPin = await PinService.hasPin(uid);
           if (!mounted) return;
