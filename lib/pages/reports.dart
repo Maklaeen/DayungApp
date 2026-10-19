@@ -162,6 +162,82 @@ class ReportsService {
     return activities;
   }
 
+  Future<List<Map<String, dynamic>>> fetchCollectionReportRows({
+    int? unitId,
+  }) async {
+    var query = sb
+        .from('payments')
+        .select(
+          'id, user_id, userdeceased, deceased_name, amount, status, type, '
+          'created_at, paid_at, is_claimed, is_claimed_date, '
+          'contributor:users!payments_user_id_fkey(full_name)',
+        )
+        .not('userdeceased', 'is', null);
+    if (unitId != null) query = query.eq('dayung_unit_id', unitId);
+
+    final rows = List<Map<String, dynamic>>.from(await query);
+    final deceasedIds = rows
+        .map((row) => (row['userdeceased'] ?? '').toString())
+        .where((id) => id.isNotEmpty)
+        .toSet()
+        .toList();
+    final deceasedNamesById = <String, String>{};
+
+    if (deceasedIds.isNotEmpty) {
+      final deceasedUsers = await sb
+          .from('users')
+          .select('id, full_name')
+          .inFilter('id', deceasedIds);
+      for (final user in deceasedUsers) {
+        deceasedNamesById[(user['id'] ?? '').toString()] =
+            (user['full_name'] ?? '').toString();
+      }
+    }
+
+    for (final row in rows) {
+      final contributor = row['contributor'];
+      final deceasedId = (row['userdeceased'] ?? '').toString();
+      final deceasedName = (row['deceased_name'] ?? '').toString().trim();
+      row['contributor_name'] = contributor is Map
+          ? (contributor['full_name'] ?? 'Unknown contributor').toString()
+          : 'Unknown contributor';
+      row['deceased_member_name'] = deceasedName.isNotEmpty
+          ? deceasedName
+          : deceasedNamesById[deceasedId]?.trim().isNotEmpty == true
+          ? deceasedNamesById[deceasedId]
+          : 'Unknown member';
+    }
+
+    rows.sort((a, b) {
+      final aDate = DateTime.tryParse(
+        '${a['paid_at'] ?? a['created_at'] ?? ''}',
+      );
+      final bDate = DateTime.tryParse(
+        '${b['paid_at'] ?? b['created_at'] ?? ''}',
+      );
+      if (aDate == null && bDate == null) return 0;
+      if (aDate == null) return 1;
+      if (bDate == null) return -1;
+      return bDate.compareTo(aDate);
+    });
+    return rows;
+  }
+
+  Future<Map<String, bool>> fetchCollectionClaimStatuses({int? unitId}) async {
+    var query = sb.from('claims').select('user_id, claimedmoney');
+    if (unitId != null) query = query.eq('dayung_unit_id', unitId);
+
+    final rows = List<Map<String, dynamic>>.from(await query);
+    final statuses = <String, bool>{};
+    for (final row in rows) {
+      final memberId = (row['user_id'] ?? '').toString();
+      if (memberId.isEmpty) continue;
+      statuses[memberId] =
+          (statuses[memberId] ?? false) || _isTruthyFlag(row['claimedmoney']);
+    }
+    return statuses;
+  }
+
   Future<Map<String, int>> fetchMemberActivitySummary({
     required int unitId,
   }) async {
@@ -328,6 +404,8 @@ class _ReportsPageState extends State<ReportsPage> {
   List<Map<String, dynamic>> moneyCollected = [];
   List<Map<String, dynamic>> newMembers = [];
   List<Map<String, dynamic>> disbursementActivities = [];
+  List<Map<String, dynamic>> collectionReportRows = [];
+  Map<String, bool> collectionClaimStatuses = {};
   Map<String, int> memberActivitySummary = const {
     'added': 0,
     'removed': 0,
@@ -335,6 +413,9 @@ class _ReportsPageState extends State<ReportsPage> {
     'deceasedBeneficiaries': 0,
   };
   String? disbursementActivityError;
+  String? collectionReportError;
+  String? _selectedIndividualMemberId;
+  final Set<String> _selectedConsolidatedMemberIds = {};
   bool loading = true;
   pw.ThemeData? _pdfTheme;
 
@@ -347,6 +428,21 @@ class _ReportsPageState extends State<ReportsPage> {
   Future<void> _loadReports() async {
     setState(() => loading = true);
     try {
+      List<Map<String, dynamic>> collectionRows = [];
+      Map<String, bool> claimStatuses = {};
+      String? collectionError;
+      try {
+        collectionRows = await service.fetchCollectionReportRows(
+          unitId: widget.unitId,
+        );
+        claimStatuses = await service.fetchCollectionClaimStatuses(
+          unitId: widget.unitId,
+        );
+      } catch (error) {
+        debugPrint('Unable to load collection reports: $error');
+        collectionError = 'Unable to load collection reports.';
+      }
+
       final activities = await service.fetchDisbursementActivity(
         unitId: widget.unitId,
       );
@@ -361,6 +457,22 @@ class _ReportsPageState extends State<ReportsPage> {
           : memberActivitySummary;
       if (!mounted) return;
       setState(() {
+        collectionReportRows = collectionRows;
+        collectionClaimStatuses = claimStatuses;
+        collectionReportError = collectionError;
+        if (_selectedIndividualMemberId != null &&
+            !collectionRows.any(
+              (row) =>
+                  row['userdeceased']?.toString() ==
+                  _selectedIndividualMemberId,
+            )) {
+          _selectedIndividualMemberId = null;
+        }
+        _selectedConsolidatedMemberIds.removeWhere(
+          (id) => !collectionRows.any(
+            (row) => row['userdeceased']?.toString() == id,
+          ),
+        );
         disbursementActivities = activities;
         memberActivitySummary = activitySummary;
         disbursementActivityError = null;
@@ -376,6 +488,178 @@ class _ReportsPageState extends State<ReportsPage> {
         loading = false;
       });
     }
+  }
+
+  List<_ReportMember> get _reportMembers {
+    final membersById = <String, String>{};
+    for (final row in collectionReportRows) {
+      final id = (row['userdeceased'] ?? '').toString();
+      if (id.isEmpty) continue;
+      final name = (row['deceased_member_name'] ?? 'Unknown member').toString();
+      membersById.putIfAbsent(id, () => name);
+    }
+    return membersById.entries
+        .map((entry) => _ReportMember(id: entry.key, name: entry.value))
+        .toList()
+      ..sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
+  }
+
+  Future<void> _showMemberPicker({required bool multiSelect}) async {
+    final selectedIds = multiSelect
+        ? _selectedConsolidatedMemberIds.toList()
+        : [
+            if (_selectedIndividualMemberId != null)
+              _selectedIndividualMemberId!,
+          ];
+    final result = await showDialog<List<String>>(
+      context: context,
+      builder: (context) => _SearchableMemberPicker(
+        members: _reportMembers,
+        selectedIds: selectedIds,
+        multiSelect: multiSelect,
+        title: multiSelect ? 'Select members' : 'Select deceased member',
+      ),
+    );
+    if (result == null || !mounted) return;
+    setState(() {
+      if (multiSelect) {
+        _selectedConsolidatedMemberIds
+          ..clear()
+          ..addAll(result);
+      } else {
+        _selectedIndividualMemberId = result.isEmpty ? null : result.first;
+      }
+    });
+  }
+
+  Widget _buildIndividualCollectionReport() {
+    final selectedId = _selectedIndividualMemberId;
+    final selectedMember = selectedId == null
+        ? null
+        : _reportMembers.where((member) => member.id == selectedId).firstOrNull;
+    final rows = selectedId == null
+        ? <Map<String, dynamic>>[]
+        : collectionReportRows
+              .where((row) => row['userdeceased']?.toString() == selectedId)
+              .toList();
+    final totalCollected = rows.fold<double>(0, (total, row) {
+      if ((row['status'] ?? '').toString().toLowerCase() != 'paid') {
+        return total;
+      }
+      return total + _reportAmount(row['amount']);
+    });
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _CollectionMemberSelector(
+          label: 'Deceased member',
+          selectedName: selectedMember?.name,
+          onTap: _reportMembers.isEmpty
+              ? null
+              : () => _showMemberPicker(multiSelect: false),
+        ),
+        const SizedBox(height: 16),
+        if (collectionReportError != null)
+          const _CollectionReportNotice(
+            icon: Icons.cloud_off_rounded,
+            message: 'Collection details could not be loaded. Try refreshing.',
+          )
+        else if (selectedMember == null)
+          const _CollectionReportNotice(
+            icon: Icons.search_rounded,
+            message:
+                'Choose a deceased member to view their contribution history.',
+          )
+        else ...[
+          _CollectedTotalCard(total: totalCollected),
+          const SizedBox(height: 14),
+          if (rows.isEmpty)
+            const _CollectionReportNotice(
+              icon: Icons.receipt_long_rounded,
+              message: 'No collection records are available for this member.',
+            )
+          else
+            _IndividualCollectionRows(rows: rows),
+        ],
+      ],
+    );
+  }
+
+  Widget _buildConsolidatedCollectionReport() {
+    final selectedMembers = _reportMembers
+        .where((member) => _selectedConsolidatedMemberIds.contains(member.id))
+        .toList();
+    final summaryRows = selectedMembers.map((member) {
+      final payments = collectionReportRows
+          .where((row) => row['userdeceased']?.toString() == member.id)
+          .toList();
+      final paidPayments = payments
+          .where(
+            (row) => (row['status'] ?? '').toString().toLowerCase() == 'paid',
+          )
+          .toList();
+      DateTime? latestPaidDate;
+      for (final payment in paidPayments) {
+        final date = DateTime.tryParse(
+          '${payment['paid_at'] ?? payment['created_at'] ?? ''}',
+        );
+        if (date != null &&
+            (latestPaidDate == null || date.isAfter(latestPaidDate))) {
+          latestPaidDate = date;
+        }
+      }
+      final total = paidPayments.fold<double>(
+        0,
+        (sum, payment) => sum + _reportAmount(payment['amount']),
+      );
+      return <String, dynamic>{
+        'deceased_member': member.name,
+        'collected': total,
+        'date': latestPaidDate,
+        'status': paidPayments.isEmpty ? 'Pending' : 'Collected',
+        'claim_status': collectionClaimStatuses[member.id] == true
+            ? 'Released'
+            : collectionClaimStatuses.containsKey(member.id)
+            ? 'Pending'
+            : 'Not filed',
+      };
+    }).toList();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _CollectionMemberSelector(
+          label: 'Members',
+          selectedName: selectedMembers.isEmpty
+              ? null
+              : '${selectedMembers.length} selected',
+          onTap: _reportMembers.isEmpty
+              ? null
+              : () => _showMemberPicker(multiSelect: true),
+          multiSelect: true,
+        ),
+        const SizedBox(height: 16),
+        if (collectionReportError != null)
+          const _CollectionReportNotice(
+            icon: Icons.cloud_off_rounded,
+            message: 'Collection details could not be loaded. Try refreshing.',
+          )
+        else if (_selectedConsolidatedMemberIds.isEmpty)
+          const _CollectionReportNotice(
+            icon: Icons.search_rounded,
+            message:
+                'Choose one or more members to compare collection and claim status.',
+          )
+        else if (summaryRows.isEmpty)
+          const _CollectionReportNotice(
+            icon: Icons.receipt_long_rounded,
+            message: 'No collection records are available for these members.',
+          )
+        else
+          _ConsolidatedCollectionRows(rows: summaryRows),
+      ],
+    );
   }
 
   List<double> _moneyCollectedMonthlyTotals() {
@@ -781,6 +1065,34 @@ class _ReportsPageState extends State<ReportsPage> {
                                   maxWidth: contentMaxWidth,
                                 ),
                                 child: _modernSectionCard(
+                                  title: 'Individual Collection Report',
+                                  icon: Icons.person_search_rounded,
+                                  titleFontSize: sectionTitleFontSize,
+                                  child: _buildIndividualCollectionReport(),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 16),
+                            Center(
+                              child: ConstrainedBox(
+                                constraints: const BoxConstraints(
+                                  maxWidth: contentMaxWidth,
+                                ),
+                                child: _modernSectionCard(
+                                  title: 'Consolidated Collection Report',
+                                  icon: Icons.assessment_rounded,
+                                  titleFontSize: sectionTitleFontSize,
+                                  child: _buildConsolidatedCollectionReport(),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 16),
+                            Center(
+                              child: ConstrainedBox(
+                                constraints: const BoxConstraints(
+                                  maxWidth: contentMaxWidth,
+                                ),
+                                child: _modernSectionCard(
                                   title: 'Disbursement Activity',
                                   icon: Icons.payments_rounded,
                                   titleFontSize: sectionTitleFontSize,
@@ -950,6 +1262,667 @@ class _ReportsPageState extends State<ReportsPage> {
       ),
     );
   }
+}
+
+class _ReportMember {
+  final String id;
+  final String name;
+
+  const _ReportMember({required this.id, required this.name});
+}
+
+class _SearchableMemberPicker extends StatefulWidget {
+  final List<_ReportMember> members;
+  final List<String> selectedIds;
+  final bool multiSelect;
+  final String title;
+
+  const _SearchableMemberPicker({
+    required this.members,
+    required this.selectedIds,
+    required this.multiSelect,
+    required this.title,
+  });
+
+  @override
+  State<_SearchableMemberPicker> createState() =>
+      _SearchableMemberPickerState();
+}
+
+class _SearchableMemberPickerState extends State<_SearchableMemberPicker> {
+  final TextEditingController _searchController = TextEditingController();
+  late final Set<String> _selectedIds = widget.selectedIds.toSet();
+  String _search = '';
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final filteredMembers = widget.members
+        .where(
+          (member) =>
+              member.name.toLowerCase().contains(_search.trim().toLowerCase()),
+        )
+        .toList();
+    final screenHeight = MediaQuery.sizeOf(context).height;
+
+    return Dialog(
+      insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
+      child: ConstrainedBox(
+        constraints: BoxConstraints(
+          maxWidth: 520,
+          maxHeight: screenHeight * 0.82,
+        ),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 20, 20, 14),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                widget.title,
+                style: const TextStyle(
+                  color: kPrimary,
+                  fontSize: 20,
+                  fontWeight: FontWeight.w800,
+                  fontFamily: 'Montserrat',
+                ),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                widget.multiSelect
+                    ? 'Search names and select all that apply.'
+                    : 'Search by name to find the right member.',
+                style: const TextStyle(
+                  color: kSubText,
+                  fontSize: 14,
+                  height: 1.4,
+                ),
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: _searchController,
+                onChanged: (value) => setState(() => _search = value),
+                textInputAction: TextInputAction.search,
+                decoration: InputDecoration(
+                  prefixIcon: const Icon(Icons.search_rounded),
+                  hintText: 'Search member name',
+                  filled: true,
+                  fillColor: const Color(0xFFF7F9FC),
+                  contentPadding: const EdgeInsets.symmetric(vertical: 14),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(14),
+                    borderSide: const BorderSide(color: kBorderColor),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(14),
+                    borderSide: const BorderSide(color: kBorderColor),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(14),
+                    borderSide: const BorderSide(color: kPrimary, width: 1.5),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 8),
+              Flexible(
+                child: filteredMembers.isEmpty
+                    ? const Center(
+                        child: Padding(
+                          padding: EdgeInsets.all(24),
+                          child: Text(
+                            'No members match that search.',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              color: kSubText,
+                              fontSize: 15,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      )
+                    : ListView.separated(
+                        shrinkWrap: true,
+                        itemCount: filteredMembers.length,
+                        separatorBuilder: (_, _) =>
+                            const Divider(height: 1, color: kBorderColor),
+                        itemBuilder: (context, index) {
+                          final member = filteredMembers[index];
+                          final isSelected = _selectedIds.contains(member.id);
+                          return ListTile(
+                            contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 4,
+                            ),
+                            minVerticalPadding: 10,
+                            leading: CircleAvatar(
+                              backgroundColor: kPrimary.withValues(alpha: 0.1),
+                              child: const Icon(
+                                Icons.person_rounded,
+                                color: kPrimary,
+                              ),
+                            ),
+                            title: Text(
+                              member.name,
+                              style: const TextStyle(
+                                fontSize: 15,
+                                fontWeight: FontWeight.w700,
+                                color: Color(0xFF1F2937),
+                              ),
+                            ),
+                            trailing: widget.multiSelect
+                                ? Checkbox(
+                                    value: isSelected,
+                                    onChanged: (_) => _toggle(member.id),
+                                  )
+                                : isSelected
+                                ? const Icon(
+                                    Icons.check_circle_rounded,
+                                    color: kPrimary,
+                                  )
+                                : null,
+                            onTap: () {
+                              if (widget.multiSelect) {
+                                _toggle(member.id);
+                              } else {
+                                Navigator.of(context).pop([member.id]);
+                              }
+                            },
+                          );
+                        },
+                      ),
+              ),
+              if (widget.multiSelect) ...[
+                const SizedBox(height: 12),
+                SizedBox(
+                  width: double.infinity,
+                  child: FilledButton(
+                    onPressed: () =>
+                        Navigator.of(context).pop(_selectedIds.toList()),
+                    style: FilledButton.styleFrom(
+                      backgroundColor: kPrimary,
+                      foregroundColor: Colors.white,
+                      minimumSize: const Size.fromHeight(50),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                    ),
+                    child: Text('Done (${_selectedIds.length} selected)'),
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _toggle(String memberId) {
+    setState(() {
+      if (!_selectedIds.add(memberId)) _selectedIds.remove(memberId);
+    });
+  }
+}
+
+class _CollectionMemberSelector extends StatelessWidget {
+  final String label;
+  final String? selectedName;
+  final VoidCallback? onTap;
+  final bool multiSelect;
+
+  const _CollectionMemberSelector({
+    required this.label,
+    required this.selectedName,
+    required this.onTap,
+    this.multiSelect = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Select $label',
+          style: const TextStyle(
+            color: Color(0xFF374151),
+            fontSize: 15,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+        const SizedBox(height: 8),
+        SizedBox(
+          width: double.infinity,
+          child: OutlinedButton.icon(
+            onPressed: onTap,
+            icon: Icon(
+              multiSelect ? Icons.group_add_rounded : Icons.search_rounded,
+            ),
+            label: Text(
+              selectedName ??
+                  (onTap == null ? 'No members available' : 'Search members'),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              textAlign: TextAlign.left,
+            ),
+            style: OutlinedButton.styleFrom(
+              foregroundColor: onTap == null ? kSubText : kPrimary,
+              side: const BorderSide(color: kBorderColor),
+              alignment: Alignment.centerLeft,
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+              textStyle: const TextStyle(
+                fontSize: 15,
+                fontWeight: FontWeight.w700,
+              ),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(14),
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _CollectionReportNotice extends StatelessWidget {
+  final IconData icon;
+  final String message;
+
+  const _CollectionReportNotice({required this.icon, required this.message});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 22),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF7F9FC),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: kBorderColor),
+      ),
+      child: Column(
+        children: [
+          Icon(icon, color: kPrimary, size: 30),
+          const SizedBox(height: 10),
+          Text(
+            message,
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              color: Color(0xFF4B5563),
+              fontSize: 14,
+              height: 1.45,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _CollectedTotalCard extends StatelessWidget {
+  final double total;
+
+  const _CollectedTotalCard({required this.total});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: const Color(0xFFEFF6FF),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: kPrimary.withValues(alpha: 0.16)),
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(11),
+            decoration: BoxDecoration(
+              color: kPrimary.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(13),
+            ),
+            child: const Icon(Icons.savings_rounded, color: kPrimary, size: 24),
+          ),
+          const SizedBox(width: 14),
+          const Expanded(
+            child: Text(
+              'Total collected',
+              style: TextStyle(
+                color: Color(0xFF374151),
+                fontSize: 15,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+          Text(
+            _formatReportCurrency(total),
+            style: const TextStyle(
+              color: kPrimary,
+              fontSize: 20,
+              fontWeight: FontWeight.w800,
+              fontFamily: 'Montserrat',
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _IndividualCollectionRows extends StatelessWidget {
+  final List<Map<String, dynamic>> rows;
+
+  const _IndividualCollectionRows({required this.rows});
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        if (constraints.maxWidth < 720) {
+          return Column(children: rows.map(_mobileCard).toList());
+        }
+        return _reportTable(
+          columns: const [
+            DataColumn(label: Text('Contributor')),
+            DataColumn(label: Text('Date')),
+            DataColumn(label: Text('Method')),
+            DataColumn(label: Text('Amount')),
+            DataColumn(label: Text('Status')),
+          ],
+          rows: rows
+              .map(
+                (row) => DataRow(
+                  cells: [
+                    DataCell(_reportCell(row['contributor_name'])),
+                    DataCell(_reportCell(_formatReportDate(_paymentDate(row)))),
+                    DataCell(_reportCell('Not recorded')),
+                    DataCell(
+                      _reportCell(
+                        _formatReportCurrency(_reportAmount(row['amount'])),
+                      ),
+                    ),
+                    DataCell(_CollectionStatusPill(label: _paymentStatus(row))),
+                  ],
+                ),
+              )
+              .toList(),
+          minWidth: 700,
+        );
+      },
+    );
+  }
+
+  Widget _mobileCard(Map<String, dynamic> row) {
+    return _CollectionDataCard(
+      title: (row['contributor_name'] ?? 'Unknown contributor').toString(),
+      trailing: _formatReportCurrency(_reportAmount(row['amount'])),
+      details: [
+        ('Date', _formatReportDate(_paymentDate(row))),
+        ('Method', 'Not recorded'),
+      ],
+      status: _paymentStatus(row),
+    );
+  }
+}
+
+class _ConsolidatedCollectionRows extends StatelessWidget {
+  final List<Map<String, dynamic>> rows;
+
+  const _ConsolidatedCollectionRows({required this.rows});
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        if (constraints.maxWidth < 720) {
+          return Column(children: rows.map(_mobileCard).toList());
+        }
+        return _reportTable(
+          columns: const [
+            DataColumn(label: Text('Deceased Member')),
+            DataColumn(label: Text('Collected')),
+            DataColumn(label: Text('Collection Date')),
+            DataColumn(label: Text('Status')),
+            DataColumn(label: Text('Claim Status')),
+          ],
+          rows: rows
+              .map(
+                (row) => DataRow(
+                  cells: [
+                    DataCell(_reportCell(row['deceased_member'])),
+                    DataCell(
+                      _reportCell(_formatReportCurrency(row['collected'])),
+                    ),
+                    DataCell(_reportCell(_formatReportDate(row['date']))),
+                    DataCell(_CollectionStatusPill(label: '${row['status']}')),
+                    DataCell(
+                      _CollectionStatusPill(label: '${row['claim_status']}'),
+                    ),
+                  ],
+                ),
+              )
+              .toList(),
+          minWidth: 720,
+        );
+      },
+    );
+  }
+
+  Widget _mobileCard(Map<String, dynamic> row) {
+    return _CollectionDataCard(
+      title: (row['deceased_member'] ?? 'Unknown member').toString(),
+      trailing: _formatReportCurrency(row['collected']),
+      details: [
+        ('Collection date', _formatReportDate(row['date'])),
+        ('Claim status', '${row['claim_status']}'),
+      ],
+      status: '${row['status']}',
+    );
+  }
+}
+
+class _CollectionDataCard extends StatelessWidget {
+  final String title;
+  final String trailing;
+  final List<(String, String)> details;
+  final String status;
+
+  const _CollectionDataCard({
+    required this.title,
+    required this.trailing,
+    required this.details,
+    required this.status,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: kBorderColor),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: Text(
+                  title,
+                  style: const TextStyle(
+                    color: kPrimary,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Text(
+                trailing,
+                style: const TextStyle(
+                  color: kPrimary,
+                  fontSize: 15,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          for (final detail in details)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  SizedBox(
+                    width: 126,
+                    child: Text(
+                      detail.$1,
+                      style: const TextStyle(
+                        color: kSubText,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                  Expanded(
+                    child: Text(
+                      detail.$2,
+                      style: const TextStyle(
+                        color: Color(0xFF374151),
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          const SizedBox(height: 4),
+          _CollectionStatusPill(label: status),
+        ],
+      ),
+    );
+  }
+}
+
+class _CollectionStatusPill extends StatelessWidget {
+  final String label;
+
+  const _CollectionStatusPill({required this.label});
+
+  @override
+  Widget build(BuildContext context) {
+    final normalized = label.toLowerCase();
+    final color =
+        normalized.contains('paid') ||
+            normalized.contains('collect') ||
+            normalized.contains('release')
+        ? const Color(0xFF15803D)
+        : normalized.contains('pending') || normalized.contains('not filed')
+        ? const Color(0xFFB45309)
+        : const Color(0xFF475569);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 7),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.09),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          color: color,
+          fontSize: 13,
+          fontWeight: FontWeight.w800,
+        ),
+      ),
+    );
+  }
+}
+
+Widget _reportTable({
+  required List<DataColumn> columns,
+  required List<DataRow> rows,
+  required double minWidth,
+}) {
+  return Container(
+    clipBehavior: Clip.antiAlias,
+    decoration: BoxDecoration(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(14),
+      border: Border.all(color: kBorderColor),
+    ),
+    child: SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: ConstrainedBox(
+        constraints: BoxConstraints(minWidth: minWidth),
+        child: DataTable(
+          headingRowColor: WidgetStatePropertyAll(
+            kPrimary.withValues(alpha: 0.06),
+          ),
+          headingTextStyle: const TextStyle(
+            color: kPrimary,
+            fontSize: 14,
+            fontWeight: FontWeight.w800,
+          ),
+          dataTextStyle: const TextStyle(
+            color: Color(0xFF1F2937),
+            fontSize: 14,
+            fontWeight: FontWeight.w600,
+          ),
+          columnSpacing: 20,
+          horizontalMargin: 16,
+          columns: columns,
+          rows: rows,
+        ),
+      ),
+    ),
+  );
+}
+
+Widget _reportCell(Object? value) {
+  return Text(
+    '${value ?? '—'}',
+    style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+  );
+}
+
+Object? _paymentDate(Map<String, dynamic> row) =>
+    row['paid_at'] ?? row['created_at'];
+
+String _paymentStatus(Map<String, dynamic> row) {
+  final status = (row['status'] ?? 'Unknown').toString().trim();
+  if (status.isEmpty) return 'Unknown';
+  return status[0].toUpperCase() + status.substring(1);
+}
+
+double _reportAmount(Object? value) {
+  if (value is num) return value.toDouble();
+  return double.tryParse('${value ?? ''}') ?? 0;
+}
+
+String _formatReportCurrency(Object? value) =>
+    '₱${_reportAmount(value).toStringAsFixed(2)}';
+
+String _formatReportDate(Object? value) {
+  if (value is DateTime) {
+    return DateFormat('MMM d, yyyy').format(value.toLocal());
+  }
+  final date = DateTime.tryParse('${value ?? ''}');
+  return date == null ? '—' : DateFormat('MMM d, yyyy').format(date.toLocal());
 }
 
 class _DisbursementActivityTable extends StatelessWidget {

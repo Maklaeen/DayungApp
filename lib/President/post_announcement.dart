@@ -38,7 +38,16 @@ const kAccentDark = Color(0xFF059669);
 const kCardBg = Color(0xFFFFFFFF);
 const kBorderColor = Color(0xFFE5E7EB);
 const kSuccess = Color(0xFF10B981);
-const double kEdge = 16;
+
+const _announcementCategories = [
+  'General Announcement',
+  'Contribution Reminder',
+  'Death Notice / Death Assistance',
+  'Meeting Schedule',
+  'Payment Deadline',
+  'Important Update',
+  'Emergency Notice',
+];
 
 class PostAnnouncementPage extends StatefulWidget {
   const PostAnnouncementPage({super.key});
@@ -52,7 +61,9 @@ class _PostAnnouncementPageState extends State<PostAnnouncementPage> {
   bool _loading = true;
   List<Map<String, dynamic>> _units = [];
   int? _unitId;
+  String? _category;
 
+  final _formKey = GlobalKey<FormState>();
   final _title = TextEditingController();
   final _body = TextEditingController();
 
@@ -96,8 +107,21 @@ class _PostAnnouncementPageState extends State<PostAnnouncementPage> {
       maxLength: 1000,
     );
 
-    if (!_hasAuthorizedUnit ||
-        AppInputSecurity.validateSafeText(
+    if (!(_formKey.currentState?.validate() ?? false)) return;
+
+    final category = _category;
+    if (!_hasAuthorizedUnit || category == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'You are not authorized to post announcements for this unit.',
+          ),
+        ),
+      );
+      return;
+    }
+
+    if (AppInputSecurity.validateSafeText(
               title,
               fieldName: 'Title',
               minLength: 4,
@@ -115,12 +139,13 @@ class _PostAnnouncementPageState extends State<PostAnnouncementPage> {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text(
-            'You are not authorized to post announcements for this unit, or the announcement data is invalid.',
+            'Please review the announcement details and try again.',
           ),
         ),
       );
       return;
     }
+
     setState(() => _loading = true);
     try {
       final insertedAnnouncement = await sb
@@ -129,6 +154,7 @@ class _PostAnnouncementPageState extends State<PostAnnouncementPage> {
             'dayung_unit_id': _unitId,
             'title': title,
             'body': body,
+            'category': category,
             'created_by': sb.auth.currentUser?.id,
           })
           .select('id')
@@ -287,6 +313,110 @@ class _PostAnnouncementPageState extends State<PostAnnouncementPage> {
     super.dispose();
   }
 
+  Widget _sectionCard({
+    required IconData icon,
+    required String title,
+    required String helpText,
+    required Widget child,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: kCardBg,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: kBorderColor),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 44,
+                height: 44,
+                decoration: BoxDecoration(
+                  color: kPrimary.withValues(alpha: 0.08),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(icon, color: kPrimary, size: 24),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w700,
+                        fontSize: 18,
+                        color: kText,
+                        fontFamily: 'Montserrat',
+                      ),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      helpText,
+                      style: const TextStyle(
+                        fontSize: 14,
+                        height: 1.35,
+                        color: kSubText,
+                        fontFamily: 'OpenSans',
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 18),
+          child,
+        ],
+      ),
+    );
+  }
+
+  InputDecoration _fieldDecoration({required String hintText}) {
+    return InputDecoration(
+      filled: true,
+      fillColor: Colors.white,
+      hintText: hintText,
+      hintStyle: const TextStyle(
+        color: kSubText,
+        fontSize: 16,
+        fontFamily: 'OpenSans',
+      ),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 17),
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: const BorderSide(color: kBorderColor),
+      ),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: const BorderSide(color: kBorderColor),
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: const BorderSide(color: kPrimary, width: 2),
+      ),
+      errorBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: const BorderSide(color: kDanger, width: 1.5),
+      ),
+      focusedErrorBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: const BorderSide(color: kDanger, width: 2),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -302,34 +432,30 @@ class _PostAnnouncementPageState extends State<PostAnnouncementPage> {
         child: SafeArea(
           child: Column(
             children: [
-              // Custom App Bar
               Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 20,
-                  vertical: 16,
-                ),
+                padding: const EdgeInsets.fromLTRB(16, 14, 20, 18),
                 decoration: BoxDecoration(
                   color: kPrimary,
                   borderRadius: const BorderRadius.only(
-                    bottomLeft: Radius.circular(24),
-                    bottomRight: Radius.circular(24),
+                    bottomLeft: Radius.circular(20),
+                    bottomRight: Radius.circular(20),
                   ),
                   boxShadow: [
                     BoxShadow(
-                      color: kPrimary.withValues(alpha: 0.3),
-                      blurRadius: 20,
-                      offset: const Offset(0, 8),
+                      color: kPrimary.withValues(alpha: 0.18),
+                      blurRadius: 14,
+                      offset: const Offset(0, 5),
                     ),
                   ],
                 ),
                 child: Row(
                   children: [
                     Container(
-                      width: 44,
-                      height: 44,
+                      width: 48,
+                      height: 48,
                       decoration: BoxDecoration(
                         color: Colors.white.withValues(alpha: 0.2),
-                        borderRadius: BorderRadius.circular(13),
+                        borderRadius: BorderRadius.circular(14),
                         border: Border.all(
                           color: Colors.white.withValues(alpha: 0.3),
                         ),
@@ -341,26 +467,40 @@ class _PostAnnouncementPageState extends State<PostAnnouncementPage> {
                         icon: const Icon(
                           Icons.arrow_back_rounded,
                           color: Colors.white,
-                          size: 21,
+                          size: 24,
                         ),
                       ),
                     ),
+                    const SizedBox(width: 14),
                     Expanded(
-                      child: Text(
-                        'Post Announcement',
-                        style: TextStyle(
-                          fontSize: 24,
-                          fontWeight: FontWeight.w800,
-                          color: Colors.white,
-                          fontFamily: 'Montserrat',
-                          letterSpacing: 0.3,
-                        ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: const [
+                          Text(
+                            'Post Announcement',
+                            style: TextStyle(
+                              fontSize: 22,
+                              height: 1.2,
+                              fontWeight: FontWeight.w800,
+                              color: Colors.white,
+                              fontFamily: 'Montserrat',
+                            ),
+                          ),
+                          // SizedBox(height: 4),
+                          // Text(
+                          //   'Share an update with your members',
+                          //   style: TextStyle(
+                          //     fontSize: 14,
+                          //     color: Colors.white,
+                          //     fontFamily: 'OpenSans',
+                          //   ),
+                          // ),
+                        ],
                       ),
                     ),
                   ],
                 ),
               ),
-              // Content
               Expanded(
                 child: _loading
                     ? Center(
@@ -386,7 +526,7 @@ class _PostAnnouncementPageState extends State<PostAnnouncementPage> {
                                 'You are not authorized to post announcements.',
                                 textAlign: TextAlign.center,
                                 style: TextStyle(
-                                  fontSize: 16,
+                                  fontSize: 18,
                                   fontWeight: FontWeight.w600,
                                   color: kText,
                                   fontFamily: 'OpenSans',
@@ -397,7 +537,8 @@ class _PostAnnouncementPageState extends State<PostAnnouncementPage> {
                                 'Only the president assigned to a dayung unit can send announcements.',
                                 textAlign: TextAlign.center,
                                 style: TextStyle(
-                                  fontSize: 14,
+                                  fontSize: 16,
+                                  height: 1.45,
                                   color: kSubText,
                                   fontFamily: 'OpenSans',
                                 ),
@@ -407,372 +548,243 @@ class _PostAnnouncementPageState extends State<PostAnnouncementPage> {
                         ),
                       )
                     : Padding(
-                        padding: const EdgeInsets.all(20),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 18,
+                        ),
                         child: SingleChildScrollView(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              // Dayung Unit Dropdown
-                              Container(
-                                padding: const EdgeInsets.all(20),
-                                decoration: BoxDecoration(
-                                  color: kCardBg,
-                                  borderRadius: BorderRadius.circular(20),
-                                  border: Border.all(
-                                    color: kBorderColor.withValues(alpha: 0.3),
-                                    width: 1,
+                          child: Form(
+                            key: _formKey,
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                _sectionCard(
+                                  icon: Icons.title_rounded,
+                                  title: 'Title',
+                                  helpText:
+                                      'Give your announcement a clear title.',
+                                  child: TextFormField(
+                                    controller: _title,
+                                    inputFormatters:
+                                        AppInputSecurity.singleLineFormatters(
+                                          maxLength: 120,
+                                        ),
+                                    textCapitalization:
+                                        TextCapitalization.sentences,
+                                    style: const TextStyle(
+                                      fontSize: 17,
+                                      color: kText,
+                                      fontFamily: 'OpenSans',
+                                    ),
+                                    decoration: _fieldDecoration(
+                                      hintText: 'Example: Monthly meeting',
+                                    ),
+                                    validator: (value) {
+                                      final text = value?.trim() ?? '';
+                                      if (text.isEmpty) {
+                                        return 'Please enter a title.';
+                                      }
+                                      if (text.length < 4) {
+                                        return 'Title must be at least 4 characters.';
+                                      }
+                                      return null;
+                                    },
                                   ),
-                                  boxShadow: [
-                                    BoxShadow(
-                                      color: Colors.black.withValues(
-                                        alpha: 0.05,
-                                      ),
-                                      blurRadius: 15,
-                                      offset: const Offset(0, 6),
-                                    ),
-                                  ],
                                 ),
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Row(
-                                      children: [
-                                        Container(
-                                          padding: const EdgeInsets.all(8),
-                                          decoration: BoxDecoration(
-                                            color: kPrimary.withValues(
-                                              alpha: 0.1,
-                                            ),
-                                            borderRadius: BorderRadius.circular(
-                                              12,
-                                            ),
-                                          ),
-                                          child: const Icon(
-                                            Icons.location_on_rounded,
-                                            color: kPrimary,
-                                            size: 20,
-                                          ),
-                                        ),
-                                        const SizedBox(width: 12),
-                                        Text(
-                                          'Dayung Unit',
-                                          style: TextStyle(
-                                            fontWeight: FontWeight.w700,
-                                            fontSize: 16,
-                                            color: kText,
-                                            fontFamily: 'Montserrat',
-                                          ),
-                                        ),
-                                      ],
+                                const SizedBox(height: 16),
+                                _sectionCard(
+                                  icon: Icons.category_rounded,
+                                  title: 'Category',
+                                  helpText:
+                                      'Choose the type that best describes this post.',
+                                  child: DropdownButtonFormField<String>(
+                                    initialValue: _category,
+                                    isExpanded: true,
+                                    decoration: _fieldDecoration(
+                                      hintText: 'Choose a category',
                                     ),
-                                    const SizedBox(height: 16),
-                                    DropdownButtonFormField<int>(
-                                      initialValue: _unitId,
-                                      items: _units
-                                          .map(
-                                            (u) => DropdownMenuItem<int>(
-                                              value: int.tryParse('${u['id']}'),
-                                              child: Text(
-                                                (u['name'] ?? 'Unit')
-                                                    .toString(),
-                                                overflow: TextOverflow.ellipsis,
-                                                style: const TextStyle(
-                                                  fontFamily: 'OpenSans',
-                                                  fontWeight: FontWeight.w600,
+                                    style: const TextStyle(
+                                      fontSize: 16,
+                                      color: kText,
+                                      fontFamily: 'OpenSans',
+                                    ),
+                                    items: _announcementCategories
+                                        .map(
+                                          (category) =>
+                                              DropdownMenuItem<String>(
+                                                value: category,
+                                                child: Text(
+                                                  category,
+                                                  overflow:
+                                                      TextOverflow.ellipsis,
                                                 ),
                                               ),
-                                            ),
-                                          )
-                                          .toList(),
-                                      onChanged: (v) =>
-                                          setState(() => _unitId = v),
-                                      decoration: InputDecoration(
-                                        filled: true,
-                                        fillColor: kCardBg,
-                                        border: OutlineInputBorder(
-                                          borderRadius: BorderRadius.circular(
-                                            12,
-                                          ),
-                                          borderSide: BorderSide(
-                                            color: kBorderColor,
-                                            width: 1,
-                                          ),
-                                        ),
-                                        enabledBorder: OutlineInputBorder(
-                                          borderRadius: BorderRadius.circular(
-                                            12,
-                                          ),
-                                          borderSide: BorderSide(
-                                            color: kBorderColor,
-                                            width: 1,
-                                          ),
-                                        ),
-                                        focusedBorder: OutlineInputBorder(
-                                          borderRadius: BorderRadius.circular(
-                                            12,
-                                          ),
-                                          borderSide: BorderSide(
-                                            color: kPrimary,
-                                            width: 2,
-                                          ),
-                                        ),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                              const SizedBox(height: 20),
-
-                              // Title Field
-                              Container(
-                                padding: const EdgeInsets.all(20),
-                                decoration: BoxDecoration(
-                                  color: kCardBg,
-                                  borderRadius: BorderRadius.circular(20),
-                                  border: Border.all(
-                                    color: kBorderColor.withValues(alpha: 0.3),
-                                    width: 1,
+                                        )
+                                        .toList(),
+                                    onChanged: (value) =>
+                                        setState(() => _category = value),
+                                    validator: (value) => value == null
+                                        ? 'Please choose a category.'
+                                        : null,
                                   ),
-                                  boxShadow: [
-                                    BoxShadow(
-                                      color: Colors.black.withValues(
-                                        alpha: 0.05,
-                                      ),
-                                      blurRadius: 15,
-                                      offset: const Offset(0, 6),
-                                    ),
-                                  ],
                                 ),
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Row(
-                                      children: [
-                                        Container(
-                                          padding: const EdgeInsets.all(8),
-                                          decoration: BoxDecoration(
-                                            color: kPrimary.withValues(
-                                              alpha: 0.1,
+                                const SizedBox(height: 16),
+                                _sectionCard(
+                                  icon: Icons.groups_rounded,
+                                  title: 'Audience',
+                                  helpText:
+                                      'All approved members in the selected Dayung Unit will be notified.',
+                                  child: DropdownButtonFormField<int>(
+                                    initialValue: _unitId,
+                                    isExpanded: true,
+                                    items: _units
+                                        .map(
+                                          (unit) => DropdownMenuItem<int>(
+                                            value: int.tryParse(
+                                              '${unit['id']}',
                                             ),
-                                            borderRadius: BorderRadius.circular(
-                                              12,
+                                            child: Text(
+                                              (unit['name'] ?? 'Dayung Unit')
+                                                  .toString(),
+                                              overflow: TextOverflow.ellipsis,
                                             ),
                                           ),
-                                          child: const Icon(
-                                            Icons.title_rounded,
-                                            color: kPrimary,
-                                            size: 20,
-                                          ),
-                                        ),
-                                        const SizedBox(width: 12),
-                                        Text(
-                                          'Title',
-                                          style: TextStyle(
-                                            fontWeight: FontWeight.w700,
-                                            fontSize: 16,
-                                            color: kText,
-                                            fontFamily: 'Montserrat',
-                                          ),
-                                        ),
-                                      ],
+                                        )
+                                        .toList(),
+                                    onChanged: (value) =>
+                                        setState(() => _unitId = value),
+                                    decoration: _fieldDecoration(
+                                      hintText: 'Choose a Dayung Unit',
                                     ),
-                                    const SizedBox(height: 16),
-                                    TextFormField(
-                                      controller: _title,
-                                      inputFormatters:
-                                          AppInputSecurity.singleLineFormatters(
-                                            maxLength: 120,
-                                          ),
-                                      style: const TextStyle(
-                                        fontFamily: 'OpenSans',
-                                        fontWeight: FontWeight.w600,
-                                      ),
-                                      decoration: InputDecoration(
-                                        filled: true,
-                                        fillColor: kCardBg,
-                                        hintText: 'Enter announcement title...',
-                                        hintStyle: TextStyle(
-                                          color: kSubText,
-                                          fontFamily: 'OpenSans',
-                                        ),
-                                        border: OutlineInputBorder(
-                                          borderRadius: BorderRadius.circular(
-                                            12,
-                                          ),
-                                          borderSide: BorderSide(
-                                            color: kBorderColor,
-                                            width: 1,
-                                          ),
-                                        ),
-                                        enabledBorder: OutlineInputBorder(
-                                          borderRadius: BorderRadius.circular(
-                                            12,
-                                          ),
-                                          borderSide: BorderSide(
-                                            color: kBorderColor,
-                                            width: 1,
-                                          ),
-                                        ),
-                                        focusedBorder: OutlineInputBorder(
-                                          borderRadius: BorderRadius.circular(
-                                            12,
-                                          ),
-                                          borderSide: BorderSide(
-                                            color: kPrimary,
-                                            width: 2,
-                                          ),
-                                        ),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                              const SizedBox(height: 20),
-
-                              // Body Field
-                              Container(
-                                padding: const EdgeInsets.all(20),
-                                decoration: BoxDecoration(
-                                  color: kCardBg,
-                                  borderRadius: BorderRadius.circular(20),
-                                  border: Border.all(
-                                    color: kBorderColor.withValues(alpha: 0.3),
-                                    width: 1,
-                                  ),
-                                  boxShadow: [
-                                    BoxShadow(
-                                      color: Colors.black.withValues(
-                                        alpha: 0.05,
-                                      ),
-                                      blurRadius: 15,
-                                      offset: const Offset(0, 6),
-                                    ),
-                                  ],
-                                ),
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Row(
-                                      children: [
-                                        Container(
-                                          padding: const EdgeInsets.all(8),
-                                          decoration: BoxDecoration(
-                                            color: kPrimary.withValues(
-                                              alpha: 0.1,
-                                            ),
-                                            borderRadius: BorderRadius.circular(
-                                              12,
-                                            ),
-                                          ),
-                                          child: const Icon(
-                                            Icons.description_rounded,
-                                            color: kPrimary,
-                                            size: 20,
-                                          ),
-                                        ),
-                                        const SizedBox(width: 12),
-                                        Text(
-                                          'Body',
-                                          style: TextStyle(
-                                            fontWeight: FontWeight.w700,
-                                            fontSize: 16,
-                                            color: kText,
-                                            fontFamily: 'Montserrat',
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                    const SizedBox(height: 16),
-                                    TextFormField(
-                                      controller: _body,
-                                      inputFormatters:
-                                          AppInputSecurity.multiLineFormatters(
-                                            maxLength: 1000,
-                                          ),
-                                      minLines: 5,
-                                      maxLines: null,
-                                      style: const TextStyle(
-                                        fontFamily: 'OpenSans',
-                                        fontWeight: FontWeight.w600,
-                                      ),
-                                      decoration: InputDecoration(
-                                        filled: true,
-                                        fillColor: kCardBg,
-                                        hintText:
-                                            'Enter announcement details...',
-                                        hintStyle: TextStyle(
-                                          color: kSubText,
-                                          fontFamily: 'OpenSans',
-                                        ),
-                                        border: OutlineInputBorder(
-                                          borderRadius: BorderRadius.circular(
-                                            12,
-                                          ),
-                                          borderSide: BorderSide(
-                                            color: kBorderColor,
-                                            width: 1,
-                                          ),
-                                        ),
-                                        enabledBorder: OutlineInputBorder(
-                                          borderRadius: BorderRadius.circular(
-                                            12,
-                                          ),
-                                          borderSide: BorderSide(
-                                            color: kBorderColor,
-                                            width: 1,
-                                          ),
-                                        ),
-                                        focusedBorder: OutlineInputBorder(
-                                          borderRadius: BorderRadius.circular(
-                                            12,
-                                          ),
-                                          borderSide: BorderSide(
-                                            color: kPrimary,
-                                            width: 2,
-                                          ),
-                                        ),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                              const SizedBox(height: 24),
-
-                              // Post Button
-                              SizedBox(
-                                width: double.infinity,
-                                child: ElevatedButton.icon(
-                                  onPressed: _save,
-                                  icon: const Icon(
-                                    Icons.send_rounded,
-                                    size: 20,
-                                  ),
-                                  label: const Text(
-                                    'Post',
-                                    style: TextStyle(
-                                      fontWeight: FontWeight.w700,
+                                    style: const TextStyle(
                                       fontSize: 16,
-                                      fontFamily: 'Montserrat',
-                                      letterSpacing: 0.3,
-                                    ),
-                                  ),
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: kPrimary,
-                                    foregroundColor: Colors.white,
-                                    elevation: 0,
-                                    padding: const EdgeInsets.symmetric(
-                                      vertical: 18,
-                                    ),
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(16),
-                                    ),
-                                    shadowColor: kPrimary.withValues(
-                                      alpha: 0.3,
+                                      color: kText,
+                                      fontFamily: 'OpenSans',
                                     ),
                                   ),
                                 ),
-                              ),
-                            ],
+                                const SizedBox(height: 16),
+                                _sectionCard(
+                                  icon: Icons.calendar_today_rounded,
+                                  title: 'Date',
+                                  helpText:
+                                      'The post date is set automatically.',
+                                  child: Container(
+                                    width: double.infinity,
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 16,
+                                      vertical: 17,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFFF3F6FA),
+                                      borderRadius: BorderRadius.circular(12),
+                                      border: Border.all(color: kBorderColor),
+                                    ),
+                                    child: Row(
+                                      children: [
+                                        const Icon(
+                                          Icons.event_available_rounded,
+                                          color: kPrimary,
+                                          size: 22,
+                                        ),
+                                        const SizedBox(width: 12),
+                                        Text(
+                                          MaterialLocalizations.of(
+                                            context,
+                                          ).formatMediumDate(DateTime.now()),
+                                          style: const TextStyle(
+                                            fontSize: 17,
+                                            fontWeight: FontWeight.w600,
+                                            color: kText,
+                                            fontFamily: 'OpenSans',
+                                          ),
+                                        ),
+                                        // const Spacer(),
+                                        // const Text(
+                                        //   'Automatic',
+                                        //   style: TextStyle(
+                                        //     fontSize: 13,
+                                        //     fontWeight: FontWeight.w600,
+                                        //     color: kSubText,
+                                        //     fontFamily: 'OpenSans',
+                                        //   ),
+                                        // ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(height: 16),
+                                _sectionCard(
+                                  icon: Icons.description_rounded,
+                                  title: 'Message',
+                                  helpText:
+                                      'Include the details members need to know.',
+                                  child: TextFormField(
+                                    controller: _body,
+                                    inputFormatters:
+                                        AppInputSecurity.multiLineFormatters(
+                                          maxLength: 1000,
+                                        ),
+                                    minLines: 5,
+                                    maxLines: null,
+                                    textCapitalization:
+                                        TextCapitalization.sentences,
+                                    style: const TextStyle(
+                                      fontSize: 17,
+                                      height: 1.45,
+                                      color: kText,
+                                      fontFamily: 'OpenSans',
+                                    ),
+                                    decoration: _fieldDecoration(
+                                      hintText:
+                                          'Write your announcement here...',
+                                    ),
+                                    validator: (value) {
+                                      final text = value?.trim() ?? '';
+                                      if (text.isEmpty) {
+                                        return 'Please enter the announcement details.';
+                                      }
+                                      if (text.length < 8) {
+                                        return 'Message must be at least 8 characters.';
+                                      }
+                                      return null;
+                                    },
+                                  ),
+                                ),
+                                const SizedBox(height: 20),
+                                SizedBox(
+                                  width: double.infinity,
+                                  child: ElevatedButton.icon(
+                                    onPressed: _save,
+                                    icon: const Icon(
+                                      Icons.send_rounded,
+                                      size: 22,
+                                    ),
+                                    label: const Text(
+                                      'Post Announcement',
+                                      style: TextStyle(
+                                        fontWeight: FontWeight.w700,
+                                        fontSize: 18,
+                                        fontFamily: 'Montserrat',
+                                      ),
+                                    ),
+                                    style: ElevatedButton.styleFrom(
+                                      minimumSize: const Size.fromHeight(58),
+                                      backgroundColor: kPrimary,
+                                      foregroundColor: Colors.white,
+                                      elevation: 0,
+                                      padding: const EdgeInsets.symmetric(
+                                        vertical: 16,
+                                      ),
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(14),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(height: 12),
+                              ],
+                            ),
                           ),
                         ),
                       ),

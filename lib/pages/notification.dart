@@ -290,6 +290,8 @@ class NotificationPage extends StatefulWidget {
 
 class _NotificationPageState extends State<NotificationPage> {
   List<Map<String, dynamic>> _items = [];
+  List<Map<String, dynamic>> _announcementLogs = [];
+  String? _announcementLogWarning;
   bool _loading = true;
   bool _markingAllRead = false;
   bool _scopeInitialized = false;
@@ -331,7 +333,11 @@ class _NotificationPageState extends State<NotificationPage> {
 
     _scopeInitialized = true;
     _currentUnitId = unitId;
-    setState(() => _items = []);
+    setState(() {
+      _items = [];
+      _announcementLogs = [];
+      _announcementLogWarning = null;
+    });
     _fetchAll(unitId: unitId);
   }
 
@@ -659,6 +665,8 @@ class _NotificationPageState extends State<NotificationPage> {
     if (uid == null) {
       setState(() {
         _items = [];
+        _announcementLogs = [];
+        _announcementLogWarning = null;
         _loading = false;
       });
       return;
@@ -704,14 +712,84 @@ class _NotificationPageState extends State<NotificationPage> {
 
       // 2) Direct announcements for the current unit (if any)
       List<Map<String, dynamic>> annData = const [];
+      String? announcementLogWarning;
       if (scopedUnitId != null) {
-        final ann = await sb
-            .from('announcements')
-            .select('id, dayung_unit_id, title, body, created_at')
-            .eq('dayung_unit_id', scopedUnitId)
-            .order('created_at', ascending: false);
+        dynamic ann;
+        try {
+          ann = await sb
+              .from('announcements')
+              .select(
+                'id, dayung_unit_id, title, body, category, created_by, created_at',
+              )
+              .eq('dayung_unit_id', scopedUnitId)
+              .order('created_at', ascending: false);
+        } on PostgrestException catch (error) {
+          if (error.code != '42703' ||
+              !error.message.contains('announcements.category')) {
+            rethrow;
+          }
+          debugPrint(
+            '[Notification] announcements.category is missing; loading legacy announcement fields.',
+          );
+          announcementLogWarning =
+              'Announcement categories are not enabled yet. Run docs/supabase-announcement-category.sql in the Supabase SQL Editor to enable them.';
+          ann = await sb
+              .from('announcements')
+              .select('id, dayung_unit_id, title, body, created_by, created_at')
+              .eq('dayung_unit_id', scopedUnitId)
+              .order('created_at', ascending: false);
+        }
         annData = List<Map<String, dynamic>>.from(ann);
+        if (announcementLogWarning != null) {
+          annData = annData
+              .map(
+                (announcement) => {
+                  ...announcement,
+                  'category': 'General Announcement',
+                },
+              )
+              .toList();
+        }
       }
+
+      final posterIds = annData
+          .map((announcement) => announcement['created_by'])
+          .whereType<String>()
+          .where((id) => id.isNotEmpty)
+          .toSet()
+          .toList();
+      final posterNames = <String, String>{};
+      if (posterIds.isNotEmpty) {
+        try {
+          final posters = await sb
+              .from('users')
+              .select('id, full_name')
+              .inFilter('id', posterIds);
+          for (final poster in List<Map<String, dynamic>>.from(posters)) {
+            final id = poster['id']?.toString();
+            final name = poster['full_name']?.toString().trim();
+            if (id != null && name != null && name.isNotEmpty) {
+              posterNames[id] = name;
+            }
+          }
+        } catch (error) {
+          debugPrint(
+            '[Notification] Could not load announcement posters: $error',
+          );
+          announcementLogWarning ??=
+              'Poster names could not be loaded. Please check your access and try again.';
+        }
+      }
+      final announcementLogs = annData
+          .map(
+            (announcement) => {
+              ...announcement,
+              'posted_by':
+                  posterNames[announcement['created_by']?.toString()] ??
+                  'Name unavailable',
+            },
+          )
+          .toList();
 
       // 3) Read states for announcements (per-user)
       final annIds = annData.map((a) => a['id'] as int).toList();
@@ -861,12 +939,15 @@ class _NotificationPageState extends State<NotificationPage> {
       if (!mounted) return;
       setState(() {
         _items = merged;
+        _announcementLogs = announcementLogs;
+        _announcementLogWarning = announcementLogWarning;
         _loading = false;
       });
     } catch (e) {
       if (!mounted) return;
       setState(() {
         _items = [];
+        _announcementLogs = [];
         _loading = false;
       });
       ScaffoldMessenger.of(context).showSnackBar(
@@ -1095,6 +1176,279 @@ class _NotificationPageState extends State<NotificationPage> {
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildAnnouncementLogs({required bool isWide}) {
+    final logsContent = _loading
+        ? const Padding(
+            padding: EdgeInsets.all(20),
+            child: Center(child: CircularProgressIndicator(color: kPrimary)),
+          )
+        : _announcementLogs.isEmpty
+        ? const Padding(
+            padding: EdgeInsets.all(20),
+            child: Text(
+              'No announcement logs yet for this Dayung Unit.',
+              style: TextStyle(
+                fontSize: 16,
+                color: kSubText,
+                fontFamily: 'OpenSans',
+              ),
+            ),
+          )
+        : isWide
+        ? RecordDataTable(
+            minWidth: 1050,
+            cardStyle: true,
+            fillAvailableWidth: true,
+            showCheckboxColumn: false,
+            headingRowColor: const Color(0xFFEAF2FC),
+            headingTextStyle: const TextStyle(
+              color: kPrimary,
+              fontSize: 16,
+              fontWeight: FontWeight.w800,
+              fontFamily: 'Montserrat',
+            ),
+            dataTextStyle: const TextStyle(
+              color: kText,
+              fontSize: 16,
+              fontWeight: FontWeight.w600,
+              fontFamily: 'OpenSans',
+            ),
+            columnSpacing: 20,
+            horizontalMargin: 20,
+            dataRowMinHeight: 84,
+            dataRowMaxHeight: 140,
+            columns: const [
+              DataColumn(label: Text('Title')),
+              DataColumn(label: Text('Category')),
+              DataColumn(label: Text('Description')),
+              DataColumn(label: Text('Posted By')),
+              DataColumn(label: Text('Date and Time')),
+            ],
+            rows: _announcementLogs.map((announcement) {
+              final category =
+                  (announcement['category'] ?? 'General Announcement')
+                      .toString();
+              return DataRow(
+                cells: [
+                  DataCell(
+                    SizedBox(
+                      width: 190,
+                      child: Text(
+                        (announcement['title'] ?? 'Announcement').toString(),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ),
+                  DataCell(
+                    SizedBox(
+                      width: 190,
+                      child: _buildTableBadge(
+                        label: category,
+                        color: kPrimary,
+                        background: const Color(0xFFF5F9FF),
+                      ),
+                    ),
+                  ),
+                  DataCell(
+                    SizedBox(
+                      width: 300,
+                      child: Text(
+                        (announcement['body'] ?? '').toString(),
+                        maxLines: 3,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(height: 1.4),
+                      ),
+                    ),
+                  ),
+                  DataCell(
+                    SizedBox(
+                      width: 170,
+                      child: Text(
+                        (announcement['posted_by'] ?? 'Name unavailable')
+                            .toString(),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ),
+                  DataCell(
+                    SizedBox(
+                      width: 180,
+                      child: Text(
+                        _formatAnnouncementDateTime(announcement['created_at']),
+                        style: const TextStyle(height: 1.4),
+                      ),
+                    ),
+                  ),
+                ],
+              );
+            }).toList(),
+          )
+        : Column(
+            children: _announcementLogs.map((announcement) {
+              final category =
+                  (announcement['category'] ?? 'General Announcement')
+                      .toString();
+              final title = (announcement['title'] ?? 'Announcement')
+                  .toString();
+              final description = (announcement['body'] ?? '').toString();
+              final postedBy = (announcement['posted_by'] ?? 'Name unavailable')
+                  .toString();
+
+              return Container(
+                width: double.infinity,
+                margin: const EdgeInsets.only(bottom: 12),
+                padding: const EdgeInsets.all(18),
+                decoration: BoxDecoration(
+                  color: dayungSurface(context),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: dayungBorder(context)),
+                  boxShadow: [dayungElevatedShadow(context)],
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: const TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w800,
+                        color: kText,
+                        fontFamily: 'Montserrat',
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    _buildTableBadge(
+                      label: category,
+                      color: kPrimary,
+                      background: const Color(0xFFF5F9FF),
+                    ),
+                    const SizedBox(height: 14),
+                    Text(
+                      description.isEmpty ? 'No description' : description,
+                      style: const TextStyle(
+                        fontSize: 16,
+                        height: 1.45,
+                        color: kText,
+                        fontFamily: 'OpenSans',
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+                    const Divider(height: 1),
+                    const SizedBox(height: 12),
+                    _buildAnnouncementLogDetail(
+                      icon: Icons.person_outline_rounded,
+                      label: 'Posted by',
+                      value: postedBy,
+                    ),
+                    const SizedBox(height: 8),
+                    _buildAnnouncementLogDetail(
+                      icon: Icons.schedule_rounded,
+                      label: 'Date and time',
+                      value: _formatAnnouncementDateTime(
+                        announcement['created_at'],
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            }).toList(),
+          );
+
+    return Padding(
+      padding: EdgeInsets.fromLTRB(isWide ? 24 : 16, 20, isWide ? 24 : 16, 0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.only(bottom: 12),
+            child: Row(
+              children: [
+                const Icon(Icons.history_rounded, color: kPrimary, size: 24),
+                const SizedBox(width: 10),
+                const Expanded(
+                  child: Text(
+                    'Announcement Logs',
+                    style: TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.w800,
+                      color: kText,
+                      fontFamily: 'Montserrat',
+                    ),
+                  ),
+                ),
+                if (!_loading)
+                  Text(
+                    '${_announcementLogs.length} record${_announcementLogs.length == 1 ? '' : 's'}',
+                    style: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: kSubText,
+                      fontFamily: 'OpenSans',
+                    ),
+                  ),
+              ],
+            ),
+          ),
+          if (_announcementLogWarning case final warning?)
+            Container(
+              width: double.infinity,
+              margin: const EdgeInsets.only(bottom: 12),
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: const Color(0xFFFFFBEB),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: const Color(0xFFFDE68A)),
+              ),
+              child: Text(
+                warning,
+                style: const TextStyle(
+                  fontSize: 14,
+                  color: Color(0xFF92400E),
+                  fontFamily: 'OpenSans',
+                ),
+              ),
+            ),
+          logsContent,
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAnnouncementLogDetail({
+    required IconData icon,
+    required String label,
+    required String value,
+  }) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Icon(icon, color: kSubText, size: 20),
+        const SizedBox(width: 8),
+        Text(
+          '$label: ',
+          style: const TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.w700,
+            color: kSubText,
+            fontFamily: 'OpenSans',
+          ),
+        ),
+        Expanded(
+          child: Text(
+            value,
+            style: const TextStyle(
+              fontSize: 14,
+              color: kText,
+              fontFamily: 'OpenSans',
+            ),
+          ),
+        ),
+      ],
     );
   }
 
@@ -1349,6 +1703,7 @@ class _NotificationPageState extends State<NotificationPage> {
                           ),
                         ),
                       ),
+                      _buildAnnouncementLogs(isWide: isWide),
                       _loading
                           ? const DayungPageSkeleton(
                               layout: DayungSkeletonLayout.list,
@@ -1662,6 +2017,13 @@ class _NotificationPageState extends State<NotificationPage> {
     if (diff.inHours < 24) return '${diff.inHours} hr ago';
     if (diff.inDays < 7) return '${diff.inDays} days ago';
     return '${dt.year}-${dt.month.toString().padLeft(2, '0')}-${dt.day.toString().padLeft(2, '0')}';
+  }
+
+  String _formatAnnouncementDateTime(dynamic iso) {
+    if (iso == null) return '—';
+    final date = DateTime.tryParse(iso.toString());
+    if (date == null) return '—';
+    return DateFormat('MMM d, y • h:mm a').format(date.toLocal());
   }
 
   String _formatExactDateTime(dynamic iso) {
