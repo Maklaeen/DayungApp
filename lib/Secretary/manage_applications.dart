@@ -1172,9 +1172,6 @@ class _SecretaryApplicationsPageState extends State<SecretaryApplicationsPage> {
           })
           .eq('id', applicationId);
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Application rejected')));
       _fetchApplications(forUnitId: _currentUnitId);
     } on PostgrestException catch (e) {
       if (!mounted) return;

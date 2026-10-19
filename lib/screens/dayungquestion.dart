@@ -29,11 +29,13 @@ const Color kBorderColor = Color(0xFFE5E7EB);
 class QuestionnaireScreen extends StatefulWidget {
   final String userId;
   final String role;
+  final bool showPreferences;
 
   const QuestionnaireScreen({
     super.key,
     required this.userId,
     required this.role,
+    this.showPreferences = true,
   });
 
   @override
@@ -507,6 +509,10 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
 
   @override
   Widget build(BuildContext context) {
+    if (!widget.showPreferences) {
+      return const Scaffold(backgroundColor: kBg, body: SizedBox.shrink());
+    }
+
     final width = MediaQuery.of(context).size.width;
     final isWide = width > 700;
 
@@ -710,25 +716,32 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
   }) {
     if (!kDebugMode) return;
 
-    void logVector(String label, List<double> vector) {
-      debugPrint('$label (length: ${vector.length}):');
-      for (var start = 0; start < vector.length; start += 10) {
-        final end = min(start + 10, vector.length);
-        final positions = <String>[];
-        for (var index = start; index < end; index++) {
-          final value = vector[index] == vector[index].roundToDouble()
-              ? vector[index].toInt().toString()
-              : vector[index].toString();
-          positions.add('${index + 1}:$value');
-        }
-        debugPrint('  ${positions.join(', ')}');
-      }
-    }
-
     String unitName(Map<String, dynamic> unit) =>
         (unit['dayung_unit_name'] ?? 'Unnamed Unit').toString();
     String unitId(Map<String, dynamic> unit) =>
         '${unit['dayung_unit_id'] ?? unit['id'] ?? 'unknown'}';
+    String preferenceValue(Object? value) {
+      if (value == null || value.toString().isEmpty) return 'Not set';
+      if (value is bool) return value ? 'Yes' : 'No';
+      return value.toString();
+    }
+
+    String serviceTags(Map<String, dynamic> values) {
+      final selected = dayungServiceTagLabels.where((label) {
+        return values[dayungServiceTagColumns[label]] == true;
+      }).toList();
+      return selected.isEmpty ? 'None' : selected.join(', ');
+    }
+
+    String unitPreferences(Map<String, dynamic> unit) =>
+        'Meeting=${preferenceValue(unit['meeting_frequency'])}, '
+        'Payment=${preferenceValue(unit['payment_method'])}, '
+        'Collection=${preferenceValue(unit['collection_fee_range'])}, '
+        'Membership=${preferenceValue(unit['membership_payment'])}, '
+        'Penalty=${preferenceValue(unit['penalty_payment'])}, '
+        'Open for all=${preferenceValue(unit['open_for_all'])}, '
+        'Services=[${serviceTags(unit)}]';
+
     String distanceText(Map<String, dynamic> unit) {
       final distance = (unit['__distanceKm'] as num?)?.toDouble();
       return distance == null
@@ -736,99 +749,50 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
           : '${distance.toStringAsFixed(2)} km';
     }
 
-    void logScoredUnit(Map<String, dynamic> unit, {required int rank}) {
-      debugPrint('$rank. ${unitName(unit)} (ID: ${unitId(unit)})');
+    final selectedServices = dayungServiceTagLabels
+        .where((label) => selectedServiceTags[label] == true)
+        .toList();
+    debugPrint('=== DAYUNG MATCH DEBUG ===');
+    debugPrint(
+      'USER: Meeting=${preferenceValue(meeting_frequency)}, '
+      'Payment=${preferenceValue(payment_method)}, '
+      'Collection=${preferenceValue(contribution_amount)}, '
+      'Membership=${preferenceValue(membership_payment)}, '
+      'Penalty=${preferenceValue(penalty_payment)}, '
+      'Open for all=${preferenceValue(openForAll)}, '
+      'Services=[${selectedServices.isEmpty ? 'None' : selectedServices.join(', ')}]',
+    );
+    debugPrint('USER VECTOR (${userVector.length}): $userVector');
+    debugPrint('UNITS (threshold=${threshold.toStringAsFixed(3)}):');
+    for (final unit in [...qualifiedUnits, ...rejectedUnits]) {
+      final score = (unit['__hybridScore'] as num).toDouble();
       debugPrint(
-        '  Cosine Similarity: '
-        '${(unit['__cosineSimilarity'] as num).toStringAsFixed(4)}',
+        '- ${unitName(unit)} (ID: ${unitId(unit)}) | '
+        '${unitPreferences(unit)} | '
+        'Cosine=${(unit['__cosineSimilarity'] as num).toStringAsFixed(3)}, '
+        'Matched=${unit['__matchedSelectedCount']}/'
+        '${unit['__selectedCount']}, '
+        'Attribute=${(unit['__attributeMatchBoost'] as num).toStringAsFixed(3)}, '
+        'Final=${score.toStringAsFixed(3)}, '
+        'Threshold=${threshold.toStringAsFixed(3)}, '
+        'Distance=${distanceText(unit)}, '
+        'Status=${score >= threshold ? 'PASS' : 'REJECT'}',
       );
-      debugPrint(
-        '  Matched Features: ${unit['__matchedSelectedCount']}/'
-        '${unit['__selectedCount']}',
-      );
-      debugPrint(
-        '  Attribute Match: '
-        '${(unit['__attributeMatchBoost'] as num).toStringAsFixed(4)}',
-      );
-      debugPrint(
-        '  Final Hybrid Score: '
-        '${(unit['__hybridScore'] as num).toStringAsFixed(4)}',
-      );
-      debugPrint('  Distance: ${distanceText(unit)}');
-      debugPrint('  Status: PASS');
-      logVector('  Feature Vector', unit['__unitVector'] as List<double>);
     }
 
-    debugPrint('========== DAYUNG RECOMMENDATION ==========');
-    debugPrint('Similarity Threshold: ${threshold.toStringAsFixed(4)}');
-    debugPrint('Feature Enhancement Weight: $hybridAttributeMatchWeight');
-    debugPrint('Expected Vector Length: 37');
-    logVector('USER PREFERENCE VECTOR', userVector);
-
-    debugPrint('QUALIFIED DAYUNG UNITS (${qualifiedUnits.length}):');
-    if (qualifiedUnits.isEmpty) debugPrint('  None');
-    final inDistancePreference =
-        selectedDistanceKm != null &&
-        selectedDistanceKm! > 0 &&
-        qualifiedUnits.any((unit) {
-          final distance = unit['__distanceKm'] as double?;
-          return distance != null && distance <= selectedDistanceKm!;
-        });
-    for (var index = 0; index < qualifiedUnits.length; index++) {
-      final unit = qualifiedUnits[index];
-      logScoredUnit(unit, rank: index + 1);
-      final distance = unit['__distanceKm'] as double?;
-      if (inDistancePreference &&
-          (distance == null || distance > selectedDistanceKm!)) {
-        debugPrint(
-          '  Final Recommendation Status: PASS, omitted by distance preference',
-        );
-      }
-    }
-
-    debugPrint('REJECTED DAYUNG UNITS (${rejectedUnits.length}):');
-    if (rejectedUnits.isEmpty) debugPrint('  None');
-    for (final unit in rejectedUnits) {
-      debugPrint('- ${unitName(unit)} (ID: ${unitId(unit)})');
-      debugPrint(
-        '  Cosine Similarity: '
-        '${(unit['__cosineSimilarity'] as num).toStringAsFixed(4)}',
-      );
-      debugPrint(
-        '  Matched Features: ${unit['__matchedSelectedCount']}/'
-        '${unit['__selectedCount']}',
-      );
-      debugPrint(
-        '  Attribute Match: '
-        '${(unit['__attributeMatchBoost'] as num).toStringAsFixed(4)}',
-      );
-      debugPrint(
-        '  Final Hybrid Score: '
-        '${(unit['__hybridScore'] as num).toStringAsFixed(4)}',
-      );
-      debugPrint('  Threshold: ${threshold.toStringAsFixed(4)}');
-      debugPrint('  Distance: ${distanceText(unit)}');
-      debugPrint('  Status: REJECT');
-      debugPrint(
-        '  Reason: Final hybrid score is below the required threshold.',
-      );
-      logVector('  Feature Vector', unit['__unitVector'] as List<double>);
-    }
-
-    debugPrint('TOP ${rankedRecommendations.length} RECOMMENDATIONS:');
+    debugPrint('TOP RECOMMENDATIONS (${rankedRecommendations.length}):');
     if (rankedRecommendations.isEmpty) {
-      debugPrint('  No Dayung units qualified for recommendation.');
+      debugPrint('None');
     }
     for (var index = 0; index < rankedRecommendations.length; index++) {
       final unit = rankedRecommendations[index];
-      debugPrint('Rank ${index + 1}: ${unitName(unit)}');
       debugPrint(
-        '  Final Hybrid Score: '
-        '${(unit['__hybridScore'] as num).toStringAsFixed(4)}',
+        '${index + 1}. ${unitName(unit)} (ID: ${unitId(unit)}) | '
+        'Final=${(unit['__hybridScore'] as num).toStringAsFixed(3)} | '
+        'Distance=${distanceText(unit)}',
       );
-      debugPrint('  Distance: ${distanceText(unit)}');
     }
-    debugPrint('=================================================');
+    debugPrint('==========================');
   }
 
   Widget _buildBody(BuildContext context, bool isWide) {
@@ -1214,7 +1178,8 @@ Widget _buildDropdown({
   return Padding(
     padding: const EdgeInsets.symmetric(vertical: 8),
     child: DropdownButtonFormField<String>(
-      initialValue: value ?? items.first,
+      initialValue: value,
+      hint: Text('Select $label'),
       decoration: InputDecoration(
         labelText: label,
         border: const OutlineInputBorder(),

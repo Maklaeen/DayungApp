@@ -242,40 +242,60 @@ class _SuperAdminUsersPageState extends State<SuperAdminUsersPage> {
                               final isDeceased = user['is_deceased'] == true;
                               return DataRow(
                                 cells: [
-                                  DataCell(Text(
-                                    (user['full_name'] ?? 'No Name').toString(),
-                                  )),
-                                  DataCell(Text((user['email'] ?? '').toString())),
-                                  DataCell(Text((user['role'] ?? 'member').toString())),
-                                  DataCell(Text([
-                                    isDisabled ? 'Disabled' : 'Active',
-                                    if (isDeceased) 'Deceased',
-                                  ].join(' · '))),
-                                  DataCell(Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      IconButton(
-                                        tooltip: 'Edit details',
-                                        onPressed: () => _editUser(user),
-                                        icon: const Icon(Icons.edit_outlined),
-                                      ),
-                                      IconButton(
-                                        tooltip: 'Reset password',
-                                        onPressed: () => _resetPassword(user),
-                                        icon: const Icon(Icons.lock_reset_rounded),
-                                      ),
-                                      IconButton(
-                                        tooltip: isDisabled ? 'Reactivate' : 'Deactivate',
-                                        onPressed: () => _toggleDisabled(user),
-                                        icon: Icon(
-                                          isDisabled
-                                              ? Icons.person_add_alt_1_rounded
-                                              : Icons.block_rounded,
-                                          color: isDisabled ? kSuccess : kDanger,
+                                  DataCell(
+                                    Text(
+                                      (user['full_name'] ?? 'No Name')
+                                          .toString(),
+                                    ),
+                                  ),
+                                  DataCell(
+                                    Text((user['email'] ?? '').toString()),
+                                  ),
+                                  DataCell(
+                                    Text((user['role'] ?? 'member').toString()),
+                                  ),
+                                  DataCell(
+                                    Text(
+                                      [
+                                        isDisabled ? 'Disabled' : 'Active',
+                                        if (isDeceased) 'Deceased',
+                                      ].join(' · '),
+                                    ),
+                                  ),
+                                  DataCell(
+                                    Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        IconButton(
+                                          tooltip: 'Edit details',
+                                          onPressed: () => _editUser(user),
+                                          icon: const Icon(Icons.edit_outlined),
                                         ),
-                                      ),
-                                    ],
-                                  )),
+                                        IconButton(
+                                          tooltip: 'Reset password',
+                                          onPressed: () => _resetPassword(user),
+                                          icon: const Icon(
+                                            Icons.lock_reset_rounded,
+                                          ),
+                                        ),
+                                        IconButton(
+                                          tooltip: isDisabled
+                                              ? 'Reactivate'
+                                              : 'Deactivate',
+                                          onPressed: () =>
+                                              _toggleDisabled(user),
+                                          icon: Icon(
+                                            isDisabled
+                                                ? Icons.person_add_alt_1_rounded
+                                                : Icons.block_rounded,
+                                            color: isDisabled
+                                                ? kSuccess
+                                                : kDanger,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
                                 ],
                               );
                             }).toList(),
