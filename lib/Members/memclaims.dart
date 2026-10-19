@@ -1117,7 +1117,7 @@ class _MembersClaimsPageState extends State<MembersClaimsPage>
         final status = (claim['status'] ?? '').toString();
         final color = _statusColor(status);
         final description = (claim['description'] ?? '').toString().trim();
-        final onTap = () => _openDetail(claim);
+        void onTap() => _openDetail(claim);
         return DataRow(
           cells: [
             DataCell(

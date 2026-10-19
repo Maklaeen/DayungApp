@@ -462,7 +462,7 @@ class _MyAppState extends State<MyApp> {
     super.initState();
     _authSubscription = Supabase.instance.client.auth.onAuthStateChange.listen((
       data,
-    ) {
+    ) {   
       if (data.event == AuthChangeEvent.signedOut) {
         unawaited(_clearSessionScopedDayungState());
       }
