@@ -5,6 +5,7 @@ import 'package:capstone_app/shared/collector_progress_page.dart';
 import 'package:capstone_app/President/manage_roles.dart';
 import 'package:capstone_app/President/manage_rules.dart';
 import 'package:capstone_app/President/president_payment_page.dart';
+import 'package:capstone_app/President/president_activity_page.dart';
 import 'package:capstone_app/President/post_announcement.dart';
 import 'package:capstone_app/President/sms_announcement_page.dart';
 import 'package:capstone_app/President/presclaims.dart' hide kPrimary;
@@ -1137,36 +1138,34 @@ class _PresidentDashboardPageState extends State<PresidentDashboardPage> {
             ),
           ),
           const SizedBox(height: 16),
-          Row(
-            children: [
-              Expanded(
-                child: SizedBox(
-                  height: quickAccessCardHeight,
-                  child: _modernActionCard(
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final crossAxisCount = isMobile ? 2 : 4;
+              final cardWidth =
+                  (constraints.maxWidth - (12 * (crossAxisCount - 1))) /
+                  crossAxisCount;
+
+              return GridView.count(
+                crossAxisCount: crossAxisCount,
+                childAspectRatio: cardWidth / quickAccessCardHeight,
+                mainAxisSpacing: 12,
+                crossAxisSpacing: 12,
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                children: [
+                  _modernActionCard(
                     icon: Icons.bar_chart_rounded,
                     title: 'Contributions',
                     color: kPrimary,
                     onTap: () => setState(() => _currentIndex = 1),
                   ),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: SizedBox(
-                  height: quickAccessCardHeight,
-                  child: _modernActionCard(
+                  _modernActionCard(
                     icon: Icons.assignment_rounded,
                     title: 'Claims',
                     color: const Color(0xFFEF4444),
                     onTap: () => setState(() => _currentIndex = 2),
                   ),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: SizedBox(
-                  height: quickAccessCardHeight,
-                  child: _modernActionCard(
+                  _modernActionCard(
                     icon: Icons.description_rounded,
                     title: 'Required Application',
                     color: const Color(0xFF6366F1),
@@ -1179,9 +1178,20 @@ class _PresidentDashboardPageState extends State<PresidentDashboardPage> {
                       );
                     },
                   ),
-                ),
-              ),
-            ],
+                  _modernActionCard(
+                    icon: Icons.history_rounded,
+                    title: 'Activity',
+                    color: const Color(0xFF0891B2),
+                    onTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => const PresidentActivityPage(),
+                      ),
+                    ).then((_) => _load()),
+                  ),
+                ],
+              );
+            },
           ),
           const SizedBox(height: 16),
           _UpcomingAnnouncementCard(

@@ -86,71 +86,34 @@ class ReportsService {
   }) async {
     var claimsQuery = sb
         .from('claims')
-        .select('user_id, claimedmoney, date_released, claimedmoney_date');
+        .select(
+          'claimant_name, title, amount_released, secretary_id, '
+          'date_released, status, claimedmoney',
+        );
     if (unitId != null) claimsQuery = claimsQuery.eq('dayung_unit_id', unitId);
 
     final claims = List<Map<String, dynamic>>.from(await claimsQuery);
-    final releasedClaimsByMember = <String, Map<String, dynamic>>{};
-    for (final claim in claims) {
-      if (!_isTruthyFlag(claim['claimedmoney'])) continue;
-      final memberId = (claim['user_id'] ?? '').toString();
-      if (memberId.isEmpty) continue;
-
-      final current = releasedClaimsByMember[memberId];
-      final currentDate = DateTime.tryParse(
-        '${current?['date_released'] ?? current?['claimedmoney_date'] ?? ''}',
-      );
-      final claimDate = DateTime.tryParse(
-        '${claim['date_released'] ?? claim['claimedmoney_date'] ?? ''}',
-      );
-      if (current == null ||
-          (claimDate != null &&
-              (currentDate == null || claimDate.isAfter(currentDate)))) {
-        releasedClaimsByMember[memberId] = claim;
-      }
-    }
-    if (releasedClaimsByMember.isEmpty) return [];
-
-    var paymentsQuery = sb
-        .from('payments')
-        .select(
-          'user_id, userdeceased, deceased_name, amount, is_claimed_date, '
-          'recipient:users!payments_user_id_fkey(full_name)',
+    final activities = claims
+        .where((claim) => _isTruthyFlag(claim['claimedmoney']))
+        .map(
+          (claim) => {
+            'beneficiary_name':
+                (claim['claimant_name'] ?? '').toString().trim().isEmpty
+                ? 'Unknown beneficiary'
+                : claim['claimant_name'],
+            'deceased_member': (claim['title'] ?? '').toString().trim().isEmpty
+                ? 'Unknown member'
+                : claim['title'],
+            'amount': claim['amount_released'],
+            'released_by':
+                (claim['secretary_id'] ?? '').toString().trim().isEmpty
+                ? 'Not recorded'
+                : claim['secretary_id'],
+            'released_at': claim['date_released'],
+            'status': claim['status'],
+          },
         )
-        .eq('status', 'paid')
-        .eq('is_claimed', true);
-    if (unitId != null) {
-      paymentsQuery = paymentsQuery.eq('dayung_unit_id', unitId);
-    }
-
-    final payments = List<Map<String, dynamic>>.from(await paymentsQuery);
-    final activities = <Map<String, dynamic>>[];
-    for (final payment in payments) {
-      final memberId = (payment['userdeceased'] ?? '').toString();
-      final release = releasedClaimsByMember[memberId];
-      if (release == null) continue;
-
-      final recipient = payment['recipient'];
-      final beneficiaryName = recipient is Map
-          ? (recipient['full_name'] ?? '').toString()
-          : '';
-      activities.add({
-        'beneficiary_name': beneficiaryName.trim().isEmpty
-            ? 'Unknown beneficiary'
-            : beneficiaryName,
-        'deceased_member':
-            (payment['deceased_name'] ?? '').toString().trim().isEmpty
-            ? 'Unknown member'
-            : payment['deceased_name'],
-        'amount': payment['amount'],
-        'released_by': 'Not recorded',
-        'released_at':
-            release['date_released'] ??
-            release['claimedmoney_date'] ??
-            payment['is_claimed_date'],
-        'status': 'Released',
-      });
-    }
+        .toList();
 
     activities.sort((a, b) {
       final aDate = DateTime.tryParse('${a['released_at'] ?? ''}');

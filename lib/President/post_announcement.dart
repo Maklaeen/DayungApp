@@ -265,7 +265,7 @@ class _PostAnnouncementPageState extends State<PostAnnouncementPage> {
               ),
               const SizedBox(height: 12),
               const Text(
-                'Your announcement has been successfully posted and push notifications will be sent.',
+                'Your announcement has been successfully posted.',
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   fontSize: 15,

@@ -4,6 +4,12 @@ import 'package:capstone_app/utils/dayung_similarity.dart';
 
 void main() {
   group('dayung hybrid filtering', () {
+    test('requires at least five selected preferences for recommendations', () {
+      expect(hasEnoughRecommendationPreferences(4), isFalse);
+      expect(hasEnoughRecommendationPreferences(5), isTrue);
+      expect(hasEnoughRecommendationPreferences(6), isTrue);
+    });
+
     test('builds the 37-dimension pgvector query in database column order', () {
       final vector = DayungRecommendationService.preferenceVector(
         const DayungPreferencesData(

@@ -652,6 +652,7 @@ class _SecretaryClaimsPageState extends State<SecretaryClaimsPage>
             'claimedmoney_date': newValue ? claimedAt : null,
             'amount_released': newValue ? amountReleased : null,
             'date_released': newValue ? claimedAt : null,
+            'secretary_id': newValue ? supabase.auth.currentUser?.id : null,
           })
           .eq('id', claimId);
       _updateClaimLocally(claimId, storeVal);

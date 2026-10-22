@@ -1,6 +1,10 @@
 import 'dart:math' as math;
 
 const double hybridAttributeMatchWeight = 0.25;
+const int minimumRecommendationPreferenceCount = 5;
+
+bool hasEnoughRecommendationPreferences(int selectedCount) =>
+    selectedCount >= minimumRecommendationPreferenceCount;
 
 class HybridScoreResult {
   const HybridScoreResult({

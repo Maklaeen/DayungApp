@@ -250,15 +250,9 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
   // ug mosort base sa cosine similarity sa user preference vector.
   // Dinhi gyud mahitabo ang matching ug ranking.
   Future<void> _fetchSuggestionsLocal() async {
-    debugPrint(
-      'DEBUG: User "${widget.userId}" (role: ${widget.role}) is searching for Dayung rules',
-    );
     setState(() => isLoading = true);
     try {
       final userVector = _generatePreferenceVector();
-      debugPrint(
-        'DEBUG: User Preference Vector len=${userVector.length}: $userVector',
-      );
 
       // Fetch rules joined with unit info for location
       final resp = await Supabase.instance.client
@@ -285,9 +279,6 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
         // Build vector from rule columns
         m['__parsedVector'] = _buildRuleVector(m);
 
-        final unitId = m['dayung_unit_id'] ?? m['id'];
-        debugPrint('DEBUG: Unit ID:$unitId Vector: ${m['__parsedVector']}');
-
         rules.add(m);
       }
 
@@ -303,6 +294,9 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
       });
 
       setState(() => suggestedUnits = rules);
+      if (kDebugMode) {
+        _rankPassingUnits(rules, userVector, logDebug: true);
+      }
     } catch (e) {
       debugPrint('DEBUG: Local fetch error: $e');
       if (!mounted) return;
@@ -368,38 +362,48 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
   void initState() {
     super.initState();
     selectedDistanceKm = 5;
-    _loadSavedServicePreferences();
+    _loadSavedPreferences();
     _fetchUserAddress();
-    _fetchSuggestions();
     _fetchUserLatitude();
     _fetchUserLongitude();
   }
 
   String? userBarangay, userCity, userProvince;
 
-  Future<void> _loadSavedServicePreferences() async {
+  Future<void> _loadSavedPreferences() async {
     try {
       final resp = await Supabase.instance.client
           .from('user_preferences')
           .select(
-            dayungServiceTagLabels
-                .map((label) => dayungServiceTagColumns[label]!)
-                .join(','),
+            'meeting_frequency, contribution_amount, membership_payment, '
+            'penalty_payment, payment_method, open_for_all, penalty_policy, '
+            '${dayungServiceTagLabels.map((label) => dayungServiceTagColumns[label]!).join(',')}',
           )
           .eq('user_id', widget.userId)
           .maybeSingle();
 
-      if (resp == null) return;
-      if (!mounted) return;
+      if (resp != null && mounted) {
+        setState(() {
+          meeting_frequency = resp['meeting_frequency'] as String?;
+          contribution_amount = resp['contribution_amount'] as String?;
+          membership_payment = resp['membership_payment'] as String?;
+          penalty_payment = resp['penalty_payment'] as String?;
+          payment_method = resp['payment_method'] as String?;
+          openForAll = resp['open_for_all'] == null
+              ? null
+              : (resp['open_for_all'] == true ? 'Yes' : 'No');
+          penalty_policy = resp['penalty_policy'] as String?;
 
-      setState(() {
-        for (final label in dayungServiceTagLabels) {
-          final column = dayungServiceTagColumns[label]!;
-          selectedServiceTags[label] = resp[column] == true;
-        }
-      });
+          for (final label in dayungServiceTagLabels) {
+            final column = dayungServiceTagColumns[label]!;
+            selectedServiceTags[label] = resp[column] == true;
+          }
+        });
+      }
     } catch (e) {
-      debugPrint('Failed to load saved service preferences: $e');
+      debugPrint('Failed to load saved preferences: $e');
+    } finally {
+      if (mounted) await _fetchSuggestions();
     }
   }
 
@@ -446,7 +450,6 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
             ? double.tryParse('${resp['latitude']}')
             : null;
       });
-      debugPrint('DEBUG: User Latitude for ID ${widget.userId}: $userLat');
     } catch (e) {
       debugPrint('Failed to fetch user latitude: $e');
     }
@@ -464,7 +467,6 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
             ? double.tryParse('${resp['longitude']}')
             : null;
       });
-      debugPrint('DEBUG: User Longitude for ID ${widget.userId}: $userLng');
     } catch (e) {
       debugPrint('Failed to fetch user longitude: $e');
     }
@@ -625,13 +627,34 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
     return 1.0 + lambda * (matched / selected);
   }
 
+  int _countSelectedPreferences() {
+    final selectedDropdownCount = [
+      meeting_frequency,
+      payment_method,
+      contribution_amount,
+      membership_payment,
+      penalty_payment,
+      openForAll,
+    ].where((value) => value != null).length;
+    final selectedServiceCount = selectedServiceTags.values
+        .where((selected) => selected)
+        .length;
+    return selectedDropdownCount + selectedServiceCount;
+  }
+
   List<dynamic> _rankPassingUnits(
     List<dynamic> units,
-    List<double> userVector,
-  ) {
+    List<double> userVector, {
+    bool logDebug = false,
+  }) {
     const double similarityThreshold = 0.300;
+    final selectedPreferenceCount = _countSelectedPreferences();
+    final hasEnoughPreferences = hasEnoughRecommendationPreferences(
+      selectedPreferenceCount,
+    );
     final eligible = <Map<String, dynamic>>[];
     final rejected = <Map<String, dynamic>>[];
+    final scoredUnits = <Map<String, dynamic>>[];
 
     for (final unit in units) {
       final unitVector =
@@ -654,7 +677,8 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
         '__matchedSelectedCount': hybrid.matchedSelectedCount,
         '__selectedCount': hybrid.selectedCount,
       };
-      if (hybrid.finalScore < similarityThreshold) {
+      scoredUnits.add(scoredUnit);
+      if (!hasEnoughPreferences || hybrid.finalScore < similarityThreshold) {
         rejected.add(scoredUnit);
       } else {
         eligible.add(scoredUnit);
@@ -697,22 +721,32 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
 
     final rankedSource = nearEligible.isNotEmpty ? nearEligible : eligible;
     final recommendations = rankedSource.take(3).toList();
-    _logRecommendationDebug(
-      userVector: userVector,
-      qualifiedUnits: eligible,
-      rejectedUnits: rejected,
-      rankedRecommendations: recommendations,
-      threshold: similarityThreshold,
-    );
+    if (logDebug) {
+      _logRecommendationDebug(
+        userVector: userVector,
+        scoredUnits: scoredUnits,
+        rankedRecommendations: recommendations,
+        threshold: similarityThreshold,
+        selectedPreferenceCount: selectedPreferenceCount,
+      );
+    }
     return recommendations;
+  }
+
+  void _updatePreference(VoidCallback update) {
+    setState(update);
+    if (kDebugMode) {
+      final userVector = _generatePreferenceVector();
+      _rankPassingUnits(suggestedUnits, userVector, logDebug: true);
+    }
   }
 
   void _logRecommendationDebug({
     required List<double> userVector,
-    required List<Map<String, dynamic>> qualifiedUnits,
-    required List<Map<String, dynamic>> rejectedUnits,
+    required List<Map<String, dynamic>> scoredUnits,
     required List<Map<String, dynamic>> rankedRecommendations,
     required double threshold,
+    required int selectedPreferenceCount,
   }) {
     if (!kDebugMode) return;
 
@@ -720,27 +754,12 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
         (unit['dayung_unit_name'] ?? 'Unnamed Unit').toString();
     String unitId(Map<String, dynamic> unit) =>
         '${unit['dayung_unit_id'] ?? unit['id'] ?? 'unknown'}';
-    String preferenceValue(Object? value) {
-      if (value == null || value.toString().isEmpty) return 'Not set';
-      if (value is bool) return value ? 'Yes' : 'No';
-      return value.toString();
+    int compareUnitIds(Map<String, dynamic> a, Map<String, dynamic> b) {
+      final idA = int.tryParse(unitId(a));
+      final idB = int.tryParse(unitId(b));
+      if (idA != null && idB != null) return idA.compareTo(idB);
+      return unitId(a).compareTo(unitId(b));
     }
-
-    String serviceTags(Map<String, dynamic> values) {
-      final selected = dayungServiceTagLabels.where((label) {
-        return values[dayungServiceTagColumns[label]] == true;
-      }).toList();
-      return selected.isEmpty ? 'None' : selected.join(', ');
-    }
-
-    String unitPreferences(Map<String, dynamic> unit) =>
-        'Meeting=${preferenceValue(unit['meeting_frequency'])}, '
-        'Payment=${preferenceValue(unit['payment_method'])}, '
-        'Collection=${preferenceValue(unit['collection_fee_range'])}, '
-        'Membership=${preferenceValue(unit['membership_payment'])}, '
-        'Penalty=${preferenceValue(unit['penalty_payment'])}, '
-        'Open for all=${preferenceValue(unit['open_for_all'])}, '
-        'Services=[${serviceTags(unit)}]';
 
     String distanceText(Map<String, dynamic> unit) {
       final distance = (unit['__distanceKm'] as num?)?.toDouble();
@@ -749,35 +768,46 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
           : '${distance.toStringAsFixed(2)} km';
     }
 
-    final selectedServices = dayungServiceTagLabels
-        .where((label) => selectedServiceTags[label] == true)
-        .toList();
     debugPrint('=== DAYUNG MATCH DEBUG ===');
+    debugPrint('User ID: ${widget.userId}');
     debugPrint(
-      'USER: Meeting=${preferenceValue(meeting_frequency)}, '
-      'Payment=${preferenceValue(payment_method)}, '
-      'Collection=${preferenceValue(contribution_amount)}, '
-      'Membership=${preferenceValue(membership_payment)}, '
-      'Penalty=${preferenceValue(penalty_payment)}, '
-      'Open for all=${preferenceValue(openForAll)}, '
-      'Services=[${selectedServices.isEmpty ? 'None' : selectedServices.join(', ')}]',
+      'Latitude and Longitude (of the user): '
+      '${userLat?.toStringAsFixed(6) ?? 'Not set'}, '
+      '${userLng?.toStringAsFixed(6) ?? 'Not set'}',
     );
-    debugPrint('USER VECTOR (${userVector.length}): $userVector');
-    debugPrint('UNITS (threshold=${threshold.toStringAsFixed(3)}):');
-    for (final unit in [...qualifiedUnits, ...rejectedUnits]) {
-      final score = (unit['__hybridScore'] as num).toDouble();
+    debugPrint(
+      'DEBUG: User Preference Vector len=${userVector.length}: $userVector',
+    );
+    debugPrint(
+      'Selected preferences: $selectedPreferenceCount/'
+      '$minimumRecommendationPreferenceCount required',
+    );
+
+    final unitsForDebug = [...scoredUnits]..sort(compareUnitIds);
+    for (final unit in unitsForDebug) {
+      final unitVector =
+          unit['__unitVector'] as List<double>? ?? const <double>[];
+      final cosine = (unit['__cosineSimilarity'] as num?)?.toDouble() ?? 0.0;
+      final matched = unit['__matchedSelectedCount'] ?? 0;
+      final selected = unit['__selectedCount'] ?? 0;
+      final attribute =
+          (unit['__attributeMatchBoost'] as num?)?.toDouble() ?? 1.0;
+      final score = (unit['__hybridScore'] as num?)?.toDouble() ?? 0.0;
+      debugPrint('DEBUG: Unit ID:${unitId(unit)} Vector: $unitVector');
       debugPrint(
-        '- ${unitName(unit)} (ID: ${unitId(unit)}) | '
-        '${unitPreferences(unit)} | '
-        'Cosine=${(unit['__cosineSimilarity'] as num).toStringAsFixed(3)}, '
-        'Matched=${unit['__matchedSelectedCount']}/'
-        '${unit['__selectedCount']}, '
-        'Attribute=${(unit['__attributeMatchBoost'] as num).toStringAsFixed(3)}, '
+        'Cosine=${cosine.toStringAsFixed(3)}, '
+        'Matched=$matched/$selected, '
+        'Attribute=${attribute.toStringAsFixed(3)}, '
         'Final=${score.toStringAsFixed(3)}, '
         'Threshold=${threshold.toStringAsFixed(3)}, '
         'Distance=${distanceText(unit)}, '
-        'Status=${score >= threshold ? 'PASS' : 'REJECT'}',
+        'Status=${!hasEnoughRecommendationPreferences(selectedPreferenceCount)
+            ? 'REJECT (select 5+ preferences)'
+            : score >= threshold
+            ? 'PASS'
+            : 'REJECT'}',
       );
+      debugPrint('');
     }
 
     debugPrint('TOP RECOMMENDATIONS (${rankedRecommendations.length}):');
@@ -792,7 +822,6 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
         'Distance=${distanceText(unit)}',
       );
     }
-    debugPrint('==========================');
   }
 
   Widget _buildBody(BuildContext context, bool isWide) {
@@ -801,6 +830,7 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
     }
 
     final userVector = _generatePreferenceVector();
+    final selectedPreferenceCount = _countSelectedPreferences();
     final filteredUnits = _rankPassingUnits(suggestedUnits, userVector);
 
     return RefreshIndicator(
@@ -825,13 +855,15 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
                       label: 'Meeting Frequency',
                       items: ['Weekly', 'Monthly', 'Needed'],
                       value: meeting_frequency,
-                      onChanged: (v) => setState(() => meeting_frequency = v),
+                      onChanged: (v) =>
+                          _updatePreference(() => meeting_frequency = v),
                     ),
                     _buildDropdown(
                       label: 'Payment Method',
                       items: ['Cash', 'GCash', 'Both'],
                       value: payment_method,
-                      onChanged: (v) => setState(() => payment_method = v),
+                      onChanged: (v) =>
+                          _updatePreference(() => payment_method = v),
                     ),
                     _buildDropdown(
                       label: 'Collection Fee',
@@ -845,7 +877,8 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
                         '400 plus',
                       ],
                       value: contribution_amount,
-                      onChanged: (v) => setState(() => contribution_amount = v),
+                      onChanged: (v) =>
+                          _updatePreference(() => contribution_amount = v),
                     ),
                     _buildDropdown(
                       label: 'Membership Payment',
@@ -859,7 +892,8 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
                         '400 plus',
                       ],
                       value: membership_payment,
-                      onChanged: (v) => setState(() => membership_payment = v),
+                      onChanged: (v) =>
+                          _updatePreference(() => membership_payment = v),
                     ),
                     _buildDropdown(
                       label: 'Penalty Payment',
@@ -873,13 +907,14 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
                         '400 plus',
                       ],
                       value: penalty_payment,
-                      onChanged: (v) => setState(() => penalty_payment = v),
+                      onChanged: (v) =>
+                          _updatePreference(() => penalty_payment = v),
                     ),
                     _buildDropdown(
                       label: 'Open for All',
                       items: ['Yes', 'No'],
                       value: openForAll,
-                      onChanged: (v) => setState(() => openForAll = v),
+                      onChanged: (v) => _updatePreference(() => openForAll = v),
                     ),
                     const SizedBox(height: 8),
                     Align(
@@ -915,7 +950,7 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
                           label: Text(label),
                           selected: selectedServiceTags[label] ?? false,
                           onSelected: (value) {
-                            setState(() {
+                            _updatePreference(() {
                               selectedServiceTags[label] = value;
                             });
                           },
@@ -1090,12 +1125,42 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
                 ),
               );
             }),
-          ] else if (contribution_amount != null ||
-              membership_payment != null ||
-              penalty_payment != null ||
-              payment_method != null ||
-              openForAll != null ||
-              penalty_policy != null) ...[
+          ] else if (!hasEnoughRecommendationPreferences(
+            selectedPreferenceCount,
+          )) ...[
+            const SizedBox(height: 32),
+            Center(
+              child: Column(
+                children: [
+                  Icon(
+                    Icons.tune,
+                    size: 56,
+                    color: kSubText.withValues(alpha: 0.45),
+                  ),
+                  const SizedBox(height: 18),
+                  const Text(
+                    'Choose at least 5 preferences to see recommendations.',
+                    style: TextStyle(
+                      color: kSubText,
+                      fontSize: 17,
+                      fontWeight: FontWeight.w600,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Selected: $selectedPreferenceCount/'
+                    '$minimumRecommendationPreferenceCount',
+                    style: TextStyle(
+                      color: kSubText.withValues(alpha: 0.7),
+                      fontSize: 14,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                ],
+              ),
+            ),
+          ] else ...[
             const SizedBox(height: 32),
             Center(
               child: Column(
