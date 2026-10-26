@@ -402,11 +402,24 @@ class _ActivityLogSection extends StatelessWidget {
             SingleChildScrollView(
               scrollDirection: Axis.horizontal,
               child: DataTable(
+                headingRowHeight: 64,
+                dataRowMinHeight: 56,
+                dataRowMaxHeight: 80,
                 columnSpacing: 24,
-                headingRowHeight: 56,
-                dataRowMinHeight: 48,
-                dataRowMaxHeight: 64,
-                border: TableBorder.all(color: dayungBorder(context)),
+                horizontalMargin: 18,
+                dividerThickness: 1,
+                headingRowColor: WidgetStatePropertyAll(
+                  dayungSoftSurface(context),
+                ),
+                headingTextStyle: TextStyle(
+                  color: dayungTextColor(context),
+                  fontWeight: FontWeight.w800,
+                  fontSize: 16,
+                  fontFamily: 'Montserrat',
+                ),
+                border: TableBorder(
+                  horizontalInside: BorderSide(color: dayungBorder(context)),
+                ),
                 columns: [
                   for (final column in columns)
                     DataColumn(

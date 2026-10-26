@@ -506,9 +506,30 @@ class _TreasurerPaymentPageState extends State<TreasurerPaymentPage> {
                                         child: DataTable(
                                           columnSpacing: 20,
                                           horizontalMargin: 18,
+                                          headingRowHeight: 64,
+                                          dataRowMinHeight: 68,
+                                          dataRowMaxHeight: 112,
+                                          headingRowColor:
+                                              const WidgetStatePropertyAll(
+                                                Color(0xFFEAF2FC),
+                                              ),
                                           headingTextStyle: const TextStyle(
                                             fontWeight: FontWeight.w800,
-                                            color: _kText,
+                                            color: _kPrimary,
+                                            fontSize: 16,
+                                            fontFamily: 'Montserrat',
+                                          ),
+                                          dataTextStyle: const TextStyle(
+                                            color: Color(0xFF1F2937),
+                                            fontSize: 16,
+                                            fontWeight: FontWeight.w600,
+                                            fontFamily: 'OpenSans',
+                                          ),
+                                          dividerThickness: 1,
+                                          border: const TableBorder(
+                                            horizontalInside: BorderSide(
+                                              color: Color(0xFFD7E0EA),
+                                            ),
                                           ),
                                           columns: const [
                                             DataColumn(label: Text('Name')),
@@ -519,12 +540,20 @@ class _TreasurerPaymentPageState extends State<TreasurerPaymentPage> {
                                             DataColumn(label: Text('Added By')),
                                             DataColumn(label: Text('Date')),
                                           ],
-                                          rows: _paymentRows.map((row) {
+                                          rows: _paymentRows.indexed.map((
+                                            entry,
+                                          ) {
+                                            final (index, row) = entry;
                                             final name = _fullNameForRow(row);
                                             final type = (row['type'] ?? 'cash')
                                                 .toString()
                                                 .toLowerCase();
                                             return DataRow(
+                                              color: WidgetStatePropertyAll(
+                                                index.isEven
+                                                    ? Colors.white
+                                                    : const Color(0xFFF5F8FC),
+                                              ),
                                               cells: [
                                                 DataCell(Text(name)),
                                                 DataCell(

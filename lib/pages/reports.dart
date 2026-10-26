@@ -1834,23 +1834,46 @@ Widget _reportTable({
       child: ConstrainedBox(
         constraints: BoxConstraints(minWidth: minWidth),
         child: DataTable(
-          headingRowColor: WidgetStatePropertyAll(
-            kPrimary.withValues(alpha: 0.06),
-          ),
+          headingRowHeight: 64,
+          dataRowMinHeight: 68,
+          dataRowMaxHeight: 112,
+          headingRowColor: WidgetStatePropertyAll(const Color(0xFFEAF2FC)),
           headingTextStyle: const TextStyle(
-            color: kPrimary,
-            fontSize: 14,
+            color: Color(0xFF0D47A1),
+            fontSize: 16,
             fontWeight: FontWeight.w800,
+            fontFamily: 'Montserrat',
           ),
           dataTextStyle: const TextStyle(
             color: Color(0xFF1F2937),
-            fontSize: 14,
+            fontSize: 16,
             fontWeight: FontWeight.w600,
+            fontFamily: 'OpenSans',
+          ),
+          dividerThickness: 1,
+          border: const TableBorder(
+            horizontalInside: BorderSide(color: Color(0xFFD7E0EA)),
           ),
           columnSpacing: 20,
           horizontalMargin: 16,
           columns: columns,
-          rows: rows,
+          rows: rows.indexed
+              .map((entry) {
+                final (index, row) = entry;
+                return DataRow(
+                  key: row.key,
+                  selected: row.selected,
+                  onSelectChanged: row.onSelectChanged,
+                  onLongPress: row.onLongPress,
+                  color:
+                      row.color ??
+                      WidgetStatePropertyAll(
+                        index.isEven ? Colors.white : const Color(0xFFF5F8FC),
+                      ),
+                  cells: row.cells,
+                );
+              })
+              .toList(growable: false),
         ),
       ),
     ),
@@ -1860,7 +1883,7 @@ Widget _reportTable({
 Widget _reportCell(Object? value) {
   return Text(
     '${value ?? '—'}',
-    style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
   );
 }
 
@@ -1985,11 +2008,28 @@ class _DisbursementActivityTable extends StatelessWidget {
           child: SingleChildScrollView(
             scrollDirection: Axis.horizontal,
             child: DataTable(
-              headingRowColor: WidgetStatePropertyAll(
-                kPrimary.withValues(alpha: 0.06),
+              headingRowHeight: 64,
+              dataRowMinHeight: 72,
+              dataRowMaxHeight: 120,
+              headingRowColor: WidgetStatePropertyAll(const Color(0xFFEAF2FC)),
+              headingTextStyle: const TextStyle(
+                color: Color(0xFF0D47A1),
+                fontSize: 16,
+                fontWeight: FontWeight.w800,
+                fontFamily: 'Montserrat',
+              ),
+              dataTextStyle: const TextStyle(
+                color: Color(0xFF1F2937),
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+                fontFamily: 'OpenSans',
               ),
               columnSpacing: 24,
               horizontalMargin: 18,
+              dividerThickness: 1,
+              border: const TableBorder(
+                horizontalInside: BorderSide(color: Color(0xFFD7E0EA)),
+              ),
               columns: const [
                 DataColumn(label: Text('Beneficiary Name')),
                 DataColumn(label: Text('Deceased Member')),
@@ -1998,8 +2038,12 @@ class _DisbursementActivityTable extends StatelessWidget {
                 DataColumn(label: Text('Date and Time Released')),
                 DataColumn(label: Text('Status')),
               ],
-              rows: activities.map((activity) {
+              rows: activities.indexed.map((entry) {
+                final (index, activity) = entry;
                 return DataRow(
+                  color: WidgetStatePropertyAll(
+                    index.isEven ? Colors.white : const Color(0xFFF5F8FC),
+                  ),
                   cells: [
                     DataCell(_tableValue(activity['beneficiary_name'])),
                     DataCell(_tableValue(activity['deceased_member'])),
@@ -2122,7 +2166,7 @@ class _DisbursementActivityTable extends StatelessWidget {
       '${value ?? '—'}',
       style: const TextStyle(
         color: Colors.black87,
-        fontSize: 13,
+        fontSize: 16,
         fontWeight: FontWeight.w600,
       ),
     );

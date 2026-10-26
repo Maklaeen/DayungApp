@@ -289,52 +289,181 @@ class _PaidUnpaidMembersPageState extends State<PaidUnpaidMembersPage>
       );
     }
 
-    return ListView(
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
-      children: [
-        RecordDataTable(
-          minWidth: 720,
-          columns: const [
-            DataColumn(label: Text('Member')),
-            DataColumn(label: Text('Deceased Name')),
-            DataColumn(label: Text('Date')),
-            DataColumn(label: Text('Amount')),
-            DataColumn(label: Text('Status')),
-            DataColumn(label: Text('Action')),
-          ],
-          rows: filtered.map((member) {
-            final isPaid = member.status.toLowerCase() == 'paid';
-            return DataRow(
-              cells: [
-                DataCell(Text(member.fullName)),
-                DataCell(Text(member.deceasedName?.isNotEmpty == true
-                    ? member.deceasedName!
-                    : '—')),
-                DataCell(Text(member.date == null
-                    ? '—'
-                    : _formatPhilippinesDate(member.date!))),
-                DataCell(Text('₱${member.amount.toStringAsFixed(0)}')),
-                DataCell(Text(member.status.toUpperCase())),
-                DataCell(
-                  isPaid
-                      ? const Text('—')
-                      : OutlinedButton.icon(
-                          onPressed: _updatingPaymentIds.contains(member.id)
-                              ? null
-                              : () => _confirmMarkPaid(member),
-                          icon: const Icon(Icons.check_circle_outline_rounded),
-                          label: Text(
-                            _updatingPaymentIds.contains(member.id)
-                                ? 'Updating...'
-                                : 'Mark as Paid',
-                          ),
-                        ),
-                ),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        if (constraints.maxWidth < 900) {
+          return ListView(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+            children: filtered.map(_buildMemberCard).toList(),
+          );
+        }
+
+        return ListView(
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+          children: [
+            RecordDataTable(
+              minWidth: 920,
+              showCheckboxColumn: false,
+              columnSpacing: 28,
+              columns: const [
+                DataColumn(label: Text('Member')),
+                DataColumn(label: Text('Deceased Name')),
+                DataColumn(label: Text('Date')),
+                DataColumn(label: Text('Amount')),
+                DataColumn(label: Text('Status')),
+                DataColumn(label: Text('Action')),
               ],
-            );
-          }).toList(),
-        ),
-      ],
+              rows: filtered.map((member) {
+                final isPaid = member.status.toLowerCase() == 'paid';
+                return DataRow(
+                  cells: [
+                    DataCell(Text(member.fullName)),
+                    DataCell(
+                      Text(
+                        member.deceasedName?.isNotEmpty == true
+                            ? member.deceasedName!
+                            : '—',
+                      ),
+                    ),
+                    DataCell(
+                      Text(
+                        member.date == null
+                            ? '—'
+                            : _formatPhilippinesDate(member.date!),
+                      ),
+                    ),
+                    DataCell(Text('₱${member.amount.toStringAsFixed(0)}')),
+                    DataCell(Text(member.status.toUpperCase())),
+                    DataCell(
+                      isPaid
+                          ? const Text('—')
+                          : OutlinedButton.icon(
+                              onPressed: _updatingPaymentIds.contains(member.id)
+                                  ? null
+                                  : () => _confirmMarkPaid(member),
+                              icon: const Icon(
+                                Icons.check_circle_outline_rounded,
+                              ),
+                              label: Text(
+                                _updatingPaymentIds.contains(member.id)
+                                    ? 'Updating...'
+                                    : 'Mark as Paid',
+                              ),
+                            ),
+                    ),
+                  ],
+                );
+              }).toList(),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildMemberCard(PaymentMember member) {
+    final isPaid = member.status.toLowerCase() == 'paid';
+    final statusColor = isPaid
+        ? const Color(0xFF047857)
+        : const Color(0xFFB45309);
+    final details = <(String, String)>[
+      (
+        'Deceased Name',
+        member.deceasedName?.isNotEmpty == true ? member.deceasedName! : '—',
+      ),
+      (
+        'Date',
+        member.date == null ? '—' : _formatPhilippinesDate(member.date!),
+      ),
+      ('Amount', '₱${member.amount.toStringAsFixed(2)}'),
+    ];
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: _kCard,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: _kBorder),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x0A0F172A),
+            blurRadius: 12,
+            offset: Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: Text(
+                  member.fullName,
+                  style: const TextStyle(
+                    color: Color(0xFF111827),
+                    fontSize: 18,
+                    fontWeight: FontWeight.w800,
+                    height: 1.3,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 7,
+                ),
+                decoration: BoxDecoration(
+                  color: statusColor.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(999),
+                ),
+                child: Text(
+                  member.status.toUpperCase(),
+                  style: TextStyle(
+                    color: statusColor,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          for (final (label, value) in details)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: Text(
+                '$label: $value',
+                style: const TextStyle(
+                  color: Color(0xFF111827),
+                  fontSize: 15,
+                  fontWeight: FontWeight.w600,
+                  height: 1.4,
+                ),
+              ),
+            ),
+          if (!isPaid) ...[
+            const SizedBox(height: 8),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: _updatingPaymentIds.contains(member.id)
+                    ? null
+                    : () => _confirmMarkPaid(member),
+                icon: const Icon(Icons.check_circle_outline_rounded),
+                label: Text(
+                  _updatingPaymentIds.contains(member.id)
+                      ? 'Updating...'
+                      : 'Mark as Paid',
+                ),
+              ),
+            ),
+          ],
+        ],
+      ),
     );
   }
 

@@ -16,7 +16,7 @@ class RecordDataTable extends StatelessWidget {
     this.dataTextStyle,
     this.showCheckboxColumn = true,
     this.fillAvailableWidth = false,
-    this.modernStyle = false,
+    this.modernStyle = true,
   });
 
   final List<DataColumn> columns;
@@ -38,6 +38,7 @@ class RecordDataTable extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colors = theme.colorScheme;
+    final isDark = theme.brightness == Brightness.dark;
     final styledRows = modernStyle
         ? rows.indexed
               .map((entry) {
@@ -58,7 +59,9 @@ class RecordDataTable extends StatelessWidget {
                         }
                         return index.isEven
                             ? colors.surface
-                            : const Color(0xFFF5F8FC);
+                            : (isDark
+                                  ? colors.surfaceContainerLow
+                                  : const Color(0xFFF5F8FC));
                       }),
                   cells: row.cells,
                 );
@@ -74,14 +77,16 @@ class RecordDataTable extends StatelessWidget {
       headingRowColor: WidgetStatePropertyAll(
         headingRowColor ??
             (modernStyle
-                ? const Color(0xFFEAF2FC)
+                ? (isDark
+                      ? colors.surfaceContainerHigh
+                      : const Color(0xFFEAF2FC))
                 : colors.surfaceContainerHighest.withValues(alpha: 0.55)),
       ),
       headingTextStyle:
           headingTextStyle ??
           (modernStyle
-              ? const TextStyle(
-                  color: Color(0xFF0D47A1),
+              ? TextStyle(
+                  color: isDark ? colors.onSurface : const Color(0xFF0D47A1),
                   fontSize: 16,
                   fontWeight: FontWeight.w800,
                   fontFamily: 'Montserrat',
@@ -93,20 +98,18 @@ class RecordDataTable extends StatelessWidget {
       dataTextStyle:
           dataTextStyle ??
           (modernStyle
-              ? const TextStyle(
-                  color: Color(0xFF1F2937),
+              ? TextStyle(
+                  color: colors.onSurface,
                   fontSize: 16,
                   fontWeight: FontWeight.w600,
                   fontFamily: 'OpenSans',
                 )
-              : theme.textTheme.bodyMedium?.copyWith(
-                  color: colors.onSurface,
-                )),
+              : theme.textTheme.bodyMedium?.copyWith(color: colors.onSurface)),
       dividerThickness: 1,
       border: TableBorder(
         horizontalInside: BorderSide(
           color: modernStyle
-              ? const Color(0xFFD7E0EA)
+              ? colors.outlineVariant.withValues(alpha: 0.8)
               : colors.outlineVariant.withValues(alpha: 0.6),
         ),
       ),
@@ -116,10 +119,13 @@ class RecordDataTable extends StatelessWidget {
 
     final scrollableTable = LayoutBuilder(
       builder: (context, constraints) {
+        final availableWidth = constraints.maxWidth.isFinite
+            ? constraints.maxWidth
+            : 0.0;
         final tableMinWidth = fillAvailableWidth || modernStyle
-            ? minWidth > constraints.maxWidth
+            ? minWidth > availableWidth
                   ? minWidth
-                  : constraints.maxWidth
+                  : availableWidth
             : minWidth;
         return SingleChildScrollView(
           scrollDirection: Axis.horizontal,

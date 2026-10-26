@@ -380,9 +380,32 @@ class _SelectDayungPageState extends State<SelectDayungPage> {
     BuildContext context,
     List<Map<String, dynamic>> dayungs,
     int? currentId,
+    bool isWide,
   ) {
+    if (!isWide) {
+      return Column(
+        children: dayungs.map((dayung) {
+          final did = dayung['id'] is int
+              ? dayung['id'] as int
+              : int.tryParse('${dayung['id']}');
+          return _buildDayungCard(
+            context,
+            dayung,
+            isCurrent: currentId != null && currentId == did,
+          );
+        }).toList(),
+      );
+    }
+
     return RecordDataTable(
-      minWidth: 760,
+      modernStyle: true,
+      showCheckboxColumn: false,
+      fillAvailableWidth: true,
+      minWidth: 1080,
+      columnSpacing: 28,
+      horizontalMargin: 20,
+      dataRowMinHeight: 88,
+      dataRowMaxHeight: 112,
       columns: const [
         DataColumn(label: Text('Dayung')),
         DataColumn(label: Text('Location')),
@@ -396,50 +419,79 @@ class _SelectDayungPageState extends State<SelectDayungPage> {
         final isCurrent = currentId != null && currentId == did;
         return DataRow(
           cells: [
-            DataCell(Text((d['name'] ?? 'Dayung').toString())),
-            DataCell(Text(_address(d))),
-            DataCell(Text(isCurrent ? 'Active now' : 'Available')),
+            DataCell(
+              SizedBox(
+                width: 210,
+                child: Row(
+                  children: [
+                    Container(
+                      width: 42,
+                      height: 42,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFEAF2FC),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: const Icon(
+                        Icons.apartment_rounded,
+                        color: kPrimary,
+                        size: 23,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        (d['name'] ?? 'Dayung').toString(),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(fontWeight: FontWeight.w700),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            DataCell(
+              SizedBox(
+                width: 250,
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Icon(
+                      Icons.location_on_outlined,
+                      color: kPrimary,
+                      size: 20,
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        _address(d).isEmpty
+                            ? 'Location not provided'
+                            : _address(d),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            DataCell(
+              _statusChip(
+                isCurrent ? 'Active now' : 'Available',
+                isCurrent ? const Color(0xFF047857) : kPrimaryDark,
+                isCurrent ? const Color(0xFFDCFCE7) : const Color(0xFFEAF2FC),
+              ),
+            ),
             DataCell(
               Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  OutlinedButton.icon(
-                    icon: Icon(
-                      isCurrent
-                          ? Icons.check_circle
-                          : Icons.radio_button_unchecked_rounded,
-                      size: 18,
-                    ),
-                    label: Text(
-                      isCurrent ? 'Already using this unit' : 'Use this Dayung',
-                    ),
-                    onPressed: isCurrent
-                        ? null
-                        : () async {
-                            final navigator = Navigator.of(context);
-                            final normalized = await _persistSelectionAndNotify(
-                              d,
-                            );
-                            if (!mounted) return;
-                            navigator.pop(normalized);
-                          },
-                  ),
+                  _buildSelectButton(context, d, isCurrent: isCurrent),
                   const SizedBox(width: 8),
-                  TextButton.icon(
+                  OutlinedButton.icon(
                     icon: const Icon(Icons.map_outlined),
-                    label: const Text('View on Map'),
-                    onPressed: () {
-                      final normalized = _normalizeDayung(d);
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => DayungMapPage(
-                            dayung: normalized,
-                            isMember: d['is_member'] == true,
-                          ),
-                        ),
-                      );
-                    },
+                    label: const Text('View map'),
+                    onPressed: () => _openDayungMap(context, d),
                   ),
                 ],
               ),
@@ -450,10 +502,152 @@ class _SelectDayungPageState extends State<SelectDayungPage> {
     );
   }
 
+  Widget _buildDayungCard(
+    BuildContext context,
+    Map<String, dynamic> dayung, {
+    required bool isCurrent,
+  }) {
+    final address = _address(dayung);
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: kCardBg,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: kBorderColor),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x0A0F172A),
+            blurRadius: 12,
+            offset: Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: 48,
+                height: 48,
+                decoration: BoxDecoration(
+                  color: const Color(0xFFEAF2FC),
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: const Icon(
+                  Icons.apartment_rounded,
+                  color: kPrimary,
+                  size: 26,
+                ),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.only(top: 2),
+                  child: Text(
+                    (dayung['name'] ?? 'Dayung').toString(),
+                    style: const TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w800,
+                      color: kText,
+                      height: 1.3,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          _statusChip(
+            isCurrent ? 'Active now' : 'Available',
+            isCurrent ? const Color(0xFF047857) : kPrimaryDark,
+            isCurrent ? const Color(0xFFDCFCE7) : const Color(0xFFEAF2FC),
+          ),
+          const SizedBox(height: 14),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Icon(Icons.location_on_outlined, color: kPrimary, size: 21),
+              const SizedBox(width: 9),
+              Expanded(
+                child: Text(
+                  address.isEmpty ? 'Location not provided' : address,
+                  style: const TextStyle(
+                    color: kText,
+                    fontSize: 15,
+                    fontWeight: FontWeight.w600,
+                    height: 1.45,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          SizedBox(
+            width: double.infinity,
+            child: _buildSelectButton(context, dayung, isCurrent: isCurrent),
+          ),
+          const SizedBox(height: 8),
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              icon: const Icon(Icons.map_outlined),
+              label: const Text('View on map'),
+              onPressed: () => _openDayungMap(context, dayung),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSelectButton(
+    BuildContext context,
+    Map<String, dynamic> dayung, {
+    required bool isCurrent,
+  }) {
+    return isCurrent
+        ? OutlinedButton.icon(
+            icon: const Icon(Icons.check_circle_rounded, size: 19),
+            label: const Text('Already using this unit'),
+            onPressed: null,
+          )
+        : FilledButton.icon(
+            icon: const Icon(Icons.swap_horiz_rounded, size: 19),
+            label: const Text('Use this Dayung'),
+            onPressed: () => _selectDayung(context, dayung),
+          );
+  }
+
+  Future<void> _selectDayung(
+    BuildContext context,
+    Map<String, dynamic> dayung,
+  ) async {
+    final navigator = Navigator.of(context);
+    final normalized = await _persistSelectionAndNotify(dayung);
+    if (!mounted) return;
+    navigator.pop(normalized);
+  }
+
+  void _openDayungMap(BuildContext context, Map<String, dynamic> dayung) {
+    final normalized = _normalizeDayung(dayung);
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => DayungMapPage(
+          dayung: normalized,
+          isMember: dayung['is_member'] == true,
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final width = MediaQuery.of(context).size.width;
-    final isWide = width > 700;
+    final isWide = width > 1180;
     final navigator = Navigator.of(context);
 
     return PopScope<Object?>(
@@ -599,7 +793,7 @@ class _SelectDayungPageState extends State<SelectDayungPage> {
         children: [
           _buildIntroCard(isWide),
           const SizedBox(height: 16),
-          _buildDayungTable(context, _joined, currentId),
+          _buildDayungTable(context, _joined, currentId, isWide),
         ],
       ),
     );
