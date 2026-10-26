@@ -31,8 +31,10 @@ class _CollectedFromCollectorsPageState
   int? _selectedDeceasedId;
   DateTimeRange? _selectedDateRange;
   double _totalCollected = 0;
+  double _collectorCollected = 0;
   int _totalPayments = 0;
   int _activeCollectors = 0;
+  int _collectorCount = 0;
   String? _selectedDeceasedName;
 
   bool get _hasActiveFilters {
@@ -48,6 +50,24 @@ class _CollectedFromCollectorsPageState
     if (value is int) return value;
     if (value is num) return value.toInt();
     return int.tryParse('${value ?? ''}') ?? fallback;
+  }
+
+  String _displayUser(
+    Map<String, String> userMap,
+    String userId, {
+    required String fallback,
+  }) {
+    final name = (userMap[userId] ?? '').trim();
+    return name.isEmpty ? fallback : name;
+  }
+
+  bool _isCollected(dynamic value) {
+    if (value is bool) return value;
+    if (value is num) return value != 0;
+    if (value is String) {
+      return ['true', '1', 'yes'].contains(value.trim().toLowerCase());
+    }
+    return false;
   }
 
   int _gridColumns(double width) {
@@ -71,11 +91,343 @@ class _CollectedFromCollectorsPageState
   }
 
   Future<void> _reloadPageData() async {
-    await Future.wait([_fetchDeceasedList(), _fetchCollectors()]);
+    await _fetchDeceasedList();
+    if (!mounted) return;
+    await _fetchCollectors();
   }
 
   String _formatCurrency(double amount) {
     return 'PHP ${amount.toStringAsFixed(2)}';
+  }
+
+  Future<bool> _markMemberCollected(
+    Map<String, dynamic> member,
+    String collectorName,
+  ) async {
+    final paymentIds = List<String>.from(member['payment_ids'] ?? []);
+    if (paymentIds.isEmpty) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('No payment records are available to confirm.'),
+          ),
+        );
+      }
+      return false;
+    }
+
+    try {
+      final collectedAt = DateTime.now().toUtc().toIso8601String();
+      await sb
+          .from('payments')
+          .update({
+            'iscollectedbytreasurer': true,
+            'iscollectedbytreasurer_date': collectedAt,
+          })
+          .inFilter('id', paymentIds)
+          .timeout(_queryTimeout);
+
+      if (!mounted) return false;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            '${member['name']} collection received from $collectorName.',
+          ),
+        ),
+      );
+      await _fetchCollectors();
+      return true;
+    } catch (error) {
+      if (!mounted) return false;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Could not confirm collection: $error')),
+      );
+      return false;
+    }
+  }
+
+  Future<bool> _confirmMemberCollection(
+    Map<String, dynamic> member,
+    String collectorName,
+  ) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Confirm collection'),
+        content: Text(
+          'Mark ${member['name']} as received from $collectorName? '
+          'This will confirm ${_formatCurrency(_asDouble(member['total_collected']))}.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton.icon(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            icon: const Icon(Icons.check_rounded),
+            label: const Text('Confirm received'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return false;
+    return _markMemberCollected(member, collectorName);
+  }
+
+  void _showContributorDetails(Map<String, dynamic> deceasedMember) {
+    final contributors = List<Map<String, dynamic>>.from(
+      deceasedMember['contributors'] ?? [],
+    );
+    showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(deceasedMember['name']?.toString() ?? 'Deceased member'),
+        content: SizedBox(
+          width: 420,
+          height: MediaQuery.sizeOf(context).height * 0.55,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Total collected: ${_formatCurrency(_asDouble(deceasedMember['total_collected']))}',
+                style: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              const SizedBox(height: 12),
+              Expanded(
+                child: contributors.isEmpty
+                    ? const Center(
+                        child: Text('No contributor details are available.'),
+                      )
+                    : ListView.separated(
+                        itemCount: contributors.length,
+                        separatorBuilder: (_, _) => const Divider(height: 1),
+                        itemBuilder: (context, index) {
+                          final contributor = contributors[index];
+                          return ListTile(
+                            contentPadding: EdgeInsets.zero,
+                            title: Text(
+                              contributor['name']?.toString() ??
+                                  'Unknown contributor',
+                            ),
+                            trailing: Text(
+                              _formatCurrency(
+                                _asDouble(contributor['total_contributed']),
+                              ),
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Close'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showCollectorDetails(Map<String, dynamic> collector) {
+    final members = List<Map<String, dynamic>>.from(
+      collector['deceased_members'] ?? [],
+    );
+    final collectorName = (collector['collector_name'] ?? 'Collector')
+        .toString();
+    final screenSize = MediaQuery.sizeOf(context);
+
+    showDialog<void>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setDialogState) => Dialog(
+          insetPadding: const EdgeInsets.all(16),
+          child: SizedBox(
+            width: screenSize.width < 700 ? screenSize.width - 32 : 1100,
+            height: screenSize.height * 0.82,
+            child: Padding(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          collectorName,
+                          style: const TextStyle(
+                            fontSize: 22,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                      ),
+                      IconButton(
+                        tooltip: 'Close details',
+                        onPressed: () => Navigator.pop(dialogContext),
+                        icon: const Icon(Icons.close_rounded),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Total collected: ${_formatCurrency(_asDouble(collector['total_collected']))}',
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Expanded(
+                    child: members.isEmpty
+                        ? const Center(
+                            child: Text(
+                              'No deceased member collections found.',
+                            ),
+                          )
+                        : RecordDataTable(
+                            minWidth: 1050,
+                            showCheckboxColumn: false,
+                            modernStyle: true,
+                            columns: const [
+                              DataColumn(label: Text('Deceased member')),
+                              DataColumn(label: Text('Contributors')),
+                              DataColumn(label: Text('Total')),
+                              DataColumn(label: Text('Members')),
+                              DataColumn(label: Text('Action')),
+                              DataColumn(label: Text('Status')),
+                              DataColumn(label: Text('Date collected')),
+                            ],
+                            rows: members.map((member) {
+                              final received = member['is_received'] == true;
+                              final collecting =
+                                  member['is_collecting'] == true;
+                              final canCollect =
+                                  !received &&
+                                  !collecting &&
+                                  (member['id']?.toString().isNotEmpty ??
+                                      false);
+                              final contributors =
+                                  List<Map<String, dynamic>>.from(
+                                    member['contributors'] ?? [],
+                                  );
+                              final collectedDate = received
+                                  ? _formatDate(
+                                      member['date_collected']?.toString(),
+                                    )
+                                  : '—';
+                              return DataRow(
+                                cells: [
+                                  DataCell(
+                                    SizedBox(
+                                      width: 180,
+                                      child: Text(
+                                        member['name']?.toString() ??
+                                            'Unknown deceased member',
+                                      ),
+                                    ),
+                                  ),
+                                  DataCell(Text('${contributors.length}')),
+                                  DataCell(
+                                    Text(
+                                      _formatCurrency(
+                                        _asDouble(member['total_collected']),
+                                      ),
+                                    ),
+                                  ),
+                                  DataCell(
+                                    OutlinedButton.icon(
+                                      onPressed: () =>
+                                          _showContributorDetails(member),
+                                      icon: const Icon(
+                                        Icons.visibility_outlined,
+                                      ),
+                                      label: const Text('View details'),
+                                    ),
+                                  ),
+                                  DataCell(
+                                    FilledButton.icon(
+                                      onPressed: !canCollect
+                                          ? null
+                                          : () async {
+                                              setDialogState(() {
+                                                member['is_collecting'] = true;
+                                              });
+                                              final didCollect =
+                                                  await _confirmMemberCollection(
+                                                    member,
+                                                    collectorName,
+                                                  );
+                                              if (!didCollect) {
+                                                setDialogState(() {
+                                                  member.remove(
+                                                    'is_collecting',
+                                                  );
+                                                });
+                                                return;
+                                              }
+                                              member['is_received'] = true;
+                                              member.remove('is_collecting');
+                                              member['date_collected'] =
+                                                  DateTime.now()
+                                                      .toUtc()
+                                                      .toIso8601String();
+                                              setDialogState(() {});
+                                            },
+                                      icon: Icon(
+                                        collecting
+                                            ? Icons.hourglass_top_rounded
+                                            : received
+                                            ? Icons.check_rounded
+                                            : Icons.payments_outlined,
+                                      ),
+                                      label: Text(
+                                        collecting
+                                            ? 'Collecting...'
+                                            : received
+                                            ? 'Collected'
+                                            : 'Collect',
+                                      ),
+                                    ),
+                                  ),
+                                  DataCell(
+                                    Chip(
+                                      label: Text(
+                                        received ? 'Received' : 'Pending',
+                                      ),
+                                      avatar: Icon(
+                                        received
+                                            ? Icons.check_circle_outline_rounded
+                                            : Icons.schedule_rounded,
+                                        size: 18,
+                                      ),
+                                      backgroundColor: received
+                                          ? const Color(0xFFDCFCE7)
+                                          : const Color(0xFFFEF3C7),
+                                      side: BorderSide.none,
+                                    ),
+                                  ),
+                                  DataCell(Text(collectedDate)),
+                                ],
+                              );
+                            }).toList(),
+                          ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
   }
 
   String _formatDate(String? value) {
@@ -164,7 +516,11 @@ class _CollectedFromCollectorsPageState
     try {
       dynamic query = sb
           .from('payments')
-          .select('collected_by, amount, user_id, paid_at, death_notice_id')
+          .select(
+            'id, collected_by, amount, user_id, userdeceased, deceased_name, '
+            'paid_at, death_notice_id, iscollectedbytreasurer, '
+            'iscollectedbytreasurer_date',
+          )
           .eq('dayung_unit_id', widget.dayungUnitId)
           .eq('status', 'paid');
 
@@ -172,14 +528,14 @@ class _CollectedFromCollectorsPageState
         query = query.eq('death_notice_id', _selectedDeceasedId as Object);
       }
       if (_selectedDateRange != null) {
+        final endExclusive = DateTime(
+          _selectedDateRange!.end.year,
+          _selectedDateRange!.end.month,
+          _selectedDateRange!.end.day + 1,
+        );
         query = query
             .gte('paid_at', _selectedDateRange!.start.toIso8601String())
-            .lte(
-              'paid_at',
-              _selectedDateRange!.end
-                  .add(const Duration(days: 1))
-                  .toIso8601String(),
-            );
+            .lt('paid_at', endExclusive.toIso8601String());
       }
 
       final paymentResponse = await query
@@ -201,6 +557,12 @@ class _CollectedFromCollectorsPageState
         for (final payment in payments)
           if ((payment['collected_by'] ?? '').toString().isNotEmpty)
             (payment['collected_by']).toString(),
+        for (final payment in payments)
+          if ((payment['user_id'] ?? '').toString().isNotEmpty)
+            (payment['user_id']).toString(),
+        for (final payment in payments)
+          if ((payment['userdeceased'] ?? '').toString().isNotEmpty)
+            (payment['userdeceased']).toString(),
       }..remove('');
 
       final users = collectorIds.isNotEmpty
@@ -212,8 +574,7 @@ class _CollectedFromCollectorsPageState
           : [];
       final userMap = {
         for (final u in List<Map<String, dynamic>>.from(users))
-          (u['id'] ?? '').toString(): (u['full_name'] ?? 'Collector')
-              .toString(),
+          (u['id'] ?? '').toString(): (u['full_name'] ?? '').toString(),
       };
 
       final collectorMap = <String, Map<String, dynamic>>{};
@@ -222,11 +583,16 @@ class _CollectedFromCollectorsPageState
         if (collectorId.isEmpty) continue;
         collectorMap[collectorId] = {
           'collector_id': collectorId,
-          'collector_name': userMap[collectorId] ?? 'Collector',
+          'collector_name': _displayUser(
+            userMap,
+            collectorId,
+            fallback: 'Collector',
+          ),
           'collector_note': 'Assigned collector for this unit',
           'total_collected': 0.0,
           'payment_count': 0,
           'recent_payment': null,
+          'deceased_members': <String, Map<String, dynamic>>{},
         };
       }
 
@@ -240,7 +606,7 @@ class _CollectedFromCollectorsPageState
           collectorMap[groupingKey] = {
             'collector_id': collectorId,
             'collector_name': collectorId.isNotEmpty
-                ? (userMap[collectorId] ?? 'Collector')
+                ? _displayUser(userMap, collectorId, fallback: 'Collector')
                 : 'Collector not recorded',
             'collector_note': collectorId.isNotEmpty
                 ? 'Recorded paid collections'
@@ -248,6 +614,7 @@ class _CollectedFromCollectorsPageState
             'total_collected': 0.0,
             'payment_count': 0,
             'recent_payment': null,
+            'deceased_members': <String, Map<String, dynamic>>{},
           };
         }
 
@@ -261,6 +628,112 @@ class _CollectedFromCollectorsPageState
             (paidAt.isNotEmpty && paidAt.compareTo(recent) > 0)) {
           collector['recent_payment'] = paidAt;
         }
+
+        final noticeId = (p['death_notice_id'] ?? '').toString().trim();
+        final deceasedUserId = (p['userdeceased'] ?? '').toString().trim();
+        final memberKey = noticeId.isNotEmpty
+            ? 'notice:$noticeId'
+            : deceasedUserId.isNotEmpty
+            ? 'member:$deceasedUserId'
+            : '__unknown__';
+        final notice = _deceasedList
+            .where((row) => '${row['id']}' == noticeId)
+            .firstOrNull;
+        final deceasedName =
+            (notice?['name'] ??
+                    p['deceased_name'] ??
+                    _displayUser(
+                      userMap,
+                      deceasedUserId,
+                      fallback: 'Unknown deceased member',
+                    ))
+                .toString()
+                .trim();
+        final deceasedMembers =
+            collector['deceased_members'] as Map<String, Map<String, dynamic>>;
+        deceasedMembers.putIfAbsent(
+          memberKey,
+          () => {
+            'key': memberKey,
+            'id': noticeId.isNotEmpty ? noticeId : deceasedUserId,
+            'name': deceasedName.isEmpty
+                ? 'Unknown deceased member'
+                : deceasedName,
+            'total_collected': 0.0,
+            'contributors': <String, Map<String, dynamic>>{},
+            'payment_ids': <String>[],
+            'is_received': true,
+            'date_collected': null,
+          },
+        );
+        final deceasedMember = deceasedMembers[memberKey]!;
+        final amount = _asDouble(p['amount']);
+        deceasedMember['total_collected'] =
+            _asDouble(deceasedMember['total_collected']) + amount;
+        final contributorId = (p['user_id'] ?? '').toString().trim();
+        final paymentId = (p['id'] ?? '').toString().trim();
+        final contributorKey = contributorId.isNotEmpty
+            ? contributorId
+            : 'unknown:$paymentId';
+        final contributors =
+            deceasedMember['contributors'] as Map<String, Map<String, dynamic>>;
+        contributors.putIfAbsent(
+          contributorKey,
+          () => {
+            'name': _displayUser(
+              userMap,
+              contributorId,
+              fallback: 'Unknown contributor',
+            ),
+            'total_contributed': 0.0,
+          },
+        );
+        contributors[contributorKey]!['total_contributed'] =
+            _asDouble(contributors[contributorKey]!['total_contributed']) +
+            amount;
+        if (paymentId.isNotEmpty) {
+          final paymentIds = deceasedMember['payment_ids'] as List<String>;
+          if (!paymentIds.contains(paymentId)) paymentIds.add(paymentId);
+        }
+
+        final isReceived = _isCollected(p['iscollectedbytreasurer']);
+        deceasedMember['is_received'] =
+            deceasedMember['is_received'] == true && isReceived;
+        final receivedDate = (p['iscollectedbytreasurer_date'] ?? '')
+            .toString()
+            .trim();
+        final currentDate = (deceasedMember['date_collected'] ?? '').toString();
+        if (isReceived &&
+            receivedDate.isNotEmpty &&
+            (currentDate.isEmpty || receivedDate.compareTo(currentDate) > 0)) {
+          deceasedMember['date_collected'] = receivedDate;
+        }
+      }
+
+      for (final collector in collectorMap.values) {
+        final deceasedMembers =
+            collector['deceased_members'] as Map<String, Map<String, dynamic>>;
+        collector['deceased_members'] =
+            deceasedMembers.values.map((member) {
+              final contributors =
+                  member['contributors'] as Map<String, Map<String, dynamic>>;
+              final contributorList = contributors.values.toList()
+                ..sort(
+                  (a, b) => (a['name'] ?? '')
+                      .toString()
+                      .toLowerCase()
+                      .compareTo((b['name'] ?? '').toString().toLowerCase()),
+                );
+              return {
+                ...member,
+                'contributors': contributorList,
+                'payment_ids': List<String>.from(member['payment_ids'] as List),
+              };
+            }).toList()..sort(
+              (a, b) => _asDouble(
+                b['total_collected'],
+              ).compareTo(_asDouble(a['total_collected'])),
+            );
       }
 
       final collectorList = collectorMap.values.toList()
@@ -282,9 +755,22 @@ class _CollectedFromCollectorsPageState
           0,
           (sum, row) => sum + _asDouble(row['amount']),
         );
+        _collectorCollected = payments.fold<double>(0, (sum, row) {
+          if ((row['collected_by'] ?? '').toString().trim().isEmpty) {
+            return sum;
+          }
+          return sum + _asDouble(row['amount']);
+        });
         _totalPayments = payments.length;
+        _collectorCount = collectorList
+            .where((row) => (row['collector_id'] ?? '').toString().isNotEmpty)
+            .length;
         _activeCollectors = collectorList
-            .where((row) => _asInt(row['payment_count']) > 0)
+            .where(
+              (row) =>
+                  (row['collector_id'] ?? '').toString().isNotEmpty &&
+                  _asInt(row['payment_count']) > 0,
+            )
             .length;
         _selectedDeceasedName = _deceasedList
             .where((row) => row['id'] == _selectedDeceasedId)
@@ -411,7 +897,7 @@ class _CollectedFromCollectorsPageState
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Collected from Collectors',
+                  'Collection Reports',
                   style: TextStyle(
                     fontSize: wide ? 24 : 21,
                     fontWeight: FontWeight.w900,
@@ -484,6 +970,18 @@ class _CollectedFromCollectorsPageState
   Widget _buildOverviewCard(bool wide) {
     final cards = [
       _buildStatCard(
+        icon: Icons.groups_rounded,
+        label: 'Number of Collectors',
+        value: '$_collectorCount',
+        tone: const Color(0xFFB45309),
+      ),
+      _buildStatCard(
+        icon: Icons.account_balance_wallet_rounded,
+        label: 'Collectors Collected',
+        value: _formatCurrency(_collectorCollected),
+        tone: const Color(0xFF0F766E),
+      ),
+      _buildStatCard(
         icon: Icons.payments_rounded,
         label: 'Total Collected',
         value: _formatCurrency(_totalCollected),
@@ -494,12 +992,6 @@ class _CollectedFromCollectorsPageState
         label: 'Paid Payments',
         value: '$_totalPayments',
         tone: const Color(0xFF0F766E),
-      ),
-      _buildStatCard(
-        icon: Icons.groups_rounded,
-        label: 'Active Collectors',
-        value: '$_activeCollectors',
-        tone: const Color(0xFFB45309),
       ),
     ];
 
@@ -1061,24 +1553,44 @@ class _CollectedFromCollectorsPageState
     }
 
     return RecordDataTable(
-      minWidth: 850,
+      minWidth: 900,
+      showCheckboxColumn: false,
+      modernStyle: true,
       columns: const [
         DataColumn(label: Text('Collector')),
         DataColumn(label: Text('Total collected')),
         DataColumn(label: Text('Payments')),
         DataColumn(label: Text('Recent payment')),
-        DataColumn(label: Text('Note')),
+        DataColumn(label: Text('Actions')),
       ],
       rows: _collectors.map((collector) {
         final paymentCount = _asInt(collector['payment_count']);
         final recentPayment = (collector['recent_payment'] ?? '').toString();
-        return DataRow(cells: [
-          DataCell(Text((collector['collector_name'] ?? 'Collector').toString())),
-          DataCell(Text(_formatCurrency(_asDouble(collector['total_collected'])))),
-          DataCell(Text('$paymentCount')),
-          DataCell(Text(recentPayment.isEmpty ? 'No recent payment' : _formatDate(recentPayment))),
-          DataCell(Text((collector['collector_note'] ?? '').toString())),
-        ]);
+        return DataRow(
+          cells: [
+            DataCell(
+              Text((collector['collector_name'] ?? 'Collector').toString()),
+            ),
+            DataCell(
+              Text(_formatCurrency(_asDouble(collector['total_collected']))),
+            ),
+            DataCell(Text('$paymentCount')),
+            DataCell(
+              Text(
+                recentPayment.isEmpty
+                    ? 'No recent payment'
+                    : _formatDate(recentPayment),
+              ),
+            ),
+            DataCell(
+              OutlinedButton.icon(
+                onPressed: () => _showCollectorDetails(collector),
+                icon: const Icon(Icons.visibility_outlined),
+                label: const Text('View details'),
+              ),
+            ),
+          ],
+        );
       }).toList(),
     );
   }

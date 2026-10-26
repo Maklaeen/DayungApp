@@ -13,6 +13,7 @@ import 'package:capstone_app/Treasurer/paid_unpaid_members_page.dart';
 import 'package:capstone_app/Collector/gcash_qr_page.dart';
 import 'package:capstone_app/pages/notification.dart';
 import 'package:capstone_app/pages/recentdeathnotices.dart';
+import 'package:capstone_app/pages/reports.dart' as shared_reports;
 import 'package:capstone_app/Treasurer/assign_collectors_page.dart';
 import 'package:capstone_app/Treasurer/treasurer_collector_view.dart';
 import 'package:capstone_app/Treasurer/treasurer_overall_reports.dart';
@@ -803,6 +804,27 @@ class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
         ),
         const SizedBox(height: 8),
         _buildModernActionCard(
+          icon: Icons.receipt_long_rounded,
+          title: 'Collection Reports',
+          color: const Color(0xFF0F766E),
+          onTap: () {
+            if (_dayungUnitId == null) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Select a Dayung first')),
+              );
+              return;
+            }
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) =>
+                    CollectedFromCollectorsPage(dayungUnitId: _dayungUnitId!),
+              ),
+            );
+          },
+        ),
+        const SizedBox(height: 8),
+        _buildModernActionCard(
           icon: Icons.account_balance_wallet_rounded,
           title: 'Manage Fund',
           color: const Color(0xFF3B82F6),
@@ -973,6 +995,22 @@ class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
               MaterialPageRoute(
                 builder: (_) =>
                     TreasurerOverallReportsPage(dayungUnitId: _dayungUnitId!),
+              ),
+            );
+          },
+        ),
+        const SizedBox(height: 8),
+        _buildModernActionCard(
+          icon: Icons.analytics_rounded,
+          title: 'Reports',
+          color: const Color(0xFF0D9488),
+          onTap: () {
+            if (_dayungUnitId == null) return;
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) =>
+                    shared_reports.ReportsPage(unitId: _dayungUnitId),
               ),
             );
           },
@@ -1191,7 +1229,7 @@ class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
           ),
           const SizedBox(height: 12),
           const Text(
-            'Collected from Collectors',
+            'Collection Reports',
             textAlign: TextAlign.center,
             style: TextStyle(
               fontSize: 18,
@@ -1236,7 +1274,7 @@ class _TreasurerDashboardPageState extends State<TreasurerDashboardPage> {
                 child: const Padding(
                   padding: EdgeInsets.symmetric(horizontal: 24, vertical: 12),
                   child: Text(
-                    'View Collections',
+                    'Collection Reports',
                     style: TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.w700,

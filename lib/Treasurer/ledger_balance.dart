@@ -684,172 +684,172 @@ class _LedgerBalancePageState extends State<LedgerBalancePage> {
                       child: ListView(
                         physics: const AlwaysScrollableScrollPhysics(),
                         padding: const EdgeInsets.fromLTRB(16, 18, 16, 24),
-                          children: [
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(16),
+                            decoration: BoxDecoration(
+                              color: _kCard,
+                              borderRadius: BorderRadius.circular(18),
+                              border: Border.all(color: _kBorder),
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Text(
+                                  '',
+                                  style: TextStyle(
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.w800,
+                                    color: Color(0xFF111827),
+                                  ),
+                                ),
+                                const SizedBox(height: 12),
+                                Wrap(
+                                  spacing: 10,
+                                  runSpacing: 10,
+                                  children: [
+                                    _summaryCard(
+                                      title: 'Number of Collectors',
+                                      value: '${_collectorSummaries.length}',
+                                      accent: const Color(0xFFF59E0B),
+                                    ),
+                                    _summaryCard(
+                                      title: 'Collectors Collected',
+                                      value: _formatCurrency(
+                                        _collectedCollectedTotal,
+                                      ),
+                                      accent: const Color(0xFF10B981),
+                                    ),
+                                    _summaryCard(
+                                      title: 'Total Collected',
+                                      value: _formatCurrency(totalCollected),
+                                      accent: const Color(0xFF10B981),
+                                    ),
+                                    _summaryCard(
+                                      title: 'Current Cash Holdings',
+                                      value: _formatCurrency(
+                                        _currentCashCollected,
+                                      ),
+                                      accent: const Color(0xFF10B981),
+                                    ),
+                                    _summaryCard(
+                                      title: 'Ledger Balance',
+                                      value: _formatCurrency(
+                                        _totalDeceasedPaymentAmount,
+                                      ),
+                                      accent: const Color(0xFF3B82F6),
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+                          const Text(
+                            'Collector totals',
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.w800,
+                              color: Color(0xFF111827),
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          if (_collectorSummaries.isEmpty)
                             Container(
-                              padding: const EdgeInsets.all(16),
+                              padding: const EdgeInsets.all(20),
                               decoration: BoxDecoration(
                                 color: _kCard,
-                                borderRadius: BorderRadius.circular(18),
+                                borderRadius: BorderRadius.circular(16),
                                 border: Border.all(color: _kBorder),
                               ),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  const Text(
-                                    '',
-                                    style: TextStyle(
-                                      fontSize: 18,
-                                      fontWeight: FontWeight.w800,
-                                      color: Color(0xFF111827),
-                                    ),
-                                  ),
-                                  const SizedBox(height: 12),
-                                  Wrap(
-                                    spacing: 10,
-                                    runSpacing: 10,
-                                    children: [
-                                      _summaryCard(
-                                        title: 'Number of Deceased Members',
-                                        value: '${_collectorSummaries.length}',
-                                        accent: const Color(0xFFF59E0B),
-                                      ),
-                                      _summaryCard(
-                                        title: 'Collectors Collected',
-                                        value: _formatCurrency(
-                                          _collectedCollectedTotal,
-                                        ),
-                                        accent: const Color(0xFF10B981),
-                                      ),
-                                      _summaryCard(
-                                        title: 'Total Collected',
-                                        value: _formatCurrency(totalCollected),
-                                        accent: const Color(0xFF10B981),
-                                      ),
-                                      _summaryCard(
-                                        title: 'Current Cash Holdings',
-                                        value: _formatCurrency(
-                                          _currentCashCollected,
-                                        ),
-                                        accent: const Color(0xFF10B981),
-                                      ),
-                                      _summaryCard(
-                                        title: 'Ledger Balance',
-                                        value: _formatCurrency(
-                                          _totalDeceasedPaymentAmount,
-                                        ),
-                                        accent: const Color(0xFF3B82F6),
-                                      ),
-                                    ],
-                                  ),
-                                ],
+                              child: const Text(
+                                'No assigned collectors or paid remittances are available yet.',
+                                style: TextStyle(color: Color(0xFF6B7280)),
                               ),
-                            ),
-                            const SizedBox(height: 16),
-                            const Text(
-                              'Collector totals',
-                              style: TextStyle(
-                                fontSize: 18,
-                                fontWeight: FontWeight.w800,
-                                color: Color(0xFF111827),
-                              ),
-                            ),
-                            const SizedBox(height: 12),
-                            if (_collectorSummaries.isEmpty)
-                              Container(
-                                padding: const EdgeInsets.all(20),
+                            )
+                          else
+                            ..._collectorSummaries.map((collector) {
+                              return Container(
+                                margin: const EdgeInsets.only(bottom: 12),
+                                padding: const EdgeInsets.all(16),
                                 decoration: BoxDecoration(
                                   color: _kCard,
                                   borderRadius: BorderRadius.circular(16),
                                   border: Border.all(color: _kBorder),
-                                ),
-                                child: const Text(
-                                  'No assigned collectors or paid remittances are available yet.',
-                                  style: TextStyle(color: Color(0xFF6B7280)),
-                                ),
-                              )
-                            else
-                              ..._collectorSummaries.map((collector) {
-                                return Container(
-                                  margin: const EdgeInsets.only(bottom: 12),
-                                  padding: const EdgeInsets.all(16),
-                                  decoration: BoxDecoration(
-                                    color: _kCard,
-                                    borderRadius: BorderRadius.circular(16),
-                                    border: Border.all(color: _kBorder),
-                                    boxShadow: [
-                                      BoxShadow(
-                                        color: Colors.black.withValues(
-                                          alpha: 0.03,
-                                        ),
-                                        blurRadius: 8,
-                                        offset: const Offset(0, 2),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: Colors.black.withValues(
+                                        alpha: 0.03,
                                       ),
-                                    ],
-                                  ),
-                                  child: Row(
-                                    children: [
-                                      Expanded(
-                                        child: GestureDetector(
-                                          onTap: () =>
-                                              _showCollectorDetailsDialog(
-                                                collector,
+                                      blurRadius: 8,
+                                      offset: const Offset(0, 2),
+                                    ),
+                                  ],
+                                ),
+                                child: Row(
+                                  children: [
+                                    Expanded(
+                                      child: GestureDetector(
+                                        onTap: () =>
+                                            _showCollectorDetailsDialog(
+                                              collector,
+                                            ),
+                                        child: Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          children: [
+                                            Text(
+                                              collector['name']?.toString() ??
+                                                  'Collector',
+                                              style: const TextStyle(
+                                                fontWeight: FontWeight.w800,
+                                                fontSize: 15,
+                                                color: Color(0xFF111827),
                                               ),
-                                          child: Column(
-                                            crossAxisAlignment:
-                                                CrossAxisAlignment.start,
-                                            children: [
-                                              Text(
-                                                collector['name']?.toString() ??
-                                                    'Collector',
-                                                style: const TextStyle(
-                                                  fontWeight: FontWeight.w800,
-                                                  fontSize: 15,
-                                                  color: Color(0xFF111827),
-                                                ),
+                                            ),
+                                            const SizedBox(height: 4),
+                                            Text(
+                                              '${collector['count']} paid remittance${collector['count'] == 1 ? '' : 's'} • tap to view members',
+                                              style: const TextStyle(
+                                                color: Color(0xFF6B7280),
+                                                fontSize: 12,
                                               ),
-                                              const SizedBox(height: 4),
-                                              Text(
-                                                '${collector['count']} paid remittance${collector['count'] == 1 ? '' : 's'} • tap to view members',
-                                                style: const TextStyle(
-                                                  color: Color(0xFF6B7280),
-                                                  fontSize: 12,
-                                                ),
-                                              ),
-                                            ],
-                                          ),
+                                            ),
+                                          ],
                                         ),
                                       ),
-                                      const SizedBox(width: 12),
-                                      Column(
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.end,
-                                        children: [
-                                          Text(
-                                            _formatCurrency(
-                                              _asDouble(collector['amount']),
-                                            ),
-                                            style: const TextStyle(
-                                              fontSize: 18,
-                                              fontWeight: FontWeight.w800,
-                                              color: Color(0xFF0D47A1),
-                                            ),
+                                    ),
+                                    const SizedBox(width: 12),
+                                    Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.end,
+                                      children: [
+                                        Text(
+                                          _formatCurrency(
+                                            _asDouble(collector['amount']),
                                           ),
-                                          const SizedBox(height: 4),
-                                          const Text(
-                                            'Collected',
-                                            style: TextStyle(
-                                              color: Color(0xFF10B981),
-                                              fontSize: 12,
-                                              fontWeight: FontWeight.w700,
-                                            ),
+                                          style: const TextStyle(
+                                            fontSize: 18,
+                                            fontWeight: FontWeight.w800,
+                                            color: Color(0xFF0D47A1),
                                           ),
-                                        ],
-                                      ),
-                                    ],
-                                  ),
-                                );
-                              }),
-                          ],
+                                        ),
+                                        const SizedBox(height: 4),
+                                        const Text(
+                                          'Collected',
+                                          style: TextStyle(
+                                            color: Color(0xFF10B981),
+                                            fontSize: 12,
+                                            fontWeight: FontWeight.w700,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ],
+                                ),
+                              );
+                            }),
+                        ],
                       ),
                     ),
             ),
