@@ -858,56 +858,43 @@ class _DayungSettingsPageState extends State<DayungSettingsPage> {
                 ),
                 child: Row(
                   children: [
-                    Row(
-                      children: [
-                        Container(
-                          decoration: BoxDecoration(
-                            color: Colors.white.withValues(alpha: 0.18),
-                            borderRadius: BorderRadius.circular(14),
-                          ),
-                          child: IconButton(
-                            onPressed: () {
-                              Navigator.of(context).pushAndRemoveUntil(
-                                MaterialPageRoute(
-                                  builder: (_) => const RoleRouter(),
-                                ),
-                                (route) => false,
-                              );
-                            },
-                            icon: const Icon(
-                              Icons.arrow_back_ios_new_rounded,
+                    Container(
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.18),
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                      child: IconButton(
+                        onPressed: () {
+                          Navigator.of(context).pushAndRemoveUntil(
+                            MaterialPageRoute(
+                              builder: (_) => const RoleRouter(),
+                            ),
+                            (route) => false,
+                          );
+                        },
+                        icon: const Icon(
+                          Icons.arrow_back_ios_new_rounded,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Dayung Settings',
+                            style: TextStyle(
                               color: Colors.white,
+                              fontWeight: FontWeight.w800,
+                              fontSize: isWide ? 24 : 20,
+                              fontFamily: 'Montserrat',
                             ),
                           ),
-                        ),
-                        const SizedBox(width: 16),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                'Dayung Settings',
-                                style: TextStyle(
-                                  color: Colors.white,
-                                  fontWeight: FontWeight.w800,
-                                  fontSize: isWide ? 24 : 20,
-                                  fontFamily: 'Montserrat',
-                                ),
-                              ),
-                              const SizedBox(height: 4),
-                              // Text(
-                              //   'Manage your current Dayung, discover options, and update unit access in one place.',
-                              //   style: TextStyle(
-                              //     color: Colors.white.withValues(alpha: 0.88),
-                              //     fontSize: isWide ? 14 : 12,
-                              //     height: 1.4,
-                              //     fontFamily: 'OpenSans',
-                              //   ),
-                              // ),
-                            ],
-                          ),
-                        ),
-                      ],
+                          const SizedBox(height: 4),
+                        ],
+                      ),
                     ),
                   ],
                 ),
@@ -1232,15 +1219,16 @@ class _DayungSettingsPageState extends State<DayungSettingsPage> {
                         children: [
                           Row(
                             children: [
-                              AutoSizeText(
-                                'Recommended for you',
-                                style: sectionTitleStyle.copyWith(
-                                  color: titleColor,
+                              Expanded(
+                                child: AutoSizeText(
+                                  'Recommended for you',
+                                  style: sectionTitleStyle.copyWith(
+                                    color: titleColor,
+                                  ),
+                                  maxLines: 1,
+                                  minFontSize: 12,
                                 ),
-                                maxLines: 1,
-                                minFontSize: 12,
                               ),
-                              const Spacer(),
                               IconButton(
                                 tooltip: 'Refresh recommendations',
                                 onPressed: _loadRecommendations,

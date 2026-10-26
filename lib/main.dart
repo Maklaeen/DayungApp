@@ -461,7 +461,7 @@ class _MyAppState extends State<MyApp> {
     super.initState();
     _authSubscription = Supabase.instance.client.auth.onAuthStateChange.listen((
       data,
-    ) {   
+    ) {
       if (data.event == AuthChangeEvent.signedOut) {
         unawaited(_clearSessionScopedDayungState());
       }
@@ -565,8 +565,7 @@ class _MyAppState extends State<MyApp> {
               '/role-router': (context) => const RoleRouter(),
               '/login': (context) => Login(),
               '/register': (context) => Register(),
-              kPasswordRecoveryRoute: (context) =>
-                  const PasswordRecoveryPage(),
+              kPasswordRecoveryRoute: (context) => const PasswordRecoveryPage(),
               '/reapply': (context) => Reapply(),
               '/dashboard': (context) => const RoleRouter(),
               '/president-dashboard': (context) => PresidentDashboardPage(),
