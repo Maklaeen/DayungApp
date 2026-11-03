@@ -22,11 +22,9 @@ class UserDayungApplications extends StatelessWidget {
       ],
       rows: applications.map((app) {
         final unit = app['dayung_units'] ?? {};
-        final location = [
-          unit['barangay'],
-          unit['city'],
-          unit['province'],
-        ].where((part) => part != null && part.toString().isNotEmpty).join(', ');
+        final location = [unit['barangay'], unit['city'], unit['province']]
+            .where((part) => part != null && part.toString().isNotEmpty)
+            .join(', ');
         final status = (app['status'] ?? 'pending').toString();
         return DataRow(
           cells: [

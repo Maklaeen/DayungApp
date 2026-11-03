@@ -63,9 +63,7 @@ class _MemberPaymentPageState extends State<MemberPaymentPage> {
   @override
   void initState() {
     super.initState();
-    _records = {
-      for (final n in _notices) n.id: _PaymentRecord(noticeId: n.id),
-    };
+    _records = {for (final n in _notices) n.id: _PaymentRecord(noticeId: n.id)};
   }
 
   @override
@@ -110,13 +108,18 @@ class _MemberPaymentPageState extends State<MemberPaymentPage> {
       decoration: BoxDecoration(
         color: const Color(0xFFFFF7ED),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFF59E0B).withValues(alpha: 0.4)),
+        border: Border.all(
+          color: const Color(0xFFF59E0B).withValues(alpha: 0.4),
+        ),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Icon(Icons.info_outline_rounded,
-              color: Color(0xFFB45309), size: 20),
+          const Icon(
+            Icons.info_outline_rounded,
+            color: Color(0xFFB45309),
+            size: 20,
+          ),
           const SizedBox(width: 10),
           Expanded(
             child: Text(
@@ -155,8 +158,9 @@ class _MemberPaymentPageState extends State<MemberPaymentPage> {
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
             decoration: BoxDecoration(
               color: kPrimary.withValues(alpha: 0.06),
-              borderRadius:
-                  const BorderRadius.vertical(top: Radius.circular(20)),
+              borderRadius: const BorderRadius.vertical(
+                top: Radius.circular(20),
+              ),
             ),
             child: Row(
               children: [
@@ -257,8 +261,9 @@ class _MemberPaymentPageState extends State<MemberPaymentPage> {
                         ),
                         padding: const EdgeInsets.symmetric(vertical: 14),
                       ),
-                      onPressed:
-                          _canSubmit(record) ? () => _submit(notice, record) : null,
+                      onPressed: _canSubmit(record)
+                          ? () => _submit(notice, record)
+                          : null,
                       icon: const Icon(Icons.send_rounded, size: 18),
                       label: const Text(
                         'Submit Payment',
@@ -277,7 +282,9 @@ class _MemberPaymentPageState extends State<MemberPaymentPage> {
                       onTap: () => _viewProof(record.proofUrl!),
                       child: Container(
                         padding: const EdgeInsets.symmetric(
-                            horizontal: 14, vertical: 10),
+                          horizontal: 14,
+                          vertical: 10,
+                        ),
                         decoration: BoxDecoration(
                           color: const Color(0xFFD1FAE5),
                           borderRadius: BorderRadius.circular(12),
@@ -285,8 +292,11 @@ class _MemberPaymentPageState extends State<MemberPaymentPage> {
                         child: const Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            Icon(Icons.check_circle_rounded,
-                                color: Color(0xFF065F46), size: 18),
+                            Icon(
+                              Icons.check_circle_rounded,
+                              color: Color(0xFF065F46),
+                              size: 18,
+                            ),
                             SizedBox(width: 8),
                             Text(
                               'View Transaction Proof',
@@ -331,8 +341,11 @@ class _MemberPaymentPageState extends State<MemberPaymentPage> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(Icons.upload_file_rounded,
-                  color: kPrimary.withValues(alpha: 0.5), size: 32),
+              Icon(
+                Icons.upload_file_rounded,
+                color: kPrimary.withValues(alpha: 0.5),
+                size: 32,
+              ),
               const SizedBox(height: 8),
               Text(
                 'Tap to upload GCash screenshot',
@@ -376,8 +389,11 @@ class _MemberPaymentPageState extends State<MemberPaymentPage> {
                 borderRadius: BorderRadius.circular(14),
               ),
               child: const Center(
-                child: Icon(Icons.image_rounded,
-                    size: 48, color: Color(0xFF9CA3AF)),
+                child: Icon(
+                  Icons.image_rounded,
+                  size: 48,
+                  color: Color(0xFF9CA3AF),
+                ),
               ),
             ),
           ),
@@ -393,8 +409,11 @@ class _MemberPaymentPageState extends State<MemberPaymentPage> {
                 color: Colors.black.withValues(alpha: 0.5),
                 shape: BoxShape.circle,
               ),
-              child: const Icon(Icons.close_rounded,
-                  color: Colors.white, size: 16),
+              child: const Icon(
+                Icons.close_rounded,
+                color: Colors.white,
+                size: 16,
+              ),
             ),
           ),
         ),
@@ -440,8 +459,10 @@ class _MemberPaymentPageState extends State<MemberPaymentPage> {
           borderRadius: BorderRadius.circular(12),
           borderSide: const BorderSide(color: kPrimary, width: 1.5),
         ),
-        contentPadding:
-            const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 14,
+          vertical: 12,
+        ),
       ),
     );
   }
@@ -506,7 +527,9 @@ class _MemberPaymentPageState extends State<MemberPaymentPage> {
     setState(() => record.status = _PaymentStatus.pending);
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text('Payment for ${notice.name} submitted — pending confirmation'),
+        content: Text(
+          'Payment for ${notice.name} submitted — pending confirmation',
+        ),
         backgroundColor: kPrimary,
       ),
     );
@@ -516,22 +539,25 @@ class _MemberPaymentPageState extends State<MemberPaymentPage> {
     showDialog(
       context: context,
       builder: (_) => Dialog(
-        shape:
-            RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             ClipRRect(
-              borderRadius:
-                  const BorderRadius.vertical(top: Radius.circular(20)),
+              borderRadius: const BorderRadius.vertical(
+                top: Radius.circular(20),
+              ),
               child: Image.network(
                 url,
                 errorBuilder: (_, __, ___) => Container(
                   height: 200,
                   color: const Color(0xFFF3F4F6),
                   child: const Center(
-                    child: Icon(Icons.broken_image_rounded,
-                        size: 48, color: Color(0xFF9CA3AF)),
+                    child: Icon(
+                      Icons.broken_image_rounded,
+                      size: 48,
+                      color: Color(0xFF9CA3AF),
+                    ),
                   ),
                 ),
               ),

@@ -996,7 +996,7 @@ class _SecretaryApplicationsPageState extends State<SecretaryApplicationsPage> {
             'Please complete your membership payment to become an official member of $unitName. Amount: ₱${amount.toStringAsFixed(2)}',
         'announcement_id': null,
         'read_at': null,
-        'created_at': DateTime.now().toIso8601String(),
+        'created_at': DateTime.now().toUtc().toIso8601String(),
       });
     } catch (_) {
       // Keep a successful application approval from being blocked by notifications.
@@ -1022,7 +1022,7 @@ class _SecretaryApplicationsPageState extends State<SecretaryApplicationsPage> {
             ),
             ElevatedButton(
               onPressed: () => Navigator.pop(ctx, true),
-              child: const Text('Approve3'),
+              child: const Text('Approve'),
             ),
           ],
         ),

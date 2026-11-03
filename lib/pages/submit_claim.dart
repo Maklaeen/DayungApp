@@ -492,6 +492,7 @@ class _SubmitClaimFormState extends State<SubmitClaimForm> {
         'claims/$claimId/valid_id_${DateTime.now().millisecondsSinceEpoch}.$ext';
 
     try {
+      // ignore: unused_local_variable
       final storedPath = await storage
           .from(bucket)
           .uploadBinary(

@@ -1,5 +1,6 @@
 // ignore_for_file: non_constant_identifier_names
 
+import 'dart:async';
 import 'dart:math';
 
 import 'package:capstone_app/screens/dayung_map_page.dart';
@@ -30,12 +31,14 @@ class QuestionnaireScreen extends StatefulWidget {
   final String userId;
   final String role;
   final bool showPreferences;
+  final bool returnToCaller;
 
   const QuestionnaireScreen({
     super.key,
     required this.userId,
     required this.role,
     this.showPreferences = true,
+    this.returnToCaller = false,
   });
 
   @override
@@ -49,13 +52,14 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
   String? membership_payment;
   String? penalty_payment;
   String? payment_method;
-  String? openForAll;
   String? meeting_frequency;
   String? penalty_policy;
   List<dynamic> suggestedUnits = [];
   bool isLoading = false;
   bool isSubmitting = false;
   final Map<String, bool> selectedServiceTags = {};
+  Timer? _preferenceSaveTimer;
+  Future<void> _preferenceSaveQueue = Future<void>.value();
 
   double? userLat; // <-- Set this to the user's latitude
   double? userLng; // <-- Set this to the user's longitude
@@ -79,13 +83,13 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
 
   // Ang mosunod nga function nag-encode sa user preferences ngadto sa binary vector.
   // Gigamit kini para sa cosine similarity matching sa Dayung units.
-  /* 28 positions
+  /* 27 user preference positions, then the rule-only open_for_all slot
 3 for meeting frequency
 3 for payment method
 7 for registration fee
 7 for membership payment
 7 for penalty payment
-1 for open for all*/
+  followed by service tag positions*/
 
   List<double> _generatePreferenceVector() {
     // Meeting Frequency (3 positions)
@@ -124,9 +128,6 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
       if (penalty_payment == feeRanges[i]) penFee[i] = 1.0;
     }
 
-    // Open For All (1 position)
-    double openAll = openForAll == 'Yes' ? 1.0 : 0.0;
-
     final serviceTagVector = dayungServiceTagLabels.map((label) {
       return selectedServiceTags[label] == true ? 1.0 : 0.0;
     }).toList();
@@ -141,7 +142,7 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
       ...regFee,
       ...memFee,
       ...penFee,
-      openAll,
+      0.0,
       ...serviceTagVector,
     ];
   }
@@ -207,23 +208,30 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
     ];
     List<double> regFee = List.filled(feeRanges.length, 0.0);
     for (int i = 0; i < feeRanges.length; i++) {
-      if (norm(m['collection_fee_range']) == feeRanges[i]) regFee[i] = 1.0;
+      if (isAmountInRange(m['exactamountforcollection'], feeRanges[i])) {
+        regFee[i] = 1.0;
+      }
     }
 
     // Membership Payment (same buckets)
     List<double> memFee = List.filled(feeRanges.length, 0.0);
     for (int i = 0; i < feeRanges.length; i++) {
-      if (norm(m['membership_payment']) == feeRanges[i]) memFee[i] = 1.0;
+      if (isAmountInRange(m['exactamountformembership'], feeRanges[i])) {
+        memFee[i] = 1.0;
+      }
     }
 
     // Penalty Payment (same buckets)
     List<double> penFee = List.filled(feeRanges.length, 0.0);
+    final exactPenalty = m['exactpenaltypayment'];
+    final hasExactPenalty =
+        exactPenalty != null && exactPenalty.toString().trim().isNotEmpty;
     for (int i = 0; i < feeRanges.length; i++) {
-      if (norm(m['penalty_payment']) == feeRanges[i]) penFee[i] = 1.0;
+      final matchesExactPenalty = hasExactPenalty
+          ? isAmountInRange(exactPenalty, feeRanges[i])
+          : norm(m['penalty_payment']) == feeRanges[i];
+      if (matchesExactPenalty) penFee[i] = 1.0;
     }
-
-    // Open For All (1 position)
-    double openAll = norm(m['open_for_all']) == 'yes' ? 1.0 : 0.0;
 
     final serviceTagVector = dayungServiceTagLabels.map((label) {
       final column = dayungServiceTagColumns[label]!;
@@ -241,7 +249,7 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
       ...regFee,
       ...memFee,
       ...penFee,
-      openAll,
+      m['open_for_all'] == true ? 1.0 : 0.0,
       ...serviceTagVector,
     ];
   }
@@ -258,7 +266,7 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
       final resp = await Supabase.instance.client
           .from('dayung_rules')
           .select(
-            'id,dayung_unit_id,dayung_unit_name,meeting_frequency,collection_fee_range,membership_payment,penalty_payment,payment_method,open_for_all,${dayungServiceTagLabels.map((label) => dayungServiceTagColumns[label]!).join(',')},'
+            'id,dayung_unit_id,dayung_unit_name,meeting_frequency,collection_fee_range,exactamountforcollection,membership_payment,exactamountformembership,penalty_payment,exactpenaltypayment,payment_method,${dayungServiceTagLabels.map((label) => dayungServiceTagColumns[label]!).join(',')},'
             'dayung_units(latitude,longitude,barangay,city,province)',
           );
 
@@ -312,50 +320,55 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
     await _fetchSuggestionsLocal();
   }
 
-  Future<void> _savePreferences({int? selectedUnitId}) async {
-    setState(() => isSubmitting = true);
+  Future<void> _savePreferences({
+    int? selectedUnitId,
+    bool showSubmitting = false,
+  }) async {
+    _preferenceSaveTimer?.cancel();
+    final previousSave = _preferenceSaveQueue;
+    final currentSave = Completer<void>();
+    _preferenceSaveQueue = currentSave.future;
+    final payload = {
+      'user_id': widget.userId,
+      'meeting_frequency': meeting_frequency,
+      'penalty_policy': penalty_policy,
+      'contribution_amount': contribution_amount,
+      'membership_payment': membership_payment,
+      'penalty_payment': penalty_payment,
+      'payment_method': payment_method,
+      if (selectedUnitId != null) 'selected_unit_id': selectedUnitId,
+      for (final label in dayungServiceTagLabels)
+        dayungServiceTagColumns[label]!: selectedServiceTags[label] ?? false,
+    };
+
+    if (showSubmitting && mounted) setState(() => isSubmitting = true);
     try {
-      final payload = {
-        'user_id': widget.userId,
-        'meeting_frequency': meeting_frequency,
-        'penalty_policy': penalty_policy,
-        'contribution_amount': contribution_amount,
-        'membership_payment': membership_payment,
-        'penalty_payment': penalty_payment,
-        'payment_method': payment_method,
-        'open_for_all': openForAll == null ? null : (openForAll == 'Yes'),
-        'selected_unit_id': selectedUnitId,
-        for (final label in dayungServiceTagLabels)
-          dayungServiceTagColumns[label]!: selectedServiceTags[label] ?? false,
-      };
-
-      final existing = await Supabase.instance.client
+      await previousSave;
+      await Supabase.instance.client
           .from('user_preferences')
-          .select('id')
-          .eq('user_id', widget.userId)
-          .limit(1)
-          .timeout(
-            const Duration(seconds: 10),
-            onTimeout: () => <Map<String, dynamic>>[],
-          );
-
-      if ((existing as List).isNotEmpty) {
-        await Supabase.instance.client
-            .from('user_preferences')
-            .update(payload)
-            .eq('user_id', widget.userId)
-            .timeout(const Duration(seconds: 10), onTimeout: () => <dynamic>[]);
-      } else {
-        await Supabase.instance.client
-            .from('user_preferences')
-            .insert(payload)
-            .timeout(const Duration(seconds: 10), onTimeout: () => <dynamic>[]);
-      }
+          .upsert(payload, onConflict: 'user_id')
+          .timeout(const Duration(seconds: 10));
     } catch (e, st) {
       debugPrint('Save preferences failed: $e\n$st');
+      rethrow;
     } finally {
-      if (mounted) setState(() => isSubmitting = false);
+      currentSave.complete();
+      if (showSubmitting && mounted) setState(() => isSubmitting = false);
     }
+  }
+
+  void _schedulePreferenceSave() {
+    _preferenceSaveTimer?.cancel();
+    _preferenceSaveTimer = Timer(const Duration(milliseconds: 400), () async {
+      try {
+        await _savePreferences();
+      } catch (e) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Could not save preferences: $e')),
+        );
+      }
+    });
   }
 
   @override
@@ -368,6 +381,12 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
     _fetchUserLongitude();
   }
 
+  @override
+  void dispose() {
+    _preferenceSaveTimer?.cancel();
+    super.dispose();
+  }
+
   String? userBarangay, userCity, userProvince;
 
   Future<void> _loadSavedPreferences() async {
@@ -376,7 +395,7 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
           .from('user_preferences')
           .select(
             'meeting_frequency, contribution_amount, membership_payment, '
-            'penalty_payment, payment_method, open_for_all, penalty_policy, '
+            'penalty_payment, payment_method, penalty_policy, '
             '${dayungServiceTagLabels.map((label) => dayungServiceTagColumns[label]!).join(',')}',
           )
           .eq('user_id', widget.userId)
@@ -389,9 +408,6 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
           membership_payment = resp['membership_payment'] as String?;
           penalty_payment = resp['penalty_payment'] as String?;
           payment_method = resp['payment_method'] as String?;
-          openForAll = resp['open_for_all'] == null
-              ? null
-              : (resp['open_for_all'] == true ? 'Yes' : 'No');
           penalty_policy = resp['penalty_policy'] as String?;
 
           for (final label in dayungServiceTagLabels) {
@@ -634,7 +650,6 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
       contribution_amount,
       membership_payment,
       penalty_payment,
-      openForAll,
     ].where((value) => value != null).length;
     final selectedServiceCount = selectedServiceTags.values
         .where((selected) => selected)
@@ -735,6 +750,7 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
 
   void _updatePreference(VoidCallback update) {
     setState(update);
+    _schedulePreferenceSave();
     if (kDebugMode) {
       final userVector = _generatePreferenceVector();
       _rankPassingUnits(suggestedUnits, userVector, logDebug: true);
@@ -852,21 +868,27 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
                 child: Column(
                   children: [
                     _buildDropdown(
-                      label: 'Meeting Frequency',
+                      label: 'Meeting Schedule',
+                      description:
+                          'The schedule for regular meetings of Dayung members',
                       items: ['Weekly', 'Monthly', 'Needed'],
                       value: meeting_frequency,
                       onChanged: (v) =>
                           _updatePreference(() => meeting_frequency = v),
                     ),
                     _buildDropdown(
-                      label: 'Payment Method',
+                      label: 'Available Payment Method',
+                      description:
+                          'The accepted payment methods for contributions and fees.',
                       items: ['Cash', 'GCash', 'Both'],
                       value: payment_method,
                       onChanged: (v) =>
                           _updatePreference(() => payment_method = v),
                     ),
                     _buildDropdown(
-                      label: 'Collection Fee',
+                      label: 'Death Contribution',
+                      description:
+                          'The amount collected from members to provide financial assistance to the family of a deceased member.',
                       items: [
                         '50-100',
                         '100-150',
@@ -881,7 +903,9 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
                           _updatePreference(() => contribution_amount = v),
                     ),
                     _buildDropdown(
-                      label: 'Membership Payment',
+                      label: 'Membership Fee',
+                      description:
+                          'The payment required for new applicants to become members of the Dayung',
                       items: [
                         '50-100',
                         '100-150',
@@ -897,6 +921,8 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
                     ),
                     _buildDropdown(
                       label: 'Penalty Payment',
+                      description:
+                          'The additional amount a member must pay for late contributions or delayed payments.',
                       items: [
                         '50-100',
                         '100-150',
@@ -909,12 +935,6 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
                       value: penalty_payment,
                       onChanged: (v) =>
                           _updatePreference(() => penalty_payment = v),
-                    ),
-                    _buildDropdown(
-                      label: 'Open for All',
-                      items: ['Yes', 'No'],
-                      value: openForAll,
-                      onChanged: (v) => _updatePreference(() => openForAll = v),
                     ),
                     const SizedBox(height: 8),
                     Align(
@@ -1180,15 +1200,6 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
                     ),
                     textAlign: TextAlign.center,
                   ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Units may disappear when their hybrid score is below 0.3 or when they fall outside the selected distance range.',
-                    style: TextStyle(
-                      color: kSubText.withValues(alpha: 0.7),
-                      fontSize: 14,
-                    ),
-                    textAlign: TextAlign.center,
-                  ),
                 ],
               ),
             ),
@@ -1198,9 +1209,12 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
           Padding(
             padding: const EdgeInsets.symmetric(vertical: 8),
             child: ElevatedButton.icon(
-              icon: const Icon(Icons.arrow_forward, color: Colors.white),
-              label: const Text(
-                'Skip & Continue',
+              icon: Icon(
+                widget.returnToCaller ? Icons.arrow_back : Icons.arrow_forward,
+                color: Colors.white,
+              ),
+              label: Text(
+                widget.returnToCaller ? 'Save & Return' : 'Skip & Continue',
                 style: TextStyle(
                   fontWeight: FontWeight.bold,
                   fontSize: 16,
@@ -1219,12 +1233,27 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
               onPressed: isSubmitting
                   ? null
                   : () async {
+                      _preferenceSaveTimer?.cancel();
                       final navigator = Navigator.of(context);
-                      await _savePreferences();
-                      if (!mounted) return;
-                      navigator.pushReplacement(
-                        MaterialPageRoute(builder: (_) => const RoleRouter()),
-                      );
+                      try {
+                        await _savePreferences(showSubmitting: true);
+                      } catch (e) {
+                        if (!context.mounted) return;
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text('Could not save preferences: $e'),
+                          ),
+                        );
+                        return;
+                      }
+                      if (!context.mounted) return;
+                      if (widget.returnToCaller) {
+                        navigator.pop();
+                      } else {
+                        navigator.pushReplacement(
+                          MaterialPageRoute(builder: (_) => const RoleRouter()),
+                        );
+                      }
                     },
             ),
           ),
@@ -1236,6 +1265,7 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
 
 Widget _buildDropdown({
   required String label,
+  String? description,
   required List<String> items,
   required String? value,
   required Function(String?) onChanged,
@@ -1254,6 +1284,27 @@ Widget _buildDropdown({
           horizontal: 12,
           vertical: 12,
         ),
+        suffixIcon: description == null
+            ? null
+            : Builder(
+                builder: (context) => IconButton(
+                  icon: const Icon(Icons.info_outline),
+                  tooltip: 'About $label',
+                  onPressed: () => showDialog<void>(
+                    context: context,
+                    builder: (context) => AlertDialog(
+                      title: Text(label),
+                      content: Text(description),
+                      actions: [
+                        TextButton(
+                          onPressed: () => Navigator.of(context).pop(),
+                          child: const Text('OK'),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
       ),
       items: items
           .map((item) => DropdownMenuItem(value: item, child: Text(item)))

@@ -33,7 +33,9 @@ class _ApplyMembershipWizardState extends State<ApplyMembershipWizard> {
   bool _saving = false;
   String? _agreementTitle;
   List<RequiredApplicationSection> _agreementSections = [];
+  // ignore: unused_field
   String? _birthCertificate;
+  // ignore: unused_field
   String? _validId;
 
   @override
@@ -83,6 +85,7 @@ class _ApplyMembershipWizardState extends State<ApplyMembershipWizard> {
     }
   }
 
+  // ignore: unused_element
   Future<void> _uploadDocument({required String type}) async {
     final result = await FilePicker.platform.pickFiles(
       type: FileType.custom,
@@ -440,6 +443,7 @@ class _ApplyMembershipWizardState extends State<ApplyMembershipWizard> {
     if (userId == null) return;
 
     if (!await _hasRequiredProfileDocuments()) {
+      // ignore: use_build_context_synchronously
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Upload Proof of Residency and Valid ID first.'),
@@ -452,6 +456,7 @@ class _ApplyMembershipWizardState extends State<ApplyMembershipWizard> {
       return;
     }
     setState(() => _saving = true);
+    var applicationSaved = false;
     try {
       final existing = await _supabase
           .from('applications')
@@ -492,6 +497,19 @@ class _ApplyMembershipWizardState extends State<ApplyMembershipWizard> {
             .update({'status': 'pending', 'is_agree': true})
             .eq('id', existing['id']);
       }
+      applicationSaved = true;
+      await _supabase.from('notifications').insert({
+        'recipient_id': userId,
+        'sender_id': userId,
+        'dayung_unit_id': widget.dayungUnitId,
+        'type': 'announcement',
+        'title': 'Application Submitted Successfully',
+        'body':
+            'You have successfully applied to ${widget.dayungName}. Please wait for the approval and regularly check your notifications for updates about your application status.',
+        'announcement_id': null,
+        'read_at': null,
+        'created_at': DateTime.now().toUtc().toIso8601String(),
+      });
       if (!mounted) return;
       Navigator.pushAndRemoveUntil(
         context,
@@ -501,7 +519,13 @@ class _ApplyMembershipWizardState extends State<ApplyMembershipWizard> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Could not submit application: $e')),
+          SnackBar(
+            content: Text(
+              applicationSaved
+                  ? 'Application submitted, but its notification could not be saved: $e'
+                  : 'Could not submit application: $e',
+            ),
+          ),
         );
       }
     } finally {
@@ -930,6 +954,7 @@ class _ApplyMembershipWizardState extends State<ApplyMembershipWizard> {
     );
   }
 
+  // ignore: unused_element
   Widget _uploadTile(String title, String? reference, VoidCallback onTap) {
     return ListTile(
       contentPadding: EdgeInsets.zero,

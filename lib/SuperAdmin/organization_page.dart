@@ -5,6 +5,7 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:latlong2/latlong.dart' as ll;
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:capstone_app/utils/philippine_time.dart';
 
 class SuperAdminOrganizationPage extends StatefulWidget {
   const SuperAdminOrganizationPage({super.key});
@@ -208,36 +209,46 @@ class _SuperAdminOrganizationPageState
                                 DataColumn(label: Text('Applications')),
                               ],
                               rows: pageUnits.map((unit) {
-                              final location =
-                                  [
-                                        unit['barangay'],
-                                        unit['city'],
-                                        unit['province'],
-                                      ]
-                                      .where((value) {
-                                        return value != null &&
-                                            value.toString().trim().isNotEmpty;
-                                      })
-                                      .join(', ');
-                              final coordinates =
-                                  '${unit['latitude'] ?? '-'}, ${unit['longitude'] ?? '-'}';
-                              return DataRow(
-                                onSelectChanged: (_) => _showUnitApplications(
-                                  (unit['id'] ?? '').toString(),
-                                ),
-                                cells: [
-                                  DataCell(Text(
-                                    unit['name']?.toString() ?? 'Unnamed unit',
-                                  )),
-                                  DataCell(Text(
-                                    location.isEmpty ? 'Location not set' : location,
-                                  )),
-                                  DataCell(Text(coordinates)),
-                                  const DataCell(
-                                    Icon(Icons.chevron_right_rounded),
+                                final location =
+                                    [
+                                          unit['barangay'],
+                                          unit['city'],
+                                          unit['province'],
+                                        ]
+                                        .where((value) {
+                                          return value != null &&
+                                              value
+                                                  .toString()
+                                                  .trim()
+                                                  .isNotEmpty;
+                                        })
+                                        .join(', ');
+                                final coordinates =
+                                    '${unit['latitude'] ?? '-'}, ${unit['longitude'] ?? '-'}';
+                                return DataRow(
+                                  onSelectChanged: (_) => _showUnitApplications(
+                                    (unit['id'] ?? '').toString(),
                                   ),
-                                ],
-                              );
+                                  cells: [
+                                    DataCell(
+                                      Text(
+                                        unit['name']?.toString() ??
+                                            'Unnamed unit',
+                                      ),
+                                    ),
+                                    DataCell(
+                                      Text(
+                                        location.isEmpty
+                                            ? 'Location not set'
+                                            : location,
+                                      ),
+                                    ),
+                                    DataCell(Text(coordinates)),
+                                    const DataCell(
+                                      Icon(Icons.chevron_right_rounded),
+                                    ),
+                                  ],
+                                );
                               }).toList(),
                             ),
                             if (pageCount > 1) ...[
@@ -314,7 +325,9 @@ class _SuperAdminOrganizationPageState
     try {
       final response = await sb
           .from('applications')
-          .select('id, user_id, status, dayung_unit_id, user:users(id, full_name, email)')
+          .select(
+            'id, user_id, status, dayung_unit_id, user:users(id, full_name, email)',
+          )
           .eq('dayung_unit_id', dayungUnitId)
           .order('applied_at', ascending: true);
 
@@ -710,11 +723,7 @@ class _ApplicationListDialogState extends State<_ApplicationListDialog> {
   }
 
   String _formatApprovedAt(DateTime value) {
-    return value
-        .toUtc()
-        .toIso8601String()
-        .replaceFirst('T', ' ')
-        .replaceFirst('Z', '+00');
+    return toPhilippineTimestamp(value);
   }
 
   Future<double> _getMembershipAmount(int dayungUnitId) async {
@@ -804,7 +813,8 @@ class _ApplicationListDialogState extends State<_ApplicationListDialog> {
     );
 
     if (confirmed == true) {
-      final enteredAmount = double.tryParse(
+      final enteredAmount =
+          double.tryParse(
             amountController.text.trim().replaceAll(RegExp(r'[^0-9.-]'), ''),
           ) ??
           0.0;
@@ -850,6 +860,7 @@ class _ApplicationListDialogState extends State<_ApplicationListDialog> {
         'approve_application',
         params: {
           'p_application_id': applicationIdValue,
+          'p_approved_at': approvedAt,
           'p_approved_by': approverId,
         },
       );

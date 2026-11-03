@@ -23,15 +23,6 @@ class _ManageRulesPagePresState extends State<ManageRulesPagePres> {
 
   // Only the required dropdowns and switch
   final List<String> _meetingFrequencies = ['Weekly', 'Monthly', 'Needed'];
-  final List<String> _feeRanges = [
-    '50-100',
-    '100-150',
-    '150-200',
-    '200-250',
-    '250-300',
-    '300-350',
-    '400 plus',
-  ];
   final List<String> _paymentMethodsDropdown = ['Cash', 'GCash', 'Both'];
 
   String? _selectedMeetingFrequency;
@@ -41,7 +32,7 @@ class _ManageRulesPagePresState extends State<ManageRulesPagePres> {
   String? _selectedPaymentMethodDropdown;
   String? _exactAmountForMembership;
   String? _exactAmountForCollection;
-  bool _openForAll = false;
+  String? _exactPenaltyPayment;
   bool _hasService = false;
   final Map<String, bool> _selectedServiceTags = {};
 
@@ -50,6 +41,7 @@ class _ManageRulesPagePresState extends State<ManageRulesPagePres> {
   int? _unitId;
   late TextEditingController _exactAmountController;
   late TextEditingController _exactCollectionAmountController;
+  late TextEditingController _exactPenaltyPaymentController;
 
   @override
   void initState() {
@@ -60,6 +52,9 @@ class _ManageRulesPagePresState extends State<ManageRulesPagePres> {
     _exactCollectionAmountController = TextEditingController(
       text: _exactAmountForCollection ?? '',
     );
+    _exactPenaltyPaymentController = TextEditingController(
+      text: _exactPenaltyPayment ?? '',
+    );
     _init();
   }
 
@@ -67,6 +62,7 @@ class _ManageRulesPagePresState extends State<ManageRulesPagePres> {
   void dispose() {
     _exactAmountController.dispose();
     _exactCollectionAmountController.dispose();
+    _exactPenaltyPaymentController.dispose();
     super.dispose();
   }
 
@@ -105,7 +101,7 @@ class _ManageRulesPagePresState extends State<ManageRulesPagePres> {
       final row = await sb
           .from('dayung_rules')
           .select('''
-            meeting_frequency, collection_fee_range, membership_payment, penalty_payment, payment_method, open_for_all, has_service, exactamountformembership, exactamountforcollection, ${dayungServiceTagLabels.map((label) => dayungServiceTagColumns[label]!).join(', ')}
+            meeting_frequency, collection_fee_range, membership_payment, penalty_payment, payment_method, has_service, exactamountformembership, exactamountforcollection, exactpenaltypayment, ${dayungServiceTagLabels.map((label) => dayungServiceTagColumns[label]!).join(', ')}
             ''')
           .eq('dayung_unit_id', unitId)
           .maybeSingle();
@@ -115,7 +111,6 @@ class _ManageRulesPagePresState extends State<ManageRulesPagePres> {
       _selectedMembershipPayment = row?['membership_payment'];
       _selectedPenaltyPayment = row?['penalty_payment'];
       _selectedPaymentMethodDropdown = row?['payment_method'];
-      _openForAll = row?['open_for_all'] == true;
       _hasService = row?['has_service'] == true;
       for (final label in dayungServiceTagLabels) {
         final column = dayungServiceTagColumns[label]!;
@@ -123,8 +118,10 @@ class _ManageRulesPagePresState extends State<ManageRulesPagePres> {
       }
       _exactAmountForMembership = row?['exactamountformembership'];
       _exactAmountForCollection = row?['exactamountforcollection'];
+      _exactPenaltyPayment = row?['exactpenaltypayment']?.toString();
       _exactAmountController.text = _exactAmountForMembership ?? '';
       _exactCollectionAmountController.text = _exactAmountForCollection ?? '';
+      _exactPenaltyPaymentController.text = _exactPenaltyPayment ?? '';
 
       setState(() {});
     } catch (_) {}
@@ -149,10 +146,10 @@ class _ManageRulesPagePresState extends State<ManageRulesPagePres> {
         'membership_payment': _selectedMembershipPayment,
         'penalty_payment': _selectedPenaltyPayment,
         'payment_method': _selectedPaymentMethodDropdown,
-        'open_for_all': _openForAll,
         'has_service': _hasService,
         'exactamountformembership': _exactAmountForMembership,
         'exactamountforcollection': _exactAmountForCollection,
+        'exactpenaltypayment': _exactPenaltyPayment,
         for (final label in dayungServiceTagLabels)
           dayungServiceTagColumns[label]!: _selectedServiceTags[label] ?? false,
         'updated_by': uid,
@@ -338,33 +335,10 @@ class _ManageRulesPagePresState extends State<ManageRulesPagePres> {
                                       () => _selectedMeetingFrequency = v,
                                     ),
                                   ),
-                                  _dropdownField(
-                                    'Collection Fee Range',
-                                    _feeRanges,
-                                    _selectedRegistrationFeeRange,
-                                    (v) => setState(
-                                      () => _selectedRegistrationFeeRange = v,
-                                    ),
-                                  ),
                                   _exactAmountCollectionTextField(),
-                                  _dropdownField(
-                                    'Membership Payment',
-                                    _feeRanges,
-                                    _selectedMembershipPayment,
-                                    (v) => setState(
-                                      () => _selectedMembershipPayment = v,
-                                    ),
-                                  ),
                                   _exactAmountTextField(),
                                   const SizedBox(height: 8),
-                                  _dropdownField(
-                                    'Penalty Payment',
-                                    _feeRanges,
-                                    _selectedPenaltyPayment,
-                                    (v) => setState(
-                                      () => _selectedPenaltyPayment = v,
-                                    ),
-                                  ),
+                                  _exactPenaltyPaymentTextField(),
                                   _dropdownField(
                                     'Payment Method',
                                     _paymentMethodsDropdown,
@@ -373,49 +347,51 @@ class _ManageRulesPagePresState extends State<ManageRulesPagePres> {
                                       () => _selectedPaymentMethodDropdown = v,
                                     ),
                                   ),
-                                  _openForAllSwitch(),
                                   _hasServiceSwitch(),
-                                  const SizedBox(height: 8),
-                                  Align(
-                                    alignment: Alignment.centerLeft,
-                                    child: Text(
-                                      'Service Tags',
-                                      style: TextStyle(
-                                        fontSize: 15,
-                                        fontWeight: FontWeight.w700,
-                                        color: kPrimary,
-                                        fontFamily: 'Montserrat',
+                                  if (_hasService) ...[
+                                    const SizedBox(height: 8),
+                                    Align(
+                                      alignment: Alignment.centerLeft,
+                                      child: Text(
+                                        'Service Tags',
+                                        style: TextStyle(
+                                          fontSize: 15,
+                                          fontWeight: FontWeight.w700,
+                                          color: kPrimary,
+                                          fontFamily: 'Montserrat',
+                                        ),
                                       ),
                                     ),
-                                  ),
-                                  const SizedBox(height: 8),
-                                  Wrap(
-                                    spacing: 8,
-                                    runSpacing: 8,
-                                    children: dayungServiceTagLabels.map((
-                                      label,
-                                    ) {
-                                      return FilterChip(
-                                        label: Text(label),
-                                        selected:
-                                            _selectedServiceTags[label] ??
-                                            false,
-                                        onSelected: (value) {
-                                          setState(() {
-                                            _selectedServiceTags[label] = value;
-                                          });
-                                        },
-                                        side: const BorderSide(
-                                          color: kBorderColor,
-                                        ),
-                                        selectedColor: kPrimary.withValues(
-                                          alpha: 0.16,
-                                        ),
-                                        checkmarkColor: kPrimary,
-                                      );
-                                    }).toList(),
-                                  ),
-                                  const SizedBox(height: 16),
+                                    const SizedBox(height: 8),
+                                    Wrap(
+                                      spacing: 8,
+                                      runSpacing: 8,
+                                      children: dayungServiceTagLabels.map((
+                                        label,
+                                      ) {
+                                        return FilterChip(
+                                          label: Text(label),
+                                          selected:
+                                              _selectedServiceTags[label] ??
+                                              false,
+                                          onSelected: (value) {
+                                            setState(() {
+                                              _selectedServiceTags[label] =
+                                                  value;
+                                            });
+                                          },
+                                          side: const BorderSide(
+                                            color: kBorderColor,
+                                          ),
+                                          selectedColor: kPrimary.withValues(
+                                            alpha: 0.16,
+                                          ),
+                                          checkmarkColor: kPrimary,
+                                        );
+                                      }).toList(),
+                                    ),
+                                    const SizedBox(height: 16),
+                                  ],
                                   SizedBox(
                                     width: double.infinity,
                                     child: ElevatedButton.icon(
@@ -600,38 +576,6 @@ class _ManageRulesPagePresState extends State<ManageRulesPagePres> {
     );
   }
 
-  Widget _openForAllSwitch() {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
-      child: Row(
-        children: [
-          const Text(
-            'Open for all?',
-            style: TextStyle(
-              fontFamily: 'Montserrat',
-              fontWeight: FontWeight.w700,
-              fontSize: 16,
-              color: kText,
-            ),
-          ),
-          const SizedBox(width: 16),
-          RadioGroup<bool>(
-            groupValue: _openForAll,
-            onChanged: (value) => setState(() => _openForAll = value ?? false),
-            child: Row(
-              children: const [
-                Radio<bool>(value: true),
-                Text('Yes'),
-                Radio<bool>(value: false),
-                Text('No'),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
   Widget _hasServiceSwitch() {
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
@@ -649,7 +593,16 @@ class _ManageRulesPagePresState extends State<ManageRulesPagePres> {
           const SizedBox(width: 16),
           RadioGroup<bool>(
             groupValue: _hasService,
-            onChanged: (value) => setState(() => _hasService = value ?? false),
+            onChanged: (value) {
+              setState(() {
+                _hasService = value ?? false;
+                if (!_hasService) {
+                  for (final label in dayungServiceTagLabels) {
+                    _selectedServiceTags[label] = false;
+                  }
+                }
+              });
+            },
             child: Row(
               children: const [
                 Radio<bool>(value: true),
@@ -770,6 +723,63 @@ class _ManageRulesPagePresState extends State<ManageRulesPagePres> {
           ),
         ),
         onChanged: (value) => setState(() => _exactAmountForCollection = value),
+        style: const TextStyle(
+          fontFamily: 'OpenSans',
+          fontWeight: FontWeight.w600,
+        ),
+      ),
+    );
+  }
+
+  Widget _exactPenaltyPaymentTextField() {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: TextField(
+        controller: _exactPenaltyPaymentController,
+        keyboardType: TextInputType.number,
+        decoration: InputDecoration(
+          labelText: 'Exact Penalty Payment',
+          labelStyle: const TextStyle(
+            color: kText,
+            fontWeight: FontWeight.w700,
+            fontFamily: 'Montserrat',
+          ),
+          hintText: 'Enter exact amount',
+          hintStyle: TextStyle(
+            color: kSubText.withValues(alpha: 0.5),
+            fontFamily: 'OpenSans',
+          ),
+          filled: true,
+          fillColor: kCardBg,
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: const BorderSide(color: kBorderColor, width: 1),
+          ),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: const BorderSide(color: kBorderColor, width: 1),
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: const BorderSide(color: kPrimary, width: 2),
+          ),
+          prefixIcon: const Padding(
+            padding: EdgeInsets.only(left: 12),
+            child: Text(
+              '₱',
+              style: TextStyle(
+                fontSize: 18,
+                color: kPrimary,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+          prefixIconConstraints: const BoxConstraints(
+            minWidth: 0,
+            minHeight: 0,
+          ),
+        ),
+        onChanged: (value) => setState(() => _exactPenaltyPayment = value),
         style: const TextStyle(
           fontFamily: 'OpenSans',
           fontWeight: FontWeight.w600,

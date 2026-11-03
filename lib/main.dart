@@ -259,7 +259,7 @@ Future<void> main() async {
 
   // Try to use Env class (for web), fallback to dotenv for other platforms
   supabaseUrl = Env.supabaseUrl;
-  supabaseAnonKey = Env.supabaseAnonKey;
+  supabaseAnonKey = Env.supabaseAnonKey; 
 
   // If still placeholders, try dotenv (for mobile/desktop)
   if (supabaseUrl == '  YOUR_SUPABASE_URL' ||

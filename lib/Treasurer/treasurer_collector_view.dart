@@ -289,8 +289,8 @@ class _TreasurerCollectorListPageState
                                   MaterialPageRoute(
                                     builder: (_) =>
                                         TreasurerCollectorDetailPage(
-                                      collector: collector,
-                                    ),
+                                          collector: collector,
+                                        ),
                                   ),
                                 ),
                                 cells: [

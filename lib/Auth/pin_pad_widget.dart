@@ -38,7 +38,10 @@ class PinPad extends StatelessWidget {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              if (topContent != null) ...[topContent!, const SizedBox(height: 28)],
+              if (topContent != null) ...[
+                topContent!,
+                const SizedBox(height: 28),
+              ],
               Text(
                 title,
                 textAlign: TextAlign.center,
@@ -177,11 +180,7 @@ class _PinKey extends StatefulWidget {
   final double size;
   final VoidCallback onTap;
 
-  const _PinKey({
-    required this.label,
-    required this.size,
-    required this.onTap,
-  });
+  const _PinKey({required this.label, required this.size, required this.onTap});
 
   @override
   State<_PinKey> createState() => _PinKeyState();
@@ -210,8 +209,8 @@ class _PinKeyState extends State<_PinKey> {
           color: isDelete
               ? Colors.transparent
               : _pressed
-                  ? kPrimary.withValues(alpha: 0.12)
-                  : Colors.white,
+              ? kPrimary.withValues(alpha: 0.12)
+              : Colors.white,
           border: isDelete
               ? null
               : Border.all(

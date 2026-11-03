@@ -97,11 +97,18 @@ class _AddServiceDialogState extends State<AddServiceDialog> {
                               ),
                               const SizedBox(height: 2),
                               Text(
-                                (widget.deathNotice['deceased_full_name']?.toString().isNotEmpty ?? false)
-                                    ? widget.deathNotice['deceased_full_name']!.toString()
-                                    : (widget.deathNotice['name']?.toString().isNotEmpty ?? false)
-                                        ? widget.deathNotice['name']!.toString()
-                                        : 'Service schedule',
+                                (widget.deathNotice['deceased_full_name']
+                                            ?.toString()
+                                            .isNotEmpty ??
+                                        false)
+                                    ? widget.deathNotice['deceased_full_name']!
+                                          .toString()
+                                    : (widget.deathNotice['name']
+                                              ?.toString()
+                                              .isNotEmpty ??
+                                          false)
+                                    ? widget.deathNotice['name']!.toString()
+                                    : 'Service schedule',
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
                                 style: const TextStyle(
@@ -146,7 +153,8 @@ class _AddServiceDialogState extends State<AddServiceDialog> {
                           : () async {
                               final date = await showDatePicker(
                                 context: context,
-                                initialDate: _startTimeService ?? DateTime.now(),
+                                initialDate:
+                                    _startTimeService ?? DateTime.now(),
                                 firstDate: DateTime(2020),
                                 lastDate: DateTime(2100),
                               );
@@ -155,7 +163,9 @@ class _AddServiceDialogState extends State<AddServiceDialog> {
                                 context: context,
                                 initialTime: _startTimeService == null
                                     ? TimeOfDay.now()
-                                    : TimeOfDay.fromDateTime(_startTimeService!),
+                                    : TimeOfDay.fromDateTime(
+                                        _startTimeService!,
+                                      ),
                               );
                               if (time == null || !context.mounted) return;
                               setState(() {
@@ -233,7 +243,9 @@ class _AddServiceDialogState extends State<AddServiceDialog> {
                           : () async {
                               final date = await showDatePicker(
                                 context: context,
-                                initialDate: _endTimeService ?? (_startTimeService ?? DateTime.now()),
+                                initialDate:
+                                    _endTimeService ??
+                                    (_startTimeService ?? DateTime.now()),
                                 firstDate: DateTime(2020),
                                 lastDate: DateTime(2100),
                               );
@@ -419,13 +431,21 @@ class _AddServiceDialogState extends State<AddServiceDialog> {
                             onPressed: _saving
                                 ? null
                                 : () async {
-                                    final messenger = ScaffoldMessenger.of(context);
+                                    final messenger = ScaffoldMessenger.of(
+                                      context,
+                                    );
                                     final navigator = Navigator.of(context);
-                                    if (_formKey.currentState?.validate() != true || _startTimeService == null || _endTimeService == null) {
-                                      if (_startTimeService == null || _endTimeService == null) {
+                                    if (_formKey.currentState?.validate() !=
+                                            true ||
+                                        _startTimeService == null ||
+                                        _endTimeService == null) {
+                                      if (_startTimeService == null ||
+                                          _endTimeService == null) {
                                         messenger.showSnackBar(
                                           const SnackBar(
-                                            content: Text('Please select both start and end schedule.'),
+                                            content: Text(
+                                              'Please select both start and end schedule.',
+                                            ),
                                           ),
                                         );
                                       }
@@ -436,14 +456,19 @@ class _AddServiceDialogState extends State<AddServiceDialog> {
                                       context: context,
                                       builder: (context) => AlertDialog(
                                         title: const Text('Confirm Save'),
-                                        content: const Text('Are you sure you want to save this service?'),
+                                        content: const Text(
+                                          'Are you sure you want to save this service?',
+                                        ),
                                         actions: [
                                           TextButton(
-                                            onPressed: () => Navigator.of(context).pop(false),
+                                            onPressed: () => Navigator.of(
+                                              context,
+                                            ).pop(false),
                                             child: const Text('Cancel'),
                                           ),
                                           ElevatedButton(
-                                            onPressed: () => Navigator.of(context).pop(true),
+                                            onPressed: () =>
+                                                Navigator.of(context).pop(true),
                                             child: const Text('Confirm'),
                                           ),
                                         ],
@@ -455,21 +480,30 @@ class _AddServiceDialogState extends State<AddServiceDialog> {
                                     try {
                                       final sb = Supabase.instance.client;
                                       await sb.from('service_checklist').insert({
-                                        'service_name': AppInputSecurity.sanitizePlainText(
-                                          _serviceName,
-                                          maxLength: 120,
-                                        ),
-                                        'start_time_service': _startTimeService!.toIso8601String(),
-                                        'end_time_service': _endTimeService!.toIso8601String(),
-                                        'notes': AppInputSecurity.sanitizePlainText(
-                                          _notes,
-                                          allowNewLines: true,
-                                          maxLength: 300,
-                                        ),
-                                        'required': _obligated ? 'All' : _required,
-                                        'userdeceased': widget.deathNotice['user_id'],
-                                        'dayung_unit_id': widget.deathNotice['dayung_unit_id'],
-                                        'created_at': DateTime.now().toIso8601String(),
+                                        'service_name':
+                                            AppInputSecurity.sanitizePlainText(
+                                              _serviceName,
+                                              maxLength: 120,
+                                            ),
+                                        'start_time_service': _startTimeService!
+                                            .toIso8601String(),
+                                        'end_time_service': _endTimeService!
+                                            .toIso8601String(),
+                                        'notes':
+                                            AppInputSecurity.sanitizePlainText(
+                                              _notes,
+                                              allowNewLines: true,
+                                              maxLength: 300,
+                                            ),
+                                        'required': _obligated
+                                            ? 'All'
+                                            : _required,
+                                        'userdeceased':
+                                            widget.deathNotice['user_id'],
+                                        'dayung_unit_id': widget
+                                            .deathNotice['dayung_unit_id'],
+                                        'created_at': DateTime.now()
+                                            .toIso8601String(),
                                         'claim_id': widget.deathNotice['id'],
                                         'is_removed': false,
                                       });
@@ -479,7 +513,9 @@ class _AddServiceDialogState extends State<AddServiceDialog> {
                                     } on PostgrestException catch (e) {
                                       messenger.showSnackBar(
                                         SnackBar(
-                                          content: Text('Error: [${e.message}'),
+                                          content: Text(
+                                            'Error: [${e.message}',
+                                          ),
                                         ),
                                       );
                                     } catch (e) {

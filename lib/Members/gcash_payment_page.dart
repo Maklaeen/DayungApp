@@ -1107,63 +1107,71 @@ class _GCashPaymentPageState extends State<GCashPaymentPage> {
                                   final receiptUrl = payment['image_url']
                                       ?.toString();
 
-                                  return DataRow(cells: [
-                                    const DataCell(Text('Advance payment')),
-                                    DataCell(Text('₱ ${payment['amount']}')),
-                                    DataCell(Text(
-                                      (payment['refno'] ?? '—').toString(),
-                                    )),
-                                    DataCell(Text(isPaid ? 'Paid' : 'Pending')),
-                                    DataCell(
-                                      receiptUrl == null || receiptUrl.isEmpty
-                                          ? const Text('—')
-                                          : FutureBuilder<String?>(
-                                              future: getSignedQrImageUrl(
-                                                receiptUrl,
-                                              ),
-                                              builder: (context, imageSnapshot) {
-                                                if (imageSnapshot.hasError) {
-                                                  return const Text(
-                                                    'Unable to load receipt image.',
-                                                  );
-                                                }
-                                                if (!imageSnapshot.hasData ||
-                                                    imageSnapshot.data == null) {
-                                                  return const SizedBox(
-                                                    height: 24,
-                                                    width: 24,
-                                                    child:
-                                                        CircularProgressIndicator(
-                                                      strokeWidth: 2,
-                                                      color: kAccent,
-                                                    ),
-                                                  );
-                                                }
-                                                return TextButton.icon(
-                                                  onPressed: () {
-                                                    showDialog<void>(
-                                                      context: context,
-                                                      builder: (context) =>
-                                                          Dialog(
-                                                        child:
-                                                            InteractiveViewer(
-                                                          child: Image.network(
-                                                            imageSnapshot.data!,
-                                                            fit: BoxFit.contain,
+                                  return DataRow(
+                                    cells: [
+                                      const DataCell(Text('Advance payment')),
+                                      DataCell(Text('₱ ${payment['amount']}')),
+                                      DataCell(
+                                        Text(
+                                          (payment['refno'] ?? '—').toString(),
+                                        ),
+                                      ),
+                                      DataCell(
+                                        Text(isPaid ? 'Paid' : 'Pending'),
+                                      ),
+                                      DataCell(
+                                        receiptUrl == null || receiptUrl.isEmpty
+                                            ? const Text('—')
+                                            : FutureBuilder<String?>(
+                                                future: getSignedQrImageUrl(
+                                                  receiptUrl,
+                                                ),
+                                                builder: (context, imageSnapshot) {
+                                                  if (imageSnapshot.hasError) {
+                                                    return const Text(
+                                                      'Unable to load receipt image.',
+                                                    );
+                                                  }
+                                                  if (!imageSnapshot.hasData ||
+                                                      imageSnapshot.data ==
+                                                          null) {
+                                                    return const SizedBox(
+                                                      height: 24,
+                                                      width: 24,
+                                                      child:
+                                                          CircularProgressIndicator(
+                                                            strokeWidth: 2,
+                                                            color: kAccent,
+                                                          ),
+                                                    );
+                                                  }
+                                                  return TextButton.icon(
+                                                    onPressed: () {
+                                                      showDialog<void>(
+                                                        context: context,
+                                                        builder: (context) => Dialog(
+                                                          child: InteractiveViewer(
+                                                            child:
+                                                                Image.network(
+                                                                  imageSnapshot
+                                                                      .data!,
+                                                                  fit: BoxFit
+                                                                      .contain,
+                                                                ),
                                                           ),
                                                         ),
-                                                      ),
-                                                    );
-                                                  },
-                                                  icon: const Icon(
-                                                    Icons.receipt_long,
-                                                  ),
-                                                  label: const Text('View'),
-                                                );
-                                              },
-                                            ),
-                                    ),
-                                  ]);
+                                                      );
+                                                    },
+                                                    icon: const Icon(
+                                                      Icons.receipt_long,
+                                                    ),
+                                                    label: const Text('View'),
+                                                  );
+                                                },
+                                              ),
+                                      ),
+                                    ],
+                                  );
                                 }).toList(),
                               );
                             },
@@ -2103,12 +2111,3 @@ class _GCashPaymentPageState extends State<GCashPaymentPage> {
     );
   }
 }
-
-
-
-
-
-
-
-
-

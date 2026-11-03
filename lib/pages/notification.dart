@@ -2,8 +2,11 @@ import 'dart:convert';
 
 import 'package:capstone_app/Providers/dayung_provider.dart';
 import 'package:capstone_app/Providers/dayung_role_provider.dart';
+import 'package:capstone_app/Members/gcash_payment_page.dart'
+    show GCashPaymentPage;
 import 'package:capstone_app/ui/loading/page_skeleton.dart';
 import 'package:capstone_app/ui/theme/branding.dart';
+import 'package:capstone_app/utils/philippine_time.dart';
 import 'package:capstone_app/widgets/record_data_table.dart';
 import 'package:capstone_app/utils/theme_surface.dart';
 import 'package:flutter/material.dart';
@@ -32,6 +35,9 @@ enum _NotificationKind {
   application,
   other,
 }
+
+const _applicationSubmittedNotificationTitle =
+    'Application Submitted Successfully';
 
 class NotificationPage extends StatefulWidget {
   final VoidCallback? onBack;
@@ -352,6 +358,8 @@ class _NotificationPageState extends State<NotificationPage> {
   void _showNotificationModal({
     required String title,
     required String message,
+    required bool showPaymentButton,
+    required int? dayungUnitId,
     required String category,
     required String time,
     required String exactDate,
@@ -384,6 +392,8 @@ class _NotificationPageState extends State<NotificationPage> {
               child: _buildNotificationDetailsContent(
                 title: title,
                 message: message,
+                showPaymentButton: showPaymentButton,
+                dayungUnitId: dayungUnitId,
                 category: category,
                 time: time,
                 exactDate: exactDate,
@@ -416,6 +426,8 @@ class _NotificationPageState extends State<NotificationPage> {
           child: _buildNotificationDetailsContent(
             title: title,
             message: message,
+            showPaymentButton: showPaymentButton,
+            dayungUnitId: dayungUnitId,
             category: category,
             time: time,
             exactDate: exactDate,
@@ -433,6 +445,8 @@ class _NotificationPageState extends State<NotificationPage> {
   Widget _buildNotificationDetailsContent({
     required String title,
     required String message,
+    required bool showPaymentButton,
+    required int? dayungUnitId,
     required String category,
     required String time,
     required String exactDate,
@@ -636,6 +650,41 @@ class _NotificationPageState extends State<NotificationPage> {
                       ],
                     ),
                   ),
+                  if (showPaymentButton) ...[
+                    SizedBox(height: isWide ? 22 : 18),
+                    SizedBox(
+                      width: double.infinity,
+                      child: FilledButton.icon(
+                        onPressed: () {
+                          onClose();
+                          Navigator.of(context, rootNavigator: true).push(
+                            MaterialPageRoute<void>(
+                              builder: (_) => GCashPaymentPage(
+                                dayungUnitId: dayungUnitId ?? _currentUnitId,
+                              ),
+                            ),
+                          );
+                        },
+                        icon: const Icon(Icons.payments_rounded),
+                        label: const Text('Go to GCash Payment'),
+                        style: FilledButton.styleFrom(
+                          backgroundColor: kPrimary,
+                          foregroundColor: Colors.white,
+                          padding: EdgeInsets.symmetric(
+                            vertical: isWide ? 18 : 16,
+                          ),
+                          textStyle: TextStyle(
+                            fontSize: isWide ? 16 : 15,
+                            fontWeight: FontWeight.w700,
+                            fontFamily: 'OpenSans',
+                          ),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
                 ],
               ),
             ),
@@ -695,9 +744,11 @@ class _NotificationPageState extends State<NotificationPage> {
           )
           .eq('recipient_id', uid);
       notificationsQuery = scopedUnitId == null
-          ? notificationsQuery.isFilter('dayung_unit_id', null)
+          ? notificationsQuery.or(
+              'dayung_unit_id.is.null,title.eq."$_applicationSubmittedNotificationTitle"',
+            )
           : notificationsQuery.or(
-              'dayung_unit_id.eq.$scopedUnitId,dayung_unit_id.is.null',
+              'dayung_unit_id.eq.$scopedUnitId,dayung_unit_id.is.null,title.eq."$_applicationSubmittedNotificationTitle"',
             );
       final notifData = List<Map<String, dynamic>>.from(
         await notificationsQuery.order('created_at', ascending: false),
@@ -714,15 +765,40 @@ class _NotificationPageState extends State<NotificationPage> {
       List<Map<String, dynamic>> annData = const [];
       String? announcementLogWarning;
       if (scopedUnitId != null) {
+        final approvedApplication = await sb
+            .from('applications')
+            .select('approved_at')
+            .eq('user_id', uid)
+            .eq('dayung_unit_id', scopedUnitId)
+            .eq('status', 'approved')
+            .order('approved_at', ascending: false)
+            .limit(1)
+            .maybeSingle();
+        final approvedAt = DateTime.tryParse(
+          approvedApplication?['approved_at']?.toString() ?? '',
+        );
+        if (approvedApplication != null && approvedAt == null) {
+          throw const FormatException(
+            'An approved application is missing a valid approved_at date.',
+          );
+        }
+
+        dynamic announcementQuery = sb
+            .from('announcements')
+            .select(
+              'id, dayung_unit_id, title, body, category, created_by, created_at',
+            )
+            .eq('dayung_unit_id', scopedUnitId);
+        if (approvedAt != null) {
+          announcementQuery = announcementQuery.gte(
+            'created_at',
+            approvedAt.toUtc().toIso8601String(),
+          );
+        }
+
         dynamic ann;
         try {
-          ann = await sb
-              .from('announcements')
-              .select(
-                'id, dayung_unit_id, title, body, category, created_by, created_at',
-              )
-              .eq('dayung_unit_id', scopedUnitId)
-              .order('created_at', ascending: false);
+          ann = await announcementQuery.order('created_at', ascending: false);
         } on PostgrestException catch (error) {
           if (error.code != '42703' ||
               !error.message.contains('announcements.category')) {
@@ -733,11 +809,20 @@ class _NotificationPageState extends State<NotificationPage> {
           );
           announcementLogWarning =
               'Announcement categories are not enabled yet. Run docs/supabase-announcement-category.sql in the Supabase SQL Editor to enable them.';
-          ann = await sb
+          dynamic legacyAnnouncementQuery = sb
               .from('announcements')
               .select('id, dayung_unit_id, title, body, created_by, created_at')
-              .eq('dayung_unit_id', scopedUnitId)
-              .order('created_at', ascending: false);
+              .eq('dayung_unit_id', scopedUnitId);
+          if (approvedAt != null) {
+            legacyAnnouncementQuery = legacyAnnouncementQuery.gte(
+              'created_at',
+              approvedAt.toUtc().toIso8601String(),
+            );
+          }
+          ann = await legacyAnnouncementQuery.order(
+            'created_at',
+            ascending: false,
+          );
         }
         annData = List<Map<String, dynamic>>.from(ann);
         if (announcementLogWarning != null) {
@@ -971,8 +1056,12 @@ class _NotificationPageState extends State<NotificationPage> {
     final hasAnnouncementLink =
         item['announcement_id'] != null || type == 'announcement_direct';
 
-    if (type == 'application_new') return _NotificationKind.application;
-    if (hasAnnouncementLink) return _NotificationKind.announcement;
+    if (type == 'application_new' || type == 'application_submitted') {
+      return _NotificationKind.application;
+    }
+    if (hasAnnouncementLink || type == 'announcement') {
+      return _NotificationKind.announcement;
+    }
     if (title.contains('payment reminder') ||
         title.contains('pending payment') ||
         title.contains('payment')) {
@@ -1189,7 +1278,7 @@ class _NotificationPageState extends State<NotificationPage> {
         ? const Padding(
             padding: EdgeInsets.all(20),
             child: Text(
-              'No announcement logs yet for this Dayung Unit.',
+              'No announcement logs yet for this Dayung.',
               style: TextStyle(
                 fontSize: 16,
                 color: kSubText,
@@ -1467,9 +1556,11 @@ class _NotificationPageState extends State<NotificationPage> {
           .eq('recipient_id', uid)
           .isFilter('read_at', null);
       notificationsQuery = _currentUnitId == null
-          ? notificationsQuery.isFilter('dayung_unit_id', null)
+          ? notificationsQuery.or(
+              'dayung_unit_id.is.null,title.eq."$_applicationSubmittedNotificationTitle"',
+            )
           : notificationsQuery.or(
-              'dayung_unit_id.eq.$_currentUnitId,dayung_unit_id.is.null',
+              'dayung_unit_id.eq.$_currentUnitId,dayung_unit_id.is.null,title.eq."$_applicationSubmittedNotificationTitle"',
             );
       await notificationsQuery;
 
@@ -1989,6 +2080,16 @@ class _NotificationPageState extends State<NotificationPage> {
     _showNotificationModal(
       title: _itemTitle(notification),
       message: _itemMessage(notification),
+      showPaymentButton:
+          !isDirect &&
+          !isApplication &&
+          (notification['title'] == 'Payment for Membership' ||
+              notification['title'] == 'Payment Reminder'),
+      dayungUnitId: switch (notification['dayung_unit_id']) {
+        final num id => id.toInt(),
+        final String id => int.tryParse(id),
+        _ => null,
+      },
       category: category,
       time: _formatTime(notification['created_at']),
       exactDate: _formatExactDateTime(notification['created_at']),
@@ -2008,29 +2109,37 @@ class _NotificationPageState extends State<NotificationPage> {
 
   String _formatTime(dynamic iso) {
     if (iso == null) return '';
-    final dt = DateTime.tryParse(iso.toString());
-    if (dt == null) return '';
-    final now = DateTime.now();
-    final diff = now.difference(dt);
+    final date = DateTime.tryParse(iso.toString());
+    if (date == null) return '';
+    final utcDate = date.toUtc();
+    final diff = DateTime.now().toUtc().difference(utcDate);
+    if (diff.isNegative) {
+      final until = diff.abs();
+      if (until.inMinutes < 1) return 'in less than a minute';
+      if (until.inMinutes < 60) return 'in ${until.inMinutes} min';
+      if (until.inHours < 24) return 'in ${until.inHours} hr';
+      if (until.inDays < 7) return 'in ${until.inDays} days';
+    }
     if (diff.inMinutes < 1) return 'just now';
     if (diff.inMinutes < 60) return '${diff.inMinutes} min ago';
     if (diff.inHours < 24) return '${diff.inHours} hr ago';
     if (diff.inDays < 7) return '${diff.inDays} days ago';
-    return '${dt.year}-${dt.month.toString().padLeft(2, '0')}-${dt.day.toString().padLeft(2, '0')}';
+    return '${utcDate.year}-${utcDate.month.toString().padLeft(2, '0')}-${utcDate.day.toString().padLeft(2, '0')}';
   }
 
   String _formatAnnouncementDateTime(dynamic iso) {
     if (iso == null) return '—';
     final date = DateTime.tryParse(iso.toString());
     if (date == null) return '—';
-    return DateFormat('MMM d, y • h:mm a').format(date.toLocal());
+    return DateFormat('MMM d, y • h:mm a').format(date.toUtc());
   }
 
   String _formatExactDateTime(dynamic iso) {
-    if (iso == null) return '';
-    final date = DateTime.tryParse(iso.toString());
+    final date = parseUtcTimestamp(iso);
     if (date == null) return '';
-    return DateFormat("EEEE, MMMM d, y 'at' h:mm a").format(date.toLocal());
+    return DateFormat(
+      "MMMM d, y, 'at' h:mm:ss a ",
+    ).format(toPhilippineWallTime(date));
   }
 }
 

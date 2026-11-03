@@ -241,10 +241,7 @@ class _SuperAdminAuditLogsPageState extends State<SuperAdminAuditLogsPage> {
           ),
         ),
         DataCell(
-          SizedBox(
-            width: 240,
-            child: Text(fieldEntries, softWrap: true),
-          ),
+          SizedBox(width: 240, child: Text(fieldEntries, softWrap: true)),
         ),
         DataCell(
           SizedBox(

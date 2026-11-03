@@ -105,7 +105,7 @@ class _MembershipPageState extends State<MembershipPage> {
     }
   }
 
-  Future<void> _updatePaymentStatus(String paymentId) async {
+  Future<void> _updatePaymentStatus(Map<String, dynamic> payment) async {
     final currentUserId = sb.auth.currentUser?.id;
     if (currentUserId == null) {
       if (mounted) {
@@ -116,8 +116,35 @@ class _MembershipPageState extends State<MembershipPage> {
       return;
     }
 
+    final paymentId = payment['id']?.toString();
+    final recipientId = payment['user_id']?.toString();
+    if (paymentId == null ||
+        paymentId.isEmpty ||
+        recipientId == null ||
+        recipientId.isEmpty) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Payment or member information is missing.'),
+          ),
+        );
+      }
+      return;
+    }
+
     setState(() => _updating = true);
+    var paymentUpdated = false;
     try {
+      final unitRow = await sb
+          .from('dayung_units')
+          .select('name')
+          .eq('id', widget.dayungUnitId)
+          .maybeSingle();
+      final dayungName = unitRow?['name']?.toString().trim();
+      if (dayungName == null || dayungName.isEmpty) {
+        throw StateError('The dayung name could not be found.');
+      }
+
       final paidAt = DateTime.now().toUtc().toIso8601String();
       await sb
           .from('payments')
@@ -129,15 +156,38 @@ class _MembershipPageState extends State<MembershipPage> {
             'iscollectedbytreasurer_date': paidAt,
           })
           .eq('id', paymentId);
+      paymentUpdated = true;
+
+      await sb.from('notifications').insert({
+        'recipient_id': recipientId,
+        'sender_id': currentUserId,
+        'dayung_unit_id': widget.dayungUnitId,
+        'type': 'announcement',
+        'title': 'Membership Application Approved',
+        'body':
+            'You are now officially a member of $dayungName, and your membership fee payment has been confirmed.',
+        'announcement_id': null,
+        'read_at': null,
+        'created_at': DateTime.now().toUtc().toIso8601String(),
+      });
 
       if (mounted) {
         await _fetchPayments();
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Failed to update status: $e')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              paymentUpdated
+                  ? 'Payment was marked as paid, but the notification could not be saved: $e'
+                  : 'Could not mark payment as paid: $e',
+            ),
+          ),
+        );
+        if (paymentUpdated) {
+          await _fetchPayments();
+        }
       }
     } finally {
       if (mounted) {
@@ -146,7 +196,7 @@ class _MembershipPageState extends State<MembershipPage> {
     }
   }
 
-  Future<void> _confirmMarkPaid(String paymentId) async {
+  Future<void> _confirmMarkPaid(Map<String, dynamic> payment) async {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) {
@@ -170,7 +220,7 @@ class _MembershipPageState extends State<MembershipPage> {
     );
 
     if (confirmed == true) {
-      await _updatePaymentStatus(paymentId);
+      await _updatePaymentStatus(payment);
     }
   }
 
@@ -392,11 +442,12 @@ class _MembershipPageState extends State<MembershipPage> {
               DataColumn(label: Text('Action')),
             ],
             rows: _filteredPayments.map((payment) {
-          final userData = payment['users'] as Map<String, dynamic>?;
-          final fullName = userData?['full_name']?.toString() ?? 'Unknown user';
-          final amount = payment['amount']?.toString() ?? '0';
-          final status = payment['status']?.toString() ?? 'unknown';
-          final createdAt = payment['created_at']?.toString() ?? 'No date';
+              final userData = payment['users'] as Map<String, dynamic>?;
+              final fullName =
+                  userData?['full_name']?.toString() ?? 'Unknown user';
+              final amount = payment['amount']?.toString() ?? '0';
+              final status = payment['status']?.toString() ?? 'unknown';
+              final createdAt = payment['created_at']?.toString() ?? 'No date';
               return DataRow(
                 cells: [
                   DataCell(Text(fullName)),
@@ -412,7 +463,7 @@ class _MembershipPageState extends State<MembershipPage> {
                     ElevatedButton.icon(
                       onPressed: _updating || status.toLowerCase() == 'paid'
                           ? null
-                          : () => _confirmMarkPaid(payment['id'].toString()),
+                          : () => _confirmMarkPaid(payment),
                       icon: Icon(
                         status.toLowerCase() == 'paid'
                             ? Icons.check_circle

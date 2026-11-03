@@ -1140,10 +1140,7 @@ class _SecretaryClaimsPageState extends State<SecretaryClaimsPage>
               onTap: onTap,
             ),
             DataCell(Text(_formatDate(claim['date_submitted'])), onTap: onTap),
-            DataCell(
-              Text(status.isEmpty ? '—' : status),
-              onTap: onTap,
-            ),
+            DataCell(Text(status.isEmpty ? '—' : status), onTap: onTap),
           ],
         );
       }).toList(),

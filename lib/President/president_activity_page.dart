@@ -11,15 +11,31 @@ class PresidentActivityPage extends StatefulWidget {
 }
 
 class _PresidentActivityPageState extends State<PresidentActivityPage> {
+  static const int _announcementPageSize = 10;
+
   final _supabase = Supabase.instance.client;
   List<Map<String, dynamic>> _entries = [];
+  List<Map<String, dynamic>> _announcements = [];
+  List<Map<String, dynamic>> _rules = [];
+  int _announcementPage = 0;
+  int _rulesPage = 0;
+  bool _announcementsHaveMore = false;
+  bool _rulesHaveMore = false;
   bool _loading = true;
+  bool _announcementsLoading = true;
+  bool _rulesLoading = true;
   String? _error;
+  String? _announcementsError;
+  String? _rulesError;
 
   @override
   void initState() {
     super.initState();
-    _loadActivity();
+    _refreshAll();
+  }
+
+  Future<void> _refreshAll() async {
+    await Future.wait([_loadActivity(), _loadAnnouncements(), _loadRules()]);
   }
 
   Future<void> _loadActivity() async {
@@ -53,6 +69,178 @@ class _PresidentActivityPageState extends State<PresidentActivityPage> {
     }
   }
 
+  Future<void> _loadAnnouncements({int page = 0}) async {
+    setState(() {
+      _announcementsLoading = true;
+      _announcementsError = null;
+    });
+
+    try {
+      final userId = _supabase.auth.currentUser?.id;
+      if (userId == null) {
+        throw Exception('Please sign in again to view announcements.');
+      }
+
+      final unitResponse = await _supabase
+          .from('dayung_units')
+          .select('id')
+          .eq('president_id', userId)
+          .order('id');
+      final unitIds = List<Map<String, dynamic>>.from(
+        unitResponse,
+      ).map((unit) => int.tryParse('${unit['id']}')).whereType<int>().toList();
+
+      if (unitIds.isEmpty) {
+        if (!mounted) return;
+        setState(() {
+          _announcements = [];
+          _announcementPage = page;
+          _announcementsHaveMore = false;
+        });
+        return;
+      }
+
+      final start = page * _announcementPageSize;
+      final response = await _supabase
+          .from('announcements')
+          .select('title, category, body, created_by, created_at')
+          .inFilter('dayung_unit_id', unitIds)
+          .order('created_at', ascending: false)
+          .range(start, start + _announcementPageSize);
+      final rows = List<Map<String, dynamic>>.from(response);
+      final hasMore = rows.length > _announcementPageSize;
+      final announcements = rows.take(_announcementPageSize).toList();
+      final posterIds = announcements
+          .map((announcement) => announcement['created_by'])
+          .whereType<String>()
+          .where((id) => id.isNotEmpty)
+          .toSet()
+          .toList();
+
+      final posterNames = <String, String>{};
+      if (posterIds.isNotEmpty) {
+        final posters = await _supabase
+            .from('users')
+            .select('id, full_name')
+            .inFilter('id', posterIds);
+        for (final poster in List<Map<String, dynamic>>.from(posters)) {
+          final id = poster['id']?.toString();
+          final name = poster['full_name']?.toString().trim();
+          if (id != null && name != null && name.isNotEmpty) {
+            posterNames[id] = name;
+          }
+        }
+      }
+
+      if (!mounted) return;
+      setState(() {
+        _announcementPage = page;
+        _announcementsHaveMore = hasMore;
+        _announcements = announcements
+            .map(
+              (announcement) => {
+                ...announcement,
+                'posted_by':
+                    posterNames[announcement['created_by']?.toString()] ??
+                    'Name unavailable',
+              },
+            )
+            .toList();
+      });
+    } catch (error) {
+      if (!mounted) return;
+      setState(() => _announcementsError = error.toString());
+    } finally {
+      if (mounted) setState(() => _announcementsLoading = false);
+    }
+  }
+
+  Future<void> _loadRules({int page = 0}) async {
+    setState(() {
+      _rulesLoading = true;
+      _rulesError = null;
+    });
+
+    try {
+      final userId = _supabase.auth.currentUser?.id;
+      if (userId == null) {
+        throw Exception('Please sign in again to view unit rules.');
+      }
+
+      final unitResponse = await _supabase
+          .from('dayung_units')
+          .select('id')
+          .eq('president_id', userId)
+          .order('id');
+      final unitIds = List<Map<String, dynamic>>.from(
+        unitResponse,
+      ).map((unit) => int.tryParse('${unit['id']}')).whereType<int>().toList();
+
+      if (unitIds.isEmpty) {
+        if (!mounted) return;
+        setState(() {
+          _rules = [];
+          _rulesPage = page;
+          _rulesHaveMore = false;
+        });
+        return;
+      }
+
+      final start = page * _announcementPageSize;
+      final response = await _supabase
+          .from('dayung_rules')
+          .select('updated_by, created_at, updated_at')
+          .inFilter('dayung_unit_id', unitIds)
+          .order('updated_at', ascending: false)
+          .range(start, start + _announcementPageSize);
+      final rows = List<Map<String, dynamic>>.from(response);
+      final hasMore = rows.length > _announcementPageSize;
+      final rules = rows.take(_announcementPageSize).toList();
+      final updaterIds = rules
+          .map((rule) => rule['updated_by'])
+          .whereType<String>()
+          .where((id) => id.isNotEmpty)
+          .toSet()
+          .toList();
+
+      final updaterNames = <String, String>{};
+      if (updaterIds.isNotEmpty) {
+        final updaters = await _supabase
+            .from('users')
+            .select('id, full_name')
+            .inFilter('id', updaterIds);
+        for (final updater in List<Map<String, dynamic>>.from(updaters)) {
+          final id = updater['id']?.toString();
+          final name = updater['full_name']?.toString().trim();
+          if (id != null && name != null && name.isNotEmpty) {
+            updaterNames[id] = name;
+          }
+        }
+      }
+
+      if (!mounted) return;
+      setState(() {
+        _rulesPage = page;
+        _rulesHaveMore = hasMore;
+        _rules = rules
+            .map(
+              (rule) => {
+                ...rule,
+                'updated_by_display':
+                    updaterNames[rule['updated_by']?.toString()] ??
+                    (rule['updated_by'] == null ? null : 'Name unavailable'),
+              },
+            )
+            .toList();
+      });
+    } catch (error) {
+      if (!mounted) return;
+      setState(() => _rulesError = error.toString());
+    } finally {
+      if (mounted) setState(() => _rulesLoading = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -63,7 +251,9 @@ class _PresidentActivityPageState extends State<PresidentActivityPage> {
           Padding(
             padding: const EdgeInsets.only(right: 12),
             child: OutlinedButton.icon(
-              onPressed: _loading ? null : _loadActivity,
+              onPressed: _loading || _announcementsLoading || _rulesLoading
+                  ? null
+                  : _refreshAll,
               icon: const Icon(Icons.refresh_rounded),
               label: const Text('Refresh'),
               style: OutlinedButton.styleFrom(
@@ -85,7 +275,7 @@ class _PresidentActivityPageState extends State<PresidentActivityPage> {
             final horizontalPadding = isCompact ? 16.0 : 32.0;
 
             return RefreshIndicator(
-              onRefresh: _loadActivity,
+              onRefresh: _refreshAll,
               child: ListView(
                 padding: EdgeInsets.fromLTRB(
                   horizontalPadding,
@@ -105,7 +295,7 @@ class _PresidentActivityPageState extends State<PresidentActivityPage> {
                           if (isWide)
                             Row(
                               crossAxisAlignment: CrossAxisAlignment.start,
-                              children: const [
+                              children: [
                                 Expanded(
                                   child: _ActivityLogSection(
                                     number: '01',
@@ -120,7 +310,18 @@ class _PresidentActivityPageState extends State<PresidentActivityPage> {
                                       'Posted by',
                                       'Date and time',
                                     ],
-                                    compact: false,
+                                    entries: _announcements,
+                                    loading: _announcementsLoading,
+                                    error: _announcementsError,
+                                    onRetry: _loadAnnouncements,
+                                    hasPreviousPage: _announcementPage > 0,
+                                    hasNextPage: _announcementsHaveMore,
+                                    onPreviousPage: () => _loadAnnouncements(
+                                      page: _announcementPage - 1,
+                                    ),
+                                    onNextPage: () => _loadAnnouncements(
+                                      page: _announcementPage + 1,
+                                    ),
                                   ),
                                 ),
                                 SizedBox(width: 20),
@@ -132,11 +333,22 @@ class _PresidentActivityPageState extends State<PresidentActivityPage> {
                                         'A record of changes made to unit rules and preferences.',
                                     icon: Icons.tune_rounded,
                                     columns: [
-                                      'Rule created by',
-                                      'Last updated by',
+                                      'Rule updated by',
+                                      'Rule Created',
                                       'Last updated at',
                                     ],
-                                    compact: false,
+                                    entries: _rules,
+                                    loading: _rulesLoading,
+                                    error: _rulesError,
+                                    onRetry: () => _loadRules(page: _rulesPage),
+                                    hasPreviousPage: _rulesPage > 0,
+                                    hasNextPage: _rulesHaveMore,
+                                    onPreviousPage: () =>
+                                        _loadRules(page: _rulesPage - 1),
+                                    onNextPage: () =>
+                                        _loadRules(page: _rulesPage + 1),
+                                    loadingMessage: 'Loading unit rules...',
+                                    errorMessage: 'Could not load unit rules',
                                   ),
                                 ),
                               ],
@@ -155,7 +367,18 @@ class _PresidentActivityPageState extends State<PresidentActivityPage> {
                                 'Posted by',
                                 'Date and time',
                               ],
-                              compact: isCompact,
+                              entries: _announcements,
+                              loading: _announcementsLoading,
+                              error: _announcementsError,
+                              onRetry: _loadAnnouncements,
+                              hasPreviousPage: _announcementPage > 0,
+                              hasNextPage: _announcementsHaveMore,
+                              onPreviousPage: () => _loadAnnouncements(
+                                page: _announcementPage - 1,
+                              ),
+                              onNextPage: () => _loadAnnouncements(
+                                page: _announcementPage + 1,
+                              ),
                             ),
                             const SizedBox(height: 16),
                             _ActivityLogSection(
@@ -165,11 +388,22 @@ class _PresidentActivityPageState extends State<PresidentActivityPage> {
                                   'A record of changes made to unit rules and preferences.',
                               icon: Icons.tune_rounded,
                               columns: const [
-                                'Rule created by',
-                                'Last updated by',
+                                'Rule updated by',
+                                'Rule Created',
                                 'Last updated at',
                               ],
-                              compact: isCompact,
+                              entries: _rules,
+                              loading: _rulesLoading,
+                              error: _rulesError,
+                              onRetry: () => _loadRules(page: _rulesPage),
+                              hasPreviousPage: _rulesPage > 0,
+                              hasNextPage: _rulesHaveMore,
+                              onPreviousPage: () =>
+                                  _loadRules(page: _rulesPage - 1),
+                              onNextPage: () =>
+                                  _loadRules(page: _rulesPage + 1),
+                              loadingMessage: 'Loading unit rules...',
+                              errorMessage: 'Could not load unit rules',
                             ),
                           ],
                           const SizedBox(height: 28),
@@ -263,7 +497,16 @@ class _ActivityLogSection extends StatelessWidget {
     required this.description,
     required this.icon,
     required this.columns,
-    required this.compact,
+    this.entries = const [],
+    this.loading = false,
+    this.error,
+    this.onRetry,
+    this.hasPreviousPage = false,
+    this.hasNextPage = false,
+    this.onPreviousPage,
+    this.onNextPage,
+    this.loadingMessage = 'Loading announcements...',
+    this.errorMessage = 'Could not load announcements',
   });
 
   final String number;
@@ -271,7 +514,16 @@ class _ActivityLogSection extends StatelessWidget {
   final String description;
   final IconData icon;
   final List<String> columns;
-  final bool compact;
+  final List<Map<String, dynamic>> entries;
+  final bool loading;
+  final String? error;
+  final VoidCallback? onRetry;
+  final bool hasPreviousPage;
+  final bool hasNextPage;
+  final VoidCallback? onPreviousPage;
+  final VoidCallback? onNextPage;
+  final String loadingMessage;
+  final String errorMessage;
 
   @override
   Widget build(BuildContext context) {
@@ -339,91 +591,35 @@ class _ActivityLogSection extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 20),
-          if (compact) ...[
-            Text(
-              'DETAILS SHOWN',
-              style: TextStyle(
-                color: dayungSubtextColor(context),
-                fontSize: 12,
-                letterSpacing: 0.8,
-                fontWeight: FontWeight.w800,
-              ),
+          Text(
+            'LOG COLUMNS',
+            style: TextStyle(
+              color: dayungSubtextColor(context),
+              fontSize: 12,
+              letterSpacing: 0.8,
+              fontWeight: FontWeight.w800,
             ),
-            const SizedBox(height: 10),
-            for (var index = 0; index < columns.length; index++)
-              Padding(
-                padding: EdgeInsets.only(
-                  bottom: index == columns.length - 1 ? 0 : 8,
-                ),
-                child: Row(
-                  children: [
-                    Container(
-                      width: 30,
-                      height: 30,
-                      alignment: Alignment.center,
-                      decoration: BoxDecoration(
-                        color: dayungSoftSurface(context),
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      child: Text(
-                        '${index + 1}',
-                        style: TextStyle(
-                          color: dayungTextColor(context),
-                          fontWeight: FontWeight.w700,
-                          fontSize: 14,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Text(
-                        columns[index],
-                        style: TextStyle(
-                          color: dayungTextColor(context),
-                          fontSize: 16,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-          ] else ...[
-            Text(
-              'LOG COLUMNS',
-              style: TextStyle(
-                color: dayungSubtextColor(context),
-                fontSize: 12,
-                letterSpacing: 0.8,
-                fontWeight: FontWeight.w800,
-              ),
+          ),
+          const SizedBox(height: 8),
+          Table(
+            columnWidths: {
+              for (var index = 0; index < columns.length; index++)
+                index: FlexColumnWidth(_activityColumnFlex(columns[index])),
+            },
+            border: TableBorder(
+              horizontalInside: BorderSide(color: dayungBorder(context)),
             ),
-            const SizedBox(height: 8),
-            SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: DataTable(
-                headingRowHeight: 64,
-                dataRowMinHeight: 56,
-                dataRowMaxHeight: 80,
-                columnSpacing: 24,
-                horizontalMargin: 18,
-                dividerThickness: 1,
-                headingRowColor: WidgetStatePropertyAll(
-                  dayungSoftSurface(context),
-                ),
-                headingTextStyle: TextStyle(
-                  color: dayungTextColor(context),
-                  fontWeight: FontWeight.w800,
-                  fontSize: 16,
-                  fontFamily: 'Montserrat',
-                ),
-                border: TableBorder(
-                  horizontalInside: BorderSide(color: dayungBorder(context)),
-                ),
-                columns: [
+            children: [
+              TableRow(
+                decoration: BoxDecoration(color: dayungSoftSurface(context)),
+                children: [
                   for (final column in columns)
-                    DataColumn(
-                      label: Text(
+                    Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 16,
+                      ),
+                      child: Text(
                         column,
                         style: TextStyle(
                           color: dayungTextColor(context),
@@ -433,49 +629,151 @@ class _ActivityLogSection extends StatelessWidget {
                       ),
                     ),
                 ],
-                rows: const [],
               ),
-            ),
-          ],
-          const SizedBox(height: 18),
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 18),
-            decoration: BoxDecoration(
-              color: dayungSoftSurface(context),
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: dayungBorder(context)),
-            ),
-            child: Column(
+              for (final entry in entries)
+                TableRow(
+                  children: [
+                    for (final column in columns)
+                      Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 16,
+                        ),
+                        child: Text(
+                          _announcementCellValue(entry, column),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            color: dayungTextColor(context),
+                            fontSize: 13,
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+            ],
+          ),
+          if (onPreviousPage != null || onNextPage != null) ...[
+            const SizedBox(height: 12),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.end,
               children: [
-                Icon(
-                  Icons.inbox_outlined,
-                  size: 30,
-                  color: dayungSubtextColor(context),
+                OutlinedButton(
+                  onPressed: !loading && hasPreviousPage
+                      ? onPreviousPage
+                      : null,
+                  child: const Text('Previous'),
                 ),
-                const SizedBox(height: 8),
-                Text(
-                  'No records yet',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    color: dayungTextColor(context),
-                    fontSize: 16,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  'New activity will appear here when available.',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    color: dayungSubtextColor(context),
-                    fontSize: 14,
-                    height: 1.4,
-                  ),
+                const SizedBox(width: 8),
+                OutlinedButton(
+                  onPressed: !loading && hasNextPage ? onNextPage : null,
+                  child: const Text('Next'),
                 ),
               ],
             ),
+          ],
+          if (loading) ...[
+            const SizedBox(height: 18),
+            _ActivityLogStateCard(
+              icon: Icons.hourglass_top_rounded,
+              message: loadingMessage,
+            ),
+          ] else if (error != null) ...[
+            const SizedBox(height: 18),
+            _ActivityLogStateCard(
+              icon: Icons.error_outline_rounded,
+              message: '$errorMessage: $error',
+              actionLabel: 'Try again',
+              onAction: onRetry,
+            ),
+          ] else if (entries.isEmpty) ...[
+            const SizedBox(height: 18),
+            const _ActivityLogStateCard(
+              icon: Icons.inbox_outlined,
+              message:
+                  'No records yet. New activity will appear here when available.',
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+double _activityColumnFlex(String column) => switch (column) {
+  'Title' => 2,
+  'Category' => 3,
+  'Description' => 4,
+  'Posted by' => 3,
+  'Date and time' => 3,
+  _ => 3,
+};
+
+String _announcementCellValue(Map<String, dynamic> entry, String column) {
+  final value = switch (column) {
+    'Title' => entry['title'],
+    'Category' => entry['category'],
+    'Description' => entry['body'],
+    'Posted by' => entry['posted_by'],
+    'Date and time' => entry['created_at'],
+    'Rule updated by' => entry['updated_by_display'],
+    'Rule Created' => entry['created_at'],
+    'Last updated at' => entry['updated_at'],
+    _ => null,
+  };
+  if (column == 'Date and time' ||
+      column == 'Rule Created' ||
+      column == 'Last updated at') {
+    final createdAt = DateTime.tryParse(value?.toString() ?? '');
+    return createdAt == null
+        ? 'Date unavailable'
+        : DateFormat('MMM d, yyyy • h:mm a').format(createdAt.toLocal());
+  }
+  final text = value?.toString().trim() ?? '';
+  return text.isEmpty ? '—' : text;
+}
+
+class _ActivityLogStateCard extends StatelessWidget {
+  const _ActivityLogStateCard({
+    required this.icon,
+    required this.message,
+    this.actionLabel,
+    this.onAction,
+  });
+
+  final IconData icon;
+  final String message;
+  final String? actionLabel;
+  final VoidCallback? onAction;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 18),
+      decoration: BoxDecoration(
+        color: dayungSoftSurface(context),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: dayungBorder(context)),
+      ),
+      child: Column(
+        children: [
+          Icon(icon, size: 30, color: dayungSubtextColor(context)),
+          const SizedBox(height: 8),
+          Text(
+            message,
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              color: dayungTextColor(context),
+              fontSize: 15,
+              height: 1.4,
+              fontWeight: FontWeight.w600,
+            ),
           ),
+          if (actionLabel != null && onAction != null) ...[
+            const SizedBox(height: 8),
+            TextButton(onPressed: onAction, child: Text(actionLabel!)),
+          ],
         ],
       ),
     );
@@ -497,54 +795,7 @@ class _RecentActivitySection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    const accent = Color(0xFF075985);
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Padding(
-          padding: const EdgeInsets.only(left: 4, bottom: 14),
-          child: Row(
-            children: [
-              const Icon(Icons.history_rounded, color: accent, size: 26),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Text(
-                  'Recent activity',
-                  style: TextStyle(
-                    color: dayungTextColor(context),
-                    fontWeight: FontWeight.w800,
-                    fontSize: 21,
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-        if (loading)
-          const _ActivityStatusCard(
-            icon: Icons.hourglass_top_rounded,
-            message: 'Loading recent activity...',
-          )
-        else if (error != null)
-          _ActivityStatusCard(
-            icon: Icons.error_outline_rounded,
-            message: 'Could not load recent activity: $error',
-            actionLabel: 'Try again',
-            onAction: onRetry,
-          )
-        else if (entries.isEmpty)
-          const _ActivityStatusCard(
-            icon: Icons.history_rounded,
-            message: 'No recent activity yet.',
-          )
-        else
-          for (final entry in entries) ...[
-            _ActivityEntryCard(entry: entry),
-            const SizedBox(height: 12),
-          ],
-      ],
-    );
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: []);
   }
 }
 

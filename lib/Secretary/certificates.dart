@@ -205,7 +205,9 @@ class _CertificatesPageState extends State<CertificatesPage>
               final fileUrl = cert['file_url'];
               return DataRow(
                 cells: [
-                  DataCell(Text((cert['deceased_name'] ?? 'Unknown').toString())),
+                  DataCell(
+                    Text((cert['deceased_name'] ?? 'Unknown').toString()),
+                  ),
                   DataCell(Text(_formatDate(cert['date_of_death']))),
                   DataCell(Text(_formatDate(cert['submitted_at']))),
                   DataCell(
@@ -213,13 +215,13 @@ class _CertificatesPageState extends State<CertificatesPage>
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         OutlinedButton.icon(
-                          onPressed: fileUrl != null &&
-                                  fileUrl.toString().isNotEmpty
+                          onPressed:
+                              fileUrl != null && fileUrl.toString().isNotEmpty
                               ? () async {
                                   final resolved =
                                       await resolveSupabaseStorageUrl(
-                                    fileUrl.toString(),
-                                  );
+                                        fileUrl.toString(),
+                                      );
                                   if (resolved != null &&
                                       await canLaunchUrl(Uri.parse(resolved))) {
                                     await launchUrl(

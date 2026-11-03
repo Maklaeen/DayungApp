@@ -10,7 +10,6 @@ import 'package:capstone_app/pages/recentdeathnotices.dart';
 import 'package:capstone_app/Auth/login.dart';
 import 'package:capstone_app/profile/dayung_profile.dart';
 import 'package:capstone_app/screens/selectdayung.dart';
-import 'package:capstone_app/settings/profsettings.dart';
 import 'package:capstone_app/utils/theme_surface.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -1398,7 +1397,7 @@ class _MemberDashboardPageState extends State<MemberDashboardPage>
           ),
           const SizedBox(height: 16),
           const Text(
-            'You have not applied to any Dayung yet. Go to Dayung Settings to choose a unit and start your application. Also don\'t forget to upload your documents in Certificates so the coordinator can review them.',
+            'You have not applied to any Dayung yet.',
             style: TextStyle(
               fontSize: 30,
               height: 1.5,
@@ -1407,64 +1406,13 @@ class _MemberDashboardPageState extends State<MemberDashboardPage>
             ),
           ),
           const SizedBox(height: 18),
-          Row(
-            children: [
-              Expanded(
-                child: ElevatedButton(
-                  onPressed: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => const DayungSettingsPage(),
-                      ),
-                    );
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF2563EB),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(14),
-                    ),
-                    padding: const EdgeInsets.symmetric(vertical: 14),
-                  ),
-                  child: const Text(
-                    'Open Dayung Settings',
-                    style: TextStyle(
-                      fontSize: 15,
-                      fontWeight: FontWeight.w700,
-                      color: Colors.white,
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: OutlinedButton(
-                  onPressed: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => const ProfSettingsPage(),
-                      ),
-                    );
-                  },
-                  style: OutlinedButton.styleFrom(
-                    side: BorderSide(color: const Color(0xFF2563EB)),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(14),
-                    ),
-                    padding: const EdgeInsets.symmetric(vertical: 14),
-                  ),
-                  child: const Text(
-                    'Open Certificates',
-                    style: TextStyle(
-                      fontSize: 15,
-                      fontWeight: FontWeight.w700,
-                      color: Color(0xFF2563EB),
-                    ),
-                  ),
-                ),
-              ),
-            ],
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              onPressed: () => openDayungRecommendations(context),
+              icon: const Icon(Icons.quiz_outlined),
+              label: const Text('Dayung Recommendations'),
+            ),
           ),
         ],
       ),

@@ -895,41 +895,45 @@ class _PresidentClaimsPageState extends State<PresidentClaimsPage> {
                         DataColumn(label: Text('Details')),
                       ],
                       rows: _filteredClaims.map((claim) {
-                      final status = (claim['status'] ?? '').toString();
-                      final claimId = '${claim['id'] ?? ''}';
-                      final active = _activeClaimId == claimId;
-                      return DataRow(
-                        onSelectChanged: (_) => _showClaimDetails(claim),
-                        cells: [
-                          DataCell(Text(_claimType(claim))),
-                          DataCell(Text(_deceasedName(claim))),
-                          DataCell(Text(_submittedBy(claim))),
-                          DataCell(Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(
-                                _statusIcon(status),
-                                size: 18,
-                                color: _statusColor(status),
+                        final status = (claim['status'] ?? '').toString();
+                        final claimId = '${claim['id'] ?? ''}';
+                        final active = _activeClaimId == claimId;
+                        return DataRow(
+                          onSelectChanged: (_) => _showClaimDetails(claim),
+                          cells: [
+                            DataCell(Text(_claimType(claim))),
+                            DataCell(Text(_deceasedName(claim))),
+                            DataCell(Text(_submittedBy(claim))),
+                            DataCell(
+                              Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(
+                                    _statusIcon(status),
+                                    size: 18,
+                                    color: _statusColor(status),
+                                  ),
+                                  const SizedBox(width: 6),
+                                  Text(status),
+                                ],
                               ),
-                              const SizedBox(width: 6),
-                              Text(status),
-                            ],
-                          )),
-                          DataCell(Text(_formatDate(claim['date_submitted']))),
-                          DataCell(
-                            _updating && active
-                                ? const SizedBox(
-                                    height: 18,
-                                    width: 18,
-                                    child: CircularProgressIndicator(
-                                      strokeWidth: 2,
-                                    ),
-                                  )
-                                : const Icon(Icons.chevron_right_rounded),
-                          ),
-                        ],
-                      );
+                            ),
+                            DataCell(
+                              Text(_formatDate(claim['date_submitted'])),
+                            ),
+                            DataCell(
+                              _updating && active
+                                  ? const SizedBox(
+                                      height: 18,
+                                      width: 18,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                      ),
+                                    )
+                                  : const Icon(Icons.chevron_right_rounded),
+                            ),
+                          ],
+                        );
                       }).toList(),
                     ),
                 ],
